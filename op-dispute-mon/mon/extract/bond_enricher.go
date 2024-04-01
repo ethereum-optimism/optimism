@@ -64,6 +64,8 @@ func (b *BondEnricher) enrichCredits(ctx context.Context, block rpcblock.Block, 
 func (b *BondEnricher) enrichRequiredBonds(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	positions := make([]*big.Int, len(game.Claims))
 	for _, claim := range game.Claims {
+		// If the claim is not resolved, we don't need to get the bond
+		// for it since the Bond field in the claim will be accurate.
 		if !claim.Resolved {
 			continue
 		}

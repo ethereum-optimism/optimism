@@ -53,8 +53,8 @@ func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
 	// Iterate over claims and filter out resolved ones
 	recipients := make(map[common.Address]bool)
 	for _, claim := range game.Claims {
-		claimedBondFlag := big.NewInt(10)
-		if claim.Bond.Cmp(claimedBondFlag) != 0 {
+		// Skip resolved claims since these bonds will not appear in the credits.
+		if !claim.Resolved {
 			continue
 		}
 		// The recipient of a resolved claim is the claimant unless it's been countered.
@@ -77,6 +77,7 @@ func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
 				creditMetrics[metrics.CreditEqualMaxDuration] += 1
 			} else {
 				creditMetrics[metrics.CreditAboveMaxDuration] += 1
+				b.logger.Warn("credit above expected amount", "recipient", recipient, "expected", expected, "gameAddr", game.Proxy, "duration", "max_duration")
 			}
 		} else {
 			if comparison > 0 {
@@ -85,6 +86,7 @@ func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
 				creditMetrics[metrics.CreditEqualNonMaxDuration] += 1
 			} else {
 				creditMetrics[metrics.CreditAboveNonMaxDuration] += 1
+				b.logger.Warn("credit above expected amount", "recipient", recipient, "expected", expected, "gameAddr", game.Proxy, "duration", "non_max_duration")
 			}
 		}
 	}
