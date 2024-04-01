@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-ts",
-  "version": "0.17.0",
+  "version": "0.17.2",
   "description": "TypeScript interface for Contracts Bedrock",
   "license": "MIT",
   "repository": {
