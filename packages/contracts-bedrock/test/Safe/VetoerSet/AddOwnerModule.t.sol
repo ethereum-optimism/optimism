@@ -11,31 +11,30 @@ import "forge-std/Test.sol";
 contract TestAddOwnerModule is Test {
     address private _safe;
     address private _ownerGuard;
-    address private _opFoundation;
+    address private _admin;
     AddOwnerModule private _sut;
 
     function setUp() public {
         _safe = makeAddr("Safe");
         _ownerGuard = makeAddr("OwnerGuard");
-        _opFoundation = makeAddr("OPFoundation");
+        _admin = makeAddr("Admin");
         _sut = new AddOwnerModule({
             _safe: Safe(payable(_safe)),
             _ownerGuard: OwnerGuard(_ownerGuard),
-            _opFoundation: _opFoundation
+            _admin: _admin
         });
     }
 
-    /// @dev `addOwner` should revert with `SenderIsNotOpFoundation` when the sender is not the registered OP
-    ///       foundation address.
-    function testRevert_AddOwner_SenderIsNotOpFoundation(address newOwner, address sender) public {
+    /// @dev `addOwner` should revert with `SenderIsNotAdmin` when the sender is not the registered admin address.
+    function testRevert_AddOwner_SenderIsNotAdmin(address newOwner, address sender) public {
         // Ensure the inputs are reasonable values.
         {
-            vm.assume(sender != _opFoundation);
+            vm.assume(sender != _admin);
             vm.assume(newOwner != address(0x0));
             vm.assume(newOwner != address(0x1));
         }
 
-        vm.expectRevert(abi.encodeWithSelector(AddOwnerModule.SenderIsNotOpFoundation.selector, (sender)));
+        vm.expectRevert(abi.encodeWithSelector(AddOwnerModule.SenderIsNotAdmin.selector, (sender)));
         vm.prank(sender);
         _sut.addOwner(newOwner);
     }
@@ -76,7 +75,7 @@ contract TestAddOwnerModule is Test {
         }
 
         vm.expectRevert(invalidOwnerCountError);
-        vm.prank(_opFoundation);
+        vm.prank(_admin);
         _sut.addOwner(newOwner);
     }
 
@@ -126,7 +125,7 @@ contract TestAddOwnerModule is Test {
         }
 
         vm.expectCall(_safe, execTransactionFromModuleCall);
-        vm.prank(_opFoundation);
+        vm.prank(_admin);
         _sut.addOwner(newOwner);
     }
 }
