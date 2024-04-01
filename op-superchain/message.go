@@ -2,6 +2,7 @@ package superchain
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -61,16 +62,16 @@ func IsInboxExecutingMessageTx(tx *types.Transaction) bool {
 // Check the message id and payload against the fields of the log.
 func CheckMessageLog(id MessageIdentifier, payload hexutil.Bytes, log *types.Log) error {
 	if id.LogIndex != uint64(log.Index) {
-		return fmt.Errorf("log index mismatch")
+		return errors.New("log index mismatch")
 	}
 	if !bytes.Equal(payload, MessagePayloadBytes(log)) {
-		return fmt.Errorf("payload mismatch")
+		return errors.New("payload mismatch")
 	}
 	if id.Origin != log.Address {
-		return fmt.Errorf("origin mismatch")
+		return errors.New("origin mismatch")
 	}
 	if id.BlockNumber.Uint64() != log.BlockNumber {
-		return fmt.Errorf("block number mismatch")
+		return errors.New("block number mismatch")
 	}
 	return nil
 }
