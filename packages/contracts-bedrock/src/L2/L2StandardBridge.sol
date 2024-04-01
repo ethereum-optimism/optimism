@@ -52,8 +52,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.8.0
-    string public constant version = "1.8.0";
+    /// @custom:semver 1.9.0
+    string public constant version = "1.9.0";
 
     /// @notice Constructs the L2StandardBridge contract.
     constructor() StandardBridge() {
@@ -76,13 +76,9 @@ contract L2StandardBridge is StandardBridge, ISemver {
         );
     }
 
-    // Ok so getting legibility into the decimals is not ideal on L2
-    // either: remove support for other token types or? Don't want any
-    // consensus changes but also don't want to add config overhead hmm...
-    /// @notice Returns the address of the token used to pay for gas.
+    /// @notice Returns the address of the token used to pay for gas and its decimals.
     function gasPayingToken() public view override returns (address, uint8) {
-        return (address(0), 0);
-        //return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
 
     /// @custom:legacy

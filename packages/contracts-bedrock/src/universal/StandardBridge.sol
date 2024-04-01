@@ -131,13 +131,16 @@ abstract contract StandardBridge is Initializable {
     ///         Must be implemented by contracts that inherit.
     receive() external payable virtual;
 
-    /// @notice
+    /// @notice Getter for the ERC20 token address that is used to pay for gas
+    ///         and the decimals of the token. This method must be implemented by
+    ///         the contracts that inherit it.
     function gasPayingToken() public virtual returns (address, uint8);
 
-    /// @notice Getter for custom gas token paying networks.
+    /// @notice Getter for custom gas token paying networks. Returns true if the
+    ///         network uses a custom gas token.
     function isCustomGasToken() public returns (bool) {
         (address token, ) = gasPayingToken();
-        return token == Constants.ETHER;
+        return token != Constants.ETHER;
     }
 
     /// @notice Getter for messenger contract.
@@ -259,6 +262,7 @@ abstract contract StandardBridge is Initializable {
         onlyOtherBridge
     {
         require(paused() == false, "StandardBridge: paused");
+        require(isCustomGasToken() == false, "StandardBridge: cannot bridge ETH with custom gas token");
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(messenger), "StandardBridge: cannot send to messenger");
