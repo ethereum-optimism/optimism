@@ -41,7 +41,7 @@ contract AddOwnerModule is ISemver {
     }
 
     /// @notice Add a new owner address.
-    /// @dev Revert if not called by the whitelised `opFoundation` address.
+    /// @dev Revert if not called by the whitelisted `opFoundation` address.
     /// @param addr The owner address to add.
     function addOwner(address addr) external {
         // Ensure the caller is the OP Foundation multisig.
