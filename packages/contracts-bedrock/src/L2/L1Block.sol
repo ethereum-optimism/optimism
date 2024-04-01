@@ -50,8 +50,13 @@ contract L1Block is ISemver {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
+    // TODO: figure out storage slot issues here
+
     /// @notice The gas paying token for the L2 system, defaults to ether.
     address public gasPayingToken = Constants.ETHER;
+
+    /// @notice The decimals of the gas paying token, defaults to 18.
+    uint8 public gasPayingTokenDecimals = 18;
 
     /// @custom:semver 1.3.0
     string public constant version = "1.3.0";
@@ -119,5 +124,15 @@ contract L1Block is ISemver {
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
         }
+    }
+
+    /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
+    ///         depositor account. This function is not called on every L2 block but instead
+    ///         only called by specially crafted L1 deposit transactions.
+    function setGasPayingToken(address _token, uint8 _decimals) external {
+        require(msg.sender == DEPOSITOR_ACCOUNT, "L1Block: only the depositor account can set the gas paying token");
+
+        gasPayingToken = _token;
+        gasPayingTokenDecimals = _decimals;
     }
 }
