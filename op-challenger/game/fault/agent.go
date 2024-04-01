@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -22,7 +24,7 @@ type Responder interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve() error
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
-	ResolveClaim(claimIdx uint64) error
+	ResolveClaims(claimIdx ...uint64) error
 	PerformAction(ctx context.Context, action types.Action) error
 }
 
@@ -31,20 +33,26 @@ type ClaimLoader interface {
 }
 
 type Agent struct {
-	metrics   metrics.Metricer
-	solver    *solver.GameSolver
-	loader    ClaimLoader
-	responder Responder
-	selective bool
-	claimants []common.Address
-	maxDepth  types.Depth
-	log       log.Logger
+	metrics      metrics.Metricer
+	systemClock  clock.Clock
+	l1Clock      types.ClockReader
+	solver       *solver.GameSolver
+	loader       ClaimLoader
+	responder    Responder
+	selective    bool
+	claimants    []common.Address
+	maxDepth     types.Depth
+	gameDuration time.Duration
+	log          log.Logger
 }
 
 func NewAgent(
 	m metrics.Metricer,
+	systemClock clock.Clock,
+	l1Clock types.ClockReader,
 	loader ClaimLoader,
 	maxDepth types.Depth,
+	gameDuration time.Duration,
 	trace types.TraceAccessor,
 	responder Responder,
 	log log.Logger,
@@ -52,14 +60,17 @@ func NewAgent(
 	claimants []common.Address,
 ) *Agent {
 	return &Agent{
-		metrics:   m,
-		solver:    solver.NewGameSolver(maxDepth, trace),
-		loader:    loader,
-		responder: responder,
-		selective: selective,
-		claimants: claimants,
-		maxDepth:  maxDepth,
-		log:       log,
+		metrics:      m,
+		systemClock:  systemClock,
+		l1Clock:      l1Clock,
+		solver:       solver.NewGameSolver(maxDepth, trace),
+		loader:       loader,
+		responder:    responder,
+		selective:    selective,
+		claimants:    claimants,
+		maxDepth:     maxDepth,
+		gameDuration: gameDuration,
+		log:          log,
 	}
 }
 
@@ -69,6 +80,10 @@ func (a *Agent) Act(ctx context.Context) error {
 		return nil
 	}
 
+	start := a.systemClock.Now()
+	defer func() {
+		a.metrics.RecordGameActTime(a.systemClock.Since(start).Seconds())
+	}()
 	game, err := a.newGameFromContracts(ctx)
 	if err != nil {
 		return fmt.Errorf("create game from contracts: %w", err)
@@ -148,9 +163,13 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 	if len(claims) == 0 {
 		return errNoResolvableClaims
 	}
+	maxChessTime := a.gameDuration / 2
 
-	var resolvableClaims []int64
+	var resolvableClaims []uint64
 	for _, claim := range claims {
+		if claim.ChessTime(a.l1Clock.Now()) <= maxChessTime {
+			continue
+		}
 		if a.selective {
 			a.log.Trace("Selective claim resolution, checking if claim is incentivized", "claimIdx", claim.ContractIndex)
 			isUncounteredClaim := slices.Contains(a.claimants, claim.Claimant) && claim.CounteredBy == common.Address{}
@@ -163,7 +182,7 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 		a.log.Trace("Checking if claim is resolvable", "claimIdx", claim.ContractIndex)
 		if err := a.responder.CallResolveClaim(ctx, uint64(claim.ContractIndex)); err == nil {
 			a.log.Info("Resolving claim", "claimIdx", claim.ContractIndex)
-			resolvableClaims = append(resolvableClaims, int64(claim.ContractIndex))
+			resolvableClaims = append(resolvableClaims, uint64(claim.ContractIndex))
 		}
 	}
 	if len(resolvableClaims) == 0 {
@@ -171,23 +190,17 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 	}
 	a.log.Info("Resolving claims", "numClaims", len(resolvableClaims))
 
-	var wg sync.WaitGroup
-	wg.Add(len(resolvableClaims))
-	for _, claimIdx := range resolvableClaims {
-		claimIdx := claimIdx
-		go func() {
-			defer wg.Done()
-			err := a.responder.ResolveClaim(uint64(claimIdx))
-			if err != nil {
-				a.log.Error("Failed to resolve claim", "err", err)
-			}
-		}()
+	if err := a.responder.ResolveClaims(resolvableClaims...); err != nil {
+		a.log.Error("Failed to resolve claims", "err", err)
 	}
-	wg.Wait()
 	return nil
 }
 
 func (a *Agent) resolveClaims(ctx context.Context) error {
+	start := a.systemClock.Now()
+	defer func() {
+		a.metrics.RecordClaimResolutionTime(a.systemClock.Since(start).Seconds())
+	}()
 	for {
 		err := a.tryResolveClaims(ctx)
 		switch err {

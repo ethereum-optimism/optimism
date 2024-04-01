@@ -75,10 +75,10 @@ func TestBondContracts(t *testing.T) {
 
 type stubBondContract struct{}
 
-func (s *stubBondContract) GetCredit(ctx context.Context, receipient common.Address) (*big.Int, types.GameStatus, error) {
+func (s *stubBondContract) GetCredit(_ context.Context, _ common.Address) (*big.Int, types.GameStatus, error) {
 	panic("not supported")
 }
 
-func (s *stubBondContract) ClaimCredit(receipient common.Address) (txmgr.TxCandidate, error) {
+func (s *stubBondContract) ClaimCreditTx(_ context.Context, _ common.Address) (txmgr.TxCandidate, error) {
 	panic("not supported")
 }

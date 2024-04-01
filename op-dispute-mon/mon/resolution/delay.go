@@ -1,8 +1,9 @@
 package resolution
 
 import (
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
@@ -22,7 +23,7 @@ func NewDelayCalculator(metrics DelayMetrics, clock clock.Clock) *DelayCalculato
 	}
 }
 
-func (d *DelayCalculator) RecordClaimResolutionDelayMax(games []*monTypes.EnrichedGameData) {
+func (d *DelayCalculator) RecordClaimResolutionDelayMax(games []*types.EnrichedGameData) {
 	var maxDelay uint64 = 0
 	for _, game := range games {
 		maxDelay = max(d.getMaxResolutionDelay(game), maxDelay)
@@ -30,7 +31,7 @@ func (d *DelayCalculator) RecordClaimResolutionDelayMax(games []*monTypes.Enrich
 	d.metrics.RecordClaimResolutionDelayMax(float64(maxDelay))
 }
 
-func (d *DelayCalculator) getMaxResolutionDelay(game *monTypes.EnrichedGameData) uint64 {
+func (d *DelayCalculator) getMaxResolutionDelay(game *types.EnrichedGameData) uint64 {
 	var maxDelay uint64 = 0
 	for _, claim := range game.Claims {
 		maxDelay = max(d.getOverflowTime(game.Duration, &claim), maxDelay)
@@ -38,15 +39,14 @@ func (d *DelayCalculator) getMaxResolutionDelay(game *monTypes.EnrichedGameData)
 	return maxDelay
 }
 
-func (d *DelayCalculator) getOverflowTime(maxGameDuration uint64, claim *types.Claim) uint64 {
-	// If the bond amount is the max uint128 value, the claim is resolved.
-	if monTypes.ResolvedBondAmount.Cmp(claim.ClaimData.Bond) == 0 {
+func (d *DelayCalculator) getOverflowTime(maxGameDuration uint64, claim *types.EnrichedClaim) uint64 {
+	if claim.Resolved {
 		return 0
 	}
-	maxChessTime := maxGameDuration / 2
-	accumulatedTime := uint64(claim.ChessTime(d.clock.Now()))
+	maxChessTime := time.Duration(maxGameDuration/2) * time.Second
+	accumulatedTime := claim.ChessTime(d.clock.Now())
 	if accumulatedTime < maxChessTime {
 		return 0
 	}
-	return accumulatedTime - maxChessTime
+	return uint64((accumulatedTime - maxChessTime).Seconds())
 }

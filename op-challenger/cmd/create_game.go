@@ -81,5 +81,4 @@ var CreateGameCommand = &cli.Command{
 	Description: "Creates a dispute game via the factory",
 	Action:      CreateGame,
 	Flags:       createGameFlags(),
-	Hidden:      true,
 }

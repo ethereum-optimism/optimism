@@ -23,8 +23,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     using ClonesWithImmutableArgs for address;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.2.0
-    string public constant version = "0.2.0";
+    /// @custom:semver 0.3.0
+    string public constant version = "0.3.0";
 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;
@@ -97,7 +97,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         if (address(impl) == address(0)) revert NoImplementation(_gameType);
 
         // If the required initialization bond is not met, revert.
-        if (msg.value < initBonds[_gameType]) revert InsufficientBond();
+        if (msg.value != initBonds[_gameType]) revert IncorrectBondAmount();
 
         // Get the hash of the parent block.
         bytes32 parentHash = blockhash(block.number - 1);

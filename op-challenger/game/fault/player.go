@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -12,7 +13,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -33,6 +36,11 @@ type L1HeaderSource interface {
 	HeaderByHash(context.Context, common.Hash) (*gethTypes.Header, error)
 }
 
+type TxSender interface {
+	From() common.Address
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
+}
+
 type GamePlayer struct {
 	act                actor
 	loader             GameInfo
@@ -51,6 +59,7 @@ type GameContract interface {
 	ClaimLoader
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
+	GetGameDuration(ctx context.Context) (time.Duration, error)
 	GetOracle(ctx context.Context) (*contracts.PreimageOracleContract, error)
 	GetL1Head(ctx context.Context) (common.Hash, error)
 }
@@ -59,12 +68,13 @@ type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth type
 
 func NewGamePlayer(
 	ctx context.Context,
-	cl types.ClockReader,
+	systemClock clock.Clock,
+	l1Clock types.ClockReader,
 	logger log.Logger,
 	m metrics.Metricer,
 	dir string,
 	addr common.Address,
-	txSender gameTypes.TxSender,
+	txSender TxSender,
 	loader GameContract,
 	syncValidator SyncValidator,
 	validators []Validator,
@@ -92,6 +102,11 @@ func NewGamePlayer(
 				return nil
 			},
 		}, nil
+	}
+
+	gameDuration, err := loader.GetGameDuration(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch the game duration: %w", err)
 	}
 
 	gameDepth, err := loader.GetMaxGameDepth(ctx)
@@ -124,14 +139,14 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to load min large preimage size: %w", err)
 	}
 	direct := preimages.NewDirectPreimageUploader(logger, txSender, loader)
-	large := preimages.NewLargePreimageUploader(logger, cl, txSender, oracle)
+	large := preimages.NewLargePreimageUploader(logger, l1Clock, txSender, oracle)
 	uploader := preimages.NewSplitPreimageUploader(direct, large, minLargePreimageSize)
 	responder, err := responder.NewFaultResponder(logger, txSender, loader, uploader, oracle)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	agent := NewAgent(m, loader, gameDepth, accessor, responder, logger, selective, claimants)
+	agent := NewAgent(m, systemClock, l1Clock, loader, gameDepth, gameDuration, accessor, responder, logger, selective, claimants)
 	return &GamePlayer{
 		act:                agent.Act,
 		loader:             loader,

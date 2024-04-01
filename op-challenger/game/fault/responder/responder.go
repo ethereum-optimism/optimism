@@ -30,17 +30,21 @@ type Oracle interface {
 	GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error)
 }
 
+type TxSender interface {
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
+}
+
 // FaultResponder implements the [Responder] interface to send onchain transactions.
 type FaultResponder struct {
 	log      log.Logger
-	sender   gameTypes.TxSender
+	sender   TxSender
 	contract GameContract
 	uploader preimages.PreimageUploader
 	oracle   Oracle
 }
 
 // NewFaultResponder returns a new [FaultResponder].
-func NewFaultResponder(logger log.Logger, sender gameTypes.TxSender, contract GameContract, uploader preimages.PreimageUploader, oracle Oracle) (*FaultResponder, error) {
+func NewFaultResponder(logger log.Logger, sender TxSender, contract GameContract, uploader preimages.PreimageUploader, oracle Oracle) (*FaultResponder, error) {
 	return &FaultResponder{
 		log:      logger,
 		sender:   sender,
@@ -63,7 +67,7 @@ func (r *FaultResponder) Resolve() error {
 		return err
 	}
 
-	return r.sendTxAndWait("resolve game", candidate)
+	return r.sender.SendAndWaitSimple("resolve game", candidate)
 }
 
 // CallResolveClaim determines if the resolveClaim function on the fault dispute game contract
@@ -72,13 +76,17 @@ func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx uint64) 
 	return r.contract.CallResolveClaim(ctx, claimIdx)
 }
 
-// ResolveClaim executes a resolveClaim transaction to resolve a fault dispute game.
-func (r *FaultResponder) ResolveClaim(claimIdx uint64) error {
-	candidate, err := r.contract.ResolveClaimTx(claimIdx)
-	if err != nil {
-		return err
+// ResolveClaims executes resolveClaim transactions to resolve claims in a dispute game.
+func (r *FaultResponder) ResolveClaims(claimIdxs ...uint64) error {
+	txs := make([]txmgr.TxCandidate, 0, len(claimIdxs))
+	for _, claimIdx := range claimIdxs {
+		candidate, err := r.contract.ResolveClaimTx(claimIdx)
+		if err != nil {
+			return err
+		}
+		txs = append(txs, candidate)
 	}
-	return r.sendTxAndWait("resolve claim", candidate)
+	return r.sender.SendAndWaitSimple("resolve claim", txs...)
 }
 
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
@@ -126,12 +134,5 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 	if err != nil {
 		return err
 	}
-	return r.sendTxAndWait("perform action", candidate)
-}
-
-// sendTxAndWait sends a transaction through the [txmgr] and waits for a receipt.
-// This sets the tx GasLimit to 0, performing gas estimation online through the [txmgr].
-func (r *FaultResponder) sendTxAndWait(purpose string, candidate txmgr.TxCandidate) error {
-	_, err := r.sender.SendAndWait(purpose, candidate)
-	return err
+	return r.sender.SendAndWaitSimple("perform action", candidate)
 }

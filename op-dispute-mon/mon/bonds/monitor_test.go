@@ -63,7 +63,7 @@ type stubBondMetrics struct {
 }
 
 func (s *stubBondMetrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
-	s.recorded[addr] = transform.Collateral{
+	s.recorded[addr] = Collateral{
 		Required: required,
 		Actual:   available,
 	}

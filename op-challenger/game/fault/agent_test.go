@@ -6,8 +6,10 @@ import (
 	"math/big"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 
@@ -129,6 +131,22 @@ func TestAgent_SelectiveClaimResolution(t *testing.T) {
 	}
 }
 
+func TestSkipAttemptingToResolveClaimsWhenClockNotExpired(t *testing.T) {
+	agent, claimLoader, responder := setupTestAgent(t)
+	responder.callResolveErr = errors.New("game is not resolvable")
+	responder.callResolveClaimErr = errors.New("claim is not resolvable")
+	depth := types.Depth(4)
+	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider(big.NewInt(0), depth))
+
+	claimLoader.claims = []types.Claim{
+		claimBuilder.CreateRootClaim(test.WithExpiredClock(agent.gameDuration)),
+	}
+
+	require.NoError(t, agent.Act(context.Background()))
+
+	require.Zero(t, responder.callResolveClaimCount)
+}
+
 func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	// Checks that if the game isn't resolvable, that the agent continues on to start checking claims
 	agent, claimLoader, responder := setupTestAgent(t)
@@ -152,9 +170,12 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := types.Depth(4)
+	gameDuration := 6 * time.Minute
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
-	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{})
+	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
+	l1Clock := clock.NewDeterministicClock(time.UnixMilli(100))
+	agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, gameDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{})
 	return agent, claimLoader, responder
 }
 
@@ -186,7 +207,7 @@ type stubResponder struct {
 	resolveClaimCount     int
 }
 
-func (s *stubResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {
+func (s *stubResponder) CallResolve(_ context.Context) (gameTypes.GameStatus, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 	s.callResolveCount++
@@ -200,20 +221,20 @@ func (s *stubResponder) Resolve() error {
 	return s.resolveErr
 }
 
-func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx uint64) error {
+func (s *stubResponder) CallResolveClaim(_ context.Context, _ uint64) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 	s.callResolveClaimCount++
 	return s.callResolveClaimErr
 }
 
-func (s *stubResponder) ResolveClaim(clainIdx uint64) error {
+func (s *stubResponder) ResolveClaims(claims ...uint64) error {
 	s.l.Lock()
 	defer s.l.Unlock()
-	s.resolveClaimCount++
+	s.resolveClaimCount += len(claims)
 	return nil
 }
 
-func (s *stubResponder) PerformAction(ctx context.Context, response types.Action) error {
+func (s *stubResponder) PerformAction(_ context.Context, _ types.Action) error {
 	return nil
 }

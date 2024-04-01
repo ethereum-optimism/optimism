@@ -3,10 +3,13 @@ package metrics
 import (
 	"math/big"
 
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type NoopMetricsImpl struct{}
+type NoopMetricsImpl struct {
+	contractMetrics.NoopMetrics
+}
 
 var NoopMetrics Metricer = new(NoopMetricsImpl)
 
@@ -17,6 +20,10 @@ func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
 
 func (*NoopMetricsImpl) RecordCredit(_ CreditExpectation, _ int) {}
+
+func (*NoopMetricsImpl) RecordWithdrawalRequests(_ common.Address, _ bool, _ int) {}
+
+func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(delay float64)              {}
 
 func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(_ float64) {}
 

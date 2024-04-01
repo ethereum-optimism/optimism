@@ -3,13 +3,17 @@ package types
 import (
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// ResolvedBondAmount is the uint128 value where a bond is considered claimed.
-var ResolvedBondAmount = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+// EnrichedClaim extends the faultTypes.Claim with additional context.
+type EnrichedClaim struct {
+	faultTypes.Claim
+	Resolved bool
+}
 
 type EnrichedGameData struct {
 	types.GameMetadata
@@ -19,7 +23,10 @@ type EnrichedGameData struct {
 	RootClaim     common.Hash
 	Status        types.GameStatus
 	Duration      uint64
-	Claims        []faultTypes.Claim
+	Claims        []EnrichedClaim
+
+	// Recipients maps addresses to true if they are a bond recipient in the game.
+	Recipients map[common.Address]bool
 
 	// Credits records the paid out bonds for the game, keyed by recipient.
 	Credits map[common.Address]*big.Int
@@ -28,6 +35,9 @@ type EnrichedGameData struct {
 	// Required bonds are not needed for unresolved claims since
 	// the `Bond` field in the claim is the required bond amount.
 	RequiredBonds map[int]*big.Int
+
+	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
+	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest
 
 	// WETHContract is the address of the DelayedWETH contract used by this game
 	// The contract is potentially shared by multiple games.

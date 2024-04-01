@@ -11,7 +11,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.7.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240306093353-c557df8e6f41
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240318114348-52d3dbd1605d
 	github.com/ethereum/go-ethereum v1.13.8
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-chi/chi/v5 v5.0.12
@@ -27,7 +27,7 @@ require (
 	github.com/holiman/uint256 v1.2.4
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
-	github.com/jackc/pgtype v1.14.2
+	github.com/jackc/pgtype v1.14.3
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/libp2p/go-libp2p v0.32.0
 	github.com/libp2p/go-libp2p-mplex v0.9.0
@@ -35,7 +35,7 @@ require (
 	github.com/libp2p/go-libp2p-testing v0.12.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/multiformats/go-base32 v0.1.0
-	github.com/multiformats/go-multiaddr v0.12.2
+	github.com/multiformats/go-multiaddr v0.12.3
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/gomega v1.31.1
@@ -50,7 +50,7 @@ require (
 	golang.org/x/term v0.18.0
 	golang.org/x/time v0.5.0
 	gorm.io/driver/postgres v1.5.7
-	gorm.io/gorm v1.25.8
+	gorm.io/gorm v1.25.9
 )
 
 require (
@@ -217,7 +217,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.13.8 => github.com/ethereum-optimism/op-geth v1.101308.3-rc.1
+replace github.com/ethereum/go-ethereum v1.13.8 => github.com/ethereum-optimism/op-geth v1.101308.4-rc.1
 
 // replace github.com/ethereum-optimism/superchain-registry/superchain => ../superchain-registry/superchain
 

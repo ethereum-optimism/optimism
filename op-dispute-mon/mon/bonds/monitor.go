@@ -37,7 +37,7 @@ func NewBonds(logger log.Logger, metrics BondMetrics, clock RClock) *Bonds {
 }
 
 func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
-	data := transform.CalculateRequiredCollateral(games)
+	data := CalculateRequiredCollateral(games)
 	for addr, collateral := range data {
 		b.metrics.RecordBondCollateral(addr, collateral.Required, collateral.Actual)
 	}

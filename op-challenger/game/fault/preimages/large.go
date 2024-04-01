@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -41,11 +40,11 @@ type LargePreimageUploader struct {
 	log log.Logger
 
 	clock    types.ClockReader
-	txSender gameTypes.TxSender
+	txSender TxSender
 	contract PreimageOracleContract
 }
 
-func NewLargePreimageUploader(logger log.Logger, cl types.ClockReader, txSender gameTypes.TxSender, contract PreimageOracleContract) *LargePreimageUploader {
+func NewLargePreimageUploader(logger log.Logger, cl types.ClockReader, txSender TxSender, contract PreimageOracleContract) *LargePreimageUploader {
 	return &LargePreimageUploader{logger, cl, txSender, contract}
 }
 
@@ -151,7 +150,7 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 	}
-	if _, err := p.txSender.SendAndWait("squeeze large preimage", tx); err != nil {
+	if err := p.txSender.SendAndWaitSimple("squeeze large preimage", tx); err != nil {
 		return fmt.Errorf("failed to populate pre-image oracle: %w", err)
 	}
 	return nil
@@ -170,7 +169,7 @@ func (p *LargePreimageUploader) initLargePreimage(uuid *big.Int, partOffset uint
 		return fmt.Errorf("failed to get min bond for large preimage proposal: %w", err)
 	}
 	candidate.Value = bond
-	if _, err := p.txSender.SendAndWait("init large preimage", candidate); err != nil {
+	if err := p.txSender.SendAndWaitSimple("init large preimage", candidate); err != nil {
 		return fmt.Errorf("failed to populate pre-image oracle: %w", err)
 	}
 	return nil
@@ -191,6 +190,5 @@ func (p *LargePreimageUploader) addLargePreimageData(uuid *big.Int, chunks []kec
 		txs[i] = tx
 	}
 	p.log.Info("Adding large preimage leaves", "uuid", uuid, "blocksProcessed", blocksProcessed, "txs", len(txs))
-	_, err := p.txSender.SendAndWait("add leaf to large preimage", txs...)
-	return err
+	return p.txSender.SendAndWaitSimple("add leaf to large preimage", txs...)
 }
