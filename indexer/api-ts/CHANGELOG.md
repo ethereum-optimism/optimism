@@ -1,5 +1,11 @@
 # @eth-optimism/indexer-api
 
+## 0.0.5
+
+### Patch Changes
+
+- [#9964](https://github.com/ethereum-optimism/optimism/pull/9964) [`8241220898128e1f61064f22dcb6fdd0a5f043c3`](https://github.com/ethereum-optimism/optimism/commit/8241220898128e1f61064f22dcb6fdd0a5f043c3) Thanks [@roninjin10](https://github.com/roninjin10)! - Removed only-allow command from package.json
+
 ## 0.0.4
 
 ### Patch Changes
