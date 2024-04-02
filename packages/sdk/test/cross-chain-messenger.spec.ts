@@ -33,7 +33,7 @@ describe('CrossChainMessenger', () => {
         const from = tx.from ?? ethers.constants.AddressZero
         const value = tx.value ?? ethers.constants.Zero
         const balance = await this.getBalance(from)
-        if (balance <= value) {
+        if (balance < value) {
           throw Error(
             `gas estimation failed: insufficient balance from=${from} value=${value} balance=${balance}`
           )
@@ -1120,7 +1120,7 @@ describe('CrossChainMessenger', () => {
         const message = {
           direction: MessageDirection.L1_TO_L2,
           target: '0x' + '11'.repeat(20),
-          sender: '0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec', // account 13
+          sender: '0x' + '22'.repeat(20),
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
           logIndex: 0,
@@ -1149,7 +1149,7 @@ describe('CrossChainMessenger', () => {
         const message = {
           direction: MessageDirection.L1_TO_L2,
           target: '0x' + '11'.repeat(20),
-          sender: '0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec', // account 13
+          sender: '0x' + '22'.repeat(20),
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
           logIndex: 0,
