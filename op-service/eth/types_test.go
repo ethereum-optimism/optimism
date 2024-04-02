@@ -51,6 +51,14 @@ func TestEcotoneScalars(t *testing.T) {
 			} else {
 				require.Equal(t, tc.blobBaseFeeScalar, blobScalar)
 				require.Equal(t, tc.baseFeeScalar, regScalar)
+
+				encoded := EncodeScalar(tc.blobBaseFeeScalar, tc.baseFeeScalar)
+				require.Equal(t, tc.val, encoded)
+
+				blob, base, err := DecodeScalar(encoded)
+				require.NoError(t, err)
+				require.Equal(t, tc.blobBaseFeeScalar, blob)
+				require.Equal(t, tc.baseFeeScalar, base)
 			}
 		})
 	}
