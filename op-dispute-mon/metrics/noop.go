@@ -19,6 +19,8 @@ func (*NoopMetricsImpl) RecordUp()           {}
 func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
 
+func (*NoopMetricsImpl) RecordGameResolutionStatus(_ bool, _ bool, _ int) {}
+
 func (*NoopMetricsImpl) RecordCredit(_ CreditExpectation, _ int) {}
 
 func (*NoopMetricsImpl) RecordClaims(_ ClaimStatus, _ int) {}
