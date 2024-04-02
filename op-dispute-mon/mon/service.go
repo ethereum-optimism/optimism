@@ -146,7 +146,7 @@ func (s *Service) initForecast(cfg *config.Config) {
 }
 
 func (s *Service) initBonds() {
-	s.bonds = bonds.NewBonds(s.logger, s.metrics)
+	s.bonds = bonds.NewBonds(s.logger, s.metrics, s.cl)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {

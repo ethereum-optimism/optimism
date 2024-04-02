@@ -177,22 +177,33 @@ func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (Game
 }
 
 type mockGameCaller struct {
-	metadataCalls    int
-	metadataErr      error
-	claimsCalls      int
-	claimsErr        error
-	rootClaim        common.Hash
-	claims           []faultTypes.Claim
-	requestedCredits []common.Address
-	creditsErr       error
-	credits          map[common.Address]*big.Int
-	extraCredit      []*big.Int
-	balanceErr       error
-	balance          *big.Int
-	balanceAddr      common.Address
-	withdrawalsCalls int
-	withdrawalsErr   error
-	withdrawals      []*contracts.WithdrawalRequest
+	metadataCalls     int
+	metadataErr       error
+	claimsCalls       int
+	claimsErr         error
+	rootClaim         common.Hash
+	claims            []faultTypes.Claim
+	requestedCredits  []common.Address
+	creditsErr        error
+	credits           map[common.Address]*big.Int
+	extraCredit       []*big.Int
+	balanceErr        error
+	balance           *big.Int
+	balanceAddr       common.Address
+	requiredBondCalls int
+	requiredBondErr   error
+	requiredBonds     []*big.Int
+	withdrawalsCalls  int
+	withdrawalsErr    error
+	withdrawals       []*contracts.WithdrawalRequest
+}
+
+func (m *mockGameCaller) GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error) {
+	m.requiredBondCalls++
+	if m.requiredBondErr != nil {
+		return nil, m.requiredBondErr
+	}
+	return m.requiredBonds, nil
 }
 
 func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
