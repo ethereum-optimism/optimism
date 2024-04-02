@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
+	"github.com/bobanetwork/boba/boba-bindings/bindings"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"

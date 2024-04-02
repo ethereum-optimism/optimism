@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
+	"github.com/bobanetwork/boba/boba-bindings/solc"
 )
 
 var remapTypeRe = regexp.MustCompile(`^(t_[\w_]+\([\w]+\))([\d]+)(_[\w]+)?$`)

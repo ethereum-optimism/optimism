@@ -14,10 +14,10 @@ import (
 	"github.com/ledgerwatch/erigon/accounts/abi/bind"
 	"github.com/ledgerwatch/erigon/crypto"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/clients"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
+	"github.com/bobanetwork/boba/boba-bindings/bindings"
+	"github.com/bobanetwork/boba/boba-bindings/predeploys"
+	"github.com/bobanetwork/boba/boba-chain-ops/clients"
+	"github.com/bobanetwork/boba/boba-chain-ops/genesis"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/log/v3"
 )

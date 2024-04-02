@@ -135,7 +135,7 @@ Before the migration, we need these following files
 
 #### Copy Deployment Files
 
-To reduce upgrade time, we can deploy the L1 contracts first, without updating the implementation contracts or setting the L2 start time. We will copy and paste the deployment files from the `boba repo` to the `v3-anchorage` repo. For example, we will copy and paste the [deployment files](https://github.com/bobanetwork/boba/tree/develop/packages/contracts/deployments/mainnet) of three contracts `Lib_AddressManager`, `Proxy__L1CrossDomainMessenger` and `Proxy__L1StandardBridge` to [contracts-bedrock](https://github.com/bobanetwork/v3-anchorage/tree/develop/packages/contracts-bedrock/deployments) in the `v3-anchorage` repo.
+To reduce upgrade time, we can deploy the L1 contracts first, without updating the implementation contracts or setting the L2 start time. We will copy and paste the deployment files from the `boba_legacy repo` to the `boba` repo. For example, we will copy and paste the [deployment files](https://github.com/bobanetwork/boba_legacy/tree/develop/packages/contracts/deployments/mainnet) of three contracts `Lib_AddressManager`, `Proxy__L1CrossDomainMessenger` and `Proxy__L1StandardBridge` to [contracts-bedrock](https://github.com/bobanetwork/boba/tree/develop/packages/contracts-bedrock/deployments) in the `boba` repo.
 
 The names of the deployment files for `Proxy__L1StandardBridge` and `Proxy__L1CrossDomainMessenger` must be changed to `Proxy__OVM_L1CrossDomainMessenger.json` and `Proxy__OVM_L1StandardBridge.json`. Therefore, the deployment process can skip these two contracts.
 
@@ -143,9 +143,9 @@ The names of the deployment files for `Proxy__L1StandardBridge` and `Proxy__L1Cr
 
 #### Add Network Configuration
 
-The new network settings should be added to [hardhat.config.ts](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/hardhat.config.ts) and the configuration file should be added to the [deploy-config](https://github.com/bobanetwork/v3-anchorage/tree/develop/packages/contracts-bedrock/deploy-config) folder.
+The new network settings should be added to [hardhat.config.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/hardhat.config.ts) and the configuration file should be added to the [deploy-config](https://github.com/bobanetwork/boba/tree/develop/packages/contracts-bedrock/deploy-config) folder.
 
-To avoid the upgrade, delete the [022-SystemDictatorSteps-1.ts](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy/022-SystemDictatorSteps-1.ts) and [022-SystemDictatorSteps-2.ts](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy/023-SystemDictatorSteps-2.ts) and run
+To avoid the upgrade, delete the [022-SystemDictatorSteps-1.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy/022-SystemDictatorSteps-1.ts) and [022-SystemDictatorSteps-2.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy/023-SystemDictatorSteps-2.ts) and run
 
 ```bash
 yarn deploy:hardhat --network boba-mainnet
@@ -155,7 +155,7 @@ In this process, we won't update the implementation contracts and initialize it.
 
 ### Erigon
 
-Before generating the database, we need to add the genesis block information to the [v3-erigon](https://github.com/bobanetwork/v3-erigon/blob/bedrock-migration/erigon-lib/chain/chain_config.go) so that the first block can match the legacy chain. For example,
+Before generating the database, we need to add the genesis block information to the [op-erigon](https://github.com/bobanetwork/op-erigon/blob/bedrock-migration/erigon-lib/chain/chain_config.go) so that the first block can match the legacy chain. For example,
 
 ```go
 BobaGoerliChainId = big.NewInt(2888)
@@ -217,7 +217,7 @@ Once we add the genesis block and the genesis file, we can create the db via
 ./build/bin/erigon init --datadir db genesis.json
 ```
 
-Now we can start the specific erigon built from the [boba-migration](https://github.com/bobanetwork/v3-erigon/tree/bedrock-migration) branch.
+Now we can start the specific erigon built from the [boba-migration](https://github.com/bobanetwork/op-erigon/tree/bedrock-migration) branch.
 
 ```bash
 ./build/bin/erigon --datadir db --private.api.addr=localhost:9090 --http.addr=0.0.0.0 --http.port=9545 --http.corsdomain="*" --http.vhosts="*" --authrpc.addr=0.0.0.0 --authrpc.port=8551 --authrpc.vhosts="*" --authrpc.jwtsecret=jwt --rollup.disabletxpoolgossip=true --chain=dev --networkid=911 --http.api=eth,debug,net,engine,erigon,web3 --torrent.port=42068 --rollup.historicalrpc=http://localhost:8547 --log.console.verbosity dbug
@@ -227,7 +227,7 @@ Now we can start the specific erigon built from the [boba-migration](https://git
 >
 >*The `--chain` and `--networkid=` should be fixed*
 
-Once we verify that the genesis block is the same as the legacy chain, we can start the [boba-regenerate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) in `boba-chain-ops` using `engine_api` to re-build the legacy block chain in erigon.
+Once we verify that the genesis block is the same as the legacy chain, we can start the [boba-regenerate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) in `boba-chain-ops` using `engine_api` to re-build the legacy block chain in erigon.
 
 ```bash
 go run ./cmd/boba-regenerate --l2-legacy-endpoint=http://localhost:8547 --jwt-secret-path=jwt
@@ -235,7 +235,7 @@ go run ./cmd/boba-regenerate --l2-legacy-endpoint=http://localhost:8547 --jwt-se
 
 ## Process
 
-Once we decide the hardfork block for the bedrock, we stop the legacy blockchain and dump the final state from it using the [geth-dump](https://github.com/bobanetwork/v3-anchorage/blob/develop/op-chain-ops/cmd/geth-dump/main.go) in `op-chain-ops`. This creates a final state file for our migration.
+Once we decide the hardfork block for the bedrock, we stop the legacy blockchain and dump the final state from it using the [geth-dump](https://github.com/bobanetwork/boba/blob/develop/op-chain-ops/cmd/geth-dump/main.go) in `op-chain-ops`. This creates a final state file for our migration.
 
 ```bash
 go run ./cmd/geth-dump --db-path=db --output-path=genesis.json
@@ -243,13 +243,13 @@ go run ./cmd/geth-dump --db-path=db --output-path=genesis.json
 
 > The **hardfork block number** is the **last block number of the legacy chain + 1**.
 
-We now can stop the [boba-regenerate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) and the specific erigon built from the [boba-regenerate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) branch once it reaches the hardfork block.
+We now can stop the [boba-regenerate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) and the specific erigon built from the [boba-regenerate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) branch once it reaches the hardfork block.
 
 ---
 
 **!! Important !!**
 
-**An L1 block and the hardfork block should be selected at this moment. The block hash and timestamp should be updated in the configuration file for the migration and L1 contract deployment.** For example, the values for  `l1StartingBlockTag` and `l2OutputOracleStartingTimestamp` should be set to the chosen block hash and timestamp respectively in [hardhat-local.json](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy-config/hardhat-local.json). The `l2OutputOracleStartingBlockNumber`  should be set to the **hardfork block number** in [hardhat-local.json](https://github.com/bobanetwork/v3-anchorage/blob/develop/packages/contracts-bedrock/deploy-config/hardhat-local.json). The `l1BobaTokenAddress`  should be updated to reflect the address where we deployed on L1.
+**An L1 block and the hardfork block should be selected at this moment. The block hash and timestamp should be updated in the configuration file for the migration and L1 contract deployment.** For example, the values for  `l1StartingBlockTag` and `l2OutputOracleStartingTimestamp` should be set to the chosen block hash and timestamp respectively in [hardhat-local.json](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy-config/hardhat-local.json). The `l2OutputOracleStartingBlockNumber`  should be set to the **hardfork block number** in [hardhat-local.json](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy-config/hardhat-local.json). The `l1BobaTokenAddress`  should be updated to reflect the address where we deployed on L1.
 
 ---
 
@@ -261,7 +261,7 @@ yarn deploy:hardhat --network boba-mainnet
 
 The command will finish the rest of configuration settings.
 
-The final step is to insert the transition block and create a `rollup.json` for `op-node`. The genesis block information is needed for [boba-migrate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops) during the verification process. We can add the following information to the [codebase](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/chain/chain.go).
+The final step is to insert the transition block and create a `rollup.json` for `op-node`. The genesis block information is needed for [boba-migrate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops) during the verification process. We can add the following information to the [codebase](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/chain/chain.go).
 
 ```go
 BobaGoerliChainId = big.NewInt(2888)
@@ -318,7 +318,7 @@ Then we create a genesis file for the migration. For example,
 
 >The `BEDROCK_BLOCK` must be the same as  `l2OutputOracleStartingBlockNumber`  which is **hardfork block number**
 
-Once we prepare everything, we can run the [boba-mirgate](https://github.com/bobanetwork/v3-anchorage/blob/develop/boba-chain-ops/cmd/boba-migrate/main.go) to insert the transition block.
+Once we prepare everything, we can run the [boba-mirgate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/cmd/boba-migrate/main.go) to insert the transition block.
 
 ```bash
 go run ./cmd/boba-migrate

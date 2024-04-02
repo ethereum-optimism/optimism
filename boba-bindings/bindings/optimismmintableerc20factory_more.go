@@ -6,7 +6,7 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
+	"github.com/bobanetwork/boba/boba-bindings/solc"
 )
 
 const OptimismMintableERC20FactoryStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory\",\"label\":\"_initialized\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_uint8\"},{\"astId\":1001,\"contract\":\"src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory\",\"label\":\"_initializing\",\"offset\":1,\"slot\":\"0\",\"type\":\"t_bool\"},{\"astId\":1002,\"contract\":\"src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory\",\"label\":\"spacer_0_2_30\",\"offset\":2,\"slot\":\"0\",\"type\":\"t_bytes30\"},{\"astId\":1003,\"contract\":\"src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory\",\"label\":\"bridge\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_address\"},{\"astId\":1004,\"contract\":\"src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory\",\"label\":\"__gap\",\"offset\":0,\"slot\":\"2\",\"type\":\"t_array(t_uint256)49_storage\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_array(t_uint256)49_storage\":{\"encoding\":\"inplace\",\"label\":\"uint256[49]\",\"numberOfBytes\":\"1568\",\"base\":\"t_uint256\"},\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_bytes30\":{\"encoding\":\"inplace\",\"label\":\"bytes30\",\"numberOfBytes\":\"30\"},\"t_uint256\":{\"encoding\":\"inplace\",\"label\":\"uint256\",\"numberOfBytes\":\"32\"},\"t_uint8\":{\"encoding\":\"inplace\",\"label\":\"uint8\",\"numberOfBytes\":\"1\"}}}"

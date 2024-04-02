@@ -11,8 +11,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/ast"
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/foundry"
+	"github.com/bobanetwork/boba/boba-bindings/ast"
+	"github.com/bobanetwork/boba/boba-bindings/foundry"
 )
 
 type BindGenGeneratorLocal struct {
@@ -240,7 +240,7 @@ package {{.Package}}
 import (
 	"encoding/json"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
+	"github.com/bobanetwork/boba/boba-bindings/solc"
 )
 
 const {{.Name}}StorageLayoutJSON = "{{.StorageLayout}}"

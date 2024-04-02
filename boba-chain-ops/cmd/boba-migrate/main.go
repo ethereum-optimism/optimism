@@ -23,9 +23,9 @@ import (
 	"github.com/ledgerwatch/erigon/node/nodecfg"
 	"github.com/ledgerwatch/erigon/rpc"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/hardhat"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
+	"github.com/bobanetwork/boba/boba-bindings/hardhat"
+	"github.com/bobanetwork/boba/boba-chain-ops/crossdomain"
+	"github.com/bobanetwork/boba/boba-chain-ops/genesis"
 )
 
 func main() {

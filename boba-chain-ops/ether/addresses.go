@@ -10,9 +10,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/node"
+	"github.com/bobanetwork/boba/boba-bindings/bindings"
+	"github.com/bobanetwork/boba/boba-bindings/predeploys"
+	"github.com/bobanetwork/boba/boba-chain-ops/node"
 	ethereum "github.com/ledgerwatch/erigon"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/core/types"

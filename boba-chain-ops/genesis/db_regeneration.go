@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/node"
+	"github.com/bobanetwork/boba/boba-chain-ops/node"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"

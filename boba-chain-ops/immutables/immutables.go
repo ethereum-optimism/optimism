@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
-	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/deployer"
+	"github.com/bobanetwork/boba/boba-bindings/bindings"
+	"github.com/bobanetwork/boba/boba-bindings/predeploys"
+	"github.com/bobanetwork/boba/boba-chain-ops/deployer"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"github.com/ledgerwatch/erigon/accounts/abi/bind"
