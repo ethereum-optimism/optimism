@@ -1,16 +1,10 @@
 package mon
 
 import (
-	"time"
-
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-type RClock interface {
-	Now() time.Time
-}
 
 type ResolutionMetrics interface {
 	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)

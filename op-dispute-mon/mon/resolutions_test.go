@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var frozen = time.Unix(int64(time.Hour.Seconds()), 0)
-
 func TestResolutionMonitor_CheckResolutions(t *testing.T) {
 	r, cl, m := newTestResolutionMonitor(t)
 	games := newTestGames(uint64(cl.Now().Unix()))
@@ -27,7 +25,7 @@ func TestResolutionMonitor_CheckResolutions(t *testing.T) {
 
 func newTestResolutionMonitor(t *testing.T) (*ResolutionMonitor, *clock.DeterministicClock, *stubResolutionMetrics) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	cl := clock.NewDeterministicClock(frozen)
+	cl := clock.NewDeterministicClock(time.Unix(int64(time.Hour.Seconds()), 0))
 	metrics := &stubResolutionMetrics{}
 	return NewResolutionMonitor(logger, metrics, cl), cl, metrics
 }

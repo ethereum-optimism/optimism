@@ -24,7 +24,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	t.Parallel()
 
 	t.Run("FailedFetchBlocknumber", func(t *testing.T) {
-		monitor, _, _, _, _, _, _ := setupMonitorTest(t)
+		monitor, _, _, _, _, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockNumber = func(ctx context.Context) (uint64, error) {
 			return 0, boom
@@ -34,7 +34,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 
 	t.Run("FailedFetchBlockHash", func(t *testing.T) {
-		monitor, _, _, _, _, _, _ := setupMonitorTest(t)
+		monitor, _, _, _, _, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockHash = func(ctx context.Context, number *big.Int) (common.Hash, error) {
 			return common.Hash{}, boom
@@ -74,7 +74,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	t.Run("MonitorsGames", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, factory, forecaster, _, _, _, _ := setupMonitorTest(t)
+		monitor, factory, forecaster, _, _, _, _, _ := setupMonitorTest(t)
 		factory.games = []*monTypes.EnrichedGameData{newEnrichedGameData(addr1, 9999), newEnrichedGameData(addr2, 9999)}
 		factory.maxSuccess = len(factory.games) // Only allow two successful fetches
 
@@ -87,7 +87,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	})
 
 	t.Run("FailsToFetchGames", func(t *testing.T) {
-		monitor, factory, forecaster, _, _, _, _ := setupMonitorTest(t)
+		monitor, factory, forecaster, _, _, _, _, _ := setupMonitorTest(t)
 		factory.fetchErr = errors.New("boom")
 
 		monitor.StartMonitoring()
@@ -151,7 +151,7 @@ type mockResolutionMonitor struct {
 }
 
 func (m *mockResolutionMonitor) CheckResolutions(games []*monTypes.EnrichedGameData) {
-  	m.calls++
+	m.calls++
 }
 
 type mockClaimMonitor struct {
