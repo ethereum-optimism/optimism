@@ -42,6 +42,7 @@ type Service struct {
 	forecast     *forecast
 	bonds        *bonds.Bonds
 	game         *extract.GameCallerCreator
+	claims       *ClaimMonitor
 	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
 	validator    *outputValidator
@@ -86,6 +87,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
 
+	s.initClaimMonitor()
 	s.initWithdrawalMonitor()
 
 	s.initOutputValidator()   // Must be called before initForecast
@@ -103,6 +105,10 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.metrics.RecordUp()
 
 	return nil
+}
+
+func (s *Service) initClaimMonitor() {
+	s.claims = NewClaimMonitor(s.logger, s.cl, s.metrics)
 }
 
 func (s *Service) initWithdrawalMonitor() {
@@ -223,6 +229,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.delays.RecordClaimResolutionDelayMax,
 		s.forecast.Forecast,
 		s.bonds.CheckBonds,
+		s.claims.CheckClaims,
 		s.withdrawals.CheckWithdrawals,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
