@@ -87,7 +87,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
 
-	s.initClaimMonitor()
+	s.initClaimMonitor(cfg)
 	s.initWithdrawalMonitor()
 
 	s.initOutputValidator()   // Must be called before initForecast
@@ -107,8 +107,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
-func (s *Service) initClaimMonitor() {
-	s.claims = NewClaimMonitor(s.logger, s.cl, s.metrics)
+func (s *Service) initClaimMonitor(cfg *config.Config) {
+	s.claims = NewClaimMonitor(s.logger, s.cl, cfg.HonestActors, s.metrics)
 }
 
 func (s *Service) initWithdrawalMonitor() {
