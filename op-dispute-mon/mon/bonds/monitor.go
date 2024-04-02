@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/exp/maps"
 )
 
 type RClock interface {
@@ -51,8 +50,8 @@ func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
 	maxDurationReached := duration >= game.Duration
 
 	// Iterate over claims and filter out resolved ones
-	recipients := make(map[common.Address]bool)
-	for _, claim := range game.Claims {
+	recipients := make(map[int]common.Address)
+	for i, claim := range game.Claims {
 		// Skip unresolved claims since these bonds will not appear in the credits.
 		if !claim.Resolved {
 			continue
@@ -62,12 +61,11 @@ func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
 		if claim.CounteredBy != (common.Address{}) {
 			recipient = claim.CounteredBy
 		}
-		recipients[recipient] = true
+		recipients[i] = recipient
 	}
 
-	recipientAddrs := maps.Keys(recipients)
 	creditMetrics := make(map[metrics.CreditExpectation]int)
-	for i, recipient := range recipientAddrs {
+	for i, recipient := range recipients {
 		expected := game.Credits[recipient]
 		comparison := expected.Cmp(game.RequiredBonds[i])
 		if maxDurationReached {
