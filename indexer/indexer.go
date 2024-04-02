@@ -191,10 +191,11 @@ func (ix *Indexer) initDB(ctx context.Context, cfg config.DBConfig) error {
 
 func (ix *Indexer) initL1ETL(chainConfig config.ChainConfig) error {
 	l1Cfg := etl.Config{
-		LoopIntervalMsec:  chainConfig.L1PollingInterval,
-		HeaderBufferSize:  chainConfig.L1HeaderBufferSize,
-		ConfirmationDepth: big.NewInt(int64(chainConfig.L1ConfirmationDepth)),
-		StartHeight:       big.NewInt(int64(chainConfig.L1StartingHeight)),
+		LoopIntervalMsec:               chainConfig.L1PollingInterval,
+		HeaderBufferSize:               chainConfig.L1HeaderBufferSize,
+		AllowedInactivityWindowSeconds: chainConfig.ETLAllowedInactivityWindowSeconds,
+		ConfirmationDepth:              big.NewInt(int64(chainConfig.L1ConfirmationDepth)),
+		StartHeight:                    big.NewInt(int64(chainConfig.L1StartingHeight)),
 	}
 	l1Etl, err := etl.NewL1ETL(l1Cfg, ix.log, ix.DB, etl.NewMetrics(ix.metricsRegistry, "l1"),
 		ix.l1Client, chainConfig.L1Contracts, ix.shutdown)
