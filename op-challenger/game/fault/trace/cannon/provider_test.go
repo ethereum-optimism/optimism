@@ -110,7 +110,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -136,7 +136,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -162,7 +162,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		initGenerator.proof = &proofData{
+		initGenerator.proof = &ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -180,7 +180,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &ProofData{
 			ClaimValue: common.Hash{0xaa},
 			StateData:  []byte{0xbb},
 			ProofData:  []byte{0xcc},
@@ -246,7 +246,7 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTr
 type stubGenerator struct {
 	generated  []int // Using int makes assertions easier
 	finalState *mipsevm.State
-	proof      *proofData
+	proof      *ProofData
 }
 
 func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {
