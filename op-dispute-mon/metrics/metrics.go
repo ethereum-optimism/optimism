@@ -35,9 +35,27 @@ const (
 	DisagreeChallengerWins
 )
 
+type ClaimStatus uint8
+
+const (
+	// Claims where the game is in the first half
+	FirstHalfExpiredResolved ClaimStatus = iota
+	FirstHalfExpiredUnresolved
+	FirstHalfNotExpiredResolved
+	FirstHalfNotExpiredUnresolved
+
+	// Claims where the game is in the second half
+	SecondHalfExpiredResolved
+	SecondHalfExpiredUnresolved
+	SecondHalfNotExpiredResolved
+	SecondHalfNotExpiredUnresolved
+)
+
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
+
+	RecordClaims(status ClaimStatus, count int)
 
 	RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int)
 
@@ -63,6 +81,8 @@ type Metrics struct {
 
 	*opmetrics.CacheMetrics
 	*contractMetrics.ContractMetrics
+
+	claims prometheus.GaugeVec
 
 	withdrawalRequests prometheus.GaugeVec
 
@@ -118,6 +138,15 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
+		}),
+		claims: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "claims",
+			Help:      "Claims broken down by whether they were resolved, whether the clock expired, and the game time period",
+		}, []string{
+			"resolved",
+			"clock",
+			"game_time_period",
 		}),
 		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -182,6 +211,32 @@ func (m *Metrics) RecordInfo(version string) {
 func (m *Metrics) RecordUp() {
 	prometheus.MustRegister()
 	m.up.Set(1)
+}
+
+func (m *Metrics) RecordClaims(status ClaimStatus, count int) {
+	asLabels := func(status ClaimStatus) []string {
+		switch status {
+		case FirstHalfExpiredResolved:
+			return []string{"resolved", "expired", "first_half"}
+		case FirstHalfExpiredUnresolved:
+			return []string{"unresolved", "expired", "first_half"}
+		case FirstHalfNotExpiredResolved:
+			return []string{"resolved", "not_expired", "first_half"}
+		case FirstHalfNotExpiredUnresolved:
+			return []string{"unresolved", "not_expired", "first_half"}
+		case SecondHalfExpiredResolved:
+			return []string{"resolved", "expired", "second_half"}
+		case SecondHalfExpiredUnresolved:
+			return []string{"unresolved", "expired", "second_half"}
+		case SecondHalfNotExpiredResolved:
+			return []string{"resolved", "not_expired", "second_half"}
+		case SecondHalfNotExpiredUnresolved:
+			return []string{"unresolved", "not_expired", "second_half"}
+		default:
+			panic(fmt.Errorf("unknown claim status: %v", status))
+		}
+	}
+	m.claims.WithLabelValues(asLabels(status)...).Set(float64(count))
 }
 
 func (m *Metrics) RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int) {
