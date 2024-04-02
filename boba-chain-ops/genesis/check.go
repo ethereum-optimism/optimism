@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"sync"
 
+	"github.com/bobanetwork/boba/boba-bindings/bindings"
 	"github.com/bobanetwork/boba/boba-bindings/predeploys"
 	"github.com/bobanetwork/boba/boba-chain-ops/chain"
 	"github.com/bobanetwork/boba/boba-chain-ops/crossdomain"
