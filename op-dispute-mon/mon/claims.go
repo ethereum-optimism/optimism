@@ -48,6 +48,7 @@ func (c *ClaimMonitor) checkResolvedAgainstHonestActor(proxy common.Address, cla
 		if claim.Claimant == actor && claim.CounteredBy != (common.Address{}) {
 			unexpected[actor]++
 			c.logger.Error("Claim resolved against honest actor", "game", proxy, "honest_actor", actor, "countered_by", claim.CounteredBy, "claim_contract_index", claim.ContractIndex)
+			break
 		}
 	}
 }
