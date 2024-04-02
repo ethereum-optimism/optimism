@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +52,7 @@ func (s *stubClaimMetrics) RecordClaims(status metrics.ClaimStatus, count int) {
 
 func makeMultipleTestGames(duration uint64) []*types.EnrichedGameData {
 	return []*types.EnrichedGameData{
-		makeTestGame(duration), // first half
+		makeTestGame(duration),      // first half
 		makeTestGame(duration * 10), // second half
 	}
 }
@@ -73,7 +73,7 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 				Resolved: true,
 			},
 			{
-				Claim: faultTypes.Claim{},
+				Claim:    faultTypes.Claim{},
 				Resolved: true,
 			},
 			{
