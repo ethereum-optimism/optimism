@@ -164,7 +164,7 @@ func NewMetrics() *Metrics {
 		}, []string{
 			"credit",
 			"max_duration",
-    }),
+		}),
 		claims: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "claims",
