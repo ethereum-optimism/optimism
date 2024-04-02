@@ -54,7 +54,7 @@ The indexer service is responsible for polling and processing real-time batches 
 
 #### L1 Poller
 L1 blocks are only indexed if they contain L1 contract events. This is done to reduce the amount of unnecessary data that is indexed. Because of this, the `l1_block_headers` table will not contain every L1 block header unlike L2 blocks.
-An **exception** to this is if no log activity has been observed over the specified `ETLAllowedInactivityWindowSeconds` value in the chain config -- disabled by default with a zero value. Past this duration, the L1 ETL will index the latest
+An **exception** to this is if no log activity has been observed over the specified `ETLAllowedInactivityWindowSeconds` value in the [chain config](https://github.com/ethereum-optimism/optimism/blob/develop/indexer/config/config.go) -- disabled by default with a zero value. Past this duration, the L1 ETL will index the latest
 observed L1 header.
 
 #### Database
