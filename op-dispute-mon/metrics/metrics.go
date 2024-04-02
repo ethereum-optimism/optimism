@@ -19,6 +19,20 @@ import (
 
 const Namespace = "op_dispute_mon"
 
+type CreditExpectation uint8
+
+const (
+	// Max Duration reached
+	CreditBelowMaxDuration CreditExpectation = iota
+	CreditEqualMaxDuration
+	CreditAboveMaxDuration
+
+	// Max Duration not reached
+	CreditBelowNonMaxDuration
+	CreditEqualNonMaxDuration
+	CreditAboveNonMaxDuration
+)
+
 type GameAgreementStatus uint8
 
 const (
@@ -35,11 +49,31 @@ const (
 	DisagreeChallengerWins
 )
 
+type ClaimStatus uint8
+
+const (
+	// Claims where the game is in the first half
+	FirstHalfExpiredResolved ClaimStatus = iota
+	FirstHalfExpiredUnresolved
+	FirstHalfNotExpiredResolved
+	FirstHalfNotExpiredUnresolved
+
+	// Claims where the game is in the second half
+	SecondHalfExpiredResolved
+	SecondHalfExpiredUnresolved
+	SecondHalfNotExpiredResolved
+	SecondHalfNotExpiredUnresolved
+)
+
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
 	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)
+
+	RecordCredit(expectation CreditExpectation, count int)
+
+	RecordClaims(status ClaimStatus, count int)
 
 	RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int)
 
@@ -68,10 +102,14 @@ type Metrics struct {
 
 	resolutionStatus prometheus.GaugeVec
 
+	claims prometheus.GaugeVec
+
 	withdrawalRequests prometheus.GaugeVec
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
+
+	credits prometheus.GaugeVec
 
 	lastOutputFetch prometheus.Gauge
 
@@ -130,6 +168,23 @@ func NewMetrics() *Metrics {
 		}, []string{
 			"completion",
 			"max_duration",
+		}),
+		credits: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "credits",
+			Help:      "Cumulative credits",
+		}, []string{
+			"credit",
+			"max_duration",
+		}),
+		claims: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "claims",
+			Help:      "Claims broken down by whether they were resolved, whether the clock expired, and the game time period",
+		}, []string{
+			"resolved",
+			"clock",
+			"game_time_period",
 		}),
 		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -206,6 +261,54 @@ func (m *Metrics) RecordGameResolutionStatus(complete bool, maxDurationReached b
 		maxDuration = "not_reached"
 	}
 	m.resolutionStatus.WithLabelValues(completion, maxDuration).Set(float64(count))
+}
+
+func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {
+	asLabels := func(expectation CreditExpectation) []string {
+		switch expectation {
+		case CreditBelowMaxDuration:
+			return []string{"below", "max_duration"}
+		case CreditEqualMaxDuration:
+			return []string{"expected", "max_duration"}
+		case CreditAboveMaxDuration:
+			return []string{"above", "max_duration"}
+		case CreditBelowNonMaxDuration:
+			return []string{"below", "non_max_duration"}
+		case CreditEqualNonMaxDuration:
+			return []string{"expected", "non_max_duration"}
+		case CreditAboveNonMaxDuration:
+			return []string{"above", "non_max_duration"}
+		default:
+			panic(fmt.Errorf("unknown credit expectation: %v", expectation))
+		}
+	}
+	m.credits.WithLabelValues(asLabels(expectation)...).Set(float64(count))
+}
+
+func (m *Metrics) RecordClaims(status ClaimStatus, count int) {
+	asLabels := func(status ClaimStatus) []string {
+		switch status {
+		case FirstHalfExpiredResolved:
+			return []string{"resolved", "expired", "first_half"}
+		case FirstHalfExpiredUnresolved:
+			return []string{"unresolved", "expired", "first_half"}
+		case FirstHalfNotExpiredResolved:
+			return []string{"resolved", "not_expired", "first_half"}
+		case FirstHalfNotExpiredUnresolved:
+			return []string{"unresolved", "not_expired", "first_half"}
+		case SecondHalfExpiredResolved:
+			return []string{"resolved", "expired", "second_half"}
+		case SecondHalfExpiredUnresolved:
+			return []string{"unresolved", "expired", "second_half"}
+		case SecondHalfNotExpiredResolved:
+			return []string{"resolved", "not_expired", "second_half"}
+		case SecondHalfNotExpiredUnresolved:
+			return []string{"unresolved", "not_expired", "second_half"}
+		default:
+			panic(fmt.Errorf("unknown claim status: %v", status))
+		}
+	}
+	m.claims.WithLabelValues(asLabels(status)...).Set(float64(count))
 }
 
 func (m *Metrics) RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int) {

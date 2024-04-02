@@ -16,6 +16,7 @@ import (
 type Forecast func(ctx context.Context, games []*types.EnrichedGameData)
 type Bonds func(games []*types.EnrichedGameData)
 type Resolutions func(games []*types.EnrichedGameData)
+type MonitorClaims func(games []*types.EnrichedGameData)
 type MonitorWithdrawals func(games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
@@ -37,6 +38,7 @@ type gameMonitor struct {
 	forecast         Forecast
 	bonds            Bonds
 	resolutions      Resolutions
+	claims           MonitorClaims
 	withdrawals      MonitorWithdrawals
 	extract          Extract
 	fetchBlockHash   BlockHashFetcher
@@ -53,6 +55,7 @@ func newGameMonitor(
 	forecast Forecast,
 	bonds Bonds,
 	resolutions Resolutions,
+	claims MonitorClaims,
 	withdrawals MonitorWithdrawals,
 	extract Extract,
 	fetchBlockNumber BlockNumberFetcher,
@@ -69,6 +72,7 @@ func newGameMonitor(
 		forecast:         forecast,
 		bonds:            bonds,
 		resolutions:      resolutions,
+		claims:           claims,
 		withdrawals:      withdrawals,
 		extract:          extract,
 		fetchBlockNumber: fetchBlockNumber,
@@ -95,6 +99,7 @@ func (m *gameMonitor) monitorGames() error {
 	m.delays(enrichedGames)
 	m.forecast(m.ctx, enrichedGames)
 	m.bonds(enrichedGames)
+	m.claims(enrichedGames)
 	m.withdrawals(enrichedGames)
 	return nil
 }

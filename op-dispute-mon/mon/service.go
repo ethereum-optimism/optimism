@@ -43,6 +43,7 @@ type Service struct {
 	bonds        *bonds.Bonds
 	game         *extract.GameCallerCreator
 	resolutions  *ResolutionMonitor
+	claims       *ClaimMonitor
 	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
 	validator    *outputValidator
@@ -88,6 +89,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	}
 
 	s.initResolutionMonitor()
+	s.initClaimMonitor()
 	s.initWithdrawalMonitor()
 
 	s.initOutputValidator()   // Must be called before initForecast
@@ -109,6 +111,10 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 
 func (s *Service) initResolutionMonitor() {
 	s.resolutions = NewResolutionMonitor(s.logger, s.metrics, s.cl)
+}
+
+func (s *Service) initClaimMonitor() {
+	s.claims = NewClaimMonitor(s.logger, s.cl, s.metrics)
 }
 
 func (s *Service) initWithdrawalMonitor() {
@@ -146,7 +152,7 @@ func (s *Service) initForecast(cfg *config.Config) {
 }
 
 func (s *Service) initBonds() {
-	s.bonds = bonds.NewBonds(s.logger, s.metrics)
+	s.bonds = bonds.NewBonds(s.logger, s.metrics, s.cl)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
@@ -230,6 +236,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.forecast.Forecast,
 		s.bonds.CheckBonds,
 		s.resolutions.CheckResolutions,
+		s.claims.CheckClaims,
 		s.withdrawals.CheckWithdrawals,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
