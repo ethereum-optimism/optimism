@@ -20,7 +20,7 @@ func TestLoadConfig(t *testing.T) {
 
 	testData := `
 		[chain]
-		preset = 420
+		preset = 10
 
 		l1-polling-interval = 5000
 		l2-polling-interval = 5000
@@ -58,11 +58,11 @@ func TestLoadConfig(t *testing.T) {
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
-	require.Equal(t, conf.Chain.Preset, 420)
-	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), Presets[420].ChainConfig.L1Contracts.OptimismPortalProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), Presets[420].ChainConfig.L1Contracts.L1CrossDomainMessengerProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), Presets[420].ChainConfig.L1Contracts.L1StandardBridgeProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), Presets[420].ChainConfig.L1Contracts.L2OutputOracleProxy.String())
+	require.Equal(t, conf.Chain.Preset, 10)
+	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), Presets[10].ChainConfig.L1Contracts.OptimismPortalProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), Presets[10].ChainConfig.L1Contracts.L1CrossDomainMessengerProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), Presets[10].ChainConfig.L1Contracts.L1StandardBridgeProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), Presets[10].ChainConfig.L1Contracts.L2OutputOracleProxy.String())
 	require.Equal(t, conf.Chain.L1PollingInterval, uint(5000))
 	require.Equal(t, conf.Chain.L1HeaderBufferSize, uint(1000))
 	require.Equal(t, conf.Chain.L2PollingInterval, uint(5000))
@@ -285,15 +285,15 @@ func TestThrowsOnUnknownKeys(t *testing.T) {
 
 	testData := `
 		[chain]
-    unknown_key = 420
-		preset = 420
+        unknown_key = 420
+		preset = 10
 
 		[rpcs]
 		l1-rpc = "https://l1.example.com"
 		l2-rpc = "https://l2.example.com"
 
 		[db]
-	  another_unknownKey = 420
+	    another_unknownKey = 420
 		host = "127.0.0.1"
 		port = 5432
 		user = "postgres"

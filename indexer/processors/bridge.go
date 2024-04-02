@@ -226,7 +226,7 @@ func (b *BridgeProcessor) processInitiatedL1Events(latestL1Header *types.Header)
 	fromL1Height, toL1Height := new(big.Int).Add(lastL1BlockNumber, bigint.One), toL1Header.Number
 	if err := b.db.Transaction(func(tx *database.DB) error {
 		l1BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L1BedrockStartingHeight))
-		if l1BedrockStartingHeight.Cmp(fromL1Height) > 0 { // OP Mainnet & OP Goerli Only.
+		if l1BedrockStartingHeight.Cmp(fromL1Height) > 0 { // OP Mainnet
 			legacyFromL1Height, legacyToL1Height := fromL1Height, toL1Height
 			if l1BedrockStartingHeight.Cmp(toL1Height) <= 0 {
 				legacyToL1Height = new(big.Int).Sub(l1BedrockStartingHeight, bigint.One)
@@ -279,7 +279,7 @@ func (b *BridgeProcessor) processInitiatedL2Events(latestL2Header *types.Header)
 	fromL2Height, toL2Height := new(big.Int).Add(lastL2BlockNumber, bigint.One), toL2Header.Number
 	if err := b.db.Transaction(func(tx *database.DB) error {
 		l2BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L2BedrockStartingHeight))
-		if l2BedrockStartingHeight.Cmp(fromL2Height) > 0 { // OP Mainnet & OP Goerli Only
+		if l2BedrockStartingHeight.Cmp(fromL2Height) > 0 { // OP Mainnet
 			legacyFromL2Height, legacyToL2Height := fromL2Height, toL2Height
 			if l2BedrockStartingHeight.Cmp(toL2Height) <= 0 {
 				legacyToL2Height = new(big.Int).Sub(l2BedrockStartingHeight, bigint.One)
