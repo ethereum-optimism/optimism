@@ -79,7 +79,7 @@ const config: HardhatUserConfig = {
       'hardhat-local': ['../contracts/deployments/hardhat-local'],
       'boba-sepolia': ['../contracts/deployments/boba-sepolia'],
       'boba-mainnet': ['../contracts/deployments/boba-mainnet'],
-      'boba-mainnet-dev': ['../contracts/deployments/boba-mainnet-dev']
+      'boba-mainnet-dev': ['../contracts/deployments/boba-mainnet-dev'],
     },
   },
   solidity: {
