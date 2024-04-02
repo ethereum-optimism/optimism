@@ -185,12 +185,6 @@ func entrypoint(ctx *cli.Context) error {
 		return fmt.Errorf("no superchain config for superchain %s", chainConfig.Superchain)
 	}
 
-	if l1ChainID.Cmp(common.Big1) == 0 {
-		superchainConfigAddr := superchain.HexToAddress("0x95703e0982140d16f8eba6d158fccede42f04a4c")
-		log.Info("SuperchainConfigProxy", "address", superchainConfigAddr.String())
-		superchainConfig.Config.SuperchainConfigAddr = &superchainConfigAddr
-	}
-
 	log.Info("Upgrading to the following versions")
 	log.Info("L1CrossDomainMessenger", "version", list.L1CrossDomainMessenger.Version, "address", list.L1CrossDomainMessenger.Address)
 	log.Info("L1ERC721Bridge", "version", list.L1ERC721Bridge.Version, "address", list.L1ERC721Bridge.Address)
