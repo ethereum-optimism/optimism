@@ -9,7 +9,9 @@ The `@eth-optimism/sdk` package provides a set of tools for interacting with Opt
 
 `@eth-optimism/sdk` has been superseded by `op-viem`. For most developers we suggest you migrate to [viem](https://viem.sh/op-stack) which has native built in op-stack support built in. It also has additional benefits.
 
-**The OP Labs team has no plans to update @eth-optimism/sdk and it is in maintenance mode at the moment**
+**The OP Labs team has no plans to add new features @eth-optimism/sdk and it is in maintenance mode**
+
+If you are already using the sdk you are safe as it will continue to be maintained.
 
 - an intuitive API that learned from this package and is now revamped
 - great treeshaking with a 10x+ improvement to bundlesize

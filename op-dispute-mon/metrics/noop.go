@@ -21,6 +21,8 @@ func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
 
 func (*NoopMetricsImpl) RecordCredit(_ CreditExpectation, _ int) {}
 
+func (*NoopMetricsImpl) RecordClaims(_ ClaimStatus, _ int) {}
+
 func (*NoopMetricsImpl) RecordWithdrawalRequests(_ common.Address, _ bool, _ int) {}
 
 func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(_ float64) {}
