@@ -92,9 +92,9 @@ func (b *BridgeProcessor) Start() error {
 	// start L1 worker
 	b.tasks.Go(func() error {
 		l1EtlUpdates := b.l1Etl.Notify()
-		for range l1EtlUpdates {
-			b.log.Info("notified of traversed L1 state", "l1_etl_block_number", b.l1Etl.LatestHeader.Number)
-			if err := b.onL1Data(b.l1Etl.LatestHeader); err != nil {
+		for latestHeader := range l1EtlUpdates {
+			b.log.Info("notified of traversed L1 state", "l1_etl_block_number", latestHeader.Number)
+			if err := b.onL1Data(latestHeader); err != nil {
 				b.log.Error("failed l1 bridge processing interval", "err", err)
 			}
 		}
@@ -104,9 +104,9 @@ func (b *BridgeProcessor) Start() error {
 	// start L2 worker
 	b.tasks.Go(func() error {
 		l2EtlUpdates := b.l2Etl.Notify()
-		for range l2EtlUpdates {
-			b.log.Info("notified of traversed L2 state", "l2_etl_block_number", b.l2Etl.LatestHeader.Number)
-			if err := b.onL2Data(b.l2Etl.LatestHeader); err != nil {
+		for latestHeader := range l2EtlUpdates {
+			b.log.Info("notified of traversed L2 state", "l2_etl_block_number", latestHeader.Number)
+			if err := b.onL2Data(latestHeader); err != nil {
 				b.log.Error("failed l2 bridge processing interval", "err", err)
 			}
 		}

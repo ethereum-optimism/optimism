@@ -54,6 +54,8 @@ type E2ETestSuite struct {
 	L2Client *ethclient.Client
 }
 
+type ConfigOpts func(*config.Config) *config.Config
+
 func init() {
 	// Disable the global logger. Ideally we'd like to dump geth
 	// logs per-test but that's possible when running tests in
@@ -62,9 +64,11 @@ func init() {
 }
 
 // createE2ETestSuite ... Create a new E2E test suite
-func createE2ETestSuite(t *testing.T) E2ETestSuite {
+func createE2ETestSuite(t *testing.T, cfgOpt ...ConfigOpts) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
+
+	require.LessOrEqual(t, len(cfgOpt), 1)
 
 	// E2E tests can run on the order of magnitude of minutes.
 	// We mark the test as parallel before starting the devnet
@@ -112,6 +116,11 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		},
 		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
+	}
+
+	// apply any settings
+	for _, opt := range cfgOpt {
+		indexerCfg = opt(indexerCfg)
 	}
 
 	indexerLog := testlog.Logger(t, log.LevelInfo).New("role", "indexer")

@@ -114,6 +114,9 @@ type ChainConfig struct {
 
 	L1HeaderBufferSize uint `toml:"l1-header-buffer-size"`
 	L2HeaderBufferSize uint `toml:"l2-header-buffer-size"`
+
+	// Inactivity allowed before a block is indexed by the ETL. Default 0 value disables this feature
+	ETLAllowedInactivityWindowSeconds uint `toml:"etl-allowed-inactivity-window-seconds"`
 }
 
 // RPCsConfig configures the RPC urls
