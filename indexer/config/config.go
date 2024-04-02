@@ -100,7 +100,7 @@ type ChainConfig struct {
 	L1Contracts L1Contracts `toml:"l1-contracts"`
 	L2Contracts L2Contracts `toml:"-"`
 
-	// Bedrock starting heights only applicable for OP-Mainnet & OP-Goerli
+	// Bedrock starting heights only applicable for OP-Mainnet & OP-Sepolia
 	L1BedrockStartingHeight uint `toml:"-"`
 	L2BedrockStartingHeight uint `toml:"-"`
 
