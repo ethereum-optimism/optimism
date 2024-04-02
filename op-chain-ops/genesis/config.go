@@ -170,9 +170,10 @@ type DeployConfig struct {
 	// as part of the derivation pipeline.
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
 	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
+	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
-	// DEPRECATED after Ecotone.
+	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
 	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
 	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
