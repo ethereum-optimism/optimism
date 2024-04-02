@@ -10,9 +10,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -47,8 +49,15 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 	proxyBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	require.NoError(t, err)
 
+	// Apply the genesis block to the backend
+	backend = backends.NewSimulatedBackendWithOpts(backends.WithAlloc(gen.Alloc))
+
 	for name, predeploy := range predeploys.Predeploys {
 		addr := predeploy.Address
+
+		if addr == predeploys.L1BlockAddr {
+			testL1Block(t, backend, config, block)
+		}
 
 		account, ok := gen.Alloc[addr]
 		require.Equal(t, true, ok, name)
@@ -82,6 +91,56 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 		_ = os.WriteFile("genesis.json", file, 0644)
 	}
 	return gen
+}
+
+// testL1Block tests that the state is set correctly in the L1Block predeploy
+func testL1Block(t *testing.T, caller bind.ContractCaller, config *genesis.DeployConfig, block *types.Block) {
+	contract, err := bindings.NewL1BlockCaller(predeploys.L1BlockAddr, caller)
+	require.NoError(t, err)
+
+	number, err := contract.Number(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, block.Number().Uint64(), number)
+
+	timestamp, err := contract.Timestamp(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, block.Time(), timestamp)
+
+	basefee, err := contract.Basefee(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, block.BaseFee(), basefee)
+
+	hash, err := contract.Hash(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, block.Hash(), common.Hash(hash))
+
+	sequenceNumber, err := contract.SequenceNumber(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), sequenceNumber)
+
+	blobBaseFeeScalar, err := contract.BlobBaseFeeScalar(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, config.GasPriceOracleBlobBaseFeeScalar, blobBaseFeeScalar)
+
+	baseFeeScalar, err := contract.BaseFeeScalar(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, config.GasPriceOracleBaseFeeScalar, baseFeeScalar)
+
+	batcherHeader, err := contract.BatcherHash(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, eth.AddressAsLeftPaddedHash(config.BatchSenderAddress), common.Hash(batcherHeader))
+
+	l1FeeOverhead, err := contract.L1FeeOverhead(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, config.GasPriceOracleOverhead, l1FeeOverhead.Uint64())
+
+	l1FeeScalar, err := contract.L1FeeScalar(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, config.GasPriceOracleScalar, l1FeeScalar.Uint64())
+
+	blobBaseFee, err := contract.BlobBaseFee(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(1), blobBaseFee)
 }
 
 func TestBuildL2MainnetGenesis(t *testing.T) {
