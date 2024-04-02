@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,7 +15,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
 // TestKey is the same test key that geth uses
@@ -51,19 +53,19 @@ type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) 
 // It has the latest L2 hardforks enabled.
 // The returned backend should be closed after use.
 func NewBackend() (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, nil)
+	backend, err := NewBackendWithGenesisTimestamp(0, nil)
 	return backend, err
 }
 
-// NewBackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
+// NewBackendWithPredeploys returns a SimulatedBackend suitable for L2.
 // It has the latest L2 hardforks enabled, and allows for the configuration of the network's chain ID and predeploys.
 // The returned backend should be closed after use.
-func NewBackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, predeploys)
+func NewBackendWithPredeploys(predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(0, predeploys)
 	return backend, err
 }
 
-func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+func NewBackendWithGenesisTimestamp(ts uint64, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
 	alloc := core.GenesisAlloc{
 		crypto.PubkeyToAddress(TestKey.PublicKey): core.GenesisAccount{
 			Balance: thousandETH,
@@ -81,11 +83,11 @@ func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, predeploys map[
 
 	cfg := ethconfig.Defaults
 	cfg.Preimages = true
-	config := params.AllDevChainProtocolChanges
+	config := *params.AllDevChainProtocolChanges
 	config.MergeNetsplitBlock = big.NewInt(0)
 	config.Ethash = new(params.EthashConfig)
 	cfg.Genesis = &core.Genesis{
-		Config:     config,
+		Config:     &config,
 		Timestamp:  ts,
 		Difficulty: big.NewInt(0),
 		Alloc:      alloc,
@@ -111,18 +113,11 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 			return nil, err
 		}
 
-		// The simulator performs asynchronous processing,
-		// so we need to both commit the change here as
-		// well as wait for the transaction receipt.
-
-		// give transaction time to hit mempool otherwise we might commit an empty block
-		time.Sleep(100 * time.Millisecond)
-		backend.Commit()
-
-		addr, err := bind.WaitDeployed(ctx, backend, tx)
+		r, err := WaitMined(ctx, backend, tx)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", deployment.Name, err)
 		}
+		addr := r.ContractAddress
 
 		if addr == (common.Address{}) {
 			return nil, fmt.Errorf("no address for %s", deployment.Name)
@@ -148,7 +143,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 //
 // Parameters:
 // - backend: A pointer to backends.SimulatedBackend, representing the simulated Ethereum blockchain.
-// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewBackendWithChainIDAndPredeploys handles this for you.
+// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewBackendWithPredeploys handles this for you.
 // - contractName: A string representing the name of the contract to be deployed.
 //
 // Returns:
@@ -187,20 +182,13 @@ func DeployWithDeterministicDeployer(backend *backends.SimulatedBackend, contrac
 		return nil, fmt.Errorf("failed to initialize deployment proxy transactor at %s: %w", deployerAddress, err)
 	}
 
-	// give contract code time to become pending otherwise we risk it not being found.
-	time.Sleep(100 * time.Millisecond)
-
+	backend.Commit() // make sure at least one block is written or the below Fallback call can fail
 	tx, err := transactor.Fallback(opts, append(deploymentSalt, initBytecode...))
 	if err != nil {
 		return nil, fmt.Errorf("Fallback failed: %w", err)
 	}
 
-	// give transaction time to hit mempool otherwise we might commit an empty block
-	time.Sleep(100 * time.Millisecond)
-
-	backend.Commit()
-
-	receipt, err := bind.WaitMined(context.Background(), backend, tx)
+	receipt, err := WaitMined(context.Background(), backend, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction receipt: %w", err)
 	}
@@ -241,4 +229,29 @@ func create2Address(creatorAddress, salt, initCode []byte) common.Address {
 	payload = append(payload, initCodeHash...)
 
 	return common.BytesToAddress(crypto.Keccak256(payload)[12:])
+}
+
+// WaitMined waits for tx to be mined on the blockchain with a simulated backend, calling Commit()
+// on the backend before attemping to fetch the transaction receipt in a wait loop.  It stops
+// waiting when the context is canceled.
+func WaitMined(ctx context.Context, b *backends.SimulatedBackend, tx *types.Transaction) (*types.Receipt, error) {
+	queryTicker := time.NewTicker(100 * time.Millisecond)
+	defer queryTicker.Stop()
+
+	for {
+		// Call commit with each try since earlier calls may have preceded the tx reaching the
+		// txpool.
+		b.Commit()
+		receipt, err := b.TransactionReceipt(ctx, tx.Hash())
+		if err == nil {
+			return receipt, nil
+		}
+		// Wait for the next round.
+		log.Warn("waiting on receipt due to error", "err", err)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-queryTicker.C:
+		}
+	}
 }
