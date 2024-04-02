@@ -35,16 +35,30 @@ var (
 	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
 	ErrMissingRollupRpc              = errors.New("missing rollup rpc url")
 )
+var (
+	ErrMissingAsteriscL2               = errors.New("missing asterisc L2")
+	ErrMissingAsteriscBin              = errors.New("missing asterisc bin")
+	ErrMissingAsteriscServer           = errors.New("missing asterisc server")
+	ErrMissingAsteriscAbsolutePreState = errors.New("missing asterisc absolute pre-state")
+	ErrMissingAsteriscSnapshotFreq     = errors.New("missing asterisc snapshot freq")
+	ErrMissingAsteriscInfoFreq         = errors.New("missing asterisc info freq")
+	ErrMissingAsteriscRollupConfig     = errors.New("missing asterisc network or rollup config path")
+	ErrMissingAsteriscL2Genesis        = errors.New("missing asterisc network or l2 genesis path")
+	ErrAsteriscNetworkAndRollupConfig  = errors.New("only specify one of network or rollup config path")
+	ErrAsteriscNetworkAndL2Genesis     = errors.New("only specify one of network or l2 genesis path")
+	ErrAsteriscNetworkUnknown          = errors.New("unknown asterisc network")
+)
 
 type TraceType string
 
 const (
 	TraceTypeAlphabet     TraceType = "alphabet"
 	TraceTypeCannon       TraceType = "cannon"
+	TraceTypeAsterisc     TraceType = "asterisc"
 	TraceTypePermissioned TraceType = "permissioned"
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc}
 
 func (t TraceType) String() string {
 	return string(t)
@@ -74,9 +88,11 @@ func ValidTraceType(value TraceType) bool {
 }
 
 const (
-	DefaultPollInterval       = time.Second * 12
-	DefaultCannonSnapshotFreq = uint(1_000_000_000)
-	DefaultCannonInfoFreq     = uint(10_000_000)
+	DefaultPollInterval         = time.Second * 12
+	DefaultCannonSnapshotFreq   = uint(1_000_000_000)
+	DefaultCannonInfoFreq       = uint(10_000_000)
+	DefaultAsteriscSnapshotFreq = uint(1_000_000_000)
+	DefaultAsteriscInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
 	// The default value is 15 days, which is an 8 day resolution buffer
@@ -105,8 +121,7 @@ type Config struct {
 
 	TraceTypes []TraceType // Type of traces supported
 
-	// Specific to the output cannon trace type
-	RollupRpc string
+	RollupRpc string // L2 Rollup RPC Url
 
 	// Specific to the cannon trace provider
 	CannonBin              string // Path to the cannon executable to run when generating trace data
@@ -118,6 +133,17 @@ type Config struct {
 	CannonL2               string // L2 RPC Url
 	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
 	CannonInfoFreq         uint   // Frequency of cannon progress log messages (in VM instructions)
+
+	// Specific to the asterisc trace provider
+	AsteriscBin              string // Path to the asterisc executable to run when generating trace data
+	AsteriscServer           string // Path to the op-program executable that provides the pre-image oracle server
+	AsteriscAbsolutePreState string // File to load the absolute pre-state for Asterisc traces from
+	AsteriscNetwork          string
+	AsteriscRollupConfigPath string
+	AsteriscL2GenesisPath    string
+	AsteriscL2               string // L2 RPC Url
+	AsteriscSnapshotFreq     uint   // Frequency of snapshots to create when executing asterisc (in VM instructions)
+	AsteriscInfoFreq         uint   // Frequency of asterisc progress log messages (in VM instructions)
 
 	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
 
@@ -150,9 +176,11 @@ func NewConfig(
 
 		Datadir: datadir,
 
-		CannonSnapshotFreq: DefaultCannonSnapshotFreq,
-		CannonInfoFreq:     DefaultCannonInfoFreq,
-		GameWindow:         DefaultGameWindow,
+		CannonSnapshotFreq:   DefaultCannonSnapshotFreq,
+		CannonInfoFreq:       DefaultCannonInfoFreq,
+		AsteriscSnapshotFreq: DefaultAsteriscSnapshotFreq,
+		AsteriscInfoFreq:     DefaultAsteriscInfoFreq,
+		GameWindow:           DefaultGameWindow,
 	}
 }
 
@@ -218,6 +246,44 @@ func (c Config) Check() error {
 		}
 		if c.CannonInfoFreq == 0 {
 			return ErrMissingCannonInfoFreq
+		}
+	}
+	if c.TraceTypeEnabled(TraceTypeAsterisc) {
+		if c.AsteriscBin == "" {
+			return ErrMissingAsteriscBin
+		}
+		if c.AsteriscServer == "" {
+			return ErrMissingAsteriscServer
+		}
+		if c.AsteriscNetwork == "" {
+			if c.AsteriscRollupConfigPath == "" {
+				return ErrMissingAsteriscRollupConfig
+			}
+			if c.AsteriscL2GenesisPath == "" {
+				return ErrMissingAsteriscL2Genesis
+			}
+		} else {
+			if c.AsteriscRollupConfigPath != "" {
+				return ErrAsteriscNetworkAndRollupConfig
+			}
+			if c.AsteriscL2GenesisPath != "" {
+				return ErrAsteriscNetworkAndL2Genesis
+			}
+			if ch := chaincfg.ChainByName(c.AsteriscNetwork); ch == nil {
+				return fmt.Errorf("%w: %v", ErrAsteriscNetworkUnknown, c.AsteriscNetwork)
+			}
+		}
+		if c.AsteriscAbsolutePreState == "" {
+			return ErrMissingAsteriscAbsolutePreState
+		}
+		if c.AsteriscL2 == "" {
+			return ErrMissingAsteriscL2
+		}
+		if c.AsteriscSnapshotFreq == 0 {
+			return ErrMissingAsteriscSnapshotFreq
+		}
+		if c.AsteriscInfoFreq == 0 {
+			return ErrMissingAsteriscInfoFreq
 		}
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {

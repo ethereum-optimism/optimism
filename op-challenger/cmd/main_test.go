@@ -29,6 +29,12 @@ var (
 	datadir                 = "./test_data"
 	cannonL2                = "http://example.com:9545"
 	rollupRpc               = "http://example.com:8555"
+	asteriscNetwork         = "op-mainnet"
+	asteriscBin             = "./bin/astersic"
+	asteriscServer          = "./bin/op-program"
+	asteriscPreState        = "./pre.json"
+	asteriscL2              = "http://example.com:9545"
+	otherAsteriscNetwork    = "op-goerli"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -111,14 +117,18 @@ func TestMultipleTraceTypes(t *testing.T) {
 	t.Run("WithAllOptions", func(t *testing.T) {
 		argsMap := requiredArgs(config.TraceTypeCannon)
 		addRequiredOutputArgs(argsMap)
+		// Add Asterisc required flags
+		addRequiredAsteriscArgs(argsMap)
 		args := toArgList(argsMap)
 		// Add extra trace types (cannon is already specified)
 		args = append(args,
 			"--trace-type", config.TraceTypeAlphabet.String())
 		args = append(args,
 			"--trace-type", config.TraceTypePermissioned.String())
+		args = append(args,
+			"--trace-type", config.TraceTypeAsterisc.String())
 		cfg := configForArgs(t, args)
-		require.Equal(t, []config.TraceType{config.TraceTypeCannon, config.TraceTypeAlphabet, config.TraceTypePermissioned}, cfg.TraceTypes)
+		require.Equal(t, []config.TraceType{config.TraceTypeCannon, config.TraceTypeAlphabet, config.TraceTypePermissioned, config.TraceTypeAsterisc}, cfg.TraceTypes)
 	})
 	t.Run("WithSomeOptions", func(t *testing.T) {
 		argsMap := requiredArgs(config.TraceTypeCannon)
@@ -243,6 +253,165 @@ func TestPollInterval(t *testing.T) {
 	})
 }
 
+func TestAsteriscRequiredArgs(t *testing.T) {
+	for _, traceType := range []config.TraceType{config.TraceTypeAsterisc} {
+		traceType := traceType
+		t.Run(fmt.Sprintf("TestAsteriscBin-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-bin"))
+			})
+
+			t.Run("Required", func(t *testing.T) {
+				verifyArgsInvalid(t, "flag asterisc-bin is required", addRequiredArgsExcept(traceType, "--asterisc-bin"))
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-bin", "--asterisc-bin=./asterisc"))
+				require.Equal(t, "./asterisc", cfg.AsteriscBin)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestAsteriscServer-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-server"))
+			})
+
+			t.Run("Required", func(t *testing.T) {
+				verifyArgsInvalid(t, "flag asterisc-server is required", addRequiredArgsExcept(traceType, "--asterisc-server"))
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-server", "--asterisc-server=./op-program"))
+				require.Equal(t, "./op-program", cfg.AsteriscServer)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestAstersicAbsolutePrestate-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-prestate"))
+			})
+
+			t.Run("Required", func(t *testing.T) {
+				verifyArgsInvalid(t, "flag asterisc-prestate is required", addRequiredArgsExcept(traceType, "--asterisc-prestate"))
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-prestate", "--asterisc-prestate=./pre.json"))
+				require.Equal(t, "./pre.json", cfg.AsteriscAbsolutePreState)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestAsteriscL2-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-l2"))
+			})
+
+			t.Run("RequiredForAsteriscTrace", func(t *testing.T) {
+				verifyArgsInvalid(t, "flag asterisc-l2 is required", addRequiredArgsExcept(traceType, "--asterisc-l2"))
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgs(traceType))
+				require.Equal(t, asteriscL2, cfg.AsteriscL2)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", traceType), func(t *testing.T) {
+			t.Run("UsesDefault", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgs(traceType))
+				require.Equal(t, config.DefaultAsteriscSnapshotFreq, cfg.AsteriscSnapshotFreq)
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgs(traceType, "--asterisc-snapshot-freq=1234"))
+				require.Equal(t, uint(1234), cfg.AsteriscSnapshotFreq)
+			})
+
+			t.Run("Invalid", func(t *testing.T) {
+				verifyArgsInvalid(t, "invalid value \"abc\" for flag -asterisc-snapshot-freq",
+					addRequiredArgs(traceType, "--asterisc-snapshot-freq=abc"))
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", traceType), func(t *testing.T) {
+			t.Run("UsesDefault", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgs(traceType))
+				require.Equal(t, config.DefaultAsteriscInfoFreq, cfg.AsteriscInfoFreq)
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgs(traceType, "--asterisc-info-freq=1234"))
+				require.Equal(t, uint(1234), cfg.AsteriscInfoFreq)
+			})
+
+			t.Run("Invalid", func(t *testing.T) {
+				verifyArgsInvalid(t, "invalid value \"abc\" for flag -asterisc-info-freq",
+					addRequiredArgs(traceType, "--asterisc-info-freq=abc"))
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestRequireEitherAsteriscNetworkOrRollupAndGenesis-%v", traceType), func(t *testing.T) {
+			verifyArgsInvalid(
+				t,
+				"flag asterisc-network or asterisc-rollup-config and asterisc-l2-genesis is required",
+				addRequiredArgsExcept(traceType, "--asterisc-network"))
+			verifyArgsInvalid(
+				t,
+				"flag asterisc-network or asterisc-rollup-config and asterisc-l2-genesis is required",
+				addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-rollup-config=rollup.json"))
+			verifyArgsInvalid(
+				t,
+				"flag asterisc-network or asterisc-rollup-config and asterisc-l2-genesis is required",
+				addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-l2-genesis=gensis.json"))
+		})
+
+		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
+			verifyArgsInvalid(
+				t,
+				"flag asterisc-network can not be used with asterisc-rollup-config and asterisc-l2-genesis",
+				addRequiredArgsExcept(traceType, "--asterisc-network",
+					"--asterisc-network", asteriscNetwork, "--asterisc-rollup-config=rollup.json"))
+		})
+
+		t.Run(fmt.Sprintf("TestAsteriscNetwork-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-network"))
+			})
+
+			t.Run("NotRequiredWhenRollupAndGenesIsSpecified", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network",
+					"--asterisc-rollup-config=rollup.json", "--asterisc-l2-genesis=genesis.json"))
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-network", otherAsteriscNetwork))
+				require.Equal(t, otherAsteriscNetwork, cfg.AsteriscNetwork)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestAsteriscRollupConfig-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-rollup-config"))
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-rollup-config=rollup.json", "--asterisc-l2-genesis=genesis.json"))
+				require.Equal(t, "rollup.json", cfg.AsteriscRollupConfigPath)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestAsteriscL2Genesis-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-l2-genesis"))
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-rollup-config=rollup.json", "--asterisc-l2-genesis=genesis.json"))
+				require.Equal(t, "genesis.json", cfg.AsteriscL2GenesisPath)
+			})
+		})
+	}
+}
 func TestCannonRequiredArgs(t *testing.T) {
 	for _, traceType := range []config.TraceType{config.TraceTypeCannon, config.TraceTypePermissioned} {
 		traceType := traceType
@@ -560,6 +729,8 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 	switch traceType {
 	case config.TraceTypeCannon, config.TraceTypePermissioned:
 		addRequiredCannonArgs(args)
+	case config.TraceTypeAsterisc:
+		addRequiredAsteriscArgs(args)
 	case config.TraceTypeAlphabet:
 		addRequiredOutputArgs(args)
 	}
@@ -572,6 +743,15 @@ func addRequiredCannonArgs(args map[string]string) {
 	args["--cannon-server"] = cannonServer
 	args["--cannon-prestate"] = cannonPreState
 	args["--cannon-l2"] = cannonL2
+	addRequiredOutputArgs(args)
+}
+
+func addRequiredAsteriscArgs(args map[string]string) {
+	args["--asterisc-network"] = asteriscNetwork
+	args["--asterisc-bin"] = asteriscBin
+	args["--asterisc-server"] = asteriscServer
+	args["--asterisc-prestate"] = asteriscPreState
+	args["--asterisc-l2"] = asteriscL2
 	addRequiredOutputArgs(args)
 }
 
