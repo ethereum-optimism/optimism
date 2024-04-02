@@ -2,9 +2,11 @@ package asterisc
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -93,4 +95,18 @@ func (sw StateWitness) StateHash() (common.Hash, error) {
 	status := vmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash, nil
+}
+
+func parseState(path string) (*VMState, error) {
+	file, err := ioutil.OpenDecompressed(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open state file (%v): %w", path, err)
+	}
+	defer file.Close()
+	var state VMState
+	err = json.NewDecoder(file).Decode(&state)
+	if err != nil {
+		return nil, fmt.Errorf("invalid asterisc VM state (%v): %w", path, err)
+	}
+	return &state, nil
 }
