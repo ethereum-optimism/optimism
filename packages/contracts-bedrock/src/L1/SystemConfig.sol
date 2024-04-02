@@ -195,6 +195,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
         _setStartBlock();
+        _setGasPayingToken(_addresses.gasPayingToken);
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -270,6 +271,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         simplicity. Ether uses a default value of 18 decimals and the requirement
     ///         that the decimals are less than or equal to 18 ensures that no precision is
     ///         lost for tokens that have less decimals.
+    /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
         uint8 decimals = 18;
         if (_token != Constants.ETHER) {
