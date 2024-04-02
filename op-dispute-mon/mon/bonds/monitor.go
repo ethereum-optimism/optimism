@@ -53,7 +53,7 @@ func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
 	// Iterate over claims and filter out resolved ones
 	recipients := make(map[common.Address]bool)
 	for _, claim := range game.Claims {
-		// Skip resolved claims since these bonds will not appear in the credits.
+		// Skip unresolved claims since these bonds will not appear in the credits.
 		if !claim.Resolved {
 			continue
 		}
