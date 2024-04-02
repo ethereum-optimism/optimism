@@ -171,7 +171,7 @@ func NewMetrics() *Metrics {
 			Help:      "Total number of unexpected claim resolutions against an honest actor",
 		}, []string{
 			"honest_actor_address",
-    }),
+		}),
 		resolutionStatus: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "resolution_status",
