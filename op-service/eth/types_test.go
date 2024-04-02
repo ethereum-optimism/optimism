@@ -51,15 +51,18 @@ func TestEcotoneScalars(t *testing.T) {
 			} else {
 				require.Equal(t, tc.blobBaseFeeScalar, blobScalar)
 				require.Equal(t, tc.baseFeeScalar, regScalar)
-
-				encoded := EncodeScalar(tc.blobBaseFeeScalar, tc.baseFeeScalar)
-				require.Equal(t, tc.val, encoded)
-
-				blob, base, err := DecodeScalar(encoded)
 				require.NoError(t, err)
-				require.Equal(t, tc.blobBaseFeeScalar, blob)
-				require.Equal(t, tc.baseFeeScalar, base)
 			}
 		})
 	}
+}
+
+func FuzzEncodeScalar(f *testing.F) {
+	f.Fuzz(func(t *testing.T, blobBaseFeeScalar uint32, baseFeeScalar uint32) {
+		encoded := EncodeScalar(blobBaseFeeScalar, baseFeeScalar)
+		blob, base, err := DecodeScalar(encoded)
+		require.NoError(t, err)
+		require.Equal(t, blobBaseFeeScalar, blob)
+		require.Equal(t, baseFeeScalar, base)
+	})
 }
