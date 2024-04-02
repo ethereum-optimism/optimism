@@ -17,30 +17,51 @@ import (
 var frozen = time.Unix(int64(time.Hour.Seconds()), 0)
 
 func TestClaimMonitor_CheckClaims(t *testing.T) {
-	cm, cl, cMetrics := newTestClaimMonitor(t)
-	games := makeMultipleTestGames(uint64(cl.Now().Unix()))
-	cm.CheckClaims(games)
+	t.Run("RecordsClaims", func(t *testing.T) {
+		monitor, cl, cMetrics := newTestClaimMonitor(t)
+		games := makeMultipleTestGames(uint64(cl.Now().Unix()))
+		monitor.CheckClaims(games)
 
-	require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfExpiredResolved])
-	require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfExpiredUnresolved])
-	require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfNotExpiredResolved])
-	require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfNotExpiredUnresolved])
+		require.Equal(t, 2, cMetrics.calls[metrics.FirstHalfExpiredResolved])
+		require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfExpiredUnresolved])
+		require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfNotExpiredResolved])
+		require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfNotExpiredUnresolved])
 
-	require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfExpiredResolved])
-	require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfExpiredUnresolved])
-	require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfNotExpiredResolved])
-	require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfNotExpiredUnresolved])
+		require.Equal(t, 2, cMetrics.calls[metrics.SecondHalfExpiredResolved])
+		require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfExpiredUnresolved])
+		require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfNotExpiredResolved])
+		require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfNotExpiredUnresolved])
+	})
+
+	t.Run("RecordsUnexpectedClaimResolution", func(t *testing.T) {
+		monitor, cl, cMetrics := newTestClaimMonitor(t)
+		games := makeMultipleTestGames(uint64(cl.Now().Unix()))
+		monitor.CheckClaims(games)
+
+		// Our honest actors 0x01 has claims resolved against them (1 per game)
+		require.Equal(t, 2, cMetrics.unexpected[common.Address{0x01}])
+		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x02}])
+
+		// The other actors should not be metriced
+		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x03}])
+		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x04}])
+	})
 }
 
 func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock, *stubClaimMetrics) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	cl := clock.NewDeterministicClock(frozen)
 	metrics := &stubClaimMetrics{}
-	return NewClaimMonitor(logger, cl, metrics), cl, metrics
+	honestActors := []common.Address{
+		common.Address{0x01},
+		common.Address{0x02},
+	}
+	return NewClaimMonitor(logger, cl, honestActors, metrics), cl, metrics
 }
 
 type stubClaimMetrics struct {
-	calls map[metrics.ClaimStatus]int
+	calls      map[metrics.ClaimStatus]int
+	unexpected map[common.Address]int
 }
 
 func (s *stubClaimMetrics) RecordClaims(status metrics.ClaimStatus, count int) {
@@ -48,6 +69,13 @@ func (s *stubClaimMetrics) RecordClaims(status metrics.ClaimStatus, count int) {
 		s.calls = make(map[metrics.ClaimStatus]int)
 	}
 	s.calls[status] += count
+}
+
+func (s *stubClaimMetrics) RecordUnexpectedClaimResolution(address common.Address, count int) {
+	if s.unexpected == nil {
+		s.unexpected = make(map[common.Address]int)
+	}
+	s.unexpected[address] += count
 }
 
 func makeMultipleTestGames(duration uint64) []*types.EnrichedGameData {
@@ -68,21 +96,36 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 		Claims: []types.EnrichedClaim{
 			{
 				Claim: faultTypes.Claim{
-					Clock: faultTypes.NewClock(time.Duration(0), frozen),
+					Clock:    faultTypes.NewClock(time.Duration(0), frozen),
+					Claimant: common.Address{0x02},
 				},
-				Resolved: true,
-			},
-			{
-				Claim:    faultTypes.Claim{},
 				Resolved: true,
 			},
 			{
 				Claim: faultTypes.Claim{
-					Clock: faultTypes.NewClock(time.Duration(0), frozen),
+					Claimant:    common.Address{0x01},
+					CounteredBy: common.Address{0x03},
+				},
+				Resolved: true,
+			},
+			{
+				Claim: faultTypes.Claim{
+					Claimant:    common.Address{0x04},
+					CounteredBy: common.Address{0x02},
+				},
+				Resolved: true,
+			},
+			{
+				Claim: faultTypes.Claim{
+					Claimant:    common.Address{0x04},
+					CounteredBy: common.Address{0x02},
+					Clock:       faultTypes.NewClock(time.Duration(0), frozen),
 				},
 			},
 			{
-				Claim: faultTypes.Claim{},
+				Claim: faultTypes.Claim{
+					Claimant: common.Address{0x01},
+				},
 			},
 		},
 	}

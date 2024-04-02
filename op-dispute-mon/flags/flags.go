@@ -10,6 +10,7 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -33,6 +34,11 @@ var (
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
 	// Optional Flags
+	HonestActorsFlag = &cli.StringSliceFlag{
+		Name:    "honest-actors",
+		Usage:   "List of honest actors that are monitored for any claims that are resolved against them.",
+		EnvVars: prefixEnvVars("HONEST_ACTORS"),
+	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
 		Usage:   "HTTP provider URL for the rollup node",
@@ -62,6 +68,7 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	RollupRpcFlag,
+	HonestActorsFlag,
 	MonitorIntervalFlag,
 	GameWindowFlag,
 }
@@ -96,6 +103,17 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		return nil, err
 	}
 
+	var actors []common.Address
+	if ctx.IsSet(HonestActorsFlag.Name) {
+		for _, addrStr := range ctx.StringSlice(HonestActorsFlag.Name) {
+			actor, err := opservice.ParseAddress(addrStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid honest actor address: %w", err)
+			}
+			actors = append(actors, actor)
+		}
+	}
+
 	metricsConfig := opmetrics.ReadCLIConfig(ctx)
 	pprofConfig := oppprof.ReadCLIConfig(ctx)
 
@@ -103,6 +121,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
 
+		HonestActors:    actors,
 		RollupRpc:       ctx.String(RollupRpcFlag.Name),
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),
 		GameWindow:      ctx.Duration(GameWindowFlag.Name),

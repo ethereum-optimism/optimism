@@ -32,10 +32,11 @@ const (
 type Config struct {
 	L1EthRpc           string         // L1 RPC Url
 	GameFactoryAddress common.Address // Address of the dispute game factory
-	RollupRpc          string         // The rollup node RPC URL.
 
-	MonitorInterval time.Duration // Frequency to check for new games to monitor.
-	GameWindow      time.Duration // Maximum window to look for games to monitor.
+	HonestActors    []common.Address // List of honest actors to monitor claims for.
+	RollupRpc       string           // The rollup node RPC URL.
+	MonitorInterval time.Duration    // Frequency to check for new games to monitor.
+	GameWindow      time.Duration    // Maximum window to look for games to monitor.
 
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
@@ -46,6 +47,7 @@ func NewConfig(gameFactoryAddress common.Address, l1EthRpc string) Config {
 		L1EthRpc:           l1EthRpc,
 		GameFactoryAddress: gameFactoryAddress,
 
+		HonestActors:    []common.Address{},
 		MonitorInterval: DefaultMonitorInterval,
 		GameWindow:      DefaultGameWindow,
 
