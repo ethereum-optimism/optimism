@@ -54,7 +54,7 @@
     "@wagmi/cli": "^2.1.4",
     "@wagmi/core": "^2.6.3",
     "abitype": "^1.0.2",
-    "glob": "^10.3.10",
+    "glob": "^10.3.12",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^24.0.0",
