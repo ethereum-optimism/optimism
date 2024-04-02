@@ -20,6 +20,9 @@ type Config struct {
 	LoopIntervalMsec uint
 	HeaderBufferSize uint
 
+	// Applicable only to the L1 ETL (all L2 block are indexed)
+	AllowedInactivityWindowSeconds uint
+
 	StartHeight       *big.Int
 	ConfirmationDepth *big.Int
 }
