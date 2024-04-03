@@ -70,12 +70,13 @@
     "lint-staged": "15.2.0",
     "mocha": "^10.2.0",
     "nx": "18.1.2",
+    "nx-cloud": "latest",
     "nyc": "^15.1.0",
     "prettier": "^2.8.0",
     "rimraf": "^5.0.5",
     "ts-mocha": "^10.0.0",
     "typescript": "^5.3.3",
-    "nx-cloud": "latest"
+    "wait-on": "^7.2.0"
   },
   "dependencies": {
     "@changesets/cli": "^2.27.1"

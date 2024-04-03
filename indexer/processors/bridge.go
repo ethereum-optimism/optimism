@@ -92,9 +92,9 @@ func (b *BridgeProcessor) Start() error {
 	// start L1 worker
 	b.tasks.Go(func() error {
 		l1EtlUpdates := b.l1Etl.Notify()
-		for range l1EtlUpdates {
-			b.log.Info("notified of traversed L1 state", "l1_etl_block_number", b.l1Etl.LatestHeader.Number)
-			if err := b.onL1Data(b.l1Etl.LatestHeader); err != nil {
+		for latestHeader := range l1EtlUpdates {
+			b.log.Info("notified of traversed L1 state", "l1_etl_block_number", latestHeader.Number)
+			if err := b.onL1Data(latestHeader); err != nil {
 				b.log.Error("failed l1 bridge processing interval", "err", err)
 			}
 		}
@@ -104,9 +104,9 @@ func (b *BridgeProcessor) Start() error {
 	// start L2 worker
 	b.tasks.Go(func() error {
 		l2EtlUpdates := b.l2Etl.Notify()
-		for range l2EtlUpdates {
-			b.log.Info("notified of traversed L2 state", "l2_etl_block_number", b.l2Etl.LatestHeader.Number)
-			if err := b.onL2Data(b.l2Etl.LatestHeader); err != nil {
+		for latestHeader := range l2EtlUpdates {
+			b.log.Info("notified of traversed L2 state", "l2_etl_block_number", latestHeader.Number)
+			if err := b.onL2Data(latestHeader); err != nil {
 				b.log.Error("failed l2 bridge processing interval", "err", err)
 			}
 		}
@@ -226,7 +226,7 @@ func (b *BridgeProcessor) processInitiatedL1Events(latestL1Header *types.Header)
 	fromL1Height, toL1Height := new(big.Int).Add(lastL1BlockNumber, bigint.One), toL1Header.Number
 	if err := b.db.Transaction(func(tx *database.DB) error {
 		l1BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L1BedrockStartingHeight))
-		if l1BedrockStartingHeight.Cmp(fromL1Height) > 0 { // OP Mainnet & OP Goerli Only.
+		if l1BedrockStartingHeight.Cmp(fromL1Height) > 0 { // OP Mainnet
 			legacyFromL1Height, legacyToL1Height := fromL1Height, toL1Height
 			if l1BedrockStartingHeight.Cmp(toL1Height) <= 0 {
 				legacyToL1Height = new(big.Int).Sub(l1BedrockStartingHeight, bigint.One)
@@ -279,7 +279,7 @@ func (b *BridgeProcessor) processInitiatedL2Events(latestL2Header *types.Header)
 	fromL2Height, toL2Height := new(big.Int).Add(lastL2BlockNumber, bigint.One), toL2Header.Number
 	if err := b.db.Transaction(func(tx *database.DB) error {
 		l2BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L2BedrockStartingHeight))
-		if l2BedrockStartingHeight.Cmp(fromL2Height) > 0 { // OP Mainnet & OP Goerli Only
+		if l2BedrockStartingHeight.Cmp(fromL2Height) > 0 { // OP Mainnet
 			legacyFromL2Height, legacyToL2Height := fromL2Height, toL2Height
 			if l2BedrockStartingHeight.Cmp(toL2Height) <= 0 {
 				legacyToL2Height = new(big.Int).Sub(l2BedrockStartingHeight, bigint.One)

@@ -3,12 +3,19 @@ package bonds
 import (
 	"math/big"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	frozen = time.Unix(int64(time.Hour.Seconds()), 0)
 )
 
 func TestCheckBonds(t *testing.T) {
@@ -32,8 +39,11 @@ func TestCheckBonds(t *testing.T) {
 	}
 
 	logger := testlog.Logger(t, log.LvlInfo)
-	metrics := &stubBondMetrics{recorded: make(map[common.Address]Collateral)}
-	bonds := NewBonds(logger, metrics)
+	metrics := &stubBondMetrics{
+		credits:  make(map[metrics.CreditExpectation]int),
+		recorded: make(map[common.Address]Collateral),
+	}
+	bonds := NewBonds(logger, metrics, clock.NewDeterministicClock(frozen))
 
 	bonds.CheckBonds([]*monTypes.EnrichedGameData{game1, game2})
 
@@ -47,6 +57,7 @@ func TestCheckBonds(t *testing.T) {
 }
 
 type stubBondMetrics struct {
+	credits  map[metrics.CreditExpectation]int
 	recorded map[common.Address]Collateral
 }
 
@@ -55,4 +66,8 @@ func (s *stubBondMetrics) RecordBondCollateral(addr common.Address, required *bi
 		Required: required,
 		Actual:   available,
 	}
+}
+
+func (s *stubBondMetrics) RecordCredit(expectation metrics.CreditExpectation, count int) {
+	s.credits[expectation] = count
 }

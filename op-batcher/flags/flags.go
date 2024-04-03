@@ -2,11 +2,11 @@ package flags
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
-	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
