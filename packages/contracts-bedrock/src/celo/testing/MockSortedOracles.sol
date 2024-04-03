@@ -1,44 +1,46 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "../stability/interfaces/ISortedOracles.sol";
-
 /**
  * @title A mock SortedOracles for testing.
  */
-contract MockSortedOracles is ISortedOracles {
-    uint256 public constant DENOMINATOR = 1e24;
-
+contract MockSortedOracles {
+    uint256 public constant DENOMINATOR = 1000000000000000000000000;
     mapping(address => uint256) public numerators;
+    mapping(address => uint256) public medianTimestamp;
+    mapping(address => uint256) public numRates;
+    mapping(address => bool) public expired;
 
-    function addOracle(address, address) external { }
-
-    function removeOracle(address, address, uint256) external { }
-
-    function report(address, uint256, address, address) external { }
-
-    function removeExpiredReports(address, uint256) external { }
-
-    function isOldestReportExpired(address) external pure returns (bool, address) {
-        return (false, address(0x000000000000000000000000000000000000ce10));
+    function setMedianRate(address token, uint256 numerator) external returns (bool) {
+        numerators[token] = numerator;
+        return true;
     }
 
-    function numRates(address) external pure returns (uint256) {
-        return 1;
+    function setMedianTimestamp(address token, uint256 timestamp) external {
+        medianTimestamp[token] = timestamp;
     }
 
-    function medianRate(address token) external pure returns (uint256, uint256) {
-        if (token == address(0x000000000000000000000000000000000000cE16)) {
-            return (2 * DENOMINATOR, DENOMINATOR);
+    function setMedianTimestampToNow(address token) external {
+        // solhint-disable-next-line not-rely-on-time
+        medianTimestamp[token] = uint128(block.timestamp);
+    }
+
+    function setNumRates(address token, uint256 rate) external {
+        numRates[token] = rate; // This change may break something, TODO
+    }
+
+    function medianRate(address token) external view returns (uint256, uint256) {
+        if (numerators[token] > 0) {
+            return (numerators[token], DENOMINATOR);
         }
         return (0, 0);
     }
 
-    function numTimestamps(address) external pure returns (uint256) {
-        return 0;
+    function isOldestReportExpired(address token) public view returns (bool, address) {
+        return (expired[token], token);
     }
 
-    function medianTimestamp(address) external pure returns (uint256) {
-        return 0;
+    function setOldestReportExpired(address token) public {
+        expired[token] = true;
     }
 }
