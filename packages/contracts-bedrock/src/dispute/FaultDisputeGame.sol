@@ -173,7 +173,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // NOTE: We localize the `indexAtDepth` for the current execution trace subgame by finding
             //       the remainder of the index at depth divided by 2 ** (MAX_GAME_DEPTH - SPLIT_DEPTH),
             //       which is the number of leaves in each execution trace subgame. This is so that we can
-            //       determine whether or not the step position is represents the `ABSOLUTE_PRESTATE`.
+            //       determine whether or not the step position represents the `ABSOLUTE_PRESTATE`.
             preStateClaim = (stepPos.indexAtDepth() % (1 << (MAX_GAME_DEPTH - SPLIT_DEPTH))) == 0
                 ? ABSOLUTE_PRESTATE
                 : _findTraceAncestor(Position.wrap(parentPos.raw() - 1), parent.parentIndex, false).claim;
