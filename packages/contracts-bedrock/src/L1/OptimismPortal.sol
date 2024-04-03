@@ -79,7 +79,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     SystemConfig public systemConfig;
 
     /// @notice The total amount of gas paying asset in the contract. Incremented and decremented on deposits
-    ///         and withdrawals when custom gas token is used.
+    ///         and withdrawals when custom gas token is used. This represents the number of units minted in the
+    ///         L2 units must be scaled appropriately.
     uint256 internal _balance;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
@@ -362,28 +363,34 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             //      to accomplish this, `callWithMinGas` will revert.
             success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
         } else {
-            // Cannot call the token contract directly from the portal.
+            // Cannot call the token contract directly from the portal. This would allow an attacker
+            // to call approve from a withdrawal and drain the balance of the portal.
             require(_tx.target != token, "OptimismPortal: cannot call gas paying token");
 
-            // Read the balance of the target contract before the transfer so the consistency
-            // of the transfer can be checked afterwards.
-            uint256 balanceOf = IERC20(token).balanceOf(address(this));
+            // Only transfer value when a non zero value is specified. This saves gas in the case of
+            // using the standard bridge or arbitrary message passing.
+            if (_tx.value != 0) {
+                // Read the balance of the target contract before the transfer so the consistency
+                // of the transfer can be checked afterwards.
+                uint256 balanceOf = IERC20(token).balanceOf(address(this));
 
-            // Normalize from 18 decimals
-            uint256 value = Decimals.scale({ _amount: _tx.value, _decimals: 18, _target: decimals });
+                // Update the contracts internal accounting. Do not use the scaled value as this
+                // is tracking the number of units that are minted in the L2.
+                _balance -= _tx.value;
 
-            // Transfer the ERC20 balance to the target, accounting for non standard ERC20
-            // implementations that may not return a boolean. This reverts if the low level
-            // call is not successful
-            IERC20(token).safeTransfer({ to: _tx.target, value: value });
+                // Normalize from 18 decimals.
+                uint256 value = Decimals.scale({ _amount: _tx.value, _decimals: 18, _target: decimals });
 
-            // The balance must be transferred exactly.
-            require(
-                IERC20(token).balanceOf(address(this)) == balanceOf - value, "OptimismPortal: ERC20 transfer failed"
-            );
+                // Transfer the ERC20 balance to the target, accounting for non standard ERC20
+                // implementations that may not return a boolean. This reverts if the low level
+                // call is not successful.
+                IERC20(token).safeTransfer({ to: _tx.target, value: value });
 
-            // Subtract the value from the contract's balance
-            _balance -= value;
+                // The balance must be transferred exactly.
+                require(
+                    IERC20(token).balanceOf(address(this)) == balanceOf - value, "OptimismPortal: ERC20 transfer failed"
+                );
+            }
 
             // Make a call to the target contract only if there is calldata.
             if (_tx.data.length != 0) {
@@ -430,17 +437,19 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         (address token, uint8 decimals) = gasPayingToken();
         require(token != Constants.ETHER, "OptimismPortal: only custom gas token");
 
+        // Get the balance of the portal before the transfer.
         uint256 balanceOf = IERC20(token).balanceOf(address(this));
 
-        // Pulls ownership of custom gas token to portal
-        Permit2Lib.safeTransferFrom2({ token: token, from: msg.sender, to: address(this), amount: _mint });
+        // Take ownership of the token. It is assumed that the user has given the portal an approval.
+        Permit2Lib.safeTransferFrom2({ _token: token, _from: msg.sender, _to: address(this), _amount: _mint });
 
+        // Double check that the portal now has the exact amount of token.
         require(IERC20(token).balanceOf(address(this)) == balanceOf + _mint, "OptimismPortal: transferFrom failed");
 
-        // Normalize to 18 decimals
+        // Normalize to 18 decimals.
         uint256 mint = Decimals.scale({ _amount: _mint, _decimals: decimals, _target: 18 });
 
-        // Overflow protection here ensures safety on L2 from overflows in balance
+        // Overflow protection here ensures safety on L2 from overflows in balance.
         _balance += mint;
 
         _depositTransaction({
