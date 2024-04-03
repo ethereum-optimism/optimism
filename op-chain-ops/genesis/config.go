@@ -29,13 +29,6 @@ import (
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
-	// L1BlockGasPayingTokenSlot represents the storage slot in the L1Block predeploy that containst the address of the gas paying token.
-	// It is computed with the following digest: bytes32(uint256(keccak256("l1block.gaspayingtoken")) - 1)
-	L1BlockGasPayingTokenSlot = common.HexToHash("0x139ee11fa3c568c59ec2e47800b66a422e22a029a261f59aab388d8041d78abd")
-	// EtherGasPayingAddress represents the magic account that represents ether to be the gas paying asset.
-	EtherGasPayingAddress = common.HexToAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
-	// EtherDecimals represents the number of decimals for ether.
-	EtherDecimals = big.NewInt(18)
 )
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
