@@ -2,6 +2,8 @@
 description: Hybrid Compute Example - Minting NFTs with Random Attributes
 ---
 
+<figure><img src="../../../assets/hc-under-upgrade.png" alt=""><figcaption></figcaption></figure>
+
 # Monster Minting
 
 <figure><img src="../../../assets/mint your monster.png" alt=""><figcaption></figcaption></figure>
