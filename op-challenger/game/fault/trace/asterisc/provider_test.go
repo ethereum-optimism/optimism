@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO(pcw109550): prestate_test.go also uses it. is it okay?
-//
 //go:embed test_data
 var testData embed.FS
 

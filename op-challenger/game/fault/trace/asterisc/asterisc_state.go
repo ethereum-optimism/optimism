@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// Duplicated from https://github.com/ethereum-optimism/asterisc/blob/4c4705809b4adbb854d265f76ace719b08c732e6/rvgo/fast/state.go
 type VMState struct {
 	Memory *Memory `json:"memory"`
 

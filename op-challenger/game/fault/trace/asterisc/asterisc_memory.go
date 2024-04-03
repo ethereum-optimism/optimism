@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// Duplicated fromhttps://github.com/ethereum-optimism/asterisc/blob/4c4705809b4adbb854d265f76ace719b08c732e6/rvgo/fast/memory.go
+
 type Memory struct {
 	// generalized index -> merkle root or nil if invalidated
 	nodes map[uint64]*[32]byte
