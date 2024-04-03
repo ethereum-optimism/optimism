@@ -49,31 +49,23 @@ type Deployment struct {
 
 type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (*types.Transaction, error)
 
-// NewL1Backend returns a SimulatedBackend suitable for L1. It has
-// the latest L1 hardforks enabled.
-// The returned backend should be closed after use.
-func NewL1Backend() (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, true, nil)
-	return backend, err
-}
-
 // NewL2Backend returns a SimulatedBackend suitable for L2.
-// It has the latest L2 hardforks enabled.
+// It has up to Shanghai and Canyon enabled.
 // The returned backend should be closed after use.
 func NewL2Backend() (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, false, nil)
+	backend, err := NewL2BackendWithGenesisTimestamp(ChainID, 0, nil)
 	return backend, err
 }
 
 // NewL2BackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
-// It has the latest L2 hardforks enabled, and allows for the configuration of the network's chain ID and predeploys.
+// It has up to Shanghai and Canyon enabled, and allows for the configuration of the network's chain ID and predeploys.
 // The returned backend should be closed after use.
 func NewL2BackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, false, predeploys)
+	backend, err := NewL2BackendWithGenesisTimestamp(chainID, 0, predeploys)
 	return backend, err
 }
 
-func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, shanghai bool, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+func NewL2BackendWithGenesisTimestamp(chainID *big.Int, ts uint64, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
 	chainConfig := params.ChainConfig{
 		ChainID:             chainID,
 		HomesteadBlock:      big.NewInt(0),
@@ -97,10 +89,14 @@ func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, shanghai bool, 
 		MergeNetsplitBlock:            big.NewInt(0),
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
-	}
-
-	if shanghai {
-		chainConfig.ShanghaiTime = u64ptr(0)
+		ShanghaiTime:                  u64ptr(0),
+		CanyonTime:                    u64ptr(0),
+		Optimism: &params.OptimismConfig{
+			// The below EIP-1559 values apply to simulation, but do not have persistent effects on the state.
+			EIP1559Elasticity:        6,
+			EIP1559Denominator:       50,
+			EIP1559DenominatorCanyon: 250,
+		},
 	}
 
 	alloc := core.GenesisAlloc{
