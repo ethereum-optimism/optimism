@@ -170,6 +170,22 @@ func (f *FaultDisputeGameContract) GetCredit(ctx context.Context, recipient comm
 	return credit, status, nil
 }
 
+func (f *FaultDisputeGameContract) GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error) {
+	calls := make([]batching.Call, 0, len(positions))
+	for _, position := range positions {
+		calls = append(calls, f.contract.Call(methodRequiredBond, position))
+	}
+	results, err := f.multiCaller.Call(ctx, block, calls...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve required bonds: %w", err)
+	}
+	requiredBonds := make([]*big.Int, 0, len(positions))
+	for _, result := range results {
+		requiredBonds = append(requiredBonds, result.GetBigInt(0))
+	}
+	return requiredBonds, nil
+}
+
 func (f *FaultDisputeGameContract) GetCredits(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
 	defer f.metrics.StartContractRequest("GetCredits")()
 	calls := make([]batching.Call, 0, len(recipients))
@@ -231,7 +247,16 @@ func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *ty
 	return oracle.AddGlobalDataTx(data)
 }
 
-func (f *FaultDisputeGameContract) GetDelayedWETH(ctx context.Context) (*DelayedWETHContract, error) {
+func (f *FaultDisputeGameContract) GetWithdrawals(ctx context.Context, block rpcblock.Block, gameAddr common.Address, recipients ...common.Address) ([]*WithdrawalRequest, error) {
+	defer f.metrics.StartContractRequest("GetWithdrawals")()
+	delayedWETH, err := f.getDelayedWETH(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return delayedWETH.GetWithdrawals(ctx, block, gameAddr, recipients...)
+}
+
+func (f *FaultDisputeGameContract) getDelayedWETH(ctx context.Context) (*DelayedWETHContract, error) {
 	defer f.metrics.StartContractRequest("GetDelayedWETH")()
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodWETH))
 	if err != nil {

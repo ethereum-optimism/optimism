@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"math/big"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -224,10 +224,23 @@ func TestP2PFull(t *testing.T) {
 	require.Nil(t, err)
 	data = peerDump.Peers[hostBId]
 	require.NotNil(t, data)
-	require.NoError(t, p2pClientA.DisconnectPeer(ctx, hostB.ID()))
-	peerDump, err = p2pClientA.Peers(ctx, false)
-	require.Nil(t, err)
-	data = peerDump.Peers[hostBId]
+	retries := 0
+	for {
+		require.NoError(t, p2pClientA.DisconnectPeer(ctx, hostB.ID()))
+		// disconnect may take some time which we cant control from here
+		// so we retry a few times increasing our wait tolerance
+		time.Sleep(time.Duration(retries) * time.Second)
+		peerDump, err = p2pClientA.Peers(ctx, false)
+		require.Nil(t, err)
+		data = peerDump.Peers[hostBId]
+		if data == nil {
+			break
+		}
+		retries++
+		if retries > 3 {
+			t.Fatal("failed to disconnect peer")
+		}
+	}
 	require.Nil(t, data)
 
 	// reconnect

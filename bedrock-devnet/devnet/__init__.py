@@ -282,7 +282,7 @@ def devnet_test(paths):
           ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
            '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
           cwd=paths.sdk_dir, timeout=8*60)
-    ], max_workers=2)
+    ], max_workers=1)
 
 
 def run_commands(commands: list[CommandPreset], max_workers=2):

@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
@@ -176,19 +177,53 @@ func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (Game
 }
 
 type mockGameCaller struct {
-	metadataCalls    int
-	metadataErr      error
-	claimsCalls      int
-	claimsErr        error
-	rootClaim        common.Hash
-	claims           []faultTypes.Claim
-	requestedCredits []common.Address
-	creditsErr       error
-	credits          map[common.Address]*big.Int
-	extraCredit      []*big.Int
-	balanceErr       error
-	balance          *big.Int
-	balanceAddr      common.Address
+	metadataCalls     int
+	metadataErr       error
+	claimsCalls       int
+	claimsErr         error
+	rootClaim         common.Hash
+	claims            []faultTypes.Claim
+	requestedCredits  []common.Address
+	creditsErr        error
+	credits           map[common.Address]*big.Int
+	extraCredit       []*big.Int
+	balanceErr        error
+	balance           *big.Int
+	balanceAddr       common.Address
+	requiredBondCalls int
+	requiredBondErr   error
+	requiredBonds     []*big.Int
+	withdrawalsCalls  int
+	withdrawalsErr    error
+	withdrawals       []*contracts.WithdrawalRequest
+}
+
+func (m *mockGameCaller) GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error) {
+	m.requiredBondCalls++
+	if m.requiredBondErr != nil {
+		return nil, m.requiredBondErr
+	}
+	return m.requiredBonds, nil
+}
+
+func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+	m.withdrawalsCalls++
+	if m.withdrawalsErr != nil {
+		return nil, m.withdrawalsErr
+	}
+	if m.withdrawals != nil {
+		return m.withdrawals, nil
+	}
+	return []*contracts.WithdrawalRequest{
+		{
+			Timestamp: big.NewInt(1),
+			Amount:    big.NewInt(2),
+		},
+		{
+			Timestamp: big.NewInt(3),
+			Amount:    big.NewInt(4),
+		},
+	}, nil
 }
 
 func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, types.GameStatus, uint64, error) {

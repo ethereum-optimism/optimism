@@ -3,14 +3,14 @@ package p2p
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
-
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -20,10 +20,13 @@ func TestPingService(t *testing.T) {
 	peers := []peer.ID{"a", "b", "c"}
 	log, captLog := testlog.CaptureLogger(t, slog.LevelDebug)
 
-	pingCount := 0
+	pingCount := &atomic.Int64{}
 	pingFn := PingFn(func(ctx context.Context, peerID peer.ID) <-chan ping.Result {
 		out := make(chan ping.Result, 1)
-		switch pingCount % 3 {
+		// Atomically add, so that parallel pings don't have a 1/1000 chance
+		// to increment at the same time and create a CI flake.
+		newValue := pingCount.Add(1)
+		switch (newValue - 1) % 3 {
 		case 0:
 			// success
 			out <- ping.Result{
@@ -40,7 +43,6 @@ func TestPingService(t *testing.T) {
 			}
 		}
 		close(out)
-		pingCount += 1
 		return out
 	})
 
@@ -63,7 +65,8 @@ func TestPingService(t *testing.T) {
 	require.Equal(t, "pingPeers start", <-trace)
 	require.Equal(t, "pingPeers end", <-trace)
 	// see if client has hit all 3 cases we simulated on the server-side
-	require.Equal(t, 3, pingCount, "pinged 3 peers")
+	require.Equal(t, int64(3), pingCount.Load(), "pinged 3 peers")
+
 	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("ping-pong")), "case 0")
 	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("failed to ping peer, context cancelled")), "case 1")
 	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("failed to ping peer, communication error")), "case 2")
@@ -74,7 +77,7 @@ func TestPingService(t *testing.T) {
 	require.Equal(t, "pingPeers start", <-trace)
 	require.Equal(t, "pingPeers end", <-trace)
 	// see if client has hit all 3 cases we simulated on the server-side
-	require.Equal(t, 6, pingCount, "pinged 3 peers again")
+	require.Equal(t, int64(6), pingCount.Load(), "pinged 3 peers again")
 	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("ping-pong")), "case 0")
 	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("failed to ping peer, context cancelled")), "case 1")
 	require.NotNil(t, captLog.FindLog(testlog.NewMessageContainsFilter("failed to ping peer, communication error")), "case 2")

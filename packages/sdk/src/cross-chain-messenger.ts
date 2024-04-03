@@ -694,7 +694,13 @@ export class CrossChainMessenger {
     message: MessageLike,
     // consider making this an options object next breaking release
     messageIndex = 0,
+    /**
+     * @deprecated no longer used since no log filters are used
+     */
     fromBlockOrBlockHash?: BlockTag,
+    /**
+     * @deprecated no longer used since no log filters are used
+     */
     toBlockOrBlockHash?: BlockTag
   ): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -2301,15 +2307,64 @@ export class CrossChainMessenger {
       }
 
       if (this.bedrock) {
-        const withdrawal = await this.toLowLevelMessage(resolved, messageIndex)
+        // get everything we need to finalize
+        const messageHashV1 = hashCrossDomainMessagev1(
+          resolved.messageNonce,
+          resolved.sender,
+          resolved.target,
+          resolved.value,
+          resolved.minGasLimit,
+          resolved.message
+        )
+
+        // fetch the following
+        // 1. Whether it needs to be replayed because it failed
+        // 2. The withdrawal as a low level message
+        const [isFailed, withdrawal] = await Promise.allSettled([
+          this.contracts.l1.L1CrossDomainMessenger.failedMessages(
+            messageHashV1
+          ),
+          this.toLowLevelMessage(resolved, messageIndex),
+        ])
+
+        // handle errors
+        if (
+          isFailed.status === 'rejected' ||
+          withdrawal.status === 'rejected'
+        ) {
+          const rejections = [isFailed, withdrawal]
+            .filter((p) => p.status === 'rejected')
+            .map((p: PromiseRejectedResult) => p.reason)
+          throw rejections.length > 1
+            ? new AggregateError(rejections)
+            : rejections[0]
+        }
+
+        if (isFailed.value === true) {
+          const xdmWithdrawal =
+            this.contracts.l1.L1CrossDomainMessenger.interface.decodeFunctionData(
+              'relayMessage',
+              withdrawal.value.message
+            )
+          return this.contracts.l1.L1CrossDomainMessenger.populateTransaction.relayMessage(
+            xdmWithdrawal._nonce,
+            xdmWithdrawal._sender,
+            xdmWithdrawal._target,
+            xdmWithdrawal._value,
+            xdmWithdrawal._minGasLimit,
+            xdmWithdrawal._message,
+            opts?.overrides || {}
+          )
+        }
+
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
-            withdrawal.messageNonce,
-            withdrawal.sender,
-            withdrawal.target,
-            withdrawal.value,
-            withdrawal.minGasLimit,
-            withdrawal.message,
+            withdrawal.value.messageNonce,
+            withdrawal.value.sender,
+            withdrawal.value.target,
+            withdrawal.value.value,
+            withdrawal.value.minGasLimit,
+            withdrawal.value.message,
           ],
           opts?.overrides || {}
         )
