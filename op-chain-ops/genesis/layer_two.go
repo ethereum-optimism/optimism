@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -71,9 +72,12 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			predeploys := map[string]*common.Address{
 				"DeterministicDeploymentProxy": &deployerAddress,
 			}
-			backend, err := deployer.NewBackendWithPredeploys(predeploys)
+			backend, err := deployer.NewL2BackendWithChainIDAndPredeploys(
+				new(big.Int).SetUint64(config.L2ChainID),
+				predeploys,
+			)
 			if err != nil {
-				return nil, fmt.Errorf("NewBackendWithPredeploys failed: %w", err)
+				return nil, fmt.Errorf("NewL2BackendWithChainIDAndPredeploys failed: %w", err)
 			}
 			deployedBin, err := deployer.DeployWithDeterministicDeployer(backend, name)
 			if err != nil {

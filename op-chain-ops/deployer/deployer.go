@@ -49,23 +49,60 @@ type Deployment struct {
 
 type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (*types.Transaction, error)
 
-// NewBackend returns a SimulatedBackend suitable for L2.
+// NewL1Backend returns a SimulatedBackend suitable for L1. It has
+// the latest L1 hardforks enabled.
+// The returned backend should be closed after use.
+func NewL1Backend() (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, true, nil)
+	return backend, err
+}
+
+// NewL2Backend returns a SimulatedBackend suitable for L2.
 // It has the latest L2 hardforks enabled.
 // The returned backend should be closed after use.
-func NewBackend() (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(0, nil)
+func NewL2Backend() (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, false, nil)
 	return backend, err
 }
 
-// NewBackendWithPredeploys returns a SimulatedBackend suitable for L2.
+// NewL2BackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
 // It has the latest L2 hardforks enabled, and allows for the configuration of the network's chain ID and predeploys.
 // The returned backend should be closed after use.
-func NewBackendWithPredeploys(predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(0, predeploys)
+func NewL2BackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, false, predeploys)
 	return backend, err
 }
 
-func NewBackendWithGenesisTimestamp(ts uint64, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, shanghai bool, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+	chainConfig := params.ChainConfig{
+		ChainID:             chainID,
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      false,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		ArrowGlacierBlock:   big.NewInt(0),
+		GrayGlacierBlock:    big.NewInt(0),
+		// Activated proof of stake. We manually build/commit blocks in the simulator anyway,
+		// and the timestamp verification of PoS is not against the wallclock,
+		// preventing blocks from getting stuck temporarily in the future-blocks queue, decreasing setup time a lot.
+		MergeNetsplitBlock:            big.NewInt(0),
+		TerminalTotalDifficulty:       big.NewInt(0),
+		TerminalTotalDifficultyPassed: true,
+	}
+
+	if shanghai {
+		chainConfig.ShanghaiTime = u64ptr(0)
+	}
+
 	alloc := core.GenesisAlloc{
 		crypto.PubkeyToAddress(TestKey.PublicKey): core.GenesisAccount{
 			Balance: thousandETH,
@@ -83,11 +120,8 @@ func NewBackendWithGenesisTimestamp(ts uint64, predeploys map[string]*common.Add
 
 	cfg := ethconfig.Defaults
 	cfg.Preimages = true
-	config := *params.AllDevChainProtocolChanges
-	config.MergeNetsplitBlock = big.NewInt(0)
-	config.Ethash = new(params.EthashConfig)
 	cfg.Genesis = &core.Genesis{
-		Config:     &config,
+		Config:     &chainConfig,
 		Timestamp:  ts,
 		Difficulty: big.NewInt(0),
 		Alloc:      alloc,
@@ -143,7 +177,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 //
 // Parameters:
 // - backend: A pointer to backends.SimulatedBackend, representing the simulated Ethereum blockchain.
-// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewBackendWithPredeploys handles this for you.
+// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewL2BackendWithChainIDAndPredeploys handles this for you.
 // - contractName: A string representing the name of the contract to be deployed.
 //
 // Returns:
@@ -208,6 +242,10 @@ func DeployWithDeterministicDeployer(backend *backends.SimulatedBackend, contrac
 	}
 
 	return code, nil
+}
+
+func u64ptr(n uint64) *uint64 {
+	return &n
 }
 
 // create2Address computes the Ethereum address for a contract created using the CREATE2 opcode.
