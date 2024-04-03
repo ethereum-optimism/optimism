@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
@@ -18,9 +19,6 @@ contract L1Block is ISemver {
 
     /// @notice Address of the special depositor account.
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
-
-    /// @notice The storage slot where the gas paying token address is stored.
-    bytes32 public constant GAS_PAYING_TOKEN_SLOT = bytes32(uint256(keccak256("l1block.gaspayingtoken")) - 1);
 
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
@@ -58,10 +56,9 @@ contract L1Block is ISemver {
     uint256 public blobBaseFee;
 
     /// @notice Returns the gas paying token and its decimals.
+    ///         If nothing is set in state, then it means ether is used.
     function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
-        bytes32 slot = Storage.getBytes32(GAS_PAYING_TOKEN_SLOT);
-        addr_ = address(uint160(uint256(slot) & uint256(type(uint160).max)));
-        decimals_ = uint8(uint256(slot) >> 160);
+        (addr_, decimals_) = GasPayingToken.get();
     }
 
     /// @notice Getter for custom gas token paying networks. Returns true if the
@@ -144,6 +141,6 @@ contract L1Block is ISemver {
     function setGasPayingToken(address _token, uint8 _decimals) external {
         if (msg.sender != DEPOSITOR_ACCOUNT) revert NotDepositor();
 
-        Storage.setBytes32(GAS_PAYING_TOKEN_SLOT, bytes32(uint256(_decimals) << 160 | uint256(uint160(_token))));
+        GasPayingToken.set(_token, _decimals);
     }
 }
