@@ -1,6 +1,6 @@
 {
   "abigen": "v1.10.25",
-  "foundry": "617dfc28cb8206a0003edcf73a6f1058adaef740",
+  "foundry": "dbc48ead1044066a3e12c796fca9dc077f5913fe",
   "geth": "v1.13.14",
   "nvm": "v20.9.0",
   "slither": "0.10.0",
