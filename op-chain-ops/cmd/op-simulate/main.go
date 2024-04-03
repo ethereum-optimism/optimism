@@ -11,6 +11,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/holiman/uint256"
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
@@ -257,7 +258,7 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	}
 	for addr, acc := range dump {
 		state.CreateAccount(addr)
-		state.SetBalance(addr, new(big.Int).Set((*big.Int)(&acc.Balance)))
+		state.SetBalance(addr, uint256.MustFromBig((*big.Int)(&acc.Balance)))
 		state.SetNonce(addr, acc.Nonce)
 		state.SetCode(addr, acc.Code)
 		state.SetStorage(addr, acc.Storage)
