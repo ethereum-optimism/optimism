@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	notWhitelistedResponse        = `{"jsonrpc":"2.0","error":{"code":-32001,"message":"rpc method is not whitelisted custom message"},"id":999}`
+	notWhitelistedResponse        = `{"jsonrpc":"2.0","error":{"code":-32601,"message":"rpc method is not whitelisted custom message"},"id":999}`
 	parseErrResponse              = `{"jsonrpc":"2.0","error":{"code":-32700,"message":"parse error"},"id":null}`
 	invalidJSONRPCVersionResponse = `{"error":{"code":-32600,"message":"invalid JSON-RPC version"},"id":null,"jsonrpc":"2.0"}`
 	invalidIDResponse             = `{"error":{"code":-32600,"message":"invalid ID"},"id":null,"jsonrpc":"2.0"}`
