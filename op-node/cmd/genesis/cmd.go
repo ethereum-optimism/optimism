@@ -87,25 +87,17 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			var deployments *genesis.L1Deployments
-			if l1Deployments := ctx.String("l1-deployments"); l1Deployments != "" {
-				deployments, err = genesis.NewL1Deployments(l1Deployments)
-				if err != nil {
-					return err
-				}
-			}
-
-			if deployments != nil {
-				config.SetDeployments(deployments)
-			}
-
 			if err := config.Check(); err != nil {
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 
-			// Check the addresses after setting the deployments
-			if err := config.CheckAddresses(); err != nil {
-				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
+			deployments, err := genesis.NewL1Deployments(ctx.String("l1-deployments"))
+			if err != nil {
+				return err
+			}
+
+			if err := deployments.Check(config); err != nil {
+				return fmt.Errorf("L1 deployments invalid: %w", err)
 			}
 
 			var dump *state.Dump
@@ -156,7 +148,10 @@ var Subcommands = cli.Commands{
 			if err != nil {
 				return fmt.Errorf("cannot read L1 deployments at %s: %w", l1Deployments, err)
 			}
-			config.SetDeployments(deployments)
+
+			if err := deployments.Check(config); err != nil {
+				return fmt.Errorf("bad L1 deployments: %w", err)
+			}
 
 			var l1StartBlock *types.Block
 			if l1StartBlockPath != "" {
@@ -205,13 +200,13 @@ var Subcommands = cli.Commands{
 			log.Info("Using L1 Start Block", "number", l1StartBlock.Number(), "hash", l1StartBlock.Hash().Hex())
 
 			// Build the L2 genesis block
-			l2Genesis, err := genesis.BuildL2Genesis(config, l1StartBlock)
+			l2Genesis, err := genesis.BuildL2Genesis(config, deployments, l1StartBlock)
 			if err != nil {
 				return fmt.Errorf("error creating l2 genesis: %w", err)
 			}
 
 			l2GenesisBlock := l2Genesis.ToBlock()
-			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64())
+			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64(), deployments)
 			if err != nil {
 				return err
 			}

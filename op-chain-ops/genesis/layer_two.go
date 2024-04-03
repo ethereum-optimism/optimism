@@ -20,7 +20,7 @@ import (
 )
 
 // BuildL2Genesis will build the L2 genesis block.
-func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Genesis, error) {
+func BuildL2Genesis(config *DeployConfig, deployments *L1Deployments, l1StartBlock *types.Block) (*core.Genesis, error) {
 	genspec, err := NewL2Genesis(config, l1StartBlock)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 
 	SetPrecompileBalances(db)
 
-	storage, err := NewL2StorageConfig(config, l1StartBlock)
+	storage, err := NewL2StorageConfig(config, deployments, l1StartBlock)
 	if err != nil {
 		return nil, err
 	}

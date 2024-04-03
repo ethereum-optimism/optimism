@@ -153,21 +153,6 @@ type DeployConfig struct {
 	L1FeeVaultWithdrawalNetwork WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
 	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
 	SequencerFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
-	// L1StandardBridgeProxy represents the address of the L1StandardBridgeProxy on L1 and is used
-	// as part of building the L2 genesis state.
-	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
-	// L1CrossDomainMessengerProxy represents the address of the L1CrossDomainMessengerProxy on L1 and is used
-	// as part of building the L2 genesis state.
-	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
-	// L1ERC721BridgeProxy represents the address of the L1ERC721Bridge on L1 and is used
-	// as part of building the L2 genesis state.
-	L1ERC721BridgeProxy common.Address `json:"l1ERC721BridgeProxy"`
-	// SystemConfigProxy represents the address of the SystemConfigProxy on L1 and is used
-	// as part of the derivation pipeline.
-	SystemConfigProxy common.Address `json:"systemConfigProxy"`
-	// OptimismPortalProxy represents the address of the OptimismPortalProxy on L1 and is used
-	// as part of the derivation pipeline.
-	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
 	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
@@ -252,9 +237,6 @@ type DeployConfig struct {
 	// DAResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
 	// such as 100 means 100% refund.
 	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
-
-	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
-	DAChallengeProxy common.Address `json:"daChallengeProxy"`
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
@@ -412,9 +394,6 @@ func (d *DeployConfig) Check() error {
 		if d.DAResolveWindow == 0 {
 			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
 		}
-		if d.DAChallengeProxy == (common.Address{}) {
-			return fmt.Errorf("%w: DAChallengeContract cannot be empty when using plasma mode", ErrInvalidDeployConfig)
-		}
 	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
@@ -445,39 +424,6 @@ func (d *DeployConfig) Check() error {
 		return err
 	}
 	return nil
-}
-
-// CheckAddresses will return an error if the addresses are not set.
-// These values are required to create the L2 genesis state and are present in the deploy config
-// even though the deploy config is required to deploy the contracts on L1. This creates a
-// circular dependency that should be resolved in the future.
-func (d *DeployConfig) CheckAddresses() error {
-	if d.L1StandardBridgeProxy == (common.Address{}) {
-		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		return fmt.Errorf("%w: L1CrossDomainMessengerProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L1ERC721BridgeProxy == (common.Address{}) {
-		return fmt.Errorf("%w: L1ERC721BridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.SystemConfigProxy == (common.Address{}) {
-		return fmt.Errorf("%w: SystemConfigProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.OptimismPortalProxy == (common.Address{}) {
-		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	return nil
-}
-
-// SetDeployments will merge a Deployments into a DeployConfig.
-func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
-	d.L1StandardBridgeProxy = deployments.L1StandardBridgeProxy
-	d.L1CrossDomainMessengerProxy = deployments.L1CrossDomainMessengerProxy
-	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
-	d.SystemConfigProxy = deployments.SystemConfigProxy
-	d.OptimismPortalProxy = deployments.OptimismPortalProxy
-	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
 }
 
 func (d *DeployConfig) GovernanceEnabled() bool {
@@ -551,12 +497,15 @@ func (d *DeployConfig) InteropTime(genesisTime uint64) *uint64 {
 }
 
 // RollupConfig converts a DeployConfig to a rollup.Config
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
-	if d.OptimismPortalProxy == (common.Address{}) {
+func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64, deployments *L1Deployments) (*rollup.Config, error) {
+	if deployments.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
-	if d.SystemConfigProxy == (common.Address{}) {
+	if deployments.SystemConfigProxy == (common.Address{}) {
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
+	}
+	if deployments.DataAvailabilityChallengeProxy == (common.Address{}) {
+		return nil, errors.New("DataAvailabilityChallengeProxy cannot be address(0)")
 	}
 
 	return &rollup.Config{
@@ -584,8 +533,8 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
 		BatchInboxAddress:      d.BatchInboxAddress,
-		DepositContractAddress: d.OptimismPortalProxy,
-		L1SystemConfigAddress:  d.SystemConfigProxy,
+		DepositContractAddress: deployments.OptimismPortalProxy,
+		L1SystemConfigAddress:  deployments.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
 		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
 		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
@@ -593,7 +542,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
 		UsePlasma:              d.UsePlasma,
-		DAChallengeAddress:     d.DAChallengeProxy,
+		DAChallengeAddress:     deployments.DataAvailabilityChallengeProxy,
 		DAChallengeWindow:      d.DAChallengeWindow,
 		DAResolveWindow:        d.DAResolveWindow,
 	}, nil
@@ -792,15 +741,6 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // DeployConfig and a block.
 func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables.PredeploysImmutableConfig, error) {
-	if config.L1StandardBridgeProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1ERC721BridgeProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
 	if config.SequencerFeeVaultRecipient == (common.Address{}) {
 		return nil, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
@@ -875,7 +815,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 }
 
 // NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis block.
-func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
+func NewL2StorageConfig(config *DeployConfig, deployments *L1Deployments, block *types.Block) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 
 	if block.Number() == nil {
@@ -893,18 +833,18 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
-		"otherMessenger":   config.L1CrossDomainMessengerProxy,
+		"otherMessenger":   deployments.L1CrossDomainMessengerProxy,
 	}
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
-		"otherBridge":   config.L1StandardBridgeProxy,
+		"otherBridge":   deployments.L1StandardBridgeProxy,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
-		"otherBridge":   config.L1ERC721BridgeProxy,
+		"otherBridge":   deployments.L1ERC721BridgeProxy,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["OptimismMintableERC20Factory"] = state.StorageValues{
