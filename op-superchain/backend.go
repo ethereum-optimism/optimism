@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -27,29 +26,29 @@ type backend struct {
 	l2FinalizedHeadSub  ethereum.Subscription
 	l2FinalizedBlockRef *eth.L1BlockRef
 
-	l2PeerNodes map[string]client.RPC
+	logProviders map[string]LogsProvider
 }
 
 func NewBackend(ctx context.Context, log log.Logger, m metrics.Factory, cfg *Config) (Backend, error) {
 	log = log.New("module", "superchain")
-	backend := backend{log: log, l2PeerNodes: map[string]client.RPC{}}
+	backend := backend{log: log, logProviders: map[string]LogsProvider{}}
 
 	rpcOpts := []client.RPCOption{client.WithDialBackoff(10)}
-	l2Node, err := client.NewRPC(ctx, log, cfg.L2NodeAddr, rpcOpts...)
+	l2Clnt, err := client.NewRPC(ctx, log, cfg.L2NodeAddr, rpcOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to L2 node: %w", err)
 	}
 
 	for chainId, l2NodeAddr := range cfg.PeerL2NodeAddrs {
-		l2Node, err := client.NewRPC(ctx, log, l2NodeAddr, rpcOpts...)
+		clnt, err := client.NewRPC(ctx, log, l2NodeAddr, rpcOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to Peer L2 node, %d: %w", chainId, err)
 		}
-		backend.l2PeerNodes[fmt.Sprintf("%d", chainId)] = l2Node
+		backend.logProviders[fmt.Sprintf("%d", chainId)] = NewLogProvider(clnt)
 	}
 
 	// retrieve the current references before setting up the poll
-	l2BlockRefsClient := &blockRefsClient{l2Node}
+	l2BlockRefsClient := &blockRefsClient{l2Clnt}
 	finalizedHeadRef, err := l2BlockRefsClient.L1BlockRefByLabel(ctx, eth.Finalized)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query finalized block ref: %w", err)
@@ -77,34 +76,19 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 	// ChainID Invariant.
 	//   TODO: Assumption here that the configured peers exactly maps to the registered dependency set.
 	//   When the predeploy is ready, this needs to be tied to the dependency set registered on-chain
-	l2Node, ok := b.l2PeerNodes[id.ChainId.String()]
+	logsProvider, ok := b.logProviders[id.ChainId.String()]
 	if !ok {
 		return MessageUnknown, fmt.Errorf("peer with chain id %d is not configured", id.ChainId)
 	}
 
-	var logs []types.Log
-	var header *types.Header
-
-	// Since eth_getLogs doesn't support specifying the log index, we fetch
-	// all the outbox reciepts for this block. The timestamp is grabbed via
-	// the block header as getLogs omits this
-	blockNumber := hexutil.EncodeBig(id.BlockNumber)
-	filterArgs := map[string]interface{}{"fromBlock": blockNumber, "toBlock": blockNumber}
-	batchElems := make([]rpc.BatchElem, 2)
-	batchElems[0] = rpc.BatchElem{Method: "eth_getBlockByNumber", Args: []interface{}{blockNumber, false}, Result: &header}
-	batchElems[1] = rpc.BatchElem{Method: "eth_getLogs", Args: []interface{}{filterArgs}, Result: &logs}
-	if err := l2Node.BatchCallContext(ctx, batchElems); err != nil {
-		return MessageUnknown, fmt.Errorf("unable to request logs: %w", err)
-	}
-	if batchElems[0].Error != nil || batchElems[1].Error != nil {
-		return MessageUnknown, fmt.Errorf("caught batch rpc failures: getBlockByNumber: %w, getLogs: %w", batchElems[0].Error, batchElems[1].Error)
+	blockNum := rpc.BlockNumber(id.BlockNumber.Int64())
+	block, logs, err := logsProvider.FetchLogs(ctx, rpc.BlockNumberOrHash{BlockNumber: &blockNum})
+	if err != nil {
+		return MessageUnknown, fmt.Errorf("unable to fetch logs: %w", err)
 	}
 
-	// Check message against the block info
-	if header == nil {
-		return MessageUnknown, fmt.Errorf("block %d does not exist", id.BlockNumber)
-	}
-	if id.Timestamp != header.Time {
+	// validity with the block
+	if id.Timestamp != block.Time() {
 		return MessageInvalid, fmt.Errorf("message id and header timestamp mismatch")
 	}
 	if id.LogIndex >= uint64(len(logs)) {
