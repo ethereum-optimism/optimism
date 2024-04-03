@@ -7,6 +7,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
 /// @title Token
 /// @notice Simple interface for interacting with tokens that have decimals.
@@ -261,26 +262,24 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Getter for the gas paying asset address.
     function gasPayingToken() external view returns (address addr_, uint8 decimals_) {
-        bytes32 slot = Storage.getBytes32(GAS_PAYING_TOKEN_SLOT);
-        addr_ = address(uint160(uint256(slot) & uint256(type(uint160).max)));
-        decimals_ = uint8(uint256(slot) >> 160);
+        (addr_, decimals_) = GasPayingToken.get();
     }
 
     /// @notice Internal setter for the gas paying token address, includes validation.
-    ///         Both the decimals and the address are packed into a single storage slot for
-    ///         simplicity. Ether uses a default value of 18 decimals and the requirement
+    ///         Ether uses a default value of 18 decimals and the requirement
     ///         that the decimals are less than or equal to 18 ensures that no precision is
     ///         lost for tokens that have less decimals.
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
+        if (_token == address(0)) _token = Constants.ETHER;
+
         uint8 decimals = 18;
         if (_token != Constants.ETHER) {
             decimals = Token(_token).decimals();
             require(decimals <= 18, "SystemConfig: bad decimals");
         }
 
-        Storage.setBytes32(GAS_PAYING_TOKEN_SLOT, bytes32(uint256(decimals) << 160 | uint256(uint160(_token))));
-
+        GasPayingToken.set(_token, decimals);
         OptimismPortal(payable(optimismPortal())).setGasPayingToken(_token, decimals);
     }
 
