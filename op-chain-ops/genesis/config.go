@@ -921,7 +921,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initializing": false,
 		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
-
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
 		"timestamp":      block.Time(),
