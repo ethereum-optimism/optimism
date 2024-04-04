@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -181,10 +182,15 @@ func TestQueue_Send(t *testing.T) {
 			}
 
 			// track the nonces, and return any expected errors from tx sending
-			var nonces []uint64
+			var (
+				nonces  []uint64
+				nonceMu sync.Mutex
+			)
 			sendTx := func(ctx context.Context, tx *types.Transaction) error {
 				index := int(tx.Data()[0])
+				nonceMu.Lock()
 				nonces = append(nonces, tx.Nonce())
+				nonceMu.Unlock()
 				var testTx *testTx
 				if index < len(test.txs) {
 					testTx = &test.txs[index]
