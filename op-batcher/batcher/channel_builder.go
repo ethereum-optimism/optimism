@@ -83,13 +83,17 @@ func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1Origi
 	if err != nil {
 		return nil, err
 	}
-	var spanBatch *derive.SpanBatch
+	var co derive.ChannelOut
 	if cfg.BatchType == derive.SpanBatchType {
-		spanBatch = derive.NewSpanBatch(rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID)
-	}
-	co, err := derive.NewChannelOut(cfg.BatchType, c, spanBatch)
-	if err != nil {
-		return nil, err
+		co, err = derive.NewSpanChannelOut(rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID, cfg.CompressorConfig.TargetOutputSize)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		co, err = derive.NewChannelOut(c)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cb := &ChannelBuilder{

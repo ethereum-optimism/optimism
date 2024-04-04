@@ -14,8 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-const CloseOverheadZlib = 9
-
 type SpanChannelOut struct {
 	id ChannelID
 	// Frame ID of the next frame to emit. Increment after emitting
@@ -46,12 +44,9 @@ func (co *SpanChannelOut) ID() ChannelID {
 	return co.id
 }
 
-func (co *SpanChannelOut) randomID() error {
+func (co *SpanChannelOut) setRandomID() error {
 	_, err := rand.Read(co.id[:])
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64) (*SpanChannelOut, error) {
@@ -64,7 +59,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		target:     targetOutputSize,
 	}
 	var err error
-	if err = c.randomID(); err != nil {
+	if err = c.setRandomID(); err != nil {
 		return nil, err
 	}
 	if c.compressor, err = zlib.NewWriterLevel(c.compressed, zlib.BestCompression); err != nil {
@@ -84,7 +79,7 @@ func (co *SpanChannelOut) Reset() error {
 	co.compressor.Reset(co.compressed)
 	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
 	// setting the new randomID is the only part of the reset that can fail
-	return co.randomID()
+	return co.setRandomID()
 }
 
 // activeRLP returns the active RLP buffer using the current rlpIndex
@@ -115,6 +110,7 @@ func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block)
 }
 
 // AddSingularBatch adds a SingularBatch to the channel, compressing the data if necessary.
+// it returns the length of the RLP being compressed
 // if the new batch would make the channel exceed the target size, the last batch is reverted,
 // and the compression happens on the previous RLP buffer instead
 // if the input is too small to need compression, data is accumulated but not compressed
@@ -152,7 +148,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	// this optimizes out cases where the compressor will obviously come in under the target size
 	rlpGrowth := co.activeRLP().Len() - co.lastCompressedRLPSize
 	if uint64(co.compressed.Len()+rlpGrowth) < co.target {
-		return uint64(co.lastCompressedRLPSize), nil
+		return uint64(co.activeRLP().Len()), nil
 	}
 
 	// we must compress the data to check if we've met or exceeded the target size
@@ -165,7 +161,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	if err := co.FullErr(); err != nil {
 		// if there is only one batch in the channel, it *must* be returned
 		if len(co.spanBatch.Batches) == 1 {
-			return uint64(co.compressed.Len()), nil
+			return uint64(co.activeRLP().Len()), nil
 		}
 
 		// if there is more than one batch in the channel, we revert the last batch
@@ -175,10 +171,10 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 			return 0, err
 		}
 		// co.FullErr should always return FullErr by this point
-		return uint64(co.compressed.Len()), co.FullErr()
+		return uint64(co.activeRLP().Len()), co.FullErr()
 	}
 
-	return uint64(co.compressed.Len()), nil
+	return uint64(co.activeRLP().Len()), nil
 }
 
 // compress compresses the active RLP buffer and checks if the compressed data is over the target size.
@@ -189,7 +185,7 @@ func (co *SpanChannelOut) compress() error {
 	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {
 		return err
 	}
-	co.compressor.Flush()
+	co.compressor.Close()
 	co.checkFull()
 	return nil
 }
@@ -220,7 +216,7 @@ func (co *SpanChannelOut) checkFull() {
 	if co.full != nil {
 		return
 	}
-	if uint64(co.compressed.Len()+CloseOverheadZlib) >= co.target {
+	if uint64(co.compressed.Len()) >= co.target {
 		co.full = ErrCompressorFull
 	}
 }

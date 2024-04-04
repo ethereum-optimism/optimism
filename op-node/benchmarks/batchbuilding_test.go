@@ -13,39 +13,34 @@ import (
 )
 
 var (
+	// a really large target output size to ensure that the compressors are never full
+	targetOutput_huge = uint64(100_000_000_000)
+	// this target size was determiend by the devnet sepolia batcher's configuration
+	targetOuput_real = uint64(780120)
 
 	// compressors used in the benchmark
 	rc, _ = compressor.NewRatioCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000_000,
+		TargetOutputSize: targetOutput_huge,
 		ApproxComprRatio: 0.4,
 	})
 	sc, _ = compressor.NewShadowCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000_000,
+		TargetOutputSize: targetOutput_huge,
 	})
 	nc, _ = compressor.NewNonCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000_000,
-	})
-	bc, _ = compressor.NewBlindCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000_000,
+		TargetOutputSize: targetOutput_huge,
 	})
 	realsc, _ = compressor.NewShadowCompressor(compressor.Config{
-		// this target size was determiend by the devnet sepolia batcher's configuration
-		TargetOutputSize: 780120,
-	})
-	realbc, _ = compressor.NewBlindCompressor(compressor.Config{
-		// this target size was determiend by the devnet sepolia batcher's configuration
-		TargetOutputSize: 780120,
+		TargetOutputSize: targetOuput_real,
 	})
 
-	compressors = map[string]derive.Compressor{
-		"BlindCompressor":      bc,
-		"NonCompressor":        nc,
-		"RatioCompressor":      rc,
-		"ShadowCompressor":     sc,
-		"RealBlindCompressor":  realbc,
-		"RealShadowCompressor": realsc,
+	// compressors used in the benchmark mapped by their name
+	// they come paired with a target output size so span batches can use the target size directly
+	compressors = map[string]compressorAndTarget{
+		"NonCompressor":        {nc, targetOutput_huge},
+		"RatioCompressor":      {rc, targetOutput_huge},
+		"ShadowCompressor":     {sc, targetOutput_huge},
+		"RealShadowCompressor": {realsc, targetOuput_real},
 	}
-
 	// batch types used in the benchmark
 	batchTypes = []uint{
 		derive.SpanBatchType,
@@ -54,6 +49,23 @@ var (
 		//derive.SingularBatchType,
 	}
 )
+
+type compressorAndTarget struct {
+	compressor   derive.Compressor
+	targetOutput uint64
+}
+
+// channelOutByType returns a channel out of the given type as a helper for the benchmarks
+func channelOutByType(batchType uint, compKey string) (derive.ChannelOut, error) {
+	chainID := big.NewInt(333)
+	if batchType == derive.SingularBatchType {
+		return derive.NewChannelOut(compressors[compKey].compressor)
+	}
+	if batchType == derive.SpanBatchType {
+		return derive.NewSpanChannelOut(0, chainID, compressors[compKey].targetOutput)
+	}
+	return nil, fmt.Errorf("unsupported batch type: %d", batchType)
+}
 
 // a test case for the benchmark controls the number of batches and transactions per batch,
 // as well as the batch type and compressor used
@@ -120,9 +132,8 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
-				compressors[tc.compKey].Reset()
-				spanBatch := derive.NewSpanBatch(uint64(0), chainID)
-				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatch)
+				compressors[tc.compKey].compressor.Reset()
+				cout, _ := channelOutByType(tc.BatchType, tc.compKey)
 				// add all but the final batch to the channel out
 				for i := 0; i < tc.BatchCount-1; i++ {
 					_, err := cout.AddSingularBatch(batches[i], 0)
@@ -149,11 +160,11 @@ func BenchmarkIncremental(b *testing.B) {
 	// use batchCount as the number of batches to add in each benchmark iteration
 	// and use txPerBatch as the number of transactions per batch
 	tcs := []BatchingBenchmarkTC{
-		{derive.SpanBatchType, 100, 1, "RealBlindCompressor"},
-		{derive.SingularBatchType, 100, 1, "RealShadowCompressor"},
+		{derive.SpanBatchType, 5, 1, "RealBlindCompressor"},
+		//{derive.SingularBatchType, 100, 1, "RealShadowCompressor"},
 	}
 	for _, tc := range tcs {
-		cout, err := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], derive.NewSpanBatch(0, chainID))
+		cout, err := channelOutByType(tc.BatchType, tc.compKey)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -230,9 +241,8 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
-				compressors[tc.compKey].Reset()
-				spanBatch := derive.NewSpanBatch(0, chainID)
-				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatch)
+				compressors[tc.compKey].compressor.Reset()
+				cout, _ := channelOutByType(tc.BatchType, tc.compKey)
 				b.StartTimer()
 				// add all batches to the channel out
 				for i := 0; i < tc.BatchCount; i++ {

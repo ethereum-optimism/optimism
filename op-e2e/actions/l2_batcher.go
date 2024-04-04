@@ -189,24 +189,21 @@ func (s *L2Batcher) Buffer(t Testing) error {
 		if s.l2BatcherCfg.GarbageCfg != nil {
 			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
 		} else {
-			c, e := compressor.NewBlindCompressor(compressor.Config{
-				TargetOutputSize: batcher.MaxDataSize(1, s.l2BatcherCfg.MaxL1TxSize),
+			target := batcher.MaxDataSize(1, s.l2BatcherCfg.MaxL1TxSize)
+			c, e := compressor.NewShadowCompressor(compressor.Config{
+				TargetOutputSize: target,
 			})
 			require.NoError(t, e, "failed to create compressor")
-
-			var batchType uint = derive.SingularBatchType
-			var spanBatch *derive.SpanBatch
 
 			if s.l2BatcherCfg.ForceSubmitSingularBatch && s.l2BatcherCfg.ForceSubmitSpanBatch {
 				t.Fatalf("ForceSubmitSingularBatch and ForceSubmitSpanBatch cannot be set to true at the same time")
 			} else if s.l2BatcherCfg.ForceSubmitSingularBatch {
 				// use SingularBatchType
+				ch, err = derive.NewChannelOut(c)
 			} else if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
 				// If both ForceSubmitSingularBatch and ForceSubmitSpanbatch are false, use SpanBatch automatically if Delta HF is activated.
-				batchType = derive.SpanBatchType
-				spanBatch = derive.NewSpanBatch(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID)
+				ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target)
 			}
-			ch, err = derive.NewChannelOut(batchType, c, spanBatch)
 		}
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch

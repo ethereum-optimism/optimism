@@ -365,7 +365,7 @@ func TestChannelBuilder_OutputWrongFramePanic(t *testing.T) {
 	// to construct a single frame
 	c, err := channelConfig.CompressorConfig.NewCompressor()
 	require.NoError(t, err)
-	co, err := derive.NewChannelOut(derive.SingularBatchType, c, nil)
+	co, err := derive.NewChannelOut(c)
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	fn, err := co.OutputFrame(&buf, channelConfig.MaxFrameSize)

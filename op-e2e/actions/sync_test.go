@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -27,12 +26,7 @@ import (
 )
 
 func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
-	c, err := compressor.NewBlindCompressor(compressor.Config{
-		TargetOutputSize: 128_000,
-	})
-	require.NoError(t, err)
-	spanBatch := derive.NewSpanBatch(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID)
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatch)
+	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000)
 	require.NoError(t, err)
 	return channelOut
 }

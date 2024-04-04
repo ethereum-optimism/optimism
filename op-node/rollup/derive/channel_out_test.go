@@ -41,7 +41,7 @@ func (t *nonCompressor) TargetOutputSize() uint64 {
 }
 
 func TestChannelOutAddBlock(t *testing.T) {
-	cout, err := NewChannelOut(SingularBatchType, &nonCompressor{}, nil)
+	cout, err := NewChannelOut(&nonCompressor{})
 	require.NoError(t, err)
 
 	t.Run("returns err if first tx is not an l1info tx", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestChannelOutAddBlock(t *testing.T) {
 // max size that is below the fixed frame size overhead of 23, will return
 // an error.
 func TestOutputFrameSmallMaxSize(t *testing.T) {
-	cout, err := NewChannelOut(SingularBatchType, &nonCompressor{}, nil)
+	cout, err := NewChannelOut(&nonCompressor{})
 	require.NoError(t, err)
 
 	// Call OutputFrame with the range of small max size values that err
@@ -75,7 +75,7 @@ func TestOutputFrameSmallMaxSize(t *testing.T) {
 }
 
 func TestOutputFrameNoEmptyLastFrame(t *testing.T) {
-	cout, err := NewChannelOut(SingularBatchType, &nonCompressor{}, nil)
+	cout, err := NewChannelOut(&nonCompressor{})
 	require.NoError(t, err)
 
 	rng := rand.New(rand.NewSource(0x543331))
