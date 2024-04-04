@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -269,7 +268,9 @@ func (e *EngineController) resetBuildingState() {
 // It returns true if the status is acceptable.
 func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus) bool {
 	if e.syncMode == sync.ELSync {
-		if status == eth.ExecutionValid && e.syncStatus == syncStatusStartedEL {
+		if status == eth.ExecutionSyncing && e.syncStatus == syncStatusWillStartEL {
+			e.syncStatus = syncStatusStartedEL
+		} else if status == eth.ExecutionValid {
 			e.syncStatus = syncStatusFinishedELButNotFinalized
 		}
 		// Allow SYNCING and ACCEPTED if engine EL sync is enabled
@@ -282,7 +283,7 @@ func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus
 // It returns true if the status is acceptable.
 func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloadStatus) bool {
 	if e.syncMode == sync.ELSync {
-		if status == eth.ExecutionValid && e.syncStatus == syncStatusStartedEL {
+		if status == eth.ExecutionValid {
 			e.syncStatus = syncStatusFinishedELButNotFinalized
 		}
 		// Allow SYNCING if engine P2P sync is enabled
@@ -324,22 +325,6 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 }
 
 func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
-	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
-	if e.syncStatus == syncStatusWillStartEL {
-		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-		isTransitionBlock := e.rollupCfg.Genesis.L2.Number != 0 && b.Hash == e.rollupCfg.Genesis.L2.Hash
-		if errors.Is(err, ethereum.NotFound) || isTransitionBlock {
-			e.syncStatus = syncStatusStartedEL
-			e.log.Info("Starting EL sync")
-			e.elStart = e.clock.Now()
-		} else if err == nil {
-			e.syncStatus = syncStatusFinishedEL
-			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
-			return nil
-		} else {
-			return NewTemporaryError(fmt.Errorf("failed to fetch finalized head: %w", err))
-		}
-	}
 	// Insert the payload & then call FCU
 	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
