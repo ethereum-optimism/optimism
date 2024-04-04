@@ -7,8 +7,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -158,38 +156,29 @@ func TestFetchL1Receipts(t *testing.T) {
 	})
 }
 
-// Globally initialize a kzgCtx for blob tests.
-var kzgCtx, _ = gokzg4844.NewContext4096Secure()
-
-// Returns a serialized random field element in big-endian
-func GetRandFieldElement(seed int64) [32]byte {
-	var r fr.Element
-	_, _ = r.SetRandom()
-	return gokzg4844.SerializeScalar(r)
-}
-
-func GetRandBlob(seed int64) gokzg4844.Blob {
-	var blob gokzg4844.Blob
-	bytesPerBlob := gokzg4844.ScalarsPerBlob * gokzg4844.SerializedScalarSize
-	for i := 0; i < bytesPerBlob; i += gokzg4844.SerializedScalarSize {
-		fieldElementBytes := GetRandFieldElement(seed + int64(i))
-		copy(blob[i:i+gokzg4844.SerializedScalarSize], fieldElementBytes[:])
+func GetRandBlob(t *testing.T, seed int64) eth.Blob {
+	r := rand.New(rand.NewSource(seed))
+	bigData := eth.Data(make([]byte, eth.MaxBlobDataSize))
+	for i := range bigData {
+		bigData[i] = byte(r.Intn(256))
 	}
-	return blob
+	var b eth.Blob
+	err := b.FromData(bigData)
+	require.NoError(t, err)
+	return b
 }
 
 func TestFetchL1Blob(t *testing.T) {
-	blob := GetRandBlob(0xf00f00)
-	commitment, err := kzgCtx.BlobToKZGCommitment(blob, 0)
+	blob := GetRandBlob(t, 0xf00f00)
+	commitment, err := blob.ComputeKZGCommitment()
 	require.NoError(t, err)
-	versionedHash := sha256.Sum256(commitment[:])
-	versionedHash[0] = params.BlobTxHashVersion
+	versionedHash := eth.KZGToVersionedHash(commitment)
 	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
 	l1Ref := eth.L1BlockRef{Time: 0}
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
 		prefetcher, _, blobFetcher, _, kv := createPrefetcher(t)
-		storeBlob(t, kv, (eth.Bytes48)(commitment), (*eth.Blob)(&blob))
+		storeBlob(t, kv, (eth.Bytes48)(commitment), &blob)
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
 		defer blobFetcher.AssertExpectations(t)
@@ -207,7 +196,7 @@ func TestFetchL1Blob(t *testing.T) {
 			l1Ref,
 			[]eth.IndexedBlobHash{blobHash},
 			(eth.Bytes48)(commitment),
-			[]*eth.Blob{(*eth.Blob)(&blob)},
+			[]*eth.Blob{&blob},
 			nil,
 		)
 		defer blobFetcher.AssertExpectations(t)

@@ -2,7 +2,6 @@ package prefetcher
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"testing"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -115,11 +113,10 @@ func createL1Source(t *testing.T) (*RetryingL1Source, *testutils.MockL1Source) {
 
 func TestRetryingL1BlobSource(t *testing.T) {
 	ctx := context.Background()
-	blob := GetRandBlob(0xFACADE)
-	commitment, err := kzgCtx.BlobToKZGCommitment(blob, 0)
+	blob := GetRandBlob(t, 0xFACADE)
+	commitment, err := blob.ComputeKZGCommitment()
 	require.NoError(t, err)
-	versionedHash := sha256.Sum256(commitment[:])
-	versionedHash[0] = params.BlobTxHashVersion
+	versionedHash := eth.KZGToVersionedHash(commitment)
 	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
 	l1BlockRef := eth.L1BlockRef{Time: 0}
 
