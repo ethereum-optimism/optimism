@@ -35,7 +35,7 @@ var L2ChainIDToNetworkDisplayName = func() map[string]string {
 func AvailableNetworks() []string {
 	var networks []string
 	for _, cfg := range superchain.OPChains {
-		networks = append(networks, cfg.Chain+"-"+cfg.Superchain)
+		networks = append(networks, cfg.ShortName+"-"+cfg.Superchain)
 	}
 	return networks
 }
@@ -57,7 +57,7 @@ func ChainByName(name string) *superchain.ChainConfig {
 	// Handle legacy name aliases
 	name = handleLegacyName(name)
 	for _, chainCfg := range superchain.OPChains {
-		if strings.EqualFold(chainCfg.Chain+"-"+chainCfg.Superchain, name) {
+		if strings.EqualFold(chainCfg.ShortName+"-"+chainCfg.Superchain, name) {
 			return chainCfg
 		}
 	}
