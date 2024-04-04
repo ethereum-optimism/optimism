@@ -26,11 +26,14 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_Init {
         (Hash cannonRoot, uint256 cannonL2BlockNumber) = anchorStateRegistry.anchors(GameTypes.CANNON);
         (Hash permissionedCannonRoot, uint256 permissionedCannonL2BlockNumber) =
             anchorStateRegistry.anchors(GameTypes.PERMISSIONED_CANNON);
+        (Hash asteriscRoot, uint256 asteriscL2BlockNumber) = anchorStateRegistry.anchors(GameTypes.ASTERISC);
         (Hash alphabetRoot, uint256 alphabetL2BlockNumber) = anchorStateRegistry.anchors(GameTypes.ALPHABET);
         assertEq(cannonRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
         assertEq(cannonL2BlockNumber, 0);
         assertEq(permissionedCannonRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
         assertEq(permissionedCannonL2BlockNumber, 0);
+        assertEq(asteriscRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
+        assertEq(asteriscL2BlockNumber, 0);
         assertEq(alphabetRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
         assertEq(alphabetL2BlockNumber, 0);
     }
