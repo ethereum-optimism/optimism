@@ -57,6 +57,10 @@ log = logging.getLogger(__name__)
 
 
 def main():
+    # Temporarily always build
+    if True:
+      exit_build()
+
     patterns = sys.argv[1].split(',') + REBUILD_ALL_PATTERNS
     no_go_deps = os.getenv('CHECK_CHANGED_NO_GO_DEPS')
     if no_go_deps is None:
