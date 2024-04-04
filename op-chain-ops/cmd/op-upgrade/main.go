@@ -228,23 +228,17 @@ func entrypoint(ctx *cli.Context) error {
 // with a canonical naming scheme. If an empty string is returned, then
 // it means that the chain is not supported yet.
 func toDeployConfigName(cfg *superchain.ChainConfig) (string, error) {
-	if cfg.Name == "OP-Sepolia" {
+	if cfg.Name == "OP Sepolia" {
 		return "sepolia", nil
 	}
-	if cfg.Name == "OP-Goerli" {
-		return "goerli", nil
-	}
-	if cfg.Name == "PGN" {
+	if cfg.Name == "PGN (Public Goods Network)" {
 		return "pgn", nil
 	}
 	if cfg.Name == "Zora" {
 		return "zora", nil
 	}
-	if cfg.Name == "OP-Mainnet" {
+	if cfg.Name == "OP Mainnet" {
 		return "mainnet", nil
-	}
-	if cfg.Name == "Zora Goerli" {
-		return "zora-goerli", nil
 	}
 	return "", fmt.Errorf("unsupported chain name %s", cfg.Name)
 }
