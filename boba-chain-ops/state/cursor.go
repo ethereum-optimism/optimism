@@ -27,6 +27,25 @@ func GetAccount(tx kv.Tx, addr common.Address) ([]byte, error) {
 	return value, nil
 }
 
+func GetAllAccounts(tx kv.Tx) (map[common.Address][]byte, error) {
+	cursor, err := tx.Cursor(kv.PlainState)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create plain state cursor: %w", err)
+	}
+	defer cursor.Close()
+
+	accounts := make(map[common.Address][]byte)
+	for k, v, err := cursor.First(); k != nil; k, v, err = cursor.Next() {
+		if err != nil {
+			return nil, fmt.Errorf("failed to read storage from database: %w", err)
+		}
+		if len(k) == 20 {
+			accounts[common.BytesToAddress(k[:20])] = v
+		}
+	}
+	return accounts, nil
+}
+
 func GetStorage(tx kv.Tx, addr common.Address, hash common.Hash) (*common.Hash, error) {
 	cursor, err := tx.Cursor(kv.PlainState)
 	if err != nil {
@@ -46,6 +65,32 @@ func GetStorage(tx kv.Tx, addr common.Address, hash common.Hash) (*common.Hash, 
 		}
 	}
 	return &value, nil
+}
+
+func GetAllStorages(tx kv.Tx) (map[common.Address]map[common.Hash]common.Hash, error) {
+	cursor, err := tx.Cursor(kv.PlainState)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create plain state cursor: %w", err)
+	}
+	defer cursor.Close()
+
+	storages := make(map[common.Address]map[common.Hash]common.Hash)
+	for k, v, err := cursor.First(); k != nil; k, v, err = cursor.Next() {
+		if err != nil {
+			return nil, fmt.Errorf("failed to read storage from database: %w", err)
+		}
+		// Storage is 20 bytes account address + 8 byte incarnation + 32 byte storage key
+		if len(k) == 60 {
+			addr := common.BytesToAddress(k[:20])
+			key := common.BytesToHash(k[28:])
+			val := common.BytesToHash(v)
+			if _, ok := storages[addr]; !ok {
+				storages[addr] = make(map[common.Hash]common.Hash)
+			}
+			storages[addr][key] = val
+		}
+	}
+	return storages, nil
 }
 
 func GetContractCode(tx kv.Tx, addr common.Address) (*common.Hash, error) {

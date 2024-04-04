@@ -60,6 +60,41 @@ func TestGetStorage(t *testing.T) {
 	require.Equal(t, common.BytesToHash(tableVal), *value)
 }
 
+func TestGetAllStorages(t *testing.T) {
+	addr := common.HexToAddress("0x4200000000000000000000000000000000000000")
+	incarnation := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	storageKey := ether.CalcOVMETHStorageKey(addr)
+	tableKey := append(addr.Bytes(), incarnation...)
+	tableKey = append(tableKey, storageKey.Bytes()...)
+	tableVal := []byte("test")
+
+	stack, err := node.New(context.Background(), testNodeConfig(t), logger)
+	require.NoError(t, err)
+	defer stack.Close()
+
+	db, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
+	require.NoError(t, err)
+	defer db.Close()
+
+	if err = db.Update(context.Background(), func(tx kv.RwTx) error {
+		return tx.Put(kv.PlainState, tableKey, tableVal)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := db.BeginRo(context.Background())
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	storages, err := GetAllStorages(tx)
+	require.NoError(t, err)
+	require.Equal(t, map[common.Address]map[common.Hash]common.Hash{
+		addr: {
+			storageKey: common.BytesToHash(tableVal),
+		},
+	}, storages)
+}
+
 func TestGetAccount(t *testing.T) {
 	addr := common.HexToAddress("0x4200000000000000000000000000000000000000")
 	tableVal := []byte("test")
@@ -85,6 +120,35 @@ func TestGetAccount(t *testing.T) {
 	value, err := GetAccount(tx, addr)
 	require.NoError(t, err)
 	require.Equal(t, tableVal, value)
+}
+
+func TestGetAllAccounts(t *testing.T) {
+	addr := common.HexToAddress("0x4200000000000000000000000000000000000000")
+	tableVal := []byte("test")
+
+	stack, err := node.New(context.Background(), testNodeConfig(t), logger)
+	require.NoError(t, err)
+	defer stack.Close()
+
+	db, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
+	require.NoError(t, err)
+	defer db.Close()
+
+	if err = db.Update(context.Background(), func(tx kv.RwTx) error {
+		return tx.Put(kv.PlainState, addr.Bytes(), tableVal)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := db.BeginRo(context.Background())
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	accounts, err := GetAllAccounts(tx)
+	require.NoError(t, err)
+	require.Equal(t, map[common.Address][]byte{
+		addr: tableVal,
+	}, accounts)
 }
 
 func TestGetContractCode(t *testing.T) {
