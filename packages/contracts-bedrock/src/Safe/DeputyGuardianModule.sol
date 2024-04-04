@@ -24,10 +24,10 @@ contract DeputyGuardianModule is ISemver {
     error TransactionExecutionFailed(string);
 
     /// @notice Emitted when the SuperchainConfig is paused
-    event SuperchainConfigPaused();
+    event Paused(string identifier);
 
     /// @notice Emitted when the SuperchainConfig is unpaused
-    event SuperchainConfigUnpaused();
+    event Unpaused();
 
     /// @notice Emitted when a DisputeGame is blacklisted
     event DisputeGameBlacklisted(IDisputeGame game);
@@ -92,7 +92,7 @@ contract DeputyGuardianModule is ISemver {
         if (!success) {
             revert TransactionExecutionFailed(string(returnData));
         }
-        emit SuperchainConfigPaused();
+        emit Paused("Deputy Guardian");
     }
 
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
@@ -107,7 +107,7 @@ contract DeputyGuardianModule is ISemver {
         if (!success) {
             revert TransactionExecutionFailed(string(returnData));
         }
-        emit SuperchainConfigUnpaused();
+        emit Unpaused();
     }
 
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments

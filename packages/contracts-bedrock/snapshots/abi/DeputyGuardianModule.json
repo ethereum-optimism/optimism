@@ -140,6 +140,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "string",
+        "name": "identifier",
+        "type": "string"
+      }
+    ],
+    "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "GameType",
         "name": "gameType",
         "type": "uint32"
@@ -151,13 +164,7 @@
   {
     "anonymous": false,
     "inputs": [],
-    "name": "SuperchainConfigPaused",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [],
-    "name": "SuperchainConfigUnpaused",
+    "name": "Unpaused",
     "type": "event"
   },
   {

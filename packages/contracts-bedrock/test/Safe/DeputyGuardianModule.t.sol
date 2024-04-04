@@ -17,8 +17,6 @@ contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     error OnlyDeputyGuardian();
     error TransactionExecutionFailed(string);
 
-    event SuperchainConfigPaused();
-    event SuperchainConfigUnpaused();
     event DisputeGameBlacklisted(IDisputeGame);
     event RespectedGameTypeSet(GameType);
     event ExecutionFromModuleSuccess(address indexed);
@@ -73,7 +71,7 @@ contract DeputyGuardianModule_Pause_Test is DeputyGuardianModule_TestInit {
         emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
 
         vm.expectEmit(address(deputyGuardianModule));
-        emit SuperchainConfigPaused();
+        emit Paused("Deputy Guardian");
 
         vm.prank(address(deputyGuardian));
         deputyGuardianModule.pause();
@@ -122,7 +120,7 @@ contract DeputyGuardianModule_Unpause_Test is DeputyGuardianModule_TestInit {
         emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
 
         vm.expectEmit(address(deputyGuardianModule));
-        emit SuperchainConfigUnpaused();
+        emit Unpaused();
 
         vm.prank(address(deputyGuardian));
         deputyGuardianModule.unpause();
