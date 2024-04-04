@@ -92,7 +92,7 @@ func TestHints(t *testing.T) {
 			wg.Done()
 		}()
 		go func() {
-			b.Write([]byte{0})
+			_, _ = b.Write([]byte{0})
 			wg.Done()
 		}()
 
@@ -101,7 +101,7 @@ func TestHints(t *testing.T) {
 		}
 
 		// read one byte so it falls short, see if it's detected
-		b.Read(make([]byte, 1))
+		_, _ = b.Read(make([]byte, 1))
 		hr := NewHintReader(b)
 		err = hr.NextHint(func(hint string) error { return nil })
 		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
