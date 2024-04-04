@@ -18,6 +18,8 @@
   "l2OutputOracleStartingBlockNumber": 1,
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
+  "gasPriceOracleBaseFeeScalar": 1368,
+  "gasPriceOracleBlobBaseFeeScalar": 810949,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleChallenger": "0x6925B8704Ff96DEe942623d6FB5e946EF5884b63",
   "l2GenesisBlockBaseFeePerGas": "0x3B9ACA00",

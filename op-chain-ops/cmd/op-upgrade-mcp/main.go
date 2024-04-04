@@ -92,7 +92,7 @@ func main() {
 	oplog.SetGlobalLogHandler(log.NewTerminalHandler(os.Stderr, color))
 
 	app := &cli.App{
-		Name:  "op-upgrade",
+		Name:  "op-upgrade-mcp",
 		Usage: "Build transactions useful for upgrading the Superchain",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -179,6 +179,11 @@ func entrypoint(ctx *cli.Context) error {
 		return fmt.Errorf("no chain config for chain ID %d", l2ChainID)
 	}
 
+	superchainConfig, ok := superchain.Superchains[chainConfig.Superchain]
+	if !ok {
+		return fmt.Errorf("no superchain config for superchain %s", chainConfig.Superchain)
+	}
+
 	log.Info("Upgrading to the following versions")
 	log.Info("L1CrossDomainMessenger", "version", list.L1CrossDomainMessenger.Version, "address", list.L1CrossDomainMessenger.Address)
 	log.Info("L1ERC721Bridge", "version", list.L1ERC721Bridge.Version, "address", list.L1ERC721Bridge.Address)
@@ -193,7 +198,7 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	// Build the batch
-	if err := upgrades.L1(&batch, list, *proxyAddresses, config, chainConfig, clients.L1Client); err != nil {
+	if err := upgrades.L1(&batch, list, *proxyAddresses, config, chainConfig, superchainConfig, clients.L1Client); err != nil {
 		return fmt.Errorf("cannot build L1 upgrade batch: %w", err)
 	}
 
