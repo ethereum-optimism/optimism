@@ -45,7 +45,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
 	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240403211106-730d61f58c4b // indirect
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240404153844-7e8a79f3cf6e // indirect
 	github.com/ethereum/c-kzg-4844 v0.4.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/flosch/pongo2/v4 v4.0.2 // indirect
