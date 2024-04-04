@@ -466,7 +466,10 @@ func (d *DeployConfig) FeeScalar() [32]byte {
 	if d.GasPriceOracleScalar != 0 {
 		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
 	}
-	return eth.EncodeScalar(d.GasPriceOracleBlobBaseFeeScalar, d.GasPriceOracleBaseFeeScalar)
+	return eth.EncodeScalar(eth.EcostoneScalars{
+		BlobBaseFeeScalar: d.GasPriceOracleBlobBaseFeeScalar,
+		BaseFeeScalar:     d.GasPriceOracleBaseFeeScalar,
+	})
 }
 
 // CheckAddresses will return an error if the addresses are not set.

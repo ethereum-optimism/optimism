@@ -16,11 +16,13 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
 )
 
 var writeFile bool
@@ -49,8 +51,44 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 	proxyBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	require.NoError(t, err)
 
-	// Apply the genesis block to the backend
-	backend = backends.NewSimulatedBackendWithOpts(backends.WithAlloc(gen.Alloc))
+	// for simulation we need a regular EVM, not with system-deposit information.
+	chainConfig := params.ChainConfig{
+		ChainID:             big.NewInt(1337),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      false,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		ArrowGlacierBlock:   big.NewInt(0),
+		GrayGlacierBlock:    big.NewInt(0),
+		// Activated proof of stake. We manually build/commit blocks in the simulator anyway,
+		// and the timestamp verification of PoS is not against the wallclock,
+		// preventing blocks from getting stuck temporarily in the future-blocks queue, decreasing setup time a lot.
+		MergeNetsplitBlock:            big.NewInt(0),
+		TerminalTotalDifficulty:       big.NewInt(0),
+		TerminalTotalDifficultyPassed: true,
+		ShanghaiTime:                  new(uint64),
+	}
+
+	// Apply the genesis to the backend
+	cfg := ethconfig.Defaults
+	cfg.Preimages = true
+	cfg.Genesis = &core.Genesis{
+		Config:     &chainConfig,
+		Timestamp:  1234567,
+		Difficulty: big.NewInt(0),
+		Alloc:      gen.Alloc,
+		GasLimit:   30_000_000,
+	}
+	backend = backends.NewSimulatedBackendFromConfig(cfg)
 
 	for name, predeploy := range predeploys.Predeploys {
 		addr := predeploy.Address
@@ -140,6 +178,9 @@ func testL1Block(t *testing.T, caller bind.ContractCaller, config *genesis.Deplo
 
 	blobBaseFee, err := contract.BlobBaseFee(&bind.CallOpts{})
 	require.NoError(t, err)
+	if excessBlobGas := block.ExcessBlobGas(); excessBlobGas != nil {
+		require.Equal(t, uint64(0), *excessBlobGas)
+	}
 	require.Equal(t, big.NewInt(1), blobBaseFee)
 }
 

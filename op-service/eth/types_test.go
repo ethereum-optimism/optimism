@@ -45,12 +45,12 @@ func TestEcotoneScalars(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			sysConfig := SystemConfig{Scalar: tc.val}
-			blobScalar, regScalar, err := sysConfig.EcotoneScalars()
+			scalars, err := sysConfig.EcotoneScalars()
 			if tc.fail {
 				require.NotNil(t, err)
 			} else {
-				require.Equal(t, tc.blobBaseFeeScalar, blobScalar)
-				require.Equal(t, tc.baseFeeScalar, regScalar)
+				require.Equal(t, tc.blobBaseFeeScalar, scalars.BlobBaseFeeScalar)
+				require.Equal(t, tc.baseFeeScalar, scalars.BaseFeeScalar)
 				require.NoError(t, err)
 			}
 		})
@@ -59,10 +59,10 @@ func TestEcotoneScalars(t *testing.T) {
 
 func FuzzEncodeScalar(f *testing.F) {
 	f.Fuzz(func(t *testing.T, blobBaseFeeScalar uint32, baseFeeScalar uint32) {
-		encoded := EncodeScalar(blobBaseFeeScalar, baseFeeScalar)
-		blob, base, err := DecodeScalar(encoded)
+		encoded := EncodeScalar(EcostoneScalars{BlobBaseFeeScalar: blobBaseFeeScalar, BaseFeeScalar: baseFeeScalar})
+		scalars, err := DecodeScalar(encoded)
 		require.NoError(t, err)
-		require.Equal(t, blobBaseFeeScalar, blob)
-		require.Equal(t, baseFeeScalar, base)
+		require.Equal(t, blobBaseFeeScalar, scalars.BlobBaseFeeScalar)
+		require.Equal(t, baseFeeScalar, scalars.BaseFeeScalar)
 	})
 }

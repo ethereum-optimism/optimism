@@ -1004,10 +1004,10 @@ func TestL1InfoContract(t *testing.T) {
 			BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
 		}
 		if sys.RollupConfig.IsEcotone(b.Time()) && !sys.RollupConfig.IsEcotoneActivationBlock(b.Time()) {
-			blobBaseFeeScalar, baseFeeScalar, err := sys.RollupConfig.Genesis.SystemConfig.EcotoneScalars()
+			scalars, err := sys.RollupConfig.Genesis.SystemConfig.EcotoneScalars()
 			require.NoError(t, err)
-			l1blocks[h].BlobBaseFeeScalar = blobBaseFeeScalar
-			l1blocks[h].BaseFeeScalar = baseFeeScalar
+			l1blocks[h].BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
+			l1blocks[h].BaseFeeScalar = scalars.BaseFeeScalar
 			if excess := b.ExcessBlobGas(); excess != nil {
 				l1blocks[h].BlobBaseFee = eip4844.CalcBlobFee(*excess)
 			} else {

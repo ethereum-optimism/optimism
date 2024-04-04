@@ -27,7 +27,10 @@ func main() {
 		os.Exit(2)
 	}
 
-	encoded := eth.EncodeScalar(uint32(blobScalar), uint32(scalar))
+	encoded := eth.EncodeScalar(eth.EcostoneScalars{
+		BlobBaseFeeScalar: uint32(blobScalar),
+		BaseFeeScalar:     uint32(scalar),
+	})
 	i := new(big.Int).SetBytes(encoded[:])
 
 	fmt.Println("# base fee scalar     :", scalar)
