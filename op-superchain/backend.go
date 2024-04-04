@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type Backend interface {
@@ -81,38 +80,23 @@ func (b *backend) MessageSafety(ctx context.Context, id MessageIdentifier, paylo
 		return MessageUnknown, fmt.Errorf("peer with chain id %d is not configured", id.ChainId)
 	}
 
-	blockNum := rpc.BlockNumber(id.BlockNumber.Int64())
-	block, logs, err := logsProvider.FetchLogs(ctx, rpc.BlockNumberOrHash{BlockNumber: &blockNum})
+	safety, err := MessageValidity(ctx, id, payload, logsProvider)
 	if err != nil {
-		return MessageUnknown, fmt.Errorf("unable to fetch logs: %w", err)
+		return safety, err
 	}
 
-	// validity with the block
-	if id.Timestamp != block.Time() {
-		return MessageInvalid, fmt.Errorf("message id and header timestamp mismatch")
-	}
-	if id.LogIndex >= uint64(len(logs)) {
-		return MessageInvalid, fmt.Errorf("invalid log index")
-	}
-
-	// Check message validity against the remote log
-	log := logs[id.LogIndex]
-	if err := CheckMessageLog(id, payload, &log); err != nil {
-		return MessageInvalid, fmt.Errorf("failed log check: %w", err)
-	}
-
-	// Message Safety
 	var finalizedL2Timestamp uint64
 	b.mu.RLock()
 	finalizedL2Timestamp = b.l2FinalizedBlockRef.Time
 	b.mu.RUnlock()
 
+	// Dependency verification
 	if id.Timestamp <= finalizedL2Timestamp {
 		return MessageFinalized, nil
 	}
 
 	// TODO: support for the other safety labels
 
-	// Cant determine validity
-	return MessageUnknown, nil
+	// Cant determine higher levels of safety beyond validity
+	return safety, nil
 }

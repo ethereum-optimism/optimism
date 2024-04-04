@@ -2,6 +2,7 @@ package superchain
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -62,6 +64,32 @@ func IsInboxExecutingMessageTx(tx *types.Transaction) bool {
 
 	txData := tx.Data()
 	return len(txData) >= 4 && bytes.Equal(txData[:4], inboxExecuteMessageBytes4)
+}
+
+// Check the validity of a message against the fetched log. If valid, the
+// returned label is `MessageUnsafe` as dependencies still need to be verified
+func MessageValidity(ctx context.Context, id MessageIdentifier, payload hexutil.Bytes, p LogsProvider) (MessageSafetyLabel, error) {
+	blockNum := rpc.BlockNumber(id.BlockNumber.Int64())
+	block, logs, err := p.FetchLogs(ctx, rpc.BlockNumberOrHash{BlockNumber: &blockNum})
+	if err != nil {
+		return MessageUnknown, fmt.Errorf("unable to fetch logs: %w", err)
+	}
+
+	// block validity
+	if id.Timestamp != block.Time() {
+		return MessageInvalid, nil
+	}
+	if id.LogIndex >= uint64(len(logs)) {
+		return MessageInvalid, fmt.Errorf("invalid log index")
+	}
+
+	// log validity
+	log := logs[id.LogIndex]
+	if err := CheckMessageLog(id, payload, &log); err != nil {
+		return MessageInvalid, fmt.Errorf("failed message id & log check: %w", err)
+	}
+
+	return MessageUnsafe, nil
 }
 
 // Check the message id and payload against the fields of the log.

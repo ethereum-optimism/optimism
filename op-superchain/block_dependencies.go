@@ -61,7 +61,7 @@ type BlockDependencies struct {
 	mu sync.Mutex
 }
 
-func (deps *BlockDependencies) BlockSafety(chainId *big.Int, blockRef eth.L2BlockRef) (BlockSafetyLabel, error) {
+func (deps *BlockDependencies) BlockSafety(ctx context.Context, chainId *big.Int, blockRef eth.L2BlockRef) (BlockSafetyLabel, error) {
 	deps.mu.Lock()
 	defer deps.mu.Unlock()
 
@@ -74,15 +74,15 @@ func (deps *BlockDependencies) BlockSafety(chainId *big.Int, blockRef eth.L2Bloc
 		// right block using the block number as the initiating message in the remote
 		// block was validated.
 		//
-		// We also know the remote block specified by number hasn't been reorg'd, otherwise
-		// the invalidation would have cascaded to this block on a reset.
+		// We also know the remote block specified by number hasn't been reorg'd,
+		// otherwise the invalidation would have cascaded to this block
 		chain := deps.chains[blockDependency.chainId.String()]
-		block, err := chain.L2BlockRefByNumber(context.TODO(), blockDependency.blockNumber)
+		block, err := chain.L2BlockRefByNumber(ctx, blockDependency.blockNumber)
 		if err != nil {
 			return BlockUnsafe, err
 		}
 
-		dependencyBlockSafety, err := deps.BlockSafety(blockDependency.chainId, block)
+		dependencyBlockSafety, err := deps.BlockSafety(ctx, blockDependency.chainId, block)
 		if err != nil {
 			return BlockUnsafe, err
 		}
@@ -92,6 +92,7 @@ func (deps *BlockDependencies) BlockSafety(chainId *big.Int, blockRef eth.L2Bloc
 		}
 	}
 
+	// TODO: we need references to the safe head for every chain
 	return BlockCrossUnsafe, nil
 }
 
@@ -127,18 +128,22 @@ func (deps *BlockDependencies) AddBlock(chainId *big.Int, blockRef eth.L2BlockRe
 		if IsInboxExecutingMessageTx(tx) {
 			_, id, payload, err := ParseInboxExecuteMessageTxData(tx.Data())
 			if err != nil {
+				// TODO: revisit bad txs to the inbox address
 				log.Warn("skipping inbox tx with bad tx data", "err", err)
 				continue
 			}
 
+			dependent := blockDependent{id.ChainId, blockRef}
+			dependency := blockDependency{id.ChainId, id.BlockNumber.Uint64()}
+
 			// todo: de-dup edges
 			deps.unverifiedExecutingMessages[blockRef.Hash] = append(deps.unverifiedExecutingMessages[blockRef.Hash], Message{id, payload})
-			deps.dependents[id.ChainId.String()][id.BlockNumber.Uint64()] = append(deps.dependents[id.ChainId.String()][id.BlockNumber.Uint64()], blockDependent{id.ChainId, blockRef})
-			deps.dependencies[chainIdStr][blockRef.Hash] = append(deps.dependencies[chainIdStr][blockRef.Hash], blockDependency{id.ChainId, id.BlockNumber.Uint64()})
+			deps.dependents[id.ChainId.String()][id.BlockNumber.Uint64()] = append(deps.dependents[id.ChainId.String()][id.BlockNumber.Uint64()], dependent)
+			deps.dependencies[chainIdStr][blockRef.Hash] = append(deps.dependencies[chainIdStr][blockRef.Hash], dependency)
 		}
 	}
 
-	// attempt resolution for this block & any set dependents
+	// attempt resolution for this block & any existing dependents
 	deps.resolveUnverifiedExecutingMessages(chainId, blockRef)
 	for _, dependentBlock := range deps.dependents[chainIdStr][blockRef.Number] {
 		deps.resolveUnverifiedExecutingMessages(dependentBlock.chainId, dependentBlock.blockRef)
@@ -152,7 +157,18 @@ func (deps *BlockDependencies) resolveUnverifiedExecutingMessages(chainId *big.I
 
 	unverifiedMessages := deps.unverifiedExecutingMessages[blockRef.Hash]
 	remainingUnverifiedMessages := make([]Message, 0, len(unverifiedMessages))
-	for _, _ = range unverifiedMessages {
+	for _, msg := range unverifiedMessages {
+		safety, err := MessageValidity(context.TODO(), msg.Id, msg.Payload, nil)
+		if err != nil {
+			if safety == MessageInvalid {
+				deps.log.Error("invalidated msg", "id", msg.Id)
+				deps.handleInvalidation(chainId, blockRef)
+			}
+			if safety == MessageUnknown {
+				remainingUnverifiedMessages = append(remainingUnverifiedMessages, msg)
+			}
+		}
+		// msg is valid (unsafe) and can be dropped.
 	}
 
 	deps.unverifiedExecutingMessages[blockRef.Hash] = remainingUnverifiedMessages
