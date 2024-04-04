@@ -72,12 +72,12 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			predeploys := map[string]*common.Address{
 				"DeterministicDeploymentProxy": &deployerAddress,
 			}
-			backend, err := deployer.NewL2BackendWithChainIDAndPredeploys(
+			backend, err := deployer.NewBackendWithChainIDAndPredeploys(
 				new(big.Int).SetUint64(config.L2ChainID),
 				predeploys,
 			)
 			if err != nil {
-				return nil, fmt.Errorf("NewL2BackendWithChainIDAndPredeploys failed: %w", err)
+				return nil, fmt.Errorf("NewBackendWithChainIDAndPredeploys failed: %w", err)
 			}
 			deployedBin, err := deployer.DeployWithDeterministicDeployer(backend, name)
 			if err != nil {

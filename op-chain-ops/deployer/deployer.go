@@ -49,23 +49,23 @@ type Deployment struct {
 
 type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (*types.Transaction, error)
 
-// NewL2Backend returns a SimulatedBackend suitable for L2.
-// It has up to Shanghai and Canyon enabled.
+// NewBackend returns a SimulatedBackend suitable for EVM simulation, without L2 features.
+// It has up to Shanghai enabled.
 // The returned backend should be closed after use.
-func NewL2Backend() (*backends.SimulatedBackend, error) {
-	backend, err := NewL2BackendWithGenesisTimestamp(ChainID, 0, nil)
+func NewBackend() (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, nil)
 	return backend, err
 }
 
-// NewL2BackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
-// It has up to Shanghai and Canyon enabled, and allows for the configuration of the network's chain ID and predeploys.
+// NewBackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for EVM simulation, without L2 features.
+// It has up to Shanghai enabled, and allows for the configuration of the network's chain ID and predeploys.
 // The returned backend should be closed after use.
-func NewL2BackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
-	backend, err := NewL2BackendWithGenesisTimestamp(chainID, 0, predeploys)
+func NewBackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, predeploys)
 	return backend, err
 }
 
-func NewL2BackendWithGenesisTimestamp(chainID *big.Int, ts uint64, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
 	chainConfig := params.ChainConfig{
 		ChainID:             chainID,
 		HomesteadBlock:      big.NewInt(0),
@@ -90,13 +90,6 @@ func NewL2BackendWithGenesisTimestamp(chainID *big.Int, ts uint64, predeploys ma
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		ShanghaiTime:                  u64ptr(0),
-		CanyonTime:                    u64ptr(0),
-		Optimism: &params.OptimismConfig{
-			// The below EIP-1559 values apply to simulation, but do not have persistent effects on the state.
-			EIP1559Elasticity:        6,
-			EIP1559Denominator:       50,
-			EIP1559DenominatorCanyon: 250,
-		},
 	}
 
 	alloc := core.GenesisAlloc{
@@ -173,7 +166,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 //
 // Parameters:
 // - backend: A pointer to backends.SimulatedBackend, representing the simulated Ethereum blockchain.
-// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewL2BackendWithChainIDAndPredeploys handles this for you.
+// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewBackendWithChainIDAndPredeploys handles this for you.
 // - contractName: A string representing the name of the contract to be deployed.
 //
 // Returns:
