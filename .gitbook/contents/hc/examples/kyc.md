@@ -2,6 +2,8 @@
 description: Turing Example - OnChain KYC
 ---
 
+<figure><img src="../../../assets/hc-under-upgrade.png" alt=""><figcaption></figcaption></figure>
+
 # KYC
 
 <figure><img src="../../../assets/what is it.png" alt=""><figcaption></figcaption></figure>
@@ -43,7 +45,7 @@ For that reason the real magic happens on the Turing backend, which basically qu
 
 ```
 contracts/
-│   KYCExample.sol   
+│   KYCExample.sol
 └───access/
 │   │   KYCWrapper.sol
 └───common/
