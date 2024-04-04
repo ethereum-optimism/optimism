@@ -199,10 +199,13 @@ func (s *L2Batcher) Buffer(t Testing) error {
 				t.Fatalf("ForceSubmitSingularBatch and ForceSubmitSpanBatch cannot be set to true at the same time")
 			} else if s.l2BatcherCfg.ForceSubmitSingularBatch {
 				// use SingularBatchType
-				ch, err = derive.NewChannelOut(c)
+				ch, err = derive.NewSingularChannelOut(c)
 			} else if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
 				// If both ForceSubmitSingularBatch and ForceSubmitSpanbatch are false, use SpanBatch automatically if Delta HF is activated.
 				ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target)
+			} else {
+				// default to SingularBatchType if no other conditions are met
+				ch, err = derive.NewSingularChannelOut(c)
 			}
 		}
 		require.NoError(t, err, "failed to create channel")

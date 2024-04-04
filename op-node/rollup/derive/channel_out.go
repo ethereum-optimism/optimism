@@ -63,10 +63,6 @@ type ChannelOut interface {
 	OutputFrame(*bytes.Buffer, uint64) (uint16, error)
 }
 
-func NewChannelOut(compress Compressor) (ChannelOut, error) {
-	return NewSingularChannelOut(compress)
-}
-
 type SingularChannelOut struct {
 	id ChannelID
 	// Frame ID of the next frame to emit. Increment after emitting

@@ -59,7 +59,7 @@ type compressorAndTarget struct {
 func channelOutByType(batchType uint, compKey string) (derive.ChannelOut, error) {
 	chainID := big.NewInt(333)
 	if batchType == derive.SingularBatchType {
-		return derive.NewChannelOut(compressors[compKey].compressor)
+		return derive.NewSingularChannelOut(compressors[compKey].compressor)
 	}
 	if batchType == derive.SpanBatchType {
 		return derive.NewSpanChannelOut(0, chainID, compressors[compKey].targetOutput)

@@ -78,6 +78,7 @@ type ChannelBuilder struct {
 
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
+// it acts as a factory for either a span or singular channel out
 func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1OriginBlockNum uint64) (*ChannelBuilder, error) {
 	c, err := cfg.CompressorConfig.NewCompressor()
 	if err != nil {
@@ -90,7 +91,7 @@ func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1Origi
 			return nil, err
 		}
 	} else {
-		co, err = derive.NewChannelOut(c)
+		co, err = derive.NewSingularChannelOut(c)
 		if err != nil {
 			return nil, err
 		}

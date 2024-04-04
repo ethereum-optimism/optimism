@@ -115,8 +115,8 @@ func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block)
 // and the compression happens on the previous RLP buffer instead
 // if the input is too small to need compression, data is accumulated but not compressed
 func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) (uint64, error) {
-	// sentinel error for closed channel
-	if co.closed {
+	// sentinel error for closed or full channel
+	if co.closed || co.FullErr() != nil {
 		return 0, ErrChannelOutAlreadyClosed
 	}
 
@@ -204,9 +204,10 @@ func (co *SpanChannelOut) ReadyBytes() int {
 	return 0
 }
 
-// Flush implements the Channel Out interface by passing the flush call to the compressor
+// Flush implements the Channel Out
+// Span Channel Out manages the flushing of the compressor internally, so this is a no-op
 func (co *SpanChannelOut) Flush() error {
-	return co.compressor.Flush()
+	return nil
 }
 
 // checkFull sets the full error if the compressed data is over the target size.
@@ -230,10 +231,14 @@ func (co *SpanChannelOut) Close() error {
 		return ErrChannelOutAlreadyClosed
 	}
 	co.closed = true
-	if err := co.Flush(); err != nil {
-		return err
+	// if the channel was already full,
+	// the compressor is already flushed and closed
+	if co.FullErr() != nil {
+		return nil
 	}
-	return co.compressor.Close()
+	// if this channel is not full, we need to compress the last batch
+	// this also flushes/closes the compressor
+	return co.compress()
 }
 
 // OutputFrame writes a frame to w with a given max size and returns the frame
