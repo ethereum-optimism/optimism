@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
-func Main(cliCtx *cli.Context) error {
+func StartDAServer(cliCtx *cli.Context) error {
 	if err := CheckRequired(cliCtx); err != nil {
 		return err
 	}
@@ -33,14 +33,15 @@ func Main(cliCtx *cli.Context) error {
 		l.Info("Using file storage", "path", cfg.FileStoreDirPath)
 		store = NewFileStore(cfg.FileStoreDirPath)
 	} else if cfg.S3Enabled() {
-		s3, err := NewS3Store(cfg.S3Config())
+		l.Info("Using S3 storage", "bucket", cfg.S3Bucket)
+		s3, err := NewS3Store(cliCtx.Context, cfg.S3Bucket)
 		if err != nil {
 			return fmt.Errorf("failed to create S3 store: %w", err)
 		}
 		store = s3
 	}
 
-	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store)
+	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store, l)
 
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("failed to start the DA server")

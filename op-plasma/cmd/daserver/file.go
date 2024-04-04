@@ -31,7 +31,7 @@ func (s *FileStore) Get(ctx context.Context, key []byte) ([]byte, error) {
 }
 
 func (s *FileStore) Put(ctx context.Context, key []byte, value []byte) error {
-	return os.WriteFile(s.fileName(key), value, 0644)
+	return os.WriteFile(s.fileName(key), value, 0600)
 }
 
 func (s *FileStore) fileName(key []byte) string {

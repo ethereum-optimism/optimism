@@ -13,22 +13,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
-var (
-	Version   = "v0.0.1"
-	GitCommit = ""
-	GitDate   = ""
-)
+var Version = "v0.0.1"
 
 func main() {
 	oplog.SetupDefaults()
 
 	app := cli.NewApp()
 	app.Flags = cliapp.ProtectFlags(Flags)
-	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
+	app.Version = opservice.FormatVersion(Version, "", "", "")
 	app.Name = "da-server"
 	app.Usage = "Plasma DA Storage Service"
 	app.Description = "Service for storing plasma DA inputs"
-	app.Action = Main
+	app.Action = StartDAServer
 
 	ctx := opio.WithInterruptBlocker(context.Background())
 	err := app.RunContext(ctx, os.Args)
