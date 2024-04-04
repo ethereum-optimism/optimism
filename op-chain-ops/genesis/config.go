@@ -899,7 +899,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	return &cfg, nil
 }
 
-// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis block.
+// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis L1 anchor block.
 func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 

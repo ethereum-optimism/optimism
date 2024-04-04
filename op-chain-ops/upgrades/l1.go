@@ -117,7 +117,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return fmt.Errorf("OtherMessenger address doesn't match config")
 	}
 
-	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", common.HexToAddress(superchainConfig.Config.SuperchainConfigAddr.String()), optimismPortal)
+	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", common.Address(*superchainConfig.Config.SuperchainConfigAddr), optimismPortal)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		return fmt.Errorf("OtherBridge address doesn't match config")
 	}
 
-	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, common.HexToAddress(superchainConfig.Config.SuperchainConfigAddr.String()))
+	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, common.Address(*(superchainConfig.Config.SuperchainConfigAddr)))
 	if err != nil {
 		return err
 	}
@@ -283,7 +283,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return fmt.Errorf("OtherBridge address doesn't match config")
 	}
 
-	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, common.HexToAddress(superchainConfig.Config.SuperchainConfigAddr.String()))
+	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, common.Address(*(superchainConfig.Config.SuperchainConfigAddr)))
 	if err != nil {
 		return err
 	}
@@ -584,7 +584,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return fmt.Errorf("SystemConfig address doesn't match config")
 	}
 
-	calldata, err := optimismPortalABI.Pack("initialize", l2OutputOracle, systemConfig, common.HexToAddress(superchainConfig.Config.SuperchainConfigAddr.String()))
+	calldata, err := optimismPortalABI.Pack("initialize", l2OutputOracle, systemConfig, common.Address(*superchainConfig.Config.SuperchainConfigAddr))
 	if err != nil {
 		return err
 	}
