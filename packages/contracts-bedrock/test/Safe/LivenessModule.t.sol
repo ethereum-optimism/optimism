@@ -18,7 +18,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
     // LivenessModule events
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
     event RemovedOwner(address indexed owner);
-    event FallbackOwnerTakesOwnership();
+    event OwnershipTransferredToFallback();
 
     uint256 initTime = 10;
     uint256 livenessInterval = 30 days;
@@ -316,7 +316,7 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         }
 
         vm.expectEmit(address(livenessModule));
-        emit FallbackOwnerTakesOwnership();
+        emit OwnershipTransferredToFallback();
 
         livenessModule.removeOwners(prevOwners, ownersToRemove);
         assertEq(safeInstance.safe.getOwners().length, 1);

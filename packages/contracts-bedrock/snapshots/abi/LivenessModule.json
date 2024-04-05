@@ -167,7 +167,7 @@
   {
     "anonymous": false,
     "inputs": [],
-    "name": "FallbackOwnerTakesOwnership",
+    "name": "OwnershipTransferredToFallback",
     "type": "event"
   },
   {

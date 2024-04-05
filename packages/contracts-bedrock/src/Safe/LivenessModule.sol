@@ -18,7 +18,7 @@ contract LivenessModule is ISemver {
     event RemovedOwner(address indexed owner);
 
     /// @notice Emitted when the fallback owner takes ownership
-    event FallbackOwnerTakesOwnership();
+    event OwnershipTransferredToFallback();
 
     /// @notice The Safe contract instance
     Safe internal immutable SAFE;
@@ -184,7 +184,7 @@ contract LivenessModule is ISemver {
             }),
             "LivenessModule: failed to swap to fallback owner"
         );
-        emit FallbackOwnerTakesOwnership();
+        emit OwnershipTransferredToFallback();
     }
 
     /// @notice Removes the owner `owner` from the Safe and updates the threshold to `_threshold`.
