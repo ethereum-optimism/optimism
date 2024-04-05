@@ -116,8 +116,11 @@ func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block)
 // if the input is too small to need compression, data is accumulated but not compressed
 func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) (uint64, error) {
 	// sentinel error for closed or full channel
-	if co.closed || co.FullErr() != nil {
+	if co.closed {
 		return 0, ErrChannelOutAlreadyClosed
+	}
+	if co.FullErr() != nil {
+		return 0, co.FullErr()
 	}
 
 	// update the SpanBatch with the SingularBatch
