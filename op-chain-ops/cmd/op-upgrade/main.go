@@ -204,8 +204,7 @@ func entrypoint(ctx *cli.Context) error {
 
 		// Build the batch
 		// op-upgrade assumes a superchain config for L1 contract-implementations set.
-		// The nil superchainConfig here is a placeholder, until op-upgrade and op-upgrade-mcp are consolidated.
-		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, nil, clients.L1Client); err != nil {
+		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, sc, clients.L1Client); err != nil {
 			return err
 		}
 	}
