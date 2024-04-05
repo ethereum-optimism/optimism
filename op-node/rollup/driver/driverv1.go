@@ -33,7 +33,7 @@ type SyncStatus = eth.SyncStatus
 // sealingDuration defines the expected time it takes to seal the block
 const sealingDuration = time.Millisecond * 50
 
-type Driver struct {
+type DriverV1 struct {
 	l1State L1StateIface
 
 	// The derivation pipeline is reset whenever we reorg.
@@ -116,7 +116,7 @@ type Driver struct {
 
 // Start starts up the state loop.
 // The loop will have been started iff err is not nil.
-func (s *Driver) Start() error {
+func (s *DriverV1) Start() error {
 	s.derivation.Reset()
 
 	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled, "sequencerStopped", s.driverConfig.SequencerStopped)
@@ -142,7 +142,7 @@ func (s *Driver) Start() error {
 	return nil
 }
 
-func (s *Driver) Close() error {
+func (s *DriverV1) Close() error {
 	s.driverCancel()
 	s.wg.Wait()
 	s.asyncGossiper.Stop()
@@ -152,7 +152,7 @@ func (s *Driver) Close() error {
 
 // OnL1Head signals the driver that the L1 chain changed the "unsafe" block,
 // also known as head of the chain, or "latest".
-func (s *Driver) OnL1Head(ctx context.Context, unsafe eth.L1BlockRef) error {
+func (s *DriverV1) OnL1Head(ctx context.Context, unsafe eth.L1BlockRef) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -163,7 +163,7 @@ func (s *Driver) OnL1Head(ctx context.Context, unsafe eth.L1BlockRef) error {
 
 // OnL1Safe signals the driver that the L1 chain changed the "safe",
 // also known as the justified checkpoint (as seen on L1 beacon-chain).
-func (s *Driver) OnL1Safe(ctx context.Context, safe eth.L1BlockRef) error {
+func (s *DriverV1) OnL1Safe(ctx context.Context, safe eth.L1BlockRef) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -172,7 +172,7 @@ func (s *Driver) OnL1Safe(ctx context.Context, safe eth.L1BlockRef) error {
 	}
 }
 
-func (s *Driver) OnL1Finalized(ctx context.Context, finalized eth.L1BlockRef) error {
+func (s *DriverV1) OnL1Finalized(ctx context.Context, finalized eth.L1BlockRef) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -181,7 +181,7 @@ func (s *Driver) OnL1Finalized(ctx context.Context, finalized eth.L1BlockRef) er
 	}
 }
 
-func (s *Driver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+func (s *DriverV1) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -190,7 +190,7 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionP
 	}
 }
 
-func (s *Driver) logSyncProgress(reason string) {
+func (s *DriverV1) logSyncProgress(reason string) {
 	s.log.Info("Sync progress",
 		"reason", reason,
 		"l2_finalized", s.engineController.Finalized(),
@@ -203,7 +203,7 @@ func (s *Driver) logSyncProgress(reason string) {
 }
 
 // the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
-func (s *Driver) eventLoop() {
+func (s *DriverV1) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("State loop started")
 	defer s.log.Info("State loop returned")
@@ -456,7 +456,7 @@ func (s *Driver) eventLoop() {
 // ResetDerivationPipeline forces a reset of the derivation pipeline.
 // It waits for the reset to occur. It simply unblocks the caller rather
 // than fully cancelling the reset request upon a context cancellation.
-func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
+func (s *DriverV1) ResetDerivationPipeline(ctx context.Context) error {
 	respCh := make(chan struct{}, 1)
 	select {
 	case <-ctx.Done():
@@ -471,7 +471,7 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	}
 }
 
-func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {
+func (s *DriverV1) StartSequencer(ctx context.Context, blockHash common.Hash) error {
 	if !s.driverConfig.SequencerEnabled {
 		return errors.New("sequencer is not enabled")
 	}
@@ -497,7 +497,7 @@ func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) erro
 	}
 }
 
-func (s *Driver) StopSequencer(ctx context.Context) (common.Hash, error) {
+func (s *DriverV1) StopSequencer(ctx context.Context) (common.Hash, error) {
 	if !s.driverConfig.SequencerEnabled {
 		return common.Hash{}, errors.New("sequencer is not enabled")
 	}
@@ -515,7 +515,7 @@ func (s *Driver) StopSequencer(ctx context.Context) (common.Hash, error) {
 	}
 }
 
-func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
+func (s *DriverV1) SequencerActive(ctx context.Context) (bool, error) {
 	if !s.driverConfig.SequencerEnabled {
 		return false, nil
 	}
@@ -535,7 +535,7 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 
 // syncStatus returns the current sync status, and should only be called synchronously with
 // the driver event loop to avoid retrieval of an inconsistent status.
-func (s *Driver) syncStatus() *eth.SyncStatus {
+func (s *DriverV1) syncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
 		CurrentL1:          s.derivation.Origin(),
 		CurrentL1Finalized: s.derivation.FinalizedL1(),
@@ -551,7 +551,7 @@ func (s *Driver) syncStatus() *eth.SyncStatus {
 
 // SyncStatus blocks the driver event loop and captures the syncing status.
 // If the event loop is too busy and the context expires, a context error is returned.
-func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+func (s *DriverV1) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	wait := make(chan struct{})
 	select {
 	case s.stateReq <- wait:
@@ -566,7 +566,7 @@ func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 // BlockRefWithStatus blocks the driver event loop and captures the syncing status,
 // along with an L2 block reference by number consistent with that same status.
 // If the event loop is too busy and the context expires, a context error is returned.
-func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
+func (s *DriverV1) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
 	wait := make(chan struct{})
 	select {
 	case s.stateReq <- wait:
@@ -589,7 +589,7 @@ func (v deferJSONString) String() string {
 	return string(out)
 }
 
-func (s *Driver) snapshot(event string) {
+func (s *DriverV1) snapshot(event string) {
 	s.snapshotLog.Info("Rollup State Snapshot",
 		"event", event,
 		"l1Head", deferJSONString{s.l1State.L1Head()},
@@ -612,7 +612,7 @@ type hashAndErrorChannel struct {
 // checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from an alt-sync method.
 // WARNING: This is only an outgoing signal, the blocks are not guaranteed to be retrieved.
 // Results are received through OnUnsafeL2Payload.
-func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
+func (s *DriverV1) checkForGapInUnsafeQueue(ctx context.Context) error {
 	start := s.engineController.UnsafeL2Head()
 	end := s.derivation.LowestQueuedUnsafeBlock()
 	// Check if we have missing blocks between the start and end. Request them if we do.

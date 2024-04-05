@@ -115,7 +115,7 @@ type SafeHeadListener interface {
 }
 
 // Max memory used for buffering unsafe payloads
-const maxUnsafePayloadsMemory = 500 * 1024 * 1024
+const MaxUnsafePayloadsMemory = 500 * 1024 * 1024
 
 // finalityLookback defines the amount of L1<>L2 relations to track for finalization purposes, one per L1 block.
 //
@@ -204,7 +204,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		engine:         l2Source,
 		metrics:        metrics,
 		finalityData:   make([]FinalityData, 0, calcFinalityLookback(cfg)),
-		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
+		unsafePayloads: NewPayloadsQueue(log, MaxUnsafePayloadsMemory, PayloadMemSize),
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
 		syncCfg:        syncCfg,

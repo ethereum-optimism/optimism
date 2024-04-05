@@ -65,12 +65,12 @@ func TestPayloadsByNumber(t *testing.T) {
 }
 
 func TestPayloadMemSize(t *testing.T) {
-	require.Equal(t, payloadMemFixedCost, payloadMemSize(nil), "nil is same fixed cost")
-	require.Equal(t, payloadMemFixedCost, payloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{}}), "empty payload fixed cost")
-	require.Equal(t, payloadMemFixedCost+payloadTxMemOverhead, payloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{nil}}}), "nil tx counts")
-	require.Equal(t, payloadMemFixedCost+payloadTxMemOverhead, payloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{make([]byte, 0)}}}), "empty tx counts")
+	require.Equal(t, payloadMemFixedCost, PayloadMemSize(nil), "nil is same fixed cost")
+	require.Equal(t, payloadMemFixedCost, PayloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{}}), "empty payload fixed cost")
+	require.Equal(t, payloadMemFixedCost+payloadTxMemOverhead, PayloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{nil}}}), "nil tx counts")
+	require.Equal(t, payloadMemFixedCost+payloadTxMemOverhead, PayloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{make([]byte, 0)}}}), "empty tx counts")
 	require.Equal(t, payloadMemFixedCost+4*payloadTxMemOverhead+42+1337+0+1,
-		payloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{
+		PayloadMemSize(&eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{Transactions: []eth.Data{
 			make([]byte, 42),
 			make([]byte, 1337),
 			make([]byte, 0),
@@ -83,7 +83,7 @@ func envelope(payload *eth.ExecutionPayload) *eth.ExecutionPayloadEnvelope {
 }
 
 func TestPayloadsQueue(t *testing.T) {
-	pq := NewPayloadsQueue(testlog.Logger(t, log.LvlInfo), payloadMemFixedCost*3, payloadMemSize)
+	pq := NewPayloadsQueue(testlog.Logger(t, log.LvlInfo), payloadMemFixedCost*3, PayloadMemSize)
 	require.Equal(t, 0, pq.Len())
 	require.Nil(t, pq.Peek())
 	require.Nil(t, pq.Pop())

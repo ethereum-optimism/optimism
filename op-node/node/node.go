@@ -52,7 +52,7 @@ type OpNode struct {
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 
 	l1Source  *sources.L1Client     // L1 Client to fetch data from
-	l2Driver  *driver.Driver        // L2 Engine to Sync
+	l2Driver  driver.Driver         // L2 Engine to Sync
 	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
 	server    *rpcServer            // RPC server hosting the rollup-node API
 	p2pNode   *p2p.NodeP2P          // P2P node functionality

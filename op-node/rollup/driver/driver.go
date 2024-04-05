@@ -113,6 +113,24 @@ type SequencerStateListener interface {
 	SequencerStopped() error
 }
 
+type Driver interface {
+	Start() error
+	Close() error
+
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
+	BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error)
+	ResetDerivationPipeline(context.Context) error
+
+	StartSequencer(ctx context.Context, blockHash common.Hash) error
+	StopSequencer(context.Context) (common.Hash, error)
+	SequencerActive(context.Context) (bool, error)
+
+	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	OnL1Head(ctx context.Context, unsafe eth.L1BlockRef) error
+	OnL1Safe(ctx context.Context, safe eth.L1BlockRef) error
+	OnL1Finalized(ctx context.Context, finalized eth.L1BlockRef) error
+}
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
 func NewDriver(
 	driverCfg *Config,
@@ -130,7 +148,46 @@ func NewDriver(
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
 	plasma derive.PlasmaInputFetcher,
-) *Driver {
+) Driver {
+	if driverCfg.EnableV2 {
+		// TODO: clean up driver construction to share more common things with legacy L1 driver construction
+		l1 = NewMeteredL1Fetcher(l1, metrics)
+		l1State := NewL1State(log, metrics)
+		sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
+		findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
+		engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+		// TODO compose derivation pipeline without engine queue
+		//verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
+		//derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, engine, metrics, syncCfg, safeHeadListener)
+		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
+		meteredEngine := NewMeteredEngine(cfg, engine, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
+		sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
+		driverCtx := context.TODO() // TODO the async-gossiper should not be shut down like this, tech-debt resource management.
+		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
+
+		return NewDriverV2(log, sequencer, asyncGossiper, sequencerConductor, engine, l2)
+	}
+	return NewDriverV1(driverCfg, cfg, l2, l1, l1Blobs, altSync, network, log, snapshotLog,
+		metrics, sequencerStateListener, safeHeadListener, syncCfg, sequencerConductor, plasma)
+}
+
+func NewDriverV1(
+	driverCfg *Config,
+	cfg *rollup.Config,
+	l2 L2Chain,
+	l1 L1Chain,
+	l1Blobs derive.L1BlobsFetcher,
+	altSync AltSync,
+	network Network,
+	log log.Logger,
+	snapshotLog log.Logger,
+	metrics Metrics,
+	sequencerStateListener SequencerStateListener,
+	safeHeadListener derive.SafeHeadListener,
+	syncCfg *sync.Config,
+	sequencerConductor conductor.SequencerConductor,
+	plasma derive.PlasmaInputFetcher,
+) *DriverV1 {
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
@@ -143,7 +200,8 @@ func NewDriver(
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
-	return &Driver{
+
+	return &DriverV1{
 		l1State:            l1State,
 		derivation:         derivationPipeline,
 		engineController:   engine,

@@ -57,7 +57,7 @@ const (
 	payloadTxMemOverhead uint64 = 24
 )
 
-func payloadMemSize(p *eth.ExecutionPayloadEnvelope) uint64 {
+func PayloadMemSize(p *eth.ExecutionPayloadEnvelope) uint64 {
 	out := payloadMemFixedCost
 	if p == nil {
 		return out
@@ -156,4 +156,19 @@ func (upq *PayloadsQueue) Pop() *eth.ExecutionPayloadEnvelope {
 	// remove the key from the block hashes map
 	delete(upq.blockHashes, ps.envelope.ExecutionPayload.BlockHash)
 	return ps.envelope
+}
+
+// Max returns the payload with the highest block number from the queue in O(N).
+// TODO: this is not a double-sided data-structure, can't fetch the maximum entry efficiently.
+func (upq *PayloadsQueue) Max() (out *eth.ExecutionPayloadEnvelope) {
+	if len(upq.pq) == 0 {
+		return nil
+	}
+	out = upq.pq[0].envelope
+	for _, v := range upq.pq {
+		if v.envelope.ExecutionPayload.BlockNumber > out.ExecutionPayload.BlockNumber {
+			out = v.envelope
+		}
+	}
+	return out
 }
