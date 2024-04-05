@@ -135,6 +135,7 @@ jobs:
       - run:
           name: Cannon Go tests
           command: |
+            mkdir -p /testlogs
             gotestsum --format=standard-verbose --junitfile=/tmp/test-results/cannon.xml \
             -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./... 2>&1 | tee /testlogs/test.log
           working_directory: cannon
