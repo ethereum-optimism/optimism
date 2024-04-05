@@ -46,7 +46,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	genesis, err := BuildL1DeveloperGenesis(config, dump, nil)
 	require.NoError(t, err)
 
-	sim := backends.NewSimulatedBackend(
+	sim := backends.NewSimulatedBackend( // nolint:staticcheck
 		genesis.Alloc,
 		15000000,
 	)

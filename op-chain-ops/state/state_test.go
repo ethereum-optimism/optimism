@@ -63,7 +63,7 @@ func TestSetAndGetStorageSlots(t *testing.T) {
 	slots, err := state.ComputeStorageSlots(&layout, values)
 	require.Nil(t, err)
 
-	backend := backends.NewSimulatedBackend(
+	backend := backends.NewSimulatedBackend( // nolint:staticcheck
 		core.GenesisAlloc{
 			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
 		},

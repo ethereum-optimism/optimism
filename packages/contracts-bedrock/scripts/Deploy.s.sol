@@ -892,7 +892,7 @@ contract Deploy is Deployer {
         address anchorStateRegistryProxy = mustGetAddress("AnchorStateRegistryProxy");
         address anchorStateRegistry = mustGetAddress("AnchorStateRegistry");
 
-        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](3);
+        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](4);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.CANNON,
             outputRoot: OutputRoot({
@@ -909,6 +909,13 @@ contract Deploy is Deployer {
         });
         roots[2] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.ALPHABET,
+            outputRoot: OutputRoot({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2BlockNumber: cfg.faultGameGenesisBlock()
+            })
+        });
+        roots[3] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.ASTERISC,
             outputRoot: OutputRoot({
                 root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                 l2BlockNumber: cfg.faultGameGenesisBlock()
