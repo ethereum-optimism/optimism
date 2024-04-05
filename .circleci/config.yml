@@ -139,7 +139,7 @@ jobs:
             gotestsum --format=standard-quiet --junitfile=/tmp/test-results/cannon.xml \
             -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./... 2>&1 | tee /testlogs/test.log
           working_directory: cannon
-     - run:
+      - run:
           name: upload Cannon coverage
           command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
