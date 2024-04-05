@@ -136,7 +136,7 @@ jobs:
           name: Cannon Go tests
           command: |
             mkdir -p /testlogs
-            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/cannon.xml \
+            gotestsum --format=standard-quiet --junitfile=/tmp/test-results/cannon.xml \
             -- -parallel=2 ./... 2>&1 | tee /testlogs/test.log
           working_directory: cannon
       - store_test_results:
