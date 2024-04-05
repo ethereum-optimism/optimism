@@ -197,21 +197,20 @@ func (s *L2Batcher) Buffer(t Testing) error {
 
 			if s.l2BatcherCfg.ForceSubmitSingularBatch && s.l2BatcherCfg.ForceSubmitSpanBatch {
 				t.Fatalf("ForceSubmitSingularBatch and ForceSubmitSpanBatch cannot be set to true at the same time")
-			} else if s.l2BatcherCfg.ForceSubmitSingularBatch {
-				// use SingularBatchType
-				ch, err = derive.NewSingularChannelOut(c)
-			} else if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
-				// If both ForceSubmitSingularBatch and ForceSubmitSpanbatch are false, use SpanBatch automatically if Delta HF is activated.
-				ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target)
 			} else {
-				// default to SingularBatchType if no other conditions are met
-				ch, err = derive.NewSingularChannelOut(c)
+				// use span batch if we're forcing it or if we're at/beyond delta
+				if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
+					ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target)
+					// use singular batches in all other cases
+				} else {
+					ch, err = derive.NewSingularChannelOut(c)
+				}
 			}
 		}
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
 	}
-	if _, err := s.l2ChannelOut.AddBlock(s.rollupCfg, block); err != nil {
+	if err := s.l2ChannelOut.AddBlock(s.rollupCfg, block); err != nil {
 		return err
 	}
 	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())

@@ -365,11 +365,10 @@ func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint) {
 
 	// Mock the internals of `ChannelBuilder.outputFrame`
 	// to construct a single frame
+	// the type of batch does not matter here because we are using it to construct a broken frame
 	c, err := channelConfig.CompressorConfig.NewCompressor()
 	require.NoError(t, err)
-	// co is only created to supply a random ID
 	co, err := derive.NewSingularChannelOut(c)
-
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	fn, err := co.OutputFrame(&buf, channelConfig.MaxFrameSize)

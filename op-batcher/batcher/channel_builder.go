@@ -87,14 +87,11 @@ func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1Origi
 	var co derive.ChannelOut
 	if cfg.BatchType == derive.SpanBatchType {
 		co, err = derive.NewSpanChannelOut(rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID, cfg.CompressorConfig.TargetOutputSize)
-		if err != nil {
-			return nil, err
-		}
 	} else {
 		co, err = derive.NewSingularChannelOut(c)
-		if err != nil {
-			return nil, err
-		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("creating channel out: %w", err)
 	}
 
 	cb := &ChannelBuilder{
@@ -159,7 +156,7 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
 
-	if _, err = c.co.AddSingularBatch(batch, l1info.SequenceNumber); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
+	if err = c.co.AddSingularBatch(batch, l1info.SequenceNumber); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
 		c.setFullErr(err)
 		return l1info, c.FullErr()
 	} else if err != nil {

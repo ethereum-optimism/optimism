@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
+const (
 	// a really large target output size to ensure that the compressors are never full
 	targetOutput_huge = uint64(100_000_000_000)
 	// this target size was determiend by the devnet sepolia batcher's configuration
 	targetOuput_real = uint64(780120)
+)
 
+var (
 	// compressors used in the benchmark
 	rc, _ = compressor.NewRatioCompressor(compressor.Config{
 		TargetOutputSize: targetOutput_huge,
@@ -136,13 +138,13 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 				cout, _ := channelOutByType(tc.BatchType, tc.compKey)
 				// add all but the final batch to the channel out
 				for i := 0; i < tc.BatchCount-1; i++ {
-					_, err := cout.AddSingularBatch(batches[i], 0)
+					err := cout.AddSingularBatch(batches[i], 0)
 					require.NoError(b, err)
 				}
 				// measure the time to add the final batch
 				b.StartTimer()
 				// add the final batch to the channel out
-				_, err := cout.AddSingularBatch(batches[tc.BatchCount-1], 0)
+				err := cout.AddSingularBatch(batches[tc.BatchCount-1], 0)
 				require.NoError(b, err)
 			}
 		})
@@ -185,7 +187,7 @@ func BenchmarkIncremental(b *testing.B) {
 				}
 				b.StartTimer()
 				for i := 0; i < tc.BatchCount; i++ {
-					_, err := cout.AddSingularBatch(batches[i], 0)
+					err := cout.AddSingularBatch(batches[i], 0)
 					if err != nil {
 						done = true
 						return
@@ -246,7 +248,7 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 				b.StartTimer()
 				// add all batches to the channel out
 				for i := 0; i < tc.BatchCount; i++ {
-					_, err := cout.AddSingularBatch(batches[i], 0)
+					err := cout.AddSingularBatch(batches[i], 0)
 					require.NoError(b, err)
 				}
 			}

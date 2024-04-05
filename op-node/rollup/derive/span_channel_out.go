@@ -97,40 +97,43 @@ func (co *SpanChannelOut) swapRLP() {
 	co.rlpIndex = (co.rlpIndex + 1) % 2
 }
 
-func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block) (uint64, error) {
+// AddBlock adds a block to the channel.
+// returns an error if there is a problem adding the block. The only sentinel error
+// that it returns is ErrTooManyRLPBytes. If this error is returned, the channel
+// should be closed and a new one should be made.
+func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block) error {
 	if co.closed {
-		return 0, ErrChannelOutAlreadyClosed
+		return ErrChannelOutAlreadyClosed
 	}
 
 	batch, l1Info, err := BlockToSingularBatch(rollupCfg, block)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	return co.AddSingularBatch(batch, l1Info.SequenceNumber)
 }
 
 // AddSingularBatch adds a SingularBatch to the channel, compressing the data if necessary.
-// it returns the length of the RLP being compressed
 // if the new batch would make the channel exceed the target size, the last batch is reverted,
 // and the compression happens on the previous RLP buffer instead
 // if the input is too small to need compression, data is accumulated but not compressed
-func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) (uint64, error) {
+func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) error {
 	// sentinel error for closed or full channel
 	if co.closed {
-		return 0, ErrChannelOutAlreadyClosed
+		return ErrChannelOutAlreadyClosed
 	}
-	if co.FullErr() != nil {
-		return 0, co.FullErr()
+	if err := co.FullErr(); err != nil {
+		return err
 	}
 
 	// update the SpanBatch with the SingularBatch
 	if err := co.spanBatch.AppendSingularBatch(batch, seqNum); err != nil {
-		return 0, fmt.Errorf("failed to append SingularBatch to SpanBatch: %w", err)
+		return fmt.Errorf("failed to append SingularBatch to SpanBatch: %w", err)
 	}
 	// convert Span batch to RawSpanBatch
 	rawSpanBatch, err := co.spanBatch.ToRawSpanBatch()
 	if err != nil {
-		return 0, fmt.Errorf("failed to convert SpanBatch into RawSpanBatch: %w", err)
+		return fmt.Errorf("failed to convert SpanBatch into RawSpanBatch: %w", err)
 	}
 
 	// switch to the other buffer and reset it for new use
@@ -138,12 +141,12 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	co.swapRLP()
 	co.activeRLP().Reset()
 	if err = rlp.Encode(co.activeRLP(), NewBatchData(rawSpanBatch)); err != nil {
-		return 0, fmt.Errorf("failed to encode RawSpanBatch into bytes: %w", err)
+		return fmt.Errorf("failed to encode RawSpanBatch into bytes: %w", err)
 	}
 
 	// check the RLP length against the max
 	if co.activeRLP().Len() > MaxRLPBytesPerChannel {
-		return 0, fmt.Errorf("could not take %d bytes as replacement of channel of %d bytes, max is %d. err: %w",
+		return fmt.Errorf("could not take %d bytes as replacement of channel of %d bytes, max is %d. err: %w",
 			co.activeRLP().Len(), co.inactiveRLP().Len(), MaxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 
@@ -151,12 +154,12 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	// this optimizes out cases where the compressor will obviously come in under the target size
 	rlpGrowth := co.activeRLP().Len() - co.lastCompressedRLPSize
 	if uint64(co.compressed.Len()+rlpGrowth) < co.target {
-		return uint64(co.activeRLP().Len()), nil
+		return nil
 	}
 
 	// we must compress the data to check if we've met or exceeded the target size
 	if err = co.compress(); err != nil {
-		return 0, err
+		return err
 	}
 	co.lastCompressedRLPSize = co.activeRLP().Len()
 
@@ -164,20 +167,20 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	if err := co.FullErr(); err != nil {
 		// if there is only one batch in the channel, it *must* be returned
 		if len(co.spanBatch.Batches) == 1 {
-			return uint64(co.activeRLP().Len()), nil
+			return nil
 		}
 
 		// if there is more than one batch in the channel, we revert the last batch
 		// by switching the RLP buffer and doing a fresh compression
 		co.swapRLP()
-		if err = co.compress(); err != nil {
-			return 0, err
+		if err := co.compress(); err != nil {
+			return err
 		}
-		// co.FullErr should always return FullErr by this point
-		return uint64(co.activeRLP().Len()), co.FullErr()
+		// return the full error
+		return err
 	}
 
-	return uint64(co.activeRLP().Len()), nil
+	return nil
 }
 
 // compress compresses the active RLP buffer and checks if the compressed data is over the target size.
@@ -188,7 +191,9 @@ func (co *SpanChannelOut) compress() error {
 	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {
 		return err
 	}
-	co.compressor.Close()
+	if err := co.compressor.Close(); err != nil {
+		return err
+	}
 	co.checkFull()
 	return nil
 }
