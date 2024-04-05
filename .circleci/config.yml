@@ -136,8 +136,8 @@ jobs:
           name: Cannon Go tests
           command: |
             mkdir -p /testlogs
-            gotestsum --format=standard-quiet --junitfile=/tmp/test-results/cannon.xml \
-            -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./... 2>&1 | tee /testlogs/test.log
+            gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
+            -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
           working_directory: cannon
       - run:
           name: upload Cannon coverage
@@ -146,7 +146,7 @@ jobs:
           path: /tmp/test-results
       - store_artifacts:
           path: /testlogs
-          when: on_fail
+          when: always
   cannon-build-test-vectors:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -851,11 +851,11 @@ jobs:
             - golang-build-cache-
       - run:
           name: prep results dir
-          command: mkdir -p /tmp/test-results
+          command: mkdir -p /tmp/test-results &&  mkdir -p /testlogs
       - run:
           name: run tests
           command: |
-            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
+            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:
@@ -868,6 +868,9 @@ jobs:
           #command: codecov --verbose --clean --flags bedrock-go-tests
       - store_test_results:
           path: /tmp/test-results
+      - store_artifacts:
+          path: /testlogs
+          when: always
 
   go-e2e-test:
     parameters:
@@ -954,7 +957,7 @@ jobs:
             export OP_E2E_CANNON_ENABLED="false"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>> 2>&1 | tee /testlogs/test.log
+            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=/testlogs/test.log make <<parameters.target>>
           working_directory: <<parameters.module>>
       - store_artifacts:
           path: /testlogs
@@ -998,10 +1001,13 @@ jobs:
           name: Test
           command: |
             mkdir -p /test-results
-            gotestsum  --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=2
+            gotestsum  --format=testname --junitfile /test-results/tests.xml --jsonfile /test-results/log.json -- -parallel=2
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
+      - store_artifacts:
+          path: /testlogs
+          when: always
       - when:
           condition:
             equal: [ true, <<parameters.build>> ]
