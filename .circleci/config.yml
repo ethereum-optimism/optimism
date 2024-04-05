@@ -115,7 +115,7 @@ jobs:
   cannon-go-lint-and-test:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - check-changed:
@@ -137,8 +137,11 @@ jobs:
           command: |
             mkdir -p /testlogs
             gotestsum --format=standard-quiet --junitfile=/tmp/test-results/cannon.xml \
-            -- -parallel=2 ./... 2>&1 | tee /testlogs/test.log
+            -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./... 2>&1 | tee /testlogs/test.log
           working_directory: cannon
+     - run:
+          name: upload Cannon coverage
+          command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
           path: /tmp/test-results
       - store_artifacts:
