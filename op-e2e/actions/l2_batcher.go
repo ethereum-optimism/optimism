@@ -211,7 +211,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
 	}
-	if _, err := s.l2ChannelOut.AddBlock(s.rollupCfg, block); err != nil { // should always succeed
+	if _, err := s.l2ChannelOut.AddBlock(s.rollupCfg, block); err != nil {
 		return err
 	}
 	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
