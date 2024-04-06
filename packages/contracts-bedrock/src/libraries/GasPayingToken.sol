@@ -6,6 +6,9 @@ import { Constants } from "src/libraries/Constants.sol";
 
 /// @title GasPayingToken
 /// @notice Handles reading and writing the custom gas token to storage.
+///         To be used in any place where gas token information is read or
+///         written to state. If multiple contracts use this library, the
+///         values in storage should be kept in sync between them.
 library GasPayingToken {
     /// @notice The storage slot where the gas paying token address is stored.
     bytes32 internal constant GAS_PAYING_TOKEN_SLOT = bytes32(uint256(keccak256("opstack.gaspayingtoken")) - 1);
