@@ -39,7 +39,7 @@ func (lvl Level) String() string {
 }
 
 // There are three levels currently, out of which only 2 are being used
-// to classify error by severity. LevelTemporary
+// to classify error by severity.
 const (
 	// LevelTemporary is a temporary error for example due to an RPC or
 	// connection issue, and can be safely ignored and retried by the caller
