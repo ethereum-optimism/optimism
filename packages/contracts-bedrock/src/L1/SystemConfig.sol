@@ -85,9 +85,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
 
-    /// @notice Storage slot that holds an address representing the L2 gas paying token.
-    bytes32 public constant GAS_PAYING_TOKEN_SLOT = bytes32(uint256(keccak256("systemconfig.gaspayingtoken")) - 1);
-
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
 
