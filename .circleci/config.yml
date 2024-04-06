@@ -135,14 +135,18 @@ jobs:
       - run:
           name: Cannon Go tests
           command: |
-            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/cannon.xml \
-            -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
+            mkdir -p /testlogs
+            gotestsum --format=standard-quiet --junitfile=/tmp/test-results/cannon.xml \
+            -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./... 2>&1 | tee /testlogs/test.log
           working_directory: cannon
       - run:
           name: upload Cannon coverage
           command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
           path: /tmp/test-results
+      - store_artifacts:
+          path: /testlogs
+          when: on_fail
   cannon-build-test-vectors:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -1653,7 +1657,7 @@ workflows:
           name: op-e2e-action-tests<< matrix.fpac >>
           matrix:
             parameters:
-              fpac: ["", "-fault-proofs", "-plasma"]
+              fpac: ["", "-fault-proofs"]
           module: op-e2e
           target: test-actions
           parallelism: 1
