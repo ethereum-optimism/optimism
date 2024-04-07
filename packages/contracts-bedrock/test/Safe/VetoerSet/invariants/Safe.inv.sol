@@ -25,7 +25,7 @@ contract Handler is Test {
         // Deploy the `Safe` Account.
         // NOTE: Mimic a factory deployment via `getDeployedCode` + `etch`.
         address safeAddr = makeAddr("Safe");
-        bytes memory code = vm.getDeployedCode("Safe.sol:Safe.0.8.15");
+        bytes memory code = vm.getDeployedCode("Safe.sol");
         vm.etch(safeAddr, code);
 
         safe = Safe(payable(safeAddr));
