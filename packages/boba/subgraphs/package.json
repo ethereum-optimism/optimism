@@ -4,5 +4,8 @@
   "scripts": {
     "deploy:goldsky": "goldsky subgraph deploy light-bridge/v1 --from-abi ./subgraph.json",
     "deploy:goldsky:dao": "goldsky subgraph deploy dao/v2 --from-abi ./dao.json"
+  },
+  "dependencies": {
+    "@goldskycom/cli": "^8.6.4"
   }
 }
