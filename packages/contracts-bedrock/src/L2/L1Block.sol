@@ -17,6 +17,9 @@ contract L1Block is ISemver {
     /// @notice Error returns when a non-depositor account tries to set L1 block values.
     error NotDepositor();
 
+    /// @notice Event emitted when the gas paying token is set.
+    event GasPayingTokenSet(address indexed token, uint8 indexed decimals);
+
     /// @notice Address of the special depositor account.
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
@@ -142,5 +145,7 @@ contract L1Block is ISemver {
         if (msg.sender != DEPOSITOR_ACCOUNT) revert NotDepositor();
 
         GasPayingToken.set(_token, _decimals);
+
+        emit GasPayingTokenSet(_token, _decimals);
     }
 }
