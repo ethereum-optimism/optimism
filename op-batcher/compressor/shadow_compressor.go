@@ -5,7 +5,6 @@ import (
 	"compress/zlib"
 
 	"github.com/andybalholm/brotli"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
@@ -123,7 +122,6 @@ func (t *ShadowCompressor) Reset() {
 	} else {
 		t.compress.Reset(&t.buf)
 	}
-	t.brotliCompress.Reset(&t.buf)
 	t.shadowBuf.Reset()
 	t.shadowCompress.Reset(&t.shadowBuf)
 	t.fullErr = nil
