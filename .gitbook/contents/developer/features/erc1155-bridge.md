@@ -1,6 +1,6 @@
 # ERC1155 NFT Bridging
 
-BOBA ERC1155 bridges consists of two bridge contracts. The [L1ERC1155Bridge](https://github.com/bobanetwork/boba\_legacy/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/ERC1155Bridges/L1ERC1155Bridge.sol) contract is deployed on L1 and the [L2ERC1155Bridge](https://github.com/bobanetwork/boba\_legacy/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/ERC1155Bridges/L2ERC1155Bridge.sol) contract is deployed on L2. It supports **native L1 ERC1155 tokens** and **native L2 ERC1155 tokens** to be moved back and forth. **These two contracts have not been audited, exercise caution when using this on mainnet.**
+BOBA ERC1155 bridges consists of two bridge contracts. The [L1ERC1155Bridge](https://github.com/bobanetwork/boba\_legacy/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/ERC1155Bridges/L1ERC1155Bridge.sol) contract is deployed on L1 and the [L2ERC1155Bridge](https://github.com/bobanetwork/boba\_legacy/blob/add-ERC1155-bridge/packages/boba/contracts/contracts/ERC1155Bridges/L2ERC1155Bridge.sol) contract is deployed on L2. It supports **native L1 ERC1155 tokens** and **native L2 ERC1155 tokens** to be moved back and forth.
 
 * Native L1 ERC1155 token: the original token contract was deployed on L1
 * Native L2 ERC1155 token: the original token contract was deployed on L2
@@ -255,7 +255,7 @@ const approveTx = await L1Token.setApprovalForAll(L1_ERC1155_BRIDGE_ADDRESS, tru
 await approveTx.wait()
 ```
 
-Users then call the `deposit` or `depositTo` function to deposit token to L2. The token arrives on L2 after eight L1 blocks.
+Users then call the `deposit` or `depositTo` function to deposit token to L2. The token arrives on L2 after L1 conf blocks.
 
 ```js
 const tx = await L1ERC1155Brige.deposit(
@@ -333,7 +333,7 @@ const approveTx = await L2BOBAToken.setApprovalForAll(L1_ERC1155_BRIDGE_ADDRESS,
 await approveTx.wait()
 ```
 
-Users then call the `deposit` or `depositTo` function to deposit tokens to L2. The token arrives on L2 after eight L1 blocks.
+Users then call the `deposit` or `depositTo` function to deposit tokens to L2. The token arrives on L2 after L1 conf blocks.
 
 ```js
 const tx = await L1ERC1155Brige.deposit(
@@ -382,13 +382,6 @@ await tx.wait()
 | L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
 
 ### Testnet
-
-#### Goerli
-
-| Layer | Contract Name            | Contract Address                           |
-| ----- | ------------------------ | ------------------------------------------ |
-| L1    | Proxy\_\_L1ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
-| L2    | Proxy\_\_L2ERC1155Bridge | 0x1dF39152AC0e81aB100341cACC4dE4c372A550cb |
 
 #### BNB Testnet
 
