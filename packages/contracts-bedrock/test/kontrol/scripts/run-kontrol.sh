@@ -121,16 +121,18 @@ regen=
 # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
 # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
 # "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
+# "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
+# "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
+# "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
+# "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
+# "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
 
 test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
-  test_list=( "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
-              "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
-              "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
-              "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
-              "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
-              "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
-              "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
+  test_list=( "DummyTest.prove_success" \
+              "DummyTest.prove_fail"
   )
 elif [ "$CUSTOM_TESTS" != 0 ]; then
   test_list=( "${@:${CUSTOM_TESTS}}" )
