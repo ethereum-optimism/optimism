@@ -89,7 +89,7 @@ copy_to_docker # Copy the newly generated files to the docker container
 run kontrol load-state-diff $SUMMARY_NAME snapshots/state-diff/$STATEDIFF --contract-names $CONTRACT_NAMES --output-dir $SUMMARY_DIR --license $LICENSE
 if [ "$LOCAL" = false ]; then
     # Sync Snapshot updates to the host
-    docker cp "$CONTAINER_NAME:/home/user/workspace/test/kontrol/proofs/utils" "$WORKSPACE_DIR/test/kontrol/proofs/"
+    docker cp "$CONTAINER_NAME:/home/user/workspace/$SUMMARY_DIR" "$WORKSPACE_DIR/$SUMMARY_DIR"
 fi
 forge fmt $SUMMARY_DIR/$SUMMARY_NAME.sol
 forge fmt $SUMMARY_DIR/${SUMMARY_NAME}Code.sol
