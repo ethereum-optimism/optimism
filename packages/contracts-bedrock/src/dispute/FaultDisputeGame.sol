@@ -10,7 +10,7 @@ import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
-import { Clone } from "src/libraries/Clone.sol";
+import { Clone } from "@solady/utils/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
@@ -91,8 +91,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     OutputRoot public startingOutputRoot;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.9.0
-    string public constant version = "0.9.0";
+    /// @custom:semver 0.10.0
+    string public constant version = "0.10.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -365,7 +365,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @inheritdoc IFaultDisputeGame
     function l1Head() public pure returns (Hash l1Head_) {
-        l1Head_ = Hash.wrap(_getArgFixedBytes(0x20));
+        l1Head_ = Hash.wrap(_getArgBytes32(0x20));
     }
 
     /// @inheritdoc IFaultDisputeGame
@@ -478,14 +478,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @inheritdoc IDisputeGame
     function rootClaim() public pure returns (Claim rootClaim_) {
-        rootClaim_ = Claim.wrap(_getArgFixedBytes(0x00));
+        rootClaim_ = Claim.wrap(_getArgBytes32(0x00));
     }
 
     /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
-        extraData_ = _getArgDynBytes(0x40, 0x20);
+        extraData_ = _getArgBytes(0x40, 0x20);
     }
 
     /// @inheritdoc IDisputeGame
