@@ -56,6 +56,11 @@ type PredeploysImmutableConfig struct {
 	EAS            struct {
 		Name string
 	}
+	RevenueSharer struct {
+		OptimismWallet          common.Address
+		L1Wallet                common.Address
+		FeeDisbursementInterval *big.Int
+	}
 	Create2Deployer              struct{}
 	MultiCall3                   struct{}
 	Safe_v130                    struct{}
@@ -222,6 +227,8 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
+	case "RevenueSharer":
+		_, tx, _, err = bindings.DeploRevenueSharer(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

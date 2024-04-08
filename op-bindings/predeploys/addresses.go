@@ -6,7 +6,6 @@ import "github.com/ethereum/go-ethereum/common"
 // This needs to be kept in sync with @eth-optimism/contracts-ts/wagmi.config.ts which also specifies this
 // To improve robustness and maintainability contracts-bedrock should export all addresses
 const (
-	RevenueSharer                 = "0x4200000000000000000000000000000000000022"
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
 	WETH9                         = "0x4200000000000000000000000000000000000006"
@@ -26,6 +25,7 @@ const (
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
+	RevenueSharer                 = "0x4200000000000000000000000000000000000022"
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
 	MultiCall3                    = "0xcA11bde05977b3631167028862bE2a173976CA11"
 	Safe_v130                     = "0x69f4D1788e39c87893C980c06EdF4b7f686e2938"
@@ -40,7 +40,6 @@ const (
 )
 
 var (
-	RevenueSharerAddr                 = common.HexToAddress(RevenueSharer)
 	L2ToL1MessagePasserAddr           = common.HexToAddress(L2ToL1MessagePasser)
 	DeployerWhitelistAddr             = common.HexToAddress(DeployerWhitelist)
 	WETH9Addr                         = common.HexToAddress(WETH9)
@@ -60,6 +59,7 @@ var (
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
+	RevenueSharerAddr                 = common.HexToAddress(RevenueSharer)
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
 	MultiCall3Addr                    = common.HexToAddress(MultiCall3)
 	Safe_v130Addr                     = common.HexToAddress(Safe_v130)
@@ -77,7 +77,6 @@ var (
 )
 
 func init() {
-	Predeploys["RevenueSharer"] = &Predeploy{Address: RevenueSharerAddr}
 	Predeploys["L2ToL1MessagePasser"] = &Predeploy{Address: L2ToL1MessagePasserAddr}
 	Predeploys["DeployerWhitelist"] = &Predeploy{Address: DeployerWhitelistAddr}
 	Predeploys["WETH9"] = &Predeploy{Address: WETH9Addr, ProxyDisabled: true}
@@ -103,6 +102,7 @@ func init() {
 	Predeploys["L1FeeVault"] = &Predeploy{Address: L1FeeVaultAddr}
 	Predeploys["SchemaRegistry"] = &Predeploy{Address: SchemaRegistryAddr}
 	Predeploys["EAS"] = &Predeploy{Address: EASAddr}
+	Predeploys["RevenueSharer"] = &Predeploy{Address: RevenueSharerAddr}
 	Predeploys["Create2Deployer"] = &Predeploy{
 		Address:       Create2DeployerAddr,
 		ProxyDisabled: true,

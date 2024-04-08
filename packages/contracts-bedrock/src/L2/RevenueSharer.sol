@@ -137,7 +137,7 @@ contract RevenueSharer {
         // Gross revenue is the sum of all fees
         uint256 feeBalance = address(this).balance;
 
-        // TODO gk: etFeeRevenue = feeBalance - l1fees . Be clearer to just subtract this off, and better anticipates
+        // TODO gk: netFeeRevenue = feeBalance - l1fees . Be clearer to just subtract this off, and better anticipates
         // future improvements
         // where we may be tracking the actual expenditure on L1
 
