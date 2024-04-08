@@ -31,12 +31,14 @@ cleanup() {
   fi
 
   if [ "$LOCAL" = false ]; then
+    # Sync Snapshot updates to the host
+    docker cp "$CONTAINER_NAME:/home/user/workspace/test/kontrol/proofs/utils" "$WORKSPACE_DIR"
     clean_docker
   fi
 }
 
 # Set trap to call cleanup function on exit
-trap cleanup EXIT
+trap cleanup EXIT ERR
 
 # create deployments/hardhat/.deploy and snapshots/state-diff/Deploy.json if necessary
 if [ ! -d "deployments/hardhat" ]; then
@@ -90,4 +92,4 @@ forge fmt $SUMMARY_DIR/$SUMMARY_NAME.sol
 forge fmt $SUMMARY_DIR/${SUMMARY_NAME}Code.sol
 echo "Added state updates to $SUMMARY_DIR/$SUMMARY_NAME.sol"
 
-sync_cointainer_to_host_fs
+

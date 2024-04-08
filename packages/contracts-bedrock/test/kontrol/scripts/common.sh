@@ -197,10 +197,3 @@ run () {
     docker_exec "${@}"
   fi
 }
-
-sync_cointainer_to_host_fs() {
-  if [ "$LOCAL" = false ]; then
-    # Sync Everything Except kout-proofs folder to the host
-    docker cp "$CONTAINER_NAME:/home/user/workspace/." "$WORKSPACE_DIR"
-  fi
-}
