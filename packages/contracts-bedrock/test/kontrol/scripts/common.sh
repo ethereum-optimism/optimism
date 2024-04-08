@@ -178,8 +178,14 @@ copy_to_docker() {
 }
 
 clean_docker(){
-  notif "Stopping Docker Container"
-  docker stop "$CONTAINER_NAME"
+  if [ "$LOCAL" = false ]; then
+    notif "Cleaning Docker Container"
+    docker stop "$CONTAINER_NAME" > /dev/null 2>&1
+    docker rm "$CONTAINER_NAME" > /dev/null 2>&1
+    sleep 2 # Give time for system to clean up container
+  else
+    notif "Not Running in Container. Done."
+  fi
 }
 
 
@@ -196,4 +202,5 @@ run () {
     notif "Running in docker"
     docker_exec "${@}"
   fi
+  return $? # Return the exit code of the command
 }

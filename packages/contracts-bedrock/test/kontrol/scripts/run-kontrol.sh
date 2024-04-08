@@ -20,6 +20,8 @@ kontrol_build() {
     --require $lemmas \
     --module-import $module \
     $rekompile
+  return $?
+  # return 1
 }
 
 kontrol_prove() {
@@ -39,55 +41,53 @@ kontrol_prove() {
     $use_booster \
     --init-node-from $state_diff \
     --xml-test-report
+  return $?
+  # return 2
 }
 
-dump_log_results(){
-  trap clean_docker ERR
-    RESULTS_FILE="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
-    LOG_PATH="test/kontrol/logs"
-    RESULTS_LOG="$LOG_PATH/$RESULTS_FILE"
+get_log_results(){
+  RESULTS_FILE="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
+  LOG_PATH="test/kontrol/script/logs"
+  RESULTS_LOG="$LOG_PATH/$RESULTS_FILE"
 
-    if [ ! -d $LOG_PATH ]; then
-      mkdir $LOG_PATH
-    fi
+  if [ ! -d $LOG_PATH ]; then
+    mkdir $LOG_PATH
+  fi
 
-    notif "Generating Results Log: $LOG_PATH"
+  notif "Generating Results Log: $RESULTS_LOG"
 
-    run tar -czvf results.tar.gz kout-proofs/ > /dev/null 2>&1
-    if [ "$LOCAL" = true ]; then
-      mv results.tar.gz "$RESULTS_LOG"
-    else
-      docker cp "$CONTAINER_NAME:/home/user/workspace/results.tar.gz" "$RESULTS_LOG"
-    fi
-    if [ -f "$RESULTS_LOG" ]; then
-      cp "$RESULTS_LOG" "$LOG_PATH/kontrol-results_latest.tar.gz"
-    else
-      notif "Results Log: $RESULTS_LOG not found, skipping.."
-    fi
-    # Report where the file was generated and placed
-    notif "Results Log: $(dirname "$RESULTS_LOG") generated"
+  run tar -czvf results.tar.gz kout-proofs/ > /dev/null 2>&1
+  if [ "$LOCAL" = true ]; then
+    mv results.tar.gz "$RESULTS_LOG"
+  else
+    docker cp "$CONTAINER_NAME:/home/user/workspace/results.tar.gz" "$RESULTS_LOG"
+  fi
+  if [ -f "$RESULTS_LOG" ]; then
+    cp "$RESULTS_LOG" "$LOG_PATH/kontrol-results_latest.tar.gz"
+  else
+    notif "Results Log: $RESULTS_LOG not found, skipping.."
+  fi
+  # Report where the file was generated and placed
+  notif "Results Log: $(dirname "$RESULTS_LOG") generated"
 
-    if [ "$LOCAL" = false ]; then
-      notif "Results Log: $RESULTS_LOG generated"
-      RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-      docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
-    fi
+  if [ "$LOCAL" = false ]; then
+    notif "Results Log: $RESULTS_LOG generated"
+    RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
+    docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
+  fi
 }
 
 # Define the function to run on failure
 on_failure() {
-  dump_log_results
+  get_log_results
 
   if [ "$LOCAL" = false ]; then
     clean_docker
   fi
 
-  notif "Cleanup complete."
+  notif "Failure Cleanup Complete."
   exit 1
 }
-
-# Set up the trap to run the function on failure
-trap on_failure ERR INT
 
 #########################
 # kontrol build options #
@@ -129,9 +129,10 @@ regen=
 # "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
 # "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
 
+# "DummyTest.prove_success" \
 test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
-  test_list=( "DummyTest.prove_success" \
+  test_list=(
               "DummyTest.prove_fail"
   )
 elif [ "$CUSTOM_TESTS" != 0 ]; then
@@ -173,16 +174,35 @@ state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
 #############
 # RUN TESTS #
 #############
+# Set up the trap to run the function on failure
+trap on_failure ERR INT TERM
+trap clean_docker EXIT
 conditionally_start_docker
 
+results=()
+# Run kontrol_build and store the result
 kontrol_build
+results[0]=$?
+
+# Run kontrol_prove and store the result
 kontrol_prove
+results[1]=$?
 
-dump_log_results
-
-if [ "$LOCAL" == false ]; then
-    notif "Stopping docker container"
-    clean_docker
+# Now you can use ${results[0]} and ${results[1]}
+# to check the results of kontrol_build and kontrol_prove, respectively
+if [ ${results[0]} -ne 0 ] && [ ${results[1]} -ne 0 ]; then
+  echo "Kontrol Build and Prove Failed"
+  exit 1
+elif [ ${results[0]} -ne 0 ]; then
+  echo "Kontrol Build Failed"
+  exit 1
+elif [ ${results[1]} -ne 0 ]; then
+  echo "Kontrol Prove Failed"
+  exit 2
+  # Handle failure
+else
+  echo "Kontrol Passed"
+  # Continue processing
 fi
 
 notif "DONE"
