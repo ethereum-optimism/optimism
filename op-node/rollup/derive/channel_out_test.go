@@ -36,59 +36,94 @@ func (s *nonCompressor) FullErr() error {
 	return nil
 }
 
-func TestChannelOutAddBlock(t *testing.T) {
-	cout, err := NewChannelOut(SingularBatchType, &nonCompressor{}, nil)
-	require.NoError(t, err)
+// channelTypes allows tests to run against different channel types
+var channelTypes = []struct {
+	ChannelOut func(t *testing.T) ChannelOut
+	Name       string
+}{
+	{
+		Name: "Singular",
+		ChannelOut: func(t *testing.T) ChannelOut {
+			cout, err := NewSingularChannelOut(&nonCompressor{})
+			require.NoError(t, err)
+			return cout
+		},
+	},
+	{
+		Name: "Span",
+		ChannelOut: func(t *testing.T) ChannelOut {
+			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000)
+			require.NoError(t, err)
+			return cout
+		},
+	},
+}
 
-	t.Run("returns err if first tx is not an l1info tx", func(t *testing.T) {
-		header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
-		block := types.NewBlockWithHeader(header).WithBody(
-			[]*types.Transaction{
-				types.NewTx(&types.DynamicFeeTx{}),
-			},
-			nil,
-		)
-		_, err := cout.AddBlock(&rollupCfg, block)
-		require.Error(t, err)
-		require.Equal(t, ErrNotDepositTx, err)
-	})
+func TestChannelOutAddBlock(t *testing.T) {
+	for _, tcase := range channelTypes {
+		t.Run(tcase.Name, func(t *testing.T) {
+			cout := tcase.ChannelOut(t)
+			header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
+			block := types.NewBlockWithHeader(header).WithBody(
+				[]*types.Transaction{
+					types.NewTx(&types.DynamicFeeTx{}),
+				},
+				nil,
+			)
+			err := cout.AddBlock(&rollupCfg, block)
+			require.Error(t, err)
+			require.Equal(t, ErrNotDepositTx, err)
+		})
+	}
 }
 
 // TestOutputFrameSmallMaxSize tests that calling [OutputFrame] with a small
-// max size that is below the fixed frame size overhead of 23, will return
-// an error.
+// max size that is below the fixed frame size overhead of FrameV0OverHeadSize (23),
+// will return an error.
 func TestOutputFrameSmallMaxSize(t *testing.T) {
-	cout, err := NewChannelOut(SingularBatchType, &nonCompressor{}, nil)
-	require.NoError(t, err)
-
-	// Call OutputFrame with the range of small max size values that err
-	var w bytes.Buffer
-	for i := 0; i < 23; i++ {
-		fid, err := cout.OutputFrame(&w, uint64(i))
-		require.ErrorIs(t, err, ErrMaxFrameSizeTooSmall)
-		require.Zero(t, fid)
+	for _, tcase := range channelTypes {
+		t.Run(tcase.Name, func(t *testing.T) {
+			cout := tcase.ChannelOut(t)
+			// Call OutputFrame with the range of small max size values that err
+			var w bytes.Buffer
+			for i := 0; i < FrameV0OverHeadSize; i++ {
+				fid, err := cout.OutputFrame(&w, uint64(i))
+				require.ErrorIs(t, err, ErrMaxFrameSizeTooSmall)
+				require.Zero(t, fid)
+			}
+		})
 	}
 }
 
 func TestOutputFrameNoEmptyLastFrame(t *testing.T) {
-	cout, err := NewChannelOut(SingularBatchType, &nonCompressor{}, nil)
-	require.NoError(t, err)
+	for _, tcase := range channelTypes {
+		t.Run(tcase.Name, func(t *testing.T) {
+			cout := tcase.ChannelOut(t)
 
-	rng := rand.New(rand.NewSource(0x543331))
-	chainID := big.NewInt(rng.Int63n(1000))
-	txCount := 1
-	singularBatch := RandomSingularBatch(rng, txCount, chainID)
+			rng := rand.New(rand.NewSource(0x543331))
+			chainID := big.NewInt(0)
+			txCount := 1
+			singularBatch := RandomSingularBatch(rng, txCount, chainID)
 
-	written, err := cout.AddSingularBatch(singularBatch, 0)
-	require.NoError(t, err)
+			err := cout.AddSingularBatch(singularBatch, 0)
+			var written uint64
+			require.NoError(t, err)
 
-	require.NoError(t, cout.Close())
+			require.NoError(t, cout.Close())
 
-	var buf bytes.Buffer
-	// Output a frame which needs exactly `written` bytes. This frame is expected to be the last frame.
-	_, err = cout.OutputFrame(&buf, written+FrameV0OverHeadSize)
-	require.ErrorIs(t, err, io.EOF)
+			// depending on the channel type, determine the size of the written data
+			if span, ok := cout.(*SpanChannelOut); ok {
+				written = uint64(span.compressed.Len())
+			} else if singular, ok := cout.(*SingularChannelOut); ok {
+				written = uint64(singular.compress.Len())
+			}
 
+			var buf bytes.Buffer
+			// Output a frame which needs exactly `written` bytes. This frame is expected to be the last frame.
+			_, err = cout.OutputFrame(&buf, written+FrameV0OverHeadSize)
+			require.ErrorIs(t, err, io.EOF)
+		})
+	}
 }
 
 // TestRLPByteLimit ensures that stream encoder is properly limiting the length.
@@ -183,4 +218,83 @@ func TestBlockToBatchValidity(t *testing.T) {
 	block := new(types.Block)
 	_, _, err := BlockToSingularBatch(&rollupCfg, block)
 	require.ErrorContains(t, err, "has no transactions")
+}
+
+func SpanChannelAndBatches(t *testing.T, target uint64, len int) (*SpanChannelOut, []*SingularBatch) {
+	// target is larger than one batch, but smaller than two batches
+	rng := rand.New(rand.NewSource(0x543331))
+	chainID := big.NewInt(rng.Int63n(1000))
+	txCount := 1
+	cout, err := NewSpanChannelOut(0, chainID, target)
+	require.NoError(t, err)
+	batches := make([]*SingularBatch, len)
+	// adding the first batch should not cause an error
+	for i := 0; i < len; i++ {
+		singularBatch := RandomSingularBatch(rng, txCount, chainID)
+		batches[i] = singularBatch
+	}
+
+	return cout, batches
+}
+
+// TestSpanChannelOutCompressionOnlyOneBatch tests that the SpanChannelOut compression works as expected when there is only one batch
+// and it is larger than the target size. The single batch should be compressed, and the channel should now be full
+func TestSpanChannelOutCompressionOnlyOneBatch(t *testing.T) {
+	cout, singularBatches := SpanChannelAndBatches(t, 300, 2)
+
+	err := cout.AddSingularBatch(singularBatches[0], 0)
+	// confirm compression was not skipped
+	require.Greater(t, cout.compressed.Len(), 0)
+	require.NoError(t, err)
+
+	// confirm the channel is full
+	require.ErrorIs(t, cout.FullErr(), ErrCompressorFull)
+
+	// confirm adding another batch would cause the same full error
+	err = cout.AddSingularBatch(singularBatches[1], 0)
+	require.ErrorIs(t, err, ErrCompressorFull)
+}
+
+// TestSpanChannelOutCompressionUndo tests that the SpanChannelOut compression rejects a batch that would cause the channel to be overfull
+func TestSpanChannelOutCompressionUndo(t *testing.T) {
+	// target is larger than one batch, but smaller than two batches
+	cout, singularBatches := SpanChannelAndBatches(t, 750, 2)
+
+	err := cout.AddSingularBatch(singularBatches[0], 0)
+	require.NoError(t, err)
+	// confirm that the first compression was skipped
+	require.Equal(t, 0, cout.compressed.Len())
+	// record the RLP length to confirm it doesn't change when adding a rejected batch
+	rlp1 := cout.activeRLP().Len()
+
+	err = cout.AddSingularBatch(singularBatches[1], 0)
+	require.ErrorIs(t, err, ErrCompressorFull)
+	// confirm that the second compression was not skipped
+	require.Greater(t, cout.compressed.Len(), 0)
+
+	// confirm that the second rlp is tht same size as the first (because the second batch was not added)
+	require.Equal(t, rlp1, cout.activeRLP().Len())
+}
+
+// TestSpanChannelOutClose tests that the SpanChannelOut compression works as expected when the channel is closed.
+// it should compress the batch even if it is smaller than the target size because the channel is closing
+func TestSpanChannelOutClose(t *testing.T) {
+	target := uint64(600)
+	cout, singularBatches := SpanChannelAndBatches(t, target, 1)
+
+	err := cout.AddSingularBatch(singularBatches[0], 0)
+	require.NoError(t, err)
+	// confirm no compression has happened yet
+	require.Equal(t, 0, cout.compressed.Len())
+
+	// confirm the RLP length is less than the target
+	rlpLen := cout.activeRLP().Len()
+	require.Less(t, uint64(rlpLen), target)
+
+	// close the channel
+	require.NoError(t, cout.Close())
+
+	// confirm that the only batch was compressed, and that the RLP did not change
+	require.Greater(t, cout.compressed.Len(), 0)
+	require.Equal(t, rlpLen, cout.activeRLP().Len())
 }
