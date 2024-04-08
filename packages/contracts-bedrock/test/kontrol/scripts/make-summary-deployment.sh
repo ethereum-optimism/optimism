@@ -89,3 +89,5 @@ run kontrol load-state-diff $SUMMARY_NAME snapshots/state-diff/$STATEDIFF --cont
 forge fmt $SUMMARY_DIR/$SUMMARY_NAME.sol
 forge fmt $SUMMARY_DIR/${SUMMARY_NAME}Code.sol
 echo "Added state updates to $SUMMARY_DIR/$SUMMARY_NAME.sol"
+
+sync_cointainer_to_host_fs
