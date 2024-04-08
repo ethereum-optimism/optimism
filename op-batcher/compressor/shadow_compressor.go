@@ -65,7 +65,7 @@ func NewShadowCompressor(config Config) (derive.Compressor, error) {
 		brotli.BestCompression,
 	)
 
-	c.compressAlgo = "brotli"
+	c.compressAlgo = config.CompressionAlgo
 
 	c.bound = safeCompressionOverhead
 	return c, nil
@@ -98,13 +98,18 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 		}
 	}
 	t.bound = newBound
-	//return t.compress.Write(p)
-	return t.brotliCompress.Write(p)
+
+	if t.compressAlgo == "brotli" {
+		return t.brotliCompress.Write(p)
+	}
+	return t.compress.Write(p)
 }
 
 func (t *ShadowCompressor) Close() error {
-	//return t.compress.Close()
-	return t.brotliCompress.Close()
+	if t.compressAlgo == "brotli" {
+		return t.brotliCompress.Close()
+	}
+	return t.compress.Close()
 }
 
 func (t *ShadowCompressor) Read(p []byte) (int, error) {
@@ -113,7 +118,11 @@ func (t *ShadowCompressor) Read(p []byte) (int, error) {
 
 func (t *ShadowCompressor) Reset() {
 	t.buf.Reset()
-	//t.compress.Reset(&t.buf)
+	if t.compressAlgo == "brotli" {
+		t.brotliCompress.Reset(&t.buf)
+	} else {
+		t.compress.Reset(&t.buf)
+	}
 	t.brotliCompress.Reset(&t.buf)
 	t.shadowBuf.Reset()
 	t.shadowCompress.Reset(&t.shadowBuf)
@@ -126,8 +135,10 @@ func (t *ShadowCompressor) Len() int {
 }
 
 func (t *ShadowCompressor) Flush() error {
-	//return t.compress.Flush()
-	return t.brotliCompress.Flush()
+	if t.compressAlgo == "brotli" {
+		return t.brotliCompress.Flush()
+	}
+	return t.compress.Flush()
 }
 
 func (t *ShadowCompressor) FullErr() error {
