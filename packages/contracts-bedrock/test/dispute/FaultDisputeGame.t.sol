@@ -547,7 +547,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
         gameProxy.defend{ value: _getRequiredBond(1) }(1, _dummyClaim());
 
-        vm.warp(block.timestamp + 3 days + 12 hours );
+        vm.warp(block.timestamp + 3 days + 12 hours);
 
         gameProxy.resolveClaim(2);
         gameProxy.resolveClaim(1);
@@ -1111,8 +1111,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3.5 days - 1 seconds);
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
         // Chess time left to attack:
-        assertEq(gameProxy.getRemainingTime(0).raw(), 1 seconds);
-        assertEq(gameProxy.getRemainingTime(1).raw(), 3.5 days);
+        assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days - 1 seconds);
+        assertEq(gameProxy.getChallengerDuration(1).raw(), 0);
 
         // Advance time by 1 second, so that the root claim challenger clock is expired.
         vm.warp(block.timestamp + 1 seconds);
@@ -1121,8 +1121,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.expectRevert(ClockTimeExceeded.selector);
         gameProxy.attack{ value: expectedBond }(0, _dummyClaim());
         // Chess time left to attack:
-        assertEq(gameProxy.getRemainingTime(0).raw(), 0);
-        assertEq(gameProxy.getRemainingTime(1).raw(), 3.5 days - 1 seconds);
+        assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days);
+        assertEq(gameProxy.getChallengerDuration(1).raw(), 1 seconds);
 
         // Should not be able to resolve the root claim or second counter yet.
         vm.expectRevert(ClockNotExpired.selector);
@@ -1135,9 +1135,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Attack the challenge to the root claim. This should succeed, since the defender clock is not expired.
         gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
         // Chess time left to attack:
-        assertEq(gameProxy.getRemainingTime(0).raw(), 0);
-        assertEq(gameProxy.getRemainingTime(1).raw(), 1 seconds);
-        assertEq(gameProxy.getRemainingTime(2).raw(), 1 seconds);
+        assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days);
+        assertEq(gameProxy.getChallengerDuration(1).raw(), 3.5 days - 1 seconds);
+        assertEq(gameProxy.getChallengerDuration(2).raw(), 3.5 days - 1 seconds);
 
         // Should not be able to resolve any claims yet.
         vm.expectRevert(ClockNotExpired.selector);
@@ -1156,9 +1156,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.expectRevert(ClockTimeExceeded.selector); // no further move can be made
         gameProxy.attack{ value: expectedBond }(2, _dummyClaim());
         // Chess time left to attack:
-        assertEq(gameProxy.getRemainingTime(0).raw(), 0);
-        assertEq(gameProxy.getRemainingTime(1).raw(), 0);
-        assertEq(gameProxy.getRemainingTime(2).raw(), 0);
+        assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days);
+        assertEq(gameProxy.getChallengerDuration(1).raw(), 3.5 days);
+        assertEq(gameProxy.getChallengerDuration(2).raw(), 3.5 days);
 
         vm.expectRevert(OutOfOrderResolution.selector);
         gameProxy.resolveClaim(1);

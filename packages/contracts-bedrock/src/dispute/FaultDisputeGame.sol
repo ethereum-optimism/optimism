@@ -266,29 +266,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: The `msg.value` must exactly equal the required bond.
         if (getRequiredBond(nextPosition) != msg.value) revert IncorrectBondAmount();
 
-        // Fetch the grandparent clock, if it exists.
-        // The grandparent clock should always exist unless the parent is the root claim.
-        Clock grandparentClock;
-        if (parent.parentIndex != type(uint32).max) {
-            grandparentClock = claimData[parent.parentIndex].clock;
-        }
-
         // Compute the duration of the next clock. This is done by adding the duration of the
         // grandparent claim to the difference between the current block timestamp and the
         // parent's clock timestamp.
-        Duration nextDuration = Duration.wrap(
-            uint64(
-                // First, fetch the duration of the grandparent claim.
-                grandparentClock.duration().raw()
-                // Second, add the difference between the current block timestamp and the
-                // parent's clock timestamp.
-                + block.timestamp - parent.clock.timestamp().raw()
-            )
-        );
+        Duration nextDuration = getChallengerDuration(_challengeIndex);
 
         // INVARIANT: A move can never be made once its clock has exceeded `GAME_DURATION / 2`
         //            seconds of time.
-        if (nextDuration.raw() >= GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
+        if (nextDuration.raw() == GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
 
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
@@ -414,13 +399,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         ClaimData storage subgameRootClaim = claimData[_claimIndex];
-        Clock parentClock;
-        if (subgameRootClaim.parentIndex != type(uint32).max) {
-            parentClock = claimData[subgameRootClaim.parentIndex].clock;
-        }
-        Duration challengeClockDuration = Duration.wrap(
-            uint64(parentClock.duration().raw() + block.timestamp - subgameRootClaim.clock.timestamp().raw())
-        );
+        Duration challengeClockDuration = getChallengerDuration(_claimIndex);
 
         // INVARIANT: Cannot resolve a subgame unless the clock of its would-be counter has expired
         // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always less than GAME_DURATION / 2
@@ -656,10 +635,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (!success) revert BondTransferFailed();
     }
 
-    /// @notice Returns the amount of time remaining to challenge a given subgame root.
+    /// @notice Returns the amount of time elapsed on the potential challenger to `_claimIndex`'s chess clock. Maxes
+    ///         out at `GAME_DURATION / 2`.
     /// @param _claimIndex The index of the subgame root claim.
-    /// @return duration_ The remaining time to challenge the given subgame root.
-    function getRemainingTime(uint256 _claimIndex) external view returns (Duration duration_) {
+    /// @return duration_ The time elapsed on the potential challenger to `_claimIndex`'s chess clock.
+    function getChallengerDuration(uint256 _claimIndex) public view returns (Duration duration_) {
         // INVARIANT: The game must be in progress to query the remaining time to respond to a given claim.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
@@ -675,14 +655,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         }
 
         // Compute the duration elapsed of the potential challenger's clock.
-        uint256 challengeClockDuration =
-            parentClock.duration().raw() + (block.timestamp - subgameRootClaim.clock.timestamp().raw());
-
-        // Compute the remaining time.
-        if (challengeClockDuration >= GAME_DURATION.raw() >> 1) {
-            duration_ = Duration.wrap(0);
+        uint64 challengeDuration =
+            uint64(parentClock.duration().raw() + (block.timestamp - subgameRootClaim.clock.timestamp().raw()));
+        uint64 maxClockTime = GAME_DURATION.raw() >> 1;
+        if (challengeDuration > maxClockTime) {
+            duration_ = Duration.wrap(maxClockTime);
         } else {
-            duration_ = Duration.wrap(uint64((GAME_DURATION.raw() >> 1) - challengeClockDuration));
+            duration_ = Duration.wrap(challengeDuration);
         }
     }
 
