@@ -1,11 +1,17 @@
 GITCOMMIT ?= $(shell git rev-parse HEAD)
 GITDATE ?= $(shell git show -s --format='%ct')
 # Find the github tag that points to this commit. If none are found, set the version string to "untagged"
-VERSION ?= $(shell tag=$$(git tag --points-at $(GITCOMMIT) | grep '^op-node/' | sort -V | tail -n 1 | sed 's/op-node\///'); \
-             if [ -z "$$tag" ]; then \
-                 echo "untagged"; \
+# Prioritizes release tag, if one exists, over tags suffixed with "-rc"
+VERSION ?= $(shell tags=$$(git tag --points-at $(GITCOMMIT) | grep '^op-node/' | sed 's/op-node\///' | sort -V); \
+             preferred_tag=$$(echo "$$tags" | grep -v -- '-rc' | tail -n 1); \
+             if [ -z "$$preferred_tag" ]; then \
+                 if [ -z "$$tags" ]; then \
+                     echo "untagged"; \
+                 else \
+                     echo "$$tags" | tail -n 1; \
+                 fi \
              else \
-                 echo $$tag; \
+                 echo $$preferred_tag; \
              fi)
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
