@@ -6,6 +6,7 @@ import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistr
 import { FaultDisputeGame, IFaultDisputeGame, IBigStepper, IInitializable } from "src/dispute/FaultDisputeGame.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
+import "src/libraries/Errors.sol";
 
 /// @title PermissionedDisputeGame
 /// @notice PermissionedDisputeGame is a contract that inherits from `FaultDisputeGame`, and contains two roles:
@@ -25,7 +26,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
     /// @notice Modifier that gates access to the `challenger` and `proposer` roles.
     modifier onlyAuthorized() {
         if (!(msg.sender == PROPOSER || msg.sender == CHALLENGER)) {
-            revert BadAuth();
+            revert BadAuth("Proposer or Challenger");
         }
         _;
     }
@@ -95,7 +96,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
     /// @inheritdoc IInitializable
     function initialize() public payable override {
         // The creator of the dispute game must be the proposer EOA.
-        if (tx.origin != PROPOSER) revert BadAuth();
+        if (tx.origin != PROPOSER) revert BadAuth("Proposer");
 
         // Fallthrough initialization.
         super.initialize();

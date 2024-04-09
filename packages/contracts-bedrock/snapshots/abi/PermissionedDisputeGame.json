@@ -648,7 +648,13 @@
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "expectedRole",
+        "type": "string"
+      }
+    ],
     "name": "BadAuth",
     "type": "error"
   },

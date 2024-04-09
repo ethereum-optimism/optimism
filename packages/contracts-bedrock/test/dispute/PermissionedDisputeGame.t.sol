@@ -13,6 +13,7 @@ import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
+import "src/libraries/Errors.sol";
 import { Types } from "src/libraries/Types.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
@@ -119,7 +120,7 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
         vm.assume(_p != PROPOSER);
 
         vm.prank(_p, _p);
-        vm.expectRevert(BadAuth.selector);
+        vm.expectRevert((abi.encodeWithSelector(BadAuth.selector, "Proposer")));
         disputeGameFactory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(0x420));
     }
 
@@ -159,11 +160,11 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
         vm.assume(_p != PROPOSER && _p != CHALLENGER);
 
         vm.startPrank(_p, _p);
-        vm.expectRevert(BadAuth.selector);
+        vm.expectRevert((abi.encodeWithSelector(BadAuth.selector, "Proposer or Challenger")));
         gameProxy.attack(0, Claim.wrap(0));
-        vm.expectRevert(BadAuth.selector);
+        vm.expectRevert((abi.encodeWithSelector(BadAuth.selector, "Proposer or Challenger")));
         gameProxy.defend(1, Claim.wrap(0));
-        vm.expectRevert(BadAuth.selector);
+        vm.expectRevert((abi.encodeWithSelector(BadAuth.selector, "Proposer or Challenger")));
         gameProxy.move(2, Claim.wrap(0), true);
         vm.stopPrank();
     }

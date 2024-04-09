@@ -97,10 +97,3 @@ error DuplicateStep();
 
 /// @notice Thrown when an anchor root is not found for a given game type.
 error AnchorRootNotFound();
-
-////////////////////////////////////////////////////////////////
-//              `PermissionedDisputeGame` Errors              //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when an unauthorized address attempts to interact with the game.
-error BadAuth();
