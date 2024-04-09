@@ -18,7 +18,7 @@ contract L1Block is ISemver {
     error NotDepositor();
 
     /// @notice Event emitted when the gas paying token is set.
-    event GasPayingTokenSet(address indexed token, uint8 indexed decimals);
+    event GasPayingTokenSet(address indexed token, uint8 decimals, string indexed name, string indexed symbol);
 
     /// @notice Address of the special depositor account.
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
@@ -58,16 +58,20 @@ contract L1Block is ISemver {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @notice Returns the gas paying token and its decimals.
+    /// @notice Returns the gas paying token, its decimals, name and symbol.
     ///         If nothing is set in state, then it means ether is used.
-    function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
-        (addr_, decimals_) = GasPayingToken.get();
+    function gasPayingToken()
+        public
+        view
+        returns (address addr_, uint8 decimals_, string memory name_, string memory symbol_)
+    {
+        (addr_, decimals_, name_, symbol_) = GasPayingToken.get();
     }
 
     /// @notice Getter for custom gas token paying networks. Returns true if the
     ///         network uses a custom gas token.
     function isCustomGasToken() public view returns (bool) {
-        (address token,) = gasPayingToken();
+        (address token,,,) = gasPayingToken();
         return token != Constants.ETHER;
     }
 
@@ -141,11 +145,11 @@ contract L1Block is ISemver {
     /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
     ///         depositor account. This function is not called on every L2 block but instead
     ///         only called by specially crafted L1 deposit transactions.
-    function setGasPayingToken(address _token, uint8 _decimals) external {
+    function setGasPayingToken(address _token, uint8 _decimals, string memory _name, string memory _symbol) external {
         if (msg.sender != DEPOSITOR_ACCOUNT) revert NotDepositor();
 
-        GasPayingToken.set(_token, _decimals);
+        GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
 
-        emit GasPayingTokenSet(_token, _decimals);
+        emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
     }
 }
