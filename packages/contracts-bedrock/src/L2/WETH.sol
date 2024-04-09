@@ -1,37 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.4.22 <0.6;
+pragma solidity 0.8.15;
 
-import { WETH9 } from "src/vendor/WETH9.sol";
+import { WETH98 } from "src/dispute/weth/WETH98.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 
 /// @title WETH contract that reads the name and symbol from the L1Block contract
-contract WETH is WETH9 {
-    /// @notice Address of the L1Block contract
-    address L1BlockAddr;
-
-    /// @notice Constructor that sets the L1Block address
-    constructor(address _L1BlockAddr) WETH9() {
-        L1BlockAddr = _L1BlockAddr;
-    }
-
+contract WETH is WETH98 {
     /// @notice Returns the name of the token from the L1Block contract
-    function name() external override returns (string memory) {
-        (bool success, bytes memory data) = L1BlockAddr.call(abi.encodeWithSignature("gasPayingToken()"));
-
-        require(success, "L1Block call failed");
-
-        (,, string memory name_,) = abi.decode(data, (address, uint8, string, string));
-
-        return name_;
+    function name() external view override returns (string memory) {
+        string memory tname = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
+        return string.concat("Wrapped ", tname);
     }
 
     /// @notice Returns the symbol of the token from the L1Block contract
-    function symbol() external override returns (string memory) {
-        (bool success, bytes memory data) = L1BlockAddr.call(abi.encodeWithSignature("gasPayingToken()"));
-
-        require(success, "L1Block call failed");
-
-        (,,, string memory symbol_) = abi.decode(data, (address, uint8, string, string));
-
-        return symbol_;
+    function symbol() external view override returns (string memory) {
+        string memory tsymbol = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
+        return string.concat("W", tsymbol);
     }
 }

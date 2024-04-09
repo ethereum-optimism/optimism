@@ -23,17 +23,31 @@ library GasPayingToken {
     /// @notice Reads the gas paying token and its decimals from the magic
     ///         storage slot. If nothing is set in storage, then the ether
     ///         address is returned instead.
-    function get() internal view returns (address addr_, uint8 decimals_, string memory name_, string memory symbol_) {
+    function getToken() internal view returns (address addr_, uint8 decimals_) {
         bytes32 slot = Storage.getBytes32(GAS_PAYING_TOKEN_SLOT);
         addr_ = address(uint160(uint256(slot) & uint256(type(uint160).max)));
         if (addr_ == address(0)) {
             addr_ = Constants.ETHER;
             decimals_ = 18;
-            name_ = "Ether";
-            symbol_ = "ETH";
         } else {
             decimals_ = uint8(uint256(slot) >> 160);
+        }
+    }
+
+    function getName() internal view returns (string memory name_) {
+        (address addr, ) = getToken();
+        if (addr == Constants.ETHER) {
+            name_ = "Ether";
+        } else {
             name_ = string(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT)));
+        }
+    }
+
+    function getSymbol() internal view returns (string memory symbol_) {
+        (address addr, ) = getToken();
+        if (addr == Constants.ETHER) {
+            symbol_ = "ETH";
+        } else {
             symbol_ = string(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT)));
         }
     }

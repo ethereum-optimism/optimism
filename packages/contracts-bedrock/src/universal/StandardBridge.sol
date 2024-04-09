@@ -133,12 +133,12 @@ abstract contract StandardBridge is Initializable {
     /// @notice Getter for the ERC20 token address that is used to pay for gas
     ///         and the decimals, name and symbol of the token. This method must
     ///         be implemented by the contracts that inherit it.
-    function gasPayingToken() public virtual returns (address, uint8, string memory, string memory);
+    function gasPayingToken() public virtual returns (address, uint8);
 
     /// @notice Getter for custom gas token paying networks. Returns true if the
     ///         network uses a custom gas token.
     function isCustomGasToken() public returns (bool) {
-        (address token,,,) = gasPayingToken();
+        (address token, ) = gasPayingToken();
         return token != Constants.ETHER;
     }
 
