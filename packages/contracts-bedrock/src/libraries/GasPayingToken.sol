@@ -34,6 +34,8 @@ library GasPayingToken {
         }
     }
 
+    /// @notice Reads the gas paying token's name from the magic storage slot.
+    ///         If nothing is set in storage, then the ether name, 'Ether', is returned instead.
     function getName() internal view returns (string memory name_) {
         (address addr,) = getToken();
         if (addr == Constants.ETHER) {
@@ -43,6 +45,8 @@ library GasPayingToken {
         }
     }
 
+    /// @notice Reads the gas paying token's symbol from the magic storage slot.
+    ///         If nothing is set in storage, then the ether symbol, 'ETH', is returned instead.
     function getSymbol() internal view returns (string memory symbol_) {
         (address addr,) = getToken();
         if (addr == Constants.ETHER) {
