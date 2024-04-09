@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Test } from "forge-std/Test.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 
 /// @title GasPayingToken_Roundtrip_Test
 /// @notice Tests the roundtrip of setting and getting the gas paying token.
@@ -47,8 +48,8 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq(_token, token);
         assertEq(_decimals, decimals);
 
-        assertEq(_name, GasPayingToken.getName());
+        assertEq(string(Bytes.trimTrailingZeroes(abi.encodePacked(_name))), GasPayingToken.getName());
 
-        assertEq(_symbol, GasPayingToken.getSymbol());
+        assertEq(string(Bytes.trimTrailingZeroes(abi.encodePacked(_symbol))), GasPayingToken.getSymbol());
     }
 }
