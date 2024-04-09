@@ -90,4 +90,12 @@ contract GasPayingToken_Roundtrip_Test is Test {
 
         assertEq(output, GasPayingToken.sanitize(_str));
     }
+
+    function test_sanitize_stringTooLong_fails(string memory _str) external {
+        vm.assume(bytes(_str).length > 32);
+
+        vm.expectRevert("GasPayingToken: string cannot be greater than 32 bytes");
+
+        GasPayingToken.sanitize(_str);
+    }
 }
