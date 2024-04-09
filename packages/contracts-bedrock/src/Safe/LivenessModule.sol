@@ -35,6 +35,9 @@ contract LivenessModule is ISemver {
     ///         This can be updated by replacing with a new module.
     uint256 internal immutable MIN_OWNERS;
 
+    /// @notice The percentage used to calculate the threshold for the Safe.
+    uint256 internal immutable THRESHOLD_PERCENTAGE;
+
     /// @notice The fallback owner of the Safe
     ///         This can be updated by replacing with a new module.
     address internal immutable FALLBACK_OWNER;
@@ -53,25 +56,27 @@ contract LivenessModule is ISemver {
         LivenessGuard _livenessGuard,
         uint256 _livenessInterval,
         uint256 _minOwners,
+        uint256 _thresholdPercentage,
         address _fallbackOwner
     ) {
         SAFE = _safe;
         LIVENESS_GUARD = _livenessGuard;
         LIVENESS_INTERVAL = _livenessInterval;
+        THRESHOLD_PERCENTAGE = _thresholdPercentage;
         FALLBACK_OWNER = _fallbackOwner;
         MIN_OWNERS = _minOwners;
         address[] memory owners = _safe.getOwners();
         require(_minOwners <= owners.length, "LivenessModule: minOwners must be less than the number of owners");
         require(
-            _safe.getThreshold() >= get75PercentThreshold(owners.length),
-            "LivenessModule: Safe must have a threshold of at least 75% of the number of owners"
+            _safe.getThreshold() >= getRequiredThreshold(owners.length, THRESHOLD_PERCENTAGE),
+            "LivenessModule: Insufficient threshold for the number of owners"
         );
     }
 
-    /// @notice For a given number of owners, return the lowest threshold which is greater than 75.
+    /// @notice For a given number of owners, return the lowest threshold which is greater than the required percentage.
     ///         Note: this function returns 1 for numOwners == 1.
-    function get75PercentThreshold(uint256 _numOwners) public pure returns (uint256 threshold_) {
-        threshold_ = (_numOwners * 75 + 99) / 100;
+    function getRequiredThreshold(uint256 _numOwners, uint256 _percentage) public pure returns (uint256 threshold_) {
+        threshold_ = (_numOwners * _percentage + 99) / 100;
     }
 
     /// @notice Getter function for the Safe contract instance
@@ -98,7 +103,13 @@ contract LivenessModule is ISemver {
         minOwners_ = MIN_OWNERS;
     }
 
-    /// @notice Getter function for the fallback owner
+    /// @notice Getter function for the required threshold percentage
+    /// @return thresholdPercentage_ The minimum number of owners
+    function thresholdPercentage() public view returns (uint256 thresholdPercentage_) {
+        thresholdPercentage_ = THRESHOLD_PERCENTAGE;
+    }
+
+    /// @notice Getter function for the fallback
     /// @return fallbackOwner_ The fallback owner of the Safe
     function fallbackOwner() public view returns (address fallbackOwner_) {
         fallbackOwner_ = FALLBACK_OWNER;
@@ -161,7 +172,7 @@ contract LivenessModule is ISemver {
     /// @param _newOwnersCount New number of owners after removal.
     function _removeOwner(address _prevOwner, address _ownerToRemove, uint256 _newOwnersCount) internal {
         if (_newOwnersCount > 0) {
-            uint256 newThreshold = get75PercentThreshold(_newOwnersCount);
+            uint256 newThreshold = getRequiredThreshold(_newOwnersCount, THRESHOLD_PERCENTAGE);
             // Remove the owner and update the threshold
             _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: newThreshold });
         } else {
@@ -223,11 +234,11 @@ contract LivenessModule is ISemver {
 
         // Check that"LivenessModule: must remove all owners and transfer to fallback owner if numOwners < minOwners"
         // the threshold is correct. This check is also correct when there is a single
-        // owner, because get75PercentThreshold(1) returns 1.
+        // owner, because getRequiredThreshold(1) returns 1.
         uint256 threshold = SAFE.getThreshold();
         require(
-            threshold == get75PercentThreshold(numOwners),
-            "LivenessModule: Safe must have a threshold of 75% of the number of owners"
+            threshold == getRequiredThreshold(numOwners, THRESHOLD_PERCENTAGE),
+            "LivenessModule: Insufficient threshold for the number of owners"
         );
 
         // Check that the guard has not been changed
