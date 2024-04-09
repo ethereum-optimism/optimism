@@ -18,7 +18,7 @@ contract L1Block is ISemver {
     error NotDepositor();
 
     /// @notice Event emitted when the gas paying token is set.
-    event GasPayingTokenSet(address indexed token, uint8 decimals, bytes32 indexed name, bytes32 indexed symbol);
+    event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
 
     /// @notice Address of the special depositor account.
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
