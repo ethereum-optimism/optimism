@@ -155,7 +155,7 @@ contract L2Genesis is Script, Artifacts {
     function _setPredeployImplementations() internal {
         _setLegacyMessagePasser();
         _setDeployerWhitelist();
-        _setWETH9();
+        _setWETH();
         _setL2StandardBridge();
         _setL2CrossDomainMessenger();
         _setSequencerFeeVault();
@@ -181,32 +181,10 @@ contract L2Genesis is Script, Artifacts {
     ///         from previous L2 genesis output.
     ///         This contract is NOT proxied.
     /// @dev We're manually setting storage slots because we need to deployment to be at
-    ///      the address `Predeploys.WETH9`, so we can't just deploy a new instance of `WETH9`.
-    function _setWETH9() internal {
-        console.log("Setting %s implementation at: %s", "WETH9", Predeploys.WETH9);
-        vm.etch(Predeploys.WETH9, vm.getDeployedCode("WETH9.sol:WETH9"));
-
-        vm.store(
-            Predeploys.WETH9,
-            /// string public name
-            hex"0000000000000000000000000000000000000000000000000000000000000000",
-            /// "Wrapped Ether"
-            hex"577261707065642045746865720000000000000000000000000000000000001a"
-        );
-        vm.store(
-            Predeploys.WETH9,
-            /// string public symbol
-            hex"0000000000000000000000000000000000000000000000000000000000000001",
-            /// "WETH"
-            hex"5745544800000000000000000000000000000000000000000000000000000008"
-        );
-        vm.store(
-            Predeploys.WETH9,
-            // uint8 public decimals
-            hex"0000000000000000000000000000000000000000000000000000000000000002",
-            /// 18
-            hex"0000000000000000000000000000000000000000000000000000000000000012"
-        );
+    ///      the address `Predeploys.WETH`, so we can't just deploy a new instance of `WETH`.
+    function _setWETH() internal {
+        console.log("Setting %s implementation at: %s", "WETH", Predeploys.WETH);
+        vm.etch(Predeploys.WETH, vm.getDeployedCode("WETH.sol:WETH"));
     }
 
     /// @notice This predeploy is following the saftey invariant #1.
@@ -328,7 +306,7 @@ contract L2Genesis is Script, Artifacts {
 
     /// @dev Returns true if the address is not proxied.
     function _notProxied(address _addr) internal pure returns (bool) {
-        return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH9;
+        return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH;
     }
 
     /// @dev Returns true if the address is a predeploy.
@@ -337,7 +315,7 @@ contract L2Genesis is Script, Artifacts {
             || _addr == Predeploys.L2_STANDARD_BRIDGE || _addr == Predeploys.L2_ERC721_BRIDGE
             || _addr == Predeploys.SEQUENCER_FEE_WALLET || _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
             || _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == Predeploys.L1_BLOCK_ATTRIBUTES
-            || _addr == Predeploys.GAS_PRICE_ORACLE || _addr == Predeploys.DEPLOYER_WHITELIST || _addr == Predeploys.WETH9
+            || _addr == Predeploys.GAS_PRICE_ORACLE || _addr == Predeploys.DEPLOYER_WHITELIST || _addr == Predeploys.WETH
             || _addr == Predeploys.L1_BLOCK_NUMBER || _addr == Predeploys.LEGACY_MESSAGE_PASSER
             || _addr == Predeploys.PROXY_ADMIN || _addr == Predeploys.BASE_FEE_VAULT || _addr == Predeploys.L1_FEE_VAULT
             || _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.SCHEMA_REGISTRY || _addr == Predeploys.EAS;
