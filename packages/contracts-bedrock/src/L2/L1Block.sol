@@ -64,11 +64,15 @@ contract L1Block is ISemver {
         (addr_, decimals_) = GasPayingToken.getToken();
     }
 
-    function gasPayingTokenName() public view returns (string memory name_) {
+    /// @notice Returns the gas paying token name.
+    ///         If nothing is set in state, then it means ether is used.
+    function gasPayingTokenName() public view returns (bytes32 name_) {
         name_ = GasPayingToken.getName();
     }
 
-    function gasPayingTokenSymbol() public view returns (string memory symbol_) {
+    /// @notice Returns the gas paying token symbol.
+    ///         If nothing is set in state, then it means ether is used.
+    function gasPayingTokenSymbol() public view returns (bytes32 symbol_) {
         symbol_ = GasPayingToken.getSymbol();
     }
 

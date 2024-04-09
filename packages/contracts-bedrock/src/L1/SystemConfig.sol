@@ -266,11 +266,13 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         (addr_, decimals_) = GasPayingToken.getToken();
     }
 
-    function gasPayingTokenName() external view returns (string memory name_) {
+    /// @notice Getter for the gas paying token name.
+    function gasPayingTokenName() external view returns (bytes32 name_) {
         name_ = GasPayingToken.getName();
     }
 
-    function gasPayingTokenSymbol() external view returns (string memory symbol_) {
+    /// @notice Getter for the gas paying token symbol.
+    function gasPayingTokenSymbol() external view returns (bytes32 symbol_) {
         symbol_ = GasPayingToken.getSymbol();
     }
 
