@@ -186,7 +186,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Retuns the balance of the contract.
     function balance() public view returns (uint256) {
-        (address token,) = gasPayingToken();
+        (address token,,,) = gasPayingToken();
         if (token == Constants.ETHER) {
             return address(this).balance;
         } else {
@@ -210,7 +210,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Returns the gas paying token and its decimals.
-    function gasPayingToken() public view returns (address, uint8) {
+    function gasPayingToken() public view returns (address, uint8, string memory, string memory) {
         return systemConfig.gasPayingToken();
     }
 
@@ -365,7 +365,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         l2Sender = _tx.sender;
 
         bool success;
-        (address token, uint8 decimals) = gasPayingToken();
+        (address token, uint8 decimals,,) = gasPayingToken();
         if (token == Constants.ETHER) {
             // Trigger the call to the target contract. We use a custom low level method
             // SafeCall.callWithMinGas to ensure two key properties
@@ -445,7 +445,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         metered(_gasLimit)
     {
         // Can only be called if an ERC20 token is used for gas paying on L2
-        (address token, uint8 decimals) = gasPayingToken();
+        (address token, uint8 decimals,,) = gasPayingToken();
         require(token != Constants.ETHER, "OptimismPortal: only custom gas token");
 
         // Get the balance of the portal before the transfer.
@@ -490,7 +490,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         payable
         metered(_gasLimit)
     {
-        (address token,) = gasPayingToken();
+        (address token,,,) = gasPayingToken();
         if (token != Constants.ETHER) {
             require(msg.value == 0, "OptimismPortal: cannot send ETH with custom gas token");
         }
@@ -556,7 +556,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
-    function setGasPayingToken(address _token, uint8 _decimals) external {
+    function setGasPayingToken(address _token, uint8 _decimals, string memory _name, string memory _symbol) external {
         require(msg.sender == address(systemConfig));
 
         // Set L2 deposit gas as used without paying burning gas.
@@ -573,7 +573,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 uint256(0), // value
                 uint64(80000), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals))
+                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
             )
         );
     }

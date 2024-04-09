@@ -21,8 +21,8 @@ contract StandardBridgeTester is StandardBridge {
         return _isCorrectTokenPair(_mintableToken, _otherToken);
     }
 
-    function gasPayingToken() public pure override returns (address, uint8) {
-        return (Constants.ETHER, 18);
+    function gasPayingToken() public pure override returns (address, uint8, string memory, string memory) {
+        return (Constants.ETHER, 18, "Ether", "ETH");
     }
 
     receive() external payable override { }

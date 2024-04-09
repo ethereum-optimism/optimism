@@ -76,8 +76,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
         );
     }
 
-    /// @notice Returns the address of the token used to pay for gas and its decimals.
-    function gasPayingToken() public view override returns (address, uint8) {
+    /// @notice Returns the address of the token used to pay for gas, its decimals, name and symbol.
+    function gasPayingToken() public view override returns (address, uint8, string memory, string memory) {
         return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
 
