@@ -16,7 +16,6 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Decimals } from "src/libraries/Decimals.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/PortalErrors.sol";
@@ -377,17 +376,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 // is tracking the number of units that are minted in the L2.
                 _balance -= _tx.value;
 
-                // Normalize from 18 decimals.
-                uint256 value = Decimals.scale({ _amount: _tx.value, _decimals: 18, _target: decimals });
-
                 // Transfer the ERC20 balance to the target, accounting for non standard ERC20
                 // implementations that may not return a boolean. This reverts if the low level
                 // call is not successful.
-                IERC20(token).safeTransfer({ to: _tx.target, value: value });
+                IERC20(token).safeTransfer({ to: _tx.target, value: _tx.value });
 
                 // The balance must be transferred exactly.
                 require(
-                    IERC20(token).balanceOf(address(this)) == balanceOf - value, "OptimismPortal: ERC20 transfer failed"
+                    IERC20(token).balanceOf(address(this)) == balanceOf - _tx.value,
+                    "OptimismPortal: ERC20 transfer failed"
                 );
             }
 
@@ -445,15 +442,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Double check that the portal now has the exact amount of token.
         require(IERC20(token).balanceOf(address(this)) == balanceOf + _mint, "OptimismPortal: transferFrom failed");
 
-        // Normalize to 18 decimals.
-        uint256 mint = Decimals.scale({ _amount: _mint, _decimals: decimals, _target: 18 });
-
         // Overflow protection here ensures safety on L2 from overflows in balance.
-        _balance += mint;
+        _balance += _mint;
 
         _depositTransaction({
             _to: _to,
-            _mint: mint,
+            _mint: _mint,
             _value: _value,
             _gasLimit: _gasLimit,
             _isCreation: _isCreation,
