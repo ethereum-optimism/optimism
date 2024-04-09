@@ -276,8 +276,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             require(decimals <= 18, "SystemConfig: bad decimals");
         }
 
-        GasPayingToken.set(_token, decimals);
-        OptimismPortal(payable(optimismPortal())).setGasPayingToken(_token, decimals);
+        if (_token != Constants.ETHER) {
+            GasPayingToken.set(_token, decimals);
+            OptimismPortal(payable(optimismPortal())).setGasPayingToken(_token, decimals);
+        }
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
