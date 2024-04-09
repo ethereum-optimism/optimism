@@ -280,9 +280,17 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         bytes32 symbol = bytes32("ETH");
         if (_token != Constants.ETHER) {
             decimals = ERC20(_token).decimals();
-            require(decimals == 18, "SystemConfig: bad decimals");
-            name = bytes32(abi.encodePacked(ERC20(_token).name()));
-            symbol = bytes32(abi.encodePacked(ERC20(_token).symbol()));
+            require(decimals == 18, "SystemConfig: bad decimals of gas paying token");
+
+            bytes memory nameBytes = bytes(ERC20(_token).name());
+            require(nameBytes.length <= 32, "SystemConfig: name of gas paying token cannot be greater than 32 bytes");
+            name = bytes32(nameBytes);
+
+            bytes memory symbolBytes = bytes(ERC20(_token).symbol());
+            require(
+                symbolBytes.length <= 32, "SystemConfig: symbol of gas paying token cannot be greater than 32 bytes"
+            );
+            symbol = bytes32(symbolBytes);
         }
 
         if (_token != Constants.ETHER) {
