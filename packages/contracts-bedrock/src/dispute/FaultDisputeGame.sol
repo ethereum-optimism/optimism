@@ -88,8 +88,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     OutputRoot public startingOutputRoot;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.13.0
-    string public constant version = "0.13.0";
+    /// @custom:semver 0.14.0
+    string public constant version = "0.14.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -379,7 +379,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function resolveClaim(uint256 _claimIndex) external payable {
+    function resolveClaim(uint256 _claimIndex) external {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 

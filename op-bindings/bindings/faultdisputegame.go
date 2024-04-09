@@ -1228,21 +1228,21 @@ func (_FaultDisputeGame *FaultDisputeGameTransactorSession) Resolve() (*types.Tr
 
 // ResolveClaim is a paid mutator transaction binding the contract method 0xfdffbb28.
 //
-// Solidity: function resolveClaim(uint256 _claimIndex) payable returns()
+// Solidity: function resolveClaim(uint256 _claimIndex) returns()
 func (_FaultDisputeGame *FaultDisputeGameTransactor) ResolveClaim(opts *bind.TransactOpts, _claimIndex *big.Int) (*types.Transaction, error) {
 	return _FaultDisputeGame.contract.Transact(opts, "resolveClaim", _claimIndex)
 }
 
 // ResolveClaim is a paid mutator transaction binding the contract method 0xfdffbb28.
 //
-// Solidity: function resolveClaim(uint256 _claimIndex) payable returns()
+// Solidity: function resolveClaim(uint256 _claimIndex) returns()
 func (_FaultDisputeGame *FaultDisputeGameSession) ResolveClaim(_claimIndex *big.Int) (*types.Transaction, error) {
 	return _FaultDisputeGame.Contract.ResolveClaim(&_FaultDisputeGame.TransactOpts, _claimIndex)
 }
 
 // ResolveClaim is a paid mutator transaction binding the contract method 0xfdffbb28.
 //
-// Solidity: function resolveClaim(uint256 _claimIndex) payable returns()
+// Solidity: function resolveClaim(uint256 _claimIndex) returns()
 func (_FaultDisputeGame *FaultDisputeGameTransactorSession) ResolveClaim(_claimIndex *big.Int) (*types.Transaction, error) {
 	return _FaultDisputeGame.Contract.ResolveClaim(&_FaultDisputeGame.TransactOpts, _claimIndex)
 }
