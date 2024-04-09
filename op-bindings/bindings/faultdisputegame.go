@@ -426,6 +426,37 @@ func (_FaultDisputeGame *FaultDisputeGameCallerSession) ExtraData() ([]byte, err
 	return _FaultDisputeGame.Contract.ExtraData(&_FaultDisputeGame.CallOpts)
 }
 
+// GameCreator is a free data retrieval call binding the contract method 0x37b1b229.
+//
+// Solidity: function gameCreator() pure returns(address creator_)
+func (_FaultDisputeGame *FaultDisputeGameCaller) GameCreator(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _FaultDisputeGame.contract.Call(opts, &out, "gameCreator")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// GameCreator is a free data retrieval call binding the contract method 0x37b1b229.
+//
+// Solidity: function gameCreator() pure returns(address creator_)
+func (_FaultDisputeGame *FaultDisputeGameSession) GameCreator() (common.Address, error) {
+	return _FaultDisputeGame.Contract.GameCreator(&_FaultDisputeGame.CallOpts)
+}
+
+// GameCreator is a free data retrieval call binding the contract method 0x37b1b229.
+//
+// Solidity: function gameCreator() pure returns(address creator_)
+func (_FaultDisputeGame *FaultDisputeGameCallerSession) GameCreator() (common.Address, error) {
+	return _FaultDisputeGame.Contract.GameCreator(&_FaultDisputeGame.CallOpts)
+}
+
 // GameData is a free data retrieval call binding the contract method 0xfa24f743.
 //
 // Solidity: function gameData() view returns(uint32 gameType_, bytes32 rootClaim_, bytes extraData_)

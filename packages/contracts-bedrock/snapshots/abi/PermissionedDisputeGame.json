@@ -262,6 +262,19 @@
   },
   {
     "inputs": [],
+    "name": "gameCreator",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "creator_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gameData",
     "outputs": [
       {
