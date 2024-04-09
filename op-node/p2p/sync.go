@@ -3,12 +3,13 @@ package p2p
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -395,8 +396,14 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 		}
 	}
 
-	// Create shared reqId so associated peerRequests can all be cancelled by setting a single flag
-	randomReqId := rand.Uint64()
+	// Create shared randomReqId so associated peerRequests can all be cancelled by setting a single flag
+	bigMax := new(big.Int).SetUint64(math.MaxUint64)
+	randomBigInt, err := rand.Int(rand.Reader, bigMax)
+	if err != nil {
+		log.Error("failed to generate randomReqId for range request")
+		return
+	}
+	randomReqId := randomBigInt.Uint64()
 	s.activeRangeRequests[randomReqId] = true
 
 	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
