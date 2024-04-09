@@ -63,15 +63,23 @@ contract L1Block is ISemver {
     function gasPayingToken()
         public
         view
-        returns (address addr_, uint8 decimals_, string memory name_, string memory symbol_)
+        returns (address addr_, uint8 decimals_)
     {
-        (addr_, decimals_, name_, symbol_) = GasPayingToken.get();
+        (addr_, decimals_) = GasPayingToken.getToken();
+    }
+
+    function gasPayingTokenName() public view returns (string memory name_) {
+        name_ = GasPayingToken.getName();
+    }
+
+    function gasPayingTokenSymbol() public view returns (string memory symbol_) {
+        symbol_ = GasPayingToken.getSymbol();
     }
 
     /// @notice Getter for custom gas token paying networks. Returns true if the
     ///         network uses a custom gas token.
     function isCustomGasToken() public view returns (bool) {
-        (address token,,,) = gasPayingToken();
+        (address token, ) = gasPayingToken();
         return token != Constants.ETHER;
     }
 

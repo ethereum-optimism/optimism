@@ -265,9 +265,17 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     function gasPayingToken()
         external
         view
-        returns (address addr_, uint8 decimals_, string memory name_, string memory symbol_)
+        returns (address addr_, uint8 decimals_)
     {
-        (addr_, decimals_, name_, symbol_) = GasPayingToken.get();
+        (addr_, decimals_) = GasPayingToken.getToken();
+    }
+
+    function gasPayingTokenName() external view returns (string memory name_) {
+        name_ = GasPayingToken.getName();
+    }
+
+    function gasPayingTokenSymbol() external view returns (string memory symbol_) {
+        symbol_ = GasPayingToken.getSymbol();
     }
 
     /// @notice Internal setter for the gas paying token address, includes validation.
@@ -284,13 +292,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         if (_token != Constants.ETHER) {
             decimals = Token(_token).decimals();
             require(decimals == 18, "SystemConfig: bad decimals");
-
             name = Token(_token).name();
             require(
                 abi.encodePacked(name).length <= 32,
                 "SystemConfig: name of gas paying token cannot be greater than 32 bytes"
             );
-
             symbol = Token(_token).symbol();
             require(
                 abi.encodePacked(symbol).length <= 32,
