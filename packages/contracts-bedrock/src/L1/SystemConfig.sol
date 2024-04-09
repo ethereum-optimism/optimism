@@ -10,9 +10,13 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
 /// @title Token
-/// @notice Simple interface for interacting with tokens that have decimals.
+/// @notice Simple interface for interacting with tokens that have decimals, name, and symbol.
 interface Token {
     function decimals() external view returns (uint8);
+
+    function name() external view returns (string memory);
+
+    function symbol() external view returns (string memory);
 }
 
 /// @title SystemConfig
@@ -259,7 +263,15 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Getter for the gas paying asset address.
     function gasPayingToken() external view returns (address addr_, uint8 decimals_) {
-        (addr_, decimals_) = GasPayingToken.get();
+        (addr_, decimals_) = GasPayingToken.getToken();
+    }
+
+    function gasPayingTokenName() external view returns (string memory name_) {
+        name_ = GasPayingToken.getName();
+    }
+
+    function gasPayingTokenSymbol() external view returns (string memory symbol_) {
+        symbol_ = GasPayingToken.getSymbol();
     }
 
     /// @notice Internal setter for the gas paying token address, includes validation.
@@ -271,14 +283,31 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         if (_token == address(0)) _token = Constants.ETHER;
 
         uint8 decimals = 18;
+        string memory name = "Ether";
+        string memory symbol = "ETH";
         if (_token != Constants.ETHER) {
             decimals = Token(_token).decimals();
-            require(decimals <= 18, "SystemConfig: bad decimals");
+            require(decimals == 18, "SystemConfig: bad decimals");
+            name = Token(_token).name();
+            require(
+                abi.encodePacked(name).length <= 32,
+                "SystemConfig: name of gas paying token cannot be greater than 32 bytes"
+            );
+            symbol = Token(_token).symbol();
+            require(
+                abi.encodePacked(symbol).length <= 32,
+                "SystemConfig: symbol of gas paying token cannot be greater than 32 bytes"
+            );
         }
 
         if (_token != Constants.ETHER) {
-            GasPayingToken.set(_token, decimals);
-            OptimismPortal(payable(optimismPortal())).setGasPayingToken(_token, decimals);
+            GasPayingToken.set({ _token: _token, _decimals: decimals, _name: name, _symbol: symbol });
+            OptimismPortal(payable(optimismPortal())).setGasPayingToken({
+                _token: _token,
+                _decimals: decimals,
+                _name: name,
+                _symbol: symbol
+            });
         }
     }
 
