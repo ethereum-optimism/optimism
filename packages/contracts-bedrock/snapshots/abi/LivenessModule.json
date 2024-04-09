@@ -22,6 +22,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "uint256",
+        "name": "_thresholdPercentage",
+        "type": "uint256"
+      },
+      {
         "internalType": "address",
         "name": "_fallbackOwner",
         "type": "address"
@@ -68,9 +73,14 @@
         "internalType": "uint256",
         "name": "_numOwners",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_percentage",
+        "type": "uint256"
       }
     ],
-    "name": "get75PercentThreshold",
+    "name": "getRequiredThreshold",
     "outputs": [
       {
         "internalType": "uint256",
@@ -146,6 +156,19 @@
         "internalType": "contract Safe",
         "name": "safe_",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "thresholdPercentage",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "thresholdPercentage_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
