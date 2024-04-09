@@ -48,8 +48,8 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq(_token, token);
         assertEq(_decimals, decimals);
 
-        assertEq(string(Bytes.trimTrailingZeroes(abi.encodePacked(_name))), GasPayingToken.getName());
+        assertEq(string(abi.encodePacked(_name)), GasPayingToken.getName());
 
-        assertEq(string(Bytes.trimTrailingZeroes(abi.encodePacked(_symbol))), GasPayingToken.getSymbol());
+        assertEq(string(abi.encodePacked(_symbol)), GasPayingToken.getSymbol());
     }
 }
