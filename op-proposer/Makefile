@@ -1,6 +1,12 @@
 GITCOMMIT ?= $(shell git rev-parse HEAD)
 GITDATE ?= $(shell git show -s --format='%ct')
-VERSION := v0.0.0
+# Find the latest github tag that contains this commit. If none are found, set the version string to "untagged"
+VERSION ?= $(shell tag=$$(git tag --contains $(GITCOMMIT) | grep '^op-proposer/' | sort -V | tail -n 1 | sed 's/op-proposer\///'); \
+             if [ -z "$$tag" ]; then \
+                 echo "untagged"; \
+             else \
+                 echo $$tag; \
+             fi)
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
