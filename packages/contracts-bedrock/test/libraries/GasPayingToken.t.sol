@@ -62,9 +62,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
         external
     {
         vm.assume(_token != address(0));
-        vm.assume(bytes(_name).length > 0);
         vm.assume(bytes(_name).length <= 32);
-        vm.assume(bytes(_symbol).length > 0);
         vm.assume(bytes(_symbol).length <= 32);
 
         GasPayingToken.set(_token, _decimals, GasPayingToken.sanitize(_name), GasPayingToken.sanitize(_symbol));
@@ -76,5 +74,20 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq(_name, GasPayingToken.getName());
 
         assertEq(_symbol, GasPayingToken.getSymbol());
+    }
+
+    function testDiff_sanitize_succeeds(string memory _str) external {
+        vm.assume(bytes(_str).length <= 32);
+
+        bytes32 output;
+        uint256 len = bytes(_str).length;
+
+        assembly {
+            output := mload(add(_str, 0x20))
+        }
+
+        output = (output >> 32 - len) << 32 - len;
+
+        assertEq(output, GasPayingToken.sanitize(_str));
     }
 }
