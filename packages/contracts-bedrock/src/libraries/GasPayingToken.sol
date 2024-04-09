@@ -36,30 +36,30 @@ library GasPayingToken {
 
     /// @notice Reads the gas paying token's name from the magic storage slot.
     ///         If nothing is set in storage, then the ether name, 'Ether', is returned instead.
-    function getName() internal view returns (string memory name_) {
+    function getName() internal view returns (bytes32 name_) {
         (address addr,) = getToken();
         if (addr == Constants.ETHER) {
-            name_ = "Ether";
+            name_ = bytes32(abi.encodePacked("Ether"));
         } else {
-            name_ = string(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT)));
+            name_ = Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT);
         }
     }
 
     /// @notice Reads the gas paying token's symbol from the magic storage slot.
     ///         If nothing is set in storage, then the ether symbol, 'ETH', is returned instead.
-    function getSymbol() internal view returns (string memory symbol_) {
+    function getSymbol() internal view returns (bytes32 symbol_) {
         (address addr,) = getToken();
         if (addr == Constants.ETHER) {
-            symbol_ = "ETH";
+            symbol_ = bytes32(abi.encodePacked("ETH"));
         } else {
-            symbol_ = string(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT)));
+            symbol_ = Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT);
         }
     }
 
     /// @notice Writes the gas paying token, its decimals, name and symbol to the magic storage slot.
-    function set(address _token, uint8 _decimals, string memory _name, string memory _symbol) internal {
+    function set(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) internal {
         Storage.setBytes32(GAS_PAYING_TOKEN_SLOT, bytes32(uint256(_decimals) << 160 | uint256(uint160(_token))));
-        Storage.setBytes32(GAS_PAYING_TOKEN_NAME_SLOT, bytes32(abi.encodePacked(_name)));
-        Storage.setBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(abi.encodePacked(_symbol)));
+        Storage.setBytes32(GAS_PAYING_TOKEN_NAME_SLOT, _name);
+        Storage.setBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT, _symbol);
     }
 }
