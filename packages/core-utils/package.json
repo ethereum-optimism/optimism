@@ -48,7 +48,7 @@
     "node-fetch": "^2.6.7"
   },
   "devDependencies": {
-    "@types/node": "^20.11.17",
+    "@types/node": "^20.12.6",
     "mocha": "^10.2.0"
   }
 }
