@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Test } from "forge-std/Test.sol";
-import { Bytes } from "src/libraries/Bytes.sol";
 
 /// @title GasPayingToken_Roundtrip_Test
 /// @notice Tests the roundtrip of setting and getting the gas paying token.
