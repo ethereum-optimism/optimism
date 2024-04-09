@@ -1,11 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/bobanetwork/boba/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/boba/boba-chain-ops/ether"
 	"github.com/bobanetwork/boba/boba-chain-ops/genesis"
 	"github.com/bobanetwork/boba/boba-chain-ops/node"
+	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/log/v3"
 	"github.com/urfave/cli/v2"
 )
@@ -47,6 +50,13 @@ func main() {
 				Usage:   "File to write eth allowances to",
 				Value:   "eth-allowances.json",
 				EnvVars: []string{"ETH_ALLOWANCES_OUTPUT_PATH"},
+			},
+			&cli.StringFlag{
+				Name:     "witness-file-path",
+				Usage:    "File to load the witness from",
+				Hidden:   true,
+				Required: false,
+				EnvVars:  []string{"WITNESS_FILE_PATH"},
 			},
 			&cli.StringFlag{
 				Name:    "rpc-time-out",
@@ -100,6 +110,40 @@ func main() {
 				if err := ether.CheckEthSlots(*alloc, ctx.String("eth-addresses-output-path"), ctx.String("eth-allowances-output-path")); err != nil {
 					return err
 				}
+				witnessPath := ctx.String("witness-file-path")
+				if witnessPath != "" {
+					ovmAddresses, err := crossdomain.NewAddresses(ctx.String("eth-addresses-output-path"))
+					if err != nil {
+						return err
+					}
+					ovmAllowances, err := crossdomain.NewAllowances(ctx.String("eth-allowances-output-path"))
+					if err != nil {
+						return err
+					}
+					evmMessages, evmAddresses, err := crossdomain.ReadWitnessData(ctx.String("witness-file-path"))
+					if err != nil {
+						return err
+					}
+					migrationData := crossdomain.MigrationData{
+						OvmAddresses:  ovmAddresses,
+						EvmAddresses:  evmAddresses,
+						OvmAllowances: ovmAllowances,
+						OvmMessages:   []*crossdomain.SentMessage{},
+						EvmMessages:   evmMessages,
+					}
+					unfilteredWithdrawals, invalidMessages, err := migrationData.ToWithdrawals()
+					if err != nil {
+						return fmt.Errorf("cannot serialize withdrawals: %w", err)
+					}
+					g := &types.Genesis{
+						Alloc: *alloc,
+					}
+					_, err = crossdomain.PreCheckWithdrawals(g, unfilteredWithdrawals, invalidMessages)
+					if err != nil {
+						return fmt.Errorf("failed to precheck withdrawals: %w", err)
+					}
+				}
+
 				log.Info("All checks passed")
 				return nil
 			}
