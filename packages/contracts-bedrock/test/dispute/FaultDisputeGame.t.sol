@@ -237,7 +237,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the bond during the bisection game depths is correct.
     function test_getRequiredBond_succeeds() public {
-        for (uint64 i = 0; i < uint64(gameProxy.splitDepth()); i++) {
+        for (uint8 i = 0; i < uint8(gameProxy.splitDepth()); i++) {
             Position pos = LibPosition.wrap(i, 0);
             uint256 bond = gameProxy.getRequiredBond(pos);
 
@@ -254,7 +254,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the bond at a depth greater than the maximum game depth reverts.
     function test_getRequiredBond_outOfBounds_reverts() public {
-        Position pos = LibPosition.wrap(uint64(gameProxy.maxGameDepth() + 1), 0);
+        Position pos = LibPosition.wrap(uint8(gameProxy.maxGameDepth() + 1), 0);
         vm.expectRevert(GameDepthExceeded.selector);
         gameProxy.getRequiredBond(pos);
     }
