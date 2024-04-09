@@ -281,8 +281,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         if (_token != Constants.ETHER) {
             decimals = ERC20(_token).decimals();
             require(decimals == 18, "SystemConfig: bad decimals of gas paying token");
-            name = GasPayingToken.stringToBytes32Sanitized(ERC20(_token).name());
-            symbol = GasPayingToken.stringToBytes32Sanitized(ERC20(_token).symbol());
+            name = GasPayingToken.sanitize(ERC20(_token).name());
+            symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
         }
 
         if (_token != Constants.ETHER) {
