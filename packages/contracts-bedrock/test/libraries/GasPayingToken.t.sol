@@ -51,4 +51,30 @@ contract GasPayingToken_Roundtrip_Test is Test {
 
         assertEq(string(abi.encodePacked(_symbol)), GasPayingToken.getSymbol());
     }
+
+    /// @notice Test that the gas paying token correctly sets values in storage when input name and symbol are strings
+    function testFuzz_setGetWithSanitize_succeeds(
+        address _token,
+        uint8 _decimals,
+        string memory _name,
+        string memory _symbol
+    )
+        external
+    {
+        vm.assume(_token != address(0));
+        vm.assume(bytes(_name).length > 0);
+        vm.assume(bytes(_name).length <= 32);
+        vm.assume(bytes(_symbol).length > 0);
+        vm.assume(bytes(_symbol).length <= 32);
+
+        GasPayingToken.set(_token, _decimals, GasPayingToken.sanitize(_name), GasPayingToken.sanitize(_symbol));
+
+        (address token, uint8 decimals) = GasPayingToken.getToken();
+        assertEq(_token, token);
+        assertEq(_decimals, decimals);
+
+        assertEq(_name, GasPayingToken.getName());
+
+        assertEq(_symbol, GasPayingToken.getSymbol());
+    }
 }
