@@ -274,29 +274,3 @@ contract Bytes_equal_Test is Test {
         assertEq(Bytes.equal(_a, _b), manualEq(_a, _b));
     }
 }
-
-contract Bytes_trimTrailingZeroes_Test is Test {
-    /// @notice Tests that the `trimTrailingZeroes` function correctly returns for various non-empty input.
-    function testFuzz_trimTrailingZeroes_succeeds(bytes memory _base, bytes memory _zeroes) public {
-        // Ensure that the `_base` array is non-empty and has no trailing zeroes.
-        vm.assume(_base.length > 0);
-        vm.assume(_base[_base.length - 1] != "0");
-
-        // Ensure that the `_zeroes` array has only zeroes.
-        for (uint256 i = 0; i < _zeroes.length; i++) {
-            vm.assume(_zeroes[i] == "0");
-        }
-
-        assertEq(_base, Bytes.trimTrailingZeroes(bytes.concat(_base, _zeroes)));
-    }
-
-    /// @notice Tests that the `trimTrailingZeroes` function correctly returns for an empty input.
-    function test_trimTrailingZeroes_empty_succeeds() public {
-        assertEq(Bytes.trimTrailingZeroes(hex""), hex"");
-    }
-
-    /// @notice Tests that the `trimTrailingZeroes` function correctly returns for a non-empty input.
-    function test_trimTrailingZeroes_nonEmpty_succeeds() public {
-        assertEq(Bytes.trimTrailingZeroes(hex"1100"), hex"11");
-    }
-}

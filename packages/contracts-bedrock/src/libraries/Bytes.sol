@@ -141,22 +141,4 @@ library Bytes {
     function equal(bytes memory _bytes, bytes memory _other) internal pure returns (bool) {
         return keccak256(_bytes) == keccak256(_other);
     }
-
-    /// @notice Trims zero bytes from the end of a byte array.
-    function trimTrailingZeroes(bytes memory _bytes) internal pure returns (bytes memory) {
-        if (_bytes.length == 0) {
-            return _bytes;
-        }
-
-        // Find the index where the non-zero byte is last seen.
-        uint256 lastIndex = 0; // We'll use this to mark the end of non-zero bytes.
-        for (uint256 i = _bytes.length - 1;; i--) {
-            if (_bytes[i] != 0) {
-                lastIndex = i;
-                break;
-            }
-        }
-
-        return slice(_bytes, 0, lastIndex + 1);
-    }
 }
