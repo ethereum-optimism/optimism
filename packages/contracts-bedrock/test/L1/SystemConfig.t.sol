@@ -68,6 +68,11 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(impl.l2OutputOracle()), address(0));
         assertEq(address(impl.optimismPortal()), address(0));
         assertEq(address(impl.optimismMintableERC20Factory()), address(0));
+        // Check gas paying token
+        (address token, uint8 decimals) = impl.gasPayingToken();
+        assertEq(token, Constants.ETHER);
+        assertEq(decimals, 18);
+
     }
 
     /// @dev Tests that initailization sets the correct values.
@@ -98,6 +103,10 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(systemConfig.l2OutputOracle()), address(l2OutputOracle));
         assertEq(address(systemConfig.optimismPortal()), address(optimismPortal));
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
+        // Check gas paying token
+        (address token, uint8 decimals) = systemConfig.gasPayingToken();
+        assertEq(token, Constants.ETHER);
+        assertEq(decimals, 18);
     }
 }
 
