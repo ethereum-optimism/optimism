@@ -20,6 +20,8 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { L1Block } from "src/L2/L1Block.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import "src/libraries/PortalErrors.sol";
 
@@ -339,6 +341,33 @@ contract OptimismPortal_Test is CommonTest {
         // But not the block after it.
         vm.expectRevert(stdError.indexOOBError);
         assertEq(optimismPortal.isOutputFinalized(nextOutputIndex + 1), false);
+    }
+
+    function testFuzz_setGasPayingToken_succeeds(
+        address _token,
+        uint8 _decimals,
+        bytes32 _name,
+        bytes32 _symbol
+    )
+        external
+    {
+        vm.expectEmit(address(optimismPortal));
+        emit TransactionDeposited(
+            0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            0,
+            abi.encodePacked(
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(80000), // gasLimit
+                false, // isCreation,
+                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+            )
+        );
+
+        vm.prank(address(systemConfig));
+        optimismPortal.setGasPayingToken({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
+        //assertEq(optimismPortal.gasPayingToken(), _token);
     }
 }
 
