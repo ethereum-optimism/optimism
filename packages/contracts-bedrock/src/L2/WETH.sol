@@ -9,13 +9,14 @@ import { L1Block } from "src/L2/L1Block.sol";
 contract WETH is WETH98 {
     /// @notice Returns the name of the token from the L1Block contract
     function name() external view override returns (string memory) {
-        string memory tname = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
-        return string.concat("Wrapped ", tname);
+        return string.concat(
+            "Wrapped ", string(abi.encodePacked(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName()))
+        );
     }
 
     /// @notice Returns the symbol of the token from the L1Block contract
     function symbol() external view override returns (string memory) {
-        string memory tsymbol = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
-        return string.concat("W", tsymbol);
+        return
+            string.concat("W", string(abi.encodePacked(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol())));
     }
 }
