@@ -23,8 +23,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     using LibClone for address;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.5.0
-    string public constant version = "0.5.0";
+    /// @custom:semver 0.6.0
+    string public constant version = "0.6.0";
 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;
