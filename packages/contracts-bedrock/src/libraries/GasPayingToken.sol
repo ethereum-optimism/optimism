@@ -65,7 +65,7 @@ library GasPayingToken {
     }
 
     /// @notice Maps a string to a bytes32 without leading or trailing zeroes.
-    function stringToBytes32Sanitized(string memory _str) internal pure returns (bytes32 _output) {
+    function sanitize(string memory _str) internal pure returns (bytes32 _output) {
         uint256 len = bytes(_str).length;
         require(len <= 32, "GasPayingToken: string cannot be greater than 32 bytes");
         assembly {
