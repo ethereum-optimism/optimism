@@ -538,6 +538,37 @@ func (_FaultDisputeGame *FaultDisputeGameCallerSession) GameType() (uint32, erro
 	return _FaultDisputeGame.Contract.GameType(&_FaultDisputeGame.CallOpts)
 }
 
+// GetChallengerDuration is a free data retrieval call binding the contract method 0xbd8da956.
+//
+// Solidity: function getChallengerDuration(uint256 _claimIndex) view returns(uint64 duration_)
+func (_FaultDisputeGame *FaultDisputeGameCaller) GetChallengerDuration(opts *bind.CallOpts, _claimIndex *big.Int) (uint64, error) {
+	var out []interface{}
+	err := _FaultDisputeGame.contract.Call(opts, &out, "getChallengerDuration", _claimIndex)
+
+	if err != nil {
+		return *new(uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
+
+	return out0, err
+
+}
+
+// GetChallengerDuration is a free data retrieval call binding the contract method 0xbd8da956.
+//
+// Solidity: function getChallengerDuration(uint256 _claimIndex) view returns(uint64 duration_)
+func (_FaultDisputeGame *FaultDisputeGameSession) GetChallengerDuration(_claimIndex *big.Int) (uint64, error) {
+	return _FaultDisputeGame.Contract.GetChallengerDuration(&_FaultDisputeGame.CallOpts, _claimIndex)
+}
+
+// GetChallengerDuration is a free data retrieval call binding the contract method 0xbd8da956.
+//
+// Solidity: function getChallengerDuration(uint256 _claimIndex) view returns(uint64 duration_)
+func (_FaultDisputeGame *FaultDisputeGameCallerSession) GetChallengerDuration(_claimIndex *big.Int) (uint64, error) {
+	return _FaultDisputeGame.Contract.GetChallengerDuration(&_FaultDisputeGame.CallOpts, _claimIndex)
+}
+
 // GetRequiredBond is a free data retrieval call binding the contract method 0xc395e1ca.
 //
 // Solidity: function getRequiredBond(uint128 _position) view returns(uint256 requiredBond_)
