@@ -368,6 +368,18 @@ contract OptimismPortal_Test is CommonTest {
         vm.prank(address(systemConfig));
         optimismPortal.setGasPayingToken({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
     }
+
+    function test_setGasPayingToken_notSystemConfig_fails(
+        address _token,
+        uint8 _decimals,
+        bytes32 _name,
+        bytes32 _symbol
+    )
+        external
+    {
+        vm.expectRevert();
+        optimismPortal.setGasPayingToken({ _token: address(0), _decimals: 0, _name: "", _symbol: "" });
+    }
 }
 
 contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
