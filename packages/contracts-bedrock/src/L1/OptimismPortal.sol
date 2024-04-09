@@ -539,7 +539,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
-    function setGasPayingToken(address _token, uint8 _decimals, string memory _name, string memory _symbol) external {
+    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         require(msg.sender == address(systemConfig));
 
         // Set L2 deposit gas as used without paying burning gas.
