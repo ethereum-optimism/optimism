@@ -178,8 +178,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(delayedWeth.balanceOf(address(gameProxy)), _value);
     }
 
-    /// @dev Tests that the game cannot be initialized with extra data > 64 bytes long (root claim + l2 block number
-    ///      concatenated)
+    /// @dev Tests that the game cannot be initialized with extra data of the incorrect length (must be 32 bytes)
     function testFuzz_initialize_badExtraData_reverts(uint256 _extraDataLen) public {
         // The `DisputeGameFactory` will pack the root claim and the extra data into a single array, which is enforced
         // to be at least 64 bytes long.
