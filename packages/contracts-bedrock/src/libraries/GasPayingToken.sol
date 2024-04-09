@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
+import { LibString } from "solady/utils/LibString.sol";
 
 /// @title GasPayingToken
 /// @notice Handles reading and writing the custom gas token to storage.
@@ -42,7 +43,7 @@ library GasPayingToken {
         if (addr == Constants.ETHER) {
             name_ = "Ether";
         } else {
-            name_ = string(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT)));
+            name_ = LibString.fromSmallString(Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT));
         }
     }
 
@@ -53,7 +54,7 @@ library GasPayingToken {
         if (addr == Constants.ETHER) {
             symbol_ = "ETH";
         } else {
-            symbol_ = string(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT)));
+            symbol_ = LibString.fromSmallString(Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT));
         }
     }
 
@@ -64,13 +65,8 @@ library GasPayingToken {
         Storage.setBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT, _symbol);
     }
 
-    /// @notice Maps a string to a bytes32 without leading or trailing zeroes.
-    function sanitize(string memory _str) internal pure returns (bytes32 _output) {
-        uint256 len = bytes(_str).length;
-        require(len <= 32, "GasPayingToken: string cannot be greater than 32 bytes");
-        assembly {
-            _output := mload(add(_str, 0x20))
-        }
-        _output = (_output >> 32 - len) << 32 - len;
+    /// @notice Maps a string to a normalized null-terminated small string.
+    function sanitize(string memory _str) internal pure returns (bytes32) {
+        return LibString.toSmallString(_str);
     }
 }
