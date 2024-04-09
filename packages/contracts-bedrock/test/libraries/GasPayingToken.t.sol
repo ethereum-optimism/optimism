@@ -27,7 +27,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
     }
 
     /// @dev Test that the gas paying token returns values associated with Ether when unset
-    function testFuzz_get_empty_succeeds() external {
+    function test_get_empty_succeeds() external {
         (address token, uint8 decimals) = GasPayingToken.getToken();
         assertEq(Constants.ETHER, token);
         assertEq(18, decimals);
