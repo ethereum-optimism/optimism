@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { Bytes } from "src/libraries/Bytes.sol";
 import { LibString } from "solady/utils/LibString.sol";
 
 /// @title GasPayingToken
