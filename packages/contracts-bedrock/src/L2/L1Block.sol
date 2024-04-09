@@ -18,7 +18,7 @@ contract L1Block is ISemver {
     error NotDepositor();
 
     /// @notice Event emitted when the gas paying token is set.
-    event GasPayingTokenSet(address indexed token, uint8 decimals, string indexed name, string indexed symbol);
+    event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
 
     /// @notice Address of the special depositor account.
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
@@ -64,10 +64,14 @@ contract L1Block is ISemver {
         (addr_, decimals_) = GasPayingToken.getToken();
     }
 
+    /// @notice Returns the gas paying token name.
+    ///         If nothing is set in state, then it means ether is used.
     function gasPayingTokenName() public view returns (string memory name_) {
         name_ = GasPayingToken.getName();
     }
 
+    /// @notice Returns the gas paying token symbol.
+    ///         If nothing is set in state, then it means ether is used.
     function gasPayingTokenSymbol() public view returns (string memory symbol_) {
         symbol_ = GasPayingToken.getSymbol();
     }
@@ -149,7 +153,7 @@ contract L1Block is ISemver {
     /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
     ///         depositor account. This function is not called on every L2 block but instead
     ///         only called by specially crafted L1 deposit transactions.
-    function setGasPayingToken(address _token, uint8 _decimals, string memory _name, string memory _symbol) external {
+    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         if (msg.sender != DEPOSITOR_ACCOUNT) revert NotDepositor();
 
         GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });

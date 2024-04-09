@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { LibString } from "solady/utils/LibString.sol";
 
 /// @title GasPayingToken
 /// @notice Handles reading and writing the custom gas token to storage.
@@ -34,28 +35,39 @@ library GasPayingToken {
         }
     }
 
+    /// @notice Reads the gas paying token's name from the magic storage slot.
+    ///         If nothing is set in storage, then the ether name, 'Ether', is returned instead.
     function getName() internal view returns (string memory name_) {
         (address addr,) = getToken();
         if (addr == Constants.ETHER) {
             name_ = "Ether";
         } else {
-            name_ = string(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT)));
+            name_ = LibString.fromSmallString(Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT));
         }
     }
 
+    /// @notice Reads the gas paying token's symbol from the magic storage slot.
+    ///         If nothing is set in storage, then the ether symbol, 'ETH', is returned instead.
     function getSymbol() internal view returns (string memory symbol_) {
         (address addr,) = getToken();
         if (addr == Constants.ETHER) {
             symbol_ = "ETH";
         } else {
-            symbol_ = string(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT)));
+            symbol_ = LibString.fromSmallString(Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT));
         }
     }
 
     /// @notice Writes the gas paying token, its decimals, name and symbol to the magic storage slot.
-    function set(address _token, uint8 _decimals, string memory _name, string memory _symbol) internal {
+    function set(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) internal {
         Storage.setBytes32(GAS_PAYING_TOKEN_SLOT, bytes32(uint256(_decimals) << 160 | uint256(uint160(_token))));
-        Storage.setBytes32(GAS_PAYING_TOKEN_NAME_SLOT, bytes32(abi.encodePacked(_name)));
-        Storage.setBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(abi.encodePacked(_symbol)));
+        Storage.setBytes32(GAS_PAYING_TOKEN_NAME_SLOT, _name);
+        Storage.setBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT, _symbol);
+    }
+
+    /// @notice Maps a string to a normalized null-terminated small string.
+    function sanitize(string memory _str) internal pure returns (bytes32) {
+        require(bytes(_str).length <= 32, "GasPayingToken: string cannot be greater than 32 bytes");
+
+        return LibString.toSmallString(_str);
     }
 }
