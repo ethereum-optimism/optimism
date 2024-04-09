@@ -47,8 +47,8 @@ contract LivenessModule is ISemver {
     uint256 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(
@@ -68,15 +68,17 @@ contract LivenessModule is ISemver {
         address[] memory owners = _safe.getOwners();
         require(_minOwners <= owners.length, "LivenessModule: minOwners must be less than the number of owners");
         require(
-            _safe.getThreshold() >= getRequiredThreshold(owners.length, THRESHOLD_PERCENTAGE),
+            _safe.getThreshold() >= getRequiredThreshold(owners.length),
             "LivenessModule: Insufficient threshold for the number of owners"
         );
+        require(_thresholdPercentage > 0, "LivenessModule: thresholdPercentage must be greater than 0");
+        require(_thresholdPercentage <= 100, "LivenessModule: thresholdPercentage must be less than or equal to 100");
     }
 
     /// @notice For a given number of owners, return the lowest threshold which is greater than the required percentage.
     ///         Note: this function returns 1 for numOwners == 1.
-    function getRequiredThreshold(uint256 _numOwners, uint256 _percentage) public pure returns (uint256 threshold_) {
-        threshold_ = (_numOwners * _percentage + 99) / 100;
+    function getRequiredThreshold(uint256 _numOwners) public view returns (uint256 threshold_) {
+        threshold_ = (_numOwners * THRESHOLD_PERCENTAGE + 99) / 100;
     }
 
     /// @notice Getter function for the Safe contract instance
@@ -172,7 +174,7 @@ contract LivenessModule is ISemver {
     /// @param _newOwnersCount New number of owners after removal.
     function _removeOwner(address _prevOwner, address _ownerToRemove, uint256 _newOwnersCount) internal {
         if (_newOwnersCount > 0) {
-            uint256 newThreshold = getRequiredThreshold(_newOwnersCount, THRESHOLD_PERCENTAGE);
+            uint256 newThreshold = getRequiredThreshold(_newOwnersCount);
             // Remove the owner and update the threshold
             _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: newThreshold });
         } else {
@@ -237,7 +239,7 @@ contract LivenessModule is ISemver {
         // owner, because getRequiredThreshold(1) returns 1.
         uint256 threshold = SAFE.getThreshold();
         require(
-            threshold == getRequiredThreshold(numOwners, THRESHOLD_PERCENTAGE),
+            threshold == getRequiredThreshold(numOwners),
             "LivenessModule: Insufficient threshold for the number of owners"
         );
 
