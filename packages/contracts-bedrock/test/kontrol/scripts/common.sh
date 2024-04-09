@@ -35,6 +35,7 @@ usage_make_summary() {
 
 # Set Run Directory <root>/packages/contracts-bedrock
 WORKSPACE_DIR=$( cd "$SCRIPT_HOME/../../.." >/dev/null 2>&1 && pwd )
+pushd "$WORKSPACE_DIR" > /dev/null || exit
 
 # Variables
 export CONTAINER_NAME=kontrol-tests
@@ -107,7 +108,6 @@ parse_first_arg() {
     export LOCAL=true
     export SCRIPT_TESTS=$SCRIPT_OPTION
     export CUSTOM_TESTS=$CUSTOM_OPTION
-    pushd "$WORKSPACE_DIR" > /dev/null || exit
   elif [ "$1" == "script" ]; then
     notif "Running in docker container (DEFAULT)"
     export LOCAL=false
@@ -126,7 +126,6 @@ check_kontrol_version() {
   if [ "$(kontrol version | awk -F': ' '{print$2}')" == "$KONTROLRC" ]; then
     notif "Kontrol version matches $KONTROLRC"
     export LOCAL=true
-    pushd "$WORKSPACE_DIR" > /dev/null || exit
   else
     notif "Kontrol version does NOT match $KONTROLRC"
     notif "Please run 'kup install kontrol --version v$KONTROLRC'"

@@ -21,7 +21,7 @@ kontrol_build() {
     --module-import $module \
     $rekompile
   return $?
-  # return 1
+  # return 1 #Debugging
 }
 
 kontrol_prove() {
@@ -42,12 +42,12 @@ kontrol_prove() {
     --init-node-from $state_diff \
     --xml-test-report
   return $?
-  # return 2
+  # return 2 #Debugging
 }
 
 get_log_results(){
   RESULTS_FILE="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
-  LOG_PATH="test/kontrol/script/logs"
+  LOG_PATH="test/kontrol/logs"
   RESULTS_LOG="$LOG_PATH/$RESULTS_FILE"
 
   if [ ! -d $LOG_PATH ]; then
@@ -74,6 +74,8 @@ get_log_results(){
     notif "Results Log: $RESULTS_LOG generated"
     RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
     docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
+    # Expand the tar folder to kout-proofs for Summary Results and caching
+    tar -xzvf "$RESULTS_LOG" -C "$WORKSPACE_DIR"
   fi
 }
 
