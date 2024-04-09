@@ -286,7 +286,9 @@ func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus
 // It returns true if the status is acceptable.
 func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloadStatus) bool {
 	if e.syncMode == sync.ELSync {
-		if status == eth.ExecutionValid {
+		if status == eth.ExecutionSyncing && e.syncStatus == syncStatusWillStartEL {
+			e.syncStatus = syncStatusStartedEL
+		} else if status == eth.ExecutionValid {
 			e.syncStatus = syncStatusFinishedELButNotFinalized
 		}
 		// Allow SYNCING if engine P2P sync is enabled
