@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 
 /// @title GasPayingToken
 /// @notice Handles reading and writing the custom gas token to storage.
@@ -36,10 +37,10 @@ library GasPayingToken {
 
     /// @notice Reads the gas paying token's name from the magic storage slot.
     ///         If nothing is set in storage, then the ether name, 'Ether', is returned instead.
-    function getName() internal view returns (bytes32 name_) {
+    function getName() internal view returns (string memory name_) {
         (address addr,) = getToken();
         if (addr == Constants.ETHER) {
-            name_ = bytes32(abi.encodePacked("Ether"));
+            name_ = "Ether";
         } else {
             name_ = Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT);
         }
@@ -47,10 +48,10 @@ library GasPayingToken {
 
     /// @notice Reads the gas paying token's symbol from the magic storage slot.
     ///         If nothing is set in storage, then the ether symbol, 'ETH', is returned instead.
-    function getSymbol() internal view returns (bytes32 symbol_) {
+    function getSymbol() internal view returns (string memory symbol_) {
         (address addr,) = getToken();
         if (addr == Constants.ETHER) {
-            symbol_ = bytes32(abi.encodePacked("ETH"));
+            symbol_ = "ETH";
         } else {
             symbol_ = Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT);
         }
