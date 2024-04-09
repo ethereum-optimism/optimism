@@ -823,7 +823,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	cfg := immutables.PredeploysImmutableConfig{
 		L2ToL1MessagePasser:    struct{}{},
 		DeployerWhitelist:      struct{}{},
-		WETH9:                  struct{}{},
+		WETH:                   struct{}{},
 		L2CrossDomainMessenger: struct{}{},
 		L2StandardBridge:       struct{}{},
 		SequencerFeeVault: struct {
@@ -935,11 +935,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_name":   "Ether",
 		"_symbol": "ETH",
 	}
-	storage["WETH9"] = state.StorageValues{
-		"name":     "Wrapped Ether",
-		"symbol":   "WETH",
-		"decimals": 18,
-	}
+	storage["WETH"] = state.StorageValues{}
 	if config.EnableGovernance {
 		storage["GovernanceToken"] = state.StorageValues{
 			"_name":   config.GovernanceTokenName,
