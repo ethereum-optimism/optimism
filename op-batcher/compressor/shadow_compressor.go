@@ -3,6 +3,7 @@ package compressor
 import (
 	"bytes"
 	"compress/zlib"
+	"fmt"
 
 	"github.com/DataDog/zstd"
 	"github.com/andybalholm/brotli"
@@ -47,6 +48,7 @@ type ShadowCompressor struct {
 // target, which allows individual blocks larger than the target to be included (and will
 // be split across multiple channel frames).
 func NewShadowCompressor(config Config) (derive.Compressor, error) {
+	fmt.Println("NewShadowCompressor")
 	c := &ShadowCompressor{
 		config: config,
 	}
