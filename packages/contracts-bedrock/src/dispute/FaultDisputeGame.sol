@@ -198,6 +198,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Compute the local preimage context for the step.
         Hash uuid = _findLocalContext(_claimIndex);
 
+        // Flag the subgame as resolved. This will be reverted if the VM step produces the expected post-state, or
+        // if the step has already been made.
         resolvedSubgames[_claimIndex] = true;
 
         // INVARIANT: If a step is an attack, the poststate is valid if the step produces
@@ -419,20 +421,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         Duration challengeClockDuration = Duration.wrap(
             uint64(parentClock.duration().raw() + block.timestamp - subgameRootClaim.clock.timestamp().raw())
         );
+
         // INVARIANT: Cannot resolve a subgame unless the clock of its would-be counter has expired
         // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always less than GAME_DURATION / 2
         // if all descendant subgames are resolved
-        if (challengeClockDuration.raw() < GAME_DURATION.raw() >> 1) {
-            revert ClockNotExpired();
-        }
+        if (challengeClockDuration.raw() < GAME_DURATION.raw() >> 1) revert ClockNotExpired();
 
         uint256[] storage challengeIndices = subgames[_claimIndex];
         uint256 challengeIndicesLen = challengeIndices.length;
 
         // INVARIANT: Cannot resolve subgames twice
-        if (_claimIndex == 0 && subgameAtRootResolved) {
-            revert ClaimAlreadyResolved();
-        }
+        if (_claimIndex == 0 && subgameAtRootResolved) revert ClaimAlreadyResolved();
 
         // Uncontested claims are resolved implicitly unless they are the root claim. Pay out the bond to the claimant
         // and return early.
@@ -479,6 +478,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // resolveClaim will not need to traverse this subgame.
         subgameRootClaim.counteredBy = countered;
 
+        // Mark the subgame as resolved.
         resolvedSubgames[_claimIndex] = true;
 
         // Indicate the game is ready to be resolved globally.
