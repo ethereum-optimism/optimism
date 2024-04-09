@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -128,6 +129,7 @@ func confirmPayload(
 	updateSafe bool,
 	agossip async.AsyncGossiper,
 	sequencerConductor conductor.SequencerConductor,
+	dacClient rollup.DACClient,
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var envelope *eth.ExecutionPayloadEnvelope
 	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
@@ -149,6 +151,17 @@ func confirmPayload(
 	payload := envelope.ExecutionPayload
 	if err := sanityCheckPayload(payload); err != nil {
 		return nil, BlockInsertPayloadErr, err
+	}
+	if envelope.BlobsBundle != nil && len(envelope.BlobsBundle.Blobs) > 0 {
+		if updateSafe {
+			return nil, BlockInsertPayloadErr, fmt.Errorf("got blobs when updateSafe")
+		}
+		if dacClient != nil {
+			err = dacClient.UploadBlobs(envelope.BlobsBundle)
+			if err != nil {
+				return nil, BlockInsertTemporaryErr, fmt.Errorf("UploadBlobs failed: %w", err)
+			}
+		}
 	}
 	if err := sequencerConductor.CommitUnsafePayload(ctx, envelope); err != nil {
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to commit unsafe payload to conductor: %w", err)

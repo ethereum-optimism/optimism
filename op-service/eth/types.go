@@ -161,8 +161,9 @@ type (
 )
 
 type ExecutionPayloadEnvelope struct {
-	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
-	ExecutionPayload      *ExecutionPayload `json:"executionPayload"`
+	ParentBeaconBlockRoot *common.Hash          `json:"parentBeaconBlockRoot,omitempty"`
+	ExecutionPayload      *ExecutionPayload     `json:"executionPayload"`
+	BlobsBundle           *engine.BlobsBundleV1 `json:"blobsBundle"`
 }
 
 type ExecutionPayload struct {

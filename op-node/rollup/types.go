@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -122,6 +123,20 @@ type Config struct {
 
 	// UsePlasma is activated when the chain is in plasma mode.
 	UsePlasma bool `json:"use_plasma"`
+
+	DACConfig *DACConfig `json:"dac_config,omitempty"`
+}
+
+type DACConfig struct {
+	URL string
+}
+
+type DACClient interface {
+	UploadBlobs(*engine.BlobsBundleV1) error
+}
+
+func (dacConfig *DACConfig) Client() DACClient {
+	return nil
 }
 
 // ValidateL1Config checks L1 config variables for errors.
