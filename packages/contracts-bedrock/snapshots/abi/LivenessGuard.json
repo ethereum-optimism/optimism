@@ -174,5 +174,16 @@
     ],
     "name": "OwnerRecorded",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "expectedRole",
+        "type": "string"
+      }
+    ],
+    "name": "BadAuth",
+    "type": "error"
   }
 ]

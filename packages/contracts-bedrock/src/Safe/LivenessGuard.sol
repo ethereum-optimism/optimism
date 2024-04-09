@@ -8,6 +8,7 @@ import { SafeSigners } from "src/Safe/SafeSigners.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "src/libraries/Errors.sol";
 
 /// @title LivenessGuard
 /// @notice This Guard contract is used to track the liveness of Safe owners.
@@ -61,7 +62,7 @@ contract LivenessGuard is ISemver, BaseGuard {
 
     /// @notice Internal function to ensure that only the Safe can call certain functions.
     function _requireOnlySafe() internal view {
-        require(msg.sender == address(SAFE), "LivenessGuard: only Safe can call this function");
+        if (msg.sender != address(SAFE)) revert BadAuth("Safe");
     }
 
     /// @notice Records the most recent time which any owner has signed a transaction.
@@ -151,7 +152,9 @@ contract LivenessGuard is ISemver, BaseGuard {
     /// @notice Enables an owner to demonstrate liveness by calling this method directly.
     ///         This is useful for owners who have not recently signed a transaction via the Safe.
     function showLiveness() external {
-        require(SAFE.isOwner(msg.sender), "LivenessGuard: only Safe owners may demonstrate liveness");
+        if (!SAFE.isOwner(msg.sender)) {
+            revert BadAuth("Safe owner");
+        }
         lastLive[msg.sender] = block.timestamp;
 
         emit OwnerRecorded(msg.sender);

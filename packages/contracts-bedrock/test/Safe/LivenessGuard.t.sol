@@ -10,6 +10,7 @@ import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "src/libraries/Errors.sol";
 
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 
@@ -64,7 +65,7 @@ contract LivenessGuard_Getters_Test is LivenessGuard_TestInit {
 contract LivenessGuard_CheckTx_TestFails is LivenessGuard_TestInit {
     /// @dev Tests that the checkTransaction function reverts if the caller is not the Safe
     function test_checkTransaction_callerIsNotSafe_revert() external {
-        vm.expectRevert("LivenessGuard: only Safe can call this function");
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Safe"));
         livenessGuard.checkTransaction({
             to: address(0),
             value: 0,
@@ -117,7 +118,7 @@ contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
 contract LivenessGuard_CheckAfterExecution_TestFails is LivenessGuard_TestInit {
     /// @dev Tests that the checkAfterExecution function reverts if the caller is not the Safe
     function test_checkAfterExecution_callerIsNotSafe_revert() external {
-        vm.expectRevert("LivenessGuard: only Safe can call this function");
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Safe"));
         livenessGuard.checkAfterExecution(bytes32(0), false);
     }
 }
@@ -125,7 +126,7 @@ contract LivenessGuard_CheckAfterExecution_TestFails is LivenessGuard_TestInit {
 contract LivenessGuard_ShowLiveness_TestFail is LivenessGuard_TestInit {
     /// @dev Tests that the showLiveness function reverts if the caller is not an owner
     function test_showLiveness_callIsNotSafeOwner_reverts() external {
-        vm.expectRevert("LivenessGuard: only Safe owners may demonstrate liveness");
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Safe owner"));
         livenessGuard.showLiveness();
     }
 }
