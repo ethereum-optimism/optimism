@@ -35,7 +35,7 @@ library GasPayingToken {
     }
 
     function getName() internal view returns (string memory name_) {
-        (address addr, ) = getToken();
+        (address addr,) = getToken();
         if (addr == Constants.ETHER) {
             name_ = "Ether";
         } else {
@@ -44,7 +44,7 @@ library GasPayingToken {
     }
 
     function getSymbol() internal view returns (string memory symbol_) {
-        (address addr, ) = getToken();
+        (address addr,) = getToken();
         if (addr == Constants.ETHER) {
             symbol_ = "ETH";
         } else {

@@ -262,11 +262,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Getter for the gas paying asset address.
-    function gasPayingToken()
-        external
-        view
-        returns (address addr_, uint8 decimals_)
-    {
+    function gasPayingToken() external view returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = GasPayingToken.getToken();
     }
 

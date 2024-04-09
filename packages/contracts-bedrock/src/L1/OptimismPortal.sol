@@ -186,7 +186,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Retuns the balance of the contract.
     function balance() public view returns (uint256) {
-        (address token, ) = gasPayingToken();
+        (address token,) = gasPayingToken();
         if (token == Constants.ETHER) {
             return address(this).balance;
         } else {
@@ -365,7 +365,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         l2Sender = _tx.sender;
 
         bool success;
-        (address token, ) = gasPayingToken();
+        (address token,) = gasPayingToken();
         if (token == Constants.ETHER) {
             // Trigger the call to the target contract. We use a custom low level method
             // SafeCall.callWithMinGas to ensure two key properties
@@ -445,7 +445,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         metered(_gasLimit)
     {
         // Can only be called if an ERC20 token is used for gas paying on L2
-        (address token, ) = gasPayingToken();
+        (address token,) = gasPayingToken();
         require(token != Constants.ETHER, "OptimismPortal: only custom gas token");
 
         // Get the balance of the portal before the transfer.
