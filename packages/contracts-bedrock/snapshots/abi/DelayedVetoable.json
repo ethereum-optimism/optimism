@@ -184,24 +184,19 @@
     "type": "event"
   },
   {
-    "inputs": [],
-    "name": "ForwardingEarly",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "expectedRole",
+        "type": "string"
+      }
+    ],
+    "name": "BadAuth",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "expected",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "actual",
-        "type": "address"
-      }
-    ],
-    "name": "Unauthorized",
+    "inputs": [],
+    "name": "ForwardingEarly",
     "type": "error"
   }
 ]

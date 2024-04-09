@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/ISemver.sol";
+import "src/libraries/Errors.sol";
 
 /// @title DelayedVetoable
 /// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
@@ -13,9 +14,6 @@ import { ISemver } from "src/universal/ISemver.sol";
 contract DelayedVetoable is ISemver {
     /// @notice Error for when attempting to forward too early.
     error ForwardingEarly();
-
-    /// @notice Error for unauthorized calls.
-    error Unauthorized(address expected, address actual);
 
     /// @notice An event that is emitted when the delay is activated.
     /// @param delay The delay that was activated.
@@ -128,7 +126,7 @@ contract DelayedVetoable is ISemver {
         // The initiator and vetoer activate the delay by passing in null data.
         if (msg.data.length == 0 && _delay == 0) {
             if (msg.sender != INITIATOR && msg.sender != VETOER) {
-                revert Unauthorized(INITIATOR, msg.sender);
+                revert BadAuth("Initiator or Vetoer");
             }
             _delay = OPERATING_DELAY;
             emit DelayActivated(_delay);
@@ -161,7 +159,7 @@ contract DelayedVetoable is ISemver {
         // passed.
         if (_queuedAt[callHash] == 0) {
             // The call has not been initiated, so we'll treat this is an unauthorized initiation attempt.
-            revert Unauthorized(INITIATOR, msg.sender);
+            revert BadAuth("Initiator");
         }
 
         if (_queuedAt[callHash] + _delay > block.timestamp) {

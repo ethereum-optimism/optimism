@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
+import "src/libraries/Errors.sol";
 
 contract DelayedVetoable_Init is Test {
     error Unauthorized(address expected, address actual);
@@ -71,15 +72,15 @@ contract DelayedVetoable_Getters_Test is DelayedVetoable_Init {
 contract DelayedVetoable_Getters_TestFail is DelayedVetoable_Init {
     /// @dev Check that getter calls from unauthorized entities will revert.
     function test_getters_notZeroAddress_reverts() external {
-        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Initiator"));
         delayedVetoable.initiator();
-        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Initiator"));
         delayedVetoable.vetoer();
-        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Initiator"));
         delayedVetoable.target();
-        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Initiator"));
         delayedVetoable.delay();
-        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Initiator"));
         delayedVetoable.queuedAt(keccak256(abi.encode(0)));
     }
 }
@@ -150,7 +151,7 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
 contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     /// @dev Only the initiator can initiate a call.
     function test_handleCall_unauthorizedInitiation_reverts() external {
-        vm.expectRevert(abi.encodeWithSelector(DelayedVetoable.Unauthorized.selector, initiator, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Initiator"));
         (bool revertsAsExpected,) = address(delayedVetoable).call(hex"00001234");
         assertTrue(revertsAsExpected);
     }
@@ -186,7 +187,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         assertTrue(success);
 
         // Attempt to forward the same call again.
-        vm.expectRevert(abi.encodeWithSelector(DelayedVetoable.Unauthorized.selector, initiator, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(BadAuth.selector, "Initiator"));
         (bool revertsAsExpected,) = address(delayedVetoable).call(data);
         assertTrue(revertsAsExpected);
     }
