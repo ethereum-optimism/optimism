@@ -14,7 +14,6 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { Permit2Lib } from "src/libraries/Permit2Lib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Decimals } from "src/libraries/Decimals.sol";
@@ -456,7 +455,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         uint256 balanceOf = IERC20(token).balanceOf(address(this));
 
         // Take ownership of the token. It is assumed that the user has given the portal an approval.
-        Permit2Lib.safeTransferFrom2({ _token: token, _from: msg.sender, _to: address(this), _amount: _mint });
+        IERC20(token).safeTransferFrom({ from: msg.sender, to: address(this), value: _mint });
 
         // Double check that the portal now has the exact amount of token.
         require(IERC20(token).balanceOf(address(this)) == balanceOf + _mint, "OptimismPortal: transferFrom failed");
