@@ -1,7 +1,7 @@
 GITCOMMIT ?= $(shell git rev-parse HEAD)
 GITDATE ?= $(shell git show -s --format='%ct')
-# Find the latest github tag that contains this commit. If none are found, set the version string to "untagged"
-VERSION ?= $(shell tag=$$(git tag --contains $(GITCOMMIT) | grep '^op-node/' | sort -V | tail -n 1 | sed 's/op-node\///'); \
+# Find the github tag that points to this commit. If none are found, set the version string to "untagged"
+VERSION ?= $(shell tag=$$(git tag --points-at $(GITCOMMIT) | grep '^op-node/' | sort -V | tail -n 1 | sed 's/op-node\///'); \
              if [ -z "$$tag" ]; then \
                  echo "untagged"; \
              else \
