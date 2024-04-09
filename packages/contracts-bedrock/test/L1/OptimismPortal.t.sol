@@ -367,7 +367,6 @@ contract OptimismPortal_Test is CommonTest {
 
         vm.prank(address(systemConfig));
         optimismPortal.setGasPayingToken({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
-        //assertEq(optimismPortal.gasPayingToken(), _token);
     }
 }
 
