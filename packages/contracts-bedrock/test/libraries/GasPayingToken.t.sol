@@ -78,6 +78,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
 
     function testDiff_sanitize_succeeds(string memory _str) external {
         vm.assume(bytes(_str).length <= 32);
+        vm.assume(bytes(_str).length > 0);
 
         bytes32 output;
         uint256 len = bytes(_str).length;
@@ -97,5 +98,9 @@ contract GasPayingToken_Roundtrip_Test is Test {
         vm.expectRevert("GasPayingToken: string cannot be greater than 32 bytes");
 
         GasPayingToken.sanitize(_str);
+    }
+
+    function test_sanitize_empty_succeeds() external {
+        assertEq(GasPayingToken.sanitize(""), "");
     }
 }
