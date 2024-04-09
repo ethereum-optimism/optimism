@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/BurntSushi/toml v1.3.2
+	github.com/DataDog/zstd v1.5.5
 	github.com/andybalholm/brotli v1.0.5
 	github.com/btcsuite/btcd v0.24.0
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
@@ -58,7 +59,6 @@ require (
 require (
 	github.com/CloudyKit/fastprinter v0.0.0-20200109182630-33d98a066a53 // indirect
 	github.com/CloudyKit/jet/v6 v6.2.0 // indirect
-	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/Joker/jade v1.1.3 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/Shopify/goreferrer v0.0.0-20220729165902-8cddb4f5de06 // indirect
