@@ -66,6 +66,8 @@ library GasPayingToken {
 
     /// @notice Maps a string to a normalized null-terminated small string.
     function sanitize(string memory _str) internal pure returns (bytes32) {
+        require(bytes(_str).length <= 32, "GasPayingToken: string cannot be greater than 32 bytes");
+
         return LibString.toSmallString(_str);
     }
 }
