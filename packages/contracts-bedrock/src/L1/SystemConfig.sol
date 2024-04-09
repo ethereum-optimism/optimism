@@ -8,16 +8,7 @@ import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
-
-/// @title Token
-/// @notice Simple interface for interacting with tokens that have decimals, name, and symbol.
-interface Token {
-    function decimals() external view returns (uint8);
-
-    function name() external view returns (string memory);
-
-    function symbol() external view returns (string memory);
-}
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -285,21 +276,13 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         if (_token == address(0)) _token = Constants.ETHER;
 
         uint8 decimals = 18;
-        string memory name = "Ether";
-        string memory symbol = "ETH";
+        bytes32 name = bytes32("Ether");
+        bytes32 symbol = bytes32("ETH");
         if (_token != Constants.ETHER) {
-            decimals = Token(_token).decimals();
+            decimals = ERC20(_token).decimals();
             require(decimals == 18, "SystemConfig: bad decimals");
-            name = Token(_token).name();
-            require(
-                abi.encodePacked(name).length <= 32,
-                "SystemConfig: name of gas paying token cannot be greater than 32 bytes"
-            );
-            symbol = Token(_token).symbol();
-            require(
-                abi.encodePacked(symbol).length <= 32,
-                "SystemConfig: symbol of gas paying token cannot be greater than 32 bytes"
-            );
+            name = bytes32(abi.encodePacked(ERC20(_token).name()));
+            symbol = bytes32(abi.encodePacked(ERC20(_token).symbol()));
         }
 
         if (_token != Constants.ETHER) {
