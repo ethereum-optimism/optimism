@@ -85,8 +85,8 @@ importers:
         specifier: 15.2.0
         version: 15.2.0
       mocha:
-        specifier: ^10.2.0
-        version: 10.2.0
+        specifier: ^10.4.0
+        version: 10.4.0
       nx:
         specifier: 18.2.2
         version: 18.2.2
@@ -104,7 +104,7 @@ importers:
         version: 5.0.5
       ts-mocha:
         specifier: ^10.0.0
-        version: 10.0.0(mocha@10.2.0)
+        version: 10.0.0(mocha@10.4.0)
       typescript:
         specifier: ^5.3.3
         version: 5.3.3
@@ -388,8 +388,8 @@ importers:
         specifier: ^20.11.17
         version: 20.11.17
       mocha:
-        specifier: ^10.2.0
-        version: 10.2.0
+        specifier: ^10.4.0
+        version: 10.4.0
 
   packages/fee-estimation:
     devDependencies:
@@ -506,8 +506,8 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       mocha:
-        specifier: ^10.2.0
-        version: 10.2.0
+        specifier: ^10.4.0
+        version: 10.4.0
       nyc:
         specifier: ^15.1.0
         version: 15.1.0
@@ -10562,6 +10562,17 @@ packages:
       path-is-absolute: 1.0.1
     dev: true
 
+  /glob@8.1.0:
+    resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
+    engines: {node: '>=12'}
+    dependencies:
+      fs.realpath: 1.0.0
+      inflight: 1.0.6
+      inherits: 2.0.4
+      minimatch: 5.0.1
+      once: 1.4.0
+    dev: true
+
   /global-modules@1.0.0:
     resolution: {integrity: sha512-sKzpEkf11GpOFuw0Zzjzmt4B4UZwjOcG757PPvrfhxcLFbq0wpsgpOqxpxtxFiCG4DtG93M6XRVbF2oGdev7bg==}
     engines: {node: '>=0.10.0'}
@@ -13258,6 +13269,33 @@ packages:
       minimatch: 5.0.1
       ms: 2.1.3
       nanoid: 3.3.3
+      serialize-javascript: 6.0.0
+      strip-json-comments: 3.1.1
+      supports-color: 8.1.1
+      workerpool: 6.2.1
+      yargs: 16.2.0
+      yargs-parser: 20.2.4
+      yargs-unparser: 2.0.0
+    dev: true
+
+  /mocha@10.4.0:
+    resolution: {integrity: sha512-eqhGB8JKapEYcC4ytX/xrzKforgEc3j1pGlAXVy3eRwrtAy5/nIfT1SvgGzfN0XZZxeLq0aQWkOUAmqIJiv+bA==}
+    engines: {node: '>= 14.0.0'}
+    hasBin: true
+    dependencies:
+      ansi-colors: 4.1.1
+      browser-stdout: 1.3.1
+      chokidar: 3.5.3
+      debug: 4.3.4(supports-color@8.1.1)
+      diff: 5.0.0
+      escape-string-regexp: 4.0.0
+      find-up: 5.0.0
+      glob: 8.1.0
+      he: 1.2.0
+      js-yaml: 4.1.0
+      log-symbols: 4.1.0
+      minimatch: 5.0.1
+      ms: 2.1.3
       serialize-javascript: 6.0.0
       strip-json-comments: 3.1.1
       supports-color: 8.1.1
@@ -16403,14 +16441,14 @@ packages:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
     dev: true
 
-  /ts-mocha@10.0.0(mocha@10.2.0):
+  /ts-mocha@10.0.0(mocha@10.4.0):
     resolution: {integrity: sha512-VRfgDO+iiuJFlNB18tzOfypJ21xn2xbuZyDvJvqpTbWgkAgD17ONGr8t+Tl8rcBtOBdjXp5e/Rk+d39f7XBHRw==}
     engines: {node: '>= 6.X.X'}
     hasBin: true
     peerDependencies:
       mocha: ^3.X.X || ^4.X.X || ^5.X.X || ^6.X.X || ^7.X.X || ^8.X.X || ^9.X.X || ^10.X.X
     dependencies:
-      mocha: 10.2.0
+      mocha: 10.4.0
       ts-node: 7.0.1
     optionalDependencies:
       tsconfig-paths: 3.15.0
