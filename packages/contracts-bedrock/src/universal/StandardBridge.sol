@@ -138,7 +138,7 @@ abstract contract StandardBridge is Initializable {
     /// @notice Getter for custom gas token paying networks. Returns true if the
     ///         network uses a custom gas token.
     function isCustomGasToken() public returns (bool) {
-        (address token, ) = gasPayingToken();
+        (address token,) = gasPayingToken();
         return token != Constants.ETHER;
     }
 

@@ -60,11 +60,7 @@ contract L1Block is ISemver {
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
     ///         If nothing is set in state, then it means ether is used.
-    function gasPayingToken()
-        public
-        view
-        returns (address addr_, uint8 decimals_)
-    {
+    function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = GasPayingToken.getToken();
     }
 
@@ -79,7 +75,7 @@ contract L1Block is ISemver {
     /// @notice Getter for custom gas token paying networks. Returns true if the
     ///         network uses a custom gas token.
     function isCustomGasToken() public view returns (bool) {
-        (address token, ) = gasPayingToken();
+        (address token,) = gasPayingToken();
         return token != Constants.ETHER;
     }
 
