@@ -42,7 +42,7 @@ library GasPayingToken {
         if (addr == Constants.ETHER) {
             name_ = "Ether";
         } else {
-            name_ = Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT);
+            name_ = string(Bytes.trimTrailingZeroes(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_NAME_SLOT))));
         }
     }
 
@@ -53,7 +53,8 @@ library GasPayingToken {
         if (addr == Constants.ETHER) {
             symbol_ = "ETH";
         } else {
-            symbol_ = Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT);
+            symbol_ =
+                string(Bytes.trimTrailingZeroes(abi.encodePacked(Storage.getBytes32(GAS_PAYING_TOKEN_SYMBOL_SLOT))));
         }
     }
 
