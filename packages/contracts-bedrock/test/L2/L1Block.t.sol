@@ -6,6 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract
 import { L1Block } from "src/L2/L1Block.sol";
@@ -155,6 +156,7 @@ contract L1BlockEcotone_Test is L1BlockTest {
 contract L1BlockCustomGasToken_Test is L1BlockTest {
     function testFuzz_setGasPayingToken_succeeds(address _token, uint8 _decimals, string memory _name, string memory _symbol) external {
         vm.assume(_token != address(0));
+        vm.assume(_token != Constants.ETHER);
         vm.assume(bytes(_name).length <= 32);
         vm.assume(bytes(_symbol).length <= 32);
 
@@ -178,6 +180,7 @@ contract L1BlockCustomGasToken_Test is L1BlockTest {
 
         assertEq(_name, l1Block.gasPayingTokenName());
         assertEq(_symbol, l1Block.gasPayingTokenSymbol());
+        assertTrue(l1Block.isCustomGasToken());
     }
 
     function test_setGasPayingToken_isDepositor_reverts() external {
