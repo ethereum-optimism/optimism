@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRPCResJSON(t *testing.T) {
@@ -14,7 +14,7 @@ func TestRPCResJSON(t *testing.T) {
 		out  string
 	}{
 		{
-			"string result",
+			"RPCRes with string result",
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
 				Result:  "foobar",
@@ -23,7 +23,7 @@ func TestRPCResJSON(t *testing.T) {
 			`{"jsonrpc":"2.0","result":"foobar","id":123}`,
 		},
 		{
-			"object result",
+			"RPCRes with object result",
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
 				Result: struct {
@@ -36,7 +36,7 @@ func TestRPCResJSON(t *testing.T) {
 			`{"jsonrpc":"2.0","result":{"str":"test"},"id":123}`,
 		},
 		{
-			"nil result",
+			"RPCRes with nil result",
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
 				Result:  nil,
@@ -45,7 +45,7 @@ func TestRPCResJSON(t *testing.T) {
 			`{"jsonrpc":"2.0","result":null,"id":123}`,
 		},
 		{
-			"error result without data",
+			"RPCRes with error result without data",
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
 				Error: &RPCErr{
@@ -57,7 +57,7 @@ func TestRPCResJSON(t *testing.T) {
 			`{"jsonrpc":"2.0","error":{"code":1234,"message":"test err"},"id":123}`,
 		},
 		{
-			"error result with data",
+			"RPCRes with error result with data",
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
 				Error: &RPCErr{
@@ -70,20 +70,21 @@ func TestRPCResJSON(t *testing.T) {
 			`{"jsonrpc":"2.0","error":{"code":1234,"message":"test err","data":"revert"},"id":123}`,
 		},
 		{
-			"string ID",
+			"RPCRes with string ID",
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
 				Result:  "foobar",
-				ID:      []byte("\"123\""),
+				ID:      []byte(`"123"`),
 			},
 			`{"jsonrpc":"2.0","result":"foobar","id":"123"}`,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out, err := json.Marshal(tt.in)
-			require.NoError(t, err)
-			require.Equal(t, tt.out, string(out))
+			assert.NoError(t, err)
+			assert.Equal(t, tt.out, string(out))
 		})
 	}
 }
