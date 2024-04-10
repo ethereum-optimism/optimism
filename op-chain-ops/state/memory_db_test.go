@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -22,14 +24,14 @@ func TestAddBalance(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-		value := new(big.Int).Rand(rng, big.NewInt(1000))
+		value := uint256.NewInt(uint64(rng.Intn(1000)))
 
 		db.CreateAccount(addr)
 		db.AddBalance(addr, value)
 
 		account := db.GetAccount(addr)
 		require.NotNil(t, account)
-		require.True(t, BigEqual(account.Balance, value))
+		require.Equal(t, uint256.MustFromBig(account.Balance), value)
 	}
 }
 

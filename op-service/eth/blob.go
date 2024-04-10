@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -64,14 +63,8 @@ func (b *Blob) ComputeKZGCommitment() (kzg4844.Commitment, error) {
 // KZGToVersionedHash computes the "blob hash" (a.k.a. versioned-hash) of a blob-commitment, as used in a blob-tx.
 // We implement it here because it is unfortunately not (currently) exposed by geth.
 func KZGToVersionedHash(commitment kzg4844.Commitment) (out common.Hash) {
-	// EIP-4844 spec:
-	//	def kzg_to_versioned_hash(commitment: KZGCommitment) -> VersionedHash:
-	//		return VERSIONED_HASH_VERSION_KZG + sha256(commitment)[1:]
-	h := sha256.New()
-	h.Write(commitment[:])
-	_ = h.Sum(out[:0])
-	out[0] = params.BlobTxHashVersion
-	return out
+	hasher := sha256.New()
+	return kzg4844.CalcBlobHashV1(hasher, &commitment)
 }
 
 // VerifyBlobProof verifies that the given blob and proof corresponds to the given commitment,

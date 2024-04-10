@@ -15,7 +15,10 @@ import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
+    // LivenessModule events
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
+    event RemovedOwner(address indexed owner);
+    event OwnershipTransferredToFallback();
 
     uint256 initTime = 10;
     uint256 livenessInterval = 30 days;
@@ -286,6 +289,8 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         address ownerToRemove = safeInstance.owners[0];
 
         _warpPastLivenessInterval();
+        vm.expectEmit(address(livenessModule));
+        emit RemovedOwner(ownerToRemove);
         _removeAnOwner(ownerToRemove, safeInstance.owners);
 
         assertFalse(safeInstance.safe.isOwner(ownerToRemove));
@@ -303,6 +308,16 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
         _warpPastLivenessInterval();
+        for (uint256 i; i < ownersToRemove.length; i++) {
+            if (i != ownersToRemove.length - 1) {
+                vm.expectEmit(address(livenessModule));
+                emit RemovedOwner(ownersToRemove[i]);
+            }
+        }
+
+        vm.expectEmit(address(livenessModule));
+        emit OwnershipTransferredToFallback();
+
         livenessModule.removeOwners(prevOwners, ownersToRemove);
         assertEq(safeInstance.safe.getOwners().length, 1);
         assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);

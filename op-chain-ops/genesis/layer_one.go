@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
@@ -76,9 +76,9 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 			memDB.CreateAccount(address)
 			memDB.SetNonce(address, account.Nonce)
 
-			balance, ok := math.ParseBig256(account.Balance)
-			if !ok {
-				return nil, fmt.Errorf("failed to parse balance for %s", address)
+			balance := &uint256.Int{}
+			if err := balance.UnmarshalText([]byte(account.Balance)); err != nil {
+				return nil, fmt.Errorf("failed to parse balance for %s: %w", address, err)
 			}
 			memDB.AddBalance(address, balance)
 			memDB.SetCode(address, account.Code)
