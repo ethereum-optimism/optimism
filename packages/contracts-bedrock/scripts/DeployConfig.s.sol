@@ -189,11 +189,15 @@ contract DeployConfig is Script {
         return abi.decode(res, (bytes32));
     }
 
-    function _readOr(string memory json, string memory key, bool defaultValue) internal view returns (bool) {
-        return vm.keyExists(json, key) ? stdJson.readBool(json, key) : defaultValue;
+    function _readOr(string memory _json, string memory _key, bool _defaultValue) internal view returns (bool) {
+        return vm.keyExists(_json, _key) ? stdJson.readBool(_json, _key) : _defaultValue;
     }
 
-    function _readOr(string memory json, string memory key, uint256 defaultValue) internal view returns (uint256) {
-        return vm.keyExists(json, key) ? stdJson.readUint(json, key) : defaultValue;
+    function _readOr(string memory _json, string memory _key, uint256 _defaultValue) internal view returns (uint256) {
+        return vm.keyExists(_json, _key) ? stdJson.readUint(_json, _key) : _defaultValue;
+    }
+
+    function _readOr(string memory _json, string memory _key, address _defaultValue) internal view returns (address) {
+        return vm.keyExists(_json, _key) ? stdJson.readAddress(json, _key) : _defaultValue;
     }
 }
