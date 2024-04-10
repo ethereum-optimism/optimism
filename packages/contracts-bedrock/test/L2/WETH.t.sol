@@ -8,11 +8,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { WETH } from "src/L2/WETH.sol";
 
 contract WETH_Test is CommonTest {
-    /// @dev Sets up the test suite.
-    function setUp() public override {
-        super.setUp();
-    }
-
     /// @dev Tests that the name function returns the correct value.
     function testFuzz_name_succeds(string memory _gasPayingTokenName) external {
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingTokenName()"), abi.encode(_gasPayingTokenName));
