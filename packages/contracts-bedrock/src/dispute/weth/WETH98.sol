@@ -24,8 +24,12 @@ import { IWETH } from "src/dispute/interfaces/IWETH.sol";
 /// @title WETH98
 /// @notice WETH98 is a version of WETH9 upgraded for Solidity 0.8.x.
 contract WETH98 is IWETH {
-    string public constant name = "Wrapped Ether";
-    string public constant symbol = "WETH";
+    function name() external view virtual override returns (string memory) {
+        return "Wrapped Ether";
+    }
+    function symbol() external view virtual override returns (string memory) {
+        return "WETH";
+    }
     uint8 public constant decimals = 18;
 
     mapping(address => uint256) public balanceOf;
@@ -33,6 +37,11 @@ contract WETH98 is IWETH {
 
     /// @notice Pipes to deposit.
     receive() external payable {
+        deposit();
+    }
+
+    /// @notice Pipes to deposit.
+    function() external payable {
         deposit();
     }
 
