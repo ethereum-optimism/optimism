@@ -178,10 +178,7 @@ abstract contract StandardBridge is Initializable {
         _initiateBridgeETH(msg.sender, _to, msg.value, _minGasLimit, _extraData);
     }
 
-    /// @notice Sends ERC20 tokens to the sender's address on the other chain. Note that if the
-    ///         ERC20 token on the other chain does not recognize the local token as the correct
-    ///         pair token, the ERC20 bridge will fail and the tokens will be returned to sender on
-    ///         this chain.
+    /// @notice Sends ERC20 tokens to the sender's address on the other chain.
     /// @param _localToken  Address of the ERC20 on this chain.
     /// @param _remoteToken Address of the corresponding token on the remote chain.
     /// @param _amount      Amount of local tokens to deposit.
@@ -203,10 +200,7 @@ abstract contract StandardBridge is Initializable {
         _initiateBridgeERC20(_localToken, _remoteToken, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
-    /// @notice Sends ERC20 tokens to a receiver's address on the other chain. Note that if the
-    ///         ERC20 token on the other chain does not recognize the local token as the correct
-    ///         pair token, the ERC20 bridge will fail and the tokens will be returned to sender on
-    ///         this chain.
+    /// @notice Sends ERC20 tokens to a receiver's address on the other chain.
     /// @param _localToken  Address of the ERC20 on this chain.
     /// @param _remoteToken Address of the corresponding token on the remote chain.
     /// @param _to          Address of the receiver.
