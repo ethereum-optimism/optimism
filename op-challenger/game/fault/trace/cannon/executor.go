@@ -26,8 +26,8 @@ const (
 
 var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json.gz$`)
 
-type snapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error)
-type cmdExecutor func(ctx context.Context, l log.Logger, binary string, args ...string) error
+type SnapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error)
+type CmdExecutor func(ctx context.Context, l log.Logger, binary string, args ...string) error
 
 type Executor struct {
 	logger           log.Logger
@@ -44,8 +44,8 @@ type Executor struct {
 	absolutePreState string
 	snapshotFreq     uint
 	infoFreq         uint
-	selectSnapshot   snapshotSelect
-	cmdExecutor      cmdExecutor
+	selectSnapshot   SnapshotSelect
+	cmdExecutor      CmdExecutor
 }
 
 func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs LocalGameInputs) *Executor {
@@ -64,8 +64,8 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 		absolutePreState: cfg.CannonAbsolutePreState,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
 		infoFreq:         cfg.CannonInfoFreq,
-		selectSnapshot:   findStartingSnapshot,
-		cmdExecutor:      runCmd,
+		selectSnapshot:   FindStartingSnapshot,
+		cmdExecutor:      RunCmd,
 	}
 }
 
@@ -85,7 +85,7 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, proofsDir)
-	dataDir := preimageDir(dir)
+	dataDir := PreimageDir(dir)
 	lastGeneratedState := filepath.Join(dir, finalState)
 	args := []string{
 		"run",
@@ -141,11 +141,11 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 	return err
 }
 
-func preimageDir(dir string) string {
+func PreimageDir(dir string) string {
 	return filepath.Join(dir, preimagesDir)
 }
 
-func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
+func RunCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
 	stdOut := oplog.NewWriter(l, log.LevelInfo)
 	defer stdOut.Close()
@@ -157,9 +157,9 @@ func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) er
 	return cmd.Run()
 }
 
-// findStartingSnapshot finds the closest snapshot before the specified traceIndex in snapDir.
+// FindStartingSnapshot finds the closest snapshot before the specified traceIndex in snapDir.
 // If no suitable snapshot can be found it returns absolutePreState.
-func findStartingSnapshot(logger log.Logger, snapDir string, absolutePreState string, traceIndex uint64) (string, error) {
+func FindStartingSnapshot(logger log.Logger, snapDir string, absolutePreState string, traceIndex uint64) (string, error) {
 	// Find the closest snapshot to start from
 	entries, err := os.ReadDir(snapDir)
 	if err != nil {

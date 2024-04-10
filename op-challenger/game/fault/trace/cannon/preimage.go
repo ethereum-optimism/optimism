@@ -29,17 +29,17 @@ var (
 
 type preimageSource func(key common.Hash) ([]byte, error)
 
-type preimageLoader struct {
+type PreimageLoader struct {
 	getPreimage preimageSource
 }
 
-func newPreimageLoader(getPreimage preimageSource) *preimageLoader {
-	return &preimageLoader{
+func NewPreimageLoader(getPreimage preimageSource) *PreimageLoader {
+	return &PreimageLoader{
 		getPreimage: getPreimage,
 	}
 }
 
-func (l *preimageLoader) LoadPreimage(proof *proofData) (*types.PreimageOracleData, error) {
+func (l *PreimageLoader) LoadPreimage(proof *ProofData) (*types.PreimageOracleData, error) {
 	if len(proof.OracleKey) == 0 {
 		return nil, nil
 	}
@@ -53,7 +53,7 @@ func (l *preimageLoader) LoadPreimage(proof *proofData) (*types.PreimageOracleDa
 	}
 }
 
-func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOracleData, error) {
+func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOracleData, error) {
 	// The key for a blob field element is a keccak hash of commitment++fieldElementIndex.
 	// First retrieve the preimage of the key as a keccak hash so we have the commitment and required field element
 	inputsKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
@@ -102,7 +102,7 @@ func (l *preimageLoader) loadBlobPreimage(proof *proofData) (*types.PreimageOrac
 	return types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, requiredFieldElement, commitment, kzgProof[:]), nil
 }
 
-func (l *preimageLoader) loadPrecompilePreimage(proof *proofData) (*types.PreimageOracleData, error) {
+func (l *PreimageLoader) loadPrecompilePreimage(proof *ProofData) (*types.PreimageOracleData, error) {
 	inputKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
 	input, err := l.getPreimage(inputKey)
 	if err != nil {

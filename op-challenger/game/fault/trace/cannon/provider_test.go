@@ -110,7 +110,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -136,7 +136,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -162,7 +162,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		initGenerator.proof = &proofData{
+		initGenerator.proof = &ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -180,7 +180,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &ProofData{
 			ClaimValue: common.Hash{0xaa},
 			StateData:  []byte{0xbb},
 			ProofData:  []byte{0xcc},
@@ -226,7 +226,8 @@ func setupTestData(t *testing.T) (string, string) {
 		path := filepath.Join(srcDir, entry.Name())
 		file, err := testData.ReadFile(path)
 		require.NoErrorf(t, err, "reading %v", path)
-		err = writeGzip(filepath.Join(dataDir, proofsDir, entry.Name()+".gz"), file)
+		proofFile := filepath.Join(dataDir, proofsDir, entry.Name()+".gz")
+		err = ioutil.WriteCompressedBytes(proofFile, file, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 		require.NoErrorf(t, err, "writing %v", path)
 	}
 	return dataDir, "state.json"
@@ -246,7 +247,7 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTr
 type stubGenerator struct {
 	generated  []int // Using int makes assertions easier
 	finalState *mipsevm.State
-	proof      *proofData
+	proof      *ProofData
 }
 
 func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {

@@ -137,7 +137,7 @@ func TestRunCmdLogsOutput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
-	err := runCmd(ctx, logger, bin, "Hello World")
+	err := RunCmd(ctx, logger, bin, "Hello World")
 	require.NoError(t, err)
 	levelFilter := testlog.NewLevelFilter(log.LevelInfo)
 	msgFilter := testlog.NewMessageFilter("Hello World")
@@ -157,25 +157,25 @@ func TestFindStartingSnapshot(t *testing.T) {
 
 	t.Run("UsePrestateWhenSnapshotsDirDoesNotExist", func(t *testing.T) {
 		dir := t.TempDir()
-		snapshot, err := findStartingSnapshot(logger, filepath.Join(dir, "doesNotExist"), execTestCannonPrestate, 1200)
+		snapshot, err := FindStartingSnapshot(logger, filepath.Join(dir, "doesNotExist"), execTestCannonPrestate, 1200)
 		require.NoError(t, err)
 		require.Equal(t, execTestCannonPrestate, snapshot)
 	})
 
 	t.Run("UsePrestateWhenSnapshotsDirEmpty", func(t *testing.T) {
 		dir := withSnapshots(t)
-		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 1200)
+		snapshot, err := FindStartingSnapshot(logger, dir, execTestCannonPrestate, 1200)
 		require.NoError(t, err)
 		require.Equal(t, execTestCannonPrestate, snapshot)
 	})
 
 	t.Run("UsePrestateWhenNoSnapshotBeforeTraceIndex", func(t *testing.T) {
 		dir := withSnapshots(t, "100.json", "200.json")
-		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 99)
+		snapshot, err := FindStartingSnapshot(logger, dir, execTestCannonPrestate, 99)
 		require.NoError(t, err)
 		require.Equal(t, execTestCannonPrestate, snapshot)
 
-		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 100)
+		snapshot, err = FindStartingSnapshot(logger, dir, execTestCannonPrestate, 100)
 		require.NoError(t, err)
 		require.Equal(t, execTestCannonPrestate, snapshot)
 	})
@@ -183,19 +183,19 @@ func TestFindStartingSnapshot(t *testing.T) {
 	t.Run("UseClosestAvailableSnapshot", func(t *testing.T) {
 		dir := withSnapshots(t, "100.json.gz", "123.json.gz", "250.json.gz")
 
-		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 101)
+		snapshot, err := FindStartingSnapshot(logger, dir, execTestCannonPrestate, 101)
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 
-		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 123)
+		snapshot, err = FindStartingSnapshot(logger, dir, execTestCannonPrestate, 123)
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 
-		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 124)
+		snapshot, err = FindStartingSnapshot(logger, dir, execTestCannonPrestate, 124)
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(dir, "123.json.gz"), snapshot)
 
-		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 256)
+		snapshot, err = FindStartingSnapshot(logger, dir, execTestCannonPrestate, 256)
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(dir, "250.json.gz"), snapshot)
 	})
@@ -203,14 +203,14 @@ func TestFindStartingSnapshot(t *testing.T) {
 	t.Run("IgnoreDirectories", func(t *testing.T) {
 		dir := withSnapshots(t, "100.json.gz")
 		require.NoError(t, os.Mkdir(filepath.Join(dir, "120.json.gz"), 0o777))
-		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 150)
+		snapshot, err := FindStartingSnapshot(logger, dir, execTestCannonPrestate, 150)
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 	})
 
 	t.Run("IgnoreUnexpectedFiles", func(t *testing.T) {
 		dir := withSnapshots(t, ".file", "100.json.gz", "foo", "bar.json.gz")
-		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 150)
+		snapshot, err := FindStartingSnapshot(logger, dir, execTestCannonPrestate, 150)
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 	})

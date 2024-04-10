@@ -28,7 +28,7 @@ const (
 	diskStateCache = "state.json.gz"
 )
 
-type proofData struct {
+type ProofData struct {
 	ClaimValue   common.Hash   `json:"post"`
 	StateData    hexutil.Bytes `json:"state-data"`
 	ProofData    hexutil.Bytes `json:"proof-data"`
@@ -42,7 +42,7 @@ type CannonMetricer interface {
 }
 
 type ProofGenerator interface {
-	// GenerateProof executes cannon to generate a proof at the specified trace index in dataDir.
+	// GenerateProof executes FPVM binary to generate a proof at the specified trace index in dataDir.
 	GenerateProof(ctx context.Context, dataDir string, proofAt uint64) error
 }
 
@@ -52,7 +52,7 @@ type CannonTraceProvider struct {
 	prestate       string
 	generator      ProofGenerator
 	gameDepth      types.Depth
-	preimageLoader *preimageLoader
+	preimageLoader *PreimageLoader
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
@@ -66,7 +66,7 @@ func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, l
 		prestate:       cfg.CannonAbsolutePreState,
 		generator:      NewExecutor(logger, m, cfg, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: newPreimageLoader(kvstore.NewDiskKV(preimageDir(dir)).Get),
+		preimageLoader: NewPreimageLoader(kvstore.NewDiskKV(PreimageDir(dir)).Get),
 	}
 }
 
@@ -137,10 +137,10 @@ func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (com
 
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
-func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofData, error) {
+func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*ProofData, error) {
 	// Attempt to read the last step from disk cache
 	if p.lastStep == 0 {
-		step, err := readLastStep(p.dir)
+		step, err := ReadLastStep(p.dir)
 		if err != nil {
 			p.logger.Warn("Failed to read last step from disk cache", "err", err)
 		} else {
@@ -177,7 +177,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 				if err != nil {
 					return nil, fmt.Errorf("cannot hash witness: %w", err)
 				}
-				proof := &proofData{
+				proof := &ProofData{
 					ClaimValue:   witnessHash,
 					StateData:    hexutil.Bytes(witness),
 					ProofData:    []byte{},
@@ -185,7 +185,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 					OracleValue:  nil,
 					OracleOffset: 0,
 				}
-				if err := writeLastStep(p.dir, proof, p.lastStep); err != nil {
+				if err := WriteLastStep(p.dir, proof, p.lastStep); err != nil {
 					p.logger.Warn("Failed to write last step to disk cache", "step", p.lastStep)
 				}
 				return proof, nil
@@ -198,7 +198,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 		return nil, fmt.Errorf("cannot open proof file (%v): %w", path, err)
 	}
 	defer file.Close()
-	var proof proofData
+	var proof ProofData
 	err = json.NewDecoder(file).Decode(&proof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read proof (%v): %w", path, err)
@@ -218,8 +218,8 @@ type diskStateCacheObj struct {
 	Step uint64 `json:"step"`
 }
 
-// readLastStep reads the tracked last step from disk.
-func readLastStep(dir string) (uint64, error) {
+// ReadLastStep reads the tracked last step from disk.
+func ReadLastStep(dir string) (uint64, error) {
 	state := diskStateCacheObj{}
 	file, err := ioutil.OpenDecompressed(filepath.Join(dir, diskStateCache))
 	if err != nil {
@@ -233,8 +233,8 @@ func readLastStep(dir string) (uint64, error) {
 	return state.Step, nil
 }
 
-// writeLastStep writes the last step and proof to disk as a persistent cache.
-func writeLastStep(dir string, proof *proofData, step uint64) error {
+// WriteLastStep writes the last step and proof to disk as a persistent cache.
+func WriteLastStep(dir string, proof *ProofData, step uint64) error {
 	state := diskStateCacheObj{Step: step}
 	lastStepFile := filepath.Join(dir, diskStateCache)
 	if err := ioutil.WriteCompressedJson(lastStepFile, state); err != nil {
@@ -289,7 +289,7 @@ func NewTraceProviderForTest(logger log.Logger, m CannonMetricer, cfg *config.Co
 		prestate:       cfg.CannonAbsolutePreState,
 		generator:      NewExecutor(logger, m, cfg, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: newPreimageLoader(kvstore.NewDiskKV(preimageDir(dir)).Get),
+		preimageLoader: NewPreimageLoader(kvstore.NewDiskKV(PreimageDir(dir)).Get),
 	}
 	return &CannonTraceProviderForTest{p}
 }
