@@ -92,7 +92,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 0.10.0
-    string public constant version = "0.10.0";
+    string public constant version = "0.10.1";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
