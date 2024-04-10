@@ -25,7 +25,9 @@ const (
 type ShadowCompressor struct {
 	config Config
 
-	buf      bytes.Buffer
+	zlibBuf      bytes.Buffer
+	brotliBuf   bytes.Buffer
+	zstdBuf   bytes.Buffer
 	compress *zlib.Writer
 	brotliCompress *brotli.Writer
 	zstdCompress *zstd.Writer
@@ -54,7 +56,7 @@ func NewShadowCompressor(config Config) (derive.Compressor, error) {
 	}
 
 	var err error
-	c.compress, err = zlib.NewWriterLevel(&c.buf, zlib.BestCompression)
+	c.compress, err = zlib.NewWriterLevel(&c.zlibBuf, zlib.BestCompression)
 	if err != nil {
 		return nil, err
 	}
@@ -65,12 +67,12 @@ func NewShadowCompressor(config Config) (derive.Compressor, error) {
 
 	// add brotli
 	c.brotliCompress = brotli.NewWriterLevel(
-		&c.buf,
+		&c.brotliBuf,
 		brotli.BestCompression,
 	)
 
 	// add zstd
-	c.zstdCompress = zstd.NewWriterLevel(&c.buf, 22)
+	c.zstdCompress = zstd.NewWriterLevel(&c.zstdBuf, 22)
 
 	c.compressAlgo = config.CompressionAlgo
 
@@ -79,6 +81,7 @@ func NewShadowCompressor(config Config) (derive.Compressor, error) {
 }
 
 func (t *ShadowCompressor) Write(p []byte) (int, error) {
+	fmt.Println(t.compressAlgo)
 	if t.fullErr != nil {
 		return 0, t.fullErr
 	}
@@ -124,18 +127,24 @@ func (t *ShadowCompressor) Close() error {
 }
 
 func (t *ShadowCompressor) Read(p []byte) (int, error) {
-	return t.buf.Read(p)
+	if t.compressAlgo == "brotli" {
+		return t.brotliBuf.Read(p)
+	} else if t.compressAlgo == "zstd" {
+		return t.zstdBuf.Read(p)
+	}
+
+	return t.zlibBuf.Read(p)
 }
 
 func (t *ShadowCompressor) Reset() {
-	t.buf.Reset()
 	if t.compressAlgo == "brotli" {
-		t.brotliCompress.Reset(&t.buf)
+		t.brotliBuf.Reset()
+		t.brotliCompress.Reset(&t.brotliBuf)
 	} else if t.compressAlgo == "zstd" {
 		// no reset for zstd, so initialize new compressor instead
-		t.zstdCompress = zstd.NewWriterLevel(&t.buf, 22)
+		t.zstdCompress = zstd.NewWriterLevel(&t.zstdBuf, 22)
 	} else {
-		t.compress.Reset(&t.buf)
+		t.compress.Reset(&t.zlibBuf)
 	}
 	t.shadowBuf.Reset()
 	t.shadowCompress.Reset(&t.shadowBuf)
@@ -144,7 +153,12 @@ func (t *ShadowCompressor) Reset() {
 }
 
 func (t *ShadowCompressor) Len() int {
-	return t.buf.Len()
+	if t.compressAlgo == "brotli" {
+		return t.brotliBuf.Len()
+	} else if t.compressAlgo == "zstd" {
+		return t.zstdBuf.Len()
+	}
+	return t.zlibBuf.Len()
 }
 
 func (t *ShadowCompressor) Flush() error {
