@@ -210,11 +210,12 @@ type SyncClient struct {
 	// inFlight requests are not repeated
 	inFlight map[uint64]*atomic.Bool
 
-	rangeRequests       chan rangeRequest
-	activeRangeRequests map[uint64]bool
-	rangeReqId          uint64
-	peerRequests        chan peerRequest
-	inFlightChecks      chan inFlightCheck
+	rangeRequests         chan rangeRequest
+	activeRangeRequests   map[uint64]bool
+	activeRangeRequestsMu sync.Mutex
+	rangeReqId            uint64
+	peerRequests          chan peerRequest
+	inFlightChecks        chan inFlightCheck
 
 	results chan syncResult
 
@@ -395,7 +396,9 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 
 	// Create shared rangeReqId so associated peerRequests can all be cancelled by setting a single flag
 	atomic.AddUint64(&s.rangeReqId, 1)
+	s.activeRangeRequestsMu.Lock()
 	s.activeRangeRequests[s.rangeReqId] = true
+	s.activeRangeRequestsMu.Unlock()
 
 	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
 	for i := uint64(0); ; i++ {
@@ -537,7 +540,10 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 		// once the peer is available, wait for a sync request.
 		select {
 		case pr := <-s.peerRequests:
-			if !s.activeRangeRequests[pr.rangeReqId] {
+			s.activeRangeRequestsMu.Lock()
+			isActive := s.activeRangeRequests[pr.rangeReqId]
+			s.activeRangeRequestsMu.Unlock()
+			if !isActive {
 				log.Debug("dropping cancelled p2p sync request", "num", pr.num)
 				delete(s.inFlight, pr.num)
 				continue
@@ -557,7 +563,9 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 					resultCode = re.ResultCode()
 					if re.ResultCode() == 1 { // indicates block not found error
 						log.Warn("cancelling p2p sync range request", "rangeReqId", pr.rangeReqId)
+						s.activeRangeRequestsMu.Lock()
 						delete(s.activeRangeRequests, pr.rangeReqId)
+						s.activeRangeRequestsMu.Unlock()
 					}
 				} else {
 					resultCode = 1
