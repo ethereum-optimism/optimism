@@ -415,6 +415,24 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "gasPayingToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "decimals_",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "contract CrossDomainMessenger",
@@ -425,10 +443,28 @@
         "internalType": "contract SuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
+      },
+      {
+        "internalType": "contract SystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
       }
     ],
     "name": "initialize",
     "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isCustomGasToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -490,6 +526,19 @@
     "outputs": [
       {
         "internalType": "contract SuperchainConfig",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "systemConfig",
+    "outputs": [
+      {
+        "internalType": "contract SystemConfig",
         "name": "",
         "type": "address"
       }
