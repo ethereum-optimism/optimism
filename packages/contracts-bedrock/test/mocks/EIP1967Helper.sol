@@ -29,7 +29,7 @@ library EIP1967Helper {
         return address(uint160(uint256(vm.load(address(_proxy), PROXY_IMPLEMENTATION_SLOT))));
     }
 
-    function setImplementation(address _addr, address _admin) internal {
-        vm.store(_addr, PROXY_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(_admin))));
+    function setImplementation(address _addr, address _impl) internal {
+        vm.store(_addr, PROXY_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(_impl))));
     }
 }

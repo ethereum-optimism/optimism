@@ -1223,6 +1223,10 @@ func testFees(t *testing.T, cfg SystemConfig) {
 	l2Verif := sys.Clients["verifier"]
 	l1 := sys.Clients["l1"]
 
+	// Wait for first block after genesis. The genesis block has zero L1Block values and will throw off the GPO checks
+	_, err = geth.WaitForBlock(big.NewInt(1), l2Verif, time.Minute)
+	require.NoError(t, err)
+
 	config := sys.L2Genesis().Config
 
 	sga := &stateGetterAdapter{

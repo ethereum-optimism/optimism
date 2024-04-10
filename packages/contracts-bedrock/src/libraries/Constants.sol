@@ -44,4 +44,3 @@ library Constants {
         return config;
     }
 }
-

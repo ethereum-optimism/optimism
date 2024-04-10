@@ -10,9 +10,12 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -803,6 +806,7 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	d.Root = dump.Root
 	d.Accounts = make(map[string]gstate.DumpAccount)
 	for addr, acc := range dump.Accounts {
+		acc := acc
 		d.Accounts[addr.String()] = gstate.DumpAccount{
 			Balance:     acc.Balance,
 			Nonce:       (uint64)(acc.Nonce),
@@ -812,6 +816,45 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 			Storage:     acc.Storage,
 			Address:     acc.Address,
 			AddressHash: acc.AddressHash,
+		}
+	}
+	return nil
+}
+
+type ForgeAllocs struct {
+	Accounts core.GenesisAlloc `json:"accounts"`
+}
+
+func (d *ForgeAllocs) Copy() *ForgeAllocs {
+	out := make(core.GenesisAlloc, len(d.Accounts))
+	maps.Copy(out, d.Accounts)
+	return &ForgeAllocs{Accounts: out}
+}
+
+func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
+	// forge, since integrating Alloy, likes to hex-encode everything.
+	type forgeAllocAccount struct {
+		Balance hexutil.Big                 `json:"balance"`
+		Nonce   hexutil.Uint64              `json:"nonce"`
+		Code    hexutil.Bytes               `json:"code,omitempty"`
+		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
+	}
+	type forgeAllocs struct {
+		Accounts map[common.Address]forgeAllocAccount `json:"accounts"`
+	}
+	var allocs forgeAllocs
+	if err := json.Unmarshal(b, &allocs); err != nil {
+		return err
+	}
+	d.Accounts = make(core.GenesisAlloc, len(allocs.Accounts))
+	for addr, acc := range allocs.Accounts {
+		acc := acc
+		d.Accounts[addr] = core.GenesisAccount{
+			Code:       acc.Code,
+			Storage:    acc.Storage,
+			Balance:    acc.Balance.ToInt(),
+			Nonce:      (uint64)(acc.Nonce),
+			PrivateKey: nil,
 		}
 	}
 	return nil
