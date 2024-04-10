@@ -23,6 +23,8 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
+import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 
 contract OptimismPortal_Test is CommonTest {
     address depositor;
@@ -376,6 +378,35 @@ contract OptimismPortal_Test is CommonTest {
     function test_setGasPayingToken_notSystemConfig_fails() external {
         vm.expectRevert();
         optimismPortal.setGasPayingToken({ _token: address(0), _decimals: 0, _name: "", _symbol: "" });
+    }
+
+    function testFuzz_balance_ether_succeeds(uint256 _amount) external {
+        // Check that the gas paying token is set to ether
+        (address token,) = optimismPortal.gasPayingToken();
+        assertEq(token, Constants.ETHER);
+
+        // Increase the balance of the gas paying token
+        vm.deal(address(optimismPortal), _amount);
+
+        // Check that the balance has been correctly updated
+        assertEq(optimismPortal.balance(), address(optimismPortal).balance);
+    }
+
+    function testFuzz_balance_nonEther_succeeds(uint256 _amount) external {
+        MockERC20 token = new MockERC20("Test", "TST", 18);
+
+        // Mint the token to the contract and approve the token for the portal
+        token.mint(address(this), _amount);
+        token.approve(address(optimismPortal), _amount);
+
+        // Mock the gas paying token to be the ERC20 token
+        vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
+
+        // Deposit the token into the portal
+        optimismPortal.depositERC20Transaction(address(0), _amount, 0, optimismPortal.minimumGasLimit(0), false, "");
+
+        // Check that the balance has been correctly updated
+        assertEq(optimismPortal.balance(), _amount);
     }
 }
 
