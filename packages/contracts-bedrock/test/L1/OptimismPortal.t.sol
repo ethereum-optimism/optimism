@@ -71,6 +71,10 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(prevBaseFee, 1 gwei);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, uint64(block.number));
+        (address token, uint8 decimals) = optimismPortal.gasPayingToken();
+        (address expectedToken, uint8 expectedDecimals) = systemConfig.gasPayingToken();
+        assertEq(token, expectedToken);
+        assertEq(decimals, expectedDecimals);
     }
 
     /// @dev Tests that `pause` successfully pauses
@@ -347,6 +351,19 @@ contract OptimismPortal_Test is CommonTest {
         // But not the block after it.
         vm.expectRevert(stdError.indexOOBError);
         assertEq(optimismPortal.isOutputFinalized(nextOutputIndex + 1), false);
+    }
+
+    function test_gasPayingToken_ether_succeeds() external {
+        (address token, uint8 decimals) = optimismPortal.gasPayingToken();
+        assertEq(token, Constants.ETHER);
+        assertEq(decimals, 18);
+    }
+
+    function test_gasPayingToken_nonEther_succeeds() external {
+        vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), 2));
+        (address token, uint8 decimals) = optimismPortal.gasPayingToken();
+        assertEq(token, address(1));
+        assertEq(decimals, 2);
     }
 
     function testFuzz_setGasPayingToken_succeeds(
