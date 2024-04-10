@@ -625,7 +625,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
     }
 
     /// @dev Tests that `finalizeWithdrawalTransaction` succeeds.
-    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_succeeds() external {
+    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_ether_succeeds() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
         vm.expectEmit(true, true, true, true);
@@ -637,7 +637,60 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         emit WithdrawalFinalized(_withdrawalHash, true);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
-        assert(address(bob).balance == bobBalanceBefore + 100);
+        assertEq(address(bob).balance, bobBalanceBefore + 100);
+    }
+
+    /// @dev Tests that `finalizeWithdrawalTransaction` succeeds.
+    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_nonEther_succeeds() external {
+        MockERC20 token = new MockERC20("Test", "TST", 18);
+
+        _defaultTx.data = hex"11";
+
+        // Mint the token to the contract and approve the token for the portal
+        token.mint(address(this), _defaultTx.value);
+        token.approve(address(optimismPortal), _defaultTx.value);
+
+        // Mock the gas paying token to be the ERC20 token
+        vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
+
+        // Deposit the token into the portal
+        optimismPortal.depositERC20Transaction(
+            address(bob), _defaultTx.value, 0, optimismPortal.minimumGasLimit(0), false, ""
+        );
+
+        assertEq(optimismPortal.balance(), _defaultTx.value);
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.expectEmit(true, true, false, true);
+        emit WithdrawalFinalized(_withdrawalHash, true);
+
+        vm.expectCall(_defaultTx.target, 0, _defaultTx.data);
+
+        optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertEq(optimismPortal.balance(), 0);
+        assertEq(token.balanceOf(address(bob)), 100);
+    }
+
+    /// @dev Tests that `finalizeWithdrawalTransaction` succeeds.
+    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_nonEther_targetToken_reverts() external {
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeWithSignature("gasPayingToken()"),
+            abi.encode(address(_defaultTx.target), 18)
+        );
+
+        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        vm.expectRevert("OptimismPortal: cannot call gas paying token");
+
+        optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
