@@ -192,8 +192,6 @@ func NewServer(
 		maxBatchSize:         maxBatchSize,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: defaultWSHandshakeTimeout,
-			// see https://pkg.go.dev/github.com/gorilla/websocket#hdr-Origin_Considerations
-			CheckOrigin: func(r *http.Request) bool { return true },
 		},
 		mainLim:                mainLim,
 		overrideLims:           overrideLims,

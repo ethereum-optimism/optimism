@@ -272,6 +272,14 @@ func Start(config *Config) (*Server, func(), error) {
 		return nil, nil, fmt.Errorf("error creating server: %w", err)
 	}
 
+	// Enable to support browser websocket connections.
+	// See https://pkg.go.dev/github.com/gorilla/websocket#hdr-Origin_Considerations
+	if config.Server.AllowAllOrigins {
+		srv.upgrader.CheckOrigin = func(r *http.Request) bool {
+			return true
+		}
+	}
+
 	if config.Metrics.Enabled {
 		addr := fmt.Sprintf("%s:%d", config.Metrics.Host, config.Metrics.Port)
 		log.Info("starting metrics server", "addr", addr)
