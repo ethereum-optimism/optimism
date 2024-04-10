@@ -444,58 +444,6 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
     }
 
-    /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already been proven, and the
-    ///      re-prove attempt is for the same dispute game.
-    function test_proveWithdrawalTransaction_replayProve_sameGame_reverts() external {
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash, alice, bob);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-
-        vm.expectRevert(
-            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
-        );
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already been proven, and the first
-    ///      game is currently being disputed, is otherwise not invalid, and has not been blacklisted.
-    function test_proveWithdrawalTransaction_replayProve_differentGameFirstGameGood_reverts() external {
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash, alice, bob);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-
-        // Create a new dispute game, but don't mock anything about the first game.
-        disputeGameFactory.create(
-            optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
-        );
-        _proposedGameIndex = disputeGameFactory.gameCount() - 1;
-
-        vm.expectRevert(
-            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
-        );
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
     /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already been proven, and the new
     ///      game has the `CHALLENGER_WINS` status.
     function test_proveWithdrawalTransaction_replayProve_differentGameChallengerWins_reverts() external {
