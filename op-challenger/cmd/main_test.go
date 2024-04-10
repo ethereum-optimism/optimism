@@ -30,7 +30,7 @@ var (
 	cannonL2                = "http://example.com:9545"
 	rollupRpc               = "http://example.com:8555"
 	asteriscNetwork         = "op-mainnet"
-	asteriscBin             = "./bin/astersic"
+	asteriscBin             = "./bin/asterisc"
 	asteriscServer          = "./bin/op-program"
 	asteriscPreState        = "./pre.json"
 	asteriscL2              = "http://example.com:9545"
@@ -286,7 +286,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAstersicAbsolutePrestate-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestate-%v", traceType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-prestate"))
 			})
