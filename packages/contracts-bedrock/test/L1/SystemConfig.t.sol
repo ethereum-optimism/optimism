@@ -8,10 +8,12 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract dependencies
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Proxy } from "src/universal/Proxy.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 
 // Target contract
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -222,6 +224,77 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
         assertEq(systemConfig.gasPayingTokenName(), token.name());
         assertEq(systemConfig.gasPayingTokenSymbol(), token.symbol());
+    }
+
+    function test_initialize_customGasToken_fails() external {
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+
+        vm.mockCall(address(token), abi.encodeWithSelector(token.decimals.selector), abi.encode(8));
+
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: bad decimals of gas paying token");
+        systemConfig.initialize({
+            _owner: alice,
+            _overhead: 2100,
+            _scalar: 1000000,
+            _batcherHash: bytes32(hex"abcd"),
+            _gasLimit: 30_000_000,
+            _unsafeBlockSigner: address(1),
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _batchInbox: address(0),
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                l2OutputOracle: address(0),
+                optimismPortal: address(optimismPortal),
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: address(token)
+            })
+        });
+    }
+
+    function test_initialize_customGasTokenCall_succeeds() external {
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+
+        vm.expectCall(address(optimismPortal), abi.encodeCall(optimismPortal.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL"))));
+
+        vm.expectEmit(address(optimismPortal));
+        emit TransactionDeposited(
+            0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            0,                   // deposit version
+            abi.encodePacked(
+                uint256(0),      // mint
+                uint256(0),      // value
+                uint64(80000),   // gasLimit
+                false,           // isCreation,
+                abi.encodeCall(L1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
+            )
+        );
+
+        vm.prank(systemConfig.owner());
+        systemConfig.initialize({
+            _owner: alice,
+            _overhead: 2100,
+            _scalar: 1000000,
+            _batcherHash: bytes32(hex"abcd"),
+            _gasLimit: 30_000_000,
+            _unsafeBlockSigner: address(1),
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _batchInbox: address(0),
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                l2OutputOracle: address(0),
+                optimismPortal: address(optimismPortal),
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: address(token)
+            })
+        });
     }
 }
 
