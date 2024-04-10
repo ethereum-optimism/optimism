@@ -206,6 +206,34 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
     }
 }
 
+// TODO: temp location for contract
+contract SillyToken {
+    string public name;
+    string public symbol;
+    uint8 public decimals;
+
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+    }
+}
+
+contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
+    SillyToken token;
+
+    function setUp() public override {
+        token = new SillyToken("Silly", "SIL", 18);
+        super.enableCustomGasToken(address(token));
+        super.setUp();
+    }
+
+    function test_initialize_customGasToken_succeeds() external {
+        (address addr, uint8 decimals) = systemConfig.gasPayingToken();
+        assertEq(addr, address(token));
+    }
+}
+
 contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
     function test_setBatcherHash_notOwner_reverts() external {
