@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
@@ -92,7 +92,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 0.10.0
-    string public constant version = "0.10.0";
+    string public constant version = "0.10.1";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
