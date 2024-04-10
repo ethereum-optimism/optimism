@@ -41,7 +41,7 @@ contract WETH98 is IWETH {
     }
 
     /// @notice Pipes to deposit.
-    function() external payable {
+    fallback() external payable {
         deposit();
     }
 
