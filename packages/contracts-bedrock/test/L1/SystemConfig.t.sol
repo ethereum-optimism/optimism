@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -206,24 +207,11 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
     }
 }
 
-// TODO: temp location for contract
-contract SillyToken {
-    string public name;
-    string public symbol;
-    uint8 public decimals;
-
-    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
-        name = _name;
-        symbol = _symbol;
-        decimals = _decimals;
-    }
-}
-
 contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
-    SillyToken token;
+    ERC20 token;
 
     function setUp() public override {
-        token = new SillyToken("Silly", "SIL", 18);
+        token = new ERC20("Silly", "SIL");
         super.enableCustomGasToken(address(token));
         super.setUp();
     }
@@ -231,6 +219,10 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     function test_initialize_customGasToken_succeeds() external {
         (address addr, uint8 decimals) = systemConfig.gasPayingToken();
         assertEq(addr, address(token));
+        assertEq(decimals, 18);
+
+        assertEq(systemConfig.gasPayingTokenName(), token.name());
+        assertEq(systemConfig.gasPayingTokenSymbol(), token.symbol());
     }
 }
 
