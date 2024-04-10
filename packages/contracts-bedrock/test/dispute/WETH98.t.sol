@@ -15,14 +15,14 @@ contract WETH98_Test is Test {
 
     function test_receive_succeeds() public {
         vm.prank(alice);
-        (bool success, ) = address(weth).call{value: 1 ether}("");
+        (bool success,) = address(weth).call{ value: 1 ether }("");
         assertTrue(success);
         assertEq(weth.balanceOf(alice), 1 ether);
     }
 
     function test_fallback_succeeds() public {
         vm.prank(alice);
-        (bool success, ) = address(weth).call{value: 1 ether}(hex"1234");
+        (bool success,) = address(weth).call{ value: 1 ether }(hex"1234");
         assertTrue(success);
         assertEq(weth.balanceOf(alice), 1 ether);
     }
