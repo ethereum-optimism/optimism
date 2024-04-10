@@ -3,6 +3,8 @@ package op_e2e
 import (
 	"context"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -58,7 +60,7 @@ func TestStopStartSequencer(t *testing.T) {
 	blockBefore := latestBlock(t, l2Seq)
 	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
 	blockAfter := latestBlock(t, l2Seq)
-	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
+	require.Equal(t, blockBefore, blockAfter, "Chain advanced after stopping sequencer")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -82,7 +84,7 @@ func TestPersistSequencerStateWhenChanged(t *testing.T) {
 	InitParallel(t)
 	ctx := context.Background()
 	dir := t.TempDir()
-	stateFile := dir + "/state.json"
+	stateFile := filepath.Join(dir, "state.json")
 
 	cfg := DefaultSystemConfig(t)
 	// We don't need a verifier - just the sequencer is enough
@@ -112,7 +114,7 @@ func TestLoadSequencerStateOnStarted_Stopped(t *testing.T) {
 	InitParallel(t)
 	ctx := context.Background()
 	dir := t.TempDir()
-	stateFile := dir + "/state.json"
+	stateFile := filepath.Join(dir, "state.json")
 
 	// Prepare the persisted state file with sequencer stopped
 	configReader := node.NewConfigPersistence(stateFile)
@@ -145,7 +147,7 @@ func TestLoadSequencerStateOnStarted_Started(t *testing.T) {
 	InitParallel(t)
 	ctx := context.Background()
 	dir := t.TempDir()
-	stateFile := dir + "/state.json"
+	stateFile := filepath.Join(dir, "state.json")
 
 	// Prepare the persisted state file with sequencer stopped
 	configReader := node.NewConfigPersistence(stateFile)
@@ -217,6 +219,14 @@ func TestPostUnsafePayload(t *testing.T) {
 func assertPersistedSequencerState(t *testing.T, stateFile string, expected node.RunningState) {
 	configReader := node.NewConfigPersistence(stateFile)
 	state, err := configReader.SequencerState()
-	require.NoError(t, err)
+	require.NoError(t, err, "failed to read sequencer state from %s: %v", stateFile, err)
 	require.Equalf(t, expected, state, "expected sequencer state %v but was %v", expected, state)
+}
+
+func TestCleanup(t *testing.T) {
+	// This test ensures that the temporary directories used in the other tests are cleaned up
+	t.Cleanup(func() {
+		// Clean up any temporary directories used in the tests
+		require.NoError(t, os.RemoveAll(t.TempDir()))
+	})
 }
