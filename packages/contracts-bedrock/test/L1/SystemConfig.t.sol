@@ -73,7 +73,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         (address token, uint8 decimals) = impl.gasPayingToken();
         assertEq(token, Constants.ETHER);
         assertEq(decimals, 18);
-
     }
 
     /// @dev Tests that initailization sets the correct values.
