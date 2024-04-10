@@ -95,9 +95,7 @@ type syncResult struct {
 }
 
 type peerRequest struct {
-	num uint64
-
-	complete   *atomic.Bool
+	num        uint64
 	rangeReqId uint64
 }
 
@@ -350,11 +348,11 @@ func (s *SyncClient) mainLoop() {
 			cancel()
 		case check := <-s.inFlightChecks:
 			s.log.Info("Checking in flight", "num", check.num)
-			complete, ok := s.inFlight[check.num]
+			stillInFlight, ok := s.inFlight[check.num]
 			if !ok {
 				check.result <- false
 			} else {
-				check.result <- !complete.Load()
+				check.result <- stillInFlight.Load()
 			}
 		case <-s.resCtx.Done():
 			s.log.Info("stopped P2P req-resp L2 block sync client")
@@ -419,13 +417,15 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 			log.Debug("request still in-flight, not rescheduling sync request", "num", num)
 			continue // request still in flight
 		}
-		pr := peerRequest{num: num, complete: new(atomic.Bool), rangeReqId: s.rangeReqId}
+		pr := peerRequest{num: num, rangeReqId: s.rangeReqId}
 
 		log.Debug("Scheduling P2P block request", "num", num, "rangeReqId", s.rangeReqId)
 		// schedule number
 		select {
 		case s.peerRequests <- pr:
-			s.inFlight[num] = pr.complete
+			val := new(atomic.Bool)
+			val.Store(true)
+			s.inFlight[num] = val
 		case <-ctx.Done():
 			log.Info("did not schedule full P2P sync range", "current", num, "err", ctx.Err())
 			return
@@ -550,8 +550,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			resultCode := byte(0)
 			err := s.doRequest(ctx, id, pr.num)
 			if err != nil {
-				// mark as complete if there's an error: we are not sending any result and can complete immediately.
-				pr.complete.Store(true)
+				delete(s.inFlight, pr.num)
 				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
 
 				if re, ok := err.(requestResultErr); ok {
