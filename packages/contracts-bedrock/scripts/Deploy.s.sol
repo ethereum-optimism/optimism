@@ -377,16 +377,6 @@ contract Deploy is Deployer {
     /// @notice Initialize all of the implementations
     function initializeImplementations() public {
         console.log("Initializing implementations");
-        initializeSystemConfig();
-        initializeL1StandardBridge();
-        initializeL1ERC721Bridge();
-        initializeOptimismMintableERC20Factory();
-        initializeL1CrossDomainMessenger();
-        initializeL2OutputOracle();
-        initializeDisputeGameFactory();
-        initializeDelayedWETH();
-        initializeAnchorStateRegistry();
-
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
         // contract.
@@ -396,6 +386,16 @@ contract Deploy is Deployer {
         } else {
             initializeOptimismPortal();
         }
+
+        initializeSystemConfig();
+        initializeL1StandardBridge();
+        initializeL1ERC721Bridge();
+        initializeOptimismMintableERC20Factory();
+        initializeL1CrossDomainMessenger();
+        initializeL2OutputOracle();
+        initializeDisputeGameFactory();
+        initializeDelayedWETH();
+        initializeAnchorStateRegistry();
     }
 
     /// @notice Add Plasma setup to the OP chain
@@ -933,6 +933,11 @@ contract Deploy is Deployer {
 
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
 
+        address customGasTokenAddress = Constants.ETHER;
+        if (cfg.useCustomGasToken()) {
+            customGasTokenAddress = cfg.customGasTokenAddress();
+        }
+
         _upgradeAndCallViaSafe({
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
@@ -954,7 +959,7 @@ contract Deploy is Deployer {
                         l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
-                        gasPayingToken: Constants.ETHER
+                        gasPayingToken: customGasTokenAddress
                     })
                 )
                 )
