@@ -251,31 +251,25 @@ type stubGenerator struct {
 
 func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {
 	e.generated = append(e.generated, int(i))
+	var proofFile string
+	var data []byte
+	var err error
 	if e.finalState != nil && e.finalState.Step <= i {
 		// Requesting a trace index past the end of the trace
-		data, err := json.Marshal(e.finalState)
+		proofFile = filepath.Join(dir, finalState)
+		data, err = json.Marshal(e.finalState)
 		if err != nil {
 			return err
 		}
-		return writeGzip(filepath.Join(dir, finalState), data)
+		return ioutil.WriteCompressedBytes(proofFile, data, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 	}
 	if e.proof != nil {
-		proofFile := filepath.Join(dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
-		data, err := json.Marshal(e.proof)
+		proofFile = filepath.Join(dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
+		data, err = json.Marshal(e.proof)
 		if err != nil {
 			return err
 		}
-		return writeGzip(proofFile, data)
+		return ioutil.WriteCompressedBytes(proofFile, data, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 	}
 	return nil
-}
-
-func writeGzip(path string, data []byte) error {
-	writer, err := ioutil.OpenCompressed(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
-	if err != nil {
-		return err
-	}
-	defer writer.Close()
-	_, err = writer.Write(data)
-	return err
 }
