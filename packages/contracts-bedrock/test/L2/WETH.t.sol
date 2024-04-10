@@ -16,7 +16,7 @@ contract WETH_Test is CommonTest {
     }
 
     /// @dev Tests that the symbol function returns the correct value.
-    function testFuzz_symbol_succeds(string memory _gasPayingTokenSymbol) external {
+    function testFuzz_symbol_succeeds(string memory _gasPayingTokenSymbol) external {
         vm.mockCall(
             address(l1Block), abi.encodeWithSignature("gasPayingTokenSymbol()"), abi.encode(_gasPayingTokenSymbol)
         );
@@ -25,13 +25,13 @@ contract WETH_Test is CommonTest {
     }
 
     /// @dev Tests that the name function returns the correct value.
-    function test_name_ether_succeds() external {
+    function test_name_ether_succeeds() external {
         assertFalse(l1Block.isCustomGasToken());
         assertEq("Wrapped Ether", weth.name());
     }
 
     /// @dev Tests that the symbol function returns the correct value.
-    function test_symbol_ether_succeds() external {
+    function test_symbol_ether_succeeds() external {
         assertFalse(l1Block.isCustomGasToken());
         assertEq("WETH", weth.symbol());
     }
