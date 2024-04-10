@@ -183,6 +183,17 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(token, address(1));
         assertEq(decimals, 2);
     }
+
+    /// @dev Tests that isCustomGasToken returns the correct value for ETH as the gas token.
+    function test_isCustomGasToken_ether_succeeds() external {
+        assertFalse(l2StandardBridge.isCustomGasToken());
+    }
+
+    /// @dev Tests that isCustomGasToken returns the correct value for non-ETH as the gas token.
+    function test_isCustomGasToken_nonEther_succeeds() external {
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+        assertTrue(l2StandardBridge.isCustomGasToken());
+    }
 }
 
 contract PreBridgeERC20 is Bridge_Initializer {
@@ -522,6 +533,50 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         vm.prank(address(l2CrossDomainMessenger));
         vm.expectRevert("StandardBridge: cannot send to messenger");
         l2StandardBridge.finalizeBridgeETH{ value: 100 }(alice, address(l2CrossDomainMessenger), 100, hex"");
+    }
+
+    /// @dev Tests that `finalizeDeposit` reverts if a custom gas token is used.
+    function test_finalizeBridgeETH_isCustomGasToken_reverts() external {
+        address messenger = address(l2StandardBridge.messenger());
+        vm.mockCall(
+            messenger,
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
+        );
+        vm.deal(messenger, 100);
+        vm.prank(messenger);
+
+        vm.expectEmit(true, true, true, true);
+        emit DepositFinalized(address(0), Predeploys.LEGACY_ERC20_ETH, alice, alice, 100, hex"");
+
+        vm.expectEmit(true, true, true, true);
+        emit ETHBridgeFinalized(alice, alice, 100, hex"");
+
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+
+        vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
+
+        l2StandardBridge.finalizeBridgeETH{ value: 100 }(alice, alice, 100, hex"");
+    }
+
+    /// @dev Tests that bridging ETH reverts if a custom gas token is used.
+    function test_bridgeETHTo_isCustomGasToken_reverts() external {
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+
+        vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
+
+        l1StandardBridge.bridgeETHTo{ value: 600 }(bob, 60000, hex"dead");
+        assertEq(address(optimismPortal).balance, 600);
+    }
+
+    /// @dev Tests that bridging ETH reverts if a custom gas token is used.
+    function test_bridgeETH_isCustomGasToken_reverts() external {
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+
+        vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
+
+        l1StandardBridge.bridgeETH{ value: 500 }(50000, hex"dead");
+        assertEq(address(optimismPortal).balance, 500);
     }
 }
 
