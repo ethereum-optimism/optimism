@@ -2,6 +2,8 @@
 description: Learn how to use Turing hybrid compute
 ---
 
+<figure><img src="../../assets/hc-under-upgrade.png" alt=""><figcaption></figcaption></figure>
+
 # Implementation
 
 Hybrid Compute (formerly "Turing") is a system for interacting with the outside world from within solidity smart contracts. All data returned from external APIs, such as social networking or weather data are deposited into a public data-storage contract on Ethereum Mainnet. This extra data allows replicas, verifiers, and fraud-detectors to reproduce and validate the Boba L2 blockchain, block by block.

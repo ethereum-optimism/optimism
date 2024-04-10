@@ -1,6 +1,7 @@
 ---
 description: How to build with Hybrid Compute
 ---
+<figure><img src="../../assets/hc-under-upgrade.png" alt=""><figcaption></figcaption></figure>
 
 # Welcome to Hybrid Compute
 

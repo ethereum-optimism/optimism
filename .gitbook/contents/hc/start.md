@@ -2,6 +2,8 @@
 description: HybridCompute Example - Getting started with HybridCompute
 ---
 
+<figure><img src="../../assets/hc-under-upgrade.png" alt=""><figcaption></figcaption></figure>
+
 # Wizard
 
 Use HybridCompute with ease by navigating through a minimal web-app.

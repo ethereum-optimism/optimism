@@ -2,6 +2,8 @@
 description: Learn how to set up a simple endpoint for Hybrid Compute to interact with
 ---
 
+<figure><img src="../../../assets/hc-under-upgrade.png" alt=""><figcaption></figcaption></figure>
+
 # API Endpoints
 
 Hybrid Compute can interact with any computer with an API. Examples include dozens of Google Cloud Services and AWS Services. Here are some basic instructions for using an AWS Lambda endpoint. The generic process for setting up an **AWS Lambda endpoint** is described [here](https://docs.aws.amazon.com/lambda/latest/dg/getting-started-create-function.html) but you can also just follow along with this writeup. The generic process for setting up a **Google Cloud Function** is described [here](https://cloud.google.com/functions/) - the example javascript and Python code provided below also works on GCF of course.

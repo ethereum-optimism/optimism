@@ -1,15 +1,15 @@
 # Contract Addresses
 
-<figure><img src="../../../../assets/boba goerli testnet.png" alt=""><figcaption></figcaption></figure>
+### Boba Sepolia Testnet
 
 | Contract                   | Address(L2)                                |
 | -------------------------- | ------------------------------------------ |
-| L2\_Boba\_EntryPoint       | 0xa6e2cbb294d3b84e7900daf0052ffe26bb1328ff |
-| L2\_BobaDepositPaymaster   | 0x06C1D387270E322D3B7b9Bed6777aaF8Aead4707 |
-| L2\_BobaVerifyingPaymaster | 0xAa210aEC4649C92E1d9b7267AD767eF3dFa20677 |
-| L2\_EntryPointWrapper      | 0xb1b04b6ea9e013c0ff1970965d5d6d6e637e98d7 |
+| L2\_Boba\_EntryPoint       | 0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789 |
+| L2\_SimpleAccountFactory   | 0x9406cc6185a346906296840746125a0e44976454 |
+| L2\_EntryPointWrapper      | 0xcdd1821df75b874502c9fa9d491a2602d6b22b73 |
 
-<figure><img src="../../../../assets/boba bnb testnet (1).png" alt=""><figcaption></figcaption></figure>
+
+### Boba BNB Testnet
 
 | Contract              | Address(L2)                                |
 | --------------------- | ------------------------------------------ |
