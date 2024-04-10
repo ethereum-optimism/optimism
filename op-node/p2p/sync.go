@@ -558,6 +558,8 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			if err != nil {
 				delete(s.inFlight, pr.num)
 				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
+				resultCode = 1
+				sendResponseError := true
 
 				if re, ok := err.(requestResultErr); ok {
 					resultCode = re.ResultCode()
@@ -566,12 +568,14 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 						s.activeRangeRequestsMu.Lock()
 						delete(s.activeRangeRequests, pr.rangeReqId)
 						s.activeRangeRequestsMu.Unlock()
+						sendResponseError = false // don't penalize peer for this error
 					}
-				} else {
-					resultCode = 1
 				}
 
-				s.appScorer.onResponseError(id)
+				if sendResponseError {
+					s.appScorer.onResponseError(id)
+				}
+
 				// If we hit an error, then count it as many requests.
 				// We'd like to avoid making more requests for a while, so back off.
 				if err := rl.WaitN(ctx, clientErrRateCost); err != nil {
