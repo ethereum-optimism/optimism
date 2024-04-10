@@ -14,14 +14,14 @@ contract WETH_Test is CommonTest {
     }
 
     /// @dev Tests that the name function returns the correct value.
-    function testFuzz_name_succeds(string _gasPayingTokenName) external {
+    function testFuzz_name_succeds(string memory _gasPayingTokenName) external {
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingTokenName()"), abi.encode(_gasPayingTokenName));
 
         assertEq(string.concat("WETH ", _gasPayingTokenName), weth.name());
     }
 
     /// @dev Tests that the symbol function returns the correct value.
-    function testFuzz_symbol_succeds(string _gasPayingTokenSymbol) external {
+    function testFuzz_symbol_succeds(string memory _gasPayingTokenSymbol) external {
         vm.mockCall(
             address(l1Block), abi.encodeWithSignature("gasPayingTokenSymbol()"), abi.encode(_gasPayingTokenSymbol)
         );
