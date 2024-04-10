@@ -1159,6 +1159,9 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_Test {
 
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(0), _amount, 0, optimismPortal.minimumGasLimit(0), false, "");
+
+        // Assert final balance equals the deposited amount
+        assertEq(token.balanceOf(address(optimismPortal)), _amount);
     }
 
     /// @dev Tests that `depositERC20Transaction` reverts when creating a contract with a non-zero target.
