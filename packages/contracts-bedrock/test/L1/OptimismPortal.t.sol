@@ -1127,7 +1127,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_Test, OptimismPortal
 
     function setUp() public override(OptimismPortal_Test, OptimismPortal_FinalizeWithdrawal_Test) {
         OptimismPortal_Test.setUp();
-        OptimismPortal_Test.setUp();
+        OptimismPortal_FinalizeWithdrawal_Test.setUp();
         token = new MockERC20("Test", "TST", 18);
     }
 
