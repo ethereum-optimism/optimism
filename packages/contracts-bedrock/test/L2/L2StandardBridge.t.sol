@@ -20,6 +20,7 @@ import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
@@ -166,6 +167,21 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         });
 
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 100);
+    }
+
+    /// @dev Tests that gasPayingToken returns the correct values for ETH.
+    function test_gasPayingToken_ether_succeeds() external {
+        (address token, uint8 decimals) = l2StandardBridge.gasPayingToken();
+        assertEq(token, address(Constants.ETHER));
+        assertEq(decimals, 18);
+    }
+
+    /// @dev Tests that gasPayingToken returns the correct values for non-ETH tokens.
+    function test_gasPayingToken_nonEther_succeeds() external {
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+        (address token, uint8 decimals) = l2StandardBridge.gasPayingToken();
+        assertEq(token, address(1));
+        assertEq(decimals, 2);
     }
 }
 
