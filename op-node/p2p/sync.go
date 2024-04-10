@@ -3,12 +3,10 @@ package p2p
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -216,6 +214,7 @@ type SyncClient struct {
 
 	rangeRequests       chan rangeRequest
 	activeRangeRequests map[uint64]bool
+	rangeReqId          uint64
 	peerRequests        chan peerRequest
 	inFlightChecks      chan inFlightCheck
 
@@ -396,15 +395,9 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 		}
 	}
 
-	// Create shared randomReqId so associated peerRequests can all be cancelled by setting a single flag
-	bigMax := new(big.Int).SetUint64(math.MaxUint64)
-	randomBigInt, err := rand.Int(rand.Reader, bigMax)
-	if err != nil {
-		log.Error("failed to generate randomReqId for range request")
-		return
-	}
-	randomReqId := randomBigInt.Uint64()
-	s.activeRangeRequests[randomReqId] = true
+	// Create shared rangeReqId so associated peerRequests can all be cancelled by setting a single flag
+	atomic.AddUint64(&s.rangeReqId, 1)
+	s.activeRangeRequests[s.rangeReqId] = true
 
 	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
 	for i := uint64(0); ; i++ {
@@ -426,9 +419,9 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 			log.Debug("request still in-flight, not rescheduling sync request", "num", num)
 			continue // request still in flight
 		}
-		pr := peerRequest{num: num, complete: new(atomic.Bool), rangeReqId: randomReqId}
+		pr := peerRequest{num: num, complete: new(atomic.Bool), rangeReqId: s.rangeReqId}
 
-		log.Debug("Scheduling P2P block request", "num", num)
+		log.Debug("Scheduling P2P block request", "num", num, "rangeReqId", s.rangeReqId)
 		// schedule number
 		select {
 		case s.peerRequests <- pr:
@@ -564,7 +557,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 				if re, ok := err.(requestResultErr); ok {
 					resultCode = re.ResultCode()
 					if re.ResultCode() == 1 { // indicates block not found error
-						log.Warn("cancelling p2p sync range request", "reqId", pr.rangeReqId)
+						log.Warn("cancelling p2p sync range request", "rangeReqId", pr.rangeReqId)
 						delete(s.activeRangeRequests, pr.rangeReqId)
 					}
 				} else {
