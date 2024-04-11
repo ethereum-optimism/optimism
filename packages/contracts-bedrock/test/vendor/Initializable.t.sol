@@ -59,7 +59,9 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: deploy.mustGetAddress("L1CrossDomainMessenger"),
-                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal)),
+                initCalldata: abi.encodeCall(
+                    l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal, systemConfig)
+                    ),
                 initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessenger")
             })
         );
@@ -67,7 +69,9 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(l1CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal)),
+                initCalldata: abi.encodeCall(
+                    l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal, systemConfig)
+                    ),
                 initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessengerProxy")
             })
         );
