@@ -25,15 +25,24 @@ import "src/libraries/PortalErrors.sol";
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal is Initializable, ResourceMetering, ISemver {
+    /// @notice Allows for interactions with non standard ERC20 tokens.
     using SafeERC20 for IERC20;
 
+    /// @notice Error for when a deposit or withdrawal is to a bad target.
     error BadTarget();
+    /// @notice Error for when a deposit has too much calldata.
     error LargeCalldata();
+    /// @notice Error for when a deposit has too small of a gas limit.
     error SmallGasLimit();
+    /// @notice Error for when a withdrawal transfer fails.
     error TransferFailed();
+    /// @notice Error for when a method is called that only works when using a custom gas token.
     error OnlyCustomGasToken();
+    /// @notice Error for when a method cannot be called with non zero CALLVALUE.
     error NoValue();
+    /// @notice Error for an unauthorized CALLER.
     error Unauthorized();
+    /// @notice Error for when a method cannot be called when paused.
     error Paused();
 
     /// @notice Represents a proven withdrawal.
