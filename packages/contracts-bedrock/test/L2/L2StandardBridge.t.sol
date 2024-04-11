@@ -566,6 +566,16 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
 
         l2StandardBridge.bridgeETH(50000, hex"dead");
     }
+
+    /// @dev Tests that the receive function reverst if a custom gas token is used.
+    function test_receive_isCustomGasToken_reverts() external {
+        vm.prank(alice, alice);
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+
+        vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
+        (bool success,) = address(l2StandardBridge).call{ value: 100 }(hex"");
+        assertTrue(success);
+    }
 }
 
 contract L2StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {

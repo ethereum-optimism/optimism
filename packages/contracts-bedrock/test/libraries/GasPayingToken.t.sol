@@ -73,7 +73,6 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq(_decimals, decimals);
 
         assertEq(_name, GasPayingToken.getName());
-
         assertEq(_symbol, GasPayingToken.getSymbol());
     }
 
