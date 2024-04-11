@@ -452,7 +452,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
-        vm.expectRevert(AlreadyProven.selector);
+        vm.expectRevert("OptimismPortal: withdrawal hash has already been proven");
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
     }
 

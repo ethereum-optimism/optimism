@@ -209,12 +209,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // since withdrawals are proven before an output root is finalized, we need to allow users
         // to re-prove their withdrawal only in the case that the output root for their specified
         // output index has been updated.
-        if (
-            provenWithdrawal.timestamp != 0
-                && l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot == provenWithdrawal.outputRoot
-        ) {
-            revert AlreadyProven();
-        }
+        require(
+            provenWithdrawal.timestamp == 0
+                || l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot != provenWithdrawal.outputRoot,
+            "OptimismPortal: withdrawal hash has already been proven"
+        );
 
         // Compute the storage slot of the withdrawal hash in the L2ToL1MessagePasser contract.
         // Refer to the Solidity documentation for more information on how storage layouts are
