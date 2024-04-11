@@ -5,7 +5,7 @@ import { Deploy } from "scripts/Deploy.s.sol";
 
 contract KontrolDeployment is Deploy {
     function runKontrolDeployment() public stateDiff {
-        deploySafe();
+        deploySystemOwnerSafe();
         setupSuperchain();
 
         // deployProxies();

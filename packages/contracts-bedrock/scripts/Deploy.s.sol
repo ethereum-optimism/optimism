@@ -8,6 +8,9 @@ import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 import { Safe } from "safe-contracts/Safe.sol";
+import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
@@ -43,6 +46,8 @@ import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "scripts/Chains.sol";
 import { Config } from "scripts/Config.sol";
+import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
+import { LivenessModule } from "src/Safe/LivenessModule.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
@@ -182,6 +187,13 @@ contract Deploy is Deployer {
 
     /// @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
     function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
+        if (getAddress("SafeProxyFactory") != address(0)) {
+            // The SafeProxyFactory is already saved, we can just use it.
+            safeProxyFactory_ = SafeProxyFactory(getAddress("SafeProxyFactory"));
+            safeSingleton_ = Safe(getAddress("SafeSingleton"));
+            return (safeProxyFactory_, safeSingleton_);
+        }
+
         // These are the standard create2 deployed contracts. First we'll check if they are deployed,
         // if not we'll deploy new ones, though not at these addresses.
         address safeProxyFactory = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
@@ -272,9 +284,10 @@ contract Deploy is Deployer {
 
     /// @notice Internal function containing the deploy logic.
     function _run() internal {
-        console.log("start of L1 Deploy!");
-        deploySafe();
-        console.log("deployed Safe!");
+        deploySystemOwnerSafe();
+        console.log("deployed System Owner Safe!");
+        deploySecurityCouncilSafe();
+        console.log("deployed Security Council Safe!");
         setupSuperchain();
         console.log("set up superchain!");
         if (cfg.usePlasma()) {
@@ -413,22 +426,122 @@ contract Deploy is Deployer {
     //              Non-Proxied Deployment Functions              //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Deploy the Safe
-    function deploySafe() public broadcast returns (address addr_) {
-        console.log("Deploying Safe");
+    /// @notice Deploy the SystemOwnerSafe
+    function deploySystemOwnerSafe() public broadcast returns (address addr_) {
+        console.log("Deploying System Owner Safe");
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
 
-        bytes memory initData = abi.encodeWithSelector(
-            Safe.setup.selector, signers, 1, address(0), hex"", address(0), address(0), 0, address(0)
-        );
+        bytes memory initData =
+            abi.encodeCall(Safe.setup, (signers, 1, address(0), hex"", address(0), address(0), 0, payable(address(0))));
         address safe = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp));
 
         save("SystemOwnerSafe", address(safe));
         console.log("New SystemOwnerSafe deployed at %s", address(safe));
         addr_ = safe;
+    }
+
+    /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
+    function _deployLivenessModuleAndGuardian() internal returns (address module_, address guard_) {
+        Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
+        guard_ = address(new LivenessGuard(councilSafe));
+
+        address fallbackOwner = mustGetAddress("SystemOwnerSafe");
+        module_ = address(
+            // todo: set these values in the deploy config???
+            new LivenessModule({
+                _safe: councilSafe,
+                _livenessGuard: LivenessGuard(guard_),
+                _livenessInterval: 1,
+                _thresholdPercentage: 20,
+                _minOwners: 1,
+                _fallbackOwner: fallbackOwner
+            })
+        );
+    }
+
+    /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
+    function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
+        console.log("Deploying Security Council Safe");
+        (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
+
+        address[] memory initialSigners = new address[](1);
+        initialSigners[0] = msg.sender;
+
+        bytes memory initData = abi.encodeCall(
+            Safe.setup, (initialSigners, 1, address(0), hex"", address(0), address(0), 0, payable(address(0)))
+        );
+        Safe safe = Safe(
+            payable(
+                address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp + 1))
+            )
+        );
+
+        save("SecurityCouncilSafe", address(safe));
+        console.log("New SecurityCouncilSafe deployed at %s", address(safe));
+
+        (address module, address guard) = _deployLivenessModuleAndGuardian();
+        bytes memory prevalidatedSignature =
+            bytes.concat(bytes32(uint256(uint160(msg.sender))), bytes32(0), bytes1(uint8(1)));
+        safe.execTransaction({
+            to: (address(safe)),
+            value: 0,
+            data: abi.encodeCall(GuardManager.setGuard, (address(guard))),
+            operation: SafeOps.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: prevalidatedSignature
+        });
+        safe.execTransaction({
+            to: (address(safe)),
+            value: 0,
+            data: abi.encodeCall(ModuleManager.enableModule, (address(module))),
+            operation: SafeOps.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: prevalidatedSignature
+        });
+
+        // Add a more realistic number of signers to the Council Safe
+        address[] memory additionalSigners = new address[](12);
+        for (uint256 i = 0; i < additionalSigners.length; i++) {
+            additionalSigners[i] = makeAddr(string.concat("Security Council Signer ", vm.toString((i + 1))));
+            safe.execTransaction({
+                to: (address(safe)),
+                value: 0,
+                data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (additionalSigners[i], 1)),
+                operation: SafeOps.Operation.Call,
+                safeTxGas: 0,
+                baseGas: 0,
+                gasPrice: 0,
+                gasToken: address(0),
+                refundReceiver: payable(address(0)),
+                signatures: prevalidatedSignature
+            });
+        }
+
+        safe.execTransaction({
+            to: (address(safe)),
+            value: 0,
+            data: abi.encodeCall(OwnerManager.changeThreshold, (9)),
+            operation: SafeOps.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: prevalidatedSignature
+        });
+
+        addr_ = address(safe);
     }
 
     /// @notice Deploy the AddressManager
