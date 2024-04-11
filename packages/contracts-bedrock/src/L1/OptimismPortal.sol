@@ -19,11 +19,6 @@ import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/PortalErrors.sol";
 
-// TODO: where to put this
-interface Token {
-    function decimals() external view returns (uint8);
-}
-
 /// @custom:proxied
 /// @title OptimismPortal
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
@@ -31,6 +26,15 @@ interface Token {
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     using SafeERC20 for IERC20;
+
+    error BadTarget();
+    error LargeCalldata();
+    error SmallGasLimit();
+    error TransferFailed();
+    error OnlyCustomGasToken();
+    error NoValue();
+    error Unauthorized();
+    error Paused();
 
     /// @notice Represents a proven withdrawal.
     /// @custom:field outputRoot    Root of the L2 output this was proven against.
@@ -362,7 +366,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         } else {
             // Cannot call the token contract directly from the portal. This would allow an attacker
             // to call approve from a withdrawal and drain the balance of the portal.
-            require(_tx.target != token, "OptimismPortal: cannot call gas paying token");
+            if (_tx.target == token) revert BadTarget();
 
             // Only transfer value when a non zero value is specified. This saves gas in the case of
             // using the standard bridge or arbitrary message passing.
@@ -381,10 +385,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 IERC20(token).safeTransfer({ to: _tx.target, value: _tx.value });
 
                 // The balance must be transferred exactly.
-                require(
-                    IERC20(token).balanceOf(address(this)) == balanceOf - _tx.value,
-                    "OptimismPortal: ERC20 transfer failed"
-                );
+                if (IERC20(token).balanceOf(address(this)) != balanceOf - _tx.value) {
+                    revert TransferFailed();
+                }
             }
 
             // Make a call to the target contract only if there is calldata.
@@ -430,7 +433,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     {
         // Can only be called if an ERC20 token is used for gas paying on L2
         (address token,) = gasPayingToken();
-        require(token != Constants.ETHER, "OptimismPortal: only custom gas token");
+        if (token == Constants.ETHER) {
+            revert OnlyCustomGasToken();
+        }
 
         // Get the balance of the portal before the transfer.
         uint256 balanceOf = IERC20(token).balanceOf(address(this));
@@ -439,7 +444,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         IERC20(token).safeTransferFrom({ from: msg.sender, to: address(this), value: _mint });
 
         // Double check that the portal now has the exact amount of token.
-        require(IERC20(token).balanceOf(address(this)) == balanceOf + _mint, "OptimismPortal: transferFrom failed");
+        if (IERC20(token).balanceOf(address(this)) != balanceOf + _mint) {
+            revert TransferFailed();
+        }
 
         // Overflow protection here ensures safety on L2 from overflows in balance.
         _balance += _mint;
@@ -475,8 +482,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         metered(_gasLimit)
     {
         (address token,) = gasPayingToken();
-        if (token != Constants.ETHER) {
-            require(msg.value == 0, "OptimismPortal: cannot send ETH with custom gas token");
+        if (token != Constants.ETHER && msg.value != 0) {
+            revert NoValue();
         }
 
         _depositTransaction({
@@ -539,7 +546,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
-        require(msg.sender == address(systemConfig), "OptimismPortal: only SystemConfig can set gas paying token");
+        if (msg.sender != address(systemConfig)) {
+            revert Unauthorized();
+        }
 
         // Set L2 deposit gas as used without paying burning gas.
         useGas(80000);
