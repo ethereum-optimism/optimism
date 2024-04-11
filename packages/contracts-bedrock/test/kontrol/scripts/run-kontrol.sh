@@ -131,11 +131,12 @@ regen=
 # "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
 # "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
 
-# "DummyTest.prove_success" \
+# "DummyTest.prove_success"
+# "DummyTest.prove_fail"
 test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
   test_list=(
-              "DummyTest.prove_fail"
+    "DummyTest.prove_success"
   )
 elif [ "$CUSTOM_TESTS" != 0 ]; then
   test_list=( "${@:${CUSTOM_TESTS}}" )

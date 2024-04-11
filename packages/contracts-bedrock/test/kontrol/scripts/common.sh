@@ -187,7 +187,6 @@ clean_docker(){
   fi
 }
 
-
 docker_exec () {
   docker exec --user user --workdir /home/user/workspace $CONTAINER_NAME "${@}"
 }
