@@ -16,6 +16,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev The receiver address
@@ -653,7 +654,9 @@ contract L1CrossDomainMessenger_ReinitReentryTest is Bridge_Initializer {
             vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
 
             // call the initializer function
-            l1CrossDomainMessenger.initialize(SuperchainConfig(superchainConfig), OptimismPortal(optimismPortal));
+            l1CrossDomainMessenger.initialize(
+                SuperchainConfig(superchainConfig), OptimismPortal(optimismPortal), SystemConfig(systemConfig)
+            );
 
             // attempt to re-replay the withdrawal
             vm.expectEmit(address(l1CrossDomainMessenger));
