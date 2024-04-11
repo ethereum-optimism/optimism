@@ -44,6 +44,27 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         vm.warp(INIT_TIME + LIVENESS_INTERVAL + 1);
     }
 
+    /// @dev Helper function to calculate the required threshold for a given number of owners and threshold percentage.
+    ///      This does a lot of extra work to set up a dummy LivenessModule and Safe, but helps to keep the tests clean.
+    function _getRequiredThreshold(uint256 _numOwners, uint256 _thresholdPercentage) internal returns (uint256) {
+        // Mock calls made to the Safe by the LivenessModule's constructor
+        address[] memory dummyOwners = new address[](_numOwners);
+        dummyOwners[0] = address(0);
+        vm.mockCall(address(0), abi.encodeCall(OwnerManager.getOwners, ()), abi.encode(dummyOwners));
+        vm.mockCall(address(0), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(dummyOwners.length));
+        // This module is only used to calculate the required threshold for the Safe. It's state will not be modified
+        // after it is created so the constructor arguments are not important.
+        LivenessModule dummyLivenessModule = new LivenessModule({
+            _safe: Safe(payable(address(0))),
+            _livenessGuard: LivenessGuard(address(0)),
+            _livenessInterval: 0,
+            _thresholdPercentage: _thresholdPercentage,
+            _minOwners: 0,
+            _fallbackOwner: address(0)
+        });
+        return dummyLivenessModule.getRequiredThreshold(_numOwners);
+    }
+
     /// @dev Sets up the test environment
     function setUp() public virtual {
         // Set the block timestamp to the initTime, so that signatures recorded in the first block
@@ -133,32 +154,35 @@ contract LivenessModule_CanRemove_Test is LivenessModule_TestInit {
 }
 
 contract LivenessModule_GetRequiredThreshold_Test is LivenessModule_TestInit {
-    /// @dev check the return values of the getRequiredThreshold function against manually
-    ///      calculated values, with 75% threshold.
-    function test_getRequiredThreshold_works() external {
-        assertEq(livenessModule.getRequiredThreshold(20), 15);
-        assertEq(livenessModule.getRequiredThreshold(19), 15);
-        assertEq(livenessModule.getRequiredThreshold(18), 14);
-        assertEq(livenessModule.getRequiredThreshold(17), 13);
-        assertEq(livenessModule.getRequiredThreshold(16), 12);
-        assertEq(livenessModule.getRequiredThreshold(15), 12);
-        assertEq(livenessModule.getRequiredThreshold(14), 11);
-        assertEq(livenessModule.getRequiredThreshold(13), 10);
-        assertEq(livenessModule.getRequiredThreshold(12), 9);
-        assertEq(livenessModule.getRequiredThreshold(11), 9);
-        assertEq(livenessModule.getRequiredThreshold(10), 8);
-        assertEq(livenessModule.getRequiredThreshold(9), 7);
-        assertEq(livenessModule.getRequiredThreshold(8), 6);
-        assertEq(livenessModule.getRequiredThreshold(7), 6);
-        assertEq(livenessModule.getRequiredThreshold(6), 5);
-        assertEq(livenessModule.getRequiredThreshold(5), 4);
-        assertEq(livenessModule.getRequiredThreshold(4), 3);
-        assertEq(livenessModule.getRequiredThreshold(3), 3);
-        assertEq(livenessModule.getRequiredThreshold(2), 2);
-        assertEq(livenessModule.getRequiredThreshold(1), 1);
-        assertEq(livenessModule.getRequiredThreshold(0), 0);
+    /// @dev Tests if getRequiredThreshold work correctly by implementing the same logic in a different manner
+    function _getLeastIntegerValueAbovePercentage(
+        uint256 _total,
+        uint256 _percentage
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        require(_percentage > 0 && _percentage <= 100);
+        uint256 toAdd;
+
+        // If the total multiplied by the percentage is not divisible by 100, we need to add 1 to the result to
+        // compensate for the rounding down by integer division.
+        if ((_total * _percentage) % 100 > 0) {
+            toAdd = 1;
+        }
+        return (_total * _percentage) / 100 + toAdd;
     }
 
+    /// @dev Differentially tests the getRequiredThreshold function against _getLeastIntegerValueAbovePercentage
+    function testFuzz_getRequiredThreshold_works(uint256 _numOwners, uint256 _percentage) external {
+        // Enforce valid percentages
+        uint256 percentage = bound(_percentage, 1, 100);
+        // Enforce a sane number of owners to keep runtime in check
+        uint256 numOwners = bound(_numOwners, 1, 100);
+        assertEq(
+            _getRequiredThreshold(numOwners, percentage), _getLeastIntegerValueAbovePercentage(numOwners, percentage)
+        );
     }
 }
 
@@ -337,9 +361,6 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
 contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
     using SafeTestLib for SafeInstance;
 
-    /// @dev A dummy liveness module which provides access to a getRequiredThreshold function
-    LivenessModule dummyLivenessModule;
-
     /// @dev We put this array in storage so that we can more easily populate it using push in the tests below.
     address[] ownersToRemove;
 
@@ -358,27 +379,6 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
     function setUp() public override {
         vm.warp(INIT_TIME);
         fallbackOwner = makeAddr("fallbackOwner");
-    }
-
-    /// @dev Helper function to calculate the required threshold for a given number of owners and threshold percentage.
-    ///      This does a lot of extra work to set up a dummy LivenessModule and Safe, but helps to keep the tests clean.
-    function _getRequiredThreshold(uint256 _numOwners, uint256 _thresholdPercentage) internal returns (uint256) {
-        // Mock calls made to the Safe by the LivenessModule's constructor
-        address[] memory dummyOwners = new address[](_numOwners);
-        dummyOwners[0] = address(0);
-        vm.mockCall(address(0), abi.encodeCall(OwnerManager.getOwners, ()), abi.encode(dummyOwners));
-        vm.mockCall(address(0), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(dummyOwners.length));
-        // This module is only used to calculate the required threshold for the Safe. It's state will not be modified
-        // after it is created so the constructor arguments are not important.
-        dummyLivenessModule = new LivenessModule({
-            _safe: Safe(payable(address(0))),
-            _livenessGuard: LivenessGuard(address(0)),
-            _livenessInterval: 0,
-            _thresholdPercentage: _thresholdPercentage,
-            _minOwners: 0,
-            _fallbackOwner: address(0)
-        });
-        return dummyLivenessModule.getRequiredThreshold(_numOwners);
     }
 
     /// @dev Extracts the setup of the test environment into a separate function.
