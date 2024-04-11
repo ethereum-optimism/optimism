@@ -449,7 +449,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
             target: bob,
             value: 100,
             gasLimit: 100_000,
-            data: hex""
+            data: hex"aa"
         });
         // Get withdrawal proof data we can use for testing.
         (_stateRoot, _storageRoot, _outputRoot, _withdrawalHash, _withdrawalProof) =
@@ -1126,12 +1126,11 @@ contract OptimismPortalResourceFuzz_Test is CommonTest {
     }
 }
 
-contract OptimismPortalWithMockERC20_Test is OptimismPortal_Test, OptimismPortal_FinalizeWithdrawal_Test {
+contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_Test {
     MockERC20 token;
 
-    function setUp() public override(OptimismPortal_Test, OptimismPortal_FinalizeWithdrawal_Test) {
-        OptimismPortal_Test.setUp();
-        OptimismPortal_FinalizeWithdrawal_Test.setUp();
+    function setUp() public override {
+        super.setUp();
         token = new MockERC20("Test", "TST", 18);
     }
 
@@ -1232,9 +1231,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_Test, OptimismPortal
     }
 
     /// @dev Tests that `finalizeWithdrawalTransaction` succeeds.
-    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_nonEther_succeeds(bytes memory _data) external {
-        _defaultTx.data = _data;
-
+    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_nonEther_succeeds() external {
         // Mint the token to the contract and approve the token for the portal
         token.mint(address(this), _defaultTx.value);
         token.approve(address(optimismPortal), _defaultTx.value);
@@ -1257,7 +1254,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_Test, OptimismPortal
         vm.expectEmit(true, true, false, true);
         emit WithdrawalFinalized(_withdrawalHash, true);
 
-        vm.expectCall(_defaultTx.target, 0, _data);
+        vm.expectCall(_defaultTx.target, 0, _defaultTx.data);
 
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
