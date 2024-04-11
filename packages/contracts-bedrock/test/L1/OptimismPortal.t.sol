@@ -424,7 +424,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
     /// @dev Tests that `proveWithdrawalTransaction` reverts when the target is the portal contract.
     function test_proveWithdrawalTransaction_onSelfCall_reverts() external {
         _defaultTx.target = address(optimismPortal);
-        vm.expectRevert("OptimismPortal: you cannot send messages to the portal contract");
+        vm.expectRevert(BadTarget.selector);
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
     }
 
@@ -433,7 +433,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
     function test_proveWithdrawalTransaction_onInvalidOutputRootProof_reverts() external {
         // Modify the version to invalidate the withdrawal proof.
         _outputRootProof.version = bytes32(uint256(1));
-        vm.expectRevert("OptimismPortal: invalid output root proof");
+        vm.expectRevert(InvalidOutputRootProof.selector);
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
     }
 
@@ -452,7 +452,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
-        vm.expectRevert("OptimismPortal: withdrawal hash has already been proven");
+        vm.expectRevert(AlreadyProven.selector);
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
     }
 

@@ -22,7 +22,6 @@ import "src/libraries/PortalErrors.sol";
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal is Initializable, ResourceMetering, ISemver {
-
     /// @notice Represents a proven withdrawal.
     /// @custom:field outputRoot    Root of the L2 output this was proven against.
     /// @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
@@ -191,16 +190,14 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
-        require(_tx.target != address(this), "OptimismPortal: you cannot send messages to the portal contract");
+        if (_tx.target == address(this)) revert BadTarget();
 
         // Get the output root and load onto the stack to prevent multiple mloads. This will
         // revert if there is no output root for the given block number.
         bytes32 outputRoot = l2Oracle.getL2Output(_l2OutputIndex).outputRoot;
 
         // Verify that the output root can be generated with the elements in the proof.
-        require(
-            outputRoot == Hashing.hashOutputRootProof(_outputRootProof), "OptimismPortal: invalid output root proof"
-        );
+        if (outputRoot != Hashing.hashOutputRootProof(_outputRootProof)) revert InvalidOutputRootProof();
 
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
@@ -212,11 +209,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // since withdrawals are proven before an output root is finalized, we need to allow users
         // to re-prove their withdrawal only in the case that the output root for their specified
         // output index has been updated.
-        require(
-            provenWithdrawal.timestamp == 0
-                || l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot != provenWithdrawal.outputRoot,
-            "OptimismPortal: withdrawal hash has already been proven"
-        );
+        if (
+            provenWithdrawal.timestamp != 0
+                && l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot == provenWithdrawal.outputRoot
+        ) {
+            revert AlreadyProven();
+        }
 
         // Compute the storage slot of the withdrawal hash in the L2ToL1MessagePasser contract.
         // Refer to the Solidity documentation for more information on how storage layouts are
@@ -232,12 +230,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // on L2. If this is true, under the assumption that the SecureMerkleTrie does not have
         // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
         // be relayed on L1.
-        require(
-            SecureMerkleTrie.verifyInclusionProof(
-                abi.encode(storageKey), hex"01", _withdrawalProof, _outputRootProof.messagePasserStorageRoot
-            ),
-            "OptimismPortal: invalid withdrawal inclusion proof"
-        );
+        if (SecureMerkleTrie.verifyInclusionProof({
+            _key: abi.encode(storageKey),
+            _value: hex"01",
+            _proof: _withdrawalProof,
+            _root: _outputRootProof.messagePasserStorageRoot
+        }) == false) revert InvalidInclusionProof();
 
         // Designate the withdrawalHash as proven by storing the `outputRoot`, `timestamp`, and
         // `l2BlockNumber` in the `provenWithdrawals` mapping. A `withdrawalHash` can only be

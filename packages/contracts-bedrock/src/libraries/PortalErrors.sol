@@ -18,3 +18,9 @@ error Unauthorized();
 /// @notice Error for when a method cannot be called when paused. This could be renamed
 ///         to `Paused` in the future, but it collides with the `Paused` event.
 error CallPaused();
+/// @notice Error for invalid proof.
+error InvalidOutputRootProof();
+/// @notice Error for invalid proof.
+error InvalidInclusionProof();
+/// @notice
+error AlreadyProven();
