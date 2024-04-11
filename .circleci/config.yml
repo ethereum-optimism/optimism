@@ -1663,7 +1663,7 @@ workflows:
           name: op-e2e-action-tests<< matrix.fpac >>
           matrix:
             parameters:
-              fpac: ["", "-fault-proofs"]
+              fpac: ["", "-fault-proofs", "-plasma"]
           module: op-e2e
           target: test-actions
           parallelism: 1
