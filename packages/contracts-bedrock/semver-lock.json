@@ -33,6 +33,7 @@
   },
   "src/L1/OptimismPortal.sol": {
 <<<<<<< HEAD
+<<<<<<< HEAD
     "initCodeHash": "0xe7aa232aaf0826d0d9129e2fae35979e9d5ad8dbf0d8d23886a5ef851e3f3a81",
     "sourceCodeHash": "0xd3450653cecc14bf8fbc21f2fa9b4a5fde348c2b6313d72e74e08666201295a2"
 ||||||| parent of 67b4631f9 (semver lock)
@@ -42,10 +43,25 @@
     "initCodeHash": "0x576369a05613a44563c2797360c52e3687fd3374e29176ea9ff2509eb07179d7",
     "sourceCodeHash": "0xe87d62ff67d6a11997107a5b56c2c925b47bf99a08d6385ea3858b620d1702d9"
 >>>>>>> 67b4631f9 (semver lock)
+||||||| parent of 6619b1a9f (semver-lock: update)
+    "initCodeHash": "0x576369a05613a44563c2797360c52e3687fd3374e29176ea9ff2509eb07179d7",
+    "sourceCodeHash": "0xe87d62ff67d6a11997107a5b56c2c925b47bf99a08d6385ea3858b620d1702d9"
+=======
+    "initCodeHash": "0x2d579126bac4d9b10ee3dc527188158f35b5ed57615bb0ddf793256489169663",
+    "sourceCodeHash": "0x5e8bc7493e9da33a9006607fe2b86ce3077d3766cce2a9d1c5839f35e1fb5721"
+>>>>>>> 6619b1a9f (semver-lock: update)
   },
   "src/L1/OptimismPortal2.sol": {
+<<<<<<< HEAD
     "initCodeHash": "0x428eb70b0212733b6271d885741da959ba95e310bf963ead9f7e93a6846eb9ea",
     "sourceCodeHash": "0x1cd093d048b893846319bc242c8dd5744de1f675e87551de423e0ae4ab3216e1"
+||||||| parent of 6619b1a9f (semver-lock: update)
+    "initCodeHash": "0x88d44d2c53c9e6dd5b561c200c3bb57ffc0bca58dfa2b386046c332e13b58280",
+    "sourceCodeHash": "0xd66cfc9b4bfb451d3ba1001b85ae695ff30c042f7ebfe0dcf9f96587559bf81e"
+=======
+    "initCodeHash": "0x8053a9e6d811fe50200b2a73b53bfe6d2404f7746011603f06717ad53cc7aa41",
+    "sourceCodeHash": "0xd66cfc9b4bfb451d3ba1001b85ae695ff30c042f7ebfe0dcf9f96587559bf81e"
+>>>>>>> 6619b1a9f (semver-lock: update)
   },
   "src/L1/ProtocolVersions.sol": {
     "initCodeHash": "0x72cd467e8bcf019c02675d72ab762e088bcc9cc0f1a4e9f587fa4589f7fdd1b8",
