@@ -200,7 +200,7 @@ contract Specification_Test is CommonTest {
             _auth: Role.MESSENGER,
             _pausable: true
         });
-        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("initialize(address,address)") });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("initialize(address,address,address)") });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("l2TokenBridge()") });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("messenger()") });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("otherBridge()") });
@@ -208,6 +208,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("version()") });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("gasPayingToken()") });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("isCustomGasToken()") });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("systemConfig()") });
 
         // L2OutputOracle
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("CHALLENGER()") });
@@ -266,8 +268,11 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("version()") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("balance()") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("gasPayingToken()") });
-        _addSpec({ _name: "OptimismPortal", _sel: _getSel("depositERC20Transaction()") });
-        _addSpec({ _name: "OptimismPortal", _sel: _getSel("setGasPayingToken()") });
+        _addSpec({
+            _name: "OptimismPortal",
+            _sel: _getSel("depositERC20Transaction(address,uint256,uint256,uint64,bool,bytes)")
+        });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("setGasPayingToken(address,uint8,bytes32,bytes32)") });
 
         // OptimismPortal2
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)") });
@@ -330,7 +335,6 @@ contract Specification_Test is CommonTest {
 
         // ResourceMetering
         _addSpec({ _name: "ResourceMetering", _sel: _getSel("params()") });
-        _addSpec({ _name: "ResourceMetering", _sel: _getSel("useGas()") });
 
         // SuperchainConfig
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("GUARDIAN_SLOT()") });
