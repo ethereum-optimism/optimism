@@ -177,8 +177,8 @@ state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
 # RUN TESTS #
 #############
 # Set up the trap to run the function on failure
-# trap on_failure ERR INT TERM
-# trap clean_docker EXIT
+trap on_failure ERR INT TERM
+trap clean_docker EXIT
 conditionally_start_docker
 
 results=()
