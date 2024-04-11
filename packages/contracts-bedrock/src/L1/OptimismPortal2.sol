@@ -263,10 +263,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // resolves against the root claim, or the dispute game is blacklisted, we allow
         // re-proving the withdrawal against a new proposal.
         IDisputeGame oldGame = provenWithdrawal.disputeGameProxy;
-        if (
-            provenWithdrawal.timestamp != 0 && oldGame.status() != GameStatus.CHALLENGER_WINS
-                && !disputeGameBlacklist[oldGame] && oldGame.gameType().raw() == respectedGameType.raw()
-        ) revert InvalidDisputeGame();
+        require(
+            provenWithdrawal.timestamp == 0 || oldGame.status() == GameStatus.CHALLENGER_WINS
+                || disputeGameBlacklist[oldGame] || oldGame.gameType().raw() != respectedGameType.raw(),
+            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
+        );
 
         // Compute the storage slot of the withdrawal hash in the L2ToL1MessagePasser contract.
         // Refer to the Solidity documentation for more information on how storage layouts are
