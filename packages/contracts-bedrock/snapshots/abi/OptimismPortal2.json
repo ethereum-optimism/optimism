@@ -693,7 +693,27 @@
   },
   {
     "inputs": [],
+    "name": "AirGapped",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BadTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BadTimestamp",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Blacklisted",
     "type": "error"
   },
   {
@@ -703,7 +723,52 @@
   },
   {
     "inputs": [],
+    "name": "DisputeGameCreatedEarly",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GasEstimation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDisputeGame",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInclusionProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidOutputRootProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidProposal",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "LargeCalldata",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NonReentrant",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotProven",
     "type": "error"
   },
   {
@@ -714,6 +779,16 @@
   {
     "inputs": [],
     "name": "SmallGasLimit",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TooEarly",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
     "type": "error"
   }
 ]
