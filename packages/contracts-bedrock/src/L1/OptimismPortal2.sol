@@ -254,7 +254,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // We do not allow for proving withdrawals against dispute games that have resolved against the favor
         // of the root claim.
-        if (gameProxy.status() != GameStatus.CHALLENGER_WINS) revert InvalidProposal();
+        if (gameProxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidProposal();
 
         // We generally want to prevent users from proving the same withdrawal multiple times
         // because each successive proof will update the timestamp. A malicious user can take
