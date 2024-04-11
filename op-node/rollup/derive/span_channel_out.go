@@ -92,7 +92,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		c.brotliCompressed,
 		cbrotli.WriterOptions{
 			Quality: brotliQuality,
-			LGWin:   24,
+			LGWin:   0,
 		},
 	)
 
@@ -112,8 +112,8 @@ func (co *SpanChannelOut) compressorReset() {
 		co.brotliCompressor = cbrotli.NewWriter(
 			co.brotliCompressed,
 			cbrotli.WriterOptions{
-				Quality: 11,
-				LGWin:   24,
+				Quality: co.brotliQuality,
+				LGWin:   0,
 			},
 		)
 	} else if co.compressorAlgo == "zstd" {
