@@ -347,23 +347,17 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
-        if (_isCreation && _to != address(0)) {
-            revert BadTarget();
-        }
+        if (_isCreation && _to != address(0)) revert BadTarget();
 
         // Prevent depositing transactions that have too small of a gas limit. Users should pay
         // more for more resource usage.
-        if (_gasLimit < minimumGasLimit(uint64(_data.length))) {
-            revert SmallGasLimit();
-        }
+        if (_gasLimit < minimumGasLimit(uint64(_data.length))) revert SmallGasLimit();
 
         // Prevent the creation of deposit transactions that have too much calldata. This gives an
         // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
         // that the transaction can fit into the p2p network policy of 128kb even though deposit
         // transactions are not gossipped over the p2p network.
-        if (_data.length > 120_000) {
-            revert LargeCalldata();
-        }
+        if (_data.length > 120_000) revert LargeCalldata();
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
