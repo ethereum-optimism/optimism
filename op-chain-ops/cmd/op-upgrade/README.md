@@ -40,17 +40,17 @@ will be written to stdout.
 #### Usage
 
 Build and run using the [Makefile](../../Makefile) `op-upgrade` target.
-Inside of `/op-chain-ops`, run:
+Inside `/op-chain-ops`, run:
 
 ```sh
 make op-upgrade
 ```
 
 to create a binary in [../../bin/op-upgrade](../../bin/op-upgrade) that can
-be executed. Execute the following command inside of `/op-chain-ops` to
+be executed. Execute the following command inside `/op-chain-ops` to
 create the Safe transaction bundle in an output file called `input.json`.
 
-```
+```sh
 ./bin/op-upgrade \
   --l1-rpc-url https://ethereum-rpc.publicnode.com  \
   --chain-ids 10 \
