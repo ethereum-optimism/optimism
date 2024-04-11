@@ -55,6 +55,11 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
         __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 
+    /// @notice Returns the gas paying token address, its decimals, name, and symbol.
+    function gasPayingToken() public view override returns (address addr_, uint8 decimals_) {
+        (addr_, decimals_) = systemConfig.gasPayingToken();
+    }
+
     /// @notice Getter function for the OptimismPortal contract on this chain.
     ///         Public getter is legacy and will be removed in the future. Use `portal()` instead.
     /// @return Contract of the OptimismPortal on this chain.
