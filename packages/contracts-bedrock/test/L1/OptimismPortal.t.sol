@@ -1346,7 +1346,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Call minimumGasLimit(0) before vm.expectRevert to ensure vm.expectRevert is for depositERC20Transaction
         uint64 gasLimit = optimismPortal.minimumGasLimit(0);
 
-        vm.expectRevert("OptimismPortal: transferFrom failed");
+        vm.expectRevert(OptimismPortal.TransferFailed.selector);
 
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(1), 100, 0, gasLimit, false, "");
@@ -1534,7 +1534,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
 
         vm.deal(address(this), 100);
 
-        vm.expectRevert("OptimismPortal: placeholder");
+        vm.expectRevert(OptimismPortal.NoValue.selector);
 
         // Deposit the token into the portal
         optimismPortal.depositTransaction{ value: 100 }(address(0), 0, 0, false, "");
