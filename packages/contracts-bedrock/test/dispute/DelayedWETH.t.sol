@@ -158,7 +158,7 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_Init {
         vm.warp(block.timestamp + delayedWeth.delay() + 1);
 
         // Pause the contract.
-        address guardian = optimismPortal.GUARDIAN();
+        address guardian = optimismPortal.guardian();
         vm.prank(guardian);
         superchainConfig.pause("identifier");
 
