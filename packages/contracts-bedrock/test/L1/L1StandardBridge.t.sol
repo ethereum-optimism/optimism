@@ -181,6 +181,35 @@ contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
 
 contract L1StandardBridge_Initialize_TestFail is Bridge_Initializer { }
 
+contract L1StandardBridge_Receive_Test is Bridge_Initializer {
+    /// @dev Tests receive bridges ETH successfully.
+    function test_receive_succeeds() external {
+        assertEq(address(optimismPortal).balance, 0);
+
+        // The legacy event must be emitted for backwards compatibility
+        vm.expectEmit(address(l1StandardBridge));
+        emit ETHDepositInitiated(alice, alice, 100, hex"");
+
+        vm.expectEmit(address(l1StandardBridge));
+        emit ETHBridgeInitiated(alice, alice, 100, hex"");
+
+        vm.expectCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeWithSelector(
+                CrossDomainMessenger.sendMessage.selector,
+                address(l2StandardBridge),
+                abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 100, hex""),
+                200_000
+            )
+        );
+
+        vm.prank(alice, alice);
+        (bool success,) = address(l1StandardBridge).call{ value: 100 }(hex"");
+        assertEq(success, true);
+        assertEq(address(optimismPortal).balance, 100);
+    }
+}
+
 contract L1StandardBridge_Receive_TestFail is Bridge_Initializer {
     /// @dev Tests that the bridge reverts when using default receive function.
     function test_receive_contract_reverts() external {
