@@ -114,11 +114,6 @@ contract L1StandardBridge is StandardBridge, ISemver {
         return superchainConfig.paused();
     }
 
-    /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
-    receive() external payable override onlyEOA {
-        _initiateETHDeposit(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
-    }
-
     /// @notice Returns the gas paying token address, its decimals, name, and symbol.
     function gasPayingToken() public view override returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = systemConfig.gasPayingToken();

@@ -24,8 +24,6 @@ contract StandardBridgeTester is StandardBridge {
     function gasPayingToken() public pure override returns (address, uint8) {
         return (Constants.ETHER, 18);
     }
-
-    receive() external payable override { }
 }
 
 /// @title LegacyMintable
