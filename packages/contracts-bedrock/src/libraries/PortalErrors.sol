@@ -22,17 +22,17 @@ error CallPaused();
 error InvalidOutputRootProof();
 /// @notice Error for invalid proof.
 error InvalidInclusionProof();
-/// @notice
+/// @notice Error when attempting to prove the same withdrawal more than once.
 error AlreadyProven();
-/// @notice
+/// @notice Reentrancy guard.
 error NonReentrant();
-/// @notice
+/// @notice Error for attempting to finalize a withdrawal that is not yet proven.
 error NotProven();
-/// @notice
+/// @notice Error for when the withdrawal proof timestamp makes no sense.
 error BadTimestamp();
-/// @notice
+/// @notice Error for when trying to finalize a withdrawal too early.
 error TooEarly();
-/// @notice
+/// @notice Error for when the output root down't match the proof.
 error BadOutputRoot();
-/// @notice
+/// @notice Error for when the withdrawal has already been processed.
 error AlreadyFinalized();
