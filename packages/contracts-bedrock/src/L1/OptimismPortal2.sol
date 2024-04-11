@@ -15,6 +15,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
+import "src/libraries/PortalErrors.sol";
 import "src/libraries/DisputeTypes.sol";
 
 /// @custom:proxied
@@ -23,23 +24,6 @@ import "src/libraries/DisputeTypes.sol";
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
-    /// @notice Error for when a deposit or withdrawal is to a bad target.
-    error BadTarget();
-    /// @notice Error for when a deposit has too much calldata.
-    error LargeCalldata();
-    /// @notice Error for when a deposit has too small of a gas limit.
-    error SmallGasLimit();
-    /// @notice Error for when a withdrawal transfer fails.
-    error TransferFailed();
-    /// @notice Error for when a method is called that only works when using a custom gas token.
-    error OnlyCustomGasToken();
-    /// @notice Error for when a method cannot be called with non zero CALLVALUE.
-    error NoValue();
-    /// @notice Error for an unauthorized CALLER.
-    error Unauthorized();
-    /// @notice Error for when a method cannot be called when paused.
-    error Paused();
-
     /// @notice Represents a proven withdrawal.
     /// @custom:field disputeGameProxy The address of the dispute game proxy that the withdrawal was proven against.
     /// @custom:field timestamp        Timestamp at whcih the withdrawal was proven.
@@ -132,7 +116,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
-        if (paused()) revert Paused();
+        if (paused()) revert CallPaused();
         _;
     }
 

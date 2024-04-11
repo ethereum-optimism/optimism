@@ -23,6 +23,7 @@ import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 
 import { FaultDisputeGame, IDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import "src/libraries/DisputeTypes.sol";
+import "src/libraries/PortalErrors.sol";
 
 contract OptimismPortal2_Test is CommonTest {
     address depositor;
@@ -147,7 +148,7 @@ contract OptimismPortal2_Test is CommonTest {
     ///      for a contract creation deposit.
     function test_depositTransaction_contractCreation_reverts() external {
         // contract creation must have a target of address(0)
-        vm.expectRevert(OptimismPortal2.BadTarget.selector);
+        vm.expectRevert(BadTarget.selector);
         optimismPortal2.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
@@ -156,7 +157,7 @@ contract OptimismPortal2_Test is CommonTest {
     function test_depositTransaction_largeData_reverts() external {
         uint256 size = 120_001;
         uint64 gasLimit = optimismPortal2.minimumGasLimit(uint64(size));
-        vm.expectRevert(OptimismPortal2.LargeCalldata.selector);
+        vm.expectRevert(LargeCalldata.selector);
         optimismPortal2.depositTransaction({
             _to: address(0),
             _value: 0,
@@ -168,7 +169,7 @@ contract OptimismPortal2_Test is CommonTest {
 
     /// @dev Tests that `depositTransaction` reverts when the gas limit is too small.
     function test_depositTransaction_smallGasLimit_reverts() external {
-        vm.expectRevert(OptimismPortal2.SmallGasLimit.selector);
+        vm.expectRevert(SmallGasLimit.selector);
         optimismPortal2.depositTransaction({ _to: address(1), _value: 0, _gasLimit: 0, _isCreation: false, _data: hex"" });
     }
 
@@ -178,7 +179,7 @@ contract OptimismPortal2_Test is CommonTest {
         uint64 gasLimit = optimismPortal2.minimumGasLimit(uint64(_data.length));
         if (_shouldFail) {
             gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
-            vm.expectRevert(OptimismPortal2.SmallGasLimit.selector);
+            vm.expectRevert(SmallGasLimit.selector);
         }
 
         optimismPortal2.depositTransaction({
@@ -396,7 +397,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal2.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert(OptimismPortal2.Paused.selector);
+        vm.expectRevert(CallPaused.selector);
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -783,7 +784,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal2.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert(OptimismPortal2.Paused.selector);
+        vm.expectRevert(CallPaused.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 

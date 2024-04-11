@@ -21,6 +21,7 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import "src/libraries/PortalErrors.sol";
 
 contract OptimismPortal_Test is CommonTest {
     address depositor;
@@ -151,7 +152,7 @@ contract OptimismPortal_Test is CommonTest {
     ///      for a contract creation deposit.
     function test_depositTransaction_contractCreation_reverts() external {
         // contract creation must have a target of address(0)
-        vm.expectRevert(OptimismPortal.BadTarget.selector);
+        vm.expectRevert(BadTarget.selector);
         optimismPortal.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
@@ -160,7 +161,7 @@ contract OptimismPortal_Test is CommonTest {
     function test_depositTransaction_largeData_reverts() external {
         uint256 size = 120_001;
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(size));
-        vm.expectRevert(OptimismPortal.LargeCalldata.selector);
+        vm.expectRevert(LargeCalldata.selector);
         optimismPortal.depositTransaction({
             _to: address(0),
             _value: 0,
@@ -172,7 +173,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `depositTransaction` reverts when the gas limit is too small.
     function test_depositTransaction_smallGasLimit_reverts() external {
-        vm.expectRevert(OptimismPortal.SmallGasLimit.selector);
+        vm.expectRevert(SmallGasLimit.selector);
         optimismPortal.depositTransaction({ _to: address(1), _value: 0, _gasLimit: 0, _isCreation: false, _data: hex"" });
     }
 
@@ -182,7 +183,7 @@ contract OptimismPortal_Test is CommonTest {
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(_data.length));
         if (_shouldFail) {
             gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
-            vm.expectRevert(OptimismPortal.SmallGasLimit.selector);
+            vm.expectRevert(SmallGasLimit.selector);
         }
 
         optimismPortal.depositTransaction({
@@ -411,7 +412,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert(OptimismPortal.Paused.selector);
+        vm.expectRevert(CallPaused.selector);
         optimismPortal.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _l2OutputIndex: _proposedOutputIndex,
@@ -563,7 +564,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert(OptimismPortal.Paused.selector);
+        vm.expectRevert(CallPaused.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
