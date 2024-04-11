@@ -282,12 +282,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // on L2. If this is true, under the assumption that the SecureMerkleTrie does not have
         // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
         // be relayed on L1.
-        if (!SecureMerkleTrie.verifyInclusionProof({
-            _key: abi.encode(storageKey),
-            _value: hex"01",
-            _proof: _withdrawalProof,
-            _root: _outputRootProof.messagePasserStorageRoot
-        })) revert InvalidInclusionProof();
+        if (
+            !SecureMerkleTrie.verifyInclusionProof({
+                _key: abi.encode(storageKey),
+                _value: hex"01",
+                _proof: _withdrawalProof,
+                _root: _outputRootProof.messagePasserStorageRoot
+            })
+        ) revert InvalidInclusionProof();
 
         // Designate the withdrawalHash as proven by storing the `disputeGameProxy` & `timestamp` in the
         // `provenWithdrawals` mapping. A `withdrawalHash` can only be proven once unless the dispute game it proved
@@ -474,7 +476,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been
         // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
         // intervention in the event that a dispute game is resolved incorrectly.
-        if (block.timestamp - disputeGameProxy.resolvedAt().raw() <= DISPUTE_GAME_FINALITY_DELAY_SECONDS) revert AirGapped();
+        if (block.timestamp - disputeGameProxy.resolvedAt().raw() <= DISPUTE_GAME_FINALITY_DELAY_SECONDS) {
+            revert AirGapped();
+        }
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
         if (finalizedWithdrawals[_withdrawalHash]) revert AlreadyFinalized();

@@ -230,12 +230,14 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // on L2. If this is true, under the assumption that the SecureMerkleTrie does not have
         // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
         // be relayed on L1.
-        if (!SecureMerkleTrie.verifyInclusionProof({
-            _key: abi.encode(storageKey),
-            _value: hex"01",
-            _proof: _withdrawalProof,
-            _root: _outputRootProof.messagePasserStorageRoot
-        })) revert InvalidInclusionProof();
+        if (
+            !SecureMerkleTrie.verifyInclusionProof({
+                _key: abi.encode(storageKey),
+                _value: hex"01",
+                _proof: _withdrawalProof,
+                _root: _outputRootProof.messagePasserStorageRoot
+            })
+        ) revert InvalidInclusionProof();
 
         // Designate the withdrawalHash as proven by storing the `outputRoot`, `timestamp`, and
         // `l2BlockNumber` in the `provenWithdrawals` mapping. A `withdrawalHash` can only be
