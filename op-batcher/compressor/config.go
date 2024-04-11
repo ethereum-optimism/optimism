@@ -18,6 +18,8 @@ type Config struct {
 	Kind string
 
 	CompressionAlgo string
+
+	BrotliQuality int
 }
 
 func (c Config) NewCompressor() (derive.Compressor, error) {

@@ -51,6 +51,8 @@ type SpanChannelOut struct {
 
 	zstdCompressed *bytes.Buffer
 	zstdCompressor *zstd.Writer
+
+	brotliQuality int
 }
 
 func (co *SpanChannelOut) ID() ChannelID {
@@ -62,7 +64,7 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressorAlgo string) (*SpanChannelOut, error) {
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressorAlgo string, brotliQuality int) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:         ChannelID{},
 		frame:      0,
@@ -73,6 +75,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		zstdCompressed: &bytes.Buffer{},
 		target:     targetOutputSize,
 		compressorAlgo: compressorAlgo,
+		brotliQuality: brotliQuality,
 	}
 	var err error
 	if err = c.setRandomID(); err != nil {
@@ -88,7 +91,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 	c.brotliCompressor = cbrotli.NewWriter(
 		c.brotliCompressed,
 		cbrotli.WriterOptions{
-			Quality: 11,
+			Quality: brotliQuality,
 			LGWin:   24,
 		},
 	)
