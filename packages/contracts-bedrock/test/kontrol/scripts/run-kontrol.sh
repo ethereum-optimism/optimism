@@ -21,7 +21,6 @@ kontrol_build() {
     --module-import $module \
     $rekompile
   return $?
-  # return 1 #Debugging
 }
 
 kontrol_prove() {
@@ -42,7 +41,6 @@ kontrol_prove() {
     --init-node-from $state_diff \
     --xml-test-report
   return $?
-  # return 2 #Debugging
 }
 
 get_log_results(){
@@ -152,7 +150,7 @@ done
 max_depth=10000
 max_iterations=10000
 smt_timeout=100000
-max_workers=7 # Set to 7 since the CI machine has 8 CPUs
+max_workers=16 # Set to 7 since the CI machine has 8 CPUs
 # workers is the minimum between max_workers and the length of test_list
 # unless no test arguments are provided, in which case we default to max_workers
 if [ "$CUSTOM_TESTS" == 0 ] && [ "$SCRIPT_TESTS" == false ]; then
@@ -191,6 +189,8 @@ results[0]=$?
 kontrol_prove
 results[1]=$?
 
+get_log_results
+
 # Now you can use ${results[0]} and ${results[1]}
 # to check the results of kontrol_build and kontrol_prove, respectively
 if [ ${results[0]} -ne 0 ] && [ ${results[1]} -ne 0 ]; then
@@ -205,7 +205,6 @@ elif [ ${results[1]} -ne 0 ]; then
   # Handle failure
 else
   echo "Kontrol Passed"
-  # Continue processing
 fi
 
 notif "DONE"
