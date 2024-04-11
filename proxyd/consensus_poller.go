@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	PollerInterval = 1 * time.Second
+	DefaultPollerInterval = 1 * time.Second
 )
 
 type OnConsensusBroken func()
@@ -237,7 +237,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 		maxUpdateThreshold: 30 * time.Second,
 		maxBlockLag:        8, // 8*12 seconds = 96 seconds ~ 1.6 minutes
 		minPeerCount:       3,
-		interval:           PollerInterval,
+		interval:           DefaultPollerInterval,
 	}
 
 	for _, opt := range opts {
