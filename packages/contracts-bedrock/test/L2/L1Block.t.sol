@@ -152,9 +152,15 @@ contract L1BlockEcotone_Test is L1BlockTest {
     }
 }
 
-
 contract L1BlockCustomGasToken_Test is L1BlockTest {
-    function testFuzz_setGasPayingToken_succeeds(address _token, uint8 _decimals, string memory _name, string memory _symbol) external {
+    function testFuzz_setGasPayingToken_succeeds(
+        address _token,
+        uint8 _decimals,
+        string memory _name,
+        string memory _symbol
+    )
+        external
+    {
         vm.assume(_token != address(0));
         vm.assume(_token != Constants.ETHER);
         vm.assume(bytes(_name).length <= 32);
@@ -167,12 +173,7 @@ contract L1BlockCustomGasToken_Test is L1BlockTest {
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: name, symbol: symbol });
 
         vm.prank(depositor);
-        l1Block.setGasPayingToken({
-            _token: _token,
-            _decimals: _decimals,
-            _name: name,
-            _symbol: symbol
-        });
+        l1Block.setGasPayingToken({ _token: _token, _decimals: _decimals, _name: name, _symbol: symbol });
 
         (address token, uint8 decimals) = l1Block.gasPayingToken();
         assertEq(token, _token);

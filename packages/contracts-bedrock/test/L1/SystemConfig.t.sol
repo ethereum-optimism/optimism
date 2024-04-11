@@ -259,18 +259,21 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
 
-        vm.expectCall(address(optimismPortal), abi.encodeCall(optimismPortal.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL"))));
+        vm.expectCall(
+            address(optimismPortal),
+            abi.encodeCall(optimismPortal.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
+        );
 
         vm.expectEmit(address(optimismPortal));
         emit TransactionDeposited(
             0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
             Predeploys.L1_BLOCK_ATTRIBUTES,
-            0,                   // deposit version
+            0, // deposit version
             abi.encodePacked(
-                uint256(0),      // mint
-                uint256(0),      // value
-                uint64(80000),   // gasLimit
-                false,           // isCreation,
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(80000), // gasLimit
+                false, // isCreation,
                 abi.encodeCall(L1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
             )
         );

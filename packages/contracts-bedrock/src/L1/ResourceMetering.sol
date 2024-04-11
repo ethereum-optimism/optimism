@@ -124,7 +124,7 @@ abstract contract ResourceMetering is Initializable {
 
         // Make sure we can actually buy the resource amount requested by the user.
         params.prevBoughtGas += _amount;
-        if(int256(uint256(params.prevBoughtGas)) > int256(uint256(config.maxResourceLimit))) {
+        if (int256(uint256(params.prevBoughtGas)) > int256(uint256(config.maxResourceLimit))) {
             revert OutOfGas();
         }
 
