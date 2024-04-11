@@ -9,7 +9,7 @@ import (
 	"math/big"
 
 	"github.com/DataDog/zstd"
-	"github.com/andybalholm/brotli"
+	"github.com/google/brotli/go/cbrotli"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -47,7 +47,7 @@ type SpanChannelOut struct {
 	zlibCompressor *zlib.Writer
 
 	brotliCompressed *bytes.Buffer
-	brotliCompressor *brotli.Writer
+	brotliCompressor *cbrotli.Writer
 
 	zstdCompressed *bytes.Buffer
 	zstdCompressor *zstd.Writer
@@ -85,9 +85,12 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 	}
 
 	// brotli compressor
-	c.brotliCompressor = brotli.NewWriterLevel(
+	c.brotliCompressor = cbrotli.NewWriter(
 		c.brotliCompressed,
-		brotli.BestCompression,
+		cbrotli.WriterOptions{
+			Quality: 11,
+			LGWin:   24,
+		},
 	)
 
 	// zstd compressor
@@ -103,7 +106,13 @@ func (co *SpanChannelOut) compressorReset() {
 		co.zlibCompressor.Reset(co.zlibCompressed)
 	} else if co.compressorAlgo == "brotli" {
 		co.brotliCompressed.Reset()
-		co.brotliCompressor.Reset(co.brotliCompressed)
+		co.brotliCompressor = cbrotli.NewWriter(
+			co.brotliCompressed,
+			cbrotli.WriterOptions{
+				Quality: 11,
+				LGWin:   24,
+			},
+		)
 	} else if co.compressorAlgo == "zstd" {
 		co.zstdCompressed.Reset()
 		// no reset, start a new zstd compressor
