@@ -265,8 +265,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("version()") });
 
         // OptimismPortal2
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("GUARDIAN()") });
-        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("SYSTEM_CONFIG()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("donateETH()") });
         _addSpec({
