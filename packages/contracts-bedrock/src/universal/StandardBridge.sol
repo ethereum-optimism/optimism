@@ -256,6 +256,7 @@ abstract contract StandardBridge is Initializable {
     {
         require(paused() == false, "StandardBridge: paused");
         require(isCustomGasToken() == false, "StandardBridge: cannot bridge ETH with custom gas token");
+        require(msg.value != 0, "StandardBridge: cannot bridge 0 ETH");
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(messenger), "StandardBridge: cannot send to messenger");
@@ -325,6 +326,7 @@ abstract contract StandardBridge is Initializable {
         internal
     {
         require(isCustomGasToken() == false, "StandardBridge: cannot bridge ETH with custom gas token");
+        require(msg.value != 0, "StandardBridge: cannot bridge 0 ETH");
         require(msg.value == _amount, "StandardBridge: bridging ETH must include sufficient ETH value");
 
         // Emit the correct events. By default this will be _amount, but child

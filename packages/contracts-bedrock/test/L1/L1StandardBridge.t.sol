@@ -210,7 +210,19 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
     }
 }
 
-contract L1StandardBridge_Receive_TestFail { }
+contract L1StandardBridge_Receive_TestFail is Bridge_Initializer {
+    /// @dev Tests that the receive function reverts if msg.value is zero.
+    function test_receive_zeroMsgValue_reverts() external {
+        vm.prank(alice, alice);
+
+        (bool success, bytes memory data) = address(l1StandardBridge).call(hex"");
+        assertFalse(success);
+        assembly {
+            data := add(data, 0x04)
+        }
+        assertEq(abi.decode(data, (string)), "StandardBridge: cannot bridge 0 ETH");
+    }
+}
 
 contract PreBridgeETH is Bridge_Initializer {
     /// @dev Asserts the expected calls and events for bridging ETH depending
@@ -326,6 +338,14 @@ contract L1StandardBridge_BridgeETH_Test is PreBridgeETH {
 
         l1StandardBridge.bridgeETH(50000, hex"dead");
     }
+
+    /// @dev Tests that bridging ETH reverts if msg.value is zero.
+    function test_bridgeETH_zeroMsgValue_reverts() external {
+        vm.prank(alice, alice);
+        vm.expectRevert("StandardBridge: cannot bridge 0 ETH");
+
+        l1StandardBridge.bridgeETH(50000, hex"dead");
+    }
 }
 
 contract L1StandardBridge_DepositETH_TestFail is Bridge_Initializer {
@@ -335,6 +355,13 @@ contract L1StandardBridge_DepositETH_TestFail is Bridge_Initializer {
         vm.expectRevert("StandardBridge: function can only be called from an EOA");
         vm.prank(alice);
         l1StandardBridge.depositETH{ value: 1 }(300, hex"");
+    }
+
+    /// @dev Tests that depositing ETH reverts if msg.value is zero.
+    function test_depositETH_zeroMsgValue_reverts() external {
+        vm.prank(alice, alice);
+        vm.expectRevert("StandardBridge: cannot bridge 0 ETH");
+        l1StandardBridge.depositETH(300, hex"");
     }
 }
 
@@ -430,6 +457,13 @@ contract L1StandardBridge_DepositETHTo_Test is PreBridgeETHTo {
         l1StandardBridge.depositETHTo{ value: 600 }(bob, 60000, hex"dead");
         assertEq(address(optimismPortal).balance, 600);
     }
+
+    /// @dev Tests that depositETHTo reverts if msg.value is zero.
+    function test_depositETHTo_zeroMsgValue_reverts() external {
+        vm.expectRevert("StandardBridge: cannot bridge 0 ETH");
+
+        l1StandardBridge.depositETHTo(address(0), 0, hex"");
+    }
 }
 
 contract L1StandardBridge_BridgeETHTo_Test is PreBridgeETHTo {
@@ -446,11 +480,17 @@ contract L1StandardBridge_BridgeETHTo_Test is PreBridgeETHTo {
 
     /// @dev Tests that bridging ETH reverts if a custom gas token is used.
     function test_bridgeETHTo_isCustomGasToken_reverts() external {
-        vm.prank(alice, alice);
         vm.mockCall(
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
         vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
+
+        l1StandardBridge.bridgeETHTo(bob, 60000, hex"dead");
+    }
+
+    /// @dev Tests that bridging ETH reverts if msg.value is zero.
+    function test_bridgeETHTo_zeroMsgValue_reverts() external {
+        vm.expectRevert("StandardBridge: cannot bridge 0 ETH");
 
         l1StandardBridge.bridgeETHTo(bob, 60000, hex"dead");
     }
@@ -672,6 +712,19 @@ contract L1StandardBridge_FinalizeETHWithdrawal_Test is Bridge_Initializer {
         assertEq(address(l1StandardBridge.messenger()).balance, 0);
         assertEq(aliceBalance + 100, alice.balance);
     }
+
+    /// @dev Tests that finalizeETHWithdrawal reverts if msg.value is zero
+    function test_finalizeETHWithdrawal_zeroMsgValue_reverts() external {
+        vm.mockCall(
+            address(l1StandardBridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(l1StandardBridge.OTHER_BRIDGE()))
+        );
+        vm.prank(address(l1CrossDomainMessenger));
+        vm.expectRevert("StandardBridge: cannot bridge 0 ETH");
+
+        l1StandardBridge.finalizeETHWithdrawal(alice, alice, 100, hex"");
+    }
 }
 
 contract L1StandardBridge_FinalizeETHWithdrawal_TestFail is Bridge_Initializer { }
@@ -771,6 +824,19 @@ contract L1StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
         vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
+
+        l1StandardBridge.finalizeBridgeETH(alice, alice, 100, hex"");
+    }
+
+    /// @dev Tests that finalizing bridged ETH reverts if msg.value is zero
+    function test_finalizeBridgeETH_zeroMsgValue_reverts() external {
+        vm.mockCall(
+            address(l1StandardBridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(l1StandardBridge.OTHER_BRIDGE()))
+        );
+        vm.prank(address(l1CrossDomainMessenger));
+        vm.expectRevert("StandardBridge: cannot bridge 0 ETH");
 
         l1StandardBridge.finalizeBridgeETH(alice, alice, 100, hex"");
     }
