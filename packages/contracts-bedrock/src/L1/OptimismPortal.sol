@@ -230,12 +230,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // on L2. If this is true, under the assumption that the SecureMerkleTrie does not have
         // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
         // be relayed on L1.
-        if (SecureMerkleTrie.verifyInclusionProof({
+        if (!SecureMerkleTrie.verifyInclusionProof({
             _key: abi.encode(storageKey),
             _value: hex"01",
             _proof: _withdrawalProof,
             _root: _outputRootProof.messagePasserStorageRoot
-        }) == false) revert InvalidInclusionProof();
+        })) revert InvalidInclusionProof();
 
         // Designate the withdrawalHash as proven by storing the `outputRoot`, `timestamp`, and
         // `l2BlockNumber` in the `provenWithdrawals` mapping. A `withdrawalHash` can only be
@@ -276,7 +276,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // finalized. This waiting period can elapse in parallel with the waiting period for the
         // output the withdrawal was proven against. In effect, this means that the minimum
         // withdrawal time is proposal submission time + finalization period.
-        if (_isFinalizationPeriodElapsed(provenWithdrawal.timestamp) == false) revert TooEarly();
+        if (!_isFinalizationPeriodElapsed(provenWithdrawal.timestamp)) revert TooEarly();
 
         // Grab the OutputProposal from the L2OutputOracle, will revert if the output that
         // corresponds to the given index has not been proposed yet.
@@ -319,7 +319,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // sub call to the target contract if the minimum gas limit specified by the user would not
         // be sufficient to execute the sub call.
         if (success == false && tx.origin == Constants.ESTIMATION_ADDRESS) {
-            revert();
+            revert GasEstimation();
         }
     }
 

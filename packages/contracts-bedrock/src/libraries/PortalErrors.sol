@@ -36,3 +36,17 @@ error TooEarly();
 error BadOutputRoot();
 /// @notice Error for when the withdrawal has already been processed.
 error AlreadyFinalized();
+/// @notice Error for when the game type is invalid.
+error InvalidGameType();
+/// @notice Error for when the dispute game is created early.
+error DisputeGameCreatedEarly();
+/// @notice Error for when the dispute game has been blacklisted.
+error Blacklisted();
+/// @notice Error for when the proposal isn't valid.
+error InvalidProposal();
+/// @notice Error for when the proposal is in air gap.
+error AirGapped();
+/// @notice Error for special gas estimation.
+error GasEstimation();
+/// @notice Error for when the dispute game is invalid.
+error InvalidDisputeGame();
