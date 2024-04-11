@@ -210,7 +210,14 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
     }
 }
 
-contract L1StandardBridge_Receive_TestFail { }
+contract L1StandardBridge_Receive_TestFail is Bridge_Initializer {
+    /// @dev Tests that the bridge reverts when using default receive function.
+    function test_receive_contract_reverts() external {
+        vm.deal(address(this), 100);
+        (bool success,) = address(l1StandardBridge).call{ value: 100 }(hex"");
+        assertEq(success, false);
+    }
+}
 
 contract PreBridgeETH is Bridge_Initializer {
     /// @dev Asserts the expected calls and events for bridging ETH depending

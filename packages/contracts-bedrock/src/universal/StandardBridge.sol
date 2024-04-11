@@ -126,10 +126,6 @@ abstract contract StandardBridge is Initializable {
         otherBridge = _otherBridge;
     }
 
-    /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
-    ///         Must be implemented by contracts that inherit.
-    receive() external payable virtual;
-
     /// @notice Getter for the ERC20 token address that is used to pay for gas
     ///         and the decimals, name and symbol of the token. This method must
     ///         be implemented by the contracts that inherit it.

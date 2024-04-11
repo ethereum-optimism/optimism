@@ -69,13 +69,6 @@ contract L2StandardBridge is StandardBridge, ISemver {
         });
     }
 
-    /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
-    receive() external payable override onlyEOA {
-        _initiateWithdrawal(
-            Predeploys.LEGACY_ERC20_ETH, msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes("")
-        );
-    }
-
     /// @notice Returns the address of the token used to pay for gas, its decimals, name and symbol.
     function gasPayingToken() public view override returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
