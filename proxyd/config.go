@@ -26,6 +26,7 @@ type ServerConfig struct {
 	MaxRequestBodyLogLen  int  `toml:"max_request_body_log_len"`
 	EnablePprof           bool `toml:"enable_pprof"`
 	EnableXServedByHeader bool `toml:"enable_served_by_header"`
+	AllowAllOrigins       bool `toml:"allow_all_origins"`
 }
 
 type CacheConfig struct {
@@ -111,8 +112,9 @@ type BackendGroupConfig struct {
 
 	WeightedRouting bool `toml:"weighted_routing"`
 
-	ConsensusAware        bool   `toml:"consensus_aware"`
-	ConsensusAsyncHandler string `toml:"consensus_handler"`
+	ConsensusAware          bool         `toml:"consensus_aware"`
+	ConsensusAsyncHandler   string       `toml:"consensus_handler"`
+	ConsensusPollerInterval TOMLDuration `toml:"consensus_poller_interval"`
 
 	ConsensusBanPeriod          TOMLDuration `toml:"consensus_ban_period"`
 	ConsensusMaxUpdateThreshold TOMLDuration `toml:"consensus_max_update_threshold"`
