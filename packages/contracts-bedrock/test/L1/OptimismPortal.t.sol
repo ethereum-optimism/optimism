@@ -1256,6 +1256,10 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
 
         vm.expectCall(_defaultTx.target, 0, _defaultTx.data);
 
+        vm.expectCall(
+            address(token), 0, abi.encodeWithSelector(token.transfer.selector, _defaultTx.target, _defaultTx.value)
+        );
+
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
         assertEq(optimismPortal.balance(), 0);
