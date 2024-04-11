@@ -71,7 +71,7 @@ Have fun using hybrid\_compute and contact us right away if you run into any pro
 
 [Telegram for Developers](https://t.me/bobadev)\
 [Project Telegram](https://t.me/bobanetwork)\
-[Discord](https://discord.com/invite/YFweUKCb8a)
+[Discord](https://discord.com/invite/Hvu3zpFwWd)
 
 There is a community-built factory contract for Hybrid Compute helper. You can deploy, manage, and fund your Hybrid Compute helpers all through a graphical interface.
 

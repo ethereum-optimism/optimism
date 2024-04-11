@@ -20,13 +20,13 @@ Boba is built on the Optimistic Rollup developed by [Optimism](https://optimism.
 
 <figure><img src="./assets/documentation.png" alt=""><figcaption></figcaption></figure>
 
-User focused documentation is available [here on the Boba docs website](http://docs.boba.network/). If you have questions or feel like something is missing check out our [Discord server](https://discord.com/invite/YFweUKCb8a) where we are actively responding, or [open an issue](https://github.com/bobanetwork/boba/issues) in the GitHub repo for this site.
+User focused documentation is available [here on the Boba docs website](http://docs.boba.network/). If you have questions or feel like something is missing check out our [Discord server](https://discord.com/invite/Hvu3zpFwWd) where we are actively responding, or [open an issue](https://github.com/bobanetwork/boba/issues) in the GitHub repo for this site.
 
 ### Direct Support
 
 [Telegram for Developers](https://t.me/bobadev)\
 [Project Telegram](https://t.me/bobanetwork)\
-[Discord](https://discord.com/invite/YFweUKCb8a)
+[Discord](https://discord.com/invite/Hvu3zpFwWd)
 
 <figure><img src="./assets/directory-structure.png" alt=""><figcaption></figcaption></figure>
 
