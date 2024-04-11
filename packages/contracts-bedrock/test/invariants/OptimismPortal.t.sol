@@ -12,6 +12,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Types } from "src/libraries/Types.sol";
+import "src/libraries/PortalErrors.sol";
 
 contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
@@ -170,7 +171,7 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
     ///                   A withdrawal that has been proven should not be able to be finalized
     ///                   until after the finalization period has elapsed.
     function invariant_cannotFinalizeBeforePeriodHasPassed() external {
-        vm.expectRevert("OptimismPortal: proven withdrawal finalization period has not elapsed");
+        vm.expectRevert(TooEarly.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
@@ -200,7 +201,7 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
     ///                   Ensures that there is no chain of calls that can be made that
     ///                   allows a withdrawal to be finalized twice.
     function invariant_cannotFinalizeTwice() external {
-        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
+        vm.expectRevert(AlreadyFinalized.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
