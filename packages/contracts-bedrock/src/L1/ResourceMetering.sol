@@ -11,6 +11,7 @@ import { Arithmetic } from "src/libraries/Arithmetic.sol";
 /// @notice ResourceMetering implements an EIP-1559 style resource metering system where pricing
 ///         updates automatically based on current demand.
 abstract contract ResourceMetering is Initializable {
+    /// @notice Error returned when too much gas resource is consumed.
     error OutOfGas();
 
     /// @notice Represents the various parameters that control the way in which resources are

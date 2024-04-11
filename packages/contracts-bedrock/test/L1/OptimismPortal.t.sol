@@ -160,7 +160,7 @@ contract OptimismPortal_Test is CommonTest {
     ///      for a contract creation deposit.
     function test_depositTransaction_contractCreation_reverts() external {
         // contract creation must have a target of address(0)
-        vm.expectRevert("OptimismPortal: must send to address(0) when creating a contract");
+        vm.expectRevert(OptimismPortal.BadTarget.selector);
         optimismPortal.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
@@ -169,7 +169,7 @@ contract OptimismPortal_Test is CommonTest {
     function test_depositTransaction_largeData_reverts() external {
         uint256 size = 120_001;
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(size));
-        vm.expectRevert("OptimismPortal: data too large");
+        vm.expectRevert(OptimismPortal.LargeCalldata.selector);
         optimismPortal.depositTransaction({
             _to: address(0),
             _value: 0,
@@ -181,7 +181,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `depositTransaction` reverts when the gas limit is too small.
     function test_depositTransaction_smallGasLimit_reverts() external {
-        vm.expectRevert("OptimismPortal: gas limit too small");
+        vm.expectRevert(OptimismPortal.SmallGasLimit.selector);
         optimismPortal.depositTransaction({ _to: address(1), _value: 0, _gasLimit: 0, _isCreation: false, _data: hex"" });
     }
 
@@ -191,7 +191,7 @@ contract OptimismPortal_Test is CommonTest {
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(_data.length));
         if (_shouldFail) {
             gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
-            vm.expectRevert("OptimismPortal: gas limit too small");
+            vm.expectRevert(OptimismPortal.SmallGasLimit.selector);
         }
 
         optimismPortal.depositTransaction({
@@ -393,7 +393,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that the gas paying token cannot be set by a non-system config.
     function test_setGasPayingToken_notSystemConfig_fails() external {
-        vm.expectRevert("OptimismPortal: only SystemConfig can set gas paying token");
+        vm.expectRevert(OptimismPortal.Unauthorized.selector);
         optimismPortal.setGasPayingToken({ _token: address(0), _decimals: 0, _name: "", _symbol: "" });
     }
 
@@ -403,8 +403,7 @@ contract OptimismPortal_Test is CommonTest {
         (address token,) = optimismPortal.gasPayingToken();
         assertEq(token, Constants.ETHER);
 
-        vm.expectRevert("OptimismPortal: only custom gas token");
-
+        vm.expectRevert(OptimismPortal.OnlyCustomGasToken.selector);
         optimismPortal.depositERC20Transaction(address(0), 0, 0, 0, false, "");
     }
 
@@ -492,7 +491,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert("OptimismPortal: paused");
+        vm.expectRevert(OptimismPortal.Paused.selector);
         optimismPortal.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _l2OutputIndex: _proposedOutputIndex,
@@ -651,8 +650,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
         vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
-        vm.expectRevert("OptimismPortal: cannot call gas paying token");
-
+        vm.expectRevert(OptimismPortal.BadTarget.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
@@ -661,7 +659,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert("OptimismPortal: paused");
+        vm.expectRevert(OptimismPortal.Paused.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
@@ -1166,8 +1164,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
 
         uint64 gasLimit = optimismPortal.minimumGasLimit(0);
 
-        vm.expectRevert("OptimismPortal: must send to address(0) when creating a contract");
-
+        vm.expectRevert(OptimismPortal.BadTarget.selector);
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(1), 0, 0, gasLimit, true, "");
     }
@@ -1177,8 +1174,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Mock the gas paying token to be the ERC20 token
         vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
 
-        vm.expectRevert("OptimismPortal: gas limit too small");
-
+        vm.expectRevert(OptimismPortal.SmallGasLimit.selector);
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(0), 0, 0, 0, false, "");
     }
@@ -1193,8 +1189,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
 
         uint64 gasLimit = optimismPortal.minimumGasLimit(120_001);
 
-        vm.expectRevert("OptimismPortal: data too large");
-
+        vm.expectRevert(OptimismPortal.LargeCalldata.selector);
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(0), 0, 0, gasLimit, false, data);
     }
