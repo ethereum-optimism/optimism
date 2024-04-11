@@ -53,6 +53,7 @@ type SpanChannelOut struct {
 	zstdCompressor *zstd.Writer
 
 	brotliQuality int
+	brotliWindow int
 }
 
 func (co *SpanChannelOut) ID() ChannelID {
@@ -64,7 +65,7 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressorAlgo string, brotliQuality int) (*SpanChannelOut, error) {
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressorAlgo string, brotliQuality int, brotliWindow int) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:         ChannelID{},
 		frame:      0,
@@ -76,6 +77,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		target:     targetOutputSize,
 		compressorAlgo: compressorAlgo,
 		brotliQuality: brotliQuality,
+		brotliWindow: brotliWindow,
 	}
 	var err error
 	if err = c.setRandomID(); err != nil {
@@ -92,7 +94,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		c.brotliCompressed,
 		cbrotli.WriterOptions{
 			Quality: brotliQuality,
-			LGWin:   0,
+			LGWin:   brotliWindow,
 		},
 	)
 
@@ -113,7 +115,7 @@ func (co *SpanChannelOut) compressorReset() {
 			co.brotliCompressed,
 			cbrotli.WriterOptions{
 				Quality: co.brotliQuality,
-				LGWin:   0,
+				LGWin:   co.brotliWindow,
 			},
 		)
 	} else if co.compressorAlgo == "zstd" {
