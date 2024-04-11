@@ -21,6 +21,23 @@ import { Constants } from "src/libraries/Constants.sol";
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal is Initializable, ResourceMetering, ISemver {
+    /// @notice Error for when a deposit or withdrawal is to a bad target.
+    error BadTarget();
+    /// @notice Error for when a deposit has too much calldata.
+    error LargeCalldata();
+    /// @notice Error for when a deposit has too small of a gas limit.
+    error SmallGasLimit();
+    /// @notice Error for when a withdrawal transfer fails.
+    error TransferFailed();
+    /// @notice Error for when a method is called that only works when using a custom gas token.
+    error OnlyCustomGasToken();
+    /// @notice Error for when a method cannot be called with non zero CALLVALUE.
+    error NoValue();
+    /// @notice Error for an unauthorized CALLER.
+    error Unauthorized();
+    /// @notice Error for when a method cannot be called when paused.
+    error Paused();
+
     /// @notice Represents a proven withdrawal.
     /// @custom:field outputRoot    Root of the L2 output this was proven against.
     /// @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
@@ -86,13 +103,13 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
-        require(paused() == false, "OptimismPortal: paused");
+        if (paused()) revert Paused();
         _;
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.5.0
-    string public constant version = "2.5.0";
+    /// @custom:semver 2.6.0
+    string public constant version = "2.6.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
@@ -122,30 +139,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             l2Sender = Constants.DEFAULT_L2_SENDER;
         }
         __ResourceMetering_init();
-    }
-
-    /// @notice Getter function for the contract of the L2OutputOracle on this chain.
-    ///         Public getter is legacy and will be removed in the future. Use `l2Oracle()` instead.
-    /// @return Contract of the L2OutputOracle on this chain.
-    /// @custom:legacy
-    function L2_ORACLE() external view returns (L2OutputOracle) {
-        return l2Oracle;
-    }
-
-    /// @notice Getter function for the contract of the SystemConfig on this chain.
-    ///         Public getter is legacy and will be removed in the future. Use `systemConfig()` instead.
-    /// @return Contract of the SystemConfig on this chain.
-    /// @custom:legacy
-    function SYSTEM_CONFIG() external view returns (SystemConfig) {
-        return systemConfig;
-    }
-
-    /// @notice Getter function for the address of the guardian.
-    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.guardian()` instead.
-    /// @return Address of the guardian.
-    /// @custom:legacy
-    function GUARDIAN() external view returns (address) {
-        return guardian();
     }
 
     /// @notice Getter function for the address of the guardian.
@@ -357,7 +350,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // sub call to the target contract if the minimum gas limit specified by the user would not
         // be sufficient to execute the sub call.
         if (success == false && tx.origin == Constants.ESTIMATION_ADDRESS) {
-            revert("OptimismPortal: withdrawal failed");
+            revert();
         }
     }
 
@@ -383,19 +376,23 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
-        if (_isCreation) {
-            require(_to == address(0), "OptimismPortal: must send to address(0) when creating a contract");
+        if (_isCreation && _to != address(0)) {
+            revert BadTarget();
         }
 
         // Prevent depositing transactions that have too small of a gas limit. Users should pay
         // more for more resource usage.
-        require(_gasLimit >= minimumGasLimit(uint64(_data.length)), "OptimismPortal: gas limit too small");
+        if (_gasLimit < minimumGasLimit(uint64(_data.length))) {
+            revert SmallGasLimit();
+        }
 
         // Prevent the creation of deposit transactions that have too much calldata. This gives an
         // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
         // that the transaction can fit into the p2p network policy of 128kb even though deposit
         // transactions are not gossipped over the p2p network.
-        require(_data.length <= 120_000, "OptimismPortal: data too large");
+        if (_data.length > 120_000) {
+            revert LargeCalldata();
+        }
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;

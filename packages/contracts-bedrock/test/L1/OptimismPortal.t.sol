@@ -37,9 +37,7 @@ contract OptimismPortal_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
-        assertEq(address(opImpl.L2_ORACLE()), address(0));
         assertEq(address(opImpl.l2Oracle()), address(0));
-        assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
         assertEq(address(opImpl.superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
@@ -54,11 +52,8 @@ contract OptimismPortal_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_initialize_succeeds() external virtual {
         address guardian = deploy.cfg().superchainConfigGuardian();
-        assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
-        assertEq(address(optimismPortal.SYSTEM_CONFIG()), address(systemConfig));
         assertEq(address(optimismPortal.systemConfig()), address(systemConfig));
-        assertEq(optimismPortal.GUARDIAN(), guardian);
         assertEq(optimismPortal.guardian(), guardian);
         assertEq(address(optimismPortal.superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal.l2Sender(), Constants.DEFAULT_L2_SENDER);
@@ -156,7 +151,7 @@ contract OptimismPortal_Test is CommonTest {
     ///      for a contract creation deposit.
     function test_depositTransaction_contractCreation_reverts() external {
         // contract creation must have a target of address(0)
-        vm.expectRevert("OptimismPortal: must send to address(0) when creating a contract");
+        vm.expectRevert(OptimismPortal.BadTarget.selector);
         optimismPortal.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
@@ -165,7 +160,7 @@ contract OptimismPortal_Test is CommonTest {
     function test_depositTransaction_largeData_reverts() external {
         uint256 size = 120_001;
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(size));
-        vm.expectRevert("OptimismPortal: data too large");
+        vm.expectRevert(OptimismPortal.LargeCalldata.selector);
         optimismPortal.depositTransaction({
             _to: address(0),
             _value: 0,
@@ -177,7 +172,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `depositTransaction` reverts when the gas limit is too small.
     function test_depositTransaction_smallGasLimit_reverts() external {
-        vm.expectRevert("OptimismPortal: gas limit too small");
+        vm.expectRevert(OptimismPortal.SmallGasLimit.selector);
         optimismPortal.depositTransaction({ _to: address(1), _value: 0, _gasLimit: 0, _isCreation: false, _data: hex"" });
     }
 
@@ -187,7 +182,7 @@ contract OptimismPortal_Test is CommonTest {
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(_data.length));
         if (_shouldFail) {
             gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
-            vm.expectRevert("OptimismPortal: gas limit too small");
+            vm.expectRevert(OptimismPortal.SmallGasLimit.selector);
         }
 
         optimismPortal.depositTransaction({
@@ -416,7 +411,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert("OptimismPortal: paused");
+        vm.expectRevert(OptimismPortal.Paused.selector);
         optimismPortal.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _l2OutputIndex: _proposedOutputIndex,
@@ -568,7 +563,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert("OptimismPortal: paused");
+        vm.expectRevert(OptimismPortal.Paused.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 

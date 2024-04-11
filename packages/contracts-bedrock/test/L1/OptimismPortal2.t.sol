@@ -40,7 +40,6 @@ contract OptimismPortal2_Test is CommonTest {
     function test_constructor_succeeds() external virtual {
         OptimismPortal2 opImpl = OptimismPortal2(payable(deploy.mustGetAddress("OptimismPortal2")));
         assertEq(address(opImpl.disputeGameFactory()), address(0));
-        assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
         assertEq(address(opImpl.superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
@@ -53,9 +52,7 @@ contract OptimismPortal2_Test is CommonTest {
     function test_initialize_succeeds() external virtual {
         address guardian = deploy.cfg().superchainConfigGuardian();
         assertEq(address(optimismPortal2.disputeGameFactory()), address(disputeGameFactory));
-        assertEq(address(optimismPortal2.SYSTEM_CONFIG()), address(systemConfig));
         assertEq(address(optimismPortal2.systemConfig()), address(systemConfig));
-        assertEq(optimismPortal2.GUARDIAN(), guardian);
         assertEq(optimismPortal2.guardian(), guardian);
         assertEq(address(optimismPortal2.superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal2.l2Sender(), Constants.DEFAULT_L2_SENDER);
@@ -66,7 +63,7 @@ contract OptimismPortal2_Test is CommonTest {
     /// @dev Tests that `pause` successfully pauses
     ///      when called by the GUARDIAN.
     function test_pause_succeeds() external {
-        address guardian = optimismPortal2.GUARDIAN();
+        address guardian = optimismPortal2.guardian();
 
         assertEq(optimismPortal2.paused(), false);
 
@@ -83,7 +80,7 @@ contract OptimismPortal2_Test is CommonTest {
     function test_pause_onlyGuardian_reverts() external {
         assertEq(optimismPortal2.paused(), false);
 
-        assertTrue(optimismPortal2.GUARDIAN() != alice);
+        assertTrue(optimismPortal2.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can pause");
         vm.prank(alice);
         superchainConfig.pause("identifier");
@@ -94,7 +91,7 @@ contract OptimismPortal2_Test is CommonTest {
     /// @dev Tests that `unpause` successfully unpauses
     ///      when called by the GUARDIAN.
     function test_unpause_succeeds() external {
-        address guardian = optimismPortal2.GUARDIAN();
+        address guardian = optimismPortal2.guardian();
 
         vm.prank(guardian);
         superchainConfig.pause("identifier");
@@ -110,13 +107,13 @@ contract OptimismPortal2_Test is CommonTest {
 
     /// @dev Tests that `unpause` reverts when called by a non-GUARDIAN.
     function test_unpause_onlyGuardian_reverts() external {
-        address guardian = optimismPortal2.GUARDIAN();
+        address guardian = optimismPortal2.guardian();
 
         vm.prank(guardian);
         superchainConfig.pause("identifier");
         assertEq(optimismPortal2.paused(), true);
 
-        assertTrue(optimismPortal2.GUARDIAN() != alice);
+        assertTrue(optimismPortal2.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can unpause");
         vm.prank(alice);
         superchainConfig.unpause();
@@ -150,7 +147,7 @@ contract OptimismPortal2_Test is CommonTest {
     ///      for a contract creation deposit.
     function test_depositTransaction_contractCreation_reverts() external {
         // contract creation must have a target of address(0)
-        vm.expectRevert("OptimismPortal: must send to address(0) when creating a contract");
+        vm.expectRevert(OptimismPortal2.BadTarget.selector);
         optimismPortal2.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
@@ -159,7 +156,7 @@ contract OptimismPortal2_Test is CommonTest {
     function test_depositTransaction_largeData_reverts() external {
         uint256 size = 120_001;
         uint64 gasLimit = optimismPortal2.minimumGasLimit(uint64(size));
-        vm.expectRevert("OptimismPortal: data too large");
+        vm.expectRevert(OptimismPortal2.LargeCalldata.selector);
         optimismPortal2.depositTransaction({
             _to: address(0),
             _value: 0,
@@ -171,7 +168,7 @@ contract OptimismPortal2_Test is CommonTest {
 
     /// @dev Tests that `depositTransaction` reverts when the gas limit is too small.
     function test_depositTransaction_smallGasLimit_reverts() external {
-        vm.expectRevert("OptimismPortal: gas limit too small");
+        vm.expectRevert(OptimismPortal2.SmallGasLimit.selector);
         optimismPortal2.depositTransaction({ _to: address(1), _value: 0, _gasLimit: 0, _isCreation: false, _data: hex"" });
     }
 
@@ -181,7 +178,7 @@ contract OptimismPortal2_Test is CommonTest {
         uint64 gasLimit = optimismPortal2.minimumGasLimit(uint64(_data.length));
         if (_shouldFail) {
             gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
-            vm.expectRevert("OptimismPortal: gas limit too small");
+            vm.expectRevert(OptimismPortal2.SmallGasLimit.selector);
         }
 
         optimismPortal2.depositTransaction({
@@ -396,10 +393,10 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
-        vm.prank(optimismPortal2.GUARDIAN());
+        vm.prank(optimismPortal2.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert("OptimismPortal: paused");
+        vm.expectRevert(OptimismPortal2.Paused.selector);
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -783,10 +780,10 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
     function test_finalizeWithdrawalTransaction_paused_reverts() external {
-        vm.prank(optimismPortal2.GUARDIAN());
+        vm.prank(optimismPortal2.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert("OptimismPortal: paused");
+        vm.expectRevert(OptimismPortal2.Paused.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 
