@@ -24,3 +24,15 @@ error InvalidOutputRootProof();
 error InvalidInclusionProof();
 /// @notice
 error AlreadyProven();
+/// @notice
+error NonReentrant();
+/// @notice
+error NotProven();
+/// @notice
+error BadTimestamp();
+/// @notice
+error TooEarly();
+/// @notice
+error BadOutputRoot();
+/// @notice
+error AlreadyFinalized();

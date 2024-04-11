@@ -256,9 +256,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
-        require(
-            l2Sender == Constants.DEFAULT_L2_SENDER, "OptimismPortal: can only trigger one withdrawal per transaction"
-        );
+        if (l2Sender != Constants.DEFAULT_L2_SENDER) revert NonReentrant();
 
         // Grab the proven withdrawal from the `provenWithdrawals` map.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
@@ -267,24 +265,18 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
         // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
         // a timestamp of zero.
-        require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
+        if (provenWithdrawal.timestamp == 0) revert NotProven();
 
         // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
         // starting timestamp inside the L2OutputOracle. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
-        require(
-            provenWithdrawal.timestamp >= l2Oracle.startingTimestamp(),
-            "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
-        );
+        if (provenWithdrawal.timestamp < l2Oracle.startingTimestamp()) revert BadTimestamp();
 
         // A proven withdrawal must wait at least the finalization period before it can be
         // finalized. This waiting period can elapse in parallel with the waiting period for the
         // output the withdrawal was proven against. In effect, this means that the minimum
         // withdrawal time is proposal submission time + finalization period.
-        require(
-            _isFinalizationPeriodElapsed(provenWithdrawal.timestamp),
-            "OptimismPortal: proven withdrawal finalization period has not elapsed"
-        );
+        if (_isFinalizationPeriodElapsed(provenWithdrawal.timestamp) == false) revert TooEarly();
 
         // Grab the OutputProposal from the L2OutputOracle, will revert if the output that
         // corresponds to the given index has not been proposed yet.
@@ -293,19 +285,13 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Check that the output root that was used to prove the withdrawal is the same as the
         // current output root for the given output index. An output root may change if it is
         // deleted by the challenger address and then re-proposed.
-        require(
-            proposal.outputRoot == provenWithdrawal.outputRoot,
-            "OptimismPortal: output root proven is not the same as current output root"
-        );
+        if (proposal.outputRoot != provenWithdrawal.outputRoot) revert BadOutputRoot();
 
         // Check that the output proposal has also been finalized.
-        require(
-            _isFinalizationPeriodElapsed(proposal.timestamp),
-            "OptimismPortal: output proposal finalization period has not elapsed"
-        );
+        if (_isFinalizationPeriodElapsed(proposal.timestamp) == false) revert TooEarly();
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
-        require(finalizedWithdrawals[withdrawalHash] == false, "OptimismPortal: withdrawal has already been finalized");
+        if (finalizedWithdrawals[withdrawalHash]) revert AlreadyFinalized();
 
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;

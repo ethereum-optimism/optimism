@@ -399,7 +399,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Asserts that the reentrant call will revert.
     function callPortalAndExpectRevert() external payable {
-        vm.expectRevert("OptimismPortal: can only trigger one withdrawal per transaction");
+        vm.expectRevert(NonReentrant.selector);
         // Arguments here don't matter, as the require check is the first thing that happens.
         // We assume that this has already been proven.
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
@@ -572,7 +572,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
     function test_finalizeWithdrawalTransaction_ifWithdrawalNotProven_reverts() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
-        vm.expectRevert("OptimismPortal: withdrawal has not been proven yet");
+        vm.expectRevert(NotProven.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
         assert(address(bob).balance == bobBalanceBefore);
@@ -595,7 +595,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
             abi.encode(bytes32(uint256(1)), _proposedBlockNumber)
         );
 
-        vm.expectRevert("OptimismPortal: proven withdrawal finalization period has not elapsed");
+        vm.expectRevert(TooEarly.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
         assert(address(bob).balance == bobBalanceBefore);
@@ -622,7 +622,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         );
 
         // Attempt to finalize the withdrawal
-        vm.expectRevert("OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp");
+        vm.expectRevert(BadTimestamp.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
         // Ensure that bob's balance has remained the same
@@ -653,7 +653,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         );
 
         // Attempt to finalize the withdrawal
-        vm.expectRevert("OptimismPortal: output root proven is not the same as current output root");
+        vm.expectRevert(BadOutputRoot.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
         // Ensure that bob's balance has remained the same
@@ -682,7 +682,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         );
 
         // Attempt to finalize the withdrawal
-        vm.expectRevert("OptimismPortal: output proposal finalization period has not elapsed");
+        vm.expectRevert(TooEarly.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
         // Ensure that bob's balance has remained the same
@@ -719,7 +719,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
-        vm.expectRevert("OptimismPortal: proven withdrawal finalization period has not elapsed");
+        vm.expectRevert(TooEarly.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
@@ -735,7 +735,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         emit WithdrawalFinalized(_withdrawalHash, true);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
-        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
+        vm.expectRevert(AlreadyFinalized.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
