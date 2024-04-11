@@ -916,7 +916,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         emit WithdrawalFinalized(_withdrawalHash, true);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
-        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
+        vm.expectRevert(AlreadyFinalized.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 
