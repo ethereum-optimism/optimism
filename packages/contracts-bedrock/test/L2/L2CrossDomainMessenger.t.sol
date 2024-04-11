@@ -91,6 +91,17 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(nonce + 2, l2CrossDomainMessenger.messageNonce());
     }
 
+    /// @dev Tests that `sendMessage`reverts if custom gas is used with a value.
+    function test_sendMessage_customGasWithValue_reverts() external {
+        vm.deal(address(this), 1 ether);
+
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("isCustomGasToken()"), abi.encode(true));
+
+        vm.expectRevert("L2CrossDomainMessenger: cannot send value with custom gas token");
+
+        l2CrossDomainMessenger.sendMessage{ value: 1 ether }(recipient, hex"aa", uint32(500_000));
+    }
+
     /// @dev Tests that `sendMessage` reverts if the recipient is the zero address.
     function test_xDomainSender_senderNotSet_reverts() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");

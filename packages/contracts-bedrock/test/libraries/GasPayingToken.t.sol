@@ -5,11 +5,12 @@ pragma solidity 0.8.15;
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Test } from "forge-std/Test.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 /// @title GasPayingToken_Roundtrip_Test
 /// @notice Tests the roundtrip of setting and getting the gas paying token.
 contract GasPayingToken_Roundtrip_Test is Test {
-    /// @notice Test that the gas paying token correctly sets values in storage
+    /// @dev Test that the gas paying token correctly sets values in storage.
     function testFuzz_set_succeeds(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         GasPayingToken.set(_token, _decimals, _name, _symbol);
 
@@ -26,7 +27,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq(_symbol, vm.load(address(this), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT));
     }
 
-    /// @dev Test that the gas paying token returns values associated with Ether when unset
+    /// @dev Test that the gas paying token returns values associated with Ether when unset.
     function test_get_empty_succeeds() external {
         (address token, uint8 decimals) = GasPayingToken.getToken();
         assertEq(Constants.ETHER, token);
@@ -37,7 +38,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq("ETH", GasPayingToken.getSymbol());
     }
 
-    /// @dev Test that the gas paying token correctly gets values from storage when set
+    /// @dev Test that the gas paying token correctly gets values from storage when set.
     function testFuzz_get_nonEmpty_succeeds(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         vm.assume(_token != address(0));
 
@@ -47,12 +48,12 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq(_token, token);
         assertEq(_decimals, decimals);
 
-        assertEq(string(abi.encodePacked(_name)), GasPayingToken.getName());
+        assertEq(LibString.fromSmallString(_name), GasPayingToken.getName());
 
-        assertEq(string(abi.encodePacked(_symbol)), GasPayingToken.getSymbol());
+        assertEq(LibString.fromSmallString(_symbol), GasPayingToken.getSymbol());
     }
 
-    /// @notice Test that the gas paying token correctly sets values in storage when input name and symbol are strings
+    /// @dev Test that the gas paying token correctly sets values in storage when input name and symbol are strings.
     function testFuzz_setGetWithSanitize_succeeds(
         address _token,
         uint8 _decimals,
@@ -72,10 +73,10 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq(_decimals, decimals);
 
         assertEq(_name, GasPayingToken.getName());
-
         assertEq(_symbol, GasPayingToken.getSymbol());
     }
 
+    /// @dev Differentially test `sanitize`.
     function testDiff_sanitize_succeeds(string memory _str) external {
         vm.assume(bytes(_str).length <= 32);
         vm.assume(bytes(_str).length > 0);
@@ -92,6 +93,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
         assertEq(output, GasPayingToken.sanitize(_str));
     }
 
+    /// @dev Test that `sanitize` fails when the input string is too long.
     function test_sanitize_stringTooLong_fails(string memory _str) external {
         vm.assume(bytes(_str).length > 32);
 
@@ -100,6 +102,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
         GasPayingToken.sanitize(_str);
     }
 
+    /// @dev Test that `sanitize` works as expected when the input string is empty.
     function test_sanitize_empty_succeeds() external {
         assertEq(GasPayingToken.sanitize(""), "");
     }

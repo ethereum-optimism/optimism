@@ -13,7 +13,6 @@ import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { Constants } from "src/libraries/Constants.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { L1Block } from "src/L2/L1Block.sol";
@@ -557,7 +556,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
-        require(msg.sender == address(systemConfig));
+        require(msg.sender == address(systemConfig), "OptimismPortal: only SystemConfig can set gas paying token");
 
         // Set L2 deposit gas as used without paying burning gas.
         useGas(80000);
