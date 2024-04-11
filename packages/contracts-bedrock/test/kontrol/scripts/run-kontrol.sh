@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+set -euo pipefail
 
 export FOUNDRY_PROFILE=kprove
 
