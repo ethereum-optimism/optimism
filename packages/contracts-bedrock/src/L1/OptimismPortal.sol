@@ -288,7 +288,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         if (proposal.outputRoot != provenWithdrawal.outputRoot) revert BadOutputRoot();
 
         // Check that the output proposal has also been finalized.
-        if (_isFinalizationPeriodElapsed(proposal.timestamp) == false) revert TooEarly();
+        if (!_isFinalizationPeriodElapsed(proposal.timestamp)) revert TooEarly();
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
         if (finalizedWithdrawals[withdrawalHash]) revert AlreadyFinalized();
