@@ -26,6 +26,15 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     using SafeERC20 for IERC20;
 
+    error BadTarget();
+    error LargeCalldata();
+    error SmallGasLimit();
+    error TransferFailed();
+    error OnlyCustomGasToken();
+    error NoValue();
+    error Unauthorized();
+    error Paused();
+
     /// @notice Represents a proven withdrawal.
     /// @custom:field outputRoot    Root of the L2 output this was proven against.
     /// @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
@@ -96,7 +105,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
-        require(paused() == false, "OptimismPortal: paused");
+        if (paused()) revert Paused();
         _;
     }
 
@@ -132,30 +141,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             l2Sender = Constants.DEFAULT_L2_SENDER;
         }
         __ResourceMetering_init();
-    }
-
-    /// @notice Getter function for the contract of the L2OutputOracle on this chain.
-    ///         Public getter is legacy and will be removed in the future. Use `l2Oracle()` instead.
-    /// @return Contract of the L2OutputOracle on this chain.
-    /// @custom:legacy
-    function L2_ORACLE() external view returns (L2OutputOracle) {
-        return l2Oracle;
-    }
-
-    /// @notice Getter function for the contract of the SystemConfig on this chain.
-    ///         Public getter is legacy and will be removed in the future. Use `systemConfig()` instead.
-    /// @return Contract of the SystemConfig on this chain.
-    /// @custom:legacy
-    function SYSTEM_CONFIG() external view returns (SystemConfig) {
-        return systemConfig;
-    }
-
-    /// @notice Getter function for the address of the guardian.
-    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.guardian()` instead.
-    /// @return Address of the guardian.
-    /// @custom:legacy
-    function GUARDIAN() external view returns (address) {
-        return guardian();
     }
 
     /// @notice Getter function for the address of the guardian.
@@ -377,7 +362,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         } else {
             // Cannot call the token contract directly from the portal. This would allow an attacker
             // to call approve from a withdrawal and drain the balance of the portal.
-            require(_tx.target != token, "OptimismPortal: cannot call gas paying token");
+            if (_tx.target == token) revert BadTarget();
 
             // Only transfer value when a non zero value is specified. This saves gas in the case of
             // using the standard bridge or arbitrary message passing.
@@ -396,10 +381,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 IERC20(token).safeTransfer({ to: _tx.target, value: _tx.value });
 
                 // The balance must be transferred exactly.
-                require(
-                    IERC20(token).balanceOf(address(this)) == balanceOf - _tx.value,
-                    "OptimismPortal: ERC20 transfer failed"
-                );
+                if (IERC20(token).balanceOf(address(this)) != balanceOf - _tx.value) {
+                    revert TransferFailed();
+                }
             }
 
             // Make a call to the target contract only if there is calldata.
@@ -421,7 +405,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // sub call to the target contract if the minimum gas limit specified by the user would not
         // be sufficient to execute the sub call.
         if (success == false && tx.origin == Constants.ESTIMATION_ADDRESS) {
-            revert("OptimismPortal: withdrawal failed");
+            revert();
         }
     }
 
@@ -445,7 +429,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     {
         // Can only be called if an ERC20 token is used for gas paying on L2
         (address token,) = gasPayingToken();
-        require(token != Constants.ETHER, "OptimismPortal: only custom gas token");
+        if (token == Constants.ETHER) {
+            revert OnlyCustomGasToken();
+        }
 
         // Get the balance of the portal before the transfer.
         uint256 balanceOf = IERC20(token).balanceOf(address(this));
@@ -454,7 +440,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         IERC20(token).safeTransferFrom({ from: msg.sender, to: address(this), value: _mint });
 
         // Double check that the portal now has the exact amount of token.
-        require(IERC20(token).balanceOf(address(this)) == balanceOf + _mint, "OptimismPortal: transferFrom failed");
+        if (IERC20(token).balanceOf(address(this)) != balanceOf + _mint) {
+            revert TransferFailed();
+        }
 
         // Overflow protection here ensures safety on L2 from overflows in balance.
         _balance += _mint;
@@ -490,8 +478,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         metered(_gasLimit)
     {
         (address token,) = gasPayingToken();
-        if (token != Constants.ETHER) {
-            require(msg.value == 0, "OptimismPortal: cannot send ETH with custom gas token");
+        if (token != Constants.ETHER && msg.value != 0) {
+            revert NoValue();
         }
 
         _depositTransaction({
@@ -523,19 +511,23 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
-        if (_isCreation) {
-            require(_to == address(0), "OptimismPortal: must send to address(0) when creating a contract");
+        if (_isCreation && _to != address(0)) {
+            revert BadTarget();
         }
 
         // Prevent depositing transactions that have too small of a gas limit. Users should pay
         // more for more resource usage.
-        require(_gasLimit >= minimumGasLimit(uint64(_data.length)), "OptimismPortal: gas limit too small");
+        if (_gasLimit < minimumGasLimit(uint64(_data.length))) {
+            revert SmallGasLimit();
+        }
 
         // Prevent the creation of deposit transactions that have too much calldata. This gives an
         // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
         // that the transaction can fit into the p2p network policy of 128kb even though deposit
         // transactions are not gossipped over the p2p network.
-        require(_data.length <= 120_000, "OptimismPortal: data too large");
+        if (_data.length > 120_000) {
+            revert LargeCalldata();
+        }
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
@@ -556,7 +548,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
-        require(msg.sender == address(systemConfig), "OptimismPortal: only SystemConfig can set gas paying token");
+        if (msg.sender != address(systemConfig)) {
+            revert Unauthorized();
+        }
 
         // Set L2 deposit gas as used without paying burning gas.
         useGas(80000);
