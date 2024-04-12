@@ -620,11 +620,6 @@
   },
   {
     "inputs": [],
-    "name": "Paused",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "SmallGasLimit",
     "type": "error"
   },
