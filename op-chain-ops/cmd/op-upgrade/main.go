@@ -70,9 +70,9 @@ func main() {
 				EnvVars: []string{"SUPERCHAIN_TARGET"},
 			},
 			&cli.PathFlag{
-				Name:     "deploy-config",
-				Usage:    "The path to the deploy config file",
-				EnvVars:  []string{"DEPLOY_CONFIG"},
+				Name:    "deploy-config",
+				Usage:   "The path to the deploy config file",
+				EnvVars: []string{"DEPLOY_CONFIG"},
 			},
 			&cli.PathFlag{
 				Name:    "outfile",

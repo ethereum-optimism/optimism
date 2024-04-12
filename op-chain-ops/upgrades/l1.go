@@ -619,8 +619,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			return err
 		}
 
-		startBlock := common.Hash{}
-
+		var startBlock common.Hash
 		if config != nil {
 			startBlock = common.BigToHash(new(big.Int).SetUint64(config.SystemConfigStartBlock))
 		} else {
