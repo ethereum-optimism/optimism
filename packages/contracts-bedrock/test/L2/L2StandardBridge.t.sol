@@ -756,7 +756,6 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
     /// @dev Tests that bridging ETH succeeds.
     function test_bridgeETH_succeeds() external {
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
-        uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
 
         bytes memory message =
             abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 500, hex"dead");
@@ -772,20 +771,6 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
             500,
             abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 50000)
         );
-
-        bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
-            nonce,
-            address(l2StandardBridge),
-            address(l1StandardBridge),
-            500,
-            50000,
-            message
-        );
-
-        uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 50000);
-
-        bytes memory opaqueData = abi.encodePacked(uint256(500), uint256(500), baseGas, false, innerMessage);
 
         vm.expectEmit(address(l2StandardBridge));
         emit ETHBridgeInitiated(alice, alice, 500, hex"dead");
@@ -808,7 +793,6 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
 
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
-        uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
 
         bytes memory message =
             abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 0, hex"dead");
@@ -822,20 +806,6 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
             0,
             abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 50000)
         );
-
-        bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
-            nonce,
-            address(l2StandardBridge),
-            address(l1StandardBridge),
-            0,
-            50000,
-            message
-        );
-
-        uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 50000);
-
-        bytes memory opaqueData = abi.encodePacked(uint256(0), uint256(0), baseGas, false, innerMessage);
 
         vm.expectEmit(address(l2StandardBridge));
         emit ETHBridgeInitiated(alice, alice, 0, hex"dead");
@@ -882,20 +852,6 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
             abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 60000)
         );
 
-        bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
-            nonce,
-            address(l2StandardBridge),
-            address(l1StandardBridge),
-            600,
-            60000,
-            message
-        );
-
-        uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 60000);
-
-        bytes memory opaqueData = abi.encodePacked(uint256(600), uint256(600), baseGas, false, innerMessage);
-
         vm.expectEmit(address(l2StandardBridge));
         emit ETHBridgeInitiated(alice, bob, 600, hex"dead");
 
@@ -934,20 +890,6 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
             address(l2CrossDomainMessenger),
             abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 60000)
         );
-
-        bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
-            nonce,
-            address(l2StandardBridge),
-            address(l1StandardBridge),
-            0,
-            60000,
-            message
-        );
-
-        uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 60000);
-
-        bytes memory opaqueData = abi.encodePacked(uint256(0), uint256(0), baseGas, false, innerMessage);
 
         vm.expectEmit(address(l2StandardBridge));
         emit ETHBridgeInitiated(alice, bob, 0, hex"dead");

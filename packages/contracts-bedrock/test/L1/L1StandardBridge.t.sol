@@ -798,8 +798,6 @@ contract L1StandardBridge_FinalizeETHWithdrawal_Test is Bridge_Initializer {
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
 
-        uint256 aliceBalance = alice.balance;
-
         vm.expectEmit(address(l1StandardBridge));
         emit ETHWithdrawalFinalized(alice, alice, 0, hex"");
 
