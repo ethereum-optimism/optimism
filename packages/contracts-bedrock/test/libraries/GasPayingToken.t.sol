@@ -65,6 +65,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
         vm.assume(_token != address(0));
         vm.assume(bytes(_name).length <= 32);
         vm.assume(bytes(_symbol).length <= 32);
+        vm.assume(_token != Constants.ETHER);
 
         GasPayingToken.set(_token, _decimals, GasPayingToken.sanitize(_name), GasPayingToken.sanitize(_symbol));
 
