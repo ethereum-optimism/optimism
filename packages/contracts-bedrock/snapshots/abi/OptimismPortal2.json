@@ -698,11 +698,6 @@
   },
   {
     "inputs": [],
-    "name": "Blacklisted",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "CallPaused",
     "type": "error"
   },
@@ -713,22 +708,7 @@
   },
   {
     "inputs": [],
-    "name": "InvalidOutputRootProof",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "LargeCalldata",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NonReentrant",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotProven",
     "type": "error"
   },
   {
