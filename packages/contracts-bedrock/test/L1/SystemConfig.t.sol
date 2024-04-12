@@ -218,6 +218,14 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
         super.setUp();
     }
 
+    /// @dev Helper to clean storage so the proxy can be initialized again.
+    function cleanStorage() internal {
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SLOT, bytes32(0));
+        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_NAME_SLOT, bytes32(0));
+        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(0));
+    }
+
     /// @dev Tests that initialization sets the correct values and getters work.
     function test_initialize_customGasToken_succeeds() external {
         (address addr, uint8 decimals) = systemConfig.gasPayingToken();
@@ -239,11 +247,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
         vm.assume(bytes(_name).length <= 32);
         vm.assume(bytes(_symbol).length <= 32);
 
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SLOT, bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_NAME_SLOT, bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(0));
+        cleanStorage();
 
         vm.mockCall(_token, abi.encodeWithSelector(token.decimals.selector), abi.encode(18));
         vm.mockCall(_token, abi.encodeWithSelector(token.name.selector), abi.encode(_name));
@@ -251,7 +255,6 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
         token = ERC20(_token);
 
-        vm.prank(systemConfig.owner());
         systemConfig.initialize({
             _owner: alice,
             _overhead: 2100,
@@ -288,13 +291,8 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
     /// @dev Tests that initialization sets the correct values and getters work when token address passed is 0.
     function test_initialize_customGasToken_zeroTokenAddress_succeeds() external {
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SLOT, bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_NAME_SLOT, bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(0));
+        cleanStorage();
 
-        vm.prank(systemConfig.owner());
         systemConfig.initialize({
             _owner: alice,
             _overhead: 2100,
@@ -325,13 +323,8 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
     /// @dev Tests that initialization sets the correct values and getters work when token address is Constants.ETHER
     function test_initialize_customGasToken_etherTokenAddress_succeeds() external {
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SLOT, bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_NAME_SLOT, bytes32(0));
-        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(0));
+        cleanStorage();
 
-        vm.prank(systemConfig.owner());
         systemConfig.initialize({
             _owner: alice,
             _overhead: 2100,
@@ -362,12 +355,10 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
     /// @dev Tests that initialization fails if decimals are not 18.
     function test_initialize_customGasToken_wrongDecimals_fails() external {
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        cleanStorage();
 
         vm.mockCall(address(token), abi.encodeWithSelector(token.decimals.selector), abi.encode(8));
 
-        vm.prank(systemConfig.owner());
         vm.expectRevert("SystemConfig: bad decimals of gas paying token");
         systemConfig.initialize({
             _owner: alice,
@@ -392,15 +383,13 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
     /// @dev Tests that initialization fails if name is too long.
     function test_initialize_customGasToken_nameTooLong_fails() external {
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        cleanStorage();
 
         string memory name = new string(32);
         name = string.concat(name, "a");
 
         vm.mockCall(address(token), abi.encodeWithSelector(token.name.selector), abi.encode(name));
 
-        vm.prank(systemConfig.owner());
         vm.expectRevert("GasPayingToken: string cannot be greater than 32 bytes");
         systemConfig.initialize({
             _owner: alice,
@@ -425,15 +414,13 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
     /// @dev Tests that initialization fails if symbol is too long.
     function test_initialize_customGasToken_symbolTooLong_fails() external {
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        cleanStorage();
 
         string memory symbol = new string(33);
         symbol = string.concat(symbol, "a");
 
         vm.mockCall(address(token), abi.encodeWithSelector(token.symbol.selector), abi.encode(symbol));
 
-        vm.prank(systemConfig.owner());
         vm.expectRevert("GasPayingToken: string cannot be greater than 32 bytes");
         systemConfig.initialize({
             _owner: alice,
@@ -458,8 +445,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
     /// @dev Tests that initialization works with OptimismPortal.
     function test_initialize_customGasTokenCall_succeeds() external {
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        cleanStorage();
 
         vm.expectCall(
             address(optimismPortal),
@@ -480,7 +466,6 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
             )
         );
 
-        vm.prank(systemConfig.owner());
         systemConfig.initialize({
             _owner: alice,
             _overhead: 2100,
