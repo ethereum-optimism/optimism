@@ -12,13 +12,13 @@ To see examples of how to perform dozens of basic operations on Boba, you can al
 
 <figure><img src="../../../assets/check the current gas price.png" alt=""><figcaption></figcaption></figure>
 
-The Gas Price on L2 changes every **30 seconds**, with some smoothing to reduce sharp discontinuities in the price from one moment to the next. The maximum percentage change of the L2 gas price is 5% in the gas price oracle. Like on mainchain, the current gas price can be obtained via `.getGasPrice()`:
+The Gas Price on L2 changes as part of the chain derivation protocol. The exact derivation is described in the [protocol documentation](https://github.com/ethereum-optimism/specs/blob/298e745a7aa2e0aa78b6f18eb88bf1c484c00c4a/specs/protocol/predeploys.md#gaspriceoracle). Like on Mainnet, the current gas price can be obtained via `.getGasPrice()`:
 
 ```javascript
   this.L2Provider = new ethers.providers.StaticJsonRpcProvider('mainnet.boba.network')
 
   const gasPrice = await this.L2Provider.getGasPrice()
-   
+
   console.log("Current gas price:", gasPrice )
   //prints: Current gas price: BigNumber {_hex: '0x02540be400', _isBigNumber: true}
 
@@ -26,11 +26,9 @@ The Gas Price on L2 changes every **30 seconds**, with some smoothing to reduce 
   //prints: Current gas price: 10000000000
 ```
 
-Typical values are 3 to 10 Gwei.
-
 <figure><img src="../../../assets/estimate the cost of a contract call.png" alt=""><figcaption></figcaption></figure>
 
-Like on mainchain, the cost of a L2 transaction is the product of the current gas price and the 'complexity' of the contract call, with some calls being much more expensive than others. The contract call complexity is quantified via the `gas`. For example, the cost of an approval on L2 is about 0.0004 ETH, or about $1.70 (Oct. 2021):
+Like on Mainnet, the cost of a L2 transaction is the product of the current gas price and the 'complexity' of the contract call, with some calls being much more expensive than others. The contract call complexity is quantified via the `gas`.
 
 ```javascript
   const L2ERC20Contract = new ethers.Contract(
@@ -69,39 +67,7 @@ NOTE: The gas for a particular transaction depends both on the nature of the cal
   Fast Exit:     141698
 ```
 
-NOTE: Unlike on L1, on _L2 there is no benefit to paying more_ - you just waste ETH. The sequencer operates in first in first serve, and transaction order is determined by the arrival time of your transaction, not by how much you are willing to pay.
-
-NOTE: To protect users, _overpaying by more than a 10% percent will also revert your transactions_. The core gas price logic is as follows:
-
-```javascript
-  //Core l2 gas price code logic
-
-	fee := new(big.Int).Set(opts.ExpectedGasPrice)
-	
-	// Allow for a downward buffer to protect against L1 gas price volatility
-	if opts.ThresholdDown != nil {
-		fee = mulByFloat(fee, opts.ThresholdDown)
-	}
-	
-	// Protect the sequencer from being underpaid
-	// if user fee < expected fee, return error
-	if opts.UserGasPrice.Cmp(fee) == -1 {
-		return ErrGasPriceTooLow
-	}
-	
-	// Protect users from overpaying by too much
-	if opts.ThresholdUp != nil {
-		// overpaying = user fee - expected fee
-		overpaying := new(big.Int).Sub(opts.UserGasPrice, opts.ExpectedGasPrice)
-		threshold := mulByFloat(opts.ExpectedGasPrice, opts.ThresholdUp)
-		// if overpaying > threshold, return error
-		if overpaying.Cmp(threshold) == 1 {
-			return ErrGasPriceTooHigh
-		}
-	}
-```
-
-**Gas Price tolerance band** : The `gasPrice` you use should be **within 10% of the value** reported by `.getGasPrice()`. Let’s say the gasPrice is 100 Gwei. Then, the l2geth will accept any `gasPrice` between 90 Gwei to 110 Gwei.
+NOTE: Unlike on L1, there is no transaction pool.  Although transactions can be ordered based on gas priority, because only the sequencer sees the pending transactions there are generally no opportunities for MEV with respect to transaction ordering.  Thus there is generally no benefit to paying more than the estimated gas fee.
 
 <figure><img src="../../../assets/l2-l2 transfer.png" alt=""><figcaption></figcaption></figure>
 
@@ -112,15 +78,15 @@ async transfer(address, value_Wei_String, currency) {
 	let tx = null
 
 	try {
-	  
+
 	  if(currency === allAddresses.L2_ETH_Address) {
-	    
+
 	    //we are transferring ETH - special call
 	    let wei = BigNumber.from(value_Wei_String)
 
-	    tx = await this.provider.send('eth_sendTransaction', 
+	    tx = await this.provider.send('eth_sendTransaction',
 	      [
-	        { 
+	        {
 	          from: this.account,
 	          to: address,
 	          value: ethers.utils.hexlify(wei)
@@ -138,7 +104,7 @@ async transfer(address, value_Wei_String, currency) {
 		    )
 	    await tx.wait()
 	  }
-	  
+
 	  return tx
 	} catch (error) {
 	  console.log("Transfer error:", error)
@@ -193,41 +159,28 @@ async transfer(address, value_Wei_String, currency) {
 	console.log(' completed Deposit! L2 tx hash:', l2Receipt.transactionHash)
 
 	return l2Receipt
-    
+
   }
 ```
 
 <figure><img src="../../../assets/accessing latest L1 block number.png" alt=""><figcaption></figcaption></figure>
 
-The hex value that corresponds to the `L1BLOCKNUMBER` opcode (`0x4B`) may be changed in the future. **We strongly discourage direct use of this opcode within your contracts.** Instead, if you want to access the latest L1 block number, please use the `OVM_L1BlockNumber` contract as described below.
-
-The block number of the latest L1 block seen by the L2 system can be accessed via the `L1BLOCKNUMBER` opcode. Solidity doesn't make it easy to use non-standard opcodes, so there is a simple contract located at \[`0x4200000000000000000000000000000000000013` that will allow you to trigger this opcode. You can use this contract as follows:
+Information about the L1 is available via the [L1 Block Attributes Predeploy
+Contract](https://github.com/ethereum-optimism/specs/blob/298e745a7aa2e0aa78b6f18eb88bf1c484c00c4a/specs/protocol/deposits.md#l1-attributes-predeployed-contract).  This contract is always updated by the first implicit deposit transaction in every block.
 
 ```javascript
-import { iOVM_L1BlockNumber } from "@eth-optimism/contracts/L2/predeploys/iOVM_L1BlockNumber.sol";
-import { Lib_PredeployAddresses } from "@eth-optimism/contracts/libraries/constants/Lib_PredeployAddresses.sol";
+import { L1Block } from "@eth-optimism/contracts-bedrock/L2/L1Block.sol";
+import { Predeploys } from "@eth-optimism/contracts-bedrock/libraries/Predeploys.sol";
 
 contract MyContract {
    function myFunction() public {
       // ... your code here ...
 
-      uint256 l1BlockNumber = iOVM_L1BlockNumber(
-         Lib_PredeployAddresses.L1_BLOCK_NUMBER // located at 0x4200000000000000000000000000000000000013
+      uint256 l1BlockNumber = L1Block(
+         Predeploys.L1_BLOCK_ATTRIBUTES
       ).getL1BlockNumber();
 
       // ... your code here ...
    }
 }
 ```
-
-<figure><img src="../../../assets/block numbers and timestamps.png" alt=""><figcaption></figcaption></figure>
-
-### Block production is not constant
-
-On Ethereum, the `NUMBER` opcode (`block.number` in Solidity) corresponds to the current Ethereum block number. Similarly, in Boba Network, `block.number` corresponds to the current L2 block number. However, **each transaction on L2 is placed in a separate block and blocks are NOT produced at a constant rate.**
-
-This is important because it means that `block.number` is currently NOT a reliable source of timing information. If you want access to the current time, you should use `block.timestamp` (the `TIMESTAMP` opcode) instead.
-
-### Timestamp lags by up to 15 minutes
-
-Note that `block.timestamp` is pulled automatically from the latest L1 block seen by the L2. L2 currently waits for about 15 minutes (\~50 confirmations) before the L1 block is accepted. As a result, the timestamp may lag behind the current time by up to 15 minutes.
