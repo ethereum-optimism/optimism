@@ -20,6 +20,7 @@ elif [ $# -eq 1 ]; then
 fi
 
 cleanup() {
+  trap
   # Restore the original script from the backup
   if [ -f "$DEPLOY_SCRIPT.bak" ]; then
     cp "$DEPLOY_SCRIPT.bak" "$DEPLOY_SCRIPT"
@@ -36,7 +37,7 @@ cleanup() {
 }
 
 # Set trap to call cleanup function on exit
-trap cleanup EXIT
+trap cleanup EXIT ERR
 
 # create deployments/hardhat/.deploy and snapshots/state-diff/Deploy.json if necessary
 if [ ! -d "deployments/hardhat" ]; then
@@ -86,6 +87,10 @@ LICENSE=MIT
 
 copy_to_docker # Copy the newly generated files to the docker container
 run kontrol load-state-diff $SUMMARY_NAME snapshots/state-diff/$STATEDIFF --contract-names $CONTRACT_NAMES --output-dir $SUMMARY_DIR --license $LICENSE
+if [ "$LOCAL" = false ]; then
+    # Sync Snapshot updates to the host
+    docker cp "$CONTAINER_NAME:/home/user/workspace/$SUMMARY_DIR" "$WORKSPACE_DIR/$SUMMARY_DIR/.."
+fi
 forge fmt $SUMMARY_DIR/$SUMMARY_NAME.sol
 forge fmt $SUMMARY_DIR/${SUMMARY_NAME}Code.sol
 echo "Added state updates to $SUMMARY_DIR/$SUMMARY_NAME.sol"
