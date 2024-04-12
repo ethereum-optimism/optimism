@@ -494,7 +494,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that the gas paying token cannot be set by a non-system config.
     function test_setGasPayingToken_notSystemConfig_fails() external {
-        vm.expectRevert(OptimismPortal.Unauthorized.selector);
+        vm.expectRevert(Unauthorized.selector);
         optimismPortal.setGasPayingToken({ _token: address(0), _decimals: 0, _name: "", _symbol: "" });
     }
 
@@ -504,7 +504,7 @@ contract OptimismPortal_Test is CommonTest {
         (address token,) = optimismPortal.gasPayingToken();
         assertEq(token, Constants.ETHER);
 
-        vm.expectRevert(OptimismPortal.OnlyCustomGasToken.selector);
+        vm.expectRevert(OnlyCustomGasToken.selector);
         optimismPortal.depositERC20Transaction(address(0), 0, 0, 0, false, "");
     }
 
@@ -751,7 +751,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
         vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
-        vm.expectRevert(OptimismPortal.BadTarget.selector);
+        vm.expectRevert(BadTarget.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
@@ -1349,7 +1349,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Call minimumGasLimit(0) before vm.expectRevert to ensure vm.expectRevert is for depositERC20Transaction
         uint64 gasLimit = optimismPortal.minimumGasLimit(0);
 
-        vm.expectRevert(OptimismPortal.TransferFailed.selector);
+        vm.expectRevert(TransferFailed.selector);
 
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(1), 100, 0, gasLimit, false, "");
@@ -1363,7 +1363,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Call minimumGasLimit(0) before vm.expectRevert to ensure vm.expectRevert is for depositERC20Transaction
         uint64 gasLimit = optimismPortal.minimumGasLimit(0);
 
-        vm.expectRevert(OptimismPortal.BadTarget.selector);
+        vm.expectRevert(BadTarget.selector);
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(1), 0, 0, gasLimit, true, "");
     }
@@ -1373,7 +1373,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Mock the gas paying token to be the ERC20 token
         vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
 
-        vm.expectRevert(OptimismPortal.SmallGasLimit.selector);
+        vm.expectRevert(SmallGasLimit.selector);
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(0), 0, 0, 0, false, "");
     }
@@ -1389,7 +1389,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Call minimumGasLimit(0) before vm.expectRevert to ensure vm.expectRevert is for depositERC20Transaction
         uint64 gasLimit = optimismPortal.minimumGasLimit(120_001);
 
-        vm.expectRevert(OptimismPortal.LargeCalldata.selector);
+        vm.expectRevert(LargeCalldata.selector);
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(0), 0, 0, gasLimit, false, data);
     }
@@ -1537,7 +1537,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Mock the gas paying token to be the ERC20 token
         vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
 
-        vm.expectRevert(OptimismPortal.NoValue.selector);
+        vm.expectRevert(NoValue.selector);
 
         // Deposit the token into the portal
         optimismPortal.depositTransaction{ value: 100 }(address(0), 0, 0, false, "");
