@@ -388,9 +388,9 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	log.Info("processing new L2 range request")
 
 	// clean up the completed in-flight requests
-	for k, v := range s.inFlight {
-		if v.Load() {
-			delete(s.inFlight, k)
+	for blockNum, stillInFlight := range s.inFlight {
+		if !stillInFlight.Load() {
+			delete(s.inFlight, blockNum)
 		}
 	}
 
