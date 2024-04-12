@@ -44,6 +44,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
+    /// @notice The number of decimals that the gas paying token has.
+    uint8 public constant GAS_PAYING_TOKEN_DECIMALS = 18;
+
     /// @notice Storage slot that the unsafe block signer is stored at.
     ///         Storing it at this deterministic storage slot allows for decoupling the storage
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
@@ -268,21 +271,20 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Internal setter for the gas paying token address, includes validation.
-    ///         Ether uses a default value of 18 decimals and the requirement
-    ///         that the decimals are less than or equal to 18 ensures that no precision is
-    ///         lost for tokens that have less decimals.
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
-        if (_token != address(0)) {
-            require(ERC20(_token).decimals() == 18, "SystemConfig: bad decimals of gas paying token");
+        if (_token != address(0) && _token != Constants.ETHER) {
+            require(
+                ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
+            );
             bytes32 name = GasPayingToken.sanitize(ERC20(_token).name());
             bytes32 symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
 
             // Set the gas paying token in storage and in the OptimismPortal.
-            GasPayingToken.set({ _token: _token, _decimals: 18, _name: name, _symbol: symbol });
+            GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
             OptimismPortal(payable(optimismPortal())).setGasPayingToken({
                 _token: _token,
-                _decimals: 18,
+                _decimals: GAS_PAYING_TOKEN_DECIMALS,
                 _name: name,
                 _symbol: symbol
             });
