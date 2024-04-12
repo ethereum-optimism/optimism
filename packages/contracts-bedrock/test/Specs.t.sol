@@ -121,11 +121,14 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("RELAY_RESERVED_GAS()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("baseGas(bytes,uint32)") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("failedMessages(bytes32)") });
-        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("initialize(address,address)") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("initialize(address,address,address)") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("messageNonce()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("paused()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("otherMessenger()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("portal()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("systemConfig()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("isCustomGasToken()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("gasPayingToken()") });
         _addSpec({
             _name: "L1CrossDomainMessenger",
             _sel: _getSel("relayMessage(uint256,address,address,uint256,uint256,bytes)"),
@@ -503,7 +506,7 @@ contract Specification_Test is CommonTest {
         for (uint256 i = 0; i < abis.length; i++) {
             string memory contractName = abis[i].contractName;
             assertEq(
-                abis[i].entries.length, numEntries[contractName], "Specification_Test: invalid number of ABI entries"
+                abis[i].entries.length, numEntries[contractName], string.concat("Specification_Test: invalid number of ABI entries for ", contractName)
             );
 
             for (uint256 j = 0; j < abis[i].entries.length; j++) {
