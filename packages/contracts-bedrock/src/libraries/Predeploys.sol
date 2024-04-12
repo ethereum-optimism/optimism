@@ -23,8 +23,8 @@ library Predeploys {
     /// @notice Address of the DeployerWhitelist predeploy. No longer active.
     address internal constant DEPLOYER_WHITELIST = 0x4200000000000000000000000000000000000002;
 
-    /// @notice Address of the canonical WETH9 contract.
-    address internal constant WETH9 = 0x4200000000000000000000000000000000000006;
+    /// @notice Address of the canonical WETH contract.
+    address internal constant WETH = 0x4200000000000000000000000000000000000006;
 
     /// @notice Address of the L2CrossDomainMessenger predeploy.
     address internal constant L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000007;
