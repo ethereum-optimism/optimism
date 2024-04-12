@@ -246,7 +246,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         require(gameType.raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
 
         // Verify that the output root can be generated with the elements in the proof.
-        if (outputRoot.raw() != Hashing.hashOutputRootProof(_outputRootProof)) revert InvalidOutputRootProof();
+        require(
+            outputRoot.raw() == Hashing.hashOutputRootProof(_outputRootProof),
+            "OptimismPortal: invalid output root proof"
+        );
 
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
@@ -443,12 +446,15 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
 
         // The dispute game must not be blacklisted.
-        if (disputeGameBlacklist[disputeGameProxy]) revert Blacklisted();
+        require(!disputeGameBlacklist[disputeGameProxy], "OptimismPortal: dispute game has been blacklisted");
 
         // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
         // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
         // a timestamp of zero.
-        if (provenWithdrawal.timestamp == 0) revert NotProven();
+        require(
+            provenWithdrawal.timestamp != 0,
+            "OptimismPortal: withdrawal has not been proven by proof submitter address yet"
+        );
 
         uint64 createdAt = disputeGameProxy.createdAt().raw();
 

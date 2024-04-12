@@ -422,7 +422,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     function test_proveWithdrawalTransaction_onInvalidOutputRootProof_reverts() external {
         // Modify the version to invalidate the withdrawal proof.
         _outputRootProof.version = bytes32(uint256(1));
-        vm.expectRevert(InvalidOutputRootProof.selector);
+        vm.expectRevert("OptimismPortal: invalid output root proof");
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -788,7 +788,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     function test_finalizeWithdrawalTransaction_ifWithdrawalNotProven_reverts() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
-        vm.expectRevert(NotProven.selector);
+        vm.expectRevert("OptimismPortal: withdrawal has not been proven by proof submitter address yet");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
         assert(address(bob).balance == bobBalanceBefore);
@@ -1105,7 +1105,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
-        vm.expectRevert(Blacklisted.selector);
+        vm.expectRevert("OptimismPortal: dispute game has been blacklisted");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 
