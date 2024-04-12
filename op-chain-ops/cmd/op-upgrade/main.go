@@ -24,6 +24,28 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
+func isAllowedChainID(chainId uint64) {
+	// TODO We panic if the chain ID does not correspond to the mainnet or sepolia versions
+	// of Metal, Mode, or Zora. This is because OP Sepolia is currently on FPAC, which corresponds
+	// to OptimismPortal v3.3.0. However, we do not want to upgrade other chains to that yet. A
+	// proper fix to op-upgrade to allow specifying the targets versions of contracts is a large
+	// change, and we might end up deprecating op-upgrade anyway. Therefore, we instead hardcode
+	// the chain IDs this script can be used for and panic if the chain ID is not one of them. This
+	// way it's not possible to erroneously upgrade a chain to an unexpected version.
+	//
+	// mainnet/metal: 1750
+	// mainnet/mode: 34443
+	// mainnet/zora: 7777777
+	// sepolia/metal: 1740
+	// sepolia/mode: 919
+	// sepolia/zora: 999999999
+	allowed := chainId == 1750 || chainId == 34443 || chainId == 7777777 || chainId == 1740 || chainId == 919 || chainId == 999999999
+	if !allowed {
+		panic(fmt.Sprintf("Chain ID %d is not allowed. We panic if the chain ID does not correspond to the mainnet or sepolia versions of Metal, Mode, or Zora. This is because OP Sepolia is currently on FPAC, which corresponds to OptimismPortal v3.3.0. However, we do not want to upgrade other chains to that yet. A proper fix to op-upgrade to allow specifying the targets versions of contracts is a large change, and we might end up deprecating op-upgrade anyway. Therefore, we instead hardcode the chain IDs this script can be used for and panic if the chain ID is not one of them. This way it's not possible to erroneously upgrade a chain to an unexpected version.", chainId))
+	}
+
+}
+
 func main() {
 	color := isatty.IsTerminal(os.Stderr.Fd())
 	oplog.SetGlobalLogHandler(log.NewTerminalHandler(os.Stderr, color))
@@ -48,10 +70,9 @@ func main() {
 				EnvVars: []string{"SUPERCHAIN_TARGET"},
 			},
 			&cli.PathFlag{
-				Name:     "deploy-config",
-				Usage:    "The path to the deploy config file",
-				Required: true,
-				EnvVars:  []string{"DEPLOY_CONFIG"},
+				Name:    "deploy-config",
+				Usage:   "The path to the deploy config file",
+				EnvVars: []string{"DEPLOY_CONFIG"},
 			},
 			&cli.PathFlag{
 				Name:    "outfile",
@@ -109,6 +130,10 @@ func entrypoint(ctx *cli.Context) error {
 		}
 	}
 
+	if len(targets) == 0 {
+		return fmt.Errorf("no chains found for superchain target %s with chain IDs %v, are you sure this chain is in the superchain registry?", superchainName, chainIDs)
+	}
+
 	slices.SortFunc(targets, func(i, j *superchain.ChainConfig) int {
 		return int(i.ChainID) - int(j.ChainID)
 	})
@@ -117,10 +142,13 @@ func entrypoint(ctx *cli.Context) error {
 	batch := safe.Batch{}
 
 	for _, chainConfig := range targets {
+		// Panic if this chain ID is not allowed. See comments in isAllowedChainID to learn more.
+		isAllowedChainID(chainConfig.ChainID)
+
 		name, _ := toDeployConfigName(chainConfig)
 		config, err := genesis.NewDeployConfigWithNetwork(name, deployConfig)
 		if err != nil {
-			log.Warn("Cannot find deploy config for network", "name", chainConfig.Name, "deploy-config-name", name, "path", deployConfig, "err", err)
+			log.Warn("Cannot find deploy config for network, so validity checks will be skipped", "name", chainConfig.Name, "deploy-config-name", name, "path", deployConfig, "err", err)
 		}
 
 		if config != nil {
@@ -182,7 +210,15 @@ func entrypoint(ctx *cli.Context) error {
 			return fmt.Errorf("no implementations for chain ID %d", l1ChainID.Uint64())
 		}
 
-		list, err := implementations.Resolve(superchain.SuperchainSemver[superchainName])
+		// TODO This looks for the latest implementations defined for each contract, and for
+		// OptimismPortal that's the FPAC v3.3.0. However we do not want to upgrade other chains to
+		// that yet so we hardcode v2.5.0 which corresponds to the pre-FPAC op-contracts/v1.3.0 tag.
+		// See comments in isAllowedChainID to learn more.
+		targetUpgrade := superchain.SuperchainSemver[superchainName]
+		targetUpgrade.OptimismPortal = "2.5.0"
+
+		list, err := implementations.Resolve(targetUpgrade)
+
 		if err != nil {
 			return err
 		}
