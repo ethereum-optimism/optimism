@@ -44,9 +44,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
-    /// @notice The number of decimals that the gas paying token has.
-    uint8 public constant GAS_PAYING_TOKEN_DECIMALS = 18;
-
     /// @notice Storage slot that the unsafe block signer is stored at.
     ///         Storing it at this deterministic storage slot allows for decoupling the storage
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
@@ -82,6 +79,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
+
+    /// @notice The number of decimals that the gas paying token has.
+    uint8 internal constant GAS_PAYING_TOKEN_DECIMALS = 18;
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
