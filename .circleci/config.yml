@@ -1212,7 +1212,8 @@ jobs:
           at: "."
       - when:
           condition:
-            notequal: ['-legacy', <<parameters.fpac>>]
+            not:
+              equal: ['-legacy', <<parameters.fpac>>]
           steps:
             - run:
                 name: Use non-legacy devnet allocs
@@ -1804,6 +1805,7 @@ workflows:
           requires:
             - go-mod-download
       - devnet:
+          name: devnet<< matrix.fpac >>
           matrix:
             parameters:
               fpac: ["-legacy", "-fault-proofs", "-plasma"]
