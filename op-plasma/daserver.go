@@ -138,6 +138,7 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := d.store.Put(r.Context(), comm, input); err != nil {
+		d.log.Info("Failed to store commitment to the DA server", "err", err, "key", key)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

@@ -1146,6 +1146,7 @@ jobs:
       DEVNET_NO_BUILD: 'true'
       # Default value; Can be overridden.
       DEVNET_FPAC: 'false'
+      DEVNET_PLASMA: 'false'
     steps:
       - checkout
       - when:
@@ -1155,6 +1156,13 @@ jobs:
             - run:
                 name: Set DEVNET_FPAC = true
                 command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['-plasma', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_PLASMA = true
+                command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
@@ -1202,6 +1210,13 @@ jobs:
           command: make submodules
       - attach_workspace:
           at: "."
+      - when:
+          condition:
+            equal: ['-plasma', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Use plasma devnet allocs
+                command: rm -r .devnet && mv .devnet-plasma .devnet
       - run:
           name: Load and tag docker images
           command: |
@@ -1257,6 +1272,11 @@ jobs:
           name: Dump op-challenger logs
           command: |
             docker logs ops-bedrock-op-challenger-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump da-server logs
+          command: |
+            docker logs ops-bedrock-da-server-1 || echo "No logs."
           when: on_fail
       - run:
           name: Log deployment artifact
@@ -1778,7 +1798,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              fpac: ["legacy", "fault-proofs"]
+              fpac: ["-legacy", "-fault-proofs", "-plasma"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build

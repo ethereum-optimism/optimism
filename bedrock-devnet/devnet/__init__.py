@@ -234,6 +234,11 @@ def devnet_deploy(paths):
     else:
         docker_env['L2OO_ADDRESS'] = l2_output_oracle
 
+    if DEVNET_PLASMA:
+        docker_env['PLASMA_ENABLED'] = 'true'
+    else:
+        docker_env['PLASMA_ENABLED'] = 'false'
+
     # Bring up the rest of the services.
     log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
     run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher', 'artifact-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
@@ -242,6 +247,11 @@ def devnet_deploy(paths):
     if DEVNET_FPAC:
         log.info('Bringing up `op-challenger`.')
         run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Optionally bring up OP Plasma.
+    if DEVNET_PLASMA:
+        log.info('Bringing up `da-server`, `sentinel`.')
+        run_command(['docker', 'compose', 'up', '-d', 'da-server', 'sentinel'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
     # Fin.
     log.info('Devnet ready.')
