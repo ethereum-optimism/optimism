@@ -256,7 +256,7 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that sendMessage succeeds with a custom gas token when the call value is zero.
-    function test_sendMessage_customGasToken_succeeds() external {
+    function test_sendMessage_customGasToken_noValue_succeeds() external {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
         assertTrue(l2CrossDomainMessenger.isCustomGasToken());
@@ -309,7 +309,7 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the relayMessage succeeds with a custom gas token when the call value is zero.
-    function test_relayMessage_customGasToken_succeeds() external {
+    function test_relayMessage_customGasToken_noValue_succeeds() external {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
         assertTrue(l2CrossDomainMessenger.isCustomGasToken());
@@ -345,7 +345,7 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the relayMessage reverts when call value is non-zero with custom gas token.
-    function test_relayMessage_customGasToken_reverts() external virtual {
+    function test_relayMessage_customGasToken_withValue_reverts() external virtual {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
         assertTrue(l2CrossDomainMessenger.isCustomGasToken());
