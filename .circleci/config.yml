@@ -1212,11 +1212,11 @@ jobs:
           at: "."
       - when:
           condition:
-            equal: ['-plasma', <<parameters.fpac>>]
+            notequal: ['-legacy', <<parameters.fpac>>]
           steps:
             - run:
-                name: Use plasma devnet allocs
-                command: rm -r .devnet && mv .devnet-plasma .devnet
+                name: Use non-legacy devnet allocs
+                command: rm -r .devnet && mv .devnet<<parameters.fpac>> .devnet
       - run:
           name: Load and tag docker images
           command: |

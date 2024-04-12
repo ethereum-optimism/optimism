@@ -219,7 +219,7 @@ services:
       - "l2_data:/data"
 
   sentinel:
-    image: quarry/sentinel
+    image: quarry/sentinel #TODO: We need to pull this image in
     volumes:
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
     # private-key is mnemonic index 5 of the test mnemonic.

@@ -250,8 +250,8 @@ def devnet_deploy(paths):
 
     # Optionally bring up OP Plasma.
     if DEVNET_PLASMA:
-        log.info('Bringing up `da-server`, `sentinel`.')
-        run_command(['docker', 'compose', 'up', '-d', 'da-server', 'sentinel'], cwd=paths.ops_bedrock_dir, env=docker_env)
+        log.info('Bringing up `da-server`, `sentinel`.') # TODO: We don't have the sentinel image
+        run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
     # Fin.
     log.info('Devnet ready.')
