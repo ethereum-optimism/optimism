@@ -567,11 +567,11 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	if err != nil {
 		return err
 	}
-	l2OutputOracle, err := optimismPortal.L2ORACLE(&bind.CallOpts{})
+	l2OutputOracle, err := optimismPortal.L2Oracle(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
-	systemConfig, err := optimismPortal.SYSTEMCONFIG(&bind.CallOpts{})
+	systemConfig, err := optimismPortal.SystemConfig(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}

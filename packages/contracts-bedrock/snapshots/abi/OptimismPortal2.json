@@ -25,32 +25,6 @@
     "type": "receive"
   },
   {
-    "inputs": [],
-    "name": "GUARDIAN",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "SYSTEM_CONFIG",
-    "outputs": [
-      {
-        "internalType": "contract SystemConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "contract IDisputeGame",
@@ -716,5 +690,40 @@
     ],
     "name": "WithdrawalProven",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "BadTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CallPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GasEstimation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LargeCalldata",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutOfGas",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SmallGasLimit",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
+    "type": "error"
   }
 ]

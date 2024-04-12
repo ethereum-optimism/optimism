@@ -15,6 +15,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
+import "src/libraries/PortalErrors.sol";
 import "src/libraries/DisputeTypes.sol";
 
 /// @custom:proxied
@@ -115,13 +116,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
-        require(!paused(), "OptimismPortal: paused");
+        if (paused()) revert CallPaused();
         _;
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.5.0
-    string public constant version = "3.5.0";
+    /// @custom:semver 3.6.0
+    string public constant version = "3.6.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(
@@ -159,22 +160,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
             l2Sender = Constants.DEFAULT_L2_SENDER;
         }
         __ResourceMetering_init();
-    }
-
-    /// @notice Getter function for the contract of the SystemConfig on this chain.
-    ///         Public getter is legacy and will be removed in the future. Use `systemConfig()` instead.
-    /// @return Contract of the SystemConfig on this chain.
-    /// @custom:legacy
-    function SYSTEM_CONFIG() external view returns (SystemConfig) {
-        return systemConfig;
-    }
-
-    /// @notice Getter function for the address of the guardian.
-    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.guardian()` instead.
-    /// @return Address of the guardian.
-    /// @custom:legacy
-    function GUARDIAN() external view returns (address) {
-        return guardian();
     }
 
     /// @notice Getter function for the address of the guardian.
@@ -305,9 +290,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
         // be relayed on L1.
         require(
-            SecureMerkleTrie.verifyInclusionProof(
-                abi.encode(storageKey), hex"01", _withdrawalProof, _outputRootProof.messagePasserStorageRoot
-            ),
+            SecureMerkleTrie.verifyInclusionProof({
+                _key: abi.encode(storageKey),
+                _value: hex"01",
+                _proof: _withdrawalProof,
+                _root: _outputRootProof.messagePasserStorageRoot
+            }),
             "OptimismPortal: invalid withdrawal inclusion proof"
         );
 
@@ -379,7 +367,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // sub call to the target contract if the minimum gas limit specified by the user would not
         // be sufficient to execute the sub call.
         if (!success && tx.origin == Constants.ESTIMATION_ADDRESS) {
-            revert("OptimismPortal: withdrawal failed");
+            revert GasEstimation();
         }
     }
 
@@ -405,19 +393,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
-        if (_isCreation) {
-            require(_to == address(0), "OptimismPortal: must send to address(0) when creating a contract");
-        }
+        if (_isCreation && _to != address(0)) revert BadTarget();
 
         // Prevent depositing transactions that have too small of a gas limit. Users should pay
         // more for more resource usage.
-        require(_gasLimit >= minimumGasLimit(uint64(_data.length)), "OptimismPortal: gas limit too small");
+        if (_gasLimit < minimumGasLimit(uint64(_data.length))) revert SmallGasLimit();
 
         // Prevent the creation of deposit transactions that have too much calldata. This gives an
         // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
         // that the transaction can fit into the p2p network policy of 128kb even though deposit
         // transactions are not gossipped over the p2p network.
-        require(_data.length <= 120_000, "OptimismPortal: data too large");
+        if (_data.length > 120_000) revert LargeCalldata();
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
@@ -438,7 +424,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Blacklists a dispute game. Should only be used in the event that a dispute game resolves incorrectly.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        require(msg.sender == guardian(), "OptimismPortal: only the guardian can blacklist dispute games");
+        if (msg.sender != guardian()) revert Unauthorized();
         disputeGameBlacklist[_disputeGame] = true;
     }
 
@@ -446,7 +432,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     ///         depending on the new game's behavior.
     /// @param _gameType The game type to consult for output proposals.
     function setRespectedGameType(GameType _gameType) external {
-        require(msg.sender == guardian(), "OptimismPortal: only the guardian can set the respected game type");
+        if (msg.sender != guardian()) revert Unauthorized();
         respectedGameType = _gameType;
         respectedGameTypeUpdatedAt = uint64(block.timestamp);
     }
