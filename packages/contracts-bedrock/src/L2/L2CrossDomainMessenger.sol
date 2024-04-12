@@ -47,7 +47,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         );
     }
 
-    /// @notice Returns the gas paying token address, its decimals, name, and symbol.
+    /// @inheritdoc CrossDomainMessenger
     function gasPayingToken() public view override returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
