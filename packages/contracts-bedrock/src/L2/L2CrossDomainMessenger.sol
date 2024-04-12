@@ -42,13 +42,14 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @inheritdoc CrossDomainMessenger
     /// @notice Includes extra logic to prevent sending value on a custom gas token chain.
     function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
-        if (L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
-            require(msg.value == 0, "L2CrossDomainMessenger: cannot send value with custom gas token");
-        }
-
         L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{ value: _value }(
             _to, _gasLimit, _data
         );
+    }
+
+    /// @notice Returns the gas paying token address, its decimals, name, and symbol.
+    function gasPayingToken() public view override returns (address addr_, uint8 decimals_) {
+        (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
 
     /// @inheritdoc CrossDomainMessenger
