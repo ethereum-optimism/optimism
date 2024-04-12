@@ -9,19 +9,17 @@ Fees on Boba are, for the most part, significantly lower than L1s. The cost of e
 1. Your L2 (execution) fee, and
 2. Your L1 (security) fee.
 
-At a high level, the L2 fee is the cost to execute your transaction in L2 and the L1 fee is the estimated cost to submit your transaction to L1 (in a rollup batch).
+At a high level, the L2 fee is the cost to execute your transaction in L2 and the L1 fee is the estimated cost to store your transaction's metadata on the canonical L1 chain from which the L2 blocks are derived.
 
-1. **L2 execution fee** is charged as `tx.gasPrice * l2GasUsed` (up to `tx.gasLimit`). The L2 gas price will vary depending on network congestion.
-2. **L1 security fee** is charged as `l1GasPrice * l1GasUsed` . This is the cost of storing the transaction's data on L1.
-   * `l1GasPrice` is the same as the normal gas price in L1 Ethereum
-   * `l1GasUsed` is calculated as `1.2*(overhead + calldataGas)`. Thus, more calldata your transaction includes, the more expensive your L1 fee will be. For example, an ETH transfer has no calldata, so it will have the cheapest L1 fee, whereas large contract deployments can have over 25kb of calldata and will result in a high L1 fee. We currently just the overhead value to the L1 fee to ensure the fee paid covers the actual L1 costs.
-3.  **Total cost**
+Boba Anchorage is derived from Optimism Bedrock and inherits its fee framework. Details may be found at https://docs.optimism.io/stack/transactions/fees
 
-    We accept BOBA and ETH (where applicable) as the fee token. The total cost for **ETH** is calculated as `tx.gasPrice * (l2GasUsed + l1GasPrice * l1GasUsed / tx.gasPrice)`. The total cost for **BOBA** is calculated as `tx.gasPrice * (l2GasUsed + l1GasPrice * l1GasUsed / tx.gasPrice) * priceRatio` where the price ratio is `ETH price / BOBA price * discount percentage`. The L2 gas Used is higher than l1, because we add the **L1 security fee**.
+Prior to the Anchorage update, the Boba network offered an option to pay fees using the Boba token instead of ETH. Post-Anchorage, this is no longer provided by the core network but will instead be offered through an ERC-4337 Account Abstraction framework. For an overview of the AA paymaster concept, developers may refer to resources such as https://www.alchemy.com/blog/account-abstraction-paymasters
 
-    * The gas uage of transferring ETH is 26730 on Boba Network. It includes 21000 (l2GasUsed) and 5370 (l1SecurityFee).
+To obtain ETH and BOBA on Boba Network you can deposit or bridge via [ https://gateway.boba.network](https://gateway.boba.network) on both Sepolia or Mainnet.
 
-To obtain ETH and BOBA on Boba Network you can deposit ETH via[ https://gateway.boba.network](https://gateway.boba.network) on both Goerli or Mainnet. Soon you will be able to also deposit ETH for slightly cheaper via Teleportation.
+* * *
+
+The following sections apply to the legacy Boba network.
 
 <figure><img src="../../assets/for backend developers.png" alt=""><figcaption></figcaption></figure>
 
