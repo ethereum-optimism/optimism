@@ -9,87 +9,6 @@
     "type": "receive"
   },
   {
-<<<<<<< HEAD
-||||||| parent of 223e051a4 (snapshots: generate)
-    "inputs": [],
-    "name": "GUARDIAN",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "L2_ORACLE",
-    "outputs": [
-      {
-        "internalType": "contract L2OutputOracle",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "SYSTEM_CONFIG",
-    "outputs": [
-      {
-        "internalType": "contract SystemConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-=======
-    "inputs": [],
-    "name": "GUARDIAN",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "L2_ORACLE",
-    "outputs": [
-      {
-        "internalType": "contract L2OutputOracle",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "SYSTEM_CONFIG",
-    "outputs": [
-      {
-        "internalType": "contract SystemConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "balance",
     "outputs": [
@@ -141,7 +60,6 @@
     "type": "function"
   },
   {
->>>>>>> 223e051a4 (snapshots: generate)
     "inputs": [
       {
         "internalType": "address",
@@ -687,12 +605,37 @@
   },
   {
     "inputs": [],
+    "name": "NoValue",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyCustomGasToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OutOfGas",
     "type": "error"
   },
   {
     "inputs": [],
+    "name": "Paused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "SmallGasLimit",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
     "type": "error"
   }
 ]
