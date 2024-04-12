@@ -138,5 +138,12 @@
     "offset": 0,
     "slot": "252",
     "type": "contract OptimismPortal"
+  },
+  {
+    "bytes": "20",
+    "label": "systemConfig",
+    "offset": 0,
+    "slot": "253",
+    "type": "contract SystemConfig"
   }
 ]
