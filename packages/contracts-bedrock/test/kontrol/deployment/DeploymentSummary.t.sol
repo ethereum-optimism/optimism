@@ -82,23 +82,6 @@ contract DeploymentSummary_TestOptimismPortal is DeploymentSummary, OptimismPort
     /// @notice This test is overridden because `KontrolDeployment` doesn't initialize
     ///         the L2OutputOracle, which is needed in this test
     function test_isOutputFinalized_succeeds() external override { }
-
-    /// Temporary test skips
-    function testFuzz_depositTransaction_smallGasLimit_succeeds(bytes memory, bool) external override {
-        vm.skip(true);
-    }
-
-    function test_depositTransaction_contractCreation_reverts() external override {
-        vm.skip(true);
-    }
-
-    function test_depositTransaction_largeData_reverts() external override {
-        vm.skip(true);
-    }
-
-    function test_depositTransaction_smallGasLimit_reverts() external override {
-        vm.skip(true);
-    }
 }
 
 contract DeploymentSummary_TestL1CrossDomainMessenger is DeploymentSummary, L1CrossDomainMessenger_Test {
