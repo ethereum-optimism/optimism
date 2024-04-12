@@ -53,25 +53,14 @@ type Compressor interface {
 type ChannelOut interface {
 	ID() ChannelID
 	Reset() error
-	AddBlock(*rollup.Config, *types.Block) (uint64, error)
-	AddSingularBatch(*SingularBatch, uint64) (uint64, error)
+	AddBlock(*rollup.Config, *types.Block) error
+	AddSingularBatch(*SingularBatch, uint64) error
 	InputBytes() int
 	ReadyBytes() int
 	Flush() error
 	FullErr() error
 	Close() error
 	OutputFrame(*bytes.Buffer, uint64) (uint16, error)
-}
-
-func NewChannelOut(batchType uint, compress Compressor, spanBatch *SpanBatch) (ChannelOut, error) {
-	switch batchType {
-	case SingularBatchType:
-		return NewSingularChannelOut(compress)
-	case SpanBatchType:
-		return NewSpanChannelOut(compress, spanBatch)
-	default:
-		return nil, fmt.Errorf("unrecognized batch type: %d", batchType)
-	}
 }
 
 type SingularChannelOut struct {
@@ -119,14 +108,14 @@ func (co *SingularChannelOut) Reset() error {
 // and an error if there is a problem adding the block. The only sentinel error
 // that it returns is ErrTooManyRLPBytes. If this error is returned, the channel
 // should be closed and a new one should be made.
-func (co *SingularChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block) (uint64, error) {
+func (co *SingularChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block) error {
 	if co.closed {
-		return 0, ErrChannelOutAlreadyClosed
+		return ErrChannelOutAlreadyClosed
 	}
 
 	batch, l1Info, err := BlockToSingularBatch(rollupCfg, block)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	return co.AddSingularBatch(batch, l1Info.SequenceNumber)
 }
@@ -139,26 +128,26 @@ func (co *SingularChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Bl
 // AddSingularBatch should be used together with BlockToBatch if you need to access the
 // BatchData before adding a block to the channel. It isn't possible to access
 // the batch data with AddBlock.
-func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) (uint64, error) {
+func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) error {
 	if co.closed {
-		return 0, ErrChannelOutAlreadyClosed
+		return ErrChannelOutAlreadyClosed
 	}
 
 	// We encode to a temporary buffer to determine the encoded length to
 	// ensure that the total size of all RLP elements is less than or equal to MAX_RLP_BYTES_PER_CHANNEL
 	var buf bytes.Buffer
 	if err := rlp.Encode(&buf, NewBatchData(batch)); err != nil {
-		return 0, err
+		return err
 	}
 	if co.rlpLength+buf.Len() > MaxRLPBytesPerChannel {
-		return 0, fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
+		return fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
 			buf.Len(), co.rlpLength, MaxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 	co.rlpLength += buf.Len()
 
 	// avoid using io.Copy here, because we need all or nothing
-	written, err := co.compress.Write(buf.Bytes())
-	return uint64(written), err
+	_, err := co.compress.Write(buf.Bytes())
+	return err
 }
 
 // InputBytes returns the total amount of RLP-encoded input bytes.

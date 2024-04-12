@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
+import { LibClone } from "@solady/utils/LibClone.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
@@ -20,11 +20,11 @@ import "src/libraries/DisputeErrors.sol";
 ///         dispute games easier.
 contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver {
     /// @dev Allows for the creation of clone proxies with immutable arguments.
-    using ClonesWithImmutableArgs for address;
+    using LibClone for address;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.3.0
-    string public constant version = "0.3.0";
+    /// @custom:semver 0.4.0
+    string public constant version = "0.4.0";
 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;

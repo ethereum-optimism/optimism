@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,7 +28,7 @@ func FundDevAccounts(db vm.StateDB) {
 		if !db.Exist(account) {
 			db.CreateAccount(account)
 		}
-		db.AddBalance(account, devBalance)
+		db.AddBalance(account, uint256.MustFromBig(devBalance))
 	}
 }
 
@@ -61,7 +63,7 @@ func SetPrecompileBalances(db vm.StateDB) {
 	for i := 0; i < PrecompileCount; i++ {
 		addr := common.BytesToAddress([]byte{byte(i)})
 		db.CreateAccount(addr)
-		db.AddBalance(addr, common.Big1)
+		db.AddBalance(addr, uint256.NewInt(1))
 	}
 }
 

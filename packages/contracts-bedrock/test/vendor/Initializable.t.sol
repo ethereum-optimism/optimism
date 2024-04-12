@@ -133,7 +133,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: deploy.mustGetAddress("OptimismPortal2"),
                 initCalldata: abi.encodeCall(
                     optimismPortal2.initialize, (disputeGameFactory, systemConfig, superchainConfig)
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal2")
             })
         );
@@ -176,7 +176,7 @@ contract Initializer_Test is Bridge_Initializer {
                             optimismMintableERC20Factory: address(0)
                         })
                     )
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("SystemConfig")
             })
         );
@@ -211,7 +211,7 @@ contract Initializer_Test is Bridge_Initializer {
                             optimismMintableERC20Factory: address(0)
                         })
                     )
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("SystemConfigProxy")
             })
         );
@@ -221,7 +221,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: deploy.mustGetAddress("ProtocolVersions"),
                 initCalldata: abi.encodeCall(
                     protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersions")
             })
         );
@@ -231,7 +231,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: address(protocolVersions),
                 initCalldata: abi.encodeCall(
                     protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersionsProxy")
             })
         );

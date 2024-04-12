@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -129,13 +130,13 @@ func TestUpdateState(t *testing.T) {
 
 	statedb, err := state.New(genesisBlock.Root(), state.NewDatabase(rawdb.NewDatabase(db)), nil)
 	require.NoError(t, err)
-	statedb.SetBalance(userAccount, big.NewInt(50))
-	require.Equal(t, big.NewInt(50), statedb.GetBalance(userAccount))
+	statedb.SetBalance(userAccount, uint256.NewInt(50))
+	require.Equal(t, uint256.NewInt(50), statedb.GetBalance(userAccount))
 	statedb.SetNonce(userAccount, uint64(5))
 	require.Equal(t, uint64(5), statedb.GetNonce(userAccount))
 
-	statedb.SetBalance(unknownAccount, big.NewInt(60))
-	require.Equal(t, big.NewInt(60), statedb.GetBalance(unknownAccount))
+	statedb.SetBalance(unknownAccount, uint256.NewInt(60))
+	require.Equal(t, uint256.NewInt(60), statedb.GetBalance(unknownAccount))
 	statedb.SetCode(codeAccount, []byte{1})
 	require.Equal(t, []byte{1}, statedb.GetCode(codeAccount))
 
@@ -147,9 +148,9 @@ func TestUpdateState(t *testing.T) {
 
 	statedb, err = state.New(newRoot, state.NewDatabase(rawdb.NewDatabase(db)), nil)
 	require.NoError(t, err)
-	require.Equal(t, big.NewInt(50), statedb.GetBalance(userAccount))
+	require.Equal(t, uint256.NewInt(50), statedb.GetBalance(userAccount))
 	require.Equal(t, uint64(5), statedb.GetNonce(userAccount))
-	require.Equal(t, big.NewInt(60), statedb.GetBalance(unknownAccount))
+	require.Equal(t, uint256.NewInt(60), statedb.GetBalance(unknownAccount))
 	require.Equal(t, []byte{1}, statedb.GetCode(codeAccount))
 }
 
@@ -183,7 +184,7 @@ func assertStateDataAvailable(t *testing.T, db ethdb.KeyValueStore, l2Genesis *c
 	require.NoError(t, err)
 
 	for address, account := range l2Genesis.Alloc {
-		require.Equal(t, account.Balance, statedb.GetBalance(address))
+		require.Equal(t, uint256.MustFromBig(account.Balance), statedb.GetBalance(address))
 		require.Equal(t, account.Nonce, statedb.GetNonce(address))
 		require.Equal(t, common.BytesToHash(crypto.Keccak256(account.Code)), statedb.GetCodeHash(address))
 		require.Equal(t, account.Code, statedb.GetCode(address))
@@ -192,7 +193,7 @@ func assertStateDataAvailable(t *testing.T, db ethdb.KeyValueStore, l2Genesis *c
 		}
 	}
 	require.Equal(t, common.Hash{}, statedb.GetState(codeAccount, common.HexToHash("0x99")), "retrieve unset storage key")
-	require.Equal(t, common.Big0, statedb.GetBalance(unknownAccount), "unset account balance")
+	require.Equal(t, common.U2560, statedb.GetBalance(unknownAccount), "unset account balance")
 	require.Equal(t, uint64(0), statedb.GetNonce(unknownAccount), "unset account balance")
 	require.Nil(t, statedb.GetCode(unknownAccount), "unset account code")
 	require.Equal(t, common.Hash{}, statedb.GetCodeHash(unknownAccount), "unset account code hash")

@@ -43,7 +43,7 @@
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^24.0.0",
     "tsup": "^8.0.1",
-    "typescript": "^5.3.3",
+    "typescript": "^5.4.5",
     "viem": "^2.8.13",
     "vite": "^5.1.7",
     "vitest": "^1.2.2"
