@@ -304,7 +304,7 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
         assertTrue(l2CrossDomainMessenger.isCustomGasToken());
 
-        vm.expectRevert("CrossDomainMessenger: cannot send value with custom gas token");
+        vm.expectRevert("CrossDomainMessenger: value must be zero unless message is from a system address");
         l2CrossDomainMessenger.sendMessage{ value: 1 }(recipient, hex"ff", uint32(100));
     }
 

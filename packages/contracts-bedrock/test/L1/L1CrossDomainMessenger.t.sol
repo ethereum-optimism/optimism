@@ -751,19 +751,20 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the relayMessage reverts when call value is non-zero with custom gas token.
+    ///      The L2CrossDomainMessenger contract cannot `sendMessage` with value when using a custom gas token.
     function test_relayMessage_customGasToken_withValue_reverts() external virtual {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
         assertTrue(l1CrossDomainMessenger.isCustomGasToken());
-        vm.expectRevert("CrossDomainMessenger: cannot relay value with custom gas token");
+        vm.expectRevert("CrossDomainMessenger: value must be zero unless message is from a system address");
 
         l1CrossDomainMessenger.relayMessage{ value: 1 }(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             address(0xabcd),
             address(0xabcd),
-            0, // value
+            1, // value
             0,
             hex"1111"
         );
