@@ -23,7 +23,7 @@
     "ProxyAdmin",
     "LegacyMessagePasser",
     "ERC20",
-    "WETH9",
+    "WETH",
     "DeployerWhitelist",
     "L1BlockNumber",
     "DelayedWETH",
