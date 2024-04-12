@@ -157,8 +157,9 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(address(optimismPortal).balance, _value);
     }
 
-    /// @dev Tests that `depositTransaction` succeeds when msg.sender == tx.origin and non-custom gas is used.
-    function testFuzz_depositTransaction_senderIsOrigin_succeeds(
+    /// @notice Helper function for depositing a transaction.
+    function depositTransaction(
+        address _from,
         address _to,
         uint256 _mint,
         uint256 _value,
@@ -166,15 +167,15 @@ contract OptimismPortal_Test is CommonTest {
         bool _isCreation,
         bytes memory _data
     )
-        external
+        internal
     {
         if (_isCreation) {
-            vm.assume(_to == address(0));
+            _to = address(0);
         }
         vm.assume(_data.length <= 120_000);
-        vm.assume(_gasLimit >= optimismPortal.minimumGasLimit(uint64(_data.length)));
         ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
-        vm.assume(int256(uint256(_gasLimit)) <= int256(uint256(rcfg.maxResourceLimit)));
+        _gasLimit =
+            uint64(bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), rcfg.maxResourceLimit));
 
         uint256 prevBalance = address(optimismPortal).balance;
 
@@ -186,7 +187,7 @@ contract OptimismPortal_Test is CommonTest {
 
         vm.expectEmit(address(optimismPortal));
         emit TransactionDeposited(
-            address(this), // from
+            _from, // from
             _to,
             uint256(0), // DEPOSIT_VERSION
             opaqueData
@@ -194,15 +195,37 @@ contract OptimismPortal_Test is CommonTest {
 
         vm.deal(address(this), _mint);
 
-        // Ensure that msg.sender == tx.origin
-        vm.prank(address(this), address(this));
-
         // Deposit the token into the portal
         optimismPortal.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
 
         // Assert final balance equals the deposited amount
         assertEq(address(optimismPortal).balance, _mint + prevBalance);
         assertEq(optimismPortal.balance(), _mint + prevBalance);
+    }
+
+    /// @dev Tests that `depositTransaction` succeeds when msg.sender == tx.origin and non-custom gas is used.
+    function testFuzz_depositTransaction_senderIsOrigin_succeeds(
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+    {
+        // Ensure that msg.sender == tx.origin
+        vm.startPrank(address(this), address(this));
+
+        depositTransaction({
+            _from: address(this),
+            _to: _to,
+            _mint: _mint,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
     }
 
     /// @dev Tests that `depositTransaction` succeeds when msg.sender != tx.origin and non-custom gas is used.
@@ -216,41 +239,18 @@ contract OptimismPortal_Test is CommonTest {
     )
         external
     {
-        if (_isCreation) {
-            vm.assume(_to == address(0));
-        }
-        vm.assume(_data.length <= 120_000);
-        vm.assume(_gasLimit >= optimismPortal.minimumGasLimit(uint64(_data.length)));
-        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
-        vm.assume(int256(uint256(_gasLimit)) <= int256(uint256(rcfg.maxResourceLimit)));
-
-        uint256 prevBalance = address(optimismPortal).balance;
-
-        // Ensure that no custom gas token is set
-        (address gasPayingToken,) = optimismPortal.gasPayingToken();
-        assertEq(gasPayingToken, Constants.ETHER);
-
-        bytes memory opaqueData = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
-
-        vm.expectEmit(address(optimismPortal));
-        emit TransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(address(this)), // from
-            _to,
-            uint256(0), // DEPOSIT_VERSION
-            opaqueData
-        );
-
-        vm.deal(address(this), _mint);
-
         // Ensure that msg.sender != tx.origin
-        vm.prank(address(this), address(1));
+        vm.startPrank(address(this), address(1));
 
-        // Deposit the token into the portal
-        optimismPortal.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
-
-        // Assert final balance equals the deposited amount
-        assertEq(address(optimismPortal).balance, _mint + prevBalance);
-        assertEq(optimismPortal.balance(), _mint + prevBalance);
+        depositTransaction({
+            _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
+            _to: _to,
+            _mint: _mint,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
     }
 
     /// @dev Tests that `depositTransaction` reverts when the destination address is non-zero
@@ -1226,8 +1226,8 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         token = new MockERC20("Test", "TST", 18);
     }
 
-    /// @dev Tests that `depositERC20Transaction` succeeds when msg.sender == tx.origin.
-    function testFuzz_depositERC20Transaction_senderIsOrigin_succeeds(
+    function depositERC20Transaction(
+        address _from,
         address _to,
         uint256 _mint,
         uint256 _value,
@@ -1235,15 +1235,15 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         bool _isCreation,
         bytes memory _data
     )
-        external
+        internal
     {
         if (_isCreation) {
-            vm.assume(_to == address(0));
+            _to = address(0);
         }
         vm.assume(_data.length <= 120_000);
-        vm.assume(_gasLimit >= optimismPortal.minimumGasLimit(uint64(_data.length)));
         ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
-        vm.assume(int256(uint256(_gasLimit)) <= int256(uint256(rcfg.maxResourceLimit)));
+        _gasLimit =
+            uint64(bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), rcfg.maxResourceLimit));
 
         // Mint the token to the contract and approve the token for the portal
         token.mint(address(this), _mint);
@@ -1256,14 +1256,11 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
 
         vm.expectEmit(address(optimismPortal));
         emit TransactionDeposited(
-            address(this), // from
+            _from, // from
             _to,
             uint256(0), // DEPOSIT_VERSION
             opaqueData
         );
-
-        // Ensure that msg.sender == tx.origin
-        vm.prank(address(this), address(this));
 
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(_to, _mint, _value, _gasLimit, _isCreation, _data);
@@ -1271,6 +1268,31 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Assert final balance equals the deposited amount
         assertEq(token.balanceOf(address(optimismPortal)), _mint);
         assertEq(optimismPortal.balance(), _mint);
+    }
+
+    /// @dev Tests that `depositERC20Transaction` succeeds when msg.sender == tx.origin.
+    function testFuzz_depositERC20Transaction_senderIsOrigin_succeeds(
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+    {
+        // Ensure that msg.sender == tx.origin
+        vm.startPrank(address(this), address(this));
+
+        depositERC20Transaction({
+            _from: address(this),
+            _to: _to,
+            _mint: _mint,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
     }
 
     /// @dev Tests that `depositERC20Transaction` succeeds when msg.sender != tx.origin.
@@ -1284,40 +1306,18 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     )
         external
     {
-        if (_isCreation) {
-            vm.assume(_to == address(0));
-        }
-        vm.assume(_data.length <= 120_000);
-        vm.assume(_gasLimit >= optimismPortal.minimumGasLimit(uint64(_data.length)));
-        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
-        vm.assume(int256(uint256(_gasLimit)) <= int256(uint256(rcfg.maxResourceLimit)));
-
-        // Mint the token to the contract and approve the token for the portal
-        token.mint(address(this), _mint);
-        token.approve(address(optimismPortal), _mint);
-
-        // Mock the gas paying token to be the ERC20 token
-        vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
-
-        bytes memory opaqueData = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
-
-        vm.expectEmit(address(optimismPortal));
-        emit TransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(address(this)), // from
-            _to,
-            uint256(0), // DEPOSIT_VERSION
-            opaqueData
-        );
-
         // Ensure that msg.sender != tx.origin
-        vm.prank(address(this), address(1));
+        vm.startPrank(address(this), address(1));
 
-        // Deposit the token into the portal
-        optimismPortal.depositERC20Transaction(_to, _mint, _value, _gasLimit, _isCreation, _data);
-
-        // Assert final balance equals the deposited amount
-        assertEq(token.balanceOf(address(optimismPortal)), _mint);
-        assertEq(optimismPortal.balance(), _mint);
+        depositERC20Transaction({
+            _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
+            _to: _to,
+            _mint: _mint,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
     }
 
     /// @dev Tests that `depositERC20Transaction` reverts when not enough of the token is approved.
@@ -1455,12 +1455,12 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         external
     {
         if (_isCreation) {
-            vm.assume(_to == address(0));
+            _to = address(0);
         }
         vm.assume(_data.length <= 120_000);
-        vm.assume(_gasLimit >= optimismPortal.minimumGasLimit(uint64(_data.length)));
         ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
-        vm.assume(int256(uint256(_gasLimit)) <= int256(uint256(rcfg.maxResourceLimit)));
+        _gasLimit =
+            uint64(bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), rcfg.maxResourceLimit));
 
         // Mock the gas paying token to be the ERC20 token
         vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
@@ -1497,12 +1497,12 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         external
     {
         if (_isCreation) {
-            vm.assume(_to == address(0));
+            _to = address(0);
         }
         vm.assume(_data.length <= 120_000);
-        vm.assume(_gasLimit >= optimismPortal.minimumGasLimit(uint64(_data.length)));
         ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
-        vm.assume(int256(uint256(_gasLimit)) <= int256(uint256(rcfg.maxResourceLimit)));
+        _gasLimit =
+            uint64(bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), rcfg.maxResourceLimit));
 
         // Mock the gas paying token to be the ERC20 token
         vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
