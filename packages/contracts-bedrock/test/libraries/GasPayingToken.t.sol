@@ -41,6 +41,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
     /// @dev Test that the gas paying token correctly gets values from storage when set.
     function testFuzz_get_nonEmpty_succeeds(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         vm.assume(_token != address(0));
+        vm.assume(_token != Constants.ETHER);
 
         GasPayingToken.set(_token, _decimals, _name, _symbol);
 
