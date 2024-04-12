@@ -139,7 +139,7 @@ contract OptimistInviter_Initializer is Test {
                 optimistInviterHelper.getDigestWithEIP712Domain(
                     claimableInvite, _eip712Name, _eip712Version, _eip712Chainid, _eip712VerifyingContract
                 )
-                )
+            )
         );
     }
 
