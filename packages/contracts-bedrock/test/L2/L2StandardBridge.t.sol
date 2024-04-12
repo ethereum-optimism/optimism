@@ -132,11 +132,11 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the receive function reverts with custom gas token.
-    function test_receive_customGasToken_reverts() external {
+    function testFuzz_receive_customGasToken_reverts(uint256 _value) external {
         vm.prank(alice, alice);
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-
-        (bool success, bytes memory data) = address(l2StandardBridge).call(hex"");
+        vm.deal(alice, _value);
+        (bool success, bytes memory data) = address(l2StandardBridge).call{ value: _value }(hex"");
         assertFalse(success);
         assembly {
             data := add(data, 0x04)
@@ -685,11 +685,17 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that bridging reverts with custom gas token.
-    function test_bridgeETHTo_customGasToken_reverts() external {
+    function testFuzz_bridgeETHTo_customGasToken_reverts(
+        uint256 _value,
+        uint32 _minGasLimit,
+        bytes calldata _extraData
+    )
+        external
+    {
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
         vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
-
-        l2StandardBridge.bridgeETHTo(bob, 60000, hex"dead");
+        vm.deal(address(this), _value);
+        l2StandardBridge.bridgeETHTo{ value: _value }(bob, _minGasLimit, _extraData);
     }
 }
 
