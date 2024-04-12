@@ -6,6 +6,9 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -26,7 +29,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
-    ///         proxies and are network specific.
+    ///         contracts that users interact with (not implementations for proxied contracts)
+    ///         and are network specific.
     struct Addresses {
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
@@ -34,6 +38,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address l2OutputOracle;
         address optimismPortal;
         address optimismMintableERC20Factory;
+        address gasPayingToken;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -74,6 +79,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
+
+    /// @notice The number of decimals that the gas paying token has.
+    uint8 internal constant GAS_PAYING_TOKEN_DECIMALS = 18;
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
@@ -133,7 +141,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 l1StandardBridge: address(0),
                 l2OutputOracle: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: address(0)
             })
         });
     }
@@ -182,6 +191,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
         _setStartBlock();
+        _setGasPayingToken(_addresses.gasPayingToken);
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -226,7 +236,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Getter for the OptimismPortal address.
-    function optimismPortal() external view returns (address addr_) {
+    function optimismPortal() public view returns (address addr_) {
         addr_ = Storage.getAddress(OPTIMISM_PORTAL_SLOT);
     }
 
@@ -243,6 +253,42 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Getter for the StartBlock number.
     function startBlock() external view returns (uint256 startBlock_) {
         startBlock_ = Storage.getUint(START_BLOCK_SLOT);
+    }
+
+    /// @notice Getter for the gas paying asset address.
+    function gasPayingToken() external view returns (address addr_, uint8 decimals_) {
+        (addr_, decimals_) = GasPayingToken.getToken();
+    }
+
+    /// @notice Getter for the gas paying token name.
+    function gasPayingTokenName() external view returns (string memory name_) {
+        name_ = GasPayingToken.getName();
+    }
+
+    /// @notice Getter for the gas paying token symbol.
+    function gasPayingTokenSymbol() external view returns (string memory symbol_) {
+        symbol_ = GasPayingToken.getSymbol();
+    }
+
+    /// @notice Internal setter for the gas paying token address, includes validation.
+    /// @param _token Address of the gas paying token.
+    function _setGasPayingToken(address _token) internal {
+        if (_token != address(0) && _token != Constants.ETHER) {
+            require(
+                ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
+            );
+            bytes32 name = GasPayingToken.sanitize(ERC20(_token).name());
+            bytes32 symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
+
+            // Set the gas paying token in storage and in the OptimismPortal.
+            GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
+            OptimismPortal(payable(optimismPortal())).setGasPayingToken({
+                _token: _token,
+                _decimals: GAS_PAYING_TOKEN_DECIMALS,
+                _name: name,
+                _symbol: symbol
+            });
+        }
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
