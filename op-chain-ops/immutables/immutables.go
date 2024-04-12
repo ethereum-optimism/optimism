@@ -22,7 +22,7 @@ import (
 type PredeploysImmutableConfig struct {
 	L2ToL1MessagePasser    struct{}
 	DeployerWhitelist      struct{}
-	WETH9                  struct{}
+	WETH                   struct{}
 	L2CrossDomainMessenger struct{}
 	L2StandardBridge       struct{}
 	SequencerFeeVault      struct {
