@@ -178,7 +178,7 @@ contract MyContract {
 
       uint256 l1BlockNumber = L1Block(
          Predeploys.L1_BLOCK_ATTRIBUTES
-      ).getL1BlockNumber();
+      ).number();
 
       // ... your code here ...
    }
