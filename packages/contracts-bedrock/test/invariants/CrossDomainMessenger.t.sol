@@ -95,6 +95,8 @@ contract XDM_MinGasLimits is Bridge_Initializer {
         // Set up the `L1CrossDomainMessenger` and `OptimismPortal` contracts.
         super.setUp();
 
+        assertFalse(l1CrossDomainMessenger.isCustomGasToken());
+
         // Deploy a relay actor
         actor = new RelayActor(optimismPortal, l1CrossDomainMessenger, vm, doFail);
 
