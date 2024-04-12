@@ -187,6 +187,50 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "gasPayingToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "decimals_",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gasPayingTokenName",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "name_",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gasPayingTokenSymbol",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "symbol_",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -290,6 +334,11 @@
           {
             "internalType": "address",
             "name": "optimismMintableERC20Factory",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "gasPayingToken",
             "type": "address"
           }
         ],
