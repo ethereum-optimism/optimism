@@ -10,6 +10,7 @@ import { IOptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/IOpt
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:upgradeable
 /// @title StandardBridge
@@ -129,6 +130,17 @@ abstract contract StandardBridge is Initializable {
     ///         Must be implemented by contracts that inherit.
     receive() external payable virtual;
 
+    /// @notice Getter for the ERC20 token address that is used to pay for gas
+    ///         and its decimals. Must be implemented by the contracts that inherit it.
+    function gasPayingToken() public virtual returns (address, uint8);
+
+    /// @notice Getter for custom gas token paying networks. Returns true if the
+    ///         network uses a custom gas token.
+    function isCustomGasToken() public returns (bool) {
+        (address token,) = gasPayingToken();
+        return token != Constants.ETHER;
+    }
+
     /// @notice Getter for messenger contract.
     ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.
     /// @return Contract of the messenger on this domain.
@@ -242,6 +254,7 @@ abstract contract StandardBridge is Initializable {
         onlyOtherBridge
     {
         require(paused() == false, "StandardBridge: paused");
+        require(isCustomGasToken() == false, "StandardBridge: cannot bridge ETH with custom gas token");
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(messenger), "StandardBridge: cannot send to messenger");
@@ -310,6 +323,7 @@ abstract contract StandardBridge is Initializable {
     )
         internal
     {
+        require(isCustomGasToken() == false, "StandardBridge: cannot bridge ETH with custom gas token");
         require(msg.value == _amount, "StandardBridge: bridging ETH must include sufficient ETH value");
 
         // Emit the correct events. By default this will be _amount, but child
