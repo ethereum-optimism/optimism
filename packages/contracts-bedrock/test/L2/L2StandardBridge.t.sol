@@ -669,7 +669,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that `finalizeDeposit` succeeds when depositing ETH under custom gas token.
-    function test_finalizeDeposit_depositingETH_customGasToken_succeeds() external {
+    function test_finalizeDeposit_depositingETH_customGasToken_reverts() external {
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
 
         vm.mockCall(
@@ -693,6 +693,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         );
 
         vm.prank(address(l2CrossDomainMessenger));
+        vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
         l2StandardBridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
     }
 
