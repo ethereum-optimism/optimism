@@ -16,7 +16,6 @@ import { Types } from "src/libraries/Types.sol";
 
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import "src/libraries/DisputeTypes.sol";
-import "src/libraries/PortalErrors.sol";
 
 contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
@@ -181,7 +180,7 @@ contract OptimismPortal2_CannotTimeTravel is OptimismPortal2_Invariant_Harness {
     ///                   A withdrawal that has been proven should not be able to be finalized
     ///                   until after the proof maturity period has elapsed.
     function invariant_cannotFinalizeBeforePeriodHasPassed() external {
-        vm.expectRevert(TooEarly.selector);
+        vm.expectRevert("OptimismPortal: proven withdrawal has not matured yet");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
@@ -210,7 +209,7 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
     ///                   Ensures that there is no chain of calls that can be made that allows a withdrawal to be
     ///                   finalized twice.
     function invariant_cannotFinalizeTwice() external {
-        vm.expectRevert(AlreadyFinalized.selector);
+        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 }

@@ -719,7 +719,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
-        vm.expectRevert("OptimismPortal: output proposal finalization period has not elapsed");
+        vm.expectRevert("OptimismPortal: proven withdrawal finalization period has not elapsed");
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
