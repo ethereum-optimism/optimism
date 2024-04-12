@@ -506,7 +506,9 @@ contract Specification_Test is CommonTest {
         for (uint256 i = 0; i < abis.length; i++) {
             string memory contractName = abis[i].contractName;
             assertEq(
-                abis[i].entries.length, numEntries[contractName], string.concat("Specification_Test: invalid number of ABI entries for ", contractName)
+                abis[i].entries.length,
+                numEntries[contractName],
+                string.concat("Specification_Test: invalid number of ABI entries for ", contractName)
             );
 
             for (uint256 j = 0; j < abis[i].entries.length; j++) {
