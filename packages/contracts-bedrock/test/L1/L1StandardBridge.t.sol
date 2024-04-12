@@ -228,30 +228,12 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
     }
 
     /// @dev Tests receive bridges successfully with custom gas token.
-    function test_receive_customGasToken_succeeds() external {
+    function test_receive_customGasToken_reverts() external {
         vm.mockCall(
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
 
-        assertEq(address(optimismPortal).balance, 0);
-
-        // The legacy event must be emitted for backwards compatibility
-        vm.expectEmit(address(l1StandardBridge));
-        emit ETHDepositInitiated(alice, alice, 0, hex"");
-
-        vm.expectEmit(address(l1StandardBridge));
-        emit ETHBridgeInitiated(alice, alice, 0, hex"");
-
-        vm.expectCall(
-            address(l1CrossDomainMessenger),
-            abi.encodeWithSelector(
-                CrossDomainMessenger.sendMessage.selector,
-                address(l2StandardBridge),
-                abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 0, hex""),
-                200_000
-            )
-        );
-
+        vm.expectRevert("StandardBridge: cannot bridge ETH with custom gas token");
         vm.prank(alice, alice);
         (bool success,) = address(l1StandardBridge).call(hex"");
         assertEq(success, true);
