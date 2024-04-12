@@ -181,10 +181,10 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Retuns the balance of the contract.
     function balance() public view returns (uint256) {
         (address token,) = gasPayingToken();
-        if (token == Constants.ETHER) {
-            return address(this).balance;
-        } else {
+        if (isCustomGasToken()) {
             return _balance;
+        } else {
+            return address(this).balance;
         }
     }
 
@@ -206,6 +206,13 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Returns the gas paying token and its decimals.
     function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = systemConfig.gasPayingToken();
+    }
+
+    /// @notice Getter for custom gas token paying networks. Returns true if the
+    ///         network uses a custom gas token.
+    function isCustomGasToken() public returns (bool) {
+        (address token,) = gasPayingToken();
+        return token != Constants.ETHER;
     }
 
     /// @notice Getter for the resource config.
@@ -362,8 +369,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         l2Sender = _tx.sender;
 
         bool success;
-        (address token,) = gasPayingToken();
-        if (token == Constants.ETHER) {
+        if (!isCustomGasToken()) {
             // Trigger the call to the target contract. We use a custom low level method
             // SafeCall.callWithMinGas to ensure two key properties
             //   1. Target contracts cannot force this call to run out of gas by returning a very large
@@ -373,6 +379,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             //      to accomplish this, `callWithMinGas` will revert.
             success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
         } else {
+            (address token,) = gasPayingToken();
             // Cannot call the token contract directly from the portal. This would allow an attacker
             // to call approve from a withdrawal and drain the balance of the portal.
             if (_tx.target == token) revert BadTarget();
@@ -442,7 +449,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     {
         // Can only be called if an ERC20 token is used for gas paying on L2
         (address token,) = gasPayingToken();
-        if (token == Constants.ETHER) {
+        if (!isCustomGasToken()) {
             revert OnlyCustomGasToken();
         }
 
@@ -491,7 +498,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         metered(_gasLimit)
     {
         (address token,) = gasPayingToken();
-        if (token != Constants.ETHER && msg.value != 0) {
+        if (isCustomGasToken() && msg.value != 0) {
             revert NoValue();
         }
 

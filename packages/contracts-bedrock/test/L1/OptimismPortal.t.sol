@@ -448,16 +448,31 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(optimismPortal.isOutputFinalized(nextOutputIndex + 1), false);
     }
 
-    /// @dev Tests that the `gasPayingToken` getter returns the correct values when it's set to ether.
+    /// @dev Tests that the `isCustomGasToken` function returns the correct value when the gas token is ether.
+    function test_isCustomGasToken_ether_succeeds() external {
+        assertFalse(optimismPortal.isCustomGasToken());
+    }
+
+    /// @dev Tests that the `isCustomGasToken` function returns the correct value when the gas token is not ether.
+    function test_isCustomGasToken_nonEther_succeeds() external {
+        vm.mockCall(
+            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
+        );
+        assertTrue(optimismPortal.isCustomGasToken());
+    }
+
+    /// @dev Tests that gasPayingToken returns the correct values for ETH.
     function test_gasPayingToken_ether_succeeds() external {
         (address token, uint8 decimals) = optimismPortal.gasPayingToken();
-        assertEq(token, Constants.ETHER);
+        assertEq(token, address(Constants.ETHER));
         assertEq(decimals, 18);
     }
 
-    /// @dev Tests that the `gasPayingToken` getter returns the correct values when it's set to a non-ether token.
+    /// @dev Tests that gasPayingToken returns the correct values for non-ETH tokens.
     function test_gasPayingToken_nonEther_succeeds() external {
-        vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), 2));
+        vm.mockCall(
+            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
+        );
         (address token, uint8 decimals) = optimismPortal.gasPayingToken();
         assertEq(token, address(1));
         assertEq(decimals, 2);
