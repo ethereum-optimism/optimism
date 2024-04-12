@@ -6,7 +6,7 @@ description: Learn more about the Standard Token Bridge
 
 The standard bridge functionality provides a method for an ERC20 token to be deposited and locked on L1 in order to mint the same amount of an equivalent representation token on L2. This process is known as "bridging a token", e.g. depositing 100 BOBA on L1 in exchange for 100 BOBA on L2 and also the reverse - withdrawing 100 BOBA on L2 in exchange for the same amount on L1, in which case the representation token on L2 is burned in order to release the funds locked on L1. In addition to bridging tokens(ERC20) the standard bridge can also be used for ETH.
 
-The Standard Bridge is composed of two main contracts the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol)(for Layer 1) and the [`L2StandardBridge` (opens new window)](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L2/messaging/L2StandardBridge.sol)(for Layer 2).
+The Standard Bridge is composed of two main contracts the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol)(for Layer 1) and the [`L2StandardBridge` (opens new window)](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/src/L2/L2StandardBridge.sol)(for Layer 2).
 
 Here we'll go over the basics of using this bridge to move ERC20 and ETH assets between Layer 1 and Layer 2.
 
@@ -16,7 +16,7 @@ Here we'll go over the basics of using this bridge to move ERC20 and ETH assets 
 
 ### Deposit ERC20s
 
-ERC20 deposits into L2 can be triggered via the `depositERC20` and `depositERC20To` functions on the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol). You **must** approve the Standard Token Bridge to use the amount of tokens that you want to deposit or the deposit will fail.
+ERC20 deposits into L2 can be triggered via the `depositERC20` and `depositERC20To` functions on the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol). You **must** approve the Standard Token Bridge to use the amount of tokens that you want to deposit or the deposit will fail.
 
 ```js
 const PRIVATE_KEY, L1_NODE_WEB3_URL, PROXY_L1_STANDARD_BRIDGE_ADDRESS
@@ -58,7 +58,7 @@ await depositToTx.wait()
 
 ### Deposit ETH
 
-ETH deposits into L2 can be triggered via the `depositETH` and `depositETHTo` functions on the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol). ETH deposits can alternatively be triggered by sending ETH directly to the `L1StandardBridge`. Once your deposit is detected and finalized on Boba Network, your account will be funded with the corresponding amount of ETH on L2.
+ETH deposits into L2 can be triggered via the `depositETH` and `depositETHTo` functions on the [`L1StandardBridge` (opens new window)](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol). ETH deposits can alternatively be triggered by sending ETH directly to the `L1StandardBridge`. Once your deposit is detected and finalized on Boba Network, your account will be funded with the corresponding amount of ETH on L2.
 
 ```js
 const PRIVATE_KEY, L1_NODE_WEB3_URL, PROXY_L1_STANDARD_BRIDGE_ADDRESS
@@ -95,7 +95,7 @@ await depositToTx.wait()
 
 ### Withdraw tokens (ERC20s and ETH)
 
-ERC20 withdrawals can be triggered via the `withdraw` or `withdrawTo` functions on the [`L2StandardBridge`](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/contracts/contracts/L2/messaging/L2StandardBridge.sol)
+ERC20 withdrawals can be triggered via the `withdraw` or `withdrawTo` functions on the [`L2StandardBridge`](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/src/L2/L2StandardBridge.sol)
 
 ```js
 const PRIVATE_KEY, L2_NODE_WEB3_URL, PROXY_L2_STANDARD_BRIDGE_ADDRESS
