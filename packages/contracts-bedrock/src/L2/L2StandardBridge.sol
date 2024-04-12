@@ -6,7 +6,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { Constants } from "src/libraries/Constants.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -52,8 +52,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.8.0
-    string public constant version = "1.8.0";
+    /// @custom:semver 1.9.0
+    string public constant version = "1.9.0";
 
     /// @notice Constructs the L2StandardBridge contract.
     constructor() StandardBridge() {
@@ -74,6 +74,11 @@ contract L2StandardBridge is StandardBridge, ISemver {
         _initiateWithdrawal(
             Predeploys.LEGACY_ERC20_ETH, msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes("")
         );
+    }
+
+    /// @inheritdoc StandardBridge
+    function gasPayingToken() public view override returns (address addr_, uint8 decimals_) {
+        (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
 
     /// @custom:legacy
