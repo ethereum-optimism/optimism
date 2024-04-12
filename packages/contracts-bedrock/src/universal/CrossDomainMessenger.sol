@@ -184,7 +184,7 @@ abstract contract CrossDomainMessenger is
             _value: msg.value,
             _data: abi.encodeWithSelector(
                 this.relayMessage.selector, messageNonce(), msg.sender, _target, msg.value, _minGasLimit, _message
-                )
+            )
         });
 
         emit SentMessage(_target, msg.sender, _message, messageNonce(), _minGasLimit);

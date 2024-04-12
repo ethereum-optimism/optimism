@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -251,7 +252,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		state.SetBalance(from, BytesToBigInt([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}))
+		state.SetBalance(from, uint256.MustFromBig(BytesToBigInt([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})))
 		state.SetCode(addr, common.FromHex(bindings.OptimismPortalDeployedBin))
 		_, err = state.Commit(0, false)
 		if err != nil {

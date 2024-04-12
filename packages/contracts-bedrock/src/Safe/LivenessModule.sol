@@ -14,6 +14,12 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         If the number of owners falls below the minimum number of owners, the ownership of the
 ///         safe will be transferred to the fallback owner.
 contract LivenessModule is ISemver {
+    /// @notice Emitted when an owner is removed due to insufficient liveness
+    event RemovedOwner(address indexed owner);
+
+    /// @notice Emitted when the fallback owner takes ownership
+    event OwnershipTransferredToFallback();
+
     /// @notice The Safe contract instance
     Safe internal immutable SAFE;
 
@@ -178,6 +184,7 @@ contract LivenessModule is ISemver {
             }),
             "LivenessModule: failed to swap to fallback owner"
         );
+        emit OwnershipTransferredToFallback();
     }
 
     /// @notice Removes the owner `owner` from the Safe and updates the threshold to `_threshold`.
@@ -194,6 +201,7 @@ contract LivenessModule is ISemver {
             }),
             "LivenessModule: failed to remove owner"
         );
+        emit RemovedOwner(_owner);
     }
 
     /// @notice A FREI-PI invariant check enforcing requirements on number of owners and threshold.
