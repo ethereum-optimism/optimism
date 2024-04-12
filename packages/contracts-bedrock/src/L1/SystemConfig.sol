@@ -273,23 +273,16 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         lost for tokens that have less decimals.
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
-        if (_token == address(0)) _token = Constants.ETHER;
+        if (_token != address(0)) {
+            require(ERC20(_token).decimals() == 18, "SystemConfig: bad decimals of gas paying token");
+            bytes32 name = GasPayingToken.sanitize(ERC20(_token).name());
+            bytes32 symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
 
-        uint8 decimals = 18;
-        bytes32 name = bytes32("Ether");
-        bytes32 symbol = bytes32("ETH");
-        if (_token != Constants.ETHER) {
-            decimals = ERC20(_token).decimals();
-            require(decimals == 18, "SystemConfig: bad decimals of gas paying token");
-            name = GasPayingToken.sanitize(ERC20(_token).name());
-            symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
-        }
-
-        if (_token != Constants.ETHER) {
-            GasPayingToken.set({ _token: _token, _decimals: decimals, _name: name, _symbol: symbol });
+            // Set the gas paying token in storage and in the OptimismPortal.
+            GasPayingToken.set({ _token: _token, _decimals: 18, _name: name, _symbol: symbol });
             OptimismPortal(payable(optimismPortal())).setGasPayingToken({
                 _token: _token,
-                _decimals: decimals,
+                _decimals: 18,
                 _name: name,
                 _symbol: symbol
             });
