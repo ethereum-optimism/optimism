@@ -5,7 +5,7 @@ cache
 broadcast
 kout-deployment
 kout-proofs
-test/kontrol/scripts/logs
+test/kontrol/logs
 
 # Metrics
 coverage.out
