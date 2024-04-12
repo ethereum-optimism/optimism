@@ -598,38 +598,41 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that bridging ETH succeeds.
-    function test_bridgeETH_succeeds() external {
+    function testFuzz_bridgeETH_succeeds(uint256 _value, uint32 _minGasLimit, bytes calldata _extraData) external {
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         bytes memory message =
-            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 500, hex"dead");
+            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, _value, _extraData);
 
         vm.expectCall(
             address(l2StandardBridge),
-            500,
-            abi.encodeWithSelector(l2StandardBridge.bridgeETH.selector, 50000, hex"dead")
+            _value,
+            abi.encodeWithSelector(l2StandardBridge.bridgeETH.selector, _minGasLimit, _extraData)
         );
 
         vm.expectCall(
             address(l2CrossDomainMessenger),
-            500,
-            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 50000)
+            _value,
+            abi.encodeWithSelector(
+                CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, _minGasLimit
+            )
         );
 
         vm.expectEmit(address(l2StandardBridge));
-        emit ETHBridgeInitiated(alice, alice, 500, hex"dead");
+        emit ETHBridgeInitiated(alice, alice, _value, _extraData);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(address(l2CrossDomainMessenger));
-        emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, 50000);
+        emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, _minGasLimit);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger
         vm.expectEmit(address(l2CrossDomainMessenger));
-        emit SentMessageExtension1(address(l2StandardBridge), 500);
+        emit SentMessageExtension1(address(l2StandardBridge), _value);
 
+        vm.deal(alice, _value);
         vm.prank(alice, alice);
 
-        l2StandardBridge.bridgeETH{ value: 500 }(50000, hex"dead");
+        l2StandardBridge.bridgeETH{ value: _value }(_minGasLimit, _extraData);
     }
 
     /// @dev Tests that bridging reverts with custom gas token.
@@ -642,40 +645,43 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that bridging ETH to a different address succeeds.
-    function test_bridgeETHTo_succeeds() external {
+    function testFuzz_bridgeETHTo_succeeds(uint256 _value, uint32 _minGasLimit, bytes calldata _extraData) external {
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         vm.expectCall(
             address(l2StandardBridge),
-            600,
-            abi.encodeWithSelector(l1StandardBridge.bridgeETHTo.selector, bob, 60000, hex"dead")
+            _value,
+            abi.encodeWithSelector(l1StandardBridge.bridgeETHTo.selector, bob, _minGasLimit, _extraData)
         );
 
         bytes memory message =
-            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, bob, uint256(600), hex"dead");
+            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, bob, _value, _extraData);
 
         // the L2 bridge should call
         // L2CrossDomainMessenger.sendMessage
         vm.expectCall(
             address(l2CrossDomainMessenger),
-            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 60000)
+            abi.encodeWithSelector(
+                CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, _minGasLimit
+            )
         );
 
         vm.expectEmit(address(l2StandardBridge));
-        emit ETHBridgeInitiated(alice, bob, 600, hex"dead");
+        emit ETHBridgeInitiated(alice, bob, _value, _extraData);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(address(l2CrossDomainMessenger));
-        emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, 60000);
+        emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, _minGasLimit);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger
         vm.expectEmit(address(l2CrossDomainMessenger));
-        emit SentMessageExtension1(address(l2StandardBridge), 600);
+        emit SentMessageExtension1(address(l2StandardBridge), _value);
 
         // deposit eth to bob
+        vm.deal(alice, _value);
         vm.prank(alice, alice);
 
-        l2StandardBridge.bridgeETHTo{ value: 600 }(bob, 60000, hex"dead");
+        l2StandardBridge.bridgeETHTo{ value: _value }(bob, _minGasLimit, _extraData);
     }
 
     /// @dev Tests that bridging reverts with custom gas token.
