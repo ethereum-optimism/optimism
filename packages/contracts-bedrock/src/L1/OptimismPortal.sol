@@ -190,14 +190,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
-        if (_tx.target == address(this)) revert BadTarget();
+        require(_tx.target != address(this), "OptimismPortal: you cannot send messages to the portal contract");
 
         // Get the output root and load onto the stack to prevent multiple mloads. This will
         // revert if there is no output root for the given block number.
         bytes32 outputRoot = l2Oracle.getL2Output(_l2OutputIndex).outputRoot;
 
         // Verify that the output root can be generated with the elements in the proof.
-        if (outputRoot != Hashing.hashOutputRootProof(_outputRootProof)) revert InvalidOutputRootProof();
+        require(
+            outputRoot == Hashing.hashOutputRootProof(_outputRootProof), "OptimismPortal: invalid output root proof"
+        );
 
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
@@ -229,14 +231,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // on L2. If this is true, under the assumption that the SecureMerkleTrie does not have
         // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
         // be relayed on L1.
-        if (
-            !SecureMerkleTrie.verifyInclusionProof({
+        require(
+            SecureMerkleTrie.verifyInclusionProof({
                 _key: abi.encode(storageKey),
                 _value: hex"01",
                 _proof: _withdrawalProof,
                 _root: _outputRootProof.messagePasserStorageRoot
-            })
-        ) revert InvalidInclusionProof();
+            }),
+            "OptimismPortal: invalid withdrawal inclusion proof"
+        );
 
         // Designate the withdrawalHash as proven by storing the `outputRoot`, `timestamp`, and
         // `l2BlockNumber` in the `provenWithdrawals` mapping. A `withdrawalHash` can only be
@@ -257,7 +260,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
-        if (l2Sender != Constants.DEFAULT_L2_SENDER) revert NonReentrant();
+        require(
+            l2Sender == Constants.DEFAULT_L2_SENDER, "OptimismPortal: can only trigger one withdrawal per transaction"
+        );
 
         // Grab the proven withdrawal from the `provenWithdrawals` map.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
@@ -266,18 +271,24 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
         // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
         // a timestamp of zero.
-        if (provenWithdrawal.timestamp == 0) revert NotProven();
+        require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
 
         // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
         // starting timestamp inside the L2OutputOracle. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
-        if (provenWithdrawal.timestamp < l2Oracle.startingTimestamp()) revert BadTimestamp();
+        require(
+            provenWithdrawal.timestamp >= l2Oracle.startingTimestamp(),
+            "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
+        );
 
         // A proven withdrawal must wait at least the finalization period before it can be
         // finalized. This waiting period can elapse in parallel with the waiting period for the
         // output the withdrawal was proven against. In effect, this means that the minimum
         // withdrawal time is proposal submission time + finalization period.
-        if (!_isFinalizationPeriodElapsed(provenWithdrawal.timestamp)) revert TooEarly();
+        require(
+            _isFinalizationPeriodElapsed(provenWithdrawal.timestamp),
+            "OptimismPortal: proven withdrawal finalization period has not elapsed"
+        );
 
         // Grab the OutputProposal from the L2OutputOracle, will revert if the output that
         // corresponds to the given index has not been proposed yet.
@@ -286,13 +297,19 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Check that the output root that was used to prove the withdrawal is the same as the
         // current output root for the given output index. An output root may change if it is
         // deleted by the challenger address and then re-proposed.
-        if (proposal.outputRoot != provenWithdrawal.outputRoot) revert BadOutputRoot();
+        require(
+            proposal.outputRoot == provenWithdrawal.outputRoot,
+            "OptimismPortal: output root proven is not the same as current output root"
+        );
 
         // Check that the output proposal has also been finalized.
-        if (!_isFinalizationPeriodElapsed(proposal.timestamp)) revert TooEarly();
+        require(
+            _isFinalizationPeriodElapsed(proposal.timestamp),
+            "OptimismPortal: output proposal finalization period has not elapsed"
+        );
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
-        if (finalizedWithdrawals[withdrawalHash]) revert AlreadyFinalized();
+        require(finalizedWithdrawals[withdrawalHash] == false, "OptimismPortal: withdrawal has already been finalized");
 
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;

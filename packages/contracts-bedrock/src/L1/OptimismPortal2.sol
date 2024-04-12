@@ -236,14 +236,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
-        if (_tx.target == address(this)) revert BadTarget();
+        require(_tx.target != address(this), "OptimismPortal: you cannot send messages to the portal contract");
 
         // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
         (GameType gameType,, IDisputeGame gameProxy) = disputeGameFactory.gameAtIndex(_disputeGameIndex);
         Claim outputRoot = gameProxy.rootClaim();
 
         // The game type of the dispute game must be the respected game type.
-        if (gameType.raw() != respectedGameType.raw()) revert InvalidGameType();
+        require(gameType.raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
 
         // Verify that the output root can be generated with the elements in the proof.
         if (outputRoot.raw() != Hashing.hashOutputRootProof(_outputRootProof)) revert InvalidOutputRootProof();
@@ -254,7 +254,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // We do not allow for proving withdrawals against dispute games that have resolved against the favor
         // of the root claim.
-        if (gameProxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidProposal();
+        require(
+            gameProxy.status() != GameStatus.CHALLENGER_WINS,
+            "OptimismPortal: cannot prove against invalid dispute games"
+        );
 
         // We generally want to prevent users from proving the same withdrawal multiple times
         // because each successive proof will update the timestamp. A malicious user can take
@@ -283,14 +286,15 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // on L2. If this is true, under the assumption that the SecureMerkleTrie does not have
         // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
         // be relayed on L1.
-        if (
-            !SecureMerkleTrie.verifyInclusionProof({
+        require(
+            SecureMerkleTrie.verifyInclusionProof({
                 _key: abi.encode(storageKey),
                 _value: hex"01",
                 _proof: _withdrawalProof,
                 _root: _outputRootProof.messagePasserStorageRoot
-            })
-        ) revert InvalidInclusionProof();
+            }),
+            "OptimismPortal: invalid withdrawal inclusion proof"
+        );
 
         // Designate the withdrawalHash as proven by storing the `disputeGameProxy` & `timestamp` in the
         // `provenWithdrawals` mapping. A `withdrawalHash` can only be proven once unless the dispute game it proved
@@ -449,34 +453,47 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
         // starting timestamp inside the Dispute Game. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
-        if (provenWithdrawal.timestamp <= createdAt) revert BadTimestamp();
+        require(
+            provenWithdrawal.timestamp > createdAt,
+            "OptimismPortal: withdrawal timestamp less than dispute game creation timestamp"
+        );
 
         // A proven withdrawal must wait at least `PROOF_MATURITY_DELAY_SECONDS` before finalizing.
-        if (block.timestamp - provenWithdrawal.timestamp <= PROOF_MATURITY_DELAY_SECONDS) revert TooEarly();
+        require(
+            block.timestamp - provenWithdrawal.timestamp > PROOF_MATURITY_DELAY_SECONDS,
+            "OptimismPortal: proven withdrawal has not matured yet"
+        );
 
         // A proven withdrawal must wait until the dispute game it was proven against has been
         // resolved in favor of the root claim (the output proposal). This is to prevent users
         // from finalizing withdrawals proven against non-finalized output roots.
-        if (disputeGameProxy.status() != GameStatus.DEFENDER_WINS) revert InvalidProposal();
+        require(
+            disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
+            "OptimismPortal: output proposal has not been validated"
+        );
 
         // The game type of the dispute game must be the respected game type. This was also checked in
         // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
         // the withdrawal was proven.
-        if (disputeGameProxy.gameType().raw() != respectedGameType.raw()) revert InvalidGameType();
+        require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
 
         // The game must have been created after `respectedGameTypeUpdatedAt`. This is to prevent users from creating
         // invalid disputes against a deployed game type while the off-chain challenge agents are not watching.
-        if (createdAt < respectedGameTypeUpdatedAt) revert DisputeGameCreatedEarly();
+        require(
+            createdAt >= respectedGameTypeUpdatedAt,
+            "OptimismPortal: dispute game created before respected game type was updated"
+        );
 
         // Before a withdrawal can be finalized, the dispute game it was proven against must have been
         // resolved for at least `DISPUTE_GAME_FINALITY_DELAY_SECONDS`. This is to allow for manual
         // intervention in the event that a dispute game is resolved incorrectly.
-        if (block.timestamp - disputeGameProxy.resolvedAt().raw() <= DISPUTE_GAME_FINALITY_DELAY_SECONDS) {
-            revert AirGapped();
-        }
+        require(
+            block.timestamp - disputeGameProxy.resolvedAt().raw() > DISPUTE_GAME_FINALITY_DELAY_SECONDS,
+            "OptimismPortal: output proposal in air-gap"
+        );
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
-        if (finalizedWithdrawals[_withdrawalHash]) revert AlreadyFinalized();
+        require(!finalizedWithdrawals[_withdrawalHash], "OptimismPortal: withdrawal has already been finalized");
     }
 
     /// @notice External getter for the number of proof submitters for a withdrawal hash.
