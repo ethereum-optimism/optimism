@@ -1226,11 +1226,13 @@ jobs:
             docker load < "./op-node.tar"
             docker load < "./op-proposer.tar"
             docker load < "./op-batcher.tar"
+            docker load < "./da-server.tar"
             # rename to the tags that the docker-compose of the devnet expects
             docker tag "$IMAGE_BASE_PREFIX/op-stack-go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-stack-go:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/da-server:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/da-server:devnet"
       - run:
           name: pnpm i
           command: |
@@ -1792,6 +1794,12 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
+      - docker-build:
+          name: da-server-docker-build
+          docker_name: da-server
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: ['op-stack-go-docker-build']
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - cannon-prestate:
           requires:
             - go-mod-download
@@ -1804,6 +1812,7 @@ workflows:
             - op-batcher-docker-build
             - op-proposer-docker-build
             - op-node-docker-build
+            - da-server-docker-build
             - cannon-prestate
       - docker-build:
           name: indexer-docker-build
