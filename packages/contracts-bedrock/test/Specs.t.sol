@@ -2,7 +2,6 @@
 pragma solidity ^0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { Abi, AbiEntry } from "scripts/ForgeArtifacts.sol";
 import { Executables } from "scripts/Executables.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
@@ -10,7 +9,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
-import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
+import { ForgeArtifacts, Abi, AbiEntry } from "scripts/ForgeArtifacts.sol";
 
 /// @title Specification_Test
 /// @dev Specifies common security properties of entrypoints to L1 contracts, including authorization and

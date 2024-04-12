@@ -164,7 +164,7 @@ library ForgeArtifacts {
 
         for (uint256 i; i < contractNames.length; i++) {
             string memory contractName = contractNames[i];
-            string[] memory methodIdentifiers = ForgeArtifacts.getMethodIdentifiers(contractName);
+            string[] memory methodIdentifiers = getMethodIdentifiers(contractName);
             abis_[i].contractName = contractName;
             abis_[i].entries = new AbiEntry[](methodIdentifiers.length);
             for (uint256 j; j < methodIdentifiers.length; j++) {

@@ -2,14 +2,14 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { ForgeArtifacts, Abi } from "scripts/ForgeArtifacts.sol";
 import { Safe } from "safe-contracts/Safe.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
-import { ConfigurableCaller } from "test/mocks/Callers.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import { GameType } from "src/libraries/DisputeTypes.sol";
 
 contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
@@ -242,5 +242,18 @@ contract DeputyGuardianModule_setRespectedGameType_TestFail is DeputyGuardianMod
             )
         );
         deputyGuardianModule.setRespectedGameType(optimismPortal2, gameType);
+    }
+}
+
+contract DeputyGuardianModule_NoPortalCollisions_Test is DeputyGuardianModule_TestInit {
+    function test_noPortalCollisions_succeeds() external {
+        Abi[] memory abis = ForgeArtifacts.getL1ContractFunctionAbis();
+        for (uint256 i; i < abis.length; i++) {
+            for (uint256 j; j < abis[i].entries.length; j++) {
+                bytes4 sel = abis[i].entries[j].sel;
+                assertNotEq(sel, optimismPortal2.blacklistDisputeGame.selector);
+                assertNotEq(sel, optimismPortal2.setRespectedGameType.selector);
+            }
+        }
     }
 }
