@@ -157,7 +157,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that `depositTransaction` succeeds when msg.sender == tx.origin and non-custom gas is used.
-    function testFuzz_depositTransaction_nonCustomGas_originSender_succeeds(
+    function testFuzz_depositTransaction_senderIsOrigin_succeeds(
         address _to,
         uint256 _mint,
         uint256 _value,
@@ -205,7 +205,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that `depositTransaction` succeeds when msg.sender != tx.origin and non-custom gas is used.
-    function testFuzz_depositTransaction_nonCustomGas_nonOriginSender_succeeds(
+    function testFuzz_depositTransaction_senderNotOrigin_succeeds(
         address _to,
         uint256 _mint,
         uint256 _value,
@@ -496,7 +496,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that `depositERC20Transaction` reverts when the gas paying token is ether.
-    function test_depositERC20Transaction_notCustomGasUsed_reverts() external {
+    function test_depositERC20Transaction_noCustomGasToken_reverts() external {
         // Check that the gas paying token is set to ether
         (address token,) = optimismPortal.gasPayingToken();
         assertEq(token, Constants.ETHER);
@@ -1226,7 +1226,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     }
 
     /// @dev Tests that `depositERC20Transaction` succeeds when msg.sender == tx.origin.
-    function testFuzz_depositERC20Transaction_originSender_succeeds(
+    function testFuzz_depositERC20Transaction_senderIsOrigin_succeeds(
         address _to,
         uint256 _mint,
         uint256 _value,
@@ -1273,7 +1273,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     }
 
     /// @dev Tests that `depositERC20Transaction` succeeds when msg.sender != tx.origin.
-    function testFuzz_depositERC20Transaction_nonOriginSender_succeeds(
+    function testFuzz_depositERC20Transaction_senderNotOrigin_succeeds(
         address _to,
         uint256 _mint,
         uint256 _value,
@@ -1444,7 +1444,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     }
 
     /// @dev Tests that `depositTransaction` succeeds when a custom gas token is used but the msg.value is zero.
-    function testFuzz_depositTransaction_customGas_zeroMsgValue_originSender_succeeds(
+    function testFuzz_depositTransaction_customGasToken_noValue_senderIsOrigin_succeeds(
         address _to,
         uint256 _value,
         uint64 _gasLimit,
@@ -1486,7 +1486,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     }
 
     /// @dev Tests that `depositTransaction` succeeds when a custom gas token is used but the msg.value is zero.
-    function testFuzz_depositTransaction_customGas_zeroMsgValue_nonOriginSender_succeeds(
+    function testFuzz_depositTransaction_customGasToken_noValue_senderNotOrigin_succeeds(
         address _to,
         uint256 _value,
         uint64 _gasLimit,
@@ -1528,7 +1528,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     }
 
     /// @dev Tests that `depositTransaction` fails when a custom gas token is used and msg.value is non-zero.
-    function test_depositTransaction_customGas_nonZeroMsgValue_reverts() external {
+    function test_depositTransaction_customGasToken_withValue_reverts() external {
         // Mock the gas paying token to be the ERC20 token
         vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
 
