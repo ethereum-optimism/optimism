@@ -80,6 +80,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
 
+    /// @notice The number of decimals that the gas paying token has.
+    uint8 internal constant GAS_PAYING_TOKEN_DECIMALS = 18;
+
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
 
@@ -268,28 +271,20 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Internal setter for the gas paying token address, includes validation.
-    ///         Ether uses a default value of 18 decimals and the requirement
-    ///         that the decimals are less than or equal to 18 ensures that no precision is
-    ///         lost for tokens that have less decimals.
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
-        if (_token == address(0)) _token = Constants.ETHER;
+        if (_token != address(0) && _token != Constants.ETHER) {
+            require(
+                ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
+            );
+            bytes32 name = GasPayingToken.sanitize(ERC20(_token).name());
+            bytes32 symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
 
-        uint8 decimals = 18;
-        bytes32 name = bytes32("Ether");
-        bytes32 symbol = bytes32("ETH");
-        if (_token != Constants.ETHER) {
-            decimals = ERC20(_token).decimals();
-            require(decimals == 18, "SystemConfig: bad decimals of gas paying token");
-            name = GasPayingToken.sanitize(ERC20(_token).name());
-            symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
-        }
-
-        if (_token != Constants.ETHER) {
-            GasPayingToken.set({ _token: _token, _decimals: decimals, _name: name, _symbol: symbol });
+            // Set the gas paying token in storage and in the OptimismPortal.
+            GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
             OptimismPortal(payable(optimismPortal())).setGasPayingToken({
                 _token: _token,
-                _decimals: decimals,
+                _decimals: GAS_PAYING_TOKEN_DECIMALS,
                 _name: name,
                 _symbol: symbol
             });
