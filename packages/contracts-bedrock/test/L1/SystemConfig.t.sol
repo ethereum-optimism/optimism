@@ -245,9 +245,11 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
         vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_NAME_SLOT, bytes32(0));
         vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(0));
 
-        vm.mockCall(address(_token), abi.encodeWithSelector(token.decimals.selector), abi.encode(18));
-        vm.mockCall(address(_token), abi.encodeWithSelector(token.name.selector), abi.encode(_name));
-        vm.mockCall(address(_token), abi.encodeWithSelector(token.symbol.selector), abi.encode(_symbol));
+        vm.mockCall(_token, abi.encodeWithSelector(token.decimals.selector), abi.encode(18));
+        vm.mockCall(_token, abi.encodeWithSelector(token.name.selector), abi.encode(_name));
+        vm.mockCall(_token, abi.encodeWithSelector(token.symbol.selector), abi.encode(_symbol));
+
+        token = ERC20(_token);
 
         vm.prank(systemConfig.owner());
         systemConfig.initialize({
@@ -278,7 +280,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
             assertEq(systemConfig.gasPayingTokenName(), "Ether");
             assertEq(systemConfig.gasPayingTokenSymbol(), "ETH");
         } else {
-            assertEq(addr, address(_token));
+            assertEq(addr, _token);
             assertEq(systemConfig.gasPayingTokenName(), _name);
             assertEq(systemConfig.gasPayingTokenSymbol(), _symbol);
         }
