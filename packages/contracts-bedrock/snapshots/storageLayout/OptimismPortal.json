@@ -75,5 +75,12 @@
     "offset": 0,
     "slot": "55",
     "type": "contract SystemConfig"
+  },
+  {
+    "bytes": "32",
+    "label": "_balance",
+    "offset": 0,
+    "slot": "56",
+    "type": "uint256"
   }
 ]
