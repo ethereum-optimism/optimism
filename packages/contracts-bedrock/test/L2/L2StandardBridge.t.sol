@@ -86,7 +86,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         emit ETHBridgeInitiated(alice, alice, 100, hex"");
 
         // L2ToL1MessagePasser will emit a MessagePassed event
-        vm.expectEmit(true, true, true, true, address(l2ToL1MessagePasser));
+        vm.expectEmit(address(l2ToL1MessagePasser));
         emit MessagePassed(
             nonce,
             address(l2CrossDomainMessenger),
@@ -98,11 +98,11 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
-        vm.expectEmit(true, true, true, true, address(l2CrossDomainMessenger));
+        vm.expectEmit(address(l2CrossDomainMessenger));
         emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, 200_000);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger
-        vm.expectEmit(true, true, true, true, address(l2CrossDomainMessenger));
+        vm.expectEmit(address(l2CrossDomainMessenger));
         emit SentMessageExtension1(address(l2StandardBridge), 100);
 
         vm.expectCall(
@@ -175,7 +175,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertTrue(alice.balance >= 100);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 0);
 
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit WithdrawalInitiated({
             l1Token: address(0),
             l2Token: Predeploys.LEGACY_ERC20_ETH,
@@ -185,7 +185,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             data: hex""
         });
 
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit ETHBridgeInitiated({ from: alice, to: alice, amount: 100, data: hex"" });
 
         vm.prank(alice, alice);
@@ -395,13 +395,13 @@ contract PreBridgeERC20To is Bridge_Initializer {
             })
         );
 
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit WithdrawalInitiated(address(L1Token), _l2Token, alice, bob, 100, hex"");
 
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit ERC20BridgeInitiated(_l2Token, address(L1Token), alice, bob, 100, hex"");
 
-        vm.expectEmit(true, true, true, true, address(l2ToL1MessagePasser));
+        vm.expectEmit(address(l2ToL1MessagePasser));
         emit MessagePassed(
             nonce,
             address(l2CrossDomainMessenger),
@@ -413,11 +413,11 @@ contract PreBridgeERC20To is Bridge_Initializer {
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
-        vm.expectEmit(true, true, true, true, address(l2CrossDomainMessenger));
+        vm.expectEmit(address(l2CrossDomainMessenger));
         emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, 1000);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger
-        vm.expectEmit(true, true, true, true, address(l2CrossDomainMessenger));
+        vm.expectEmit(address(l2CrossDomainMessenger));
         emit SentMessageExtension1(address(l2StandardBridge), 0);
 
         if (_isLegacy) {
@@ -490,10 +490,10 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         vm.expectCall(address(L2Token), abi.encodeWithSelector(OptimismMintableERC20.mint.selector, alice, 100));
 
         // Should emit both the bedrock and legacy events
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit DepositFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
 
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit ERC20BridgeFinalized(address(L2Token), address(L1Token), alice, alice, 100, hex"");
 
         vm.prank(address(l2CrossDomainMessenger));
@@ -513,10 +513,10 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         vm.expectCall(address(L2Token), abi.encodeWithSelector(OptimismMintableERC20.mint.selector, alice, 100));
 
         // Should emit both the bedrock and legacy events
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit DepositFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
 
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit ERC20BridgeFinalized(address(L2Token), address(L1Token), alice, alice, 100, hex"");
 
         vm.prank(address(l2CrossDomainMessenger));
@@ -532,10 +532,10 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         );
 
         // Should emit both the bedrock and legacy events
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit DepositFinalized(address(0), Predeploys.LEGACY_ERC20_ETH, alice, alice, 100, hex"");
 
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit ETHBridgeFinalized(alice, alice, 100, hex"");
 
         vm.deal(address(l2CrossDomainMessenger), 100);
