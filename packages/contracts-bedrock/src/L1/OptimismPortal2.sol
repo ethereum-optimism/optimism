@@ -328,7 +328,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
-        if (l2Sender != Constants.DEFAULT_L2_SENDER) revert NonReentrant();
+        require(
+            l2Sender == Constants.DEFAULT_L2_SENDER, "OptimismPortal: can only trigger one withdrawal per transaction"
+        );
 
         // Compute the withdrawal hash.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
