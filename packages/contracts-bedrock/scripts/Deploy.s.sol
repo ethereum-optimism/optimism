@@ -211,7 +211,6 @@ contract Deploy is Deployer {
 
     /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
     function _callViaSafe(Safe _safe, address _target, bytes memory _data) internal {
-
         // This is the signature format used the caller is also the signer.
         bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
 
@@ -443,10 +442,11 @@ contract Deploy is Deployer {
         addr_ = safe;
     }
 
-    /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
+    /// @notice Deploy a LivenessModule and LivenessGuard for use on the Security Council Safe
     function _deployLivenessModuleAndGuardian() internal returns (address module_, address guard_) {
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
         guard_ = address(new LivenessGuard(councilSafe));
+        console.log("New LivenessGuard deployed at %s", address(guard_));
 
         address fallbackOwner = mustGetAddress("SystemOwnerSafe");
         module_ = address(
@@ -460,6 +460,7 @@ contract Deploy is Deployer {
                 _fallbackOwner: fallbackOwner
             })
         );
+        console.log("New LivenessModule deployed at %s", address(module_));
     }
 
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
@@ -481,67 +482,42 @@ contract Deploy is Deployer {
 
         save("SecurityCouncilSafe", address(safe));
         console.log("New SecurityCouncilSafe deployed at %s", address(safe));
-
         (address module, address guard) = _deployLivenessModuleAndGuardian();
-        bytes memory prevalidatedSignature =
-            bytes.concat(bytes32(uint256(uint160(msg.sender))), bytes32(0), bytes1(uint8(1)));
-        safe.execTransaction({
-            to: (address(safe)),
-            value: 0,
-            data: abi.encodeCall(GuardManager.setGuard, (address(guard))),
-            operation: SafeOps.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: prevalidatedSignature
-        });
-        safe.execTransaction({
-            to: (address(safe)),
-            value: 0,
-            data: abi.encodeCall(ModuleManager.enableModule, (address(module))),
-            operation: SafeOps.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: prevalidatedSignature
-        });
+
+        address guard = deployLivenessGuard();
+        _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
+        console.log("LivenessGuard setup on SecurityCouncilSafe");
+        _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(ModuleManager.enableModule, (module)) });
+        console.log("LivenessModule enabled on SecurityCouncilSafe");
 
         // Add a more realistic number of signers to the Council Safe
-        address[] memory additionalSigners = new address[](12);
+        uint256 numSigners = 2 * LivenessModule(module).minOwners();
+
+        // There is already one signer, so we need to add numSigners - 1 additional signers.
+        // During a production deployment, the signer used during setup should be removed at the end, however
+        // this is not feasible here because it would require us to reach a threshold of signatures.
+        address[] memory additionalSigners = new address[](numSigners - 1);
+
+        // Add the additional signers
         for (uint256 i = 0; i < additionalSigners.length; i++) {
             additionalSigners[i] = makeAddr(string.concat("Security Council Signer ", vm.toString((i + 1))));
-            safe.execTransaction({
-                to: (address(safe)),
-                value: 0,
-                data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (additionalSigners[i], 1)),
-                operation: SafeOps.Operation.Call,
-                safeTxGas: 0,
-                baseGas: 0,
-                gasPrice: 0,
-                gasToken: address(0),
-                refundReceiver: payable(address(0)),
-                signatures: prevalidatedSignature
+            _callViaSafe({
+                _safe: safe,
+                _target: address(safe),
+                _data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (additionalSigners[i], 1))
             });
         }
 
-        safe.execTransaction({
-            to: (address(safe)),
-            value: 0,
-            data: abi.encodeCall(OwnerManager.changeThreshold, (9)),
-            operation: SafeOps.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: prevalidatedSignature
+        // Now that the signers have been added, we can set the threshold to the required value.
+        uint256 newThreshold = LivenessModule(module).getRequiredThreshold(numSigners);
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(OwnerManager.changeThreshold, (newThreshold))
         });
 
         addr_ = address(safe);
+        console.log("New SecurityCouncilSafe deployed at %s", address(safe));
     }
 
     /// @notice Deploy the AddressManager
