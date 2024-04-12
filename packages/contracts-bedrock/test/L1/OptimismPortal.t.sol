@@ -150,7 +150,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `depositTransaction` reverts when the destination address is non-zero
     ///      for a contract creation deposit.
-    function test_depositTransaction_contractCreation_reverts() external virtual {
+    function test_depositTransaction_contractCreation_reverts() external {
         // contract creation must have a target of address(0)
         vm.expectRevert(BadTarget.selector);
         optimismPortal.depositTransaction(address(1), 1, 0, true, hex"");
@@ -158,7 +158,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `depositTransaction` reverts when the data is too large.
     ///      This places an upper bound on unsafe blocks sent over p2p.
-    function test_depositTransaction_largeData_reverts() external virtual {
+    function test_depositTransaction_largeData_reverts() external {
         uint256 size = 120_001;
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(size));
         vm.expectRevert(LargeCalldata.selector);
@@ -172,20 +172,14 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that `depositTransaction` reverts when the gas limit is too small.
-    function test_depositTransaction_smallGasLimit_reverts() external virtual {
+    function test_depositTransaction_smallGasLimit_reverts() external {
         vm.expectRevert(SmallGasLimit.selector);
         optimismPortal.depositTransaction({ _to: address(1), _value: 0, _gasLimit: 0, _isCreation: false, _data: hex"" });
     }
 
     /// @dev Tests that `depositTransaction` succeeds for small,
     ///      but sufficient, gas limits.
-    function testFuzz_depositTransaction_smallGasLimit_succeeds(
-        bytes memory _data,
-        bool _shouldFail
-    )
-        external
-        virtual
-    {
+    function testFuzz_depositTransaction_smallGasLimit_succeeds(bytes memory _data, bool _shouldFail) external {
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(_data.length));
         if (_shouldFail) {
             gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
