@@ -210,13 +210,12 @@ contract Deploy is Deployer {
     }
 
     /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
-    function _callViaSafe(address _target, bytes memory _data) internal {
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
+    function _callViaSafe(Safe _safe, address _target, bytes memory _data) internal {
 
         // This is the signature format used the caller is also the signer.
         bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
 
-        safe.execTransaction({
+        _safe.execTransaction({
             to: _target,
             value: 0,
             data: _data,
@@ -237,7 +236,8 @@ contract Deploy is Deployer {
         bytes memory data =
             abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
 
-        _callViaSafe({ _target: proxyAdmin, _data: data });
+        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
+        _callViaSafe({ _safe: safe, _target: proxyAdmin, _data: data });
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
@@ -1098,8 +1098,10 @@ contract Deploy is Deployer {
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
+        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
             _callViaSafe({
+                _safe: safe,
                 _target: address(proxyAdmin),
                 _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
             });
@@ -1175,8 +1177,10 @@ contract Deploy is Deployer {
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
+        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
             _callViaSafe({
+                _safe: safe,
                 _target: address(proxyAdmin),
                 _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED))
             });
@@ -1187,6 +1191,7 @@ contract Deploy is Deployer {
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
         if (keccak256(bytes(contractName)) != keccak256(bytes(implName))) {
             _callViaSafe({
+                _safe: safe,
                 _target: address(proxyAdmin),
                 _data: abi.encodeCall(ProxyAdmin.setImplementationName, (l1CrossDomainMessengerProxy, contractName))
             });
