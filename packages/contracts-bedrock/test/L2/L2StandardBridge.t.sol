@@ -355,7 +355,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     /// @dev Tests that gasPayingToken returns the correct values for ETH.
     function test_gasPayingToken_ether_succeeds() external {
         (address token, uint8 decimals) = l2StandardBridge.gasPayingToken();
-        assertEq(token, address(Constants.ETHER));
+        assertEq(token, Constants.ETHER);
         assertEq(decimals, 18);
     }
 
