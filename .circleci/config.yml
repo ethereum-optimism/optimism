@@ -1808,7 +1808,8 @@ workflows:
           name: devnet<< matrix.fpac >>
           matrix:
             parameters:
-              fpac: ["-legacy", "-fault-proofs", "-plasma"]
+              # TODO(10142): We need to re-enable "-fault-proofs" in the future
+              fpac: ["-legacy", "-plasma"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
