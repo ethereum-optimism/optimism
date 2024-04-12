@@ -44,7 +44,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:    "superchain-target",
-				Usage:   "The name of the superchain to upgrade",
+				Usage:   "The name of the superchain target to upgrade. For example: mainnet or sepolia.",
 				EnvVars: []string{"SUPERCHAIN_TARGET"},
 			},
 			&cli.PathFlag{
