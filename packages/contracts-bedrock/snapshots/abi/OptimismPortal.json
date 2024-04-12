@@ -488,27 +488,7 @@
   },
   {
     "inputs": [],
-    "name": "AlreadyFinalized",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "AlreadyProven",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "BadOutputRoot",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "BadTarget",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "BadTimestamp",
     "type": "error"
   },
   {
@@ -523,27 +503,7 @@
   },
   {
     "inputs": [],
-    "name": "InvalidInclusionProof",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidOutputRootProof",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "LargeCalldata",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NonReentrant",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotProven",
     "type": "error"
   },
   {
@@ -554,11 +514,6 @@
   {
     "inputs": [],
     "name": "SmallGasLimit",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "TooEarly",
     "type": "error"
   }
 ]
