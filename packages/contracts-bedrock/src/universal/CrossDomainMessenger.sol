@@ -223,10 +223,6 @@ abstract contract CrossDomainMessenger is
         // On L2 this function should be a no-op, because paused will always return false.
         require(paused() == false, "CrossDomainMessenger: paused");
 
-        if (isCustomGasToken()) {
-            require(msg.value == 0, "CrossDomainMessenger: cannot relay value with custom gas token");
-        }
-
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
         require(version < 2, "CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
 
