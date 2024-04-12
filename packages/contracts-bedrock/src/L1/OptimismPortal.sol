@@ -13,7 +13,10 @@ import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { Constants } from "src/libraries/Constants.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { L1Block } from "src/L2/L1Block.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/PortalErrors.sol";
 
 /// @custom:proxied
@@ -22,6 +25,9 @@ import "src/libraries/PortalErrors.sol";
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal is Initializable, ResourceMetering, ISemver {
+    /// @notice Allows for interactions with non standard ERC20 tokens.
+    using SafeERC20 for IERC20;
+
     /// @notice Represents a proven withdrawal.
     /// @custom:field outputRoot    Root of the L2 output this was proven against.
     /// @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
@@ -64,6 +70,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Contract of the SystemConfig.
     /// @custom:network-specific
     SystemConfig public systemConfig;
+
+    /// @notice The total amount of gas paying asset in the contract. Incremented and decremented on deposits
+    ///         and withdrawals when custom gas token is used. This represents the number of units minted in the
+    ///         L2 units must be scaled appropriately.
+    uint256 internal _balance;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
@@ -150,6 +161,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         return _byteCount * 16 + 21000;
     }
 
+    /// @notice Retuns the balance of the contract.
+    function balance() public view returns (uint256) {
+        (address token,) = gasPayingToken();
+        if (token == Constants.ETHER) {
+            return address(this).balance;
+        } else {
+            return _balance;
+        }
+    }
+
     /// @notice Accepts value so that users can send ETH directly to this contract and have the
     ///         funds be deposited to their address on L2. This is intended as a convenience
     ///         function for EOAs. Contracts should call the depositTransaction() function directly
@@ -163,6 +184,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     ///         Optimism system and Bedrock.
     function donateETH() external payable {
         // Intentionally empty.
+    }
+
+    /// @notice Returns the gas paying token and its decimals.
+    function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
+        (addr_, decimals_) = systemConfig.gasPayingToken();
     }
 
     /// @notice Getter for the resource config.
@@ -315,16 +341,54 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         finalizedWithdrawals[withdrawalHash] = true;
 
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
+        // This acts as a reentrancy guard.
         l2Sender = _tx.sender;
 
-        // Trigger the call to the target contract. We use a custom low level method
-        // SafeCall.callWithMinGas to ensure two key properties
-        //   1. Target contracts cannot force this call to run out of gas by returning a very large
-        //      amount of data (and this is OK because we don't care about the returndata here).
-        //   2. The amount of gas provided to the execution context of the target is at least the
-        //      gas limit specified by the user. If there is not enough gas in the current context
-        //      to accomplish this, `callWithMinGas` will revert.
-        bool success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
+        bool success;
+        (address token,) = gasPayingToken();
+        if (token == Constants.ETHER) {
+            // Trigger the call to the target contract. We use a custom low level method
+            // SafeCall.callWithMinGas to ensure two key properties
+            //   1. Target contracts cannot force this call to run out of gas by returning a very large
+            //      amount of data (and this is OK because we don't care about the returndata here).
+            //   2. The amount of gas provided to the execution context of the target is at least the
+            //      gas limit specified by the user. If there is not enough gas in the current context
+            //      to accomplish this, `callWithMinGas` will revert.
+            success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
+        } else {
+            // Cannot call the token contract directly from the portal. This would allow an attacker
+            // to call approve from a withdrawal and drain the balance of the portal.
+            if (_tx.target == token) revert BadTarget();
+
+            // Only transfer value when a non zero value is specified. This saves gas in the case of
+            // using the standard bridge or arbitrary message passing.
+            if (_tx.value != 0) {
+                // Read the balance of the target contract before the transfer so the consistency
+                // of the transfer can be checked afterwards.
+                uint256 balanceOf = IERC20(token).balanceOf(address(this));
+
+                // Update the contracts internal accounting. Do not use the scaled value as this
+                // is tracking the number of units that are minted in the L2.
+                _balance -= _tx.value;
+
+                // Transfer the ERC20 balance to the target, accounting for non standard ERC20
+                // implementations that may not return a boolean. This reverts if the low level
+                // call is not successful.
+                IERC20(token).safeTransfer({ to: _tx.target, value: _tx.value });
+
+                // The balance must be transferred exactly.
+                if (IERC20(token).balanceOf(address(this)) != balanceOf - _tx.value) {
+                    revert TransferFailed();
+                }
+            }
+
+            // Make a call to the target contract only if there is calldata.
+            if (_tx.data.length != 0) {
+                success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, 0, _tx.data);
+            } else {
+                success = true;
+            }
+        }
 
         // Reset the l2Sender back to the default value.
         l2Sender = Constants.DEFAULT_L2_SENDER;
@@ -339,6 +403,54 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         if (success == false && tx.origin == Constants.ESTIMATION_ADDRESS) {
             revert GasEstimation();
         }
+    }
+
+    /// @notice Entrypoint to depositing an ERC20 token as a custom gas token.
+    /// @param _to         Target address on L2.
+    /// @param _mint       Units of ERC20 token to deposit into L2.
+    /// @param _value      Units of ERC20 token to send on L2 to the recipient.
+    /// @param _gasLimit   Amount of L2 gas to purchase by burning gas on L1.
+    /// @param _isCreation Whether or not the transaction is a contract creation.
+    /// @param _data       Data to trigger the recipient with.
+    function depositERC20Transaction(
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        public
+        metered(_gasLimit)
+    {
+        // Can only be called if an ERC20 token is used for gas paying on L2
+        (address token,) = gasPayingToken();
+        if (token == Constants.ETHER) {
+            revert OnlyCustomGasToken();
+        }
+
+        // Get the balance of the portal before the transfer.
+        uint256 balanceOf = IERC20(token).balanceOf(address(this));
+
+        // Take ownership of the token. It is assumed that the user has given the portal an approval.
+        IERC20(token).safeTransferFrom({ from: msg.sender, to: address(this), value: _mint });
+
+        // Double check that the portal now has the exact amount of token.
+        if (IERC20(token).balanceOf(address(this)) != balanceOf + _mint) {
+            revert TransferFailed();
+        }
+
+        // Overflow protection here ensures safety on L2 from overflows in balance.
+        _balance += _mint;
+
+        _depositTransaction({
+            _to: _to,
+            _mint: _mint,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
     }
 
     /// @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
@@ -360,6 +472,38 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         public
         payable
         metered(_gasLimit)
+    {
+        (address token,) = gasPayingToken();
+        if (token != Constants.ETHER && msg.value != 0) {
+            revert NoValue();
+        }
+
+        _depositTransaction({
+            _to: _to,
+            _mint: msg.value,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+    }
+
+    /// @notice Common logic for creating deposit transactions.
+    /// @param _to         Target address on L2.
+    /// @param _mint       Units of asset to deposit into L2.
+    /// @param _value      Units of asset to send on L2 to the recipient.
+    /// @param _gasLimit   Amount of L2 gas to purchase by burning gas on L1.
+    /// @param _isCreation Whether or not the transaction is a contract creation.
+    /// @param _data       Data to trigger the recipient with.
+    function _depositTransaction(
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        internal
     {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
@@ -384,11 +528,37 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
         // We use opaque data so that we can update the TransactionDeposited event in the future
         // without breaking the current interface.
-        bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
+        bytes memory opaqueData = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
 
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+    }
+
+    /// @notice Sets the gas paying token for the L2 system. This token is used as the
+    ///         L2 native asset. Only the SystemConfig contract can call this function.
+    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+        if (msg.sender != address(systemConfig)) {
+            revert Unauthorized();
+        }
+
+        // Set L2 deposit gas as used without paying burning gas.
+        useGas(80000);
+
+        // Emit the special deposit transaction directly that sets the gas paying
+        // token in the L1Block predeploy contract.
+        emit TransactionDeposited(
+            0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            DEPOSIT_VERSION,
+            abi.encodePacked(
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(80000), // gasLimit
+                false, // isCreation,
+                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+            )
+        );
     }
 
     /// @notice Determine if a given output is finalized.
