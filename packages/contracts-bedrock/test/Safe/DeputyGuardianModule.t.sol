@@ -246,8 +246,10 @@ contract DeputyGuardianModule_setRespectedGameType_TestFail is DeputyGuardianMod
 }
 
 contract DeputyGuardianModule_NoPortalCollisions_Test is DeputyGuardianModule_TestInit {
+    /// @dev tests that no function selectors in the L1 contracts collide with the OptimismPortal2 functions called by
+    ///      the DeputyGuardianModule.
     function test_noPortalCollisions_succeeds() external {
-        Abi[] memory abis = ForgeArtifacts.getL1ContractFunctionAbis();
+        Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,universal}/", "OptimismPortal2.sol");
         for (uint256 i; i < abis.length; i++) {
             for (uint256 j; j < abis[i].entries.length; j++) {
                 bytes4 sel = abis[i].entries[j].sel;

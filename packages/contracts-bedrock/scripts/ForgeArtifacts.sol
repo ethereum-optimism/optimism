@@ -144,13 +144,23 @@ library ForgeArtifacts {
     }
 
     /// @notice Returns the function ABIs of all L1 contracts.
-    function getL1ContractFunctionAbis() internal returns (Abi[] memory abis_) {
+    function getContractFunctionAbis(
+        string memory path,
+        string memory excludes
+    )
+        internal
+        returns (Abi[] memory abis_)
+    {
         string[] memory command = new string[](3);
         command[0] = Executables.bash;
         command[1] = "-c";
         command[2] = string.concat(
             Executables.find,
-            " src/{L1,governance,universal/ProxyAdmin.sol} -type f -exec basename {} \\;",
+            " ",
+            path,
+            " -type f ",
+            bytes(excludes).length > 0 ? string.concat(" ! -name ", excludes, " ") : "",
+            "-exec basename {} \\;",
             " | ",
             Executables.sed,
             " 's/\\.[^.]*$//'",

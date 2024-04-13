@@ -475,7 +475,7 @@ contract Specification_Test is CommonTest {
 
     /// @notice Ensures that there's an auth spec for every L1 contract function.
     function testContractAuth() public {
-        Abi[] memory abis = ForgeArtifacts.getL1ContractFunctionAbis();
+        Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis("src/{L1,governance,universal/ProxyAdmin.sol}", "");
 
         for (uint256 i = 0; i < abis.length; i++) {
             string memory contractName = abis[i].contractName;
