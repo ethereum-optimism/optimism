@@ -1150,7 +1150,7 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: ['-fault-proofs', <<parameters.fpac>>]
+            equal: ['fault-proofs', <<parameters.fpac>>]
           steps:
             - run:
                 name: Set DEVNET_FPAC = true

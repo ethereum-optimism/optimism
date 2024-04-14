@@ -131,6 +131,7 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     if DEVNET_FPAC:
         deploy_config['useFaultProofs'] = True
         deploy_config['faultGameMaxDuration'] = 10
+        deploy_config['faultGameWithdrawalDelay'] = 0
     if DEVNET_PLASMA:
         deploy_config['usePlasma'] = True
     write_json(paths.devnet_config_path, deploy_config)
