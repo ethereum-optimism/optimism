@@ -176,6 +176,8 @@ services:
       args:
         OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:devnet
+    volumes:
+      - "../op-program/bin:/op-program"
     environment:
       OP_CHALLENGER_L1_ETH_RPC: http://l1:8545
       # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
@@ -190,8 +192,8 @@ services:
       OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./.devnet/rollup.json
       OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2.json
       OP_CHALLENGER_CANNON_BIN: ./cannon/bin/cannon
-      OP_CHALLENGER_CANNON_SERVER: ./op-program/bin/op-program
-      OP_CHALLENGER_CANNON_PRESTATE: ./op-program/bin/prestate.json
+      OP_CHALLENGER_CANNON_SERVER: /op-program/op-program
+      OP_CHALLENGER_CANNON_PRESTATE: /op-program/prestate.json
       OP_CHALLENGER_CANNON_L2: http://l2:8545
       OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
       OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
