@@ -36,8 +36,8 @@ error NoCreditToClaim();
 /// @notice Thrown when the transfer of credit to a recipient account reverts.
 error BondTransferFailed();
 
-/// @notice Thrown when the `extraData` passed to the CWIA proxy is too long for the `FaultDisputeGame`.
-error ExtraDataTooLong();
+/// @notice Thrown when the `extraData` passed to the CWIA proxy is of improper length, or contains invalid information.
+error BadExtraData();
 
 /// @notice Thrown when a defense against the root claim is attempted.
 error CannotDefendRootClaim();

@@ -178,15 +178,17 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(delayedWeth.balanceOf(address(gameProxy)), _value);
     }
 
-    /// @dev Tests that the game cannot be initialized with extra data > 64 bytes long (root claim + l2 block number
-    ///      concatenated)
-    function testFuzz_initialize_extraDataTooLong_reverts(uint256 _extraDataLen) public {
+    /// @dev Tests that the game cannot be initialized with extra data of the incorrect length (must be 32 bytes)
+    function testFuzz_initialize_badExtraData_reverts(uint256 _extraDataLen) public {
         // The `DisputeGameFactory` will pack the root claim and the extra data into a single array, which is enforced
         // to be at least 64 bytes long.
         // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the contract size limit
         // in this test, as CWIA proxies store the immutable args in their bytecode.
-        // [33 bytes, 23.5 KB]
-        _extraDataLen = bound(_extraDataLen, 33, 23_500);
+        // [0 bytes, 31 bytes] u [33 bytes, 23.5 KB]
+        _extraDataLen = bound(_extraDataLen, 0, 23_500);
+        if (_extraDataLen == 32) {
+            _extraDataLen++;
+        }
         bytes memory _extraData = new bytes(_extraDataLen);
 
         // Assign the first 32 bytes in `extraData` to a valid L2 block number passed the starting block.
@@ -196,7 +198,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
 
         Claim claim = _dummyClaim();
-        vm.expectRevert(abi.encodeWithSelector(ExtraDataTooLong.selector));
+        vm.expectRevert(abi.encodeWithSelector(BadExtraData.selector));
         gameProxy = FaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData))));
     }
 
@@ -214,7 +216,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         ) = gameProxy.claimData(0);
         assertEq(parentIndex, type(uint32).max);
         assertEq(counteredBy, address(0));
-        assertEq(claimant, DEFAULT_SENDER);
+        assertEq(claimant, address(this));
         assertEq(bond, 0);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);
@@ -435,7 +437,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Assert correctness of the parent claim's data.
         assertEq(parentIndex, type(uint32).max);
         assertEq(counteredBy, address(0));
-        assertEq(claimant, DEFAULT_SENDER);
+        assertEq(claimant, address(this));
         assertEq(bond, 0);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);

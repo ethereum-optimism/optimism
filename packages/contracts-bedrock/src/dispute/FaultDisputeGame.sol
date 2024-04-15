@@ -88,8 +88,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     OutputRoot public startingOutputRoot;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.11.0
-    string public constant version = "0.11.0";
+    /// @custom:semver 0.12.0
+    string public constant version = "0.12.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -346,13 +346,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function l1Head() public pure returns (Hash l1Head_) {
-        l1Head_ = Hash.wrap(_getArgBytes32(0x20));
-    }
-
-    /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(0x40);
+        l2BlockNumber_ = _getArgUint256(0x54);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -452,15 +447,25 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IDisputeGame
+    function gameCreator() public pure returns (address creator_) {
+        creator_ = _getArgAddress(0x00);
+    }
+
+    /// @inheritdoc IDisputeGame
     function rootClaim() public pure returns (Claim rootClaim_) {
-        rootClaim_ = Claim.wrap(_getArgBytes32(0x00));
+        rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
+    }
+
+    /// @inheritdoc IDisputeGame
+    function l1Head() public pure returns (Hash l1Head_) {
+        l1Head_ = Hash.wrap(_getArgBytes32(0x34));
     }
 
     /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
-        extraData_ = _getArgBytes(0x40, 0x20);
+        extraData_ = _getArgBytes(0x54, 0x20);
     }
 
     /// @inheritdoc IDisputeGame
@@ -513,15 +518,23 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // configured starting block number.
         if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
 
-        // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
-        // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
-        // but are not used by the game, which would allow for multiple dispute games for the same output proposal to
-        // be created.
-        // Expected length: 0x66 (0x04 selector + 0x20 root claim + 0x20 l1 head + 0x20 extraData + 0x02 CWIA bytes)
+        // Revert if the calldata size is not the expected length.
+        //
+        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
+        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
+        // output proposal to be created.
+        //
+        // Expected length: 0x7A
+        // - 0x04 selector
+        // - 0x14 creator address
+        // - 0x20 root claim
+        // - 0x20 l1 head
+        // - 0x20 extraData
+        // - 0x02 CWIA bytes
         assembly {
-            if gt(calldatasize(), 0x66) {
-                // Store the selector for `ExtraDataTooLong()` & revert
-                mstore(0x00, 0xc407e025)
+            if iszero(eq(calldatasize(), 0x7A)) {
+                // Store the selector for `BadExtraData()` & revert
+                mstore(0x00, 0x9824bdab)
                 revert(0x1C, 0x04)
             }
         }
@@ -531,7 +544,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             ClaimData({
                 parentIndex: type(uint32).max,
                 counteredBy: address(0),
-                claimant: tx.origin,
+                claimant: gameCreator(),
                 bond: uint128(msg.value),
                 claim: rootClaim(),
                 position: ROOT_POSITION,

@@ -62,9 +62,6 @@ interface IFaultDisputeGame is IDisputeGame {
     /// @param _claimIndex The index of the subgame root claim to resolve.
     function resolveClaim(uint256 _claimIndex) external payable;
 
-    /// @notice A block hash on the L1 that contains the disputed output root.
-    function l1Head() external view returns (Hash l1Head_);
-
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() external view returns (uint256 l2BlockNumber_);
 
