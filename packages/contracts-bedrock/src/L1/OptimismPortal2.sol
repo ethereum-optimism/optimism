@@ -258,7 +258,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // We do not allow for proving withdrawals against dispute games that have resolved against the favor
         // of the root claim.
         require(
-            gameProxy.status() != GameStatus.CHALLENGER_WINS,
+            gameProxy.status() == GameStatus.CHALLENGER_WINS,
             "OptimismPortal: cannot prove against invalid dispute games"
         );
 
