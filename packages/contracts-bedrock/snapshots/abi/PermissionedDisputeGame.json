@@ -312,6 +312,25 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_claimIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "getChallengerDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "duration_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "Position",
         "name": "_position",
         "type": "uint128"

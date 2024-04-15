@@ -49,24 +49,24 @@
     "type": "mapping(uint256 => uint256[])"
   },
   {
-    "bytes": "1",
-    "label": "subgameAtRootResolved",
+    "bytes": "32",
+    "label": "resolvedSubgames",
     "offset": 0,
     "slot": "5",
-    "type": "bool"
+    "type": "mapping(uint256 => bool)"
   },
   {
     "bytes": "1",
     "label": "initialized",
-    "offset": 1,
-    "slot": "5",
+    "offset": 0,
+    "slot": "6",
     "type": "bool"
   },
   {
     "bytes": "64",
     "label": "startingOutputRoot",
     "offset": 0,
-    "slot": "6",
+    "slot": "7",
     "type": "struct OutputRoot"
   }
 ]
