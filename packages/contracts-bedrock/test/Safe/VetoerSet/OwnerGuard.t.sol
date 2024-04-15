@@ -37,7 +37,7 @@ contract TestOwnerGuard is Test {
         }
 
         OwnerGuard sut = new OwnerGuard({ _safe: Safe(payable(_safe)) });
-        uint8 initialMaxOwnerCount = sut.INITIAL_MAX_OWNER_COUNT();
+        uint256 initialMaxOwnerCount = sut.INITIAL_MAX_OWNER_COUNT();
 
         uint256 maxOwnerCount = sut.maxOwnerCount();
         uint256 expectedMaxOwnerCount = safeOwnerCount > initialMaxOwnerCount ? safeOwnerCount : initialMaxOwnerCount;

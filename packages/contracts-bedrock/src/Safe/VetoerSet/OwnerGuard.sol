@@ -18,7 +18,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     string public constant version = "1.0.0";
 
     /// @notice The initial max owner count used at deployment.
-    uint8 public constant INITIAL_MAX_OWNER_COUNT = 7;
+    uint256 public constant INITIAL_MAX_OWNER_COUNT = 7;
 
     /// @notice The Safe Account for which this contract will be the guard.
     Safe public immutable safe;
@@ -55,8 +55,7 @@ contract OwnerGuard is ISemver, BaseGuard {
 
         // Set the initial `maxOwnerCount`, to the greater between `INITIAL_MAX_OWNER_COUNT` and the current owner
         // count.
-        uint256 ownerCount = _safe.getOwners().length;
-        maxOwnerCount = uint8(FixedPointMathLib.max(INITIAL_MAX_OWNER_COUNT, ownerCount));
+        maxOwnerCount = FixedPointMathLib.max(INITIAL_MAX_OWNER_COUNT, _safe.getOwners().length);
     }
 
     /// @notice Inherited hook from the `Guard` interface that is run right before the transaction is executed
@@ -96,7 +95,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     /// @notice Update the maximum number of owners.
     /// @dev Reverts if not called by the Safe Account.
     /// @param newMaxOwnerCount The new possible `maxOwnerCount` of owners.
-    function updateMaxOwnerCount(uint8 newMaxOwnerCount) external {
+    function updateMaxOwnerCount(uint256 newMaxOwnerCount) external {
         // Ensure only the Safe Account can call this function.
         if (msg.sender != address(safe)) {
             revert SenderIsNotSafeAccount(msg.sender);
