@@ -372,7 +372,7 @@ abstract contract StandardBridge is Initializable {
                 _to,
                 _amount,
                 _extraData
-                ),
+            ),
             _minGasLimit: _minGasLimit
         });
     }
