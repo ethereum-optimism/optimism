@@ -123,6 +123,11 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	chainIDs := ctx.Uint64Slice("chain-ids")
+	if len(chainIDs) != 1 {
+		// This requirement is due to the `SYSTEM_CONFIG_START_BLOCK` environment variable
+		// that we read from in `op-chain-ops/upgrades/l1.go`
+		panic("op-upgrade currently only supports upgrading a single chain at a time")
+	}
 	deployConfig := ctx.Path("deploy-config")
 
 	// If no chain IDs are specified, upgrade all chains
