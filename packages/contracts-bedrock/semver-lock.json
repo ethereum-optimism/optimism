@@ -112,8 +112,8 @@
     "sourceCodeHash": "0x8545910bdb40f5e706a0ae5ed274cabc6d1f17be92d497a490d5732d74ac9c59"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0xcd35529eb99878f434b2e899d1937365204fd014333c1448a0eae8b1c765349b",
-    "sourceCodeHash": "0xc5f90543341e426d0fbc834e997a727c9b71e118491a935afd61fe053c134811"
+    "initCodeHash": "0x9f7a0ed019e3c21aa2cea3933ef6aca5ba194b66b5ca71f5f74235ab7e2bebaf",
+    "sourceCodeHash": "0x21a2a257726090ec2ccdd1857502e1807ffea52d5a52317c94de1fa4e26a280e"
   },
   "src/dispute/weth/DelayedWETH.sol": {
     "initCodeHash": "0x7b6ec89eaec09e369426e73161a9c6932223bb1f974377190c3f6f552995da35",
@@ -167,3 +167,4 @@
     "initCodeHash": "0xb656d2aa6aff3e6435e747a0c23236d1b66f1f5c0b45e4b1a10d290a90223c5a",
     "sourceCodeHash": "0xebfc968e6b78d7ea355547d427300739f14d000a11ff35f29d9ded3ddb7882da"
   }
+}
