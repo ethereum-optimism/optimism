@@ -57,9 +57,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
-    /// @notice The flag set in the `bond` field of a `ClaimData` struct to indicate that the bond has been claimed.
-    uint128 internal constant CLAIMED_BOND_FLAG = type(uint128).max;
-
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
 
@@ -197,10 +194,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Compute the local preimage context for the step.
         Hash uuid = _findLocalContext(_claimIndex);
-
-        // Flag the subgame as resolved. This will be reverted if the VM step produces the expected post-state, or
-        // if the step has already been made.
-        resolvedSubgames[_claimIndex] = true;
 
         // INVARIANT: If a step is an attack, the poststate is valid if the step produces
         //            the same poststate hash as the parent claim's value.
@@ -402,15 +395,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         Duration challengeClockDuration = getChallengerDuration(_claimIndex);
 
         // INVARIANT: Cannot resolve a subgame unless the clock of its would-be counter has expired
-        // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always less than GAME_DURATION / 2
-        // if all descendant subgames are resolved
+        // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always >= GAME_DURATION / 2 if all
+        // descendant subgames are resolved
         if (challengeClockDuration.raw() < GAME_DURATION.raw() >> 1) revert ClockNotExpired();
+
+        // INVARIANT: Cannot resolve a subgame twice.
+        if (resolvedSubgames[_claimIndex]) revert ClaimAlreadyResolved();
 
         uint256[] storage challengeIndices = subgames[_claimIndex];
         uint256 challengeIndicesLen = challengeIndices.length;
-
-        // INVARIANT: Cannot resolve subgames twice
-        if (_claimIndex == 0 && subgameAtRootResolved) revert ClaimAlreadyResolved();
 
         // Uncontested claims are resolved implicitly unless they are the root claim. Pay out the bond to the claimant
         // and return early.
@@ -714,8 +707,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     function _distributeBond(address _recipient, ClaimData storage _bonded) internal {
         // Set all bits in the bond value to indicate that the bond has been paid out.
         uint256 bond = _bonded.bond;
-        if (bond == CLAIMED_BOND_FLAG) revert ClaimAlreadyResolved();
-        _bonded.bond = CLAIMED_BOND_FLAG;
 
         // Increase the recipient's credit.
         credit[_recipient] += bond;
