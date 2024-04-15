@@ -65,7 +65,7 @@ User focused documentation is available [on the Boba docs website](http://docs.b
 * [`ops_boba`](https://github.com/bobanetwork/boba\_legacy/tree/develop/ops\_boba/): Parts of the Boba back-end, including the `api-watcher` service
 * [`packages/boba`](https://github.com/bobanetwork/boba\_legacy/tree/develop/packages/boba/): Contains all the Boba typescript packages and contracts
   * [`contracts`](https://github.com/bobanetwork/boba\_legacy/tree/develop/packages/boba/contracts/): Solidity smart contracts implementing the fast bridges, the DAO, etc.
-  * [`gas-price-oracle`](https://github.com/bobanetwork/boba\_legacy/blob/develop/packages/boba/gas-price-oracle/README.md): A custom gas price oracle
+  * [`gas-price-oracle`](contents/developer/oracles/gas-price-oracle.md): A custom gas price oracle
   * [`gateway`](https://github.com/bobanetwork/boba\_legacy/tree/develop/packages/boba/gateway/): The Boba Web gateway
   * [`message-relayer-fast`](https://github.com/bobanetwork/boba\_legacy/tree/develop/packages/message-relayer/): A batch message relayer that can be run for the fast mode without a 7 day delay
 
