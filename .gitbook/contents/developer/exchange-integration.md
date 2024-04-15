@@ -12,7 +12,7 @@ Although Boba Network is an L2 (and therefore fundamentally connected to Ethereu
 
 ### Sending tokens between L1 and L2
 
-For the most common usecase, moving tokens around, we've created the Standard Token Bridge. The Standard Token Bridge is a simple smart contract with all the functionality you need to move tokens between Boba Network and Ethereum.
+For the most common usecase, moving tokens around, we provide the Standard Token Bridge. The Standard Token Bridge is a simple smart contract with all the functionality you need to move tokens between Boba Network and Ethereum . Technical details may be found in the [Optimism documentation](https://docs.optimism.io/builders/app-developers/bridging/standard-bridge).
 
 <figure><img src="../../assets/using the standard token bridge.png" alt=""><figcaption></figcaption></figure>
 
@@ -167,6 +167,9 @@ const depositToTx = await Proxy__L2StandardBridge.withdrawTo(
 )
 await depositToTx.wait()
 ```
+
+Withdrawals must be claimed on the L1 network in a two-step process, firstly by proving the L2 withdrawal transaction and later by finalizing the transaction. There is a mandatory interval (7 days on mainnet) which must pass before a withdrawal may be finalized. This time interval provides an opportunity to challenge the validity of the transaction, a defining characteristic of Optimistic Rollups. Details may be found on the Optimism page describing [Withdrawal Flow](https://docs.optimism.io/stack/protocol/withdrawal-flow).
+
 
 ### The Boba token list
 
