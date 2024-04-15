@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -569,13 +570,29 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	if err != nil {
 		return err
 	}
+
 	l2OutputOracle, err := optimismPortal.L2Oracle(&bind.CallOpts{})
 	if err != nil {
-		return err
+		// Handle legacy `L2_ORACLE()(address)` getter
+		raw := bindings.OptimismPortalCallerRaw{Contract: optimismPortal}
+		var out []interface{}
+		err := raw.Call(&bind.CallOpts{}, &out, "L2_ORACLE")
+		if err != nil {
+			return err
+		}
+		l2OutputOracle = *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
 	}
+
 	systemConfig, err := optimismPortal.SystemConfig(&bind.CallOpts{})
 	if err != nil {
-		return err
+		// Handle legacy `SYSTEM_CONFIG()(address)` getter
+		raw := bindings.OptimismPortalCallerRaw{Contract: optimismPortal}
+		var out []interface{}
+		err := raw.Call(&bind.CallOpts{}, &out, "SYSTEM_CONFIG")
+		if err != nil {
+			return err
+		}
+		systemConfig = *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
 	}
 
 	if l2OutputOracle != common.Address(list.L2OutputOracleProxy) {
