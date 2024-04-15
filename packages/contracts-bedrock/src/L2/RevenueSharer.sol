@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-// TODO gk: this has been largely copy pasted from
-// https://github.com/base-org/contracts/blob/main/src/revenue-share/FeeDisburser.sol
 pragma solidity 0.8.15;
 
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -14,7 +12,7 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
 /// @title RevenueSharer
 /// @dev Withdraws funds from system FeeVault contracts,
-/// pays a share of revenue to Optimism
+/// pays a share of revenue to a designated Beneficiary
 /// and sends the remainder to a configurable adddress on L1.
 contract RevenueSharer {
     /*//////////////////////////////////////////////////////////////
@@ -29,15 +27,15 @@ contract RevenueSharer {
      */
     uint32 public constant WITHDRAWAL_MIN_GAS = 35_000;
     /**
-     * @dev The net revenue percentage denominated in basis points that is used in
+     * @dev The percentage coeffieicnt of revenue denominated in basis points that is used in
      *      Optimism revenue share calculation.
      */
-    uint256 public constant OPTIMISM_NET_REVENUE_SHARE_BASIS_POINTS = 1_500;
+    uint256 public constant REVENUE_COEFFICIENT_BASIS_POINTS = 1_500;
     /**
-     * @dev The gross revenue percentage denominated in basis points that is used in
+     * @dev The percentage coefficient of profit denominated in basis points that is used in
      *      Optimism revenue share calculation.
      */
-    uint256 public constant OPTIMISM_GROSS_REVENUE_SHARE_BASIS_POINTS = 250;
+    uint256 public constant PROFIT_COEFFICIENT_BASIS_POINTS = 250;
 
     /*//////////////////////////////////////////////////////////////
                             Immutables
@@ -45,7 +43,7 @@ contract RevenueSharer {
     /**
      * @dev The address of the Optimism wallet that will receive Optimism's revenue share.
      */
-    address payable public immutable OPTIMISM_WALLET;
+    address payable public immutable BENEFICIARY;
     /**
      * @dev The address of the L1 wallet that will receive the OP chain runner's share of fees.
      */
@@ -75,10 +73,10 @@ contract RevenueSharer {
     /**
      * @dev Emitted when fees are disbursed.
      * @param _disbursementTime The time of the disbursement.
-     * @param _paidToOptimism The amount of fees disbursed to Optimism.
-     * @param _totalFeesDisbursed The total amount of fees disbursed.
+     * @param _share The amount of fees shared to the Beneficiary.
+     * @param _total The total funds distributed.
      */
-    event FeesDisbursed(uint256 _disbursementTime, uint256 _paidToOptimism, uint256 _totalFeesDisbursed);
+    event FeesDisbursed(uint256 _disbursementTime, uint256 _share, uint256 _total);
     /**
      * @dev Emitted when fees are received from FeeVaults.
      * @param _sender The FeeVault that sent the fees.
@@ -95,18 +93,18 @@ contract RevenueSharer {
     //////////////////////////////////////////////////////////////*/
     /**
      * @dev Constructor for the FeeDisburser contract which validates and sets immutable variables.
-     * @param _optimismWallet The address which receives Optimism's revenue share.
+     * @param _beneficiary The address which receives the revenue share.
      * @param _l1Wallet The L1 address which receives the remainder of the revenue.
      * @param _feeDisbursementInterval The minimum amount of time in seconds that must pass between fee disbursals.
      */
-    constructor(address payable _optimismWallet, address _l1Wallet, uint256 _feeDisbursementInterval) {
-        require(_optimismWallet != address(0), "FeeDisburser: OptimismWallet cannot be address(0)");
+    constructor(address payable _beneficiary, address _l1Wallet, uint256 _feeDisbursementInterval) {
+        require(_beneficiary != address(0), "FeeDisburser: OptimismWallet cannot be address(0)");
         require(_l1Wallet != address(0), "FeeDisburser: L1Wallet cannot be address(0)");
         require(
             _feeDisbursementInterval >= 24 hours, "FeeDisburser: FeeDisbursementInterval cannot be less than 24 hours"
         );
 
-        OPTIMISM_WALLET = _optimismWallet;
+        BENEFICIARY = _beneficiary;
         L1_WALLET = _l1Wallet;
         FEE_DISBURSEMENT_INTERVAL = _feeDisbursementInterval;
     }
@@ -116,61 +114,40 @@ contract RevenueSharer {
     //////////////////////////////////////////////////////////////*/
     /**
      * @dev Withdraws funds from FeeVaults, sends Optimism their revenue share, and withdraws remaining funds to L1.
-     * @dev Implements revenue share business logic as follows:
-     *          Net Revenue             = sequencer FeeVault fee revenue + base FeeVault fee revenue
-     *          Gross Revenue           = Net Revenue + l1 FeeVault fee revenue
-     *          Optimism Revenue Share  = Maximum of 15% of Net Revenue and 2.5% of Gross Revenue
-     *          L1 Wallet Revenue Share = Gross Revenue - Optimism Revenue Share
      */
-    function disburseFees() external virtual {
-        require(
-            block.timestamp >= lastDisbursementTime + FEE_DISBURSEMENT_INTERVAL,
-            "FeeDisburser: Disbursement interval not reached"
-        );
+    function execute() external virtual {
+        // Pull in revenue
+        uint256 d = feeVaultWithdrawal(Predeploys.L1_FEE_VAULT);
+        uint256 b = feeVaultWithdrawal(Predeploys.BASE_FEE_VAULT);
+        uint256 q = feeVaultWithdrawal(Predeploys.SEQUENCER_FEE_WALLET);
 
-        // Sequencer and base FeeVaults will withdraw fees to the FeeDisburser contract mutating netFeeRevenue
-        feeVaultWithdrawal(payable(Predeploys.SEQUENCER_FEE_WALLET));
-        feeVaultWithdrawal(payable(Predeploys.BASE_FEE_VAULT));
+        // Compute expenditure
+        uint256 e = getL1FeeExpenditure();
 
-        feeVaultWithdrawal(payable(Predeploys.L1_FEE_VAULT));
+        // Compute revenue and profit
+        uint256 r = d + b + q; // revenue
+        uint256 p = r - e; // profit
 
-        // Gross revenue is the sum of all fees
-        uint256 feeBalance = address(this).balance;
+        // Compute revenue share
+        uint256 s = Math.max(
+            REVENUE_COEFFICIENT_BASIS_POINTS * r / BASIS_POINT_SCALE,
+            PROFIT_COEFFICIENT_BASIS_POINTS * p / BASIS_POINT_SCALE
+        ); // share
+        uint256 remainder = r - s;
 
-        // TODO gk: etFeeRevenue = feeBalance - l1fees . Be clearer to just subtract this off, and better anticipates
-        // future improvements
-        // where we may be tracking the actual expenditure on L1
-
-        // Stop execution if no fees were collected
-        if (feeBalance == 0) {
-            emit NoFeesCollected();
-            return;
-        }
-
-        lastDisbursementTime = block.timestamp;
-
-        // Net revenue is the sum of sequencer fees and base fees
-        uint256 optimismNetRevenueShare = netFeeRevenue * OPTIMISM_NET_REVENUE_SHARE_BASIS_POINTS / BASIS_POINT_SCALE;
-        netFeeRevenue = 0;
-
-        uint256 optimismGrossRevenueShare = feeBalance * OPTIMISM_GROSS_REVENUE_SHARE_BASIS_POINTS / BASIS_POINT_SCALE;
-
-        // Optimism's revenue share is the maximum of net and gross revenue
-        // TODO gk I think the wording can be improved here  // Optimism's revenue share is the maximum of the
-        // respective shares of the net and gross revenue
-        uint256 optimismRevenueShare = Math.max(optimismNetRevenueShare, optimismGrossRevenueShare);
-
-        // Send Optimism their revenue share on L2
-        require(
-            SafeCall.send(OPTIMISM_WALLET, gasleft(), optimismRevenueShare),
-            "FeeDisburser: Failed to send funds to Optimism"
-        );
+        // Send Beneficiary their revenue share on L2
+        require(SafeCall.send(BENEFICIARY, gasleft(), s), "RevenueSharer: Failed to send funds to Beneficiary");
 
         // Send remaining funds to L1 wallet on L1
-        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: address(this).balance }(
+        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: remainder }(
             L1_WALLET, WITHDRAWAL_MIN_GAS, bytes("")
         );
-        emit FeesDisbursed(lastDisbursementTime, optimismRevenueShare, feeBalance);
+
+        emit FeesDisbursed(lastDisbursementTime, s, r);
+    }
+
+    function getL1FeeExpenditure() public pure returns (uint256) {
+        return 0;
     }
 
     /**
@@ -178,13 +155,11 @@ contract RevenueSharer {
      * @dev Will revert if ETH is not sent from L2 FeeVaults.
      */
     receive() external payable virtual {
-        if (msg.sender == Predeploys.SEQUENCER_FEE_WALLET || msg.sender == Predeploys.BASE_FEE_VAULT) {
-            // Adds value received to net fee revenue if the sender is the sequencer or base FeeVault
-            netFeeRevenue += msg.value; // TODO GK: be better to check balance before and after each FeeVault.withdraw()
-                // and explicitly label each chunk of ETH pulled in. The tracking of the fees from each vault is hard to
-                // reason about as is.
-        } else if (msg.sender != Predeploys.L1_FEE_VAULT) {
-            revert("FeeDisburser: Only FeeVaults can send ETH to FeeDisburser");
+        if (
+            msg.sender != Predeploys.SEQUENCER_FEE_WALLET && msg.sender != Predeploys.BASE_FEE_VAULT
+                && msg.sender != Predeploys.L1_FEE_VAULT
+        ) {
+            revert("RevenueSharer: Only FeeVaults can send ETH to FeeDisburser");
         }
         emit FeesReceived(msg.sender, msg.value);
     }
@@ -193,22 +168,24 @@ contract RevenueSharer {
                             Internal Functions
     //////////////////////////////////////////////////////////////*/
     /**
-     * @dev Withdraws fees from a FeeVault.
+     * @dev Withdraws fees from a FeeVault and returns the amount withdrawn.
      * @param _feeVault The address of the FeeVault to withdraw from.
      * @dev Withdrawal will only occur if the given FeeVault's balance is greater than or equal to
      *        the minimum withdrawal amount.
      */
-    function feeVaultWithdrawal(address payable _feeVault) internal {
+    function feeVaultWithdrawal(address payable _feeVault) internal returns (uint256) {
         require(
             FeeVault(_feeVault).WITHDRAWAL_NETWORK() == FeeVault.WithdrawalNetwork.L2,
-            "FeeDisburser: FeeVault must withdraw to L2"
+            "RevenueSharer: FeeVault must withdraw to L2"
         );
         require(
             FeeVault(_feeVault).RECIPIENT() == address(this),
-            "FeeDisburser: FeeVault must withdraw to FeeDisburser contract"
+            "RevenueSharer: FeeVault must withdraw to RevenueSharer contract"
         );
+        uint256 initial_balance = address(this).balance;
         if (_feeVault.balance >= FeeVault(_feeVault).MIN_WITHDRAWAL_AMOUNT()) {
-            FeeVault(_feeVault).withdraw();
+            FeeVault(_feeVault).withdraw(); // TODO do we need a reentrancy guard around this?
         }
+        return address(this).balance - initial_balance;
     }
 }

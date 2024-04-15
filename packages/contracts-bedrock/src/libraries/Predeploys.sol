@@ -66,10 +66,10 @@ library Predeploys {
     address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
 
     /// @notice Address of the BaseFeeVault predeploy.
-    address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
+    address payable internal constant BASE_FEE_VAULT = payable(0x4200000000000000000000000000000000000019);
 
     /// @notice Address of the L1FeeVault predeploy.
-    address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
+    address payable internal constant L1_FEE_VAULT = payable(0x420000000000000000000000000000000000001A);
 
     /// @notice Address of the SchemaRegistry predeploy.
     address internal constant SCHEMA_REGISTRY = 0x4200000000000000000000000000000000000020;
