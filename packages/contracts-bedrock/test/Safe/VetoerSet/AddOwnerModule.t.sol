@@ -37,9 +37,9 @@ contract TestAddOwnerModule is Test {
         _sut.addOwner(newOwner);
     }
 
-    /// @dev `addOwner` should buble up the `InvalidOwnerCount` error returned by the `OwnerGuard` when
+    /// @dev `addOwner` should buble up the `OwnerCountTooHigh` error returned by the `OwnerGuard` when
     ///      checking if adding the new owner does not exceed `maxOwnerCount`.
-    function testRevert_AddOwner_InvalidOwnerCount(
+    function testRevert_AddOwner_OwnerCountTooHigh(
         address newOwner,
         uint256 initialOwnerCount,
         uint256 maxOwnerCount
@@ -66,10 +66,10 @@ contract TestAddOwnerModule is Test {
             // Mock `safe.getStorageAt(GUARD_STORAGE_SLOT, 1)` to return the owner guard address.
             _mock_GetStorageAt();
 
-            // Mock `ownerGuard.checkNewOwnerCount()` to revert with the `InvalidOwnerCount` erro.
+            // Mock `ownerGuard.checkNewOwnerCount()` to revert with the `OwnerCountTooHigh` erro.
             newOwnerCount = initialOwnerCount + 1;
             invalidOwnerCountError =
-                abi.encodeWithSelector(OwnerGuard.InvalidOwnerCount.selector, newOwnerCount, maxOwnerCount);
+                abi.encodeWithSelector(OwnerGuard.OwnerCountTooHigh.selector, newOwnerCount, maxOwnerCount);
             vm.mockCallRevert(
                 _ownerGuard, abi.encodeWithSelector(OwnerGuard.checkNewOwnerCount.selector), invalidOwnerCountError
             );
