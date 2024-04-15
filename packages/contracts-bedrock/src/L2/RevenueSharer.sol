@@ -146,6 +146,10 @@ contract RevenueSharer {
         emit FeesDisbursed(lastDisbursementTime, s, r);
     }
 
+    /**
+     * @dev Returns the RevenueSharer's best estimate of L1 Fee expenditure for the current accounting period.
+     * @dev TODO this just returns zero for now, until L1 Fee Expenditure can be tracked on L2.
+     */
     function getL1FeeExpenditure() public pure returns (uint256) {
         return 0;
     }
