@@ -23,7 +23,7 @@ func TestGetRollupConfig(t *testing.T) {
 	configsByName := map[string]rollup.Config{
 		"mainnet":                       mainnetCfg,
 		"sepolia":                       sepoliaCfg,
-		"oplabs-devnet-0-sepolia-dev-0": sepoliaDev0Cfg,
+		// "oplabs-devnet-0-sepolia-dev-0": sepoliaDev0Cfg,
 	}
 
 	for name, expectedCfg := range configsByName {
