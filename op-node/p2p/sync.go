@@ -87,6 +87,7 @@ type receivePayloadFn func(ctx context.Context, from peer.ID, payload *eth.Execu
 type rangeRequest struct {
 	start uint64
 	end   eth.L2BlockRef
+	id    uint64
 }
 
 type syncResult struct {
@@ -100,8 +101,7 @@ type peerRequest struct {
 }
 
 type inFlightCheck struct {
-	num uint64
-
+	num    uint64
 	result chan bool
 }
 
@@ -208,14 +208,14 @@ type SyncClient struct {
 	quarantineByNum map[uint64]common.Hash
 
 	// inFlight requests are not repeated
-	inFlight map[uint64]*atomic.Bool
+	inFlight       map[uint64]bool
+	inFlightChecks chan inFlightCheck
 
 	rangeRequests         chan rangeRequest
 	activeRangeRequests   map[uint64]bool
 	activeRangeRequestsMu sync.Mutex
 	rangeReqId            uint64
 	peerRequests          chan peerRequest
-	inFlightChecks        chan inFlightCheck
 
 	results chan syncResult
 
@@ -248,7 +248,7 @@ func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rc
 		payloadByNumber:     PayloadByNumberProtocolID(cfg.L2ChainID),
 		peers:               make(map[peer.ID]context.CancelFunc),
 		quarantineByNum:     make(map[uint64]common.Hash),
-		inFlight:            make(map[uint64]*atomic.Bool),
+		inFlight:            make(map[uint64]bool),
 		rangeRequests:       make(chan rangeRequest), // blocking
 		activeRangeRequests: make(map[uint64]bool),
 		peerRequests:        make(chan peerRequest, 128),
@@ -316,17 +316,23 @@ func (s *SyncClient) Close() error {
 	return nil
 }
 
-func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
+func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) (uint64, error) {
 	if end == (eth.L2BlockRef{}) {
 		s.log.Debug("P2P sync client received range signal, but cannot sync open-ended chain: need sync target to verify blocks through parent-hashes", "start", start)
-		return nil
+		return 0, nil
 	}
+	// Create shared rangeReqId so associated peerRequests can all be cancelled by setting a single flag
+	rangeReqId := atomic.AddUint64(&s.rangeReqId, 1)
+	s.activeRangeRequestsMu.Lock()
+	defer s.activeRangeRequestsMu.Unlock()
+
 	// synchronize requests with the main loop for state access
 	select {
-	case s.rangeRequests <- rangeRequest{start: start.Number, end: end}:
-		return nil
+	case s.rangeRequests <- rangeRequest{start: start.Number, end: end, id: rangeReqId}:
+		s.activeRangeRequests[rangeReqId] = true
+		return rangeReqId, nil
 	case <-ctx.Done():
-		return fmt.Errorf("too busy with P2P results/requests: %w", ctx.Err())
+		return rangeReqId, fmt.Errorf("too busy with P2P results/requests: %w", ctx.Err())
 	}
 }
 
@@ -353,7 +359,7 @@ func (s *SyncClient) mainLoop() {
 			if !ok {
 				check.result <- false
 			} else {
-				check.result <- stillInFlight.Load()
+				check.result <- stillInFlight
 			}
 		case <-s.resCtx.Done():
 			s.log.Info("stopped P2P req-resp L2 block sync client")
@@ -380,25 +386,12 @@ func (s *SyncClient) isInFlight(ctx context.Context, num uint64) (bool, error) {
 // onRangeRequest is exclusively called by the main loop, and has thus direct access to the request bookkeeping state.
 // This function transforms requested block ranges into work for each peer.
 func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
+	log := s.log.New("target", req.start, "end", req.end)
+	log.Info("processing L2 range request", "rangeReqId", req.id)
+
 	// add req head to trusted set of blocks
 	s.trusted.Add(req.end.Hash, struct{}{})
 	s.trusted.Add(req.end.ParentHash, struct{}{})
-
-	log := s.log.New("target", req.start, "end", req.end)
-	log.Info("processing new L2 range request")
-
-	// clean up the completed in-flight requests
-	for blockNum, stillInFlight := range s.inFlight {
-		if !stillInFlight.Load() {
-			delete(s.inFlight, blockNum)
-		}
-	}
-
-	// Create shared rangeReqId so associated peerRequests can all be cancelled by setting a single flag
-	atomic.AddUint64(&s.rangeReqId, 1)
-	s.activeRangeRequestsMu.Lock()
-	s.activeRangeRequests[s.rangeReqId] = true
-	s.activeRangeRequestsMu.Unlock()
 
 	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
 	for i := uint64(0); ; i++ {
@@ -420,15 +413,13 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 			log.Debug("request still in-flight, not rescheduling sync request", "num", num)
 			continue // request still in flight
 		}
-		pr := peerRequest{num: num, rangeReqId: s.rangeReqId}
+		pr := peerRequest{num: num, rangeReqId: req.id}
 
-		log.Debug("Scheduling P2P block request", "num", num, "rangeReqId", s.rangeReqId)
+		log.Debug("Scheduling P2P block request", "num", num, "rangeReqId", req.id)
 		// schedule number
 		select {
 		case s.peerRequests <- pr:
-			val := new(atomic.Bool)
-			val.Store(true)
-			s.inFlight[num] = val
+			s.inFlight[num] = true
 		case <-ctx.Done():
 			log.Info("did not schedule full P2P sync range", "current", num, "err", ctx.Err())
 			return
