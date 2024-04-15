@@ -168,11 +168,6 @@
     "type": "event"
   },
   {
-    "inputs": [],
-    "name": "OnlyDeputyGuardian",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
         "internalType": "string",
@@ -180,7 +175,12 @@
         "type": "string"
       }
     ],
-    "name": "TransactionExecutionFailed",
+    "name": "ExecutionFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
     "type": "error"
   }
 ]

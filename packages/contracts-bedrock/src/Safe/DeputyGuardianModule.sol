@@ -8,6 +8,7 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { Unauthorized } from "src/libraries/PortalErrors.sol";
 
 import "src/libraries/DisputeTypes.sol";
 
@@ -17,11 +18,8 @@ import "src/libraries/DisputeTypes.sol";
 ///         actions that the Guardian is authorized to take. The security council can revoke the Deputy Guardian's
 ///         authorization at any time by disabling this module.
 contract DeputyGuardianModule is ISemver {
-    /// @notice Error message for unauthorized access
-    error OnlyDeputyGuardian();
-
     /// @notice Error message for failed transaction execution
-    error TransactionExecutionFailed(string);
+    error ExecutionFailed(string);
 
     /// @notice Emitted when the SuperchainConfig is paused
     event Paused(string identifier);
@@ -74,9 +72,9 @@ contract DeputyGuardianModule is ISemver {
     }
 
     /// @notice Internal function to ensure that only the deputy guardian can call certain functions.
-    function _onlyDeputyGuardian() internal view {
+    function _Unauthorized() internal view {
         if (msg.sender != DEPUTY_GUARDIAN) {
-            revert OnlyDeputyGuardian();
+            revert Unauthorized();
         }
     }
 
@@ -84,13 +82,13 @@ contract DeputyGuardianModule is ISemver {
     ///      necessary to call `pause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function pause() external {
-        _onlyDeputyGuardian();
+        _Unauthorized();
         bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.pause, ("Deputy Guardian"));
 
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
         if (!success) {
-            revert TransactionExecutionFailed(string(returnData));
+            revert ExecutionFailed(string(returnData));
         }
         emit Paused("Deputy Guardian");
     }
@@ -99,13 +97,13 @@ contract DeputyGuardianModule is ISemver {
     ///      necessary to call `unpause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function unpause() external {
-        _onlyDeputyGuardian();
+        _Unauthorized();
         bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.unpause, ());
 
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
         if (!success) {
-            revert TransactionExecutionFailed(string(returnData));
+            revert ExecutionFailed(string(returnData));
         }
         emit Unpaused();
     }
@@ -116,13 +114,13 @@ contract DeputyGuardianModule is ISemver {
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _game The `IDisputeGame` contract instance.
     function blacklistDisputeGame(OptimismPortal2 _portal, IDisputeGame _game) external {
-        _onlyDeputyGuardian();
+        _Unauthorized();
         bytes memory data = abi.encodeCall(OptimismPortal2.blacklistDisputeGame, (_game));
 
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         if (!success) {
-            revert TransactionExecutionFailed(string(returnData));
+            revert ExecutionFailed(string(returnData));
         }
         emit DisputeGameBlacklisted(_game);
     }
@@ -133,12 +131,12 @@ contract DeputyGuardianModule is ISemver {
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _gameType The `GameType` to set as the respected game type.
     function setRespectedGameType(OptimismPortal2 _portal, GameType _gameType) external {
-        _onlyDeputyGuardian();
+        _Unauthorized();
         bytes memory data = abi.encodeCall(OptimismPortal2.setRespectedGameType, (_gameType));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         if (!success) {
-            revert TransactionExecutionFailed(string(returnData));
+            revert ExecutionFailed(string(returnData));
         }
         emit RespectedGameTypeSet(_gameType);
     }
