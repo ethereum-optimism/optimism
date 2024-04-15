@@ -12,7 +12,7 @@ There are 4 different mechanisms for following the status of a transaction. In a
 
 <figure><img src="../../assets/using third party analytics.png" alt=""><figcaption></figcaption></figure>
 
-Some teams prefer to use providers such as [The Graph](https://thegraph.com/en/), which is available on Boba. Please see [The Graph on Boba](../../for-developers/features/subgraph.md) for more information.
+Subgraphs have been migrated to [Goldsky](https://docs.goldsky.com/introduction). Please see [subgraph.md](./features/subgraph.md) for more information.
 
 <figure><img src="../../assets/running a messenger.png" alt=""><figcaption></figcaption></figure>
 
