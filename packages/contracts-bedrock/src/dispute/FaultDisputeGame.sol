@@ -81,9 +81,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice An interneal mapping of resolved subgames rooted at a claim index.
     mapping(uint256 => bool) internal resolvedSubgames;
 
-    /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
-    bool internal subgameAtRootResolved;
-
     /// @notice Flag for the `initialize` function to prevent re-initialization.
     bool internal initialized;
 
@@ -373,7 +370,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // INVARIANT: Resolution cannot occur unless the absolute root subgame has been resolved.
-        if (!subgameAtRootResolved) revert OutOfOrderResolution();
+        if (!resolvedSubgames[0]) revert OutOfOrderResolution();
 
         // Update the global game status; The dispute has concluded.
         status_ = claimData[0].counteredBy == address(0) ? GameStatus.DEFENDER_WINS : GameStatus.CHALLENGER_WINS;
@@ -452,11 +449,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Mark the subgame as resolved.
         resolvedSubgames[_claimIndex] = true;
-
-        // Indicate the game is ready to be resolved globally.
-        if (_claimIndex == 0) {
-            subgameAtRootResolved = true;
-        }
     }
 
     /// @inheritdoc IDisputeGame

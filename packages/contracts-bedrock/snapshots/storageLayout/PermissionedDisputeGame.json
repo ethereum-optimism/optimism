@@ -57,15 +57,8 @@
   },
   {
     "bytes": "1",
-    "label": "subgameAtRootResolved",
-    "offset": 0,
-    "slot": "6",
-    "type": "bool"
-  },
-  {
-    "bytes": "1",
     "label": "initialized",
-    "offset": 1,
+    "offset": 0,
     "slot": "6",
     "type": "bool"
   },
