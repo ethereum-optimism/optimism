@@ -67,6 +67,7 @@ func createGameFlags() []cli.Flag {
 	cliFlags := []cli.Flag{
 		flags.L1EthRpcFlag,
 		flags.FactoryAddressFlag,
+		TraceTypeFlag,
 		OutputRootFlag,
 		L2BlockNumFlag,
 	}
