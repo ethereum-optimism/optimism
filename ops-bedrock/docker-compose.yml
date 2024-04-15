@@ -7,6 +7,7 @@ version: '3.4'
 volumes:
   l1_data:
   l2_data:
+  da_data:
   op_log:
 
 
@@ -89,6 +90,8 @@ services:
       --metrics.port=7300
       --pprof.enabled
       --rpc.enable-admin
+      --plasma.enabled=${PLASMA_ENABLED}
+      --plasma.da-server=http://da-server:3100
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -163,6 +166,8 @@ services:
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_BATCH_TYPE: 0
+      OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
+      OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
 
   op-challenger:
     depends_on:
@@ -198,6 +203,36 @@ services:
       OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
       OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
+
+  da-server:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
+    build:
+      context: ../
+      dockerfile: ./op-plasma/Dockerfile
+    command: >
+      da-server
+      --file.path=/data
+      --addr=0.0.0.0
+      --port=3100
+      --log.level=debug
+    ports:
+      - "3100:3100"
+    volumes:
+      - "l2_data:/data"
+
+  sentinel:
+    image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
+    volumes:
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+    # private-key is mnemonic index 5 of the test mnemonic.
+    command: >
+      sentinel
+      --datadir=data
+      --l1-rpc-http=http://l1:8545
+      --l1-rpc-ws=ws://l1:8546
+      --da-storage-uri=http://da-server:3100
+      --private-key=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+      --config=/rollup.json
 
   artifact-server:
     depends_on:
