@@ -23,28 +23,6 @@ contract TestOwnerGuard is Test {
         _sut = new OwnerGuard({ _safe: Safe(payable(_safe)) });
     }
 
-    /// @dev `constructor` should revert with `InvalidOwnerCount` when the current number of owners of the Safe Account
-    ///      can not fit in a `uint8`.
-    function testRevert_Constructor_InvalidOwnerCount(uint256 safeOwnerCount) public {
-        // Ensure the inputs are reasonable values.
-        {
-            safeOwnerCount = bound(safeOwnerCount, uint256(type(uint8).max) + 1, 511);
-        }
-
-        // Mock the dependencies.
-        {
-            // Mock `safe.getOwners()` to return a list of addresses of length `safeOwnerCount`.
-            vm.mockCall(
-                _safe,
-                abi.encodeWithSelector(OwnerManager.getOwners.selector),
-                abi.encode(new address[](safeOwnerCount))
-            );
-        }
-
-        vm.expectRevert(abi.encodeWithSelector(OwnerGuard.InvalidOwnerCount.selector, safeOwnerCount));
-        new OwnerGuard({ _safe: Safe(payable(_safe)) });
-    }
-
     /// @dev `constructor` should initialize `maxOwnerCount` to the max between `INITIAL_MAX_OWNER_COUNT` and the
     ///      current number of owners of the Safe Account.
     function test_Constructor_SetMaxOwnerCount(uint8 safeOwnerCount) public {

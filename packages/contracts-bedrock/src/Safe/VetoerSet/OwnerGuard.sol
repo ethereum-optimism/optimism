@@ -24,11 +24,7 @@ contract OwnerGuard is ISemver, BaseGuard {
     Safe public immutable safe;
 
     /// @notice The maximum number of owners. Can be changed by supermajority.
-    uint8 public maxOwnerCount;
-
-    /// @notice Thrown at deployment if the current Safe Account owner count can't fit in a `uint8`.
-    /// @param ownerCount The current owner count.
-    error InvalidOwnerCount(uint256 ownerCount);
+    uint256 public maxOwnerCount;
 
     /// @notice Thrown if the new owner count is above the `maxOwnerCount` limit.
     /// @param ownerCount The Safe Account owner count.
@@ -57,19 +53,15 @@ contract OwnerGuard is ISemver, BaseGuard {
     constructor(Safe _safe) {
         safe = _safe;
 
-        // Ensure the current number owners of the Safe Account can fit in a `uint8`.
-        uint256 ownerCount = _safe.getOwners().length;
-        if (ownerCount > type(uint8).max) {
-            revert InvalidOwnerCount(ownerCount);
-        }
-
         // Set the initial `maxOwnerCount`, to the greater between `INITIAL_MAX_OWNER_COUNT` and the current owner
         // count.
+        uint256 ownerCount = _safe.getOwners().length;
         maxOwnerCount = uint8(FixedPointMathLib.max(INITIAL_MAX_OWNER_COUNT, ownerCount));
     }
 
-    /// @notice Inherited hook from `BaseGuard` that is run right before the transaction is executed
+    /// @notice Inherited hook from the `Guard` interface that is run right before the transaction is executed
     ///         by the Safe Account when `execTransaction` is called.
+    /// @dev All checks are performed in `checkAfterExecution()` so this method is left empty.
     function checkTransaction(
         address,
         uint256,
@@ -86,8 +78,10 @@ contract OwnerGuard is ISemver, BaseGuard {
         external
     { }
 
-    /// @notice Inherited hook from `BaseGuard` that is run right after the transaction has been executed
+    /// @notice Inherited hook from the `Guard` interface that is run right after the transaction has been executed
     ///         by the Safe Account when `execTransaction` is called.
+    /// @dev Reverts if the Safe Account owner count is above the limit specified by `maxOwnerCount`.
+    /// @dev Reverts if the Safe Account threshold is not equal to the expected 66% threshold.
     function checkAfterExecution(bytes32, bool) external view {
         // Ensure the length of the new set of owners is not above `maxOwnerCount`, and get the corresponding threshold.
         uint256 expectedThreshold = checkNewOwnerCount(safe.getOwners().length);
