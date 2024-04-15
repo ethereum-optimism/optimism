@@ -185,7 +185,7 @@ contract ResourceMetering_Test is Test {
         uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
 
-        vm.expectRevert("ResourceMetering: cannot buy more gas than available gas limit");
+        vm.expectRevert(ResourceMetering.OutOfGas.selector);
         meter.use(target * elasticityMultiplier + 1);
     }
 

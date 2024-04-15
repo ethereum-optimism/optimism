@@ -57,9 +57,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
-    /// @notice The flag set in the `bond` field of a `ClaimData` struct to indicate that the bond has been claimed.
-    uint128 internal constant CLAIMED_BOND_FLAG = type(uint128).max;
-
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
 
@@ -81,8 +78,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice An internal mapping of subgames rooted at a claim index to other claim indices in the subgame.
     mapping(uint256 => uint256[]) internal subgames;
 
-    /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
-    bool internal subgameAtRootResolved;
+    /// @notice An interneal mapping of resolved subgames rooted at a claim index.
+    mapping(uint256 => bool) internal resolvedSubgames;
 
     /// @notice Flag for the `initialize` function to prevent re-initialization.
     bool internal initialized;
@@ -91,8 +88,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     OutputRoot public startingOutputRoot;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.10.0
-    string public constant version = "0.10.1";
+    /// @custom:semver 0.12.0
+    string public constant version = "0.12.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -259,29 +256,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: The `msg.value` must exactly equal the required bond.
         if (getRequiredBond(nextPosition) != msg.value) revert IncorrectBondAmount();
 
-        // Fetch the grandparent clock, if it exists.
-        // The grandparent clock should always exist unless the parent is the root claim.
-        Clock grandparentClock;
-        if (parent.parentIndex != type(uint32).max) {
-            grandparentClock = claimData[parent.parentIndex].clock;
-        }
-
         // Compute the duration of the next clock. This is done by adding the duration of the
         // grandparent claim to the difference between the current block timestamp and the
         // parent's clock timestamp.
-        Duration nextDuration = Duration.wrap(
-            uint64(
-                // First, fetch the duration of the grandparent claim.
-                grandparentClock.duration().raw()
-                // Second, add the difference between the current block timestamp and the
-                // parent's clock timestamp.
-                + block.timestamp - parent.clock.timestamp().raw()
-            )
-        );
+        Duration nextDuration = getChallengerDuration(_challengeIndex);
 
         // INVARIANT: A move can never be made once its clock has exceeded `GAME_DURATION / 2`
         //            seconds of time.
-        if (nextDuration.raw() > GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
+        if (nextDuration.raw() == GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
 
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
@@ -364,13 +346,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function l1Head() public pure returns (Hash l1Head_) {
-        l1Head_ = Hash.wrap(_getArgBytes32(0x20));
-    }
-
-    /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(0x40);
+        l2BlockNumber_ = _getArgUint256(0x54);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -388,7 +365,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // INVARIANT: Resolution cannot occur unless the absolute root subgame has been resolved.
-        if (!subgameAtRootResolved) revert OutOfOrderResolution();
+        if (!resolvedSubgames[0]) revert OutOfOrderResolution();
 
         // Update the global game status; The dispute has concluded.
         status_ = claimData[0].counteredBy == address(0) ? GameStatus.DEFENDER_WINS : GameStatus.CHALLENGER_WINS;
@@ -406,22 +383,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-        ClaimData storage parent = claimData[_claimIndex];
+        ClaimData storage subgameRootClaim = claimData[_claimIndex];
+        Duration challengeClockDuration = getChallengerDuration(_claimIndex);
 
-        // INVARIANT: Cannot resolve a subgame unless the clock of its root has expired
-        uint64 parentClockDuration = parent.clock.duration().raw();
-        uint64 timeSinceParentMove = uint64(block.timestamp) - parent.clock.timestamp().raw();
-        if (parentClockDuration + timeSinceParentMove <= GAME_DURATION.raw() >> 1) {
-            revert ClockNotExpired();
-        }
+        // INVARIANT: Cannot resolve a subgame unless the clock of its would-be counter has expired
+        // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always >= GAME_DURATION / 2 if all
+        // descendant subgames are resolved
+        if (challengeClockDuration.raw() < GAME_DURATION.raw() >> 1) revert ClockNotExpired();
+
+        // INVARIANT: Cannot resolve a subgame twice.
+        if (resolvedSubgames[_claimIndex]) revert ClaimAlreadyResolved();
 
         uint256[] storage challengeIndices = subgames[_claimIndex];
         uint256 challengeIndicesLen = challengeIndices.length;
-
-        // INVARIANT: Cannot resolve subgames twice
-        if (_claimIndex == 0 && subgameAtRootResolved) {
-            revert ClaimAlreadyResolved();
-        }
 
         // Uncontested claims are resolved implicitly unless they are the root claim. Pay out the bond to the claimant
         // and return early.
@@ -430,9 +404,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // `counteredBy` field is set and there are no subgames, this implies that the parent claim was successfully
             // stepped against. In this case, we pay out the bond to the party that stepped against the parent claim.
             // Otherwise, the parent claim is uncontested, and the bond is returned to the claimant.
-            address counteredBy = parent.counteredBy;
-            address recipient = counteredBy == address(0) ? parent.claimant : counteredBy;
-            _distributeBond(recipient, parent);
+            address counteredBy = subgameRootClaim.counteredBy;
+            address recipient = counteredBy == address(0) ? subgameRootClaim.claimant : counteredBy;
+            _distributeBond(recipient, subgameRootClaim);
+            resolvedSubgames[_claimIndex] = true;
             return;
         }
 
@@ -443,7 +418,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             uint256 challengeIndex = challengeIndices[i];
 
             // INVARIANT: Cannot resolve a subgame containing an unresolved claim
-            if (subgames[challengeIndex].length != 0) revert OutOfOrderResolution();
+            if (!resolvedSubgames[challengeIndex]) revert OutOfOrderResolution();
 
             ClaimData storage claim = claimData[challengeIndex];
 
@@ -461,31 +436,36 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // If the parent was not successfully countered, pay out the parent's bond to the claimant.
         // If the parent was successfully countered, pay out the parent's bond to the challenger.
-        _distributeBond(countered == address(0) ? parent.claimant : countered, parent);
+        _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
 
         // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
         // resolveClaim will not need to traverse this subgame.
-        parent.counteredBy = countered;
+        subgameRootClaim.counteredBy = countered;
 
-        // Resolved subgames have no entries
-        delete subgames[_claimIndex];
+        // Mark the subgame as resolved.
+        resolvedSubgames[_claimIndex] = true;
+    }
 
-        // Indicate the game is ready to be resolved globally.
-        if (_claimIndex == 0) {
-            subgameAtRootResolved = true;
-        }
+    /// @inheritdoc IDisputeGame
+    function gameCreator() public pure returns (address creator_) {
+        creator_ = _getArgAddress(0x00);
     }
 
     /// @inheritdoc IDisputeGame
     function rootClaim() public pure returns (Claim rootClaim_) {
-        rootClaim_ = Claim.wrap(_getArgBytes32(0x00));
+        rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
+    }
+
+    /// @inheritdoc IDisputeGame
+    function l1Head() public pure returns (Hash l1Head_) {
+        l1Head_ = Hash.wrap(_getArgBytes32(0x34));
     }
 
     /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
-        extraData_ = _getArgBytes(0x40, 0x20);
+        extraData_ = _getArgBytes(0x54, 0x20);
     }
 
     /// @inheritdoc IDisputeGame
@@ -538,15 +518,23 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // configured starting block number.
         if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
 
-        // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
-        // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
-        // but are not used by the game, which would allow for multiple dispute games for the same output proposal to
-        // be created.
-        // Expected length: 0x66 (0x04 selector + 0x20 root claim + 0x20 l1 head + 0x20 extraData + 0x02 CWIA bytes)
+        // Revert if the calldata size is not the expected length.
+        //
+        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
+        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
+        // output proposal to be created.
+        //
+        // Expected length: 0x7A
+        // - 0x04 selector
+        // - 0x14 creator address
+        // - 0x20 root claim
+        // - 0x20 l1 head
+        // - 0x20 extraData
+        // - 0x02 CWIA bytes
         assembly {
-            if gt(calldatasize(), 0x66) {
-                // Store the selector for `ExtraDataTooLong()` & revert
-                mstore(0x00, 0xc407e025)
+            if iszero(eq(calldatasize(), 0x7A)) {
+                // Store the selector for `BadExtraData()` & revert
+                mstore(0x00, 0x9824bdab)
                 revert(0x1C, 0x04)
             }
         }
@@ -556,7 +544,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             ClaimData({
                 parentIndex: type(uint32).max,
                 counteredBy: address(0),
-                claimant: tx.origin,
+                claimant: gameCreator(),
                 bond: uint128(msg.value),
                 claim: rootClaim(),
                 position: ROOT_POSITION,
@@ -645,6 +633,36 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (!success) revert BondTransferFailed();
     }
 
+    /// @notice Returns the amount of time elapsed on the potential challenger to `_claimIndex`'s chess clock. Maxes
+    ///         out at `GAME_DURATION / 2`.
+    /// @param _claimIndex The index of the subgame root claim.
+    /// @return duration_ The time elapsed on the potential challenger to `_claimIndex`'s chess clock.
+    function getChallengerDuration(uint256 _claimIndex) public view returns (Duration duration_) {
+        // INVARIANT: The game must be in progress to query the remaining time to respond to a given claim.
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
+        // Fetch the subgame root claim.
+        ClaimData storage subgameRootClaim = claimData[_claimIndex];
+
+        // Fetch the parent of the subgame root's clock, if it exists.
+        Clock parentClock;
+        if (subgameRootClaim.parentIndex != type(uint32).max) {
+            parentClock = claimData[subgameRootClaim.parentIndex].clock;
+        }
+
+        // Compute the duration elapsed of the potential challenger's clock.
+        uint64 challengeDuration =
+            uint64(parentClock.duration().raw() + (block.timestamp - subgameRootClaim.clock.timestamp().raw()));
+        uint64 maxClockTime = GAME_DURATION.raw() >> 1;
+        if (challengeDuration > maxClockTime) {
+            duration_ = Duration.wrap(maxClockTime);
+        } else {
+            duration_ = Duration.wrap(challengeDuration);
+        }
+    }
+
     ////////////////////////////////////////////////////////////////
     //                     IMMUTABLE GETTERS                      //
     ////////////////////////////////////////////////////////////////
@@ -694,8 +712,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     function _distributeBond(address _recipient, ClaimData storage _bonded) internal {
         // Set all bits in the bond value to indicate that the bond has been paid out.
         uint256 bond = _bonded.bond;
-        if (bond == CLAIMED_BOND_FLAG) revert ClaimAlreadyResolved();
-        _bonded.bond = CLAIMED_BOND_FLAG;
 
         // Increase the recipient's credit.
         credit[_recipient] += bond;

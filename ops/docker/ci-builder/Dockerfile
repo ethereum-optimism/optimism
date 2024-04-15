@@ -84,12 +84,14 @@ COPY --from=go-build /go/bin/mockery /go/bin/mockery
 COPY --from=go-build /go/bin/golangci-lint /go/bin/golangci-lint
 COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
 COPY --from=go-build /go/bin/geth /usr/local/bin/geth
+COPY --from=go-build /go/bin/yq /go/bin/yq
 
 # copy tools
 COPY --from=rust-build /root/.foundry/bin/forge /usr/local/bin/forge
 COPY --from=rust-build /root/.foundry/bin/cast /usr/local/bin/cast
 COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
 COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
+COPY --from=rust-build /root/.cargo/bin/just /usr/local/bin/just
 
 COPY .nvmrc .nvmrc
 COPY ./versions.json ./versions.json

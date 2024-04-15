@@ -97,7 +97,7 @@ config=$(cat << EOL
   "faultGameSplitDepth": 14,
 
   "preimageOracleMinProposalSize": 1800000,
-  "preimageOracleChallengePeriod": 86400,
+  "preimageOracleChallengePeriod": 86400
 }
 EOL
 )

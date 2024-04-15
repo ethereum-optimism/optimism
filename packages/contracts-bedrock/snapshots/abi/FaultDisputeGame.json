@@ -252,6 +252,19 @@
   },
   {
     "inputs": [],
+    "name": "gameCreator",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "creator_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gameData",
     "outputs": [
       {
@@ -294,6 +307,25 @@
         "internalType": "GameType",
         "name": "gameType_",
         "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_claimIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "getChallengerDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "duration_",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",

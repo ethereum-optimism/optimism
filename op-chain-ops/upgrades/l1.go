@@ -3,6 +3,8 @@ package upgrades
 import (
 	"fmt"
 	"math/big"
+	"os"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -567,11 +569,11 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	if err != nil {
 		return err
 	}
-	l2OutputOracle, err := optimismPortal.L2ORACLE(&bind.CallOpts{})
+	l2OutputOracle, err := optimismPortal.L2Oracle(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
-	systemConfig, err := optimismPortal.SYSTEMCONFIG(&bind.CallOpts{})
+	systemConfig, err := optimismPortal.SystemConfig(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
@@ -617,10 +619,15 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			return err
 		}
 
-		startBlock := common.Hash{}
-
+		var startBlock common.Hash
 		if config != nil {
 			startBlock = common.BigToHash(new(big.Int).SetUint64(config.SystemConfigStartBlock))
+		} else {
+			val, err := strconv.ParseUint(os.Getenv("SYSTEM_CONFIG_START_BLOCK"), 10, 64)
+			if err != nil {
+				return err
+			}
+			startBlock = common.BigToHash(new(big.Int).SetUint64(val))
 		}
 
 		input := []bindings.StorageSetterSlot{
@@ -691,23 +698,25 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
-		return fmt.Errorf("GasPriceOracleOverhead address doesn't match config")
-	}
-	if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
-		return fmt.Errorf("GasPriceOracleScalar address doesn't match config")
-	}
-	if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
-		return fmt.Errorf("BatchSenderAddress address doesn't match config")
-	}
-	if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
-		return fmt.Errorf("L2GenesisBlockGasLimit address doesn't match config")
-	}
-	if p2pSequencerAddress != config.P2PSequencerAddress {
-		return fmt.Errorf("P2PSequencerAddress address doesn't match config")
-	}
-	if finalSystemOwner != config.FinalSystemOwner {
-		return fmt.Errorf("FinalSystemOwner address doesn't match config")
+	if config != nil {
+		if gasPriceOracleOverhead.Uint64() != config.GasPriceOracleOverhead {
+			return fmt.Errorf("GasPriceOracleOverhead address doesn't match config")
+		}
+		if gasPriceOracleScalar.Uint64() != config.GasPriceOracleScalar {
+			return fmt.Errorf("GasPriceOracleScalar address doesn't match config")
+		}
+		if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
+			return fmt.Errorf("BatchSenderAddress address doesn't match config")
+		}
+		if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
+			return fmt.Errorf("L2GenesisBlockGasLimit address doesn't match config")
+		}
+		if p2pSequencerAddress != config.P2PSequencerAddress {
+			return fmt.Errorf("P2PSequencerAddress address doesn't match config")
+		}
+		if finalSystemOwner != config.FinalSystemOwner {
+			return fmt.Errorf("FinalSystemOwner address doesn't match config")
+		}
 	}
 
 	resourceConfig, err := systemConfig.ResourceConfig(&bind.CallOpts{})
