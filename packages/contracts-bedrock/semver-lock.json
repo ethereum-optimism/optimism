@@ -36,7 +36,7 @@
     "sourceCodeHash": "0xd3450653cecc14bf8fbc21f2fa9b4a5fde348c2b6313d72e74e08666201295a2"
   },
   "src/L1/OptimismPortal2.sol": {
-    "initCodeHash": "0x428eb70b0212733b6271d885741da959ba95e310bf963ead9f7e93a6846eb9ea",
+    "initCodeHash": "0x12407ad2db89ab758460e1cbd93bdc61fc3c30b20acab6ab61c96c51767c16f6",
     "sourceCodeHash": "0x1cd093d048b893846319bc242c8dd5744de1f675e87551de423e0ae4ab3216e1"
   },
   "src/L1/ProtocolVersions.sol": {
