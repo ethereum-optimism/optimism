@@ -48,45 +48,22 @@ contract RevenueSharer {
      * @dev The address of the L1 wallet that will receive the OP chain runner's share of fees.
      */
     address public immutable L1_WALLET;
-    /**
-     * @dev The minimum amount of time in seconds that must pass between fee disbursals.
-     */
-    uint256 public immutable FEE_DISBURSEMENT_INTERVAL;
-
-    /*//////////////////////////////////////////////////////////////
-                            Variables
-    //////////////////////////////////////////////////////////////*/
-    /**
-     * @dev The timestamp of the last disbursal.
-     */
-    uint256 public lastDisbursementTime;
-    /**
-     * @dev Tracks aggregate net fee revenue which is the sum of sequencer and base fees.
-     * @dev Explicity tracking Net Revenue is required to seperate L1FeeVault initiated
-     *      withdrawals from Net Revenue calculations.
-     */
-    uint256 public netFeeRevenue;
 
     /*//////////////////////////////////////////////////////////////
                             Events
     //////////////////////////////////////////////////////////////*/
     /**
      * @dev Emitted when fees are disbursed.
-     * @param _disbursementTime The time of the disbursement.
      * @param _share The amount of fees shared to the Beneficiary.
      * @param _total The total funds distributed.
      */
-    event FeesDisbursed(uint256 _disbursementTime, uint256 _share, uint256 _total);
+    event FeesDisbursed(uint256 _share, uint256 _total);
     /**
      * @dev Emitted when fees are received from FeeVaults.
      * @param _sender The FeeVault that sent the fees.
      * @param _amount The amount of fees received.
      */
     event FeesReceived(address indexed _sender, uint256 _amount);
-    /**
-     * @dev Emitted when no fees are collected from FeeVaults at time of disbursement.
-     */
-    event NoFeesCollected();
 
     /*//////////////////////////////////////////////////////////////
                             Constructor
@@ -95,18 +72,13 @@ contract RevenueSharer {
      * @dev Constructor for the FeeDisburser contract which validates and sets immutable variables.
      * @param _beneficiary The address which receives the revenue share.
      * @param _l1Wallet The L1 address which receives the remainder of the revenue.
-     * @param _feeDisbursementInterval The minimum amount of time in seconds that must pass between fee disbursals.
      */
-    constructor(address payable _beneficiary, address _l1Wallet, uint256 _feeDisbursementInterval) {
+    constructor(address payable _beneficiary, address _l1Wallet) {
         require(_beneficiary != address(0), "FeeDisburser: OptimismWallet cannot be address(0)");
         require(_l1Wallet != address(0), "FeeDisburser: L1Wallet cannot be address(0)");
-        require(
-            _feeDisbursementInterval >= 24 hours, "FeeDisburser: FeeDisbursementInterval cannot be less than 24 hours"
-        );
 
         BENEFICIARY = _beneficiary;
         L1_WALLET = _l1Wallet;
-        FEE_DISBURSEMENT_INTERVAL = _feeDisbursementInterval;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -143,7 +115,7 @@ contract RevenueSharer {
             L1_WALLET, WITHDRAWAL_MIN_GAS, bytes("")
         );
 
-        emit FeesDisbursed(lastDisbursementTime, s, r);
+        emit FeesDisbursed(s, r);
     }
 
     /**
@@ -187,9 +159,7 @@ contract RevenueSharer {
             "RevenueSharer: FeeVault must withdraw to RevenueSharer contract"
         );
         uint256 initial_balance = address(this).balance;
-        if (_feeVault.balance >= FeeVault(_feeVault).MIN_WITHDRAWAL_AMOUNT()) {
-            FeeVault(_feeVault).withdraw(); // TODO do we need a reentrancy guard around this?
-        }
+        FeeVault(_feeVault).withdraw(); // TODO do we need a reentrancy guard around this?
         return address(this).balance - initial_balance;
     }
 }
