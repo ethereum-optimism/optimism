@@ -184,6 +184,63 @@ contract LivenessModule_GetRequiredThreshold_Test is LivenessModule_TestInit {
             _getRequiredThreshold(numOwners, percentage), _getLeastIntegerValueAbovePercentage(numOwners, percentage)
         );
     }
+
+    /// @dev check the return values of the getRequiredThreshold function against the boundary conditions of 1 and 100
+    ///      percent.
+    function testFuzz_getRequiredThreshold_atBoundaries_works(uint256 _numOwners) external {
+        // Enforce a sane number of owners to keep runtime in check
+        uint256 numOwners = bound(_numOwners, 1, 100);
+        assertEq(_getRequiredThreshold(numOwners, 100), numOwners);
+        assertEq(_getRequiredThreshold(numOwners, 1), 1);
+    }
+
+    /// @dev check the return values of the getRequiredThreshold function against manually
+    ///      calculated values.
+    function test_getRequiredThreshold_hardcoded_works() external {
+        // 75% threshold
+        assertEq(_getRequiredThreshold(20, 75), 15);
+        assertEq(_getRequiredThreshold(19, 75), 15);
+        assertEq(_getRequiredThreshold(18, 75), 14);
+        assertEq(_getRequiredThreshold(17, 75), 13);
+        assertEq(_getRequiredThreshold(16, 75), 12);
+        assertEq(_getRequiredThreshold(15, 75), 12);
+        assertEq(_getRequiredThreshold(14, 75), 11);
+        assertEq(_getRequiredThreshold(13, 75), 10);
+        assertEq(_getRequiredThreshold(12, 75), 9);
+        assertEq(_getRequiredThreshold(11, 75), 9);
+        assertEq(_getRequiredThreshold(10, 75), 8);
+        assertEq(_getRequiredThreshold(9, 75), 7);
+        assertEq(_getRequiredThreshold(8, 75), 6);
+        assertEq(_getRequiredThreshold(7, 75), 6);
+        assertEq(_getRequiredThreshold(6, 75), 5);
+        assertEq(_getRequiredThreshold(5, 75), 4);
+        assertEq(_getRequiredThreshold(4, 75), 3);
+        assertEq(_getRequiredThreshold(3, 75), 3);
+        assertEq(_getRequiredThreshold(2, 75), 2);
+        assertEq(_getRequiredThreshold(1, 75), 1);
+
+        // 33% threshold
+        assertEq(_getRequiredThreshold(20, 33), 7);
+        assertEq(_getRequiredThreshold(19, 33), 7);
+        assertEq(_getRequiredThreshold(18, 33), 6);
+        assertEq(_getRequiredThreshold(17, 33), 6);
+        assertEq(_getRequiredThreshold(16, 33), 6);
+        assertEq(_getRequiredThreshold(15, 33), 5);
+        assertEq(_getRequiredThreshold(14, 33), 5);
+        assertEq(_getRequiredThreshold(13, 33), 5);
+        assertEq(_getRequiredThreshold(12, 33), 4);
+        assertEq(_getRequiredThreshold(11, 33), 4);
+        assertEq(_getRequiredThreshold(10, 33), 4);
+        assertEq(_getRequiredThreshold(9, 33), 3);
+        assertEq(_getRequiredThreshold(8, 33), 3);
+        assertEq(_getRequiredThreshold(7, 33), 3);
+        assertEq(_getRequiredThreshold(6, 33), 2);
+        assertEq(_getRequiredThreshold(5, 33), 2);
+        assertEq(_getRequiredThreshold(4, 33), 2);
+        assertEq(_getRequiredThreshold(3, 33), 1);
+        assertEq(_getRequiredThreshold(2, 33), 1);
+        assertEq(_getRequiredThreshold(1, 33), 1);
+    }
 }
 
 contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
