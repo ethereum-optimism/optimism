@@ -11,7 +11,7 @@ library LibPosition {
     /// @param _depth The depth of the position.
     /// @param _indexAtDepth The index at the depth of the position.
     /// @return position_ The computed generalized index.
-    function wrap(uint64 _depth, uint64 _indexAtDepth) internal pure returns (Position position_) {
+    function wrap(uint8 _depth, uint128 _indexAtDepth) internal pure returns (Position position_) {
         assembly {
             // gindex = 2^{_depth} + _indexAtDepth
             position_ := add(shl(_depth, 1), _indexAtDepth)
@@ -22,7 +22,7 @@ library LibPosition {
     /// @param _position The generalized index to get the `depth` of.
     /// @return depth_ The `depth` of the `position` gindex.
     /// @custom:attribution Solady <https://github.com/Vectorized/Solady>
-    function depth(Position _position) internal pure returns (uint64 depth_) {
+    function depth(Position _position) internal pure returns (uint8 depth_) {
         // Return the most significant bit offset, which signifies the depth of the gindex.
         assembly {
             depth_ := or(depth_, shl(6, lt(0xffffffffffffffff, shr(depth_, _position))))
@@ -53,7 +53,7 @@ library LibPosition {
     ///         and the `indexAtDepth` = 0.
     /// @param _position The generalized index to get the `indexAtDepth` of.
     /// @return indexAtDepth_ The `indexAtDepth` of the `position` gindex.
-    function indexAtDepth(Position _position) internal pure returns (uint64 indexAtDepth_) {
+    function indexAtDepth(Position _position) internal pure returns (uint128 indexAtDepth_) {
         // Return bits p_{msb-1}...p_{0}. This effectively pulls the 2^{depth} out of the gindex,
         // leaving only the `indexAtDepth`.
         uint256 msb = depth(_position);
