@@ -7,7 +7,7 @@ import (
 )
 
 // WithdrawalNetwork represents the network that withdrawals are sent to.
-// Its value when marshalled in json is intended to be a consistent with its
+// Its value when marshalled in json is intended to be consistent with its
 // internal string type but is backwards-compatible with uint8 values.
 // That is, WithdrawalNetwork can be unmarshalled from a JSON field into a uint8.
 type WithdrawalNetwork string
