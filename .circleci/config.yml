@@ -1158,7 +1158,7 @@ jobs:
                 command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
       - when:
           condition:
-            equal: ['-plasma', <<parameters.fpac>>]
+            equal: ['plasma', <<parameters.fpac>>]
           steps:
             - run:
                 name: Set DEVNET_PLASMA = true
@@ -1213,11 +1213,11 @@ jobs:
       - when:
           condition:
             not:
-              equal: ['-legacy', <<parameters.fpac>>]
+              equal: ['legacy', <<parameters.fpac>>]
           steps:
             - run:
                 name: Use non-legacy devnet allocs
-                command: rm -r .devnet && mv .devnet<<parameters.fpac>> .devnet
+                command: rm -r .devnet && mv .devnet-<<parameters.fpac>> .devnet
       - run:
           name: Load and tag docker images
           command: |
@@ -1805,11 +1805,9 @@ workflows:
           requires:
             - go-mod-download
       - devnet:
-          name: devnet<< matrix.fpac >>
           matrix:
             parameters:
-              # TODO(10142): We need to re-enable "-fault-proofs" in the future
-              fpac: ["-legacy", "-plasma"]
+              fpac: ["legacy", "fault-proofs", "plasma"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
