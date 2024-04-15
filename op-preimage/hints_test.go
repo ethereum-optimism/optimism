@@ -1,6 +1,7 @@
 package preimage
 
 import (
+	"bytes"
 	"crypto/rand"
 	"errors"
 	"io"
@@ -79,31 +80,12 @@ func TestHints(t *testing.T) {
 		testHint("give me header a", "also header b", "foo bar")
 	})
 	t.Run("unexpected EOF", func(t *testing.T) {
-		a, b, err := CreateBidirectionalChannel()
-		require.NoError(t, err)
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		hw := NewHintWriter(a)
-		go func() {
-			hw.Hint(rawHint("hello"))
-			// close `a` so that `ErrUnexpectedEOF` can be triggered for b
-			a.Close()
-			wg.Done()
-		}()
-		go func() {
-			_, _ = b.Write([]byte{0})
-			wg.Done()
-		}()
-
-		if waitTimeout(&wg) {
-			t.Error("read/write hint stuck")
-		}
-
-		// read one byte so it falls short, see if it's detected
-		_, _ = b.Read(make([]byte, 1))
-		hr := NewHintReader(b)
-		err = hr.NextHint(func(hint string) error { return nil })
+		var buf bytes.Buffer
+		hw := NewHintWriter(&buf)
+		hw.Hint(rawHint("hello"))
+		_, _ = buf.Read(make([]byte, 1)) // read one byte so it falls short, see if it's detected
+		hr := NewHintReader(&buf)
+		err := hr.NextHint(func(hint string) error { return nil })
 		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	})
 	t.Run("cb error", func(t *testing.T) {
