@@ -55,6 +55,7 @@ type Config struct {
 	Genesis Genesis `json:"genesis"`
 	// Seconds per L2 block
 	BlockTime uint64 `json:"block_time"`
+
 	// Sequencer batches may not be more than MaxSequencerDrift seconds after
 	// the L1 timestamp of the sequencing window end.
 	//
@@ -122,6 +123,8 @@ type Config struct {
 
 	// UsePlasma is activated when the chain is in plasma mode.
 	UsePlasma bool `json:"use_plasma"`
+
+	VerifierConfDepth uint64 `json:"verifier_conf_depth"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.

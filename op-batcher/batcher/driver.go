@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,6 +27,7 @@ var ErrBatcherNotRunning = errors.New("batcher is not running")
 
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 }
 
 type L2Client interface {
@@ -283,6 +285,9 @@ func (l *BatchSubmitter) loop() {
 			l.Log.Info("Txmgr is closed, remaining channel data won't be sent")
 		}
 	}
+
+	l.checkRecentTxsOnStart()
+
 	for {
 		select {
 		case <-ticker.C:
@@ -321,6 +326,71 @@ func (l *BatchSubmitter) loop() {
 			l.Log.Info("Finished publishing all remaining channel data")
 			return
 		}
+	}
+}
+
+// checkRecentTxsOnStart Check to see if there was a batcher tx sent recently that
+// still needs more block confirmations before being considered finalized
+func (l *BatchSubmitter) checkRecentTxsOnStart() {
+	if !l.Config.CheckRecentTxsOnStart {
+		return
+	}
+
+	currentBlock, err := l.Txmgr.BlockNumber(l.shutdownCtx)
+	if err != nil {
+		l.Log.Error("failed to retrieve current block number", "err", err)
+		return
+	}
+
+	currentBlockBig := new(big.Int)
+	currentBlockBig.SetUint64(currentBlock)
+	currentNonce, err := l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), currentBlockBig)
+	if err != nil {
+		l.Log.Error("Failed to retrieve current nonce", "err", err)
+		return
+	}
+
+	rollupClient, err := l.EndpointProvider.RollupClient(l.shutdownCtx)
+	if err != nil {
+		l.Log.Error("Failed to get rollup client", "err", err)
+		return
+	}
+	rollupConfig, err := rollupClient.RollupConfig(l.shutdownCtx)
+	if err != nil {
+		l.Log.Error("Failed to retrieve rollup config", "err", err)
+		return
+	}
+	blockConfirms := rollupConfig.VerifierConfDepth
+
+	previousBlockBig := new(big.Int)
+	previousBlockBig.Sub(currentBlockBig, big.NewInt(int64(blockConfirms)))
+	previousNonce, err := l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), previousBlockBig)
+	if err != nil {
+		l.Log.Error("Failed to retrieve previous nonce", "err", err)
+		return
+	}
+
+	if currentNonce == previousNonce {
+		l.Log.Info("No recent batcher txs detected. No need to wait for rollup sync")
+		return
+	}
+
+	l.Log.Info("Recent batcher txs detected. Need to wait for more block confirms", "confirmsNeeded", blockConfirms)
+	// Decrease block num until last finalized batcher tx
+	for currentNonce != previousNonce {
+		currentBlockBig.Sub(currentBlockBig, big.NewInt(1))
+		currentNonce, err = l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), currentBlockBig)
+		if err != nil {
+			l.Log.Error("Failed to retrieve nonce", "err", err)
+			return
+		}
+	}
+
+	batcherTxFinalizedBlock := currentBlockBig.Uint64() + 1 + blockConfirms
+	err = dial.WaitRollupSync(l.shutdownCtx, l.Log, rollupClient, batcherTxFinalizedBlock, time.Second*5)
+	if err != nil {
+		l.Log.Error("Failed to wait for rollup sync", "err", err)
+		return
 	}
 }
 

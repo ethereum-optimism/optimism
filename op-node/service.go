@@ -204,7 +204,7 @@ func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, e
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
-	rollupConfig, err := NewRollupConfig(log, network, rollupConfigPath)
+	rollupConfig, err := newRollupConfig(log, network, rollupConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, e
 	return rollupConfig, nil
 }
 
-func NewRollupConfig(log log.Logger, network string, rollupConfigPath string) (*rollup.Config, error) {
+func newRollupConfig(log log.Logger, network string, rollupConfigPath string) (*rollup.Config, error) {
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.
@@ -253,6 +253,7 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		ecotone := ctx.Uint64(opflags.EcotoneOverrideFlagName)
 		rollupConfig.EcotoneTime = &ecotone
 	}
+	rollupConfig.VerifierConfDepth = ctx.Uint64(flags.VerifierL1Confs.Name)
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {

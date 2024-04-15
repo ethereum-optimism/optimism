@@ -67,7 +67,8 @@ type CLIConfig struct {
 	// Type of compressor to use. Must be one of [compressor.KindKeys].
 	Compressor string
 
-	Stopped bool
+	Stopped        bool
+	CheckRecentTxs bool
 
 	BatchType uint
 
