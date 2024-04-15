@@ -1495,7 +1495,7 @@ jobs:
           docker_layer_caching: true
       - run:
           name: Run Kontrol Tests
-          command: pnpm test:kontrol
+          command: curl runtimeverification/optimism-CI
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
