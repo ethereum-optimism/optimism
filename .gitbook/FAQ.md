@@ -7,7 +7,7 @@ description: Frequently asked questions
 <figure><img src="./assets/What is Boba Network.png" alt=""><figcaption></figcaption></figure>
 
 
-[Boba](https://boba.network) is a compute-focused Layer 2 (L2) solution built on top of the Layer 1 blockchain, [Ethereum](https://ethereum.org/en). Ethereum is similar to L1 blockchains like Avalanche, BNB, and Moonbeam, and acts as a base blockchain platform that executes all on-chain transactions. Boba scales and augments the core _compute_ capabilities of Ethereum, reducing gas fees and improving transaction throughput - while retaining the security guarantees of Ethereum.
+[Boba](https://boba.network) is a compute-focused Layer 2 (L2) solution built on top of the Layer 1 blockchain, [Ethereum](https://ethereum.org/en) and [BSC](https://www.bnbchain.org/en/bnb-smart-chain). Ethereum is similar to L1 blockchains like Avalanche, BNB, and Moonbeam, and acts as a base blockchain platform that executes all on-chain transactions. Boba scales and augments the core _compute_ capabilities of Ethereum/BSC, reducing gas fees and improving transaction throughput - while retaining the security guarantees of its underlying network.
 
 The complexity of smart contract algorithms can make them expensive and slow to execute at speed. To solve this, Boba has designed a Hybrid Compute architecture that enables smart contracts to trigger much more complex algorithms off-chain (similar to running an app on AWS for example), and then bring the result back into the on-chain smart contract. Hence, the Boba Hybrid compute model runs both on-chain and off-chain.
 
@@ -33,6 +33,8 @@ Boba has developed a swap-based mechanism to deliver a smooth user experience fo
 
 The users who choose to take advantage of this bridging between L1 and L2 will pay a small convenience fee that is shared among the liquidity providers of the pools backing the swaps. Acting as liquidity providers is just the first of several staking opportunities Boba will roll out to the community. The higher level goal is to encourage broad participation in the operations and governance of Boba. As a tokenized, EVM-compatible L2, Boba is in a position to use the Boba token responsibly for the long-term sustainability of the network.
 
+One of the easiest way to bridge funds from and to Boba is the [Light Bridge](https://gateway.boba.network).
+
 ## How are developers incentivized to build on Boba?
 
 The high gas fees of Ethereum itself is a pretty strong incentive for developers to move to layer 2 networks like Boba. Boba not only helps Ethereum scale, but also allows contracts to tap into advanced off-chain compute capabilities that are not available on other chains. Boba also has plans to create an ecosystem fund to incentivize some of the early-stage projects that are just starting out and that plan to launch interesting apps. It’s going to take some time to put something like that together. That’s in our plans.
@@ -49,7 +51,7 @@ If your wallet does not support this feature, you will have to connect manually.
 
 To move assets into or out of an Optimistic Ethereum network you can use the [**Boba Gateway**](https://gateway.boba.network). Detailed instructions in our [user documentation](contents/user/001\_how-to-bridge.md).
 
-If you are a developer, you can choose any of these two methods: [the **classical bridge**, or the **light bridge**](contents/boba-basics/bridge-basics/).
+You can choose any of these two methods: [the **classical bridge**, or the **light bridge**](contents/boba-basics/bridge-basics/).
 
 ## Can I cancel a withdrawal after it has been submitted?
 
@@ -61,7 +63,7 @@ Only if the centralized exchange supports Boba Network (at this time none of the
 
 ## Where can I find RPC endpoints and connection details?
 
-Connection details for our Mainnet and Sepolia network are [here](developer/multichain/network-eth.md).
+Connection details for our Mainnet and Sepolia network are [here for ETH](developer/multichain/network-eth.md) and [here for BSC](developer/multichain/network-bnb.md).
 
 ## Are multicall contracts supported on Boba?
 
@@ -71,7 +73,7 @@ Yes. However, you will have to deploy your own version.
 
 The token decimals on Boba L2 are the same as on Ethereum L1. So if the token has 6 decimals on L1, it will have 6 decimals on L2.
 
-You can check decimals using the [blockexplorer](https://bobascan.com). Here's an [example](https://bobascan.com/tokens/0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc/token-transfers).
+You can check decimals using the [blockexplorer](https://bobascan.com). Here's an [example](https://bobascan.com/token/0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc/tokentrade?chainId=288).
 
 You can also check the decimals by calling the token contracts:
 
@@ -96,31 +98,15 @@ The Gas usage price on the Boba L2 updates every **10 minutes** if the Ethereum 
 
 Yes! [ERC-2470](https://eips.ethereum.org/EIPS/eip-2470) is deployed to `0xce0042B868300000d44A59004Da54A005ffdcf9f` on the Boba L2. The address on the Boba L2 is the same as on Ethereum mainnet.
 
-## How do I follow cross domain (xDomain) transactions and their status?
-
-There are [four different methods](contents/developer/xdomain-tx-status.md) you can use for following the status of a transaction. You can:
-
-1. use the Boba Blockexplorer (for L2), and Etherscan (for L1)
-2. use the Boba `watcher-api`
-3. run a typescript `watcher`
-4. use third-party analytics
-
 ## Are there any other documentation resources besides the docs on Boba Network?
 
-In addition to the docs in this [Boba Developer Docs](https://docs.boba.network/faq) space, we have some [examples](https://github.com/bobanetwork/boba\_legacy/tree/develop/boba\_examples) that could provide more context.
+In addition to the docs in this [Boba Developer Docs](https://docs.boba.network/faq) space, we have some [older examples](https://github.com/bobanetwork/boba\_legacy/tree/develop/boba\_examples) that could provide more context.
 
 Here is an example that shows a [user's journey setting up NFT Bridges](https://github.com/bobanetwork/boba\_legacy/blob/develop/boba\_examples/nft\_bridging/README.md).
 
 ## Boba is based on the work done by Optimism. Do you plan to support Optimism Bedrock?
 
-Yes, we are working towards supporting Bedrock in the future.
-
-## Could you tell me the main purpose of `DiscretionaryExitFee.sol`, and `L2BillingContract.sol` contracts, and how they interact with the existing system?
-
-In order to ease the withdrawal UX, we relay L2->L1 messages for users on L1 ourselves. The contracts `DiscretionaryExitFee.sol` and `L2BillingContract.sol` are a way to compensate for the cost of relaying transactions on L1. However, they do not subsidize and take back the costs from the user.
-
-`DiscretionaryExitFee` is also a contract that we use to route Standard Exits through on our interface (the gateway). The purpose of this contract is to not burn native tokens for the compensation, but instead collect Boba token from the user. This contract uses the `L2BillingContract` to get the correct amount of `exitFee`, and then transfer the amount to the billing contract. The contract then proceeds with the withdrawal on the standard bridge. This again serves the purpose of voluntary collection.
-
+Yes, we call it Anchorage. It's already live on our Sepolia testnet and will soon go live on Mainnet.
 
 
 ***
@@ -143,7 +129,7 @@ Yes!
 
 Boba network is a permission-less network and hence we cannot influence app creators about the disclosure of their source code. However, we do advise end users not to interact with smart contracts that use source code that is not verified in the Blockexplorer.
 
-## Is there a way to run arbitrarly compiled Smart Contract native code, or a Smart Contract in a WebAssembly (WASM) environment?
+## Is there a way to run arbitrarily compiled Smart Contract native code, or a Smart Contract in a WebAssembly (WASM) environment?
 
 Unfortunately no, not at the moment.
 
@@ -171,9 +157,9 @@ For more information on Boba’s testnet and fountain, [check out our documentat
 
 Please run `docker-compose logs`, as well as integration tests, and send us the output of the logs and test results via our [Discord server](https://boba.eco/discord).
 
-## I have started deploying Boba Testnet, but it looks like the Testnet Subgraph is private?
+## I have started deploying Boba Testnet, what can I use to index events?
 
-We have the graph node on Ethereum Mainnet L2 and Goerli L2. The Goerli graph node is public. The Mainnet graph node is hosted by The Graph team.
+You can use [GoldSky](contents/developer/features/subgraph.md) to index events.
 
 <figure><img src="./assets/transactions.png" alt=""><figcaption></figcaption></figure>
 
@@ -197,23 +183,6 @@ Try to increase or decrease Solc optimizations. For more information, check out 
 
 As mentioned above, try to increase Solc optimizations. For more information, check out the [Solidity documentation](https://docs.soliditylang.org/en/latest/using-the-compiler.html), or break down contracts into smaller chunks.
 
-## How can I pay for fees with Boba via an API?
-
-Here is the js code needed to utilize the Boba API:
-
-```
-const registerTx = await Boba_GasPriceOracle.useBobaAsFeeToken()
-   await registerTx.wait()
-```
-
-## In the other blockchains where an initial coin offering (ICO) was made, the payment coin was the blockchain’s default gas coin. However, in Boba’s case, the coin seems to be Ethereum. Shouldn’t the option to pay via Boba token be added as well?
-
-Boba Network fees can be paid either in Boba token, or in Eth. It is your choice to decide which to use.
-
-## How is the fee calculated and converted to Boba (and the discount added), when making a transaction and paying transaction fees with Boba?
-
-When making a transaction on Boba and paying the transaction fee, the fee is first calculated in eth at a gas price of 1 gwei. This fee is then converted to Boba with a 25% discount.
-
 ## Since the max value of runs is 2^32 - 1, do you recommend Solidity optimization?
 
 Optimization does not mean that there’s a limit set to the number of transactions this contract can process.
@@ -223,8 +192,9 @@ Optimization does not mean that there’s a limit set to the number of transacti
 You can also [look into using compilers and optimization options](https://docs.soliditylang.org/en/v0.8.4/using-the-compiler.html#optimizer-options) in Solidity’s documentation.
 
 ## Does Boba Network have a public TheGraph Node for deploying Subgraphs?
+No, but you can use GoldSky.
 
-[Please refer to the Boba docs on using The Graph](contents/developer/features/subgraph.md).
+[Please refer to the Boba docs on using GoldSky](contents/developer/features/subgraph.md).
 
 ## Which bridge does Boba Network use?
 
