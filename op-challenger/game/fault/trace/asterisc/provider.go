@@ -9,12 +9,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
@@ -195,36 +193,6 @@ type AsteriscTraceProviderForTest struct {
 	*AsteriscTraceProvider
 }
 
-type preimageOpts []string
-
-type PreimageOpt func() preimageOpts
-
-func PreimageLoad(key preimage.Key, offset uint32) PreimageOpt {
-	return func() preimageOpts {
-		return []string{"--stop-at-preimage", fmt.Sprintf("%v@%v", common.Hash(key.PreimageKey()).Hex(), offset)}
-	}
-}
-
-func FirstPreimageLoadOfType(preimageType string) PreimageOpt {
-	return func() preimageOpts {
-		return []string{"--stop-at-preimage-type", preimageType}
-	}
-}
-
-func FirstKeccakPreimageLoad() PreimageOpt {
-	return FirstPreimageLoadOfType("keccak")
-}
-
-func FirstPrecompilePreimageLoad() PreimageOpt {
-	return FirstPreimageLoadOfType("precompile")
-}
-
-func PreimageLargerThan(size int) PreimageOpt {
-	return func() preimageOpts {
-		return []string{"--stop-at-preimage-larger-than", strconv.Itoa(size)}
-	}
-}
-
 func NewTraceProviderForTest(logger log.Logger, m AsteriscMetricer, cfg *config.Config, localInputs cannon.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProviderForTest {
 	p := &AsteriscTraceProvider{
 		logger:         logger,
@@ -237,7 +205,7 @@ func NewTraceProviderForTest(logger log.Logger, m AsteriscMetricer, cfg *config.
 	return &AsteriscTraceProviderForTest{p}
 }
 
-func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage PreimageOpt) (uint64, error) {
+func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage cannon.PreimageOpt) (uint64, error) {
 	// Run asterisc to find the step that meets the preimage conditions
 	if err := p.generator.(*Executor).generateProof(ctx, p.dir, start, math.MaxUint64, preimage()...); err != nil {
 		return 0, fmt.Errorf("generate asterisc trace (until preimage read): %w", err)
