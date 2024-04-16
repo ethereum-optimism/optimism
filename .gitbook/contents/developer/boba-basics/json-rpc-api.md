@@ -9,93 +9,10 @@ You can use the Tenderly node to debug your transactions.
 **Example**
 
 ```
-curl https://boba-ethereum.gateway.tenderly.co -X POST --header 'Content-type: application/json' --data '{"jsonrpc":"2.0", "method":"debug_traceTransaction", "params":["0xf97b6fdce473b96d9cb00bb45d8fbfbc2911f383c7d525ec9d84d916cc30d347", {}], "id":1}'
+curl https://1rpc.io/boba/eth -X POST --header 'Content-type: application/json' --data '{"jsonrpc":"2.0", "method":"debug_traceTransaction", "params":["0xf97b6fdce473b96d9cb00bb45d8fbfbc2911f383c7d525ec9d84d916cc30d347", {}], "id":1}'
 ```
 
 <figure><img src="../../../assets/custom json rpc methods.png" alt=""><figcaption></figcaption></figure>
-
-
-**`rollup_getInfo`**
-
-Returns useful L2-specific information about the current node.
-
-**Parameters**
-
-None
-
-**Returns**
-
-`Object`
-
-* `mode`: `STRING` - `"sequencer"` or `"verifier"` depending on the node's mode of operation
-* `syncing`: `BOOLEAN` - `true` if the node is currently syncing, `false` otherwise
-* `ethContext`: `OBJECT`
-  * `blockNumber`: `QUANTITY` - Block number of the latest known L1 block
-  * `timestamp`: `QUANTITY` - Timestamp of the latest known L1 block
-* `rollupContext`: `OBJECT`
-  * `queueIndex`: `QUANTITY` - Index within the CTC of the last L1 to L2 message ingested
-  * `index`: `QUANTITY` - Index of the last L2 tx processed
-  * `verifiedIndex`: `QUANTITY` - Index of the last tx that was ingested from a batch that was posted to L1
-
-**Example**
-
-```
-// Request
-curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"rollup_getInfo","params":[],"id":1}' <node url>
-
-
-// Result
-{
-  "jsonrpc":"2.0",
-  "id":1,
-  "result":{
-    "mode":"verifier",
-    "syncing":false,
-    "ethContext":{
-      "blockNumber":13679735,
-      "timestamp":1637791660
-    },
-    "rollupContext":{
-      "index":430948,
-      "queueIndex":12481,
-      "verifiedIndex":0
-    }
-  }
-}
-```
-
-**`rollup_gasPrices`**
-
-Returns the L1 and L2 gas prices that are being used by the Sequencer to calculate fees.
-
-**Parameters**
-
-None
-
-**Returns**
-
-`Object`
-
-* `l1GasPrice`: `QUANTITY` - L1 gas price in wei that the Sequencer will use to estimate the L1 portion of fees (calldata costs).
-* `l2GasPrice`: `QUANTITY` - L2 gas price in wei that the Sequencer will use to estimate the L2 portion of fees (execution costs).
-
-**Example**
-
-```
-// Request
-curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"rollup_gasPrices","params":[],"id":1}' <node url>
-
-
-// Result
-{
-  "jsonrpc":"2.0",
-  "id":1,
-  "result":{
-    "l1GasPrice":"0x237aa50984",
-    "l2GasPrice":"0xf4240"
-  }
-}
-```
 
 **`eth_getProof`**
 
