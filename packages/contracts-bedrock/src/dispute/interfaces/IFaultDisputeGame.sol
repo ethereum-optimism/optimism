@@ -60,7 +60,7 @@ interface IFaultDisputeGame is IDisputeGame {
     ///      A subgame root claims is valid if, and only if, all of its child claims are invalid.
     ///      At the deepest level in the DAG, a claim is invalid if there's a successful step against it.
     /// @param _claimIndex The index of the subgame root claim to resolve.
-    function resolveClaim(uint256 _claimIndex) external payable;
+    function resolveClaim(uint256 _claimIndex) external;
 
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() external view returns (uint256 l2BlockNumber_);
