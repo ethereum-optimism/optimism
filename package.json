@@ -44,7 +44,7 @@
     "upgrade:slither": "jq '.slither = $v' --arg v $(pnpm -s print:slither) <<<$(cat versions.json) > versions.json"
   },
   "devDependencies": {
-    "@babel/eslint-parser": "^7.23.10",
+    "@babel/eslint-parser": "^7.24.1",
     "@changesets/changelog-github": "^0.4.8",
     "@types/chai": "^4.3.11",
     "@types/chai-as-promised": "^7.1.8",
