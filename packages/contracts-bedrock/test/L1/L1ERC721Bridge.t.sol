@@ -76,7 +76,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the proxy is initialized with the correct values.
-    function test_initialize_succeeds() public {
+    function test_initialize_succeeds() public view {
         assertEq(address(l1ERC721Bridge.MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);

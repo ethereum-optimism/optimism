@@ -46,7 +46,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the version can be decoded from the message nonce.
-    function test_messageVersion_succeeds() external {
+    function test_messageVersion_succeeds() external view {
         (, uint16 version) = Encoding.decodeVersionedNonce(l1CrossDomainMessenger.messageNonce());
         assertEq(version, l1CrossDomainMessenger.MESSAGE_VERSION());
     }

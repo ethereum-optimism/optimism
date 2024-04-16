@@ -117,15 +117,15 @@ contract ProxyAdmin_Test is Test {
         }
     }
 
-    function test_erc1967GetProxyAdmin_succeeds() external {
+    function test_erc1967GetProxyAdmin_succeeds() external view {
         getProxyAdmin(payable(proxy));
     }
 
-    function test_chugsplashGetProxyAdmin_succeeds() external {
+    function test_chugsplashGetProxyAdmin_succeeds() external view {
         getProxyAdmin(payable(chugsplash));
     }
 
-    function test_delegateResolvedGetProxyAdmin_succeeds() external {
+    function test_delegateResolvedGetProxyAdmin_succeeds() external view {
         getProxyAdmin(payable(resolved));
     }
 
