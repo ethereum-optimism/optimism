@@ -131,13 +131,8 @@ func (s *inFlight) set(key uint64, value bool) {
 
 func (s *inFlight) get(key uint64) bool {
 	s.mu.Lock()
-	value, exists := s.requests[key]
-	s.mu.Unlock()
-	if !exists {
-		return false
-	} else {
-		return value
-	}
+	defer s.mu.Unlock()
+	return s.requests[key]
 }
 
 func (s *inFlight) delete(key uint64) {
