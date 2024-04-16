@@ -61,12 +61,12 @@
     "tsup": "^8.0.1",
     "typescript": "^5.4.5",
     "vite": "^5.1.7",
-    "wagmi": "^2.5.19",
+    "wagmi": "^2.5.20",
     "vitest": "^1.2.2"
   },
   "peerDependencies": {
     "@wagmi/core": "^2.6.3",
-    "wagmi": "^2.5.19"
+    "wagmi": "^2.5.20"
   },
   "peerDependenciesMeta": {
     "wagmi": {
