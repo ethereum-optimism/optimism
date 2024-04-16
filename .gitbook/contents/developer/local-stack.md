@@ -6,7 +6,9 @@ description: Learn how to run the Boba development stack
 
 **Note: this is only relevant to developers who wish to work on Boba core services**.
 
-For most test uses, it's simpler to use [https://sepolia.boba.network](https://sepolia.boba.network). The following instructions apply to those who do wish to run a local standalone system.
+For most test uses, it's simpler to use [https://sepolia.boba.network](https://sepolia.boba.network). In most cases, the contract deployment experience is exactly like deploying on Ethereum. You will need to have some testnet ETH and you will have to change your RPC endpoint to the Sepolia URL (or `https://mainnet.boba.network` for the production network). That's it!
+
+The following instructions apply to those who do wish to run a local standalone system.
 
 Prerequisites include:
 * Version 1.21 of the Go language (https://go.dev/dl/)
@@ -87,3 +89,7 @@ To run end-to-end tests:
 $ cd op-e2e
 $ make test
 ```
+
+<figure><img src="../../assets/deploying standard contracts.png" alt=""><figcaption></figcaption></figure>
+
+The L2 RPC endpoint is `https://127.0.0.1:9545`. The local L1 may be accessed through `https://127.0.0.1:8545`.

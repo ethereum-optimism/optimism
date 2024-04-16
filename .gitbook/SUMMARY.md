@@ -14,7 +14,6 @@
     * [KYC](contents/hc/examples/kyc.md)
     * [API Endpoints](contents/hc/examples/aws\_lambda\_setup.md)
 * [Developer Docs](contents/developer/README.md)
-  * [Boba is built for developers](contents/developer/developer-start.md)
   * [Development Stack](contents/developer/local-stack.md)
   * [Fees](contents/developer/fee-scheme.md)
   * [xDomain Transaction Status](contents/developer/xdomain-tx-status.md)
