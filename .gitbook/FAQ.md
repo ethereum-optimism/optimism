@@ -7,7 +7,7 @@ description: Frequently asked questions
 <figure><img src="./assets/What is Boba Network.png" alt=""><figcaption></figcaption></figure>
 
 
-[Boba](https://boba.network) is a compute-focused Layer 2 (L2) solution built on top of the Layer 1 blockchain, [Ethereum](https://ethereum.org/en) and [BSC](https://www.bnbchain.org/en/bnb-smart-chain). Ethereum is similar to L1 blockchains like Avalanche, BNB, and Moonbeam, and acts as a base blockchain platform that executes all on-chain transactions. Boba scales and augments the core _compute_ capabilities of Ethereum/BSC, reducing gas fees and improving transaction throughput - while retaining the security guarantees of its underlying network.
+[Boba](https://boba.network) is a compute-focused Layer 2 (L2) solution built on top of the Layer 1 blockchain, [Ethereum](https://ethereum.org/en) and [BNB Chain](https://www.bnbchain.org/en/bnb-smart-chain). Ethereum is similar to L1 blockchains like Avalanche, BNB, and Moonbeam, and acts as a base blockchain platform that executes all on-chain transactions. Boba scales and augments the core _compute_ capabilities of Ethereum/BNB Chain, reducing gas fees and improving transaction throughput - while retaining the security guarantees of its underlying network.
 
 The complexity of smart contract algorithms can make them expensive and slow to execute at speed. To solve this, Boba has designed a Hybrid Compute architecture that enables smart contracts to trigger much more complex algorithms off-chain (similar to running an app on AWS for example), and then bring the result back into the on-chain smart contract. Hence, the Boba Hybrid compute model runs both on-chain and off-chain.
 
@@ -63,7 +63,7 @@ Only if the centralized exchange supports Boba Network (at this time none of the
 
 ## Where can I find RPC endpoints and connection details?
 
-Connection details for our Mainnet and Sepolia network are [here for ETH](developer/multichain/network-eth.md) and [here for BSC](developer/multichain/network-bnb.md).
+Connection details for our Mainnet and Sepolia network are [here for ETH](developer/multichain/network-eth.md) and [here for BNB](developer/multichain/network-bnb.md).
 
 ## Are multicall contracts supported on Boba?
 
@@ -117,7 +117,7 @@ Yes, we call it Anchorage. It's already live on our Sepolia testnet and will soo
 
 Instead of deploying just one contract, you need to deploy several.
 
-## Are there any technical changes or differences in smart contracts and gas tables in Boba Network, in comparison to BNB Smart Chain (BSC) or Ethereum Networks?
+## Are there any technical changes or differences in smart contracts and gas tables in Boba Network, in comparison to BNB Smart Chain or Ethereum Networks?
 
 No, there is no difference.
 
