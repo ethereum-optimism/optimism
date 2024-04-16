@@ -88,8 +88,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     OutputRoot public startingOutputRoot;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.14.0
-    string public constant version = "0.14.0";
+    /// @custom:semver 0.15.0
+    string public constant version = "0.15.0";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -514,10 +514,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Set the starting output root.
         startingOutputRoot = OutputRoot({ l2BlockNumber: rootBlockNumber, root: root });
 
-        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
-        // configured starting block number.
-        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
-
         // Revert if the calldata size is not the expected length.
         //
         // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
@@ -538,6 +534,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 revert(0x1C, 0x04)
             }
         }
+
+        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
+        // configured starting block number.
+        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
 
         // Set the root claim
         claimData.push(
