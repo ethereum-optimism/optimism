@@ -28,14 +28,13 @@ COPY ./versions.json ./versions.json
 COPY ./ops/scripts/install-foundry.sh ./install-foundry.sh
 
 RUN curl -L https://foundry.paradigm.xyz | bash
-RUN source $HOME/.profile && \
-    ./install-foundry.sh && \
-    cargo install svm-rs
+RUN source $HOME/.profile && ./install-foundry.sh
 
 RUN strip /root/.foundry/bin/forge && \
   strip /root/.foundry/bin/cast && \
   strip /root/.foundry/bin/anvil && \
-  strip /root/.cargo/bin/svm
+  strip /root/.cargo/bin/svm && \
+  strip /root/.cargo/bin/just
 
 FROM --platform=linux/amd64 debian:buster-slim as go-build
 
