@@ -12,7 +12,7 @@ There are 4 different mechanisms for following the status of a transaction. In a
 
 <figure><img src="../../assets/using third party analytics.png" alt=""><figcaption></figcaption></figure>
 
-Some teams prefer to use providers such as [The Graph](https://thegraph.com/en/), which is available on Boba. Please see [The Graph on Boba](../../for-developers/features/subgraph.md) for more information.
+Subgraphs have been migrated to [Goldsky](https://docs.goldsky.com/introduction). Please see [subgraph.md](./features/subgraph.md) for more information.
 
 <figure><img src="../../assets/running a messenger.png" alt=""><figcaption></figcaption></figure>
 
@@ -29,13 +29,13 @@ Internally in all the services and also in the `gateway`, the status of transact
     l1SignerOrProvider: l1Wallet,
     l2SignerOrProvider: l2Wallet,
     l1ChainId: network.chainId,
-    fastRelayer: false,
+    l2ChainId,
   })
 
   withdrawalTest(
     '{tag:other} should withdraw tokens from L2 to the depositor',
     async () => {
-      const tx = await emessenger.withdrawERC20(
+      const tx = await messenger.withdrawERC20(
         L1__ERC20.address,
         L2__ERC20.address,
         500
