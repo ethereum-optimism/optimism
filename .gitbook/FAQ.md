@@ -59,7 +59,7 @@ _No_, withdrawals currently cannot be cancelled once submitted.
 
 ## Can I transfer directly from Boba to a centralized exchange?
 
-Only if the centralized exchange supports Boba Network (at this time none of them do). Hence, you have to bridge your assets into a network they do support, such as L1.
+Only if the centralized exchange supports Boba Network. Hence, you have to bridge your assets into a network they do support, such as L1.
 
 ## Where can I find RPC endpoints and connection details?
 
