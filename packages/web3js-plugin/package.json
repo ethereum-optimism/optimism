@@ -39,7 +39,7 @@
     "typescript": "^5.4.5",
     "viem": "^2.8.13",
     "vite": "^5.1.7",
-    "vitest": "^1.2.2",
+    "vitest": "^1.5.0",
     "zod": "^3.22.4"
   },
   "dependencies": {
