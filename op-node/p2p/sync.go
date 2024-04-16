@@ -61,6 +61,13 @@ const (
 	clientErrRateCost = peerServerBlocksBurst
 )
 
+const (
+	ResultCodeSuccess     byte = 0
+	ResultCodeNotFoundErr byte = 1
+	ResultCodeInvalidErr  byte = 2
+	ResultCodeUnknownErr  byte = 3
+)
+
 func PayloadByNumberProtocolID(l2ChainID *big.Int) protocol.ID {
 	return protocol.ID(fmt.Sprintf("/opstack/req/payload_by_number/%d/0", l2ChainID))
 }
@@ -574,17 +581,17 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			// and this is the only loop over this peer, so we can request now.
 			start := time.Now()
 
-			resultCode := byte(0)
+			resultCode := ResultCodeSuccess
 			err := s.doRequest(ctx, id, pr.num)
 			if err != nil {
 				s.inFlight.delete(pr.num)
 				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
-				resultCode = 1
+				resultCode = ResultCodeNotFoundErr
 				sendResponseError := true
 
 				if re, ok := err.(requestResultErr); ok {
 					resultCode = re.ResultCode()
-					if re.ResultCode() == 1 { // indicates block not found error
+					if resultCode == ResultCodeNotFoundErr {
 						log.Warn("cancelling p2p sync range request", "rangeReqId", pr.rangeReqId)
 						s.activeRangeRequestsMu.Lock()
 						delete(s.activeRangeRequests, pr.rangeReqId)
@@ -792,22 +799,22 @@ func (srv *ReqRespServer) HandleSyncRequest(ctx context.Context, log log.Logger,
 	req, err := srv.handleSyncRequest(ctx, stream)
 	cancel()
 
-	resultCode := byte(0)
+	resultCode := ResultCodeSuccess
 	if err != nil {
 		log.Warn("failed to serve p2p sync request", "req", req, "err", err)
 		if errors.Is(err, ethereum.NotFound) {
-			resultCode = 1
+			resultCode = ResultCodeNotFoundErr
 		} else if errors.Is(err, invalidRequestErr) {
-			resultCode = 2
+			resultCode = ResultCodeInvalidErr
 		} else {
-			resultCode = 3
+			resultCode = ResultCodeUnknownErr
 		}
 		// try to write error code, so the other peer can understand the reason for failure.
 		_, _ = stream.Write([]byte{resultCode})
 	} else {
 		log.Debug("successfully served sync response", "req", req)
 	}
-	srv.metrics.ServerPayloadByNumberEvent(req, 0, time.Since(start))
+	srv.metrics.ServerPayloadByNumberEvent(req, resultCode, time.Since(start))
 }
 
 var invalidRequestErr = errors.New("invalid request")
