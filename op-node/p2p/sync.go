@@ -105,6 +105,40 @@ type inFlightCheck struct {
 	result chan bool
 }
 
+type inFlight struct {
+	requests map[uint64]bool
+	mu       sync.Mutex
+}
+
+func newInFlight() *inFlight {
+	return &inFlight{
+		requests: make(map[uint64]bool),
+	}
+}
+
+func (s *inFlight) set(key uint64, value bool) {
+	s.mu.Lock()
+	s.requests[key] = value
+	s.mu.Unlock()
+}
+
+func (s *inFlight) get(key uint64) bool {
+	s.mu.Lock()
+	value, exists := s.requests[key]
+	s.mu.Unlock()
+	if !exists {
+		return false
+	} else {
+		return value
+	}
+}
+
+func (s *inFlight) delete(key uint64) {
+	s.mu.Lock()
+	delete(s.requests, key)
+	s.mu.Unlock()
+}
+
 type SyncClientMetrics interface {
 	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	PayloadsQuarantineSize(n int)
@@ -208,7 +242,7 @@ type SyncClient struct {
 	quarantineByNum map[uint64]common.Hash
 
 	// inFlight requests are not repeated
-	inFlight       map[uint64]bool
+	inFlight       *inFlight
 	inFlightChecks chan inFlightCheck
 
 	rangeRequests         chan rangeRequest
@@ -248,17 +282,18 @@ func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rc
 		payloadByNumber:     PayloadByNumberProtocolID(cfg.L2ChainID),
 		peers:               make(map[peer.ID]context.CancelFunc),
 		quarantineByNum:     make(map[uint64]common.Hash),
-		inFlight:            make(map[uint64]bool),
 		rangeRequests:       make(chan rangeRequest), // blocking
 		activeRangeRequests: make(map[uint64]bool),
 		peerRequests:        make(chan peerRequest, 128),
 		results:             make(chan syncResult, 128),
+		inFlight:            newInFlight(),
 		inFlightChecks:      make(chan inFlightCheck, 128),
 		globalRL:            rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
 		resCtx:              ctx,
 		resCancel:           cancel,
 		receivePayload:      rcv,
 	}
+
 	// never errors with positive LRU cache size
 	// TODO(CLI-3733): if we had an LRU based on on total payloads size, instead of payload count,
 	//  we can safely buffer more data in the happy case.
@@ -355,12 +390,7 @@ func (s *SyncClient) mainLoop() {
 			cancel()
 		case check := <-s.inFlightChecks:
 			s.log.Info("Checking in flight", "num", check.num)
-			stillInFlight, ok := s.inFlight[check.num]
-			if !ok {
-				check.result <- false
-			} else {
-				check.result <- stillInFlight
-			}
+			check.result <- s.inFlight.get(check.num)
 		case <-s.resCtx.Done():
 			s.log.Info("stopped P2P req-resp L2 block sync client")
 			return
@@ -409,7 +439,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 			continue
 		}
 
-		if _, ok := s.inFlight[num]; ok {
+		if s.inFlight.get(num) {
 			log.Debug("request still in-flight, not rescheduling sync request", "num", num)
 			continue // request still in flight
 		}
@@ -419,7 +449,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 		// schedule number
 		select {
 		case s.peerRequests <- pr:
-			s.inFlight[num] = true
+			s.inFlight.set(num, true)
 		case <-ctx.Done():
 			log.Info("did not schedule full P2P sync range", "current", num, "err", ctx.Err())
 			return
@@ -490,7 +520,7 @@ func (s *SyncClient) onResult(ctx context.Context, res syncResult) {
 	payload := res.payload.ExecutionPayload
 	s.log.Debug("processing p2p sync result", "payload", payload.ID(), "peer", res.peer)
 	// Clean up the in-flight request, we have a result now.
-	delete(s.inFlight, uint64(payload.BlockNumber))
+	s.inFlight.delete(uint64(payload.BlockNumber))
 	// Always put it in quarantine first. If promotion fails because the receiver is too busy, this functions as cache.
 	s.quarantine.Add(payload.BlockHash, res)
 	s.quarantineByNum[uint64(payload.BlockNumber)] = payload.BlockHash
@@ -536,7 +566,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			s.activeRangeRequestsMu.Unlock()
 			if !isActive {
 				log.Debug("dropping cancelled p2p sync request", "num", pr.num)
-				delete(s.inFlight, pr.num)
+				s.inFlight.delete(pr.num)
 				continue
 			}
 
@@ -547,7 +577,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			resultCode := byte(0)
 			err := s.doRequest(ctx, id, pr.num)
 			if err != nil {
-				delete(s.inFlight, pr.num)
+				s.inFlight.delete(pr.num)
 				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
 				resultCode = 1
 				sendResponseError := true
