@@ -29,13 +29,13 @@ Internally in all the services and also in the `gateway`, the status of transact
     l1SignerOrProvider: l1Wallet,
     l2SignerOrProvider: l2Wallet,
     l1ChainId: network.chainId,
-    fastRelayer: false,
+    l2ChainId,
   })
 
   withdrawalTest(
     '{tag:other} should withdraw tokens from L2 to the depositor',
     async () => {
-      const tx = await emessenger.withdrawERC20(
+      const tx = await messenger.withdrawERC20(
         L1__ERC20.address,
         L2__ERC20.address,
         500
