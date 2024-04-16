@@ -218,7 +218,7 @@ services:
     ports:
       - "3100:3100"
     volumes:
-      - "l2_data:/data"
+      - "da_data:/data"
 
   sentinel:
     image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
