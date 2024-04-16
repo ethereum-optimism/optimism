@@ -162,7 +162,6 @@ Using the following command to start `op-erigon` in a default configuration. The
 	--authrpc.jwtsecret=./jwt.txt \
 	--chain=boba-sepolia \
 	--http.api=eth,debug,net,engine,web3 \
-	--rollup.disabletxpoolgossip=true \
 	--rollup.sequencerhttp=https://sepolia.boba.network \
 	--db.size.limit=8TB
 ```
