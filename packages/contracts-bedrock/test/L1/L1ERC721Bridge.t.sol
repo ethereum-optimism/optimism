@@ -316,7 +316,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
 contract L1ERC721Bridge_Pause_Test is Bridge_Initializer {
     /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
     ///      `superchainConfig`.
-    function test_paused_succeeds() external {
+    function test_paused_succeeds() external view {
         assertEq(l1ERC721Bridge.paused(), superchainConfig.paused());
     }
 

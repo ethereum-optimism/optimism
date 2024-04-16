@@ -25,7 +25,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
 
     /// @dev Test that the bridge's constructor sets the correct values.
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() external view {
         L2StandardBridge impl =
             L2StandardBridge(payable(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2StandardBridge"))));
         assertEq(address(impl.MESSENGER()), address(0));
@@ -35,7 +35,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the bridge is initialized correctly.
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         assertEq(address(l2StandardBridge.MESSENGER()), address(l2CrossDomainMessenger));
         assertEq(address(l2StandardBridge.messenger()), address(l2CrossDomainMessenger));
         assertEq(l1StandardBridge.l2TokenBridge(), address(l2StandardBridge));
@@ -45,7 +45,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
     /// @dev Ensures that the L2StandardBridge is always not paused. The pausability
     ///      happens on L1 and not L2.
-    function test_paused_succeeds() external {
+    function test_paused_succeeds() external view {
         assertFalse(l2StandardBridge.paused());
     }
 

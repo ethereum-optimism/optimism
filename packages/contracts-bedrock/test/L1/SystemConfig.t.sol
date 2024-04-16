@@ -44,7 +44,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     }
 
     /// @dev Tests that constructor sets the correct values.
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() external view {
         SystemConfig impl = SystemConfig(systemConfigImpl);
         assertEq(impl.owner(), address(0xdEaD));
         assertEq(impl.overhead(), 0);
@@ -71,7 +71,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     }
 
     /// @dev Tests that initailization sets the correct values.
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
         assertEq(systemConfig.overhead(), overhead);
         assertEq(systemConfig.scalar(), scalar);

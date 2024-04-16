@@ -151,7 +151,7 @@ contract FPACOPS is Deploy, StdAssertions {
     }
 
     /// @notice Checks that the deployed system is configured correctly.
-    function postDeployAssertions(address _proxyAdmin, address _systemOwnerSafe) internal {
+    function postDeployAssertions(address _proxyAdmin, address _systemOwnerSafe) internal view {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal2 = mustGetAddress("OptimismPortal2");
 

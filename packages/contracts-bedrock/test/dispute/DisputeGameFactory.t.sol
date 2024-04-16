@@ -195,7 +195,7 @@ contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
 contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `getGameUUID` function returns the correct hash when comparing
     ///      against the keccak256 hash of the abi-encoded parameters.
-    function testDiff_getGameUUID_succeeds(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
+    function testDiff_getGameUUID_succeeds(uint32 gameType, Claim rootClaim, bytes calldata extraData) public view {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
@@ -208,7 +208,7 @@ contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
 
 contract DisputeGameFactory_Owner_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `owner` function returns the correct address after deployment.
-    function test_owner_succeeds() public {
+    function test_owner_succeeds() public view {
         assertEq(disputeGameFactory.owner(), address(this));
     }
 }

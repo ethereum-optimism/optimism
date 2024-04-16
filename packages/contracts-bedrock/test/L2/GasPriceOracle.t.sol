@@ -53,7 +53,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
     }
 
     /// @dev Tests that `l1BaseFee` is set correctly.
-    function test_l1BaseFee_succeeds() external {
+    function test_l1BaseFee_succeeds() external view {
         assertEq(gasPriceOracle.l1BaseFee(), baseFee);
     }
 
@@ -72,17 +72,17 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
     }
 
     /// @dev Tests that `scalar` is set correctly.
-    function test_scalar_succeeds() external {
+    function test_scalar_succeeds() external view {
         assertEq(gasPriceOracle.scalar(), l1FeeScalar);
     }
 
     /// @dev Tests that `overhead` is set correctly.
-    function test_overhead_succeeds() external {
+    function test_overhead_succeeds() external view {
         assertEq(gasPriceOracle.overhead(), l1FeeOverhead);
     }
 
     /// @dev Tests that `decimals` is set correctly.
-    function test_decimals_succeeds() external {
+    function test_decimals_succeeds() external view {
         assertEq(gasPriceOracle.decimals(), 6);
         assertEq(gasPriceOracle.DECIMALS(), 6);
     }
@@ -157,33 +157,33 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
     }
 
     /// @dev Tests that `l1BaseFee` is set correctly.
-    function test_l1BaseFee_succeeds() external {
+    function test_l1BaseFee_succeeds() external view {
         assertEq(gasPriceOracle.l1BaseFee(), baseFee);
     }
 
     /// @dev Tests that `blobBaseFee` is set correctly.
-    function test_blobBaseFee_succeeds() external {
+    function test_blobBaseFee_succeeds() external view {
         assertEq(gasPriceOracle.blobBaseFee(), blobBaseFee);
     }
 
     /// @dev Tests that `baseFeeScalar` is set correctly.
-    function test_baseFeeScalar_succeeds() external {
+    function test_baseFeeScalar_succeeds() external view {
         assertEq(gasPriceOracle.baseFeeScalar(), baseFeeScalar);
     }
 
     /// @dev Tests that `blobBaseFeeScalar` is set correctly.
-    function test_blobBaseFeeScalar_succeeds() external {
+    function test_blobBaseFeeScalar_succeeds() external view {
         assertEq(gasPriceOracle.blobBaseFeeScalar(), blobBaseFeeScalar);
     }
 
     /// @dev Tests that `decimals` is set correctly.
-    function test_decimals_succeeds() external {
+    function test_decimals_succeeds() external view {
         assertEq(gasPriceOracle.decimals(), 6);
         assertEq(gasPriceOracle.DECIMALS(), 6);
     }
 
     /// @dev Tests that `getL1GasUsed` and `getL1Fee` return expected values
-    function test_getL1Fee_succeeds() external {
+    function test_getL1Fee_succeeds() external view {
         bytes memory data = hex"0000010203"; // 2 zero bytes, 3 non-zero bytes
         // (2*4) + (3*16) + (68*16) == 1144
         uint256 gas = gasPriceOracle.getL1GasUsed(data);

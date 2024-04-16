@@ -194,7 +194,7 @@ contract OptimismPortal2_Test is CommonTest {
     /// @dev Tests that `minimumGasLimit` succeeds for small calldata sizes.
     ///      The gas limit should be 21k for 0 calldata and increase linearly
     ///      for larger calldata sizes.
-    function test_minimumGasLimit_succeeds() external {
+    function test_minimumGasLimit_succeeds() external view {
         assertEq(optimismPortal2.minimumGasLimit(0), 21_000);
         assertTrue(optimismPortal2.minimumGasLimit(2) > optimismPortal2.minimumGasLimit(1));
         assertTrue(optimismPortal2.minimumGasLimit(3) > optimismPortal2.minimumGasLimit(2));
@@ -1245,7 +1245,7 @@ contract OptimismPortal2_Upgradeable_Test is CommonTest {
     }
 
     /// @dev Tests that the proxy is initialized correctly.
-    function test_params_initValuesOnProxy_succeeds() external {
+    function test_params_initValuesOnProxy_succeeds() external view {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal2.params();
         ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
 

@@ -21,7 +21,7 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     address recipient = address(0xabbaacdc);
 
     /// @dev Tests that the implementation is initialized correctly.
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() external view {
         L2CrossDomainMessenger impl =
             L2CrossDomainMessenger(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2CrossDomainMessenger")));
         assertEq(address(impl.OTHER_MESSENGER()), address(0));
@@ -30,14 +30,14 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the proxy is initialized correctly.
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         assertEq(address(l2CrossDomainMessenger.OTHER_MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l2CrossDomainMessenger.otherMessenger()), address(l1CrossDomainMessenger));
         assertEq(address(l2CrossDomainMessenger.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
     }
 
     /// @dev Tests that `messageNonce` can be decoded correctly.
-    function test_messageVersion_succeeds() external {
+    function test_messageVersion_succeeds() external view {
         (, uint16 version) = Encoding.decodeVersionedNonce(l2CrossDomainMessenger.messageNonce());
         assertEq(version, l2CrossDomainMessenger.MESSAGE_VERSION());
     }

@@ -99,7 +99,7 @@ contract LivenessModule_Constructor_TestFail is LivenessModule_TestInit {
 
 contract LivenessModule_Getters_Test is LivenessModule_TestInit {
     /// @dev Tests if the getters work correctly
-    function test_getters_works() external {
+    function test_getters_works() external view {
         assertEq(address(livenessModule.safe()), address(safeInstance.safe));
         assertEq(address(livenessModule.livenessGuard()), address(livenessGuard));
         assertEq(livenessModule.livenessInterval(), 30 days);
@@ -129,7 +129,7 @@ contract LivenessModule_CanRemove_Test is LivenessModule_TestInit {
 contract LivenessModule_Get75PercentThreshold_Test is LivenessModule_TestInit {
     /// @dev check the return values of the get75PercentThreshold function against manually
     ///      calculated values.
-    function test_get75PercentThreshold_Works() external {
+    function test_get75PercentThreshold_Works() external view {
         assertEq(livenessModule.get75PercentThreshold(20), 15);
         assertEq(livenessModule.get75PercentThreshold(19), 15);
         assertEq(livenessModule.get75PercentThreshold(18), 14);

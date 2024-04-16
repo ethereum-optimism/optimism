@@ -80,11 +80,11 @@ contract ProxyAdmin_Test is Test {
         admin.setProxyType(address(0), ProxyAdmin.ProxyType.CHUGSPLASH);
     }
 
-    function test_owner_succeeds() external {
+    function test_owner_succeeds() external view {
         assertEq(admin.owner(), alice);
     }
 
-    function test_proxyType_succeeds() external {
+    function test_proxyType_succeeds() external view {
         assertEq(uint256(admin.proxyType(address(proxy))), uint256(ProxyAdmin.ProxyType.ERC1967));
         assertEq(uint256(admin.proxyType(address(chugsplash))), uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
         assertEq(uint256(admin.proxyType(address(resolved))), uint256(ProxyAdmin.ProxyType.RESOLVED));
@@ -129,7 +129,7 @@ contract ProxyAdmin_Test is Test {
         getProxyAdmin(payable(resolved));
     }
 
-    function getProxyAdmin(address payable _proxy) internal {
+    function getProxyAdmin(address payable _proxy) internal view {
         address owner = admin.getProxyAdmin(_proxy);
         assertEq(owner, address(admin));
     }
