@@ -87,6 +87,8 @@ contract Bytes_slice_Test is Test {
         // Slice the input bytes array from `_start` to `_start + _length`
         bytes memory slice = Bytes.slice(_input, _start, _length);
 
+        vm.stopExpectSafeMemory();
+
         // Grab the free memory pointer after the slice operation
         uint64 finalPtr;
         assembly {
@@ -210,6 +212,8 @@ contract Bytes_toNibbles_Test is Test {
 
         // Pull out each individual nibble from the input bytes array
         bytes memory nibbles = Bytes.toNibbles(_input);
+
+        vm.stopExpectSafeMemory();
 
         // Grab the free memory pointer after the `toNibbles` operation
         uint64 finalPtr;

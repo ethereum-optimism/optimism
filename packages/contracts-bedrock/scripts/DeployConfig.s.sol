@@ -7,10 +7,6 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Chains } from "scripts/Chains.sol";
 
-// Global constant for the `useFaultProofs` slot in the DeployConfig contract, which can be overridden in the testing
-// environment.
-bytes32 constant USE_FAULT_PROOFS_SLOT = bytes32(uint256(63));
-
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
 ///         to read the file from JSON. A future improvement would be to have fallback
@@ -178,6 +174,11 @@ contract DeployConfig is Script {
     /// @notice Allow the `usePlasma` config to be overridden in testing environments
     function setUsePlasma(bool _usePlasma) public {
         usePlasma = _usePlasma;
+    }
+
+    /// @notice Allow the `useFaultProofs` config to be overridden in testing environments
+    function setUseFaultProofs(bool _useFaultProofs) public {
+        useFaultProofs = _useFaultProofs;
     }
 
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
