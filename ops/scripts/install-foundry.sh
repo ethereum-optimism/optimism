@@ -45,5 +45,3 @@ fi
 # Remove the temporary foundry repo; Used just for checking the nightly tag's existence.
 rm -rf "$TMP_DIR"
 echo "Removed tempdir @ $TMP_DIR"
-
-
