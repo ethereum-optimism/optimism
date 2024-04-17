@@ -138,6 +138,8 @@ func (l2Etl *L2ETL) Start() error {
 }
 
 func (l2Etl *L2ETL) handleBatch(batch *ETLBatch) error {
+	l2Etl.mu.Lock()
+	defer l2Etl.mu.Unlock()
 	l2BlockHeaders := make([]database.L2BlockHeader, len(batch.Headers))
 	for i := range batch.Headers {
 		l2BlockHeaders[i] = database.L2BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])}
@@ -184,8 +186,6 @@ func (l2Etl *L2ETL) handleBatch(batch *ETLBatch) error {
 	l2Etl.ETL.metrics.RecordEtlLatestHeight(l2Etl.latestHeader.Number)
 
 	// Notify Listeners
-	l2Etl.mu.Lock()
-	defer l2Etl.mu.Unlock()
 	for i := range l2Etl.listeners {
 		select {
 		case l2Etl.listeners[i] <- l2Etl.latestHeader:
