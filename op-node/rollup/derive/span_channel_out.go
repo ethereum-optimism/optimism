@@ -9,7 +9,6 @@ import (
 	"math/big"
 
 	"github.com/DataDog/zstd"
-	"github.com/andybalholm/brotli"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -46,9 +45,6 @@ type SpanChannelOut struct {
 	// compress is the zlib writer for the channel
 	zlibCompressor *zlib.Writer
 
-	brotliCompressed *bytes.Buffer
-	brotliCompressor *brotli.Writer
-
 	zstdCompressed *bytes.Buffer
 	zstdCompressor *zstd.Writer
 }
@@ -69,7 +65,6 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		spanBatch:  NewSpanBatch(genesisTimestamp, chainID),
 		rlp:        [2]*bytes.Buffer{{}, {}},
 		zlibCompressed: &bytes.Buffer{},
-		brotliCompressed: &bytes.Buffer{},
 		zstdCompressed: &bytes.Buffer{},
 		target:     targetOutputSize,
 		compressorAlgo: compressorAlgo,
@@ -84,15 +79,8 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		return nil, err
 	}
 
-	// brotli compressor
-	c.brotliCompressor = brotli.NewWriterLevel(
-		c.brotliCompressed,
-		brotli.BestCompression,
-	)
-
 	// zstd compressor
 	c.zstdCompressor = zstd.NewWriterLevel(c.zstdCompressed, 22)
-
 
 	return c, nil
 }
@@ -101,10 +89,7 @@ func (co *SpanChannelOut) compressorReset() {
 	if co.compressorAlgo == "zlib" {
 		co.zlibCompressed.Reset()
 		co.zlibCompressor.Reset(co.zlibCompressed)
-	} else if co.compressorAlgo == "brotli" {
-		co.brotliCompressed.Reset()
-		co.brotliCompressor.Reset(co.brotliCompressed)
-	} else if co.compressorAlgo == "zstd" {
+	} if co.compressorAlgo == "zstd" {
 		co.zstdCompressed.Reset()
 		// no reset, start a new zstd compressor
 		co.zstdCompressor = zstd.NewWriterLevel(co.zstdCompressed, 22)
@@ -200,9 +185,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	var compressedLen int
 	if co.compressorAlgo == "zlib" {
 		compressedLen = co.zlibCompressed.Len()
-	} else if co.compressorAlgo == "brotli" {
-		compressedLen = co.brotliCompressed.Len()
-	} else if co.compressorAlgo == "zstd" {
+	} if co.compressorAlgo == "zstd" {
 		compressedLen = co.zstdCompressed.Len()
 	}
 
@@ -248,14 +231,7 @@ func (co *SpanChannelOut) compress() error {
 		if err := co.zlibCompressor.Close(); err != nil {
 			return err
 		}
-	} else if co.compressorAlgo == "brotli" {
-		if _, err := co.brotliCompressor.Write(co.activeRLP().Bytes()); err != nil {
-			return err
-		}
-		if err := co.brotliCompressor.Close(); err != nil {
-			return err
-		}
-	} else if co.compressorAlgo == "zstd" {
+	} if co.compressorAlgo == "zstd" {
 		if _, err := co.zstdCompressor.Write(co.activeRLP().Bytes()); err != nil {
 			return err
 		}
@@ -278,9 +254,7 @@ func (co *SpanChannelOut) ReadyBytes() int {
 	if co.closed || co.FullErr() != nil {
 		if co.compressorAlgo == "zlib" {
 			return co.zlibCompressed.Len()
-		} else if co.compressorAlgo == "brotli" {
-			return co.brotliCompressed.Len()
-		} else if co.compressorAlgo == "zstd" {
+		} if co.compressorAlgo == "zstd" {
 			return co.zstdCompressed.Len()
 		}
 	}
@@ -305,11 +279,7 @@ func (co *SpanChannelOut) checkFull() {
 		if uint64(co.zlibCompressed.Len()) >= co.target {
 			co.full = ErrCompressorFull
 		}
-	} else if co.compressorAlgo == "brotli" {
-		if uint64(co.brotliCompressed.Len()) >= co.target {
-			co.full = ErrCompressorFull
-		}
-	} else if co.compressorAlgo == "zstd" {
+	} if co.compressorAlgo == "zstd" {
 		if uint64(co.zstdCompressed.Len()) >= co.target {
 			co.full = ErrCompressorFull
 		}
@@ -354,11 +324,7 @@ func (co *SpanChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, 
 		if _, err := io.ReadFull(co.zlibCompressed, f.Data); err != nil {
 			return 0, err
 		}
-	} else if co.compressorAlgo == "brotli" {
-		if _, err := io.ReadFull(co.brotliCompressed, f.Data); err != nil {
-			return 0, err
-		}
-	} else if co.compressorAlgo == "zstd" {
+	} if co.compressorAlgo == "zstd" {
 		if _, err := io.ReadFull(co.zstdCompressed, f.Data); err != nil {
 			return 0, err
 		}
