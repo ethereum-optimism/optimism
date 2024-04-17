@@ -454,12 +454,13 @@ contract Deploy is Deployer {
             new LivenessModule({
                 _safe: councilSafe,
                 _livenessGuard: LivenessGuard(guard_),
-                _livenessInterval: 1,
+                _livenessInterval: cfg.livenessModuleInterval(),
                 _thresholdPercentage: 20,
                 _minOwners: 1,
                 _fallbackOwner: fallbackOwner
             })
         );
+
         console.log("New LivenessModule deployed at %s", address(module_));
     }
 
