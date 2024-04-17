@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/asterisc"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -192,7 +193,7 @@ func registerAsterisc(
 	txSender TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
-	l2Client cannon.L2HeaderSource,
+	l2Client utils.L2HeaderSource,
 	l1HeaderSource L1HeaderSource,
 	selective bool,
 	claimants []common.Address,
@@ -260,7 +261,7 @@ func registerCannon(
 	txSender TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
-	l2Client cannon.L2HeaderSource,
+	l2Client utils.L2HeaderSource,
 	l1HeaderSource L1HeaderSource,
 	selective bool,
 	claimants []common.Address,

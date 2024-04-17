@@ -11,14 +11,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum/go-ethereum/log"
-)
-
-const (
-	snapsDir     = "snapshots"
-	preimagesDir = "preimages"
-	finalState   = "final.json.gz"
 )
 
 type Executor struct {
@@ -27,7 +21,7 @@ type Executor struct {
 	l1               string
 	l1Beacon         string
 	l2               string
-	inputs           cannon.LocalGameInputs
+	inputs           utils.LocalGameInputs
 	asterisc         string
 	server           string
 	network          string
@@ -36,11 +30,11 @@ type Executor struct {
 	absolutePreState string
 	snapshotFreq     uint
 	infoFreq         uint
-	selectSnapshot   cannon.SnapshotSelect
-	cmdExecutor      cannon.CmdExecutor
+	selectSnapshot   utils.SnapshotSelect
+	cmdExecutor      utils.CmdExecutor
 }
 
-func NewExecutor(logger log.Logger, m AsteriscMetricer, cfg *config.Config, inputs cannon.LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m AsteriscMetricer, cfg *config.Config, inputs utils.LocalGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
 		metrics:          m,
@@ -56,8 +50,8 @@ func NewExecutor(logger log.Logger, m AsteriscMetricer, cfg *config.Config, inpu
 		absolutePreState: cfg.AsteriscAbsolutePreState,
 		snapshotFreq:     cfg.AsteriscSnapshotFreq,
 		infoFreq:         cfg.AsteriscInfoFreq,
-		selectSnapshot:   cannon.FindStartingSnapshot,
-		cmdExecutor:      cannon.RunCmd,
+		selectSnapshot:   utils.FindStartingSnapshot,
+		cmdExecutor:      utils.RunCmd,
 	}
 }
 
@@ -70,14 +64,14 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 // generateProof executes asterisc from the specified starting trace index until the end trace index.
 // The proof is stored at the specified directory.
 func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, end uint64, extraAsteriscArgs ...string) error {
-	snapshotDir := filepath.Join(dir, snapsDir)
+	snapshotDir := filepath.Join(dir, utils.SnapsDir)
 	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, proofsDir)
-	dataDir := cannon.PreimageDir(dir)
-	lastGeneratedState := filepath.Join(dir, finalState)
+	dataDir := utils.PreimageDir(dir)
+	lastGeneratedState := filepath.Join(dir, utils.FinalState)
 	args := []string{
 		"run",
 		"--input", start,

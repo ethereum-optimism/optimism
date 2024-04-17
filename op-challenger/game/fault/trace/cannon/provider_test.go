@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -110,7 +111,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &ProofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -136,7 +137,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &ProofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -162,7 +163,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		initGenerator.proof = &ProofData{
+		initGenerator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -180,7 +181,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &ProofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue: common.Hash{0xaa},
 			StateData:  []byte{0xbb},
 			ProofData:  []byte{0xcc},
@@ -221,12 +222,12 @@ func setupTestData(t *testing.T) (string, string) {
 	entries, err := testData.ReadDir(srcDir)
 	require.NoError(t, err)
 	dataDir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(dataDir, proofsDir), 0o777))
+	require.NoError(t, os.Mkdir(filepath.Join(dataDir, utils.ProofsDir), 0o777))
 	for _, entry := range entries {
 		path := filepath.Join(srcDir, entry.Name())
 		file, err := testData.ReadFile(path)
 		require.NoErrorf(t, err, "reading %v", path)
-		proofFile := filepath.Join(dataDir, proofsDir, entry.Name()+".gz")
+		proofFile := filepath.Join(dataDir, utils.ProofsDir, entry.Name()+".gz")
 		err = ioutil.WriteCompressedBytes(proofFile, file, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 		require.NoErrorf(t, err, "writing %v", path)
 	}
@@ -247,7 +248,7 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTr
 type stubGenerator struct {
 	generated  []int // Using int makes assertions easier
 	finalState *mipsevm.State
-	proof      *ProofData
+	proof      *utils.ProofData
 }
 
 func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {
@@ -257,7 +258,7 @@ func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64)
 	var err error
 	if e.finalState != nil && e.finalState.Step <= i {
 		// Requesting a trace index past the end of the trace
-		proofFile = filepath.Join(dir, finalState)
+		proofFile = filepath.Join(dir, utils.FinalState)
 		data, err = json.Marshal(e.finalState)
 		if err != nil {
 			return err
@@ -265,7 +266,7 @@ func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64)
 		return ioutil.WriteCompressedBytes(proofFile, data, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 	}
 	if e.proof != nil {
-		proofFile = filepath.Join(dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
+		proofFile = filepath.Join(dir, utils.ProofsDir, fmt.Sprintf("%d.json.gz", i))
 		data, err = json.Marshal(e.proof)
 		if err != nil {
 			return err

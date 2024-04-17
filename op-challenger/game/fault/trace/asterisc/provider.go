@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -32,23 +32,23 @@ type AsteriscTraceProvider struct {
 	logger         log.Logger
 	dir            string
 	prestate       string
-	generator      cannon.ProofGenerator
+	generator      utils.ProofGenerator
 	gameDepth      types.Depth
-	preimageLoader *cannon.PreimageLoader
+	preimageLoader *utils.PreimageLoader
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m AsteriscMetricer, cfg *config.Config, localInputs cannon.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
+func NewTraceProvider(logger log.Logger, m AsteriscMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
 	return &AsteriscTraceProvider{
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.AsteriscAbsolutePreState,
 		generator:      NewExecutor(logger, m, cfg, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: cannon.NewPreimageLoader(kvstore.NewDiskKV(cannon.PreimageDir(dir)).Get),
+		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 	}
 }
 
@@ -115,10 +115,10 @@ func (p *AsteriscTraceProvider) AbsolutePreStateCommitment(_ context.Context) (c
 
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
-func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*cannon.ProofData, error) {
+func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.ProofData, error) {
 	// Attempt to read the last step from disk cache
 	if p.lastStep == 0 {
-		step, err := cannon.ReadLastStep(p.dir)
+		step, err := utils.ReadLastStep(p.dir)
 		if err != nil {
 			p.logger.Warn("Failed to read last step from disk cache", "err", err)
 		} else {
@@ -150,7 +150,7 @@ func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*canno
 				p.lastStep = state.Step - 1
 				// Extend the trace out to the full length using a no-op instruction that doesn't change any state
 				// No execution is done, so no proof-data or oracle values are required.
-				proof := &cannon.ProofData{
+				proof := &utils.ProofData{
 					ClaimValue:   state.StateHash,
 					StateData:    state.Witness,
 					ProofData:    []byte{},
@@ -158,7 +158,7 @@ func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*canno
 					OracleValue:  nil,
 					OracleOffset: 0,
 				}
-				if err := cannon.WriteLastStep(p.dir, proof, p.lastStep); err != nil {
+				if err := utils.WriteLastStep(p.dir, proof, p.lastStep); err != nil {
 					p.logger.Warn("Failed to write last step to disk cache", "step", p.lastStep)
 				}
 				return proof, nil
@@ -171,7 +171,7 @@ func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*canno
 		return nil, fmt.Errorf("cannot open proof file (%v): %w", path, err)
 	}
 	defer file.Close()
-	var proof cannon.ProofData
+	var proof utils.ProofData
 	err = json.NewDecoder(file).Decode(&proof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read proof (%v): %w", path, err)
@@ -180,7 +180,7 @@ func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*canno
 }
 
 func (c *AsteriscTraceProvider) finalState() (*VMState, error) {
-	state, err := parseState(filepath.Join(c.dir, finalState))
+	state, err := parseState(filepath.Join(c.dir, utils.FinalState))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read final state: %w", err)
 	}
@@ -193,19 +193,19 @@ type AsteriscTraceProviderForTest struct {
 	*AsteriscTraceProvider
 }
 
-func NewTraceProviderForTest(logger log.Logger, m AsteriscMetricer, cfg *config.Config, localInputs cannon.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProviderForTest {
+func NewTraceProviderForTest(logger log.Logger, m AsteriscMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProviderForTest {
 	p := &AsteriscTraceProvider{
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.AsteriscAbsolutePreState,
 		generator:      NewExecutor(logger, m, cfg, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: cannon.NewPreimageLoader(kvstore.NewDiskKV(cannon.PreimageDir(dir)).Get),
+		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 	}
 	return &AsteriscTraceProviderForTest{p}
 }
 
-func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage cannon.PreimageOpt) (uint64, error) {
+func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage utils.PreimageOpt) (uint64, error) {
 	// Run asterisc to find the step that meets the preimage conditions
 	if err := p.generator.(*Executor).generateProof(ctx, p.dir, start, math.MaxUint64, preimage()...); err != nil {
 		return 0, fmt.Errorf("generate asterisc trace (until preimage read): %w", err)

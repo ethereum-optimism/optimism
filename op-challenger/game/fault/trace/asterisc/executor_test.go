@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,7 +28,7 @@ func TestGenerateProof(t *testing.T) {
 	cfg.AsteriscSnapshotFreq = 500
 	cfg.AsteriscInfoFreq = 900
 
-	inputs := cannon.LocalGameInputs{
+	inputs := utils.LocalGameInputs{
 		L1Head:        common.Hash{0x11},
 		L2Head:        common.Hash{0x22},
 		L2OutputRoot:  common.Hash{0x33},
@@ -69,15 +69,15 @@ func TestGenerateProof(t *testing.T) {
 		cfg.AsteriscRollupConfigPath = ""
 		cfg.AsteriscL2GenesisPath = ""
 		binary, subcommand, args := captureExec(t, cfg, 150_000_000)
-		require.DirExists(t, filepath.Join(dir, preimagesDir))
+		require.DirExists(t, filepath.Join(dir, utils.PreimagesDir))
 		require.DirExists(t, filepath.Join(dir, proofsDir))
-		require.DirExists(t, filepath.Join(dir, snapsDir))
+		require.DirExists(t, filepath.Join(dir, utils.SnapsDir))
 		require.Equal(t, cfg.AsteriscBin, binary)
 		require.Equal(t, "run", subcommand)
 		require.Equal(t, input, args["--input"])
 		require.Contains(t, args, "--meta")
 		require.Equal(t, "", args["--meta"])
-		require.Equal(t, filepath.Join(dir, finalState), args["--output"])
+		require.Equal(t, filepath.Join(dir, utils.FinalState), args["--output"])
 		require.Equal(t, "=150000000", args["--proof-at"])
 		require.Equal(t, "=150000001", args["--stop-at"])
 		require.Equal(t, "%500", args["--snapshot-at"])
@@ -89,9 +89,9 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, cfg.L1EthRpc, args["--l1"])
 		require.Equal(t, cfg.L1Beacon, args["--l1.beacon"])
 		require.Equal(t, cfg.AsteriscL2, args["--l2"])
-		require.Equal(t, filepath.Join(dir, preimagesDir), args["--datadir"])
+		require.Equal(t, filepath.Join(dir, utils.PreimagesDir), args["--datadir"])
 		require.Equal(t, filepath.Join(dir, proofsDir, "%d.json.gz"), args["--proof-fmt"])
-		require.Equal(t, filepath.Join(dir, snapsDir, "%d.json.gz"), args["--snapshot-fmt"])
+		require.Equal(t, filepath.Join(dir, utils.SnapsDir, "%d.json.gz"), args["--snapshot-fmt"])
 		require.Equal(t, cfg.AsteriscNetwork, args["--network"])
 		require.NotContains(t, args, "--rollup.config")
 		require.NotContains(t, args, "--l2.genesis")

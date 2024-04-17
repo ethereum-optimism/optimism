@@ -1,4 +1,4 @@
-package cannon
+package utils
 
 import (
 	"crypto/sha256"

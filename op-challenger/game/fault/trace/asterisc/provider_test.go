@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -94,7 +94,7 @@ func TestGetStepData(t *testing.T) {
 			Exited:  true,
 			Witness: make([]byte, asteriscWitnessLen),
 		}
-		generator.proof = &cannon.ProofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -120,7 +120,7 @@ func TestGetStepData(t *testing.T) {
 			Exited:  true,
 			Witness: make([]byte, asteriscWitnessLen),
 		}
-		generator.proof = &cannon.ProofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -146,7 +146,7 @@ func TestGetStepData(t *testing.T) {
 			Exited:  true,
 			Witness: make([]byte, asteriscWitnessLen),
 		}
-		initGenerator.proof = &cannon.ProofData{
+		initGenerator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -164,7 +164,7 @@ func TestGetStepData(t *testing.T) {
 			Exited:  true,
 			Witness: make([]byte, asteriscWitnessLen),
 		}
-		generator.proof = &cannon.ProofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue: common.Hash{0xaa},
 			StateData:  []byte{0xbb},
 			ProofData:  []byte{0xcc},
@@ -231,7 +231,7 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*Asterisc
 type stubGenerator struct {
 	generated  []int // Using int makes assertions easier
 	finalState *VMState
-	proof      *cannon.ProofData
+	proof      *utils.ProofData
 }
 
 func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {
@@ -241,7 +241,7 @@ func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64)
 	var err error
 	if e.finalState != nil && e.finalState.Step <= i {
 		// Requesting a trace index past the end of the trace
-		proofFile = filepath.Join(dir, finalState)
+		proofFile = filepath.Join(dir, utils.FinalState)
 		data, err = json.Marshal(e.finalState)
 		if err != nil {
 			return err
