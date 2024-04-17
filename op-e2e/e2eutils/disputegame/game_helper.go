@@ -32,9 +32,9 @@ func (g *FaultGameHelper) Addr() common.Address {
 	return g.addr
 }
 
-func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
-	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
-	g.require.NoError(err, "failed to get game duration")
+func (g *FaultGameHelper) MaxClockDuration(ctx context.Context) time.Duration {
+	duration, err := g.game.MaxClockDuration(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to get max clock duration")
 	return time.Duration(duration) * time.Second
 }
 

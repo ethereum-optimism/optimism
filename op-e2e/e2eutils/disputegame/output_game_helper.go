@@ -161,9 +161,9 @@ func (g *OutputGameHelper) correctOutputRoot(ctx context.Context, pos types.Posi
 	return outputRoot
 }
 
-func (g *OutputGameHelper) GameDuration(ctx context.Context) time.Duration {
-	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
-	g.require.NoError(err, "failed to get game duration")
+func (g *OutputGameHelper) MaxClockDuration(ctx context.Context) time.Duration {
+	duration, err := g.game.MaxClockDuration(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to get max clock duration")
 	return time.Duration(duration) * time.Second
 }
 

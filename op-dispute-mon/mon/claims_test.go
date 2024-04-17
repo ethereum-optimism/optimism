@@ -53,8 +53,8 @@ func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock
 	cl := clock.NewDeterministicClock(frozen)
 	metrics := &stubClaimMetrics{}
 	honestActors := []common.Address{
-		common.Address{0x01},
-		common.Address{0x02},
+		{0x01},
+		{0x02},
 	}
 	return NewClaimMonitor(logger, cl, honestActors, metrics), cl, metrics
 }
@@ -87,11 +87,11 @@ func makeMultipleTestGames(duration uint64) []*types.EnrichedGameData {
 
 func makeTestGame(duration uint64) *types.EnrichedGameData {
 	return &types.EnrichedGameData{
-		Duration: duration,
+		MaxClockDuration: duration / 2,
 		Recipients: map[common.Address]bool{
-			common.Address{0x02}: true,
-			common.Address{0x03}: true,
-			common.Address{0x04}: true,
+			{0x02}: true,
+			{0x03}: true,
+			{0x04}: true,
 		},
 		Claims: []types.EnrichedClaim{
 			{

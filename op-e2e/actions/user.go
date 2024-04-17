@@ -564,7 +564,7 @@ func (s *CrossLayerUser) ResolveClaim(t Testing, l2TxHash common.Hash) common.Ha
 	game, err := s.getDisputeGame(t, *params)
 	require.NoError(t, err)
 
-	expiry, err := game.GameDuration(&bind.CallOpts{})
+	expiry, err := game.MaxClockDuration(&bind.CallOpts{})
 	require.Nil(t, err)
 
 	time.Sleep(time.Duration(expiry) * time.Second)

@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	maxGameDuration = uint64(960)
-	frozen          = time.Unix(int64(time.Hour.Seconds()), 0)
+	maxClockDuration = uint64(480)
+	frozen           = time.Unix(int64(time.Hour.Seconds()), 0)
 )
 
 func TestDelayCalculator_getOverflowTime(t *testing.T) {
@@ -22,7 +22,7 @@ func TestDelayCalculator_getOverflowTime(t *testing.T) {
 		claim := &monTypes.EnrichedClaim{
 			Resolved: true,
 		}
-		delay := d.getOverflowTime(maxGameDuration, claim)
+		delay := d.getOverflowTime(maxClockDuration, claim)
 		require.Equal(t, uint64(0), delay)
 		require.Equal(t, 0, metrics.calls)
 	})
@@ -39,14 +39,14 @@ func TestDelayCalculator_getOverflowTime(t *testing.T) {
 				Clock: types.NewClock(duration, timestamp),
 			},
 		}
-		delay := d.getOverflowTime(maxGameDuration, claim)
+		delay := d.getOverflowTime(maxClockDuration, claim)
 		require.Equal(t, uint64(0), delay)
 		require.Equal(t, 0, metrics.calls)
 	})
 
 	t.Run("OverflowTime", func(t *testing.T) {
 		d, metrics, cl := setupDelayCalculatorTest(t)
-		duration := time.Duration(maxGameDuration/2) * time.Second
+		duration := time.Duration(maxClockDuration) * time.Second
 		timestamp := cl.Now().Add(4 * -time.Minute)
 		claim := &monTypes.EnrichedClaim{
 			Claim: types.Claim{
@@ -56,7 +56,7 @@ func TestDelayCalculator_getOverflowTime(t *testing.T) {
 				Clock: types.NewClock(duration, timestamp),
 			},
 		}
-		delay := d.getOverflowTime(maxGameDuration, claim)
+		delay := d.getOverflowTime(maxClockDuration, claim)
 		require.Equal(t, uint64(240), delay)
 		require.Equal(t, 0, metrics.calls)
 	})
@@ -79,8 +79,8 @@ func TestDelayCalculator_getMaxResolutionDelay(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			d, metrics, _ := setupDelayCalculatorTest(t)
 			game := &monTypes.EnrichedGameData{
-				Claims:   test.claims,
-				Duration: maxGameDuration,
+				Claims:           test.claims,
+				MaxClockDuration: maxClockDuration,
 			}
 			got := d.getMaxResolutionDelay(game)
 			require.Equal(t, 0, metrics.calls)
@@ -121,23 +121,23 @@ func setupDelayCalculatorTest(t *testing.T) (*DelayCalculator, *mockDelayMetrics
 func createGameWithClaimsList() []*monTypes.EnrichedGameData {
 	return []*monTypes.EnrichedGameData{
 		{
-			Claims:   createClaimList()[:1],
-			Duration: maxGameDuration,
+			Claims:           createClaimList()[:1],
+			MaxClockDuration: maxClockDuration,
 		},
 		{
-			Claims:   createClaimList()[:2],
-			Duration: maxGameDuration,
+			Claims:           createClaimList()[:2],
+			MaxClockDuration: maxClockDuration,
 		},
 		{
-			Claims:   createClaimList(),
-			Duration: maxGameDuration,
+			Claims:           createClaimList(),
+			MaxClockDuration: maxClockDuration,
 		},
 	}
 }
 
 func createClaimList() []monTypes.EnrichedClaim {
 	newClock := func(multiplier int) types.Clock {
-		duration := maxGameDuration / 2
+		duration := maxClockDuration
 		timestamp := frozen.Add(-time.Minute * time.Duration(multiplier))
 		return types.NewClock(time.Duration(duration)*time.Second, timestamp)
 	}
