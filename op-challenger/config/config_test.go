@@ -32,21 +32,29 @@ var (
 
 var cannonTraceTypes = []TraceType{TraceTypeCannon, TraceTypePermissioned}
 
+func applyValidConfigForCannon(cfg *Config) {
+	cfg.CannonBin = validCannonBin
+	cfg.CannonServer = validCannonOpProgramBin
+	cfg.CannonAbsolutePreState = validCannonAbsolutPreState
+	cfg.CannonL2 = validCannonL2
+	cfg.CannonNetwork = validCannonNetwork
+}
+
+func applyValidConfigForAsterisc(cfg *Config) {
+	cfg.AsteriscBin = validAsteriscBin
+	cfg.AsteriscServer = validAsteriscOpProgramBin
+	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutPreState
+	cfg.AsteriscL2 = validAsteriscL2
+	cfg.AsteriscNetwork = validAsteriscNetwork
+}
+
 func validConfig(traceType TraceType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validDatadir, traceType)
 	if traceType == TraceTypeCannon || traceType == TraceTypePermissioned {
-		cfg.CannonBin = validCannonBin
-		cfg.CannonServer = validCannonOpProgramBin
-		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
-		cfg.CannonL2 = validCannonL2
-		cfg.CannonNetwork = validCannonNetwork
+		applyValidConfigForCannon(&cfg)
 	}
 	if traceType == TraceTypeAsterisc {
-		cfg.AsteriscBin = validAsteriscBin
-		cfg.AsteriscServer = validAsteriscOpProgramBin
-		cfg.AsteriscAbsolutePreState = validAsteriscAbsolutPreState
-		cfg.AsteriscL2 = validAsteriscL2
-		cfg.AsteriscNetwork = validAsteriscNetwork
+		applyValidConfigForAsterisc(&cfg)
 	}
 	cfg.RollupRpc = validRollupRpc
 	return cfg
@@ -254,4 +262,37 @@ func TestRequireConfigForMultipleTraceTypesForAsterisc(t *testing.T) {
 	// Require output asterisc specific args
 	cfg.RollupRpc = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
+}
+
+func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	applyValidConfigForAsterisc(&cfg)
+
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAsterisc, TraceTypeAlphabet}
+	// Set all required options and check its valid
+	cfg.RollupRpc = validRollupRpc
+	require.NoError(t, cfg.Check())
+
+	// Require asterisc specific args
+	cfg.AsteriscL2 = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscL2)
+	cfg.AsteriscL2 = validAsteriscL2
+
+	// Require cannon specific args
+	cfg.CannonBin = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonBin)
+	cfg.CannonBin = validCannonBin
+
+	// Require asterisc specific args
+	cfg.AsteriscAbsolutePreState = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscAbsolutePreState)
+	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutPreState
+
+	// Require cannon specific args
+	cfg.AsteriscServer = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscServer)
+	cfg.AsteriscServer = validAsteriscOpProgramBin
+
+	// Check final config is valid
+	require.NoError(t, cfg.Check())
 }
