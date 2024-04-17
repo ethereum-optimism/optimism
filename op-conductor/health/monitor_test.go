@@ -62,6 +62,7 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		rollupCfg:      s.rollupCfg,
 		unsafeInterval: unsafeInterval,
 		safeInterval:   safeInterval,
+		safeEnabled:    true,
 		minPeerCount:   s.minPeerCount,
 		timeProviderFn: tp.Now,
 		node:           mockRollupClient,
@@ -146,6 +147,13 @@ func (s *HealthMonitorTestSuite) TestUnhealthySafeHeadNotProgressing() {
 			s.NotNil(healthy)
 		}
 	}
+
+	// test that the safeEnabled flag works
+	monitor.safeEnabled = false
+	rc.ExpectSyncStatus(mockSyncStatus(now+6, 4, now, 1), nil)
+	rc.ExpectSyncStatus(mockSyncStatus(now+6, 4, now, 1), nil)
+	healthy := <-healthUpdateCh
+	s.Nil(healthy)
 
 	s.NoError(monitor.Stop())
 }
