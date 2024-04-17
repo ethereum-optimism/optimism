@@ -181,6 +181,7 @@ contract FPACOPS is Deploy, StdAssertions {
         FaultDisputeGame gameImpl = FaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
         assertEq(gameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
+        assertEq(gameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
         assertEq(gameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
         assertEq(gameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
 
@@ -191,6 +192,7 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(soyGameImpl.challenger(), cfg.l2OutputOracleChallenger());
         assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
+        assertEq(soyGameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
         assertEq(soyGameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
         assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
 

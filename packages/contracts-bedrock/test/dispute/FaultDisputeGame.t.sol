@@ -68,6 +68,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         assertEq(gameProxy.absolutePrestate().raw(), absolutePrestate.raw());
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
         assertEq(gameProxy.splitDepth(), 2 ** 2);
+        assertEq(gameProxy.clockExtension().raw(), 3 hours);
         assertEq(gameProxy.maxClockDuration().raw(), 3.5 days);
         assertEq(address(gameProxy.vm()), address(_vm));
 
