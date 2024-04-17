@@ -89,7 +89,7 @@ func (co *SpanChannelOut) compressorReset() {
 	if co.compressorAlgo == "zlib" {
 		co.zlibCompressed.Reset()
 		co.zlibCompressor.Reset(co.zlibCompressed)
-	} if co.compressorAlgo == "zstd" {
+	} else if co.compressorAlgo == "zstd" {
 		co.zstdCompressed.Reset()
 		// no reset, start a new zstd compressor
 		co.zstdCompressor = zstd.NewWriterLevel(co.zstdCompressed, 22)
@@ -185,7 +185,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	var compressedLen int
 	if co.compressorAlgo == "zlib" {
 		compressedLen = co.zlibCompressed.Len()
-	} if co.compressorAlgo == "zstd" {
+	} else if co.compressorAlgo == "zstd" {
 		compressedLen = co.zstdCompressed.Len()
 	}
 
@@ -231,7 +231,7 @@ func (co *SpanChannelOut) compress() error {
 		if err := co.zlibCompressor.Close(); err != nil {
 			return err
 		}
-	} if co.compressorAlgo == "zstd" {
+	} else if co.compressorAlgo == "zstd" {
 		if _, err := co.zstdCompressor.Write(co.activeRLP().Bytes()); err != nil {
 			return err
 		}
@@ -254,7 +254,7 @@ func (co *SpanChannelOut) ReadyBytes() int {
 	if co.closed || co.FullErr() != nil {
 		if co.compressorAlgo == "zlib" {
 			return co.zlibCompressed.Len()
-		} if co.compressorAlgo == "zstd" {
+		} else if co.compressorAlgo == "zstd" {
 			return co.zstdCompressed.Len()
 		}
 	}
@@ -279,7 +279,7 @@ func (co *SpanChannelOut) checkFull() {
 		if uint64(co.zlibCompressed.Len()) >= co.target {
 			co.full = ErrCompressorFull
 		}
-	} if co.compressorAlgo == "zstd" {
+	} else if co.compressorAlgo == "zstd" {
 		if uint64(co.zstdCompressed.Len()) >= co.target {
 			co.full = ErrCompressorFull
 		}
@@ -324,7 +324,7 @@ func (co *SpanChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, 
 		if _, err := io.ReadFull(co.zlibCompressed, f.Data); err != nil {
 			return 0, err
 		}
-	} if co.compressorAlgo == "zstd" {
+	} else if co.compressorAlgo == "zstd" {
 		if _, err := io.ReadFull(co.zstdCompressed, f.Data); err != nil {
 			return 0, err
 		}
