@@ -73,6 +73,8 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             PermissionedDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData))));
 
         // Check immutables
+        assertEq(gameProxy.proposer(), PROPOSER);
+        assertEq(gameProxy.challenger(), CHALLENGER);
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
         assertEq(gameProxy.absolutePrestate().raw(), absolutePrestate.raw());
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
