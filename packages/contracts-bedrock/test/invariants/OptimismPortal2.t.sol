@@ -157,7 +157,7 @@ contract OptimismPortal2_Deposit_Invariant is CommonTest {
     ///
     ///                   All deposits, barring creation transactions and transactions
     ///                   sent to `address(0)`, should always succeed.
-    function invariant_deposit_completes() external {
+    function invariant_deposit_completes() external view {
         assertEq(actor.failedToComplete(), false);
     }
 }

@@ -52,7 +52,7 @@ contract DeploymentSummary_TestOptimismPortal is DeploymentSummary, OptimismPort
     /// @dev Skips the first line of `super.test_constructor_succeeds` because
     ///      we're not exercising the `Deploy` logic in these tests. However,
     ///      the remaining assertions of the test are important to check
-    function test_constructor_succeeds() external override {
+    function test_constructor_succeeds() external view override {
         // OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
         OptimismPortal opImpl = OptimismPortal(payable(optimismPortalAddress));
         assertEq(address(opImpl.l2Oracle()), address(0));
@@ -64,7 +64,7 @@ contract DeploymentSummary_TestOptimismPortal is DeploymentSummary, OptimismPort
     /// @dev Skips the first line of `super.test_initialize_succeeds` because
     ///      we're not exercising the `Deploy` logic in these tests. However,
     ///      the remaining assertions of the test are important to check
-    function test_initialize_succeeds() external override {
+    function test_initialize_succeeds() external view override {
         // address guardian = deploy.cfg().superchainConfigGuardian();
         address guardian = superchainConfig.guardian();
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
@@ -108,7 +108,7 @@ contract DeploymentSummary_TestL1CrossDomainMessenger is DeploymentSummary, L1Cr
     /// @dev Skips the first line of `super.test_constructor_succeeds` because
     ///      we're not exercising the `Deploy` logic in these tests. However,
     ///      the remaining assertions of the test are important to check
-    function test_constructor_succeeds() external override {
+    function test_constructor_succeeds() external view override {
         // L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
         L1CrossDomainMessenger impl = L1CrossDomainMessenger(l1CrossDomainMessengerAddress);
         assertEq(address(impl.superchainConfig()), address(0));
@@ -205,7 +205,7 @@ contract DeploymentSummary_TestL1ERC721Bridge is DeploymentSummary, L1ERC721Brid
     /// @dev Skips the first line of `super.test_constructor_succeeds` because
     ///      we're not exercising the `Deploy` logic in these tests. However,
     ///      the remaining assertions of the test are important to check
-    function test_constructor_succeeds() public override {
+    function test_constructor_succeeds() public view override {
         // L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         L1ERC721Bridge impl = L1ERC721Bridge(l1ERC721BridgeAddress);
         assertEq(address(impl.MESSENGER()), address(0));
@@ -241,7 +241,7 @@ contract DeploymentSummary_TestL1StandardBridge is
     /// @dev Skips the first line of `super.test_constructor_succeeds` because
     ///      we're not exercising the `Deploy` logic in these tests. However,
     ///      the remaining assertions of the test are important to check
-    function test_constructor_succeeds() external override {
+    function test_constructor_succeeds() external view override {
         // L1StandardBridge impl = L1StandardBridge(deploy.mustGetAddress("L1StandardBridge"));
         L1StandardBridge impl = L1StandardBridge(payable(l1StandardBridgeAddress));
         assertEq(address(impl.superchainConfig()), address(0));

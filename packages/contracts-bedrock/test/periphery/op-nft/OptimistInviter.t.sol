@@ -222,7 +222,7 @@ contract OptimistInviter_Initializer is Test {
 }
 
 contract OptimistInviterTest is OptimistInviter_Initializer {
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         // expect attestationStation to be set
         assertEq(address(optimistInviter.ATTESTATION_STATION()), address(attestationStation));
         assertEq(optimistInviter.INVITE_GRANTER(), alice_inviteGranter);

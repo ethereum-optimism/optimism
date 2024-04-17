@@ -24,7 +24,7 @@ contract LibPosition_Test is Test {
     }
 
     /// @notice Tests that the `depth` function correctly shifts out the `depth` from a packed `Position` type.
-    function testFuzz_depth_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_depth_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
@@ -33,7 +33,7 @@ contract LibPosition_Test is Test {
 
     /// @notice Tests that the `indexAtDepth` function correctly shifts out the `indexAtDepth` from a packed `Position`
     /// type.
-    function testFuzz_indexAtDepth_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_indexAtDepth_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
@@ -41,7 +41,7 @@ contract LibPosition_Test is Test {
     }
 
     /// @notice Tests that the `left` function correctly computes the position of the left child.
-    function testFuzz_left_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_left_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
@@ -53,7 +53,7 @@ contract LibPosition_Test is Test {
     }
 
     /// @notice Tests that the `right` function correctly computes the position of the right child.
-    function testFuzz_right_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_right_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         // Depth bound: [0, 63]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -66,7 +66,7 @@ contract LibPosition_Test is Test {
     }
 
     /// @notice Tests that the `parent` function correctly computes the position of the parent.
-    function testFuzz_parent_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_parent_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
@@ -79,7 +79,7 @@ contract LibPosition_Test is Test {
 
     /// @notice Tests that the `traceAncestor` function correctly computes the position of the
     ///         highest ancestor that commits to the same trace index.
-    function testFuzz_traceAncestor_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_traceAncestor_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
@@ -95,7 +95,7 @@ contract LibPosition_Test is Test {
 
     /// @notice Tests that the `traceAncestorBounded` function correctly computes the position of the
     ///         highest ancestor (below `SPLIT_DEPTH`) that commits to the same trace index.
-    function testFuzz_traceAncestorBounded_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_traceAncestorBounded_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, SPLIT_DEPTH + 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
@@ -116,7 +116,14 @@ contract LibPosition_Test is Test {
 
     /// @notice Tests that the `rightIndex` function correctly computes the deepest, right most index relative
     ///         to a given position.
-    function testFuzz_rightIndex_correctness_succeeds(uint8 _maxDepth, uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_rightIndex_correctness_succeeds(
+        uint8 _maxDepth,
+        uint8 _depth,
+        uint128 _indexAtDepth
+    )
+        public
+        pure
+    {
         // Max depth bound: [1, 63]
         // The max game depth MUST be at least 1.
         _maxDepth = uint8(bound(_maxDepth, 1, MAX_DEPTH));
@@ -138,7 +145,7 @@ contract LibPosition_Test is Test {
     /// @notice Tests that the `attack` function correctly computes the position of the attack relative to
     ///         a given position.
     /// @dev `attack` is an alias for `left`, but we test it separately for completeness.
-    function testFuzz_attack_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_attack_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         // Depth bound: [0, 63]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -154,7 +161,7 @@ contract LibPosition_Test is Test {
     ///         a given position.
     /// @dev A defense can only be given if the position does not belong to the root claim, hence the bound of [1, 127]
     ///      on the depth.
-    function testFuzz_defend_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_defend_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         // Depth bound: [1, 63]
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -168,7 +175,7 @@ contract LibPosition_Test is Test {
 
     /// @notice A static unit test for the correctness of all gindicies, (depth, index) combos,
     ///         and the trace index in a tree of max depth = 4.
-    function test_pos_correctness_succeeds() public {
+    function test_pos_correctness_succeeds() public pure {
         uint256 maxDepth = 4;
 
         Position p = LibPosition.wrap(0, 0);

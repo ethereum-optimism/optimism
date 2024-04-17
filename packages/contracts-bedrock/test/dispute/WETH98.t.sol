@@ -27,7 +27,7 @@ contract WETH98_Test is Test {
         assertEq(weth.balanceOf(alice), 1 ether);
     }
 
-    function test_getName_succeeds() public {
+    function test_getName_succeeds() public view {
         assertEq(weth.name(), "Wrapped Ether");
         assertEq(weth.symbol(), "WETH");
         assertEq(weth.decimals(), 18);

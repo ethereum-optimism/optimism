@@ -123,27 +123,27 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Tests that the game's root claim is set correctly.
-    function test_rootClaim_succeeds() public {
+    function test_rootClaim_succeeds() public view {
         assertEq(gameProxy.rootClaim().raw(), ROOT_CLAIM.raw());
     }
 
     /// @dev Tests that the game's extra data is set correctly.
-    function test_extraData_succeeds() public {
+    function test_extraData_succeeds() public view {
         assertEq(gameProxy.extraData(), extraData);
     }
 
     /// @dev Tests that the game's starting timestamp is set correctly.
-    function test_createdAt_succeeds() public {
+    function test_createdAt_succeeds() public view {
         assertEq(gameProxy.createdAt().raw(), block.timestamp);
     }
 
     /// @dev Tests that the game's type is set correctly.
-    function test_gameType_succeeds() public {
+    function test_gameType_succeeds() public view {
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
     }
 
     /// @dev Tests that the game's data is set correctly.
-    function test_gameData_succeeds() public {
+    function test_gameData_succeeds() public view {
         (GameType gameType, Claim rootClaim, bytes memory _extraData) = gameProxy.gameData();
 
         assertEq(gameType.raw(), GAME_TYPE.raw());
@@ -205,7 +205,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Tests that the game is initialized with the correct data.
-    function test_initialize_correctData_succeeds() public {
+    function test_initialize_correctData_succeeds() public view {
         // Assert that the root claim is initialized correctly.
         (
             uint32 parentIndex,
@@ -264,7 +264,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Tests that the bond during the bisection game depths is correct.
-    function test_getRequiredBond_succeeds() public {
+    function test_getRequiredBond_succeeds() public view {
         for (uint8 i = 0; i < uint8(gameProxy.splitDepth()); i++) {
             Position pos = LibPosition.wrap(i, 0);
             uint256 bond = gameProxy.getRequiredBond(pos);

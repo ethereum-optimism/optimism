@@ -20,7 +20,7 @@ contract PreimageOracle_Test is Test {
     }
 
     /// @notice Test the pre-image key computation with a known pre-image.
-    function test_keccak256PreimageKey_succeeds() public {
+    function test_keccak256PreimageKey_succeeds() public pure {
         bytes memory preimage = hex"deadbeef";
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(preimage);
         bytes32 known = 0x02fd4e189132273036449fc9e11198c739161b4c0116a9a2dccdfa1c492006f1;

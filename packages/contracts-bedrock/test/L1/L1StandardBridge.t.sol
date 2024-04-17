@@ -45,7 +45,7 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
     }
 
     /// @dev Test that the initialize function sets the correct values.
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         assertEq(address(l1StandardBridge.superchainConfig()), address(superchainConfig));
         assertEq(address(l1StandardBridge.MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.messenger()), address(l1CrossDomainMessenger));
@@ -58,7 +58,7 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
 contract L1StandardBridge_Pause_Test is Bridge_Initializer {
     /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
     ///      `superchainConfig`.
-    function test_paused_succeeds() external {
+    function test_paused_succeeds() external view {
         assertEq(l1StandardBridge.paused(), superchainConfig.paused());
     }
 
