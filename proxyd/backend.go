@@ -30,6 +30,7 @@ import (
 const (
 	JSONRPCVersion       = "2.0"
 	JSONRPCErrorInternal = -32000
+	notFoundRpcError     = -32601
 )
 
 var (
@@ -44,7 +45,7 @@ var (
 		HTTPErrorCode: 500,
 	}
 	ErrMethodNotWhitelisted = &RPCErr{
-		Code:          JSONRPCErrorInternal - 1,
+		Code:          notFoundRpcError,
 		Message:       "rpc method is not whitelisted",
 		HTTPErrorCode: 403,
 	}
