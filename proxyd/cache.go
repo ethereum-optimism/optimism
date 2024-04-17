@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/redis/go-redis/v9"
-
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/redis/go-redis/v9"
 )
 
 type Cache interface {
@@ -25,14 +25,17 @@ const (
 
 type cache struct {
 	lru *lru.Cache
+	mu  sync.Mutex
 }
 
 func newMemoryCache() *cache {
 	rep, _ := lru.New(memoryCacheLimit)
-	return &cache{rep}
+	return &cache{lru: rep}
 }
 
 func (c *cache) Get(ctx context.Context, key string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if val, ok := c.lru.Get(key); ok {
 		return val.(string), nil
 	}
@@ -40,6 +43,8 @@ func (c *cache) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (c *cache) Put(ctx context.Context, key string, value string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.lru.Add(key, value)
 	return nil
 }
