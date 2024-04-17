@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	fjordGasPriceOracleCodeHash = common.HexToHash("0x56d6f6aae2e5b1ed447f2094f5ba59b79404a8ccefcac4778dc4bba085bd7733")
+	fjordGasPriceOracleCodeHash = common.HexToHash("0x9ceff82dc9f9bf592dc3954dde0ce8466864229caa8916fffc4005e2fde3d589")
 	// https://basescan.org/tx/0x8debb2fe54200183fb8baa3c6dbd8e6ec2e4f7a4add87416cd60336b8326d16a
 	txHex = "02f875822105819b8405709fb884057d460082e97f94273ca93a52b817294830ed7572aa591ccfa647fd80881249c58b0021fb3fc080a05bb08ccfd68f83392e446dac64d88a2d28e7072c06502dfabc4a77e77b5c7913a05878d53dd4ebba4f6367e572d524dffcabeec3abb1d8725ee3ac5dc32e1852e3"
 
@@ -62,6 +62,10 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	initialGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, nil)
 	require.NoError(t, err)
 
+	// Get gas price from oracle
+	gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, ethCl)
+	require.NoError(t, err)
+
 	// Build to the Fjord block
 	sequencer.ActBuildL2ToFjord(t)
 
@@ -92,10 +96,6 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	require.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
 	require.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
 	verifyCodeHashMatches(t, ethCl, expectedGasPriceOracleAddress, fjordGasPriceOracleCodeHash)
-
-	// Get gas price from oracle
-	gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, ethCl)
-	require.NoError(t, err)
 
 	// Check that Fjord was activated
 	isFjord, err := gasPriceOracle.IsFjord(nil)
