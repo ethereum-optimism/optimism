@@ -1168,7 +1168,7 @@ jobs:
       - run:
           name: Install pnpm
           command: |
-            npm i pnpm --global
+            npm i pnpm@8.15.7 --global
       - run:
           name: git submodules
           command: make submodules
@@ -1289,7 +1289,7 @@ jobs:
       - run:
           name: Install pnpm
           command: |
-            npm i pnpm --global
+            npm i pnpm@8.15.7 --global
       - run:
           name: git submodules
           command: git submodule update --init --recursive

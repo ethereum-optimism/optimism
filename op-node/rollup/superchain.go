@@ -26,8 +26,10 @@ const (
 	baseGoerli  = 84531
 	baseMainnet = 8453
 
-	pgnMainnet  = 424
-	pgnSepolia  = 58008
+	pgnMainnet = 424
+	pgnSepolia = 58008
+
+	bobaMainnet = 288
 	bobaSepolia = 28882
 )
 
@@ -75,6 +77,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		regolithTime = 1677984480
 	case labsGoerliChaosnet:
 		regolithTime = 1692156862
+	case bobaMainnet:
+		regolithTime = 1713302879
 	case bobaSepolia:
 		regolithTime = 1705600788
 	}
