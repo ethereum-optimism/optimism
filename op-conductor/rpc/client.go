@@ -27,6 +27,20 @@ func prefixRPC(method string) string {
 	return RPCNamespace + "_" + method
 }
 
+// Paused implements API.
+func (c *APIClient) Paused(ctx context.Context) (bool, error) {
+	var paused bool
+	err := c.c.CallContext(ctx, &paused, prefixRPC("paused"))
+	return paused, err
+}
+
+// Stopped implements API.
+func (c *APIClient) Stopped(ctx context.Context) (bool, error) {
+	var stopped bool
+	err := c.c.CallContext(ctx, &stopped, prefixRPC("stopped"))
+	return stopped, err
+}
+
 // Active implements API.
 func (c *APIClient) Active(ctx context.Context) (bool, error) {
 	var active bool
