@@ -111,6 +111,12 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	require.NoError(t, c3.client.Resume(ctx))
 
 	// final check, make sure everything is in the right place
+	require.True(t, conductorResumed(t, ctx, c1))
+	require.True(t, conductorResumed(t, ctx, c2))
+	require.True(t, conductorResumed(t, ctx, c3))
+	require.False(t, conductorStopped(t, ctx, c1))
+	require.False(t, conductorStopped(t, ctx, c2))
+	require.False(t, conductorStopped(t, ctx, c3))
 	require.True(t, conductorActive(t, ctx, c1))
 	require.True(t, conductorActive(t, ctx, c2))
 	require.True(t, conductorActive(t, ctx, c3))
@@ -409,6 +415,18 @@ func conductorActive(t *testing.T, ctx context.Context, con *conductor) bool {
 	active, err := con.client.Active(ctx)
 	require.NoError(t, err)
 	return active
+}
+
+func conductorResumed(t *testing.T, ctx context.Context, con *conductor) bool {
+	paused, err := con.client.Paused(ctx)
+	require.NoError(t, err)
+	return !paused
+}
+
+func conductorStopped(t *testing.T, ctx context.Context, con *conductor) bool {
+	stopped, err := con.client.Stopped(ctx)
+	require.NoError(t, err)
+	return stopped
 }
 
 func sequencerActive(t *testing.T, ctx context.Context, rollupClient *sources.RollupClient) bool {
