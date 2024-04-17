@@ -58,6 +58,8 @@ func handleBobaSuperchainName(name string) string {
 	switch name {
 	case "boba-sepolia":
 		return "boba-boba-sepolia"
+	case "boba-mainnet":
+		return "boba-boba-mainnet"
 	default:
 		return name
 	}
