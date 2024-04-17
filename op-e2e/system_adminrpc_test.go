@@ -25,7 +25,7 @@ func TestStopStartSequencer(t *testing.T) {
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	l2Seq := sys.Clients["sequencer"]
+	sequencerClient := sys.Clients["sequencer"]
 	rollupNode := sys.RollupNodes["sequencer"]
 
 	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
@@ -40,7 +40,7 @@ func TestStopStartSequencer(t *testing.T) {
 
 	require.NoError(
 		t,
-		wait.ForNextBlock(ctx, l2Seq),
+		wait.ForNextBlock(ctx, sequencerClient),
 		"Chain did not advance after starting sequencer",
 	)
 
@@ -55,9 +55,9 @@ func TestStopStartSequencer(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, active, "sequencer should be inactive")
 
-	blockBefore := latestBlock(t, l2Seq)
+	blockBefore := latestBlock(t, sequencerClient)
 	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter := latestBlock(t, l2Seq)
+	blockAfter := latestBlock(t, sequencerClient)
 	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -73,7 +73,7 @@ func TestStopStartSequencer(t *testing.T) {
 
 	require.NoError(
 		t,
-		wait.ForNextBlock(ctx, l2Seq),
+		wait.ForNextBlock(ctx, sequencerClient),
 		"Chain did not advance after starting sequencer",
 	)
 }
@@ -187,16 +187,16 @@ func TestPostUnsafePayload(t *testing.T) {
 	require.NoError(t, err)
 	defer sys.Close()
 
-	l2Seq := sys.Clients["sequencer"]
-	l2Ver := sys.Clients["verifier"]
+	sequencerClient := sys.Clients["sequencer"]
+	verifierClient := sys.Clients["verifier"]
 	rollupClient := sys.RollupClient("verifier")
 
-	require.NoError(t, wait.ForBlock(ctx, l2Seq, 2), "Chain did not advance after starting sequencer")
-	verBlock, err := l2Ver.BlockByNumber(ctx, nil)
+	require.NoError(t, wait.ForBlock(ctx, sequencerClient, 2), "Chain did not advance after starting sequencer")
+	verBlock, err := verifierClient.BlockByNumber(ctx, nil)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), verBlock.NumberU64(), "Verifier should not have advanced any blocks since p2p & batcher are not enabled")
 
-	blockNumberOne, err := l2Seq.BlockByNumber(ctx, big.NewInt(1))
+	blockNumberOne, err := sequencerClient.BlockByNumber(ctx, big.NewInt(1))
 	require.NoError(t, err)
 	payload, err := eth.BlockAsPayload(blockNumberOne, sys.RollupConfig.CanyonTime)
 	require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestPostUnsafePayload(t *testing.T) {
 	require.NoError(t, wait.ForUnsafeBlock(ctx, rollupClient, 1), "Chain did not advance after posting payload")
 
 	// Test validation
-	blockNumberTwo, err := l2Seq.BlockByNumber(ctx, big.NewInt(2))
+	blockNumberTwo, err := sequencerClient.BlockByNumber(ctx, big.NewInt(2))
 	require.NoError(t, err)
 	payload, err = eth.BlockAsPayload(blockNumberTwo, sys.RollupConfig.CanyonTime)
 	require.NoError(t, err)
