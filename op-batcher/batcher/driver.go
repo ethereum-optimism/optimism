@@ -376,7 +376,7 @@ func (l *BatchSubmitter) checkRecentTxsOnStart() {
 	}
 
 	l.Log.Info("Recent batcher txs detected. Need to wait for more block confirms", "confirmsNeeded", blockConfirms)
-	// Decrease block num until last finalized batcher tx
+	// Decrease block num until we find the block before the most recent batcher tx was sent
 	for currentNonce != previousNonce {
 		currentBlockBig.Sub(currentBlockBig, big.NewInt(1))
 		currentNonce, err = l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), currentBlockBig)
