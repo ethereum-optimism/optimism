@@ -90,5 +90,6 @@
   "daChallengeWindow": 0,
   "daResolveWindow": 0,
   "daResolverRefundPercentage": 0,
-  "livenessModuleInterval": 31536000
+  "livenessModuleInterval": 31536000,
+  "livenessModuleThresholdPercentage": 20
 }
