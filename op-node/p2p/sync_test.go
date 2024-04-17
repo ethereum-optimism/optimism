@@ -274,10 +274,8 @@ func TestMultiPeerSync(t *testing.T) {
 	payloads.deletePayload(25)
 	rangeReqId, err := clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(30))
 
-	clB.activeRangeRequestsMu.Lock()
 	require.NoError(t, err)
-	require.True(t, clB.activeRangeRequests[rangeReqId], "expecting range request to be active")
-	clB.activeRangeRequestsMu.Unlock()
+	require.True(t, clB.activeRangeRequests.get(rangeReqId), "expecting range request to be active")
 
 	for i := uint64(29); i > 25; i-- {
 		p := <-recvB
@@ -320,9 +318,7 @@ func TestMultiPeerSync(t *testing.T) {
 			break
 		}
 	}
-	clB.activeRangeRequestsMu.Lock()
-	require.False(t, clB.activeRangeRequests[rangeReqId], "expecting range request to be cancelled")
-	clB.activeRangeRequestsMu.Unlock()
+	require.False(t, clB.activeRangeRequests.get(rangeReqId), "expecting range request to be cancelled")
 
 	// Add back the block
 	payloads.addPayload(bl25)
