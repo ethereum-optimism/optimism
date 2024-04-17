@@ -74,6 +74,7 @@ contract DeployConfig is Script {
     uint256 public daBondSize;
     uint256 public daResolverRefundPercentage;
     uint256 public livenessModuleInterval;
+    uint256 public livenessModuleThresholdPercentage;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -142,6 +143,7 @@ contract DeployConfig is Script {
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
 
         livenessModuleInterval = stdJson.readUint(_json, "$.livenessModuleInterval");
+        livenessModuleThresholdPercentage = stdJson.readUint(_json, "$.livenessModuleThresholdPercentage");
 
         usePlasma = _readOr(_json, "$.usePlasma", false);
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
