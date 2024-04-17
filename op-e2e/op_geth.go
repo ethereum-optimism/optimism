@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -25,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,6 +49,7 @@ type OpGeth struct {
 	L2Head        *eth.ExecutionPayload
 	sequenceNum   uint64
 	lgr           log.Logger
+	mu            sync.Mutex
 }
 
 func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
@@ -123,6 +124,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		L1Head:        eth.BlockToInfo(l1Block),
 		L2Head:        genesisPayload,
 		lgr:           logger,
+		mu:            sync.Mutex{},
 	}, nil
 }
 
@@ -137,21 +139,25 @@ func (d *OpGeth) Close() {
 // AddL2Block Appends a new L2 block to the current chain including the specified transactions
 // The L1Info transaction is automatically prepended to the created block
 func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayloadEnvelope, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	attrs, err := d.CreatePayloadAttributes(txs...)
 	if err != nil {
 		return nil, err
 	}
+
 	res, err := d.StartBlockBuilding(ctx, attrs)
 	if err != nil {
 		return nil, err
 	}
 
 	envelope, err := d.l2Engine.GetPayload(ctx, eth.PayloadInfo{ID: *res.PayloadID, Timestamp: uint64(attrs.Timestamp)})
-	payload := envelope.ExecutionPayload
-
 	if err != nil {
 		return nil, err
 	}
+	payload := envelope.ExecutionPayload
+
 	if !reflect.DeepEqual(payload.Transactions, attrs.Transactions) {
 		return nil, errors.New("required transactions were not included")
 	}
