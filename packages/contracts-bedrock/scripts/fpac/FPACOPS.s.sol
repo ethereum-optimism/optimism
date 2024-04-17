@@ -187,6 +187,8 @@ contract FPACOPS is Deploy, StdAssertions {
         // Check the security override yoke configuration.
         PermissionedDisputeGame soyGameImpl =
             PermissionedDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON))));
+        assertEq(soyGameImpl.proposer(), cfg.faultGameProposer());
+        assertEq(soyGameImpl.challenger(), cfg.faultGameChallenger());
         assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(soyGameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
