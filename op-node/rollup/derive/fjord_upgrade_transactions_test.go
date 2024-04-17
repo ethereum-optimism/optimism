@@ -38,7 +38,7 @@ func TestFjordNetworkTransactions(t *testing.T) {
 	require.Len(t, upgradeTxns, 3)
 
 	deployGasPriceOracleSender, deployGasPriceOracle := toDepositTxn(t, upgradeTxns[0])
-	require.Equal(t, deployGasPriceOracleSender, common.HexToAddress("0x4210000000000000000000000000000000000003"))
+	require.Equal(t, deployGasPriceOracleSender, common.HexToAddress("0x4210000000000000000000000000000000000002"))
 	require.Equal(t, deployFjordGasPriceOracleSource.SourceHash(), deployGasPriceOracle.SourceHash())
 	require.Nil(t, deployGasPriceOracle.To())
 	require.Equal(t, uint64(1_450_000), deployGasPriceOracle.Gas())
@@ -50,7 +50,7 @@ func TestFjordNetworkTransactions(t *testing.T) {
 	require.NotNil(t, updateGasPriceOracle.To())
 	require.Equal(t, *updateGasPriceOracle.To(), common.HexToAddress("0x420000000000000000000000000000000000000F"))
 	require.Equal(t, uint64(50_000), updateGasPriceOracle.Gas())
-	require.Equal(t, common.FromHex("0x3659cfe6000000000000000000000000ff256497d61dcd71a9e9ff43967c13fde1f72d12"), updateGasPriceOracle.Data())
+	require.Equal(t, common.FromHex("0x3659cfe6000000000000000000000000a919894851548179A0750865e7974DA599C0Fac7"), updateGasPriceOracle.Data())
 
 	gpoSetFjordSender, gpoSetFjord := toDepositTxn(t, upgradeTxns[2])
 	require.Equal(t, gpoSetFjordSender, common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001"))
