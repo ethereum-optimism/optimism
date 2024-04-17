@@ -92,8 +92,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     OutputRoot public startingOutputRoot;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.16.0
-    string public constant version = "0.16.0";
+    /// @custom:semver 0.16.1
+    string public constant version = "0.16.1";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -117,6 +117,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         IAnchorStateRegistry _anchorStateRegistry,
         uint256 _l2ChainId
     ) {
+        // The max game depth may not be greater than `LibPosition.MAX_POSITION_BITLEN - 1`.
+        if (_maxGameDepth > LibPosition.MAX_POSITION_BITLEN - 1) revert MaxDepthTooLarge();
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
         // The clock extension may not be greater than the max clock duration.
