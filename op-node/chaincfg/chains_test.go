@@ -25,6 +25,7 @@ func TestGetRollupConfig(t *testing.T) {
 		"mainnet":      mainnetCfg,
 		"sepolia":      sepoliaCfg,
 		"boba-sepolia": bobaSepoliaCfg,
+		"boba-mainnet": bobaMainnetCfg,
 	}
 
 	for name, expectedCfg := range configsByName {
@@ -168,6 +169,40 @@ var bobaSepoliaCfg = rollup.Config{
 	CanyonTime:              u64Ptr(1705600788),
 	DeltaTime:               u64Ptr(1709078400),
 	EcotoneTime:             u64Ptr(1709078400),
+	ProtocolVersionsAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
+}
+
+var bobaMainnetCfg = rollup.Config{
+	Genesis: rollup.Genesis{
+		L1: eth.BlockID{
+			Hash:   common.HexToHash("0x945d6244d259e63892abf93e5e6dd3388b79e25ae5ec0502e290a0d0163aa5cf"),
+			Number: 19670718,
+		},
+		L2: eth.BlockID{
+			Hash:   common.HexToHash("0x0a555516317be2719d9befcbcca5f5516b6b7ce0f05b759f5a166b697a8a0fbd"),
+			Number: 1149019,
+		},
+		L2Time: 1713302879,
+		SystemConfig: eth.SystemConfig{
+			BatcherAddr: common.HexToAddress("0xe1b64045351b0b6e9821f19b39f81bc4711d2230"),
+			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
+			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
+			GasLimit:    30000000,
+		},
+	},
+	BlockTime:               2,
+	MaxSequencerDrift:       600,
+	SeqWindowSize:           3600,
+	ChannelTimeout:          300,
+	L1ChainID:               big.NewInt(1),
+	L2ChainID:               big.NewInt(288),
+	BatchInboxAddress:       common.HexToAddress("0xfff0000000000000000000000000000000000288"),
+	DepositContractAddress:  common.HexToAddress("0x7b02d13904d8e6e0f0efaf756ab14cb0ff21ee7e"),
+	L1SystemConfigAddress:   common.HexToAddress("0x158fd5715f16ac1f2dc959a299b383aaaf9b59eb"),
+	RegolithTime:            u64Ptr(1713302879),
+	CanyonTime:              u64Ptr(1713302879),
+	DeltaTime:               u64Ptr(1713302879),
+	EcotoneTime:             u64Ptr(1713302880),
 	ProtocolVersionsAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
 }
 
