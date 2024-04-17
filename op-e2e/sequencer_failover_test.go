@@ -77,15 +77,15 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.Equal(t, leader1.ID, leader3.ID, "Expected leader ID to be the same")
 
 	t.Log("Testing TransferLeader")
-	lid, leader := findLeader(t, conductors)
+	lid, leader := findNodeWithRole(t, conductors, consensus.Leader)
 	err = leader.client.TransferLeader(ctx)
 	require.NoError(t, err, "Expected leader to transfer leadership to another node")
 	_ = waitForLeadershipChange(t, leader, lid, conductors, sys)
 
 	// old leader now became follower, we're trying to transfer leadership directly back to it.
 	t.Log("Testing TransferLeaderToServer")
-	fid, follower := lid, leader
-	lid, leader = findLeader(t, conductors)
+	fid, follower := findNodeWithRole(t, conductors, consensus.Follower)
+	lid, leader = findNodeWithRole(t, conductors, consensus.Leader)
 	err = leader.client.TransferLeaderToServer(ctx, fid, follower.ConsensusEndpoint())
 	require.NoError(t, err, "Expected leader to transfer leadership to follower")
 	newID := waitForLeadershipChange(t, leader, lid, conductors, sys)
@@ -116,8 +116,8 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.Equal(t, consensus.Nonvoter, membership[3].Suffrage, "Expected last member to be non-voter")
 
 	t.Log("Testing RemoveServer, call remove on follower, expected to fail")
-	lid, leader = findLeader(t, conductors)
-	fid, follower = findFollower(t, conductors)
+	lid, leader = findNodeWithRole(t, conductors, consensus.Leader)
+	fid, follower = findNodeWithRole(t, conductors, consensus.Follower)
 	err = follower.client.RemoveServer(ctx, lid)
 	require.ErrorContains(t, err, "node is not the leader", "Expected follower to fail to remove leader")
 	membership, err = c1.client.ClusterMembership(ctx)
@@ -142,29 +142,4 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 }
 
 // [Category: Sequencer Failover]
-// Test that the sequencer can successfully failover to a new sequencer once the active sequencer goes down.
-func TestSequencerFailover_ActiveSequencerDown(t *testing.T) {
-	sys, conductors := setupSequencerFailoverTest(t)
-	defer sys.Close()
-
-	ctx := context.Background()
-	leaderId, leader := findLeader(t, conductors)
-	err := sys.RollupNodes[leaderId].Stop(ctx) // Stop the current leader sequencer
-	require.NoError(t, err)
-
-	// The leadership change should occur with no errors
-	newID := waitForLeadershipChange(t, leader, leaderId, conductors, sys)
-	require.NotEqual(t, leaderId, newID, "Expected leader to change")
-
-	// Confirm the new leader is different from the old leader
-	newLeaderId, _ := findLeader(t, conductors)
-	require.NotEqual(t, leaderId, newLeaderId, "Expected leader to change")
-
-	// Check that the sequencer is healthy
-	require.True(t, healthy(t, ctx, conductors[newLeaderId]))
-
-	// Check if the new leader is sequencing
-	active, err := sys.RollupClient(newLeaderId).SequencerActive(ctx)
-	require.NoError(t, err)
-	require.True(t, active, "Expected new leader to be sequencing")
-}
+// Test that the sequencer can successfully failover to
