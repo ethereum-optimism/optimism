@@ -10,11 +10,6 @@
         "internalType": "uint256",
         "name": "_disputeGameFinalityDelaySeconds",
         "type": "uint256"
-      },
-      {
-        "internalType": "GameType",
-        "name": "_initialRespectedGameType",
-        "type": "uint32"
       }
     ],
     "stateMutability": "nonpayable",
@@ -283,6 +278,11 @@
         "internalType": "contract SuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
+      },
+      {
+        "internalType": "GameType",
+        "name": "_initialRespectedGameType",
+        "type": "uint32"
       }
     ],
     "name": "initialize",

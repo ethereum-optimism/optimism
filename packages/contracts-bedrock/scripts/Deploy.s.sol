@@ -603,8 +603,7 @@ contract Deploy is Deployer {
 
         OptimismPortal2 portal = new OptimismPortal2{ salt: _implSalt() }({
             _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-            _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
-            _initialRespectedGameType: GameType.wrap(uint32(cfg.respectedGameType()))
+            _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
         });
 
         save("OptimismPortal2", address(portal));
@@ -1178,7 +1177,8 @@ contract Deploy is Deployer {
                 (
                     DisputeGameFactory(disputeGameFactoryProxy),
                     SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy)
+                    SuperchainConfig(superchainConfigProxy),
+                    GameType.wrap(uint32(cfg.respectedGameType()))
                 )
             )
         });
