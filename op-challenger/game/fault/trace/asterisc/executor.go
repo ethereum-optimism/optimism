@@ -67,8 +67,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	return e.generateProof(ctx, dir, i, i)
 }
 
-// generateProofOrUntilPreimageRead executes asterisc to generate a proof at the specified trace index,
-// or until a non-local preimage read is encountered if untilPreimageRead is true.
+// generateProof executes asterisc from the specified starting trace index until the end trace index.
 // The proof is stored at the specified directory.
 func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, end uint64, extraAsteriscArgs ...string) error {
 	snapshotDir := filepath.Join(dir, snapsDir)

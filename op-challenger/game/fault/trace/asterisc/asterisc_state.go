@@ -11,7 +11,7 @@ import (
 var asteriscWitnessLen = 362
 
 // The state struct will be read from json.
-// other fields included in json are specific to FPVM implementation, and not required for tracer
+// other fields included in json are specific to FPVM implementation, and not required for trace provider.
 type VMState struct {
 	PC        uint64   `json:"pc"`
 	Exited    bool     `json:"exited"`
