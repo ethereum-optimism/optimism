@@ -23,6 +23,11 @@
       },
       {
         "internalType": "Duration",
+        "name": "_clockExtension",
+        "type": "uint64"
+      },
+      {
+        "internalType": "Duration",
         "name": "_maxClockDuration",
         "type": "uint64"
       },
@@ -207,7 +212,7 @@
         "type": "uint64"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -750,6 +755,11 @@
   {
     "inputs": [],
     "name": "IncorrectBondAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidClockExtension",
     "type": "error"
   },
   {

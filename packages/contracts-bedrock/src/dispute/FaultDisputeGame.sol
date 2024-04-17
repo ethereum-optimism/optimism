@@ -56,7 +56,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @notice The duration of the clock extension. Will be doubled if the grandchild is the root claim of an execution
     ///         trace bisection subgame.
-    Duration internal constant CLOCK_EXTENSION = Duration.wrap(3 hours);
+    Duration internal immutable CLOCK_EXTENSION;
 
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
@@ -99,6 +99,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
+    /// @param _clockExtension The clock extension to perform when the remaining duration is less than the extension.
     /// @param _maxClockDuration The maximum amount of time that may accumulate on a team's chess clock.
     /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
     /// @param _weth WETH contract for holding ETH.
@@ -109,6 +110,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         uint256 _splitDepth,
+        Duration _clockExtension,
         Duration _maxClockDuration,
         IBigStepper _vm,
         IDelayedWETH _weth,
@@ -117,11 +119,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ) {
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
+        // The clock extension may not be greater than the max clock duration.
+        if (_clockExtension.raw() > _maxClockDuration.raw()) revert InvalidClockExtension();
 
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         SPLIT_DEPTH = _splitDepth;
+        CLOCK_EXTENSION = _clockExtension;
         MAX_CLOCK_DURATION = _maxClockDuration;
         VM = _vm;
         WETH = _weth;
@@ -271,10 +276,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // If the remaining clock time has less than `CLOCK_EXTENSION` seconds remaining, grant the potential
         // grandchild's clock `CLOCK_EXTENSION` seconds. This is to ensure that, even if a player has to inherit another
-        // team's clock to counter a freeloader claim, they will always have enough time to do respond. This extension
+        // team's clock to counter a freeloader claim, they will always have enough time to to respond. This extension
         // is bounded by the depth of the tree. If the potential grandchild is an execution trace bisection root, the
         // clock extension is doubled. This is to allow for extra time for the off-chain challenge agent to generate
-        // the initial instruction trace off-chain on the native FPVM.
+        // the initial instruction trace on the native FPVM.
         if (nextDuration.raw() > MAX_CLOCK_DURATION.raw() - CLOCK_EXTENSION.raw()) {
             // If the potential grandchild is an execution trace bisection root, double the clock extension.
             uint64 extensionPeriod =
@@ -676,7 +681,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     ////////////////////////////////////////////////////////////////
-    //                 CONST & IMMUTABLE GETTERS                  //
+    //                     IMMUTABLE GETTERS                      //
     ////////////////////////////////////////////////////////////////
 
     /// @notice Returns the absolute prestate of the instruction trace.
@@ -700,7 +705,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @notice Returns the clock extension constant.
-    function clockExtension() external pure returns (Duration clockExtension_) {
+    function clockExtension() external view returns (Duration clockExtension_) {
         clockExtension_ = CLOCK_EXTENSION;
     }
 
