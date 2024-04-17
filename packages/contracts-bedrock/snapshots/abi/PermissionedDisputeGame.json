@@ -123,6 +123,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "challenger",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "challenger_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -440,6 +453,19 @@
     "name": "move",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proposer",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "proposer_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

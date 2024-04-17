@@ -100,4 +100,18 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         // Fallthrough initialization.
         super.initialize();
     }
+
+    ////////////////////////////////////////////////////////////////
+    //                     IMMUTABLE GETTERS                      //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Returns the proposer address.
+    function proposer() external view returns (address proposer_) {
+        proposer_ = PROPOSER;
+    }
+
+    /// @notice Returns the challenger address.
+    function challenger() external view returns (address challenger_) {
+        challenger_ = CHALLENGER;
+    }
 }
