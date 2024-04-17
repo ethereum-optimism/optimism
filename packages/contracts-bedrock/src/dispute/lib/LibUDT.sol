@@ -115,10 +115,10 @@ library LibVMStatus {
 /// @title LibGameType
 /// @notice This library contains helper functions for working with the `GameType` type.
 library LibGameType {
-    /// @notice Get the value of a `GameType` type in the form of the underlying uint8.
+    /// @notice Get the value of a `GameType` type in the form of the underlying uint32.
     /// @param _gametype The `GameType` type to get the value of.
-    /// @return gametype_ The value of the `GameType` type as a uint8 type.
-    function raw(GameType _gametype) internal pure returns (uint8 gametype_) {
+    /// @return gametype_ The value of the `GameType` type as a uint32 type.
+    function raw(GameType _gametype) internal pure returns (uint32 gametype_) {
         assembly {
             gametype_ := _gametype
         }
