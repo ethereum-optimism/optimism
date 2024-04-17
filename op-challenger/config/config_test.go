@@ -22,9 +22,7 @@ var (
 	validDatadir               = "/tmp/data"
 	validCannonL2              = "http://localhost:9545"
 	validRollupRpc             = "http://localhost:8555"
-)
 
-var (
 	validAsteriscBin             = "./bin/asterisc"
 	validAsteriscOpProgramBin    = "./bin/op-program"
 	validAsteriscNetwork         = "mainnet"
