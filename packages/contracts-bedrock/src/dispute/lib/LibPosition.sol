@@ -7,6 +7,10 @@ import "src/libraries/DisputeErrors.sol";
 /// @title LibPosition
 /// @notice This library contains helper functions for working with the `Position` type.
 library LibPosition {
+    /// @notice the `MAX_POSITION_BITLEN` is the number of bits that the `Position` type, and the implementation of
+    ///         its behavior within this library, can safely support.
+    uint8 internal constant MAX_POSITION_BITLEN = 126;
+
     /// @notice Computes a generalized index (2^{depth} + indexAtDepth).
     /// @param _depth The depth of the position.
     /// @param _indexAtDepth The index at the depth of the position.

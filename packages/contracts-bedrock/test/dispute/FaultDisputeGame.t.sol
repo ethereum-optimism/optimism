@@ -102,13 +102,32 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     //            `IDisputeGame` Implementation Tests             //
     ////////////////////////////////////////////////////////////////
 
-    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
-    ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
-    function test_constructor_wrongArgs_reverts(uint256 _splitDepth) public {
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `MAX_GAME_DEPTH` parameter is
+    ///      greater  than `LibPosition.MAX_POSITION_BITLEN - 1`.
+    function testFuzz_constructor_maxDepthTooLarge_reverts(uint256 _maxGameDepth) public {
         AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
 
-        // Test that the constructor reverts when the `_splitDepth` parameter is greater than or equal
-        // to the `MAX_GAME_DEPTH` parameter.
+        _maxGameDepth = bound(_maxGameDepth, LibPosition.MAX_POSITION_BITLEN, type(uint256).max - 1);
+        vm.expectRevert(MaxDepthTooLarge.selector);
+        new FaultDisputeGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: absolutePrestate,
+            _maxGameDepth: _maxGameDepth,
+            _splitDepth: _maxGameDepth + 1,
+            _clockExtension: Duration.wrap(3 hours),
+            _maxClockDuration: Duration.wrap(3.5 days),
+            _vm: alphabetVM,
+            _weth: DelayedWETH(payable(address(0))),
+            _anchorStateRegistry: IAnchorStateRegistry(address(0)),
+            _l2ChainId: 10
+        });
+    }
+
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
+    ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
+    function testFuzz_constructor_invalidSplitDepth_reverts(uint256 _splitDepth) public {
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+
         _splitDepth = bound(_splitDepth, 2 ** 3, type(uint256).max);
         vm.expectRevert(InvalidSplitDepth.selector);
         new FaultDisputeGame({
@@ -118,6 +137,33 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _splitDepth: _splitDepth,
             _clockExtension: Duration.wrap(3 hours),
             _maxClockDuration: Duration.wrap(3.5 days),
+            _vm: alphabetVM,
+            _weth: DelayedWETH(payable(address(0))),
+            _anchorStateRegistry: IAnchorStateRegistry(address(0)),
+            _l2ChainId: 10
+        });
+    }
+
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when clock extension is greater than the
+    ///      max clock duration.
+    function testFuzz_constructor_clockExtensionTooLong_reverts(
+        uint64 _maxClockDuration,
+        uint64 _clockExtension
+    )
+        public
+    {
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+
+        _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max - 1));
+        _clockExtension = uint64(bound(_clockExtension, _maxClockDuration + 1, type(uint64).max));
+        vm.expectRevert(InvalidClockExtension.selector);
+        new FaultDisputeGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: absolutePrestate,
+            _maxGameDepth: 16,
+            _splitDepth: 8,
+            _clockExtension: Duration.wrap(_clockExtension),
+            _maxClockDuration: Duration.wrap(_maxClockDuration),
             _vm: alphabetVM,
             _weth: DelayedWETH(payable(address(0))),
             _anchorStateRegistry: IAnchorStateRegistry(address(0)),
