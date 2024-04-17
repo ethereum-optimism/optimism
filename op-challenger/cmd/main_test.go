@@ -22,7 +22,7 @@ var (
 	l1Beacon                = "http://example.com:9000"
 	gameFactoryAddressValue = "0xbb00000000000000000000000000000000000000"
 	cannonNetwork           = "op-mainnet"
-	otherCannonNetwork      = "op-sepolia"
+	testNetwork             = "op-sepolia"
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"
@@ -34,7 +34,6 @@ var (
 	asteriscServer          = "./bin/op-program"
 	asteriscPreState        = "./pre.json"
 	asteriscL2              = "http://example.com:9545"
-	otherAsteriscNetwork    = "op-sepolia"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -384,8 +383,8 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-network", otherAsteriscNetwork))
-				require.Equal(t, otherAsteriscNetwork, cfg.AsteriscNetwork)
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-network", testNetwork))
+				require.Equal(t, testNetwork, cfg.AsteriscNetwork)
 			})
 		})
 
@@ -543,8 +542,8 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-network", otherCannonNetwork))
-				require.Equal(t, otherCannonNetwork, cfg.CannonNetwork)
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-network", testNetwork))
+				require.Equal(t, testNetwork, cfg.CannonNetwork)
 			})
 		})
 
@@ -559,7 +558,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonL2Genesis-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonL2qGenesis-%v", traceType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-l2-genesis"))
 			})
