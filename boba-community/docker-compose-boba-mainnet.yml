@@ -20,7 +20,7 @@ services:
       --authrpc.jwtsecret=/config/jwt-secret.txt
       --http.api=eth,debug,net,engine,web3
       --txpool.gossip.disable=true
-      --rollup.sequencerhttp=https://anchorage-proxyd.boba-mainnet-v2.boba.network
+      --rollup.sequencerhttp=https://mainnet.boba.network
       --db.size.limit=8TB
     ports:
       - "9545:9545"
