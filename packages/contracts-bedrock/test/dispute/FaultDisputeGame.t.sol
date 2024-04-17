@@ -33,6 +33,8 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
+    event ReceiveETH(uint256 amount);
+
     function init(Claim rootClaim, Claim absolutePrestate, uint256 l2BlockNumber) public {
         // Set the time to a realistic date.
         vm.warp(1690906994);
@@ -233,6 +235,32 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function test_initialize_onlyOnce_succeeds() public {
         vm.expectRevert(AlreadyInitialized.selector);
         gameProxy.initialize();
+    }
+
+    /// @dev Tests that the user cannot control the first 4 bytes of the CWIA data, disallowing them to control the
+    ///      entrypoint when no calldata is provided to a call.
+    function test_cwiaCalldata_userCannotControlSelector_succeeds() public {
+        // Construct the expected CWIA data that the proxy will pass to the implementation, alongside any extra
+        // calldata passed by the user.
+        Hash l1Head = gameProxy.l1Head();
+        bytes memory cwiaData = abi.encodePacked(address(this), gameProxy.rootClaim(), l1Head, gameProxy.extraData());
+
+        // We expect a `ReceiveETH` event to be emitted when 0 bytes of calldata are sent; The fallback is always
+        // reached *within the minimal proxy* in `LibClone`'s version of `clones-with-immutable-args`
+        vm.expectEmit(false, false, false, true);
+        emit ReceiveETH(0);
+        // We expect no delegatecall to the implementation contract if 0 bytes are sent. Assert that this happens
+        // 0 times.
+        vm.expectCall(address(gameImpl), cwiaData, 0);
+        (bool successA,) = address(gameProxy).call(hex"");
+        assertTrue(successA);
+
+        // When calldata is forwarded, we do expect a delegatecall to the implementation.
+        bytes memory data = abi.encodePacked(gameProxy.l1Head.selector);
+        vm.expectCall(address(gameImpl), abi.encodePacked(data, cwiaData), 1);
+        (bool successB, bytes memory returnData) = address(gameProxy).call(data);
+        assertTrue(successB);
+        assertEq(returnData, abi.encode(l1Head));
     }
 
     /// @dev Tests that the bond during the bisection game depths is correct.
