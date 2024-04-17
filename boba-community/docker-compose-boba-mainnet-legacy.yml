@@ -1,7 +1,7 @@
 version: '3.4'
 
 # The legacy geth can be downloaded from
-# https://boba-db.s3.us-east-2.amazonaws.com/mainnet/geth-1149018.tgz
+# https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-legacy.tgz
 # and extracted to the DATA_DIR
 
 # This service serves as the legacy chain before the migration
