@@ -210,6 +210,9 @@ type DeployConfig struct {
 	// supports. Ideally, this should be conservatively set so that there is always enough
 	// room for a full Cannon trace.
 	FaultGameMaxDepth uint64 `json:"faultGameMaxDepth"`
+	// FaultGameClockExtension is the amount of time that the dispute game will set the potential grandchild claim's,
+	// clock to, if the remaining time is less than this value at the time of a claim's creation.
+	FaultGameClockExtension uint64 `json:"faultGameClockExtension"`
 	// FaultGameMaxClockDuration is the maximum amount of time that may accumulate on a team's chess clock before they
 	// may no longer respond.
 	FaultGameMaxClockDuration uint64 `json:"faultGameMaxClockDuration"`

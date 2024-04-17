@@ -34,6 +34,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
+    /// @param _clockExtension The clock extension to perform when the remaining duration is less than the extension.
     /// @param _maxClockDuration The maximum amount of time that may accumulate on a team's chess clock.
     /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
     /// @param _weth WETH contract for holding ETH.
@@ -46,6 +47,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         uint256 _splitDepth,
+        Duration _clockExtension,
         Duration _maxClockDuration,
         IBigStepper _vm,
         IDelayedWETH _weth,
@@ -59,6 +61,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
             _absolutePrestate,
             _maxGameDepth,
             _splitDepth,
+            _clockExtension,
             _maxClockDuration,
             _vm,
             _weth,

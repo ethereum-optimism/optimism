@@ -55,6 +55,7 @@ contract DeployConfig is Script {
     bytes32 public faultGameGenesisOutputRoot;
     uint256 public faultGameMaxDepth;
     uint256 public faultGameSplitDepth;
+    uint256 public faultGameClockExtension;
     uint256 public faultGameMaxClockDuration;
     uint256 public faultGameWithdrawalDelay;
     uint256 public preimageOracleMinProposalSize;
@@ -128,6 +129,7 @@ contract DeployConfig is Script {
         faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
         faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
         faultGameSplitDepth = stdJson.readUint(_json, "$.faultGameSplitDepth");
+        faultGameClockExtension = stdJson.readUint(_json, "$.faultGameClockExtension");
         faultGameMaxClockDuration = stdJson.readUint(_json, "$.faultGameMaxClockDuration");
         faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
         faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
