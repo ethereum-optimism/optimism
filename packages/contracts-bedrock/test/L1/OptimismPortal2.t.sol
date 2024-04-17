@@ -343,7 +343,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
         // Warp beyond the chess clocks and finalize the game.
-        vm.warp(block.timestamp + game.gameDuration().raw() / 2 + 1 seconds);
+        vm.warp(block.timestamp + game.maxClockDuration().raw() + 1 seconds);
 
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(optimismPortal2), 0xFFFFFFFF);

@@ -59,7 +59,7 @@ type GameContract interface {
 	ClaimLoader
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
-	GetGameDuration(ctx context.Context) (time.Duration, error)
+	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
 	GetOracle(ctx context.Context) (*contracts.PreimageOracleContract, error)
 	GetL1Head(ctx context.Context) (common.Hash, error)
 }
@@ -104,7 +104,7 @@ func NewGamePlayer(
 		}, nil
 	}
 
-	gameDuration, err := loader.GetGameDuration(ctx)
+	maxClockDuration, err := loader.GetMaxClockDuration(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the game duration: %w", err)
 	}
@@ -146,7 +146,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	agent := NewAgent(m, systemClock, l1Clock, loader, gameDepth, gameDuration, accessor, responder, logger, selective, claimants)
+	agent := NewAgent(m, systemClock, l1Clock, loader, gameDepth, maxClockDuration, accessor, responder, logger, selective, claimants)
 	return &GamePlayer{
 		act:                agent.Act,
 		loader:             loader,

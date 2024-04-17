@@ -47,7 +47,7 @@ func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
 func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
 	// Check if the max duration has been reached for this game
 	duration := uint64(b.clock.Now().Unix()) - game.Timestamp
-	maxDurationReached := duration >= game.Duration
+	maxDurationReached := duration >= game.MaxClockDuration
 
 	// Iterate over claims and filter out resolved ones
 	recipients := make(map[int]common.Address)

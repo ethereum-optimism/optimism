@@ -181,7 +181,7 @@ contract FPACOPS is Deploy, StdAssertions {
         FaultDisputeGame gameImpl = FaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
         assertEq(gameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
-        assertEq(gameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
+        assertEq(gameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
         assertEq(gameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
 
         // Check the security override yoke configuration.
@@ -189,7 +189,7 @@ contract FPACOPS is Deploy, StdAssertions {
             PermissionedDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON))));
         assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
-        assertEq(soyGameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
+        assertEq(soyGameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
         assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
 
         // Check the AnchorStateRegistry configuration.
@@ -209,7 +209,7 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("    1. Absolute Prestate: %x", cfg.faultGameAbsolutePrestate());
         console.log("    2. Max Depth: %d", cfg.faultGameMaxDepth());
         console.log("    3. Output / Execution split Depth: %d", cfg.faultGameSplitDepth());
-        console.log("    4. Game Duration (seconds): %d", cfg.faultGameMaxDuration());
+        console.log("    4. Max Clock Duration (seconds): %d", cfg.faultGameMaxClockDuration());
         console.log("    5. L2 Genesis block number: %d", cfg.faultGameGenesisBlock());
         console.log("    6. L2 Genesis output root: %x", uint256(cfg.faultGameGenesisOutputRoot()));
         console.log("    7. Proof Maturity Delay (seconds): ", cfg.proofMaturityDelaySeconds());

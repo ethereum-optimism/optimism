@@ -127,7 +127,7 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
         // Warp beyond the finalization period for the dispute game and resolve it.
-        vm.warp(block.timestamp + game.gameDuration().raw() + 1 seconds);
+        vm.warp(block.timestamp + (game.maxClockDuration().raw() * 2) + 1 seconds);
         game.resolveClaim(0);
         game.resolve();
 
