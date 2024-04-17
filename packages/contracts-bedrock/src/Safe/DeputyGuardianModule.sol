@@ -72,7 +72,7 @@ contract DeputyGuardianModule is ISemver {
     }
 
     /// @notice Internal function to ensure that only the deputy guardian can call certain functions.
-    function _Unauthorized() internal view {
+    function _onlyDeputyGuardian() internal view {
         if (msg.sender != DEPUTY_GUARDIAN) {
             revert Unauthorized();
         }
@@ -82,9 +82,9 @@ contract DeputyGuardianModule is ISemver {
     ///      necessary to call `pause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function pause() external {
-        _Unauthorized();
-        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.pause, ("Deputy Guardian"));
+        _onlyDeputyGuardian();
 
+        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.pause, ("Deputy Guardian"));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
         if (!success) {
@@ -97,9 +97,9 @@ contract DeputyGuardianModule is ISemver {
     ///      necessary to call `unpause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
     function unpause() external {
-        _Unauthorized();
-        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.unpause, ());
+        _onlyDeputyGuardian();
 
+        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.unpause, ());
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
         if (!success) {
@@ -114,9 +114,9 @@ contract DeputyGuardianModule is ISemver {
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _game The `IDisputeGame` contract instance.
     function blacklistDisputeGame(OptimismPortal2 _portal, IDisputeGame _game) external {
-        _Unauthorized();
-        bytes memory data = abi.encodeCall(OptimismPortal2.blacklistDisputeGame, (_game));
+        _onlyDeputyGuardian();
 
+        bytes memory data = abi.encodeCall(OptimismPortal2.blacklistDisputeGame, (_game));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         if (!success) {
@@ -131,7 +131,8 @@ contract DeputyGuardianModule is ISemver {
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _gameType The `GameType` to set as the respected game type.
     function setRespectedGameType(OptimismPortal2 _portal, GameType _gameType) external {
-        _Unauthorized();
+        _onlyDeputyGuardian();
+
         bytes memory data = abi.encodeCall(OptimismPortal2.setRespectedGameType, (_gameType));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
