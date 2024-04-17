@@ -3,10 +3,6 @@ package compressor
 import (
 	"bytes"
 	"compress/zlib"
-	"fmt"
-
-	"github.com/DataDog/zstd"
-	"github.com/andybalholm/brotli"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
@@ -25,17 +21,11 @@ const (
 type ShadowCompressor struct {
 	config Config
 
-	zlibBuf      bytes.Buffer
-	brotliBuf   bytes.Buffer
-	zstdBuf   bytes.Buffer
+	buf      bytes.Buffer
 	compress *zlib.Writer
-	brotliCompress *brotli.Writer
-	zstdCompress *zstd.Writer
 
 	shadowBuf      bytes.Buffer
 	shadowCompress *zlib.Writer
-
-	compressAlgo string
 
 	fullErr error
 
@@ -50,13 +40,12 @@ type ShadowCompressor struct {
 // target, which allows individual blocks larger than the target to be included (and will
 // be split across multiple channel frames).
 func NewShadowCompressor(config Config) (derive.Compressor, error) {
-	fmt.Println("NewShadowCompressor")
 	c := &ShadowCompressor{
 		config: config,
 	}
 
 	var err error
-	c.compress, err = zlib.NewWriterLevel(&c.zlibBuf, zlib.BestCompression)
+	c.compress, err = zlib.NewWriterLevel(&c.buf, zlib.BestCompression)
 	if err != nil {
 		return nil, err
 	}
@@ -65,23 +54,11 @@ func NewShadowCompressor(config Config) (derive.Compressor, error) {
 		return nil, err
 	}
 
-	// add brotli
-	c.brotliCompress = brotli.NewWriterLevel(
-		&c.brotliBuf,
-		brotli.BestCompression,
-	)
-
-	// add zstd
-	c.zstdCompress = zstd.NewWriterLevel(&c.zstdBuf, 22)
-
-	c.compressAlgo = config.CompressionAlgo
-
 	c.bound = safeCompressionOverhead
 	return c, nil
 }
 
 func (t *ShadowCompressor) Write(p []byte) (int, error) {
-	fmt.Println(t.compressAlgo)
 	if t.fullErr != nil {
 		return 0, t.fullErr
 	}
@@ -108,44 +85,20 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 		}
 	}
 	t.bound = newBound
-
-	if t.compressAlgo == "brotli" {
-		return t.brotliCompress.Write(p)
-	} else if t.compressAlgo == "zstd" {
-		return t.zstdCompress.Write(p)
-	}
 	return t.compress.Write(p)
 }
 
 func (t *ShadowCompressor) Close() error {
-	if t.compressAlgo == "brotli" {
-		return t.brotliCompress.Close()
-	} else if t.compressAlgo == "zstd" {
-		return t.zstdCompress.Close()
-	}
 	return t.compress.Close()
 }
 
 func (t *ShadowCompressor) Read(p []byte) (int, error) {
-	if t.compressAlgo == "brotli" {
-		return t.brotliBuf.Read(p)
-	} else if t.compressAlgo == "zstd" {
-		return t.zstdBuf.Read(p)
-	}
-
-	return t.zlibBuf.Read(p)
+	return t.buf.Read(p)
 }
 
 func (t *ShadowCompressor) Reset() {
-	if t.compressAlgo == "brotli" {
-		t.brotliBuf.Reset()
-		t.brotliCompress.Reset(&t.brotliBuf)
-	} else if t.compressAlgo == "zstd" {
-		// no reset for zstd, so initialize new compressor instead
-		t.zstdCompress = zstd.NewWriterLevel(&t.zstdBuf, 22)
-	} else {
-		t.compress.Reset(&t.zlibBuf)
-	}
+	t.buf.Reset()
+	t.compress.Reset(&t.buf)
 	t.shadowBuf.Reset()
 	t.shadowCompress.Reset(&t.shadowBuf)
 	t.fullErr = nil
@@ -153,20 +106,10 @@ func (t *ShadowCompressor) Reset() {
 }
 
 func (t *ShadowCompressor) Len() int {
-	if t.compressAlgo == "brotli" {
-		return t.brotliBuf.Len()
-	} else if t.compressAlgo == "zstd" {
-		return t.zstdBuf.Len()
-	}
-	return t.zlibBuf.Len()
+	return t.buf.Len()
 }
 
 func (t *ShadowCompressor) Flush() error {
-	if t.compressAlgo == "brotli" {
-		return t.brotliCompress.Flush()
-	} else if t.compressAlgo == "zstd" {
-		return t.zstdCompress.Flush()
-	}
 	return t.compress.Flush()
 }
 
