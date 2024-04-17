@@ -18,10 +18,10 @@ type MockDAClient struct {
 	log   log.Logger
 }
 
-func NewMockDAClient(log log.Logger) *MockDAClient {
+func NewMockDAClient(logger log.Logger) *MockDAClient {
 	return &MockDAClient{
 		store: memorydb.New(),
-		log:   log,
+		log:   logger,
 	}
 }
 
@@ -42,14 +42,14 @@ func (c *MockDAClient) DeleteData(key []byte) error {
 	return c.store.Delete(key)
 }
 
-type DAErrFaker struct {
-	Client *MockDAClient
-
+// ErrorFaker mimics a DA client with error injection capabilities.
+type ErrorFaker struct {
+	Client      *MockDAClient
 	getInputErr error
 	setInputErr error
 }
 
-func (f *DAErrFaker) GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error) {
+func (f *ErrorFaker) GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error) {
 	if err := f.getInputErr; err != nil {
 		f.getInputErr = nil
 		return nil, err
@@ -57,7 +57,7 @@ func (f *DAErrFaker) GetInput(ctx context.Context, key Keccak256Commitment) ([]b
 	return f.Client.GetInput(ctx, key)
 }
 
-func (f *DAErrFaker) SetInput(ctx context.Context, data []byte) (Keccak256Commitment, error) {
+func (f *ErrorFaker) SetInput(ctx context.Context, data []byte) (Keccak256Commitment, error) {
 	if err := f.setInputErr; err != nil {
 		f.setInputErr = nil
 		return nil, err
@@ -65,11 +65,11 @@ func (f *DAErrFaker) SetInput(ctx context.Context, data []byte) (Keccak256Commit
 	return f.Client.SetInput(ctx, data)
 }
 
-func (f *DAErrFaker) ActGetPreImageFail() {
+func (f *ErrorFaker) SetGetInputError() {
 	f.getInputErr = errors.New("get input failed")
 }
 
-func (f *DAErrFaker) ActSetPreImageFail() {
+func (f *ErrorFaker) SetSetInputError() {
 	f.setInputErr = errors.New("set input failed")
 }
 
