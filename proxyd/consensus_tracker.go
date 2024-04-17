@@ -144,6 +144,7 @@ func WithHeartbeatInterval(heartbeatInterval time.Duration) RedisConsensusTracke
 		ct.heartbeatInterval = heartbeatInterval
 	}
 }
+
 func NewRedisConsensusTracker(ctx context.Context,
 	redisClient *redis.Client,
 	bg *BackendGroup,
@@ -191,104 +192,79 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 	rs := redsync.New(pool)
 	key := ct.key("mutex")
 
+	mutex := rs.NewMutex(key,
+		redsync.WithExpiry(ct.lockPeriod),
+		redsync.WithFailFast(true),
+		redsync.WithTries(1))
+
+	if err := mutex.Lock(); err != nil {
+		log.Debug("failed to obtain lock", "err", err)
+		ct.leader = false
+		return
+	}
+	defer func() {
+		ok, err := mutex.Unlock()
+		if err != nil || !ok {
+			log.Error("failed to release the lock", "err", err, "mutex", mutex.Name(), "val", mutex.Value())
+			RecordGroupConsensusError(ct.backendGroup, "leader_release_lock", err)
+		}
+	}()
+
+	log.Info("lock acquired", "mutex", mutex.Name(), "val", mutex.Value())
+	ct.redlock = mutex
+	ct.leader = true
+
 	val, err := ct.client.Get(ct.ctx, key).Result()
 	if err != nil && err != redis.Nil {
 		log.Error("failed to read the lock", "err", err)
 		RecordGroupConsensusError(ct.backendGroup, "read_lock", err)
-		if ct.leader {
-			ok, err := ct.redlock.Unlock()
-			if err != nil || !ok {
-				log.Error("failed to release the lock after error", "err", err)
-				RecordGroupConsensusError(ct.backendGroup, "leader_release_lock", err)
-				return
-			}
-			ct.leader = false
-		}
 		return
 	}
 	if val != "" {
-		if ct.leader {
-			log.Debug("extending lock")
-			ok, err := ct.redlock.Extend()
-			if err != nil || !ok {
-				log.Error("failed to extend lock", "err", err, "mutex", ct.redlock.Name(), "val", ct.redlock.Value())
-				RecordGroupConsensusError(ct.backendGroup, "leader_extend_lock", err)
-				ok, err := ct.redlock.Unlock()
-				if err != nil || !ok {
-					log.Error("failed to release the lock after error", "err", err)
-					RecordGroupConsensusError(ct.backendGroup, "leader_release_lock", err)
-					return
-				}
-				ct.leader = false
-				return
-			}
-			ct.postPayload(val)
-		} else {
-			// retrieve current leader
-			leaderName, err := ct.client.Get(ct.ctx, ct.key(fmt.Sprintf("leader:%s", val))).Result()
-			if err != nil && err != redis.Nil {
-				log.Error("failed to read the remote leader", "err", err)
-				RecordGroupConsensusError(ct.backendGroup, "read_leader", err)
-				return
-			}
-			ct.leaderName = leaderName
-			log.Debug("following", "val", val, "leader", leaderName)
-			// retrieve payload
-			val, err := ct.client.Get(ct.ctx, ct.key(fmt.Sprintf("state:%s", val))).Result()
-			if err != nil && err != redis.Nil {
-				log.Error("failed to read the remote state", "err", err)
-				RecordGroupConsensusError(ct.backendGroup, "read_state", err)
-				return
-			}
-			if val == "" {
-				log.Error("remote state is missing (recent leader election maybe?)")
-				RecordGroupConsensusError(ct.backendGroup, "read_state_missing", err)
-				return
-			}
-			state := &ConsensusTrackerState{}
-			err = json.Unmarshal([]byte(val), state)
-			if err != nil {
-				log.Error("failed to unmarshal the remote state", "err", err)
-				RecordGroupConsensusError(ct.backendGroup, "read_unmarshal_state", err)
-				return
-			}
-
-			ct.remote.update(state)
-			log.Debug("updated state from remote", "state", val, "leader", leaderName)
-
-			RecordGroupConsensusHALatestBlock(ct.backendGroup, leaderName, ct.remote.state.Latest)
-			RecordGroupConsensusHASafeBlock(ct.backendGroup, leaderName, ct.remote.state.Safe)
-			RecordGroupConsensusHAFinalizedBlock(ct.backendGroup, leaderName, ct.remote.state.Finalized)
+		log.Debug("extending lock")
+		ok, err := ct.redlock.Extend()
+		if err != nil || !ok {
+			log.Error("failed to extend lock", "err", err, "mutex", ct.redlock.Name(), "val", ct.redlock.Value())
+			RecordGroupConsensusError(ct.backendGroup, "leader_extend_lock", err)
+			return
 		}
+		ct.postPayload(val)
 	} else {
-		if !ct.local.Valid() {
-			log.Warn("local state is not valid or behind remote, skipping")
+		// retrieve current leader
+		leaderName, err := ct.client.Get(ct.ctx, ct.key(fmt.Sprintf("leader:%s", mutex.Value()))).Result()
+		if err != nil && err != redis.Nil {
+			log.Error("failed to read the remote leader", "err", err)
+			RecordGroupConsensusError(ct.backendGroup, "read_leader", err)
 			return
 		}
-		if ct.remote.Valid() && ct.local.Behind(ct.remote) {
-			log.Warn("local state is behind remote, skipping")
+		ct.leaderName = leaderName
+		log.Debug("following", "val", mutex.Value(), "leader", leaderName)
+		// retrieve payload
+		val, err := ct.client.Get(ct.ctx, ct.key(fmt.Sprintf("state:%s", mutex.Value()))).Result()
+		if err != nil && err != redis.Nil {
+			log.Error("failed to read the remote state", "err", err)
+			RecordGroupConsensusError(ct.backendGroup, "read_state", err)
+			return
+		}
+		if val == "" {
+			log.Error("remote state is missing (recent leader election maybe?)")
+			RecordGroupConsensusError(ct.backendGroup, "read_state_missing", err)
+			return
+		}
+		state := &ConsensusTrackerState{}
+		err = json.Unmarshal([]byte(val), state)
+		if err != nil {
+			log.Error("failed to unmarshal the remote state", "err", err)
+			RecordGroupConsensusError(ct.backendGroup, "read_unmarshal_state", err)
 			return
 		}
 
-		log.Info("lock not found, creating a new one")
+		ct.remote.update(state)
+		log.Debug("updated state from remote", "state", val, "leader", leaderName)
 
-		mutex := rs.NewMutex(key,
-			redsync.WithExpiry(ct.lockPeriod),
-			redsync.WithFailFast(true),
-			redsync.WithTries(1))
-
-		// nosemgrep: missing-unlock-before-return
-		// this lock is hold indefinitely, and it is extended until the leader dies
-		if err := mutex.Lock(); err != nil {
-			log.Debug("failed to obtain lock", "err", err)
-			ct.leader = false
-			return
-		}
-
-		log.Info("lock acquired", "mutex", mutex.Name(), "val", mutex.Value())
-		ct.redlock = mutex
-		ct.leader = true
-		ct.postPayload(mutex.Value())
+		RecordGroupConsensusHALatestBlock(ct.backendGroup, leaderName, ct.remote.state.Latest)
+		RecordGroupConsensusHASafeBlock(ct.backendGroup, leaderName, ct.remote.state.Safe)
+		RecordGroupConsensusHAFinalizedBlock(ct.backendGroup, leaderName, ct.remote.state.Finalized)
 	}
 }
 
