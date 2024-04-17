@@ -269,6 +269,8 @@ type DeployConfig struct {
 
 	// The interval, in seconds, during which a security council owner must have demonstrated liveness
 	LivenessModuleInterval uint64 `json:"livenessModuleInterval"`
+	// The percentage used to calculate the threshold for the security council safe.
+	LivenessModuleThresholdPercentage uint64 `json:"livenessModuleThresholdPercentage"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -424,6 +426,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.LivenessModuleInterval == 0 {
 		log.Warn("LivenessModuleInterval is 0")
+	}
+	if d.LivenessModuleThresholdPercentage != nil && d.LivenessModuleThresholdPercentage == 0 || d.LivenessModuleThresholdPercentage > 100 {
+		return fmt.Errorf("LivenessModuleThresholdPercentage (%d) is not a valid percentage", d.LivenessModuleThresholdPercentage)
 	}
 	if d.UsePlasma {
 		if d.DAChallengeWindow == 0 {

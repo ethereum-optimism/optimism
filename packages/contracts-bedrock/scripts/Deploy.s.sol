@@ -457,7 +457,7 @@ contract Deploy is Deployer {
                 _safe: councilSafe,
                 _livenessGuard: LivenessGuard(guard_),
                 _livenessInterval: cfg.livenessModuleInterval(),
-                _thresholdPercentage: 20,
+                _thresholdPercentage: cfg.livenessModuleThresholdPercentage(),
                 _minOwners: 1,
                 _fallbackOwner: fallbackOwner
             })

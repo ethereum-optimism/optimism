@@ -65,5 +65,6 @@
   "daResolveWindow": 100,
   "daBondSize": 1000,
   "daResolverRefundPercentage": 50,
-  "livenessModuleInterval": 31536000
+  "livenessModuleInterval": 31536000,
+  "livenessModuleThresholdPercentage": 20
 }
