@@ -442,8 +442,9 @@ contract Deploy is Deployer {
         addr_ = safe;
     }
 
-    /// @notice Deploy a LivenessModule and LivenessGuard for use on the Security Council Safe
-    function _deployLivenessGuard() internal returns (address guard_) {
+    /// @notice Deploy a LivenessGuard for use on the Security Council Safe.
+    ///         Note this function does not have the broadcast modifier.
+    function deployLivenessGuard() public returns (address guard_) {
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
         guard_ = address(new LivenessGuard(councilSafe));
 
@@ -452,7 +453,8 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy a LivenessModule for use on the Security Council Safe
-    function _deployLivenessModule() internal returns (address module_) {
+    ///         Note this function does not have the broadcast modifier.
+    function deployLivenessModule() public returns (address module_) {
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
         address fallbackOwner = mustGetAddress("SystemOwnerSafe");
         address guard = mustGetAddress("LivenessGuard");
@@ -491,7 +493,6 @@ contract Deploy is Deployer {
 
         save("SecurityCouncilSafe", address(safe));
         console.log("New SecurityCouncilSafe deployed at %s", address(safe));
-        address guard = _deployLivenessGuard();
 
         address guard = deployLivenessGuard();
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
@@ -516,7 +517,7 @@ contract Deploy is Deployer {
 
         // Now that the owners have been added and the threshold increased we can deploy the liveness module (otherwise
         // constructor checks will fail).
-        address module = _deployLivenessModule();
+        address module = deployLivenessModule();
 
         // Unfortunately, a threshold of owners is required to actually enable the module, so we're unable to do that
         // here, and will settle for logging a warning below.
@@ -529,9 +530,9 @@ contract Deploy is Deployer {
                 "    1. call enableModule() to enable the LivenessModule deployed at ",
                 vm.toString(module),
                 "\n",
-                "    2. remove the deployer at ",
-                vm.toString(securityCouncilOwners.length),
-                " which is still an owner.x1b[0m"
+                "    2. call `removeOwner() to remove the deployer with address ",
+                vm.toString(msg.sender),
+                " which is still an owner. The threshold should not be changed.\x1b[0m"
             )
         );
     }
