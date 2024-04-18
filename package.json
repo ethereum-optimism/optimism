@@ -6,7 +6,7 @@
   "private": true,
   "engines": {
     "node": ">=16",
-    "pnpm": ">=8"
+    "pnpm": ">=9"
   },
   "scripts": {
     "clean": "pnpm recursive run clean; rm -rf node_modules packages/*/node_modules && echo 'Finished cleaning. Run `pnpm install && pnpm build` from root of repo to rebuild the repo.'",
