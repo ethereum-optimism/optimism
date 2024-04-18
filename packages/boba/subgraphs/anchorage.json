@@ -69,7 +69,7 @@
     {
       "abi": "L2StandardBridge",
       "address": "0x4200000000000000000000000000000000000010",
-      "startBlock": 1143399,
+      "startBlock": 1145230,
       "chain": "boba-eth"
     },
     {
