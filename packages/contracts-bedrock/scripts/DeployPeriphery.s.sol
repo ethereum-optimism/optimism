@@ -385,7 +385,7 @@ contract DeployPeriphery is Script, Artifacts {
                     dripcheck: CheckBalanceLow(mustGetAddress("CheckBalanceLow")),
                     checkparams: abi.encode(
                         CheckBalanceLow.Params({ target: mustGetAddress("FaucetProxy"), threshold: cfg.faucetDripV1Threshold() })
-                        ),
+                    ),
                     actions: actions
                 })
             });
@@ -414,7 +414,7 @@ contract DeployPeriphery is Script, Artifacts {
                     dripcheck: CheckBalanceLow(mustGetAddress("CheckBalanceLow")),
                     checkparams: abi.encode(
                         CheckBalanceLow.Params({ target: mustGetAddress("FaucetProxy"), threshold: cfg.faucetDripV2Threshold() })
-                        ),
+                    ),
                     actions: actions
                 })
             });
@@ -449,7 +449,7 @@ contract DeployPeriphery is Script, Artifacts {
                             target: mustGetAddress("FaucetProxy"),
                             threshold: cfg.faucetAdminDripV1Threshold()
                         })
-                        ),
+                    ),
                     actions: actions
                 })
             });
@@ -476,7 +476,7 @@ contract DeployPeriphery is Script, Artifacts {
                     // Gelato represents ETH as 0xeeeee....eeeee
                     0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
                     cfg.faucetGelatoBalanceV1Value()
-                    ),
+                ),
                 value: cfg.faucetGelatoBalanceV1Value()
             });
             drippie.create({
@@ -491,7 +491,7 @@ contract DeployPeriphery is Script, Artifacts {
                             threshold: cfg.faucetGelatoThreshold(),
                             treasury: cfg.faucetGelatoTreasury()
                         })
-                        ),
+                    ),
                     actions: actions
                 })
             });
@@ -742,11 +742,7 @@ contract DeployPeriphery is Script, Artifacts {
         if (drippie.getDripStatus(dripName) == Drippie.DripStatus.NONE) {
             console.log("installing %s", dripName);
             Drippie.DripAction[] memory actions = new Drippie.DripAction[](1);
-            actions[0] = Drippie.DripAction({
-                target: payable(_depositTo),
-                data: "",
-                value: _dripValue
-            });
+            actions[0] = Drippie.DripAction({ target: payable(_depositTo), data: "", value: _dripValue });
             drippie.create({
                 _name: dripName,
                 _config: Drippie.DripConfig({
