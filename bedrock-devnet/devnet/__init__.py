@@ -158,7 +158,7 @@ def devnet_deploy(paths):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
-        if os.path.exists(paths.allocs_path) == False or DEVNET_FPAC == True:
+        if not os.path.exists(paths.allocs_path) or DEVNET_FPAC:
             # If this is the FPAC devnet then we need to generate the allocs
             # file here always. This is because CI will run devnet-allocs
             # without DEVNET_FPAC=true which means the allocs will be wrong.
