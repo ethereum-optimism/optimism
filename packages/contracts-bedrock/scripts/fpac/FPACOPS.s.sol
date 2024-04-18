@@ -181,7 +181,8 @@ contract FPACOPS is Deploy, StdAssertions {
         FaultDisputeGame gameImpl = FaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
         assertEq(gameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
-        assertEq(gameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
+        assertEq(gameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
+        assertEq(gameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
         assertEq(gameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
 
         // Check the security override yoke configuration.
@@ -191,7 +192,8 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(soyGameImpl.challenger(), cfg.l2OutputOracleChallenger());
         assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
-        assertEq(soyGameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
+        assertEq(soyGameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
+        assertEq(soyGameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
         assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
 
         // Check the AnchorStateRegistry configuration.
@@ -211,13 +213,14 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("    1. Absolute Prestate: %x", cfg.faultGameAbsolutePrestate());
         console.log("    2. Max Depth: %d", cfg.faultGameMaxDepth());
         console.log("    3. Output / Execution split Depth: %d", cfg.faultGameSplitDepth());
-        console.log("    4. Game Duration (seconds): %d", cfg.faultGameMaxDuration());
-        console.log("    5. L2 Genesis block number: %d", cfg.faultGameGenesisBlock());
-        console.log("    6. L2 Genesis output root: %x", uint256(cfg.faultGameGenesisOutputRoot()));
-        console.log("    7. Proof Maturity Delay (seconds): ", cfg.proofMaturityDelaySeconds());
-        console.log("    8. Dispute Game Finality Delay (seconds): ", cfg.disputeGameFinalityDelaySeconds());
-        console.log("    9. Respected Game Type: ", cfg.respectedGameType());
-        console.log("   10. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
-        console.log("   11. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
+        console.log("    4. Clock Extension (seconds): %d", cfg.faultGameClockExtension());
+        console.log("    5. Max Clock Duration (seconds): %d", cfg.faultGameMaxClockDuration());
+        console.log("    6. L2 Genesis block number: %d", cfg.faultGameGenesisBlock());
+        console.log("    7. L2 Genesis output root: %x", uint256(cfg.faultGameGenesisOutputRoot()));
+        console.log("    8. Proof Maturity Delay (seconds): ", cfg.proofMaturityDelaySeconds());
+        console.log("    9. Dispute Game Finality Delay (seconds): ", cfg.disputeGameFinalityDelaySeconds());
+        console.log("   10. Respected Game Type: ", cfg.respectedGameType());
+        console.log("   11. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
+        console.log("   12. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
     }
 }

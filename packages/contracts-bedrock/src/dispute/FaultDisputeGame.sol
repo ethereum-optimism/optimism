@@ -36,8 +36,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ///         this depth, execution trace bisection begins.
     uint256 internal immutable SPLIT_DEPTH;
 
-    /// @notice The duration of the game.
-    Duration internal immutable GAME_DURATION;
+    /// @notice The maximum duration that may accumulate on a team's chess clock before they may no longer respond.
+    Duration internal immutable MAX_CLOCK_DURATION;
 
     /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
     IBigStepper internal immutable VM;
@@ -53,6 +53,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @notice The chain ID of the L2 network this contract argues about.
     uint256 internal immutable L2_CHAIN_ID;
+
+    /// @notice The duration of the clock extension. Will be doubled if the grandchild is the root claim of an execution
+    ///         trace bisection subgame.
+    Duration internal immutable CLOCK_EXTENSION;
 
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
@@ -88,14 +92,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     OutputRoot public startingOutputRoot;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.15.0
-    string public constant version = "0.15.0";
+    /// @custom:semver 0.16.1
+    string public constant version = "0.16.1";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
-    /// @param _gameDuration The duration of the game.
+    /// @param _clockExtension The clock extension to perform when the remaining duration is less than the extension.
+    /// @param _maxClockDuration The maximum amount of time that may accumulate on a team's chess clock.
     /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
     /// @param _weth WETH contract for holding ETH.
     /// @param _anchorStateRegistry The contract that stores the anchor state for each game type.
@@ -105,20 +110,26 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         uint256 _splitDepth,
-        Duration _gameDuration,
+        Duration _clockExtension,
+        Duration _maxClockDuration,
         IBigStepper _vm,
         IDelayedWETH _weth,
         IAnchorStateRegistry _anchorStateRegistry,
         uint256 _l2ChainId
     ) {
+        // The max game depth may not be greater than `LibPosition.MAX_POSITION_BITLEN - 1`.
+        if (_maxGameDepth > LibPosition.MAX_POSITION_BITLEN - 1) revert MaxDepthTooLarge();
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
+        // The clock extension may not be greater than the max clock duration.
+        if (_clockExtension.raw() > _maxClockDuration.raw()) revert InvalidClockExtension();
 
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         SPLIT_DEPTH = _splitDepth;
-        GAME_DURATION = _gameDuration;
+        CLOCK_EXTENSION = _clockExtension;
+        MAX_CLOCK_DURATION = _maxClockDuration;
         VM = _vm;
         WETH = _weth;
         ANCHOR_STATE_REGISTRY = _anchorStateRegistry;
@@ -261,9 +272,22 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // parent's clock timestamp.
         Duration nextDuration = getChallengerDuration(_challengeIndex);
 
-        // INVARIANT: A move can never be made once its clock has exceeded `GAME_DURATION / 2`
+        // INVARIANT: A move can never be made once its clock has exceeded `MAX_CLOCK_DURATION`
         //            seconds of time.
-        if (nextDuration.raw() == GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
+        if (nextDuration.raw() == MAX_CLOCK_DURATION.raw()) revert ClockTimeExceeded();
+
+        // If the remaining clock time has less than `CLOCK_EXTENSION` seconds remaining, grant the potential
+        // grandchild's clock `CLOCK_EXTENSION` seconds. This is to ensure that, even if a player has to inherit another
+        // team's clock to counter a freeloader claim, they will always have enough time to to respond. This extension
+        // is bounded by the depth of the tree. If the potential grandchild is an execution trace bisection root, the
+        // clock extension is doubled. This is to allow for extra time for the off-chain challenge agent to generate
+        // the initial instruction trace on the native FPVM.
+        if (nextDuration.raw() > MAX_CLOCK_DURATION.raw() - CLOCK_EXTENSION.raw()) {
+            // If the potential grandchild is an execution trace bisection root, double the clock extension.
+            uint64 extensionPeriod =
+                nextPositionDepth == SPLIT_DEPTH - 1 ? CLOCK_EXTENSION.raw() * 2 : CLOCK_EXTENSION.raw();
+            nextDuration = Duration.wrap(MAX_CLOCK_DURATION.raw() - extensionPeriod);
+        }
 
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
@@ -387,9 +411,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         Duration challengeClockDuration = getChallengerDuration(_claimIndex);
 
         // INVARIANT: Cannot resolve a subgame unless the clock of its would-be counter has expired
-        // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always >= GAME_DURATION / 2 if all
+        // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always >= MAX_CLOCK_DURATION if all
         // descendant subgames are resolved
-        if (challengeClockDuration.raw() < GAME_DURATION.raw() >> 1) revert ClockNotExpired();
+        if (challengeClockDuration.raw() < MAX_CLOCK_DURATION.raw()) revert ClockNotExpired();
 
         // INVARIANT: Cannot resolve a subgame twice.
         if (resolvedSubgames[_claimIndex]) revert ClaimAlreadyResolved();
@@ -634,7 +658,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @notice Returns the amount of time elapsed on the potential challenger to `_claimIndex`'s chess clock. Maxes
-    ///         out at `GAME_DURATION / 2`.
+    ///         out at `MAX_CLOCK_DURATION`.
     /// @param _claimIndex The index of the subgame root claim.
     /// @return duration_ The time elapsed on the potential challenger to `_claimIndex`'s chess clock.
     function getChallengerDuration(uint256 _claimIndex) public view returns (Duration duration_) {
@@ -655,12 +679,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Compute the duration elapsed of the potential challenger's clock.
         uint64 challengeDuration =
             uint64(parentClock.duration().raw() + (block.timestamp - subgameRootClaim.clock.timestamp().raw()));
-        uint64 maxClockTime = GAME_DURATION.raw() >> 1;
-        if (challengeDuration > maxClockTime) {
-            duration_ = Duration.wrap(maxClockTime);
-        } else {
-            duration_ = Duration.wrap(challengeDuration);
-        }
+        duration_ = challengeDuration > MAX_CLOCK_DURATION.raw() ? MAX_CLOCK_DURATION : Duration.wrap(challengeDuration);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -682,9 +701,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         splitDepth_ = SPLIT_DEPTH;
     }
 
-    /// @notice Returns the game duration.
-    function gameDuration() external view returns (Duration gameDuration_) {
-        gameDuration_ = GAME_DURATION;
+    /// @notice Returns the max clock duration.
+    function maxClockDuration() external view returns (Duration maxClockDuration_) {
+        maxClockDuration_ = MAX_CLOCK_DURATION;
+    }
+
+    /// @notice Returns the clock extension constant.
+    function clockExtension() external view returns (Duration clockExtension_) {
+        clockExtension_ = CLOCK_EXTENSION;
     }
 
     /// @notice Returns the address of the VM.
@@ -879,10 +903,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     {
         // A position of 0 indicates that the starting claim is the absolute prestate. In this special case,
         // we do not include the starting claim within the local context hash.
-        if (_startingPos.raw() == 0) {
-            uuid_ = Hash.wrap(keccak256(abi.encode(_disputed, _disputedPos)));
-        } else {
-            uuid_ = Hash.wrap(keccak256(abi.encode(_starting, _startingPos, _disputed, _disputedPos)));
-        }
+        uuid_ = _startingPos.raw() == 0
+            ? Hash.wrap(keccak256(abi.encode(_disputed, _disputedPos)))
+            : Hash.wrap(keccak256(abi.encode(_starting, _startingPos, _disputed, _disputedPos)));
     }
 }

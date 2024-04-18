@@ -68,7 +68,7 @@ func TestOutputCannonGame(t *testing.T) {
 	claim.WaitForCountered(ctx)
 	game.LogGameData(ctx)
 
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
@@ -96,7 +96,7 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 
 	game.LogGameData(ctx)
 
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 	game.LogGameData(ctx)
@@ -171,7 +171,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 					}
 				})
 
-			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.LogGameData(ctx)
@@ -208,7 +208,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 		}
 	})
 
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForInactivity(ctx, 10, true)
@@ -426,7 +426,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 				})
 
 			// Time travel past when the game will be resolvable.
-			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForInactivity(ctx, 10, true)
@@ -493,7 +493,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 	claimToIgnore2.RequireOnlyCounteredBy(ctx /* nothing */)
 
 	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.LogGameData(ctx)
@@ -543,7 +543,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 	correctTrace.StepClaimFails(ctx, claim, false)
 
 	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
@@ -594,7 +594,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 	claim.WaitForCountered(ctx)
 
 	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
@@ -654,7 +654,7 @@ func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
 	claim.WaitForCountered(ctx)
 
 	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
@@ -714,7 +714,7 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 			})
 
 			// Time travel past when the game will be resolvable.
-			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
@@ -776,7 +776,7 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 			})
 
 			// Time travel past when the game will be resolvable.
-			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)

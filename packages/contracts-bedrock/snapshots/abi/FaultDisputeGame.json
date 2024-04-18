@@ -23,7 +23,12 @@
       },
       {
         "internalType": "Duration",
-        "name": "_gameDuration",
+        "name": "_clockExtension",
+        "type": "uint64"
+      },
+      {
+        "internalType": "Duration",
+        "name": "_maxClockDuration",
         "type": "uint64"
       },
       {
@@ -189,6 +194,19 @@
   },
   {
     "inputs": [],
+    "name": "clockExtension",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "clockExtension_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "createdAt",
     "outputs": [
       {
@@ -288,19 +306,6 @@
   },
   {
     "inputs": [],
-    "name": "gameDuration",
-    "outputs": [
-      {
-        "internalType": "Duration",
-        "name": "gameDuration_",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "gameType",
     "outputs": [
       {
@@ -391,6 +396,19 @@
         "internalType": "uint256",
         "name": "l2ChainId_",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxClockDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "maxClockDuration_",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -726,6 +744,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidClockExtension",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidLocalIdent",
     "type": "error"
   },
@@ -742,6 +765,11 @@
   {
     "inputs": [],
     "name": "InvalidSplitDepth",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MaxDepthTooLarge",
     "type": "error"
   },
   {

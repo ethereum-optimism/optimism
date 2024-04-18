@@ -50,7 +50,8 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             _absolutePrestate: absolutePrestate,
             _maxGameDepth: 2 ** 3,
             _splitDepth: 2 ** 2,
-            _gameDuration: Duration.wrap(7 days),
+            _clockExtension: Duration.wrap(3 hours),
+            _maxClockDuration: Duration.wrap(3.5 days),
             _vm: _vm,
             _weth: delayedWeth,
             _anchorStateRegistry: anchorStateRegistry,
@@ -67,7 +68,8 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         assertEq(gameProxy.absolutePrestate().raw(), absolutePrestate.raw());
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
         assertEq(gameProxy.splitDepth(), 2 ** 2);
-        assertEq(gameProxy.gameDuration().raw(), 7 days);
+        assertEq(gameProxy.clockExtension().raw(), 3 hours);
+        assertEq(gameProxy.maxClockDuration().raw(), 3.5 days);
         assertEq(address(gameProxy.vm()), address(_vm));
 
         // Label the proxy
@@ -100,13 +102,32 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     //            `IDisputeGame` Implementation Tests             //
     ////////////////////////////////////////////////////////////////
 
-    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
-    ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
-    function test_constructor_wrongArgs_reverts(uint256 _splitDepth) public {
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `MAX_GAME_DEPTH` parameter is
+    ///      greater  than `LibPosition.MAX_POSITION_BITLEN - 1`.
+    function testFuzz_constructor_maxDepthTooLarge_reverts(uint256 _maxGameDepth) public {
         AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
 
-        // Test that the constructor reverts when the `_splitDepth` parameter is greater than or equal
-        // to the `MAX_GAME_DEPTH` parameter.
+        _maxGameDepth = bound(_maxGameDepth, LibPosition.MAX_POSITION_BITLEN, type(uint256).max - 1);
+        vm.expectRevert(MaxDepthTooLarge.selector);
+        new FaultDisputeGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: absolutePrestate,
+            _maxGameDepth: _maxGameDepth,
+            _splitDepth: _maxGameDepth + 1,
+            _clockExtension: Duration.wrap(3 hours),
+            _maxClockDuration: Duration.wrap(3.5 days),
+            _vm: alphabetVM,
+            _weth: DelayedWETH(payable(address(0))),
+            _anchorStateRegistry: IAnchorStateRegistry(address(0)),
+            _l2ChainId: 10
+        });
+    }
+
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
+    ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
+    function testFuzz_constructor_invalidSplitDepth_reverts(uint256 _splitDepth) public {
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+
         _splitDepth = bound(_splitDepth, 2 ** 3, type(uint256).max);
         vm.expectRevert(InvalidSplitDepth.selector);
         new FaultDisputeGame({
@@ -114,7 +135,35 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _absolutePrestate: absolutePrestate,
             _maxGameDepth: 2 ** 3,
             _splitDepth: _splitDepth,
-            _gameDuration: Duration.wrap(7 days),
+            _clockExtension: Duration.wrap(3 hours),
+            _maxClockDuration: Duration.wrap(3.5 days),
+            _vm: alphabetVM,
+            _weth: DelayedWETH(payable(address(0))),
+            _anchorStateRegistry: IAnchorStateRegistry(address(0)),
+            _l2ChainId: 10
+        });
+    }
+
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when clock extension is greater than the
+    ///      max clock duration.
+    function testFuzz_constructor_clockExtensionTooLong_reverts(
+        uint64 _maxClockDuration,
+        uint64 _clockExtension
+    )
+        public
+    {
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+
+        _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max - 1));
+        _clockExtension = uint64(bound(_clockExtension, _maxClockDuration + 1, type(uint64).max));
+        vm.expectRevert(InvalidClockExtension.selector);
+        new FaultDisputeGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: absolutePrestate,
+            _maxGameDepth: 16,
+            _splitDepth: 8,
+            _clockExtension: Duration.wrap(_clockExtension),
+            _maxClockDuration: Duration.wrap(_maxClockDuration),
             _vm: alphabetVM,
             _weth: DelayedWETH(payable(address(0))),
             _anchorStateRegistry: IAnchorStateRegistry(address(0)),
@@ -392,6 +441,44 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack{ value: bond }(3, claim);
         (,,,,,, clock) = gameProxy.claimData(4);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(20), Timestamp.wrap(uint64(block.timestamp))).raw());
+    }
+
+    /// @notice Static unit test that checks proper clock extension.
+    function test_move_clockExtensionCorrectness_succeeds() public {
+        (,,,,,, Clock clock) = gameProxy.claimData(0);
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
+
+        Claim claim = _dummyClaim();
+        uint256 splitDepth = gameProxy.splitDepth();
+        uint64 halfGameDuration = gameProxy.maxClockDuration().raw();
+        uint64 clockExtension = gameProxy.clockExtension().raw();
+
+        // Make an initial attack against the root claim with 1 second left on the clock. The grandchild should be
+        // allocated exactly `clockExtension` seconds remaining on their potential clock.
+        vm.warp(block.timestamp + halfGameDuration - 1 seconds);
+        uint256 bond = _getRequiredBond(0);
+        gameProxy.attack{ value: bond }(0, claim);
+        (,,,,,, clock) = gameProxy.claimData(1);
+        assertEq(clock.duration().raw(), halfGameDuration - clockExtension);
+
+        // Warp ahead to the last second of the root claim defender's clock, and bisect all the way down to the move
+        // above the `SPLIT_DEPTH`. This warp guarantees that all moves from here on out will have clock extensions.
+        vm.warp(block.timestamp + halfGameDuration - 1 seconds);
+        for (uint256 i = 1; i < splitDepth - 2; i++) {
+            bond = _getRequiredBond(i);
+            gameProxy.attack{ value: bond }(i, claim);
+        }
+
+        // Warp ahead 1 seconds to have `clockExtension - 1 seconds` left on the next move's clock.
+        vm.warp(block.timestamp + 1 seconds);
+
+        // The move above the split depth's grand child is the execution trace bisection root. The grandchild should
+        // be allocated `clockExtension * 2` seconds on their potential clock, if currently they have less than
+        // `clockExtension` seconds left.
+        bond = _getRequiredBond(splitDepth - 2);
+        gameProxy.attack{ value: bond }(splitDepth - 2, claim);
+        (,,,,,, clock) = gameProxy.claimData(splitDepth - 1);
+        assertEq(clock.duration().raw(), halfGameDuration - clockExtension * 2);
     }
 
     /// @dev Tests that an identical claim cannot be made twice. The duplicate claim attempt should
@@ -1140,7 +1227,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Defender's turn
         vm.warp(block.timestamp + 3.5 days - 1 seconds);
         gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
-        // Chess time left to attack:
+        // Chess clock time accumulated:
         assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days - 1 seconds);
         assertEq(gameProxy.getChallengerDuration(1).raw(), 0);
 
@@ -1150,7 +1237,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         uint256 expectedBond = _getRequiredBond(0);
         vm.expectRevert(ClockTimeExceeded.selector);
         gameProxy.attack{ value: expectedBond }(0, _dummyClaim());
-        // Chess time left to attack:
+        // Chess clock time accumulated:
         assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days);
         assertEq(gameProxy.getChallengerDuration(1).raw(), 1 seconds);
 
@@ -1164,10 +1251,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 3.5 days - 2 seconds);
         // Attack the challenge to the root claim. This should succeed, since the defender clock is not expired.
         gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
-        // Chess time left to attack:
+        // Chess clock time accumulated:
         assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days);
         assertEq(gameProxy.getChallengerDuration(1).raw(), 3.5 days - 1 seconds);
-        assertEq(gameProxy.getChallengerDuration(2).raw(), 3.5 days - 1 seconds);
+        assertEq(gameProxy.getChallengerDuration(2).raw(), 3.5 days - gameProxy.clockExtension().raw());
 
         // Should not be able to resolve any claims yet.
         vm.expectRevert(ClockNotExpired.selector);
@@ -1177,6 +1264,21 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.expectRevert(OutOfOrderResolution.selector);
         gameProxy.resolveClaim(0);
 
+        vm.warp(block.timestamp + gameProxy.clockExtension().raw() - 1 seconds);
+
+        // Should not be able to resolve any claims yet.
+        vm.expectRevert(ClockNotExpired.selector);
+        gameProxy.resolveClaim(2);
+        vm.expectRevert(OutOfOrderResolution.selector);
+        gameProxy.resolveClaim(1);
+        vm.expectRevert(OutOfOrderResolution.selector);
+        gameProxy.resolveClaim(0);
+
+        // Chess clock time accumulated:
+        assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days);
+        assertEq(gameProxy.getChallengerDuration(1).raw(), 3.5 days);
+        assertEq(gameProxy.getChallengerDuration(2).raw(), 3.5 days - 1 seconds);
+
         // Warp past the challenge period for the root claim defender. Defending the root claim should now revert.
         vm.warp(block.timestamp + 1 seconds);
         expectedBond = _getRequiredBond(1);
@@ -1185,7 +1287,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         expectedBond = _getRequiredBond(2);
         vm.expectRevert(ClockTimeExceeded.selector); // no further move can be made
         gameProxy.attack{ value: expectedBond }(2, _dummyClaim());
-        // Chess time left to attack:
+        // Chess clock time accumulated:
         assertEq(gameProxy.getChallengerDuration(0).raw(), 3.5 days);
         assertEq(gameProxy.getChallengerDuration(1).raw(), 3.5 days);
         assertEq(gameProxy.getChallengerDuration(2).raw(), 3.5 days);

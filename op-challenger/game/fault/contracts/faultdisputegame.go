@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	methodGameDuration        = "gameDuration"
+	methodMaxClockDuration    = "maxClockDuration"
 	methodMaxGameDepth        = "maxGameDepth"
 	methodAbsolutePrestate    = "absolutePrestate"
 	methodStatus              = "status"
@@ -107,7 +107,7 @@ func (f *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateB
 	return
 }
 
-// GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, and game duration.
+// GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, and max clock duration.
 func (f *FaultDisputeGameContract) GetGameMetadata(ctx context.Context, block rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
 	defer f.metrics.StartContractRequest("GetGameMetadata")()
 	results, err := f.multiCaller.Call(ctx, block,
@@ -115,7 +115,7 @@ func (f *FaultDisputeGameContract) GetGameMetadata(ctx context.Context, block rp
 		f.contract.Call(methodL2BlockNumber),
 		f.contract.Call(methodRootClaim),
 		f.contract.Call(methodStatus),
-		f.contract.Call(methodGameDuration))
+		f.contract.Call(methodMaxClockDuration))
 	if err != nil {
 		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
 	}
@@ -274,11 +274,11 @@ func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOrac
 	return vm.Oracle(ctx)
 }
 
-func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (time.Duration, error) {
-	defer f.metrics.StartContractRequest("GetGameDuration")()
-	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameDuration))
+func (f *FaultDisputeGameContract) GetMaxClockDuration(ctx context.Context) (time.Duration, error) {
+	defer f.metrics.StartContractRequest("GetMaxClockDuration")()
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodMaxClockDuration))
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch game duration: %w", err)
+		return 0, fmt.Errorf("failed to fetch max clock duration: %w", err)
 	}
 	return time.Duration(result.GetUint64(0)) * time.Second, nil
 }

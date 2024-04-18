@@ -57,7 +57,8 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             _absolutePrestate: absolutePrestate,
             _maxGameDepth: 2 ** 3,
             _splitDepth: 2 ** 2,
-            _gameDuration: Duration.wrap(7 days),
+            _clockExtension: Duration.wrap(3 hours),
+            _maxClockDuration: Duration.wrap(3.5 days),
             _vm: _vm,
             _weth: _weth,
             _anchorStateRegistry: anchorStateRegistry,
@@ -79,7 +80,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
         assertEq(gameProxy.absolutePrestate().raw(), absolutePrestate.raw());
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
         assertEq(gameProxy.splitDepth(), 2 ** 2);
-        assertEq(gameProxy.gameDuration().raw(), 7 days);
+        assertEq(gameProxy.maxClockDuration().raw(), 3.5 days);
         assertEq(address(gameProxy.vm()), address(_vm));
 
         // Label the proxy

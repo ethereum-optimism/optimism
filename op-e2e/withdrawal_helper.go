@@ -200,7 +200,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		proxy, err := bindings.NewFaultDisputeGame(game.DisputeGameProxy, l1Client)
 		require.Nil(t, err)
 
-		expiry, err := proxy.GameDuration(&bind.CallOpts{})
+		expiry, err := proxy.MaxClockDuration(&bind.CallOpts{})
 		require.Nil(t, err)
 
 		time.Sleep(time.Duration(expiry) * time.Second)

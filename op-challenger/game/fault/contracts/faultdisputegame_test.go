@@ -44,12 +44,12 @@ func TestSimpleGetters(t *testing.T) {
 			},
 		},
 		{
-			methodAlias: "gameDuration",
-			method:      methodGameDuration,
+			methodAlias: "maxClockDuration",
+			method:      methodMaxClockDuration,
 			result:      uint64(5566),
 			expected:    5566 * time.Second,
 			call: func(game *FaultDisputeGameContract) (any, error) {
-				return game.GetGameDuration(context.Background())
+				return game.GetMaxClockDuration(context.Background())
 			},
 		},
 		{
@@ -341,7 +341,7 @@ func TestGetGameMetadata(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
 	expectedL1Head := common.Hash{0x0a, 0x0b}
 	expectedL2BlockNumber := uint64(123)
-	expectedGameDuration := uint64(456)
+	expectedMaxClockDuration := uint64(456)
 	expectedRootClaim := common.Hash{0x01, 0x02}
 	expectedStatus := types.GameStatusChallengerWon
 	block := rpcblock.ByNumber(889)
@@ -349,14 +349,14 @@ func TestGetGameMetadata(t *testing.T) {
 	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 	stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
 	stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
-	stubRpc.SetResponse(fdgAddr, methodGameDuration, block, nil, []interface{}{expectedGameDuration})
+	stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
 	l1Head, l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background(), block)
 	require.NoError(t, err)
 	require.Equal(t, expectedL1Head, l1Head)
 	require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
 	require.Equal(t, expectedRootClaim, rootClaim)
 	require.Equal(t, expectedStatus, status)
-	require.Equal(t, expectedGameDuration, duration)
+	require.Equal(t, expectedMaxClockDuration, duration)
 }
 
 func TestGetStartingRootHash(t *testing.T) {

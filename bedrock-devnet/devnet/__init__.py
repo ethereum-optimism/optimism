@@ -130,7 +130,7 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
     if DEVNET_FPAC:
         deploy_config['useFaultProofs'] = True
-        deploy_config['faultGameMaxDuration'] = 10
+        deploy_config['faultGameMaxClockDuration'] = 10
         deploy_config['faultGameWithdrawalDelay'] = 0
     if DEVNET_PLASMA:
         deploy_config['usePlasma'] = True

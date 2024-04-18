@@ -210,10 +210,12 @@ type DeployConfig struct {
 	// supports. Ideally, this should be conservatively set so that there is always enough
 	// room for a full Cannon trace.
 	FaultGameMaxDepth uint64 `json:"faultGameMaxDepth"`
-	// FaultGameMaxDuration is the maximum amount of time (in seconds) that the fault dispute
-	// game can run for before it is ready to be resolved. Each side receives half of this value
-	// on their chess clock at the inception of the dispute.
-	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// FaultGameClockExtension is the amount of time that the dispute game will set the potential grandchild claim's,
+	// clock to, if the remaining time is less than this value at the time of a claim's creation.
+	FaultGameClockExtension uint64 `json:"faultGameClockExtension"`
+	// FaultGameMaxClockDuration is the maximum amount of time that may accumulate on a team's chess clock before they
+	// may no longer respond.
+	FaultGameMaxClockDuration uint64 `json:"faultGameMaxClockDuration"`
 	// FaultGameGenesisBlock is the block number for genesis.
 	FaultGameGenesisBlock uint64 `json:"faultGameGenesisBlock"`
 	// FaultGameGenesisOutputRoot is the output root for the genesis block.
