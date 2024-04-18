@@ -61,6 +61,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
+    /// @notice Semantic version.
+    /// @custom:semver 0.16.1
+    string public constant version = "0.16.1";
+
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
 
@@ -90,10 +94,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @notice The latest finalized output root, serving as the anchor for output bisection.
     OutputRoot public startingOutputRoot;
-
-    /// @notice Semantic version.
-    /// @custom:semver 0.16.1
-    string public constant version = "0.16.1";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -136,11 +136,78 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         L2_CHAIN_ID = _l2ChainId;
     }
 
-    /// @notice Receive function to allow the contract to receive ETH.
-    receive() external payable { }
+    /// @inheritdoc IInitializable
+    function initialize() public payable virtual {
+        // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
+        // prevent the game from being created.
+        //
+        // Implicit assumptions:
+        // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
+        // - The dispute game factory will enforce the required bond to initialize the game.
+        //
+        // Explicit checks:
+        // - The game must not have already been initialized.
+        // - An output root cannot be proposed at or before the starting block number.
 
-    /// @notice Fallback function to allow the contract to receive ETH.
-    fallback() external payable { }
+        // INVARIANT: The game must not have already been initialized.
+        if (initialized) revert AlreadyInitialized();
+
+        // Grab the latest anchor root.
+        (Hash root, uint256 rootBlockNumber) = ANCHOR_STATE_REGISTRY.anchors(GAME_TYPE);
+
+        // Should only happen if this is a new game type that hasn't been set up yet.
+        if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
+
+        // Set the starting output root.
+        startingOutputRoot = OutputRoot({ l2BlockNumber: rootBlockNumber, root: root });
+
+        // Revert if the calldata size is not the expected length.
+        //
+        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
+        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
+        // output proposal to be created.
+        //
+        // Expected length: 0x7A
+        // - 0x04 selector
+        // - 0x14 creator address
+        // - 0x20 root claim
+        // - 0x20 l1 head
+        // - 0x20 extraData
+        // - 0x02 CWIA bytes
+        assembly {
+            if iszero(eq(calldatasize(), 0x7A)) {
+                // Store the selector for `BadExtraData()` & revert
+                mstore(0x00, 0x9824bdab)
+                revert(0x1C, 0x04)
+            }
+        }
+
+        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
+        // configured starting block number.
+        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
+
+        // Set the root claim
+        claimData.push(
+            ClaimData({
+                parentIndex: type(uint32).max,
+                counteredBy: address(0),
+                claimant: gameCreator(),
+                bond: uint128(msg.value),
+                claim: rootClaim(),
+                position: ROOT_POSITION,
+                clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp)))
+            })
+        );
+
+        // Set the game as initialized.
+        initialized = true;
+
+        // Deposit the bond.
+        WETH.deposit{ value: msg.value }();
+
+        // Set the game's starting timestamp
+        createdAt = Timestamp.wrap(uint64(block.timestamp));
+    }
 
     ////////////////////////////////////////////////////////////////
     //                  `IFaultDisputeGame` impl                  //
@@ -374,14 +441,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         l2BlockNumber_ = _getArgUint256(0x54);
     }
 
+    /// @inheritdoc IFaultDisputeGame
+    function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
+        startingBlockNumber_ = startingOutputRoot.l2BlockNumber;
+    }
+
+    /// @inheritdoc IFaultDisputeGame
+    function startingRootHash() external view returns (Hash startingRootHash_) {
+        startingRootHash_ = startingOutputRoot.root;
+    }
+
     ////////////////////////////////////////////////////////////////
     //                    `IDisputeGame` impl                     //
     ////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc IDisputeGame
-    function gameType() public view override returns (GameType gameType_) {
-        gameType_ = GAME_TYPE;
-    }
 
     /// @inheritdoc IDisputeGame
     function resolve() external returns (GameStatus status_) {
@@ -471,6 +543,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IDisputeGame
+    function gameType() public view override returns (GameType gameType_) {
+        gameType_ = GAME_TYPE;
+    }
+
+    /// @inheritdoc IDisputeGame
     function gameCreator() public pure returns (address creator_) {
         creator_ = _getArgAddress(0x00);
     }
@@ -499,97 +576,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         extraData_ = extraData();
     }
 
-    /// @inheritdoc IFaultDisputeGame
-    function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
-        startingBlockNumber_ = startingOutputRoot.l2BlockNumber;
-    }
-
-    /// @inheritdoc IFaultDisputeGame
-    function startingRootHash() external view returns (Hash startingRootHash_) {
-        startingRootHash_ = startingOutputRoot.root;
-    }
-
     ////////////////////////////////////////////////////////////////
     //                       MISC EXTERNAL                        //
     ////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc IInitializable
-    function initialize() public payable virtual {
-        // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
-        // prevent the game from being created.
-        //
-        // Implicit assumptions:
-        // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
-        // - The dispute game factory will enforce the required bond to initialize the game.
-        //
-        // Explicit checks:
-        // - The game must not have already been initialized.
-        // - An output root cannot be proposed at or before the starting block number.
-
-        // INVARIANT: The game must not have already been initialized.
-        if (initialized) revert AlreadyInitialized();
-
-        // Grab the latest anchor root.
-        (Hash root, uint256 rootBlockNumber) = ANCHOR_STATE_REGISTRY.anchors(GAME_TYPE);
-
-        // Should only happen if this is a new game type that hasn't been set up yet.
-        if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
-
-        // Set the starting output root.
-        startingOutputRoot = OutputRoot({ l2BlockNumber: rootBlockNumber, root: root });
-
-        // Revert if the calldata size is not the expected length.
-        //
-        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
-        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
-        // output proposal to be created.
-        //
-        // Expected length: 0x7A
-        // - 0x04 selector
-        // - 0x14 creator address
-        // - 0x20 root claim
-        // - 0x20 l1 head
-        // - 0x20 extraData
-        // - 0x02 CWIA bytes
-        assembly {
-            if iszero(eq(calldatasize(), 0x7A)) {
-                // Store the selector for `BadExtraData()` & revert
-                mstore(0x00, 0x9824bdab)
-                revert(0x1C, 0x04)
-            }
-        }
-
-        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
-        // configured starting block number.
-        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
-
-        // Set the root claim
-        claimData.push(
-            ClaimData({
-                parentIndex: type(uint32).max,
-                counteredBy: address(0),
-                claimant: gameCreator(),
-                bond: uint128(msg.value),
-                claim: rootClaim(),
-                position: ROOT_POSITION,
-                clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp)))
-            })
-        );
-
-        // Deposit the bond.
-        WETH.deposit{ value: msg.value }();
-
-        // Set the game's starting timestamp
-        createdAt = Timestamp.wrap(uint64(block.timestamp));
-
-        // Set the game as initialized.
-        initialized = true;
-    }
-
-    /// @notice Returns the length of the `claimData` array.
-    function claimDataLen() external view returns (uint256 len_) {
-        len_ = claimData.length;
-    }
 
     /// @notice Returns the required bond for a given move kind.
     /// @param _position The position of the bonded interaction.
@@ -680,6 +669,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint64 challengeDuration =
             uint64(parentClock.duration().raw() + (block.timestamp - subgameRootClaim.clock.timestamp().raw()));
         duration_ = challengeDuration > MAX_CLOCK_DURATION.raw() ? MAX_CLOCK_DURATION : Duration.wrap(challengeDuration);
+    }
+
+    /// @notice Returns the length of the `claimData` array.
+    function claimDataLen() external view returns (uint256 len_) {
+        len_ = claimData.length;
     }
 
     ////////////////////////////////////////////////////////////////

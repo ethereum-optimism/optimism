@@ -56,14 +56,6 @@
     "type": "constructor"
   },
   {
-    "stateMutability": "payable",
-    "type": "fallback"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
-  },
-  {
     "inputs": [],
     "name": "absolutePrestate",
     "outputs": [
