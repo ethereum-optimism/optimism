@@ -609,6 +609,104 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.step(8, true, absolutePrestateData, hex"");
     }
 
+    /// @dev Tests that successfully step with true attacking claim when there is a true defend claim(claim5) in the
+    /// middle of the dispute game.
+    function test_stepAttackDummyClaim_defendTrueClaimInTheMiddle_succeeds() public {
+        // Give the test contract some ether
+        vm.deal(address(this), 1000 ether);
+
+        // Make claims all the way down the tree.
+        gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(2) }(2, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(3) }(3, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(4) }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+        bytes memory claimData5 = abi.encode(5, 5);
+        Claim claim5 = Claim.wrap(keccak256(claimData5));
+        gameProxy.attack{ value: _getRequiredBond(5) }(5, claim5);
+        gameProxy.defend{ value: _getRequiredBond(6) }(6, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(7) }(7, _dummyClaim());
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
+        gameProxy.step(8, true, claimData5, hex"");
+    }
+
+    /// @dev Tests that step reverts with false attacking claim when there is a true defend claim(claim5) in the middle
+    /// of the dispute game.
+    function test_stepAttackTrueClaim_defendTrueClaimInTheMiddle_reverts() public {
+        // Give the test contract some ether
+        vm.deal(address(this), 1000 ether);
+
+        // Make claims all the way down the tree.
+        gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(2) }(2, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(3) }(3, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(4) }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+        bytes memory claimData5 = abi.encode(5, 5);
+        Claim claim5 = Claim.wrap(keccak256(claimData5));
+        gameProxy.attack{ value: _getRequiredBond(5) }(5, claim5);
+        gameProxy.defend{ value: _getRequiredBond(6) }(6, _dummyClaim());
+        Claim postState_ = Claim.wrap(gameImpl.vm().step(claimData5, hex"", bytes32(0)));
+        gameProxy.attack{ value: _getRequiredBond(7) }(7, postState_);
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
+
+        vm.expectRevert(ValidStep.selector);
+        gameProxy.step(8, true, claimData5, hex"");
+    }
+
+    /// @dev Tests that step reverts with false defending claim when there is a true defend claim(postState_) in the
+    /// middle of the dispute game.
+    function test_stepDefendDummyClaim_defendTrueClaimInTheMiddle_reverts() public {
+        // Give the test contract some ether
+        vm.deal(address(this), 1000 ether);
+
+        // Make claims all the way down the tree.
+        gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(2) }(2, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(3) }(3, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(4) }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+
+        bytes memory claimData7 = abi.encode(5, 5);
+        Claim postState_ = Claim.wrap(gameImpl.vm().step(claimData7, hex"", bytes32(0)));
+
+        gameProxy.attack{ value: _getRequiredBond(5) }(5, postState_);
+        gameProxy.defend{ value: _getRequiredBond(6) }(6, _dummyClaim());
+
+        bytes memory _dummyClaimData = abi.encode(gasleft(), gasleft());
+        Claim dummyClaim7 = Claim.wrap(keccak256(_dummyClaimData));
+        gameProxy.attack{ value: _getRequiredBond(7) }(7, dummyClaim7);
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
+        vm.expectRevert(ValidStep.selector);
+        gameProxy.step(8, false, _dummyClaimData, hex"");
+    }
+
+    /// @dev Tests that step reverts with true defending claim when there is a true defend claim(postState_) in the
+    /// middle of the dispute game.
+    function test_stepDefendTrueClaim_defendTrueClaimInTheMiddle_reverts() public {
+        // Give the test contract some ether
+        vm.deal(address(this), 1000 ether);
+
+        // Make claims all the way down the tree.
+        gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(1) }(1, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(2) }(2, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(3) }(3, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(4) }(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
+
+        bytes memory claimData7 = abi.encode(5, 5);
+        Claim claim7 = Claim.wrap(keccak256(claimData7));
+        Claim postState_ = Claim.wrap(gameImpl.vm().step(claimData7, hex"", bytes32(0)));
+
+        gameProxy.attack{ value: _getRequiredBond(5) }(5, postState_);
+        gameProxy.defend{ value: _getRequiredBond(6) }(6, _dummyClaim());
+        gameProxy.attack{ value: _getRequiredBond(7) }(7, claim7);
+        gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
+
+        vm.expectRevert(ValidStep.selector);
+        gameProxy.step(8, false, claimData7, hex"");
+    }
+
     /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontested_succeeds() public {
         vm.warp(block.timestamp + 3 days + 12 hours);
