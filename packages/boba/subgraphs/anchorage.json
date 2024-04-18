@@ -67,6 +67,18 @@
       "chain": "mainnet"
     },
     {
+      "abi": "L2StandardBridge",
+      "address": "0x4200000000000000000000000000000000000010",
+      "startBlock": 1143399,
+      "chain": "boba-mainnet"
+    },
+    {
+      "abi": "L2ToL1MessagePasser",
+      "address": "0x4200000000000000000000000000000000000016",
+      "startBlock": 0,
+      "chain": "boba-mainnet"
+    },
+    {
       "abi": "L2OutputOracle",
       "address": "0xbB7aD3f9CCbC94085b7F7B1D5258e59F5F068741",
       "startBlock": 19478399,
