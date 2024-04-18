@@ -91,5 +91,6 @@
   "daResolveWindow": 0,
   "daResolverRefundPercentage": 0,
   "livenessModuleInterval": 31536000,
-  "livenessModuleThresholdPercentage": 20
+  "livenessModuleThresholdPercentage": 20,
+  "livenessModuleMinOwners": 1
 }
