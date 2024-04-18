@@ -69,5 +69,5 @@
   "livenessModuleThresholdPercentage": 20,
   "livenessModuleMinOwners": 2,
   "securityCouncilThreshold": 2,
-  "securityCouncilOwners": ["0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"]
+  "securityCouncilOwners": ["0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc"]
 }
