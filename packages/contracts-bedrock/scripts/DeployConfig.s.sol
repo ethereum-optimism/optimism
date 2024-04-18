@@ -76,6 +76,8 @@ contract DeployConfig is Script {
     uint256 public livenessModuleInterval;
     uint256 public livenessModuleThresholdPercentage;
     uint256 public livenessModuleMinOwners;
+    uint256 public securityCouncilThreshold;
+    address[] internal _securityCouncilOwners;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -147,6 +149,9 @@ contract DeployConfig is Script {
         livenessModuleThresholdPercentage = stdJson.readUint(_json, "$.livenessModuleThresholdPercentage");
         livenessModuleMinOwners = stdJson.readUint(_json, "$.livenessModuleMinOwners");
 
+        securityCouncilThreshold = stdJson.readUint(_json, "$.securityCouncilThreshold");
+        _securityCouncilOwners = stdJson.readAddressArray(_json, "$.securityCouncilOwners");
+
         usePlasma = _readOr(_json, "$.usePlasma", false);
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
         daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
@@ -190,6 +195,11 @@ contract DeployConfig is Script {
     /// @notice Allow the `useFaultProofs` config to be overridden in testing environments
     function setUseFaultProofs(bool _useFaultProofs) public {
         useFaultProofs = _useFaultProofs;
+    }
+
+    /// @notice Returns the full array of security council owners.
+    function securityCouncilOwners() public view returns (address[] memory) {
+        return _securityCouncilOwners;
     }
 
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
