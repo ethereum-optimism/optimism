@@ -48,6 +48,7 @@ import { Chains } from "scripts/Chains.sol";
 import { Config } from "scripts/Config.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 import { LivenessModule } from "src/Safe/LivenessModule.sol";
+import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
@@ -474,6 +475,24 @@ contract Deploy is Deployer {
         console.log("New LivenessModule deployed at %s", address(module_));
     }
 
+    /// @notice Deploy a DeputyGuardianModule for use on the Security Council Safe.
+    ///         Note this function does not have the broadcast modifier.
+    function deployDeputyGuardianModule() public returns (address module_) {
+        Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
+        address systemOwnerSafe = mustGetAddress("SystemOwnerSafe");
+        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfig"));
+        module_ = address(
+            new DeputyGuardianModule({
+                _safe: councilSafe,
+                _superchainConfig: superchainConfig,
+                _deputyGuardian: systemOwnerSafe
+            })
+        );
+
+        save("DeputyGuardianModule", address(module_));
+        console.log("New DeputyGuardianModule deployed at %s", address(module_));
+    }
+
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
     function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
         console.log("Deploying Security Council Safe");
@@ -494,8 +513,20 @@ contract Deploy is Deployer {
         save("SecurityCouncilSafe", address(safe));
         console.log("New SecurityCouncilSafe deployed at %s", address(safe));
 
-        address guard = deployLivenessGuard();
-        _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
+        address deputyGuardianModule = deployDeputyGuardianModule();
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(ModuleManager.enableModule, (deputyGuardianModule))
+        });
+        console.log("DeputyGuardianModule enabled on SecurityCouncilSafe");
+
+        address livenessGuard = deployLivenessGuard();
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(GuardManager.setGuard, (livenessGuard))
+        });
         console.log("LivenessGuard setup on SecurityCouncilSafe");
 
         address[] memory securityCouncilOwners = cfg.securityCouncilOwners();
@@ -517,10 +548,14 @@ contract Deploy is Deployer {
 
         // Now that the owners have been added and the threshold increased we can deploy the liveness module (otherwise
         // constructor checks will fail).
-        address module = deployLivenessModule();
+        address livenessModule = deployLivenessModule();
 
         // Unfortunately, a threshold of owners is required to actually enable the module, so we're unable to do that
         // here, and will settle for logging a warning below.
+        // _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(ModuleManager.enableModule,
+        // (module)) });
+        // console.log("LivenessModule enabled on SecurityCouncilSafe");
+
         addr_ = address(safe);
         console.log("New SecurityCouncilSafe deployed at %s", address(safe));
         console.log(
@@ -528,7 +563,7 @@ contract Deploy is Deployer {
                 "\x1b[1;33mWARNING: The SecurityCouncilSafe is deployed with the LivenessGuard enabled.\n",
                 "  The final setup will require a threshold of signers to\n",
                 "    1. call enableModule() to enable the LivenessModule deployed at ",
-                vm.toString(module),
+                vm.toString(livenessModule),
                 "\n",
                 "    2. call `removeOwner() to remove the deployer with address ",
                 vm.toString(msg.sender),
