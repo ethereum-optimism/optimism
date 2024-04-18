@@ -50,10 +50,6 @@ func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, l
 	}
 }
 
-func (p *CannonTraceProvider) SetMaxDepth(gameDepth types.Depth) {
-	p.gameDepth = gameDepth
-}
-
 func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
 	traceIndex := pos.TraceIndex(p.gameDepth)
 	if !traceIndex.IsUint64() {

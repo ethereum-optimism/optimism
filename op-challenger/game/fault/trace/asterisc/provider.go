@@ -52,10 +52,6 @@ func NewTraceProvider(logger log.Logger, m AsteriscMetricer, cfg *config.Config,
 	}
 }
 
-func (p *AsteriscTraceProvider) SetMaxDepth(gameDepth types.Depth) {
-	p.gameDepth = gameDepth
-}
-
 func (p *AsteriscTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
 	traceIndex := pos.TraceIndex(p.gameDepth)
 	if !traceIndex.IsUint64() {
