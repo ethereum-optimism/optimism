@@ -16,7 +16,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240418160534-4156733e7232
-	github.com/ethereum/go-ethereum v1.13.11
+	github.com/ethereum/go-ethereum v1.13.12
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/docgen v1.2.0
@@ -114,7 +114,8 @@ require (
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
-	github.com/fjl/memsize v0.0.1 // indirect
+	github.com/ferranbt/fastssz v0.1.2 // indirect
+	github.com/fjl/memsize v0.0.2 // indirect
 	github.com/flosch/pongo2/v4 v4.0.2 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
@@ -265,7 +266,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.13.11 => github.com/ethereum-optimism/op-geth v1.101311.0
+replace github.com/ethereum/go-ethereum v1.13.12 => github.com/ethereum-optimism/op-geth v1.101311.1-0.20240418150729-1e693b05705c
 
 //replace github.com/ethereum/go-ethereum v1.13.9 => ../op-geth
 
