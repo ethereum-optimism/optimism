@@ -90,6 +90,7 @@
   "daChallengeWindow": 0,
   "daResolveWindow": 0,
   "daResolverRefundPercentage": 0,
+  "deploySecurityCouncil": true,
   "livenessModuleInterval": 31536000,
   "livenessModuleThresholdPercentage": 20,
   "livenessModuleMinOwners": 2,

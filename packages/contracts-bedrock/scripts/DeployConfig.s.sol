@@ -145,12 +145,12 @@ contract DeployConfig is Script {
         preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
 
-        livenessModuleInterval = stdJson.readUint(_json, "$.livenessModuleInterval");
-        livenessModuleThresholdPercentage = stdJson.readUint(_json, "$.livenessModuleThresholdPercentage");
-        livenessModuleMinOwners = stdJson.readUint(_json, "$.livenessModuleMinOwners");
+        livenessModuleInterval = _readOr(_json, "$.livenessModuleInterval", 0);
+        livenessModuleThresholdPercentage = _readOr(_json, "$.livenessModuleThresholdPercentage", 0);
+        livenessModuleMinOwners = _readOr(_json, "$.livenessModuleMinOwners", 0);
 
-        securityCouncilThreshold = stdJson.readUint(_json, "$.securityCouncilThreshold");
-        _securityCouncilOwners = stdJson.readAddressArray(_json, "$.securityCouncilOwners");
+        securityCouncilThreshold = _readOr(_json, "$.securityCouncilThreshold", 0);
+        _securityCouncilOwners = _readOr(_json, "$.securityCouncilOwners", new address[](0));
 
         usePlasma = _readOr(_json, "$.usePlasma", false);
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
@@ -217,5 +217,17 @@ contract DeployConfig is Script {
 
     function _readOr(string memory json, string memory key, uint256 defaultValue) internal view returns (uint256) {
         return vm.keyExists(json, key) ? stdJson.readUint(json, key) : defaultValue;
+    }
+
+    function _readOr(
+        string memory json,
+        string memory key,
+        address[] memory defaultValue
+    )
+        internal
+        view
+        returns (address[] memory)
+    {
+        return vm.keyExists(json, key) ? stdJson.readAddressArray(json, key) : defaultValue;
     }
 }
