@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -72,7 +73,11 @@ func (cl *BeaconHTTPClient) apiReq(ctx context.Context, dest any, reqPath string
 	if err != nil {
 		return fmt.Errorf("http Get failed: %w", err)
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusNotFound {
+		errMsg, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		return fmt.Errorf("failed request with status %d: %s: %w", resp.StatusCode, string(errMsg), ethereum.NotFound)
+	} else if resp.StatusCode != http.StatusOK {
 		errMsg, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		return fmt.Errorf("failed request with status %d: %s", resp.StatusCode, string(errMsg))
