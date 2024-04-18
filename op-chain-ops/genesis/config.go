@@ -434,17 +434,17 @@ func (d *DeployConfig) Check() error {
 	if d.LivenessModuleInterval == 0 {
 		log.Warn("LivenessModuleInterval is 0")
 	}
-	if d.LivenessModuleThresholdPercentage != nil && d.LivenessModuleThresholdPercentage == 0 || d.LivenessModuleThresholdPercentage > 100 {
+	if d.LivenessModuleThresholdPercentage == 0 || d.LivenessModuleThresholdPercentage > 100 {
 		return fmt.Errorf("LivenessModuleThresholdPercentage (%d) is not a valid percentage", d.LivenessModuleThresholdPercentage)
 	}
 	if d.LivenessModuleMinOwners == 0 {
 		return fmt.Errorf("LivenessModuleMinOwners (%d) must be greater than 0", d.LivenessModuleMinOwners)
 	}
 	if d.SecurityCouncilThreshold == 0 {
-		fmt.Errorf("SecurityCouncilThreshold (%d) must be at least 1")
+		return fmt.Errorf("SecurityCouncilThreshold (%d) must be at least 1", d.SecurityCouncilThreshold)
 	}
-	if d.SecurityCouncilOwners == nil {
-		log.Warn("SecurityCouncilOwners not provided")
+	if len(d.SecurityCouncilOwners) == 0 {
+		return fmt.Errorf("%w: Must provide at least one address for SecurityCouncilOwners", ErrInvalidDeployConfig)
 	}
 	if d.UsePlasma {
 		if d.DAChallengeWindow == 0 {
