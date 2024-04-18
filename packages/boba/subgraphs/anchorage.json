@@ -45,7 +45,7 @@
       "path": "./abis/SystemDictator.json"
     }
   },
-  "chains": ["mainnet"],
+  "chains": ["mainnet","boba-mainnet"],
   "instances": [
     {
       "abi": "L1CrossDomainMessenger",
