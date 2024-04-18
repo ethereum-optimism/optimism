@@ -18,6 +18,7 @@ import { Deployer } from "scripts/Deployer.sol";
 
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 import { LivenessModule } from "src/Safe/LivenessModule.sol";
+import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
 
 import { Deploy } from "./Deploy.s.sol";
 
@@ -84,6 +85,24 @@ contract DeployOwnership is Deploy {
         console.log("New LivenessModule deployed at %s", address(module_));
     }
 
+    /// @notice Deploy a DeputyGuardianModule for use on the Security Council Safe.
+    ///         Note this function does not have the broadcast modifier.
+    function deployDeputyGuardianModule() public returns (address module_) {
+        Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
+        address systemOwnerSafe = mustGetAddress("SystemOwnerSafe");
+        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfig"));
+        module_ = address(
+            new DeputyGuardianModule({
+                _safe: councilSafe,
+                _superchainConfig: superchainConfig,
+                _deputyGuardian: systemOwnerSafe
+            })
+        );
+
+        save("DeputyGuardianModule", address(module_));
+        console.log("New DeputyGuardianModule deployed at %s", address(module_));
+    }
+
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
     function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
         console.log("Deploying Security Council Safe");
@@ -103,6 +122,14 @@ contract DeployOwnership is Deploy {
 
         save("SecurityCouncilSafe", address(safe));
         console.log("New SecurityCouncilSafe deployed at %s", address(safe));
+
+        address deputyGuardianModule = deployDeputyGuardianModule();
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(ModuleManager.enableModule, (deputyGuardianModule))
+        });
+        console.log("DeputyGuardianModule enabled on SecurityCouncilSafe");
 
         address guard = deployLivenessGuard();
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
