@@ -42,8 +42,8 @@ contract DeployConfig is Script {
     address public sequencerFeeVaultRecipient;
     uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
     uint256 public sequencerFeeVaultWithdrawalNetwork;
-    address public revenueShareRecipient;
-    address public revenueShareRemainderRecipient;
+    address payable public revenueShareRecipient;
+    address payable public revenueShareRemainderRecipient;
     string public governanceTokenName;
     string public governanceTokenSymbol;
     address public governanceTokenOwner;
@@ -112,8 +112,8 @@ contract DeployConfig is Script {
         sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
         sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
         sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
-        revenueShareRecipient = stdJson.readAddress(_json, "$.revenueShareRecipient");
-        revenueShareRemainderRecipient = stdJson.readAddress(_json, "$.revenueShareRemainderRecipient");
+        revenueShareRecipient = payable(stdJson.readAddress(_json, "$.revenueShareRecipient"));
+        revenueShareRemainderRecipient = payable(stdJson.readAddress(_json, "$.revenueShareRemainderRecipient"));
         governanceTokenName = stdJson.readString(_json, "$.governanceTokenName");
         governanceTokenSymbol = stdJson.readString(_json, "$.governanceTokenSymbol");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
