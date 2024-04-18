@@ -320,6 +320,65 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
     }
 
+
+    bool doNotRevert;
+    function makeMessageFail() external {
+        require(doNotRevert, "need to fail");
+        address target = address(this);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+
+        /* // Set OptimismPortal l2Sender to L2_CROSS_DOMAIN_MESSENGER so relayMessage will work as if sent from OP */
+        /* vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender))); */
+        /* vm.prank(address(optimismPortal)); */
+
+        // Call other message and get hash
+        bytes32 hash = call_relayMessage(sender, target, abi.encodeWithSelector(this.shouldSucceed.selector, ""));
+
+        // Validate we succesfully made shoudSucceed fail
+        assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
+    }
+    function shouldSucceed() external {}
+
+    function call_relayMessage(address sender, address target, bytes memory data) internal returns (bytes32) {
+        bytes32 hash = Hashing.hashCrossDomainMessage(
+                                                      Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+                                                      sender,
+                                                      target,
+                                                      0,
+                                                      0,
+                    data
+        );
+
+        l1CrossDomainMessenger.relayMessage(
+                                            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+                                            sender,
+                                            target,
+                                            0,
+                                            0,
+                    data
+        );
+
+        return hash;
+    }
+    function test_force_message_to_fail() external {
+        address target = address(this);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+
+        // Set OptimismPortal l2Sender to L2_CROSS_DOMAIN_MESSENGER so relayMessage will work as if sent from OP
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+                vm.prank(address(optimismPortal));
+
+        // Make our first message fail
+        bytes32 hash = call_relayMessage(sender, target, abi.encodeWithSelector(this.makeMessageFail.selector, ""));
+        assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
+
+        // Now change makeMessageFail to not revert and make the other message fail
+        // Validation that other message failed is in makeMessageFail function
+        doNotRevert = true;
+        call_relayMessage(sender, target, abi.encodeWithSelector(this.makeMessageFail.selector, ""));
+    }
+
+
     /// @dev Tests that relayMessage should revert if the message is already replayed.
     function test_relayMessage_legacyOldReplay_reverts() external {
         address target = address(0xabcd);
