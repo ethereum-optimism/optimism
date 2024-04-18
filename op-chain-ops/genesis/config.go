@@ -273,6 +273,11 @@ type DeployConfig struct {
 	LivenessModuleThresholdPercentage uint64 `json:"livenessModuleThresholdPercentage"`
 	// The minimum number of owners before ownership of the safe is transferred to the fallback owner.
 	LivenessModuleMinOwners uint64 `json:"livenessModuleMinOwners"`
+
+	// The threshold of the Security Council Safe
+	SecurityCouncilThreshold uint64 `json:"securityCouncilThreshold"`
+	// The owners of the Security Council Safe
+	SecurityCouncilOwners []common.Address `json:"securityCouncilOwners"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -434,6 +439,12 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.LivenessModuleMinOwners == 0 {
 		return fmt.Errorf("LivenessModuleMinOwners (%d) must be greater than 0", d.LivenessModuleMinOwners)
+	}
+	if d.SecurityCouncilThreshold == 0 {
+		fmt.Errorf("SecurityCouncilThreshold (%d) must be at least 1")
+	}
+	if d.SecurityCouncilOwners == nil {
+		log.Warn("SecurityCouncilOwners not provided")
 	}
 	if d.UsePlasma {
 		if d.DAChallengeWindow == 0 {
