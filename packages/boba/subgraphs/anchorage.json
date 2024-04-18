@@ -75,7 +75,7 @@
     {
       "abi": "L2ToL1MessagePasser",
       "address": "0x4200000000000000000000000000000000000016",
-      "startBlock": 1149019,
+      "startBlock": 1150000,
       "chain": "boba-eth"
     },
     {
