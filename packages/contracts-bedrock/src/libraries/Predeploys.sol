@@ -9,7 +9,7 @@ library Predeploys {
     uint256 internal constant PREDEPLOY_COUNT = 2048;
 
     /// @notice Address of the RevenueSharer predeploy.
-    address internal constant REVENUE_SHARER = 0x4200000000000000000000000000000000000022;
+    address payable internal constant REVENUE_SHARER = payable(0x4200000000000000000000000000000000000024);
 
     /// @custom:legacy
     /// @notice Address of the LegacyMessagePasser predeploy. Deprecate. Use the updated
