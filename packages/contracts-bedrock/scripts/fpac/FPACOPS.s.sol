@@ -177,6 +177,15 @@ contract FPACOPS is Deploy, StdAssertions {
         MIPS mips = MIPS(mustGetAddress("Mips"));
         assertEq(address(mips.oracle()), address(oracle));
 
+        // Check the AnchorStateRegistry configuration.
+        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
+        (Hash root1, uint256 l2BlockNumber1) = asr.anchors(GameTypes.CANNON);
+        (Hash root2, uint256 l2BlockNumber2) = asr.anchors(GameTypes.PERMISSIONED_CANNON);
+        assertEq(root1.raw(), cfg.faultGameGenesisOutputRoot());
+        assertEq(root2.raw(), cfg.faultGameGenesisOutputRoot());
+        assertEq(l2BlockNumber1, cfg.faultGameGenesisBlock());
+        assertEq(l2BlockNumber2, cfg.faultGameGenesisBlock());
+
         // Check the FaultDisputeGame configuration.
         FaultDisputeGame gameImpl = FaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
         assertEq(gameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
@@ -184,6 +193,9 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(gameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
         assertEq(gameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
         assertEq(gameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
+        assertEq(address(gameImpl.weth()), wethProxyAddr);
+        assertEq(address(gameImpl.anchorStateRegistry()), address(asr));
+        assertEq(address(gameImpl.vm()), address(mips));
 
         // Check the security override yoke configuration.
         PermissionedDisputeGame soyGameImpl =
@@ -195,15 +207,9 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(soyGameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
         assertEq(soyGameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
         assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
-
-        // Check the AnchorStateRegistry configuration.
-        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
-        (Hash root1, uint256 l2BlockNumber1) = asr.anchors(GameTypes.CANNON);
-        (Hash root2, uint256 l2BlockNumber2) = asr.anchors(GameTypes.PERMISSIONED_CANNON);
-        assertEq(root1.raw(), cfg.faultGameGenesisOutputRoot());
-        assertEq(root2.raw(), cfg.faultGameGenesisOutputRoot());
-        assertEq(l2BlockNumber1, cfg.faultGameGenesisBlock());
-        assertEq(l2BlockNumber2, cfg.faultGameGenesisBlock());
+        assertEq(address(soyGameImpl.weth()), wethProxyAddr);
+        assertEq(address(soyGameImpl.anchorStateRegistry()), address(asr));
+        assertEq(address(soyGameImpl.vm()), address(mips));
     }
 
     /// @notice Prints a review of the fault proof configuration section of the deploy config.

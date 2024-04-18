@@ -21,6 +21,13 @@
     "type": "enum GameStatus"
   },
   {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 17,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
     "bytes": "32",
     "label": "claimData",
     "offset": 0,
@@ -56,17 +63,10 @@
     "type": "mapping(uint256 => bool)"
   },
   {
-    "bytes": "1",
-    "label": "initialized",
-    "offset": 0,
-    "slot": "6",
-    "type": "bool"
-  },
-  {
     "bytes": "64",
     "label": "startingOutputRoot",
     "offset": 0,
-    "slot": "7",
+    "slot": "6",
     "type": "struct OutputRoot"
   }
 ]

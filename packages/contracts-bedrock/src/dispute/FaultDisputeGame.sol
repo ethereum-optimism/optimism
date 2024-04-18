@@ -62,8 +62,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.16.1
-    string public constant version = "0.16.1";
+    /// @custom:semver 0.17.0
+    string public constant version = "0.17.0";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -74,23 +74,23 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @inheritdoc IDisputeGame
     GameStatus public status;
 
+    /// @notice Flag for the `initialize` function to prevent re-initialization.
+    bool internal initialized;
+
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
 
     /// @notice Credited balances for winning participants.
     mapping(address => uint256) public credit;
 
-    /// @notice An internal mapping to allow for constant-time lookups of existing claims.
-    mapping(ClaimHash => bool) internal claims;
+    /// @notice A mapping to allow for constant-time lookups of existing claims.
+    mapping(ClaimHash => bool) public claims;
 
-    /// @notice An internal mapping of subgames rooted at a claim index to other claim indices in the subgame.
-    mapping(uint256 => uint256[]) internal subgames;
+    /// @notice A mapping of subgames rooted at a claim index to other claim indices in the subgame.
+    mapping(uint256 => uint256[]) public subgames;
 
     /// @notice An interneal mapping of resolved subgames rooted at a claim index.
-    mapping(uint256 => bool) internal resolvedSubgames;
-
-    /// @notice Flag for the `initialize` function to prevent re-initialization.
-    bool internal initialized;
+    mapping(uint256 => bool) public resolvedSubgames;
 
     /// @notice The latest finalized output root, serving as the anchor for output bisection.
     OutputRoot public startingOutputRoot;
@@ -713,6 +713,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Returns the WETH contract for holding ETH.
     function weth() external view returns (IDelayedWETH weth_) {
         weth_ = WETH;
+    }
+
+    /// @notice Returns the anchor state registry contract.
+    function anchorStateRegistry() external view returns (IAnchorStateRegistry registry_) {
+        registry_ = ANCHOR_STATE_REGISTRY;
     }
 
     /// @notice Returns the chain ID of the L2 network this contract argues about.
