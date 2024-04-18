@@ -69,18 +69,14 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 	cfg := defaultTestRollupConfig
 	cfg.Genesis.L1.Number = genesisL1Origin
 
-	bs := NewBatchSubmitter(DriverSetup{
+	return NewBatchSubmitter(DriverSetup{
 		Log:              testlog.Logger(t, log.LevelDebug),
 		Metr:             metrics.NoopMetrics,
 		RollupConfig:     &cfg,
 		EndpointProvider: ep,
 		Txmgr:            new(mocks.TxManager),
 		L1Client:         new(MockL1Client),
-	})
-
-	bs.shutdownCtx = context.Background()
-
-	return bs, ep
+	}), ep
 }
 
 func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
@@ -227,7 +223,6 @@ func TestBatchSubmitter_CheckRecentTxsOnStart(t *testing.T) {
 				ep.rollupClient.ExpectSyncStatus(&eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: tt.currentBlock + tt.blockConfirms}}, nil)
 			}
 
-			bs.Config.CheckRecentTxsOnStart = true
 			bs.checkRecentTxsOnStart()
 
 			txMgr.AssertExpectations(t)

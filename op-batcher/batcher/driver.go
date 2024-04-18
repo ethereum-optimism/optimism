@@ -286,7 +286,9 @@ func (l *BatchSubmitter) loop() {
 		}
 	}
 
-	l.checkRecentTxsOnStart()
+	if !l.Config.CheckRecentTxsOnStart {
+		l.checkRecentTxsOnStart()
+	}
 
 	for {
 		select {
@@ -332,19 +334,14 @@ func (l *BatchSubmitter) loop() {
 // checkRecentTxsOnStart Check to see if there was a batcher tx sent recently that
 // still needs more block confirmations before being considered finalized
 func (l *BatchSubmitter) checkRecentTxsOnStart() {
-	if !l.Config.CheckRecentTxsOnStart {
-		return
-	}
-
-	currentBlock, err := l.Txmgr.BlockNumber(l.shutdownCtx)
+	currBlock, err := l.Txmgr.BlockNumber(l.shutdownCtx)
 	if err != nil {
 		l.Log.Error("failed to retrieve current block number", "err", err)
 		return
 	}
 
-	currentBlockBig := new(big.Int)
-	currentBlockBig.SetUint64(currentBlock)
-	currentNonce, err := l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), currentBlockBig)
+	currentBlock := new(big.Int).SetUint64(currBlock)
+	currentNonce, err := l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), currentBlock)
 	if err != nil {
 		l.Log.Error("Failed to retrieve current nonce", "err", err)
 		return
@@ -363,7 +360,7 @@ func (l *BatchSubmitter) checkRecentTxsOnStart() {
 	blockConfirms := rollupConfig.VerifierConfDepth
 
 	previousBlockBig := new(big.Int)
-	previousBlockBig.Sub(currentBlockBig, big.NewInt(int64(blockConfirms)))
+	previousBlockBig.Sub(currentBlock, big.NewInt(int64(blockConfirms)))
 	previousNonce, err := l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), previousBlockBig)
 	if err != nil {
 		l.Log.Error("Failed to retrieve previous nonce", "err", err)
@@ -378,15 +375,15 @@ func (l *BatchSubmitter) checkRecentTxsOnStart() {
 	l.Log.Info("Recent batcher txs detected. Need to wait for more block confirms", "confirmsNeeded", blockConfirms)
 	// Decrease block num until we find the block before the most recent batcher tx was sent
 	for currentNonce != previousNonce {
-		currentBlockBig.Sub(currentBlockBig, big.NewInt(1))
-		currentNonce, err = l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), currentBlockBig)
+		currentBlock.Sub(currentBlock, big.NewInt(1))
+		currentNonce, err = l.L1Client.NonceAt(l.shutdownCtx, l.Txmgr.From(), currentBlock)
 		if err != nil {
 			l.Log.Error("Failed to retrieve nonce", "err", err)
 			return
 		}
 	}
 
-	batcherTxFinalizedBlock := currentBlockBig.Uint64() + 1 + blockConfirms
+	batcherTxFinalizedBlock := currentBlock.Uint64() + 1 + blockConfirms
 	err = dial.WaitRollupSync(l.shutdownCtx, l.Log, rollupClient, batcherTxFinalizedBlock, time.Second*5)
 	if err != nil {
 		l.Log.Error("Failed to wait for rollup sync", "err", err)
