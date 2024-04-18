@@ -62,7 +62,7 @@
     },
     {
       "abi": "L1StandardBridge",
-      "address": "0x5Eb02901135865aF8Da6752aF92fbAe62258520F",
+      "address": "0xdc1664458d2f0B6090bEa60A8793A4E66c2F1c00",
       "startBlock": 19478408,
       "chain": "mainnet"
     },
