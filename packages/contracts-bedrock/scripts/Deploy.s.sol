@@ -445,16 +445,24 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy a LivenessModule and LivenessGuard for use on the Security Council Safe
-    function _deployLivenessModuleAndGuardian() internal returns (address module_, address guard_) {
+    function _deployLivenessGuard() internal returns (address guard_) {
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
         guard_ = address(new LivenessGuard(councilSafe));
-        console.log("New LivenessGuard deployed at %s", address(guard_));
 
+        save("LivenessGuard", address(guard_));
+        console.log("New LivenessGuard deployed at %s", address(guard_));
+    }
+
+    /// @notice Deploy a LivenessModule for use on the Security Council Safe
+    function _deployLivenessModule() internal returns (address module_) {
+        Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
         address fallbackOwner = mustGetAddress("SystemOwnerSafe");
+        address guard = mustGetAddress("LivenessGuard");
+
         module_ = address(
             new LivenessModule({
                 _safe: councilSafe,
-                _livenessGuard: LivenessGuard(guard_),
+                _livenessGuard: LivenessGuard(guard),
                 _livenessInterval: cfg.livenessModuleInterval(),
                 _thresholdPercentage: cfg.livenessModuleThresholdPercentage(),
                 _minOwners: cfg.livenessModuleMinOwners(),
@@ -462,6 +470,7 @@ contract Deploy is Deployer {
             })
         );
 
+        save("LivenessModule", address(module_));
         console.log("New LivenessModule deployed at %s", address(module_));
     }
 
@@ -484,42 +493,49 @@ contract Deploy is Deployer {
 
         save("SecurityCouncilSafe", address(safe));
         console.log("New SecurityCouncilSafe deployed at %s", address(safe));
-        (address module, address guard) = _deployLivenessModuleAndGuardian();
+        address guard = _deployLivenessGuard();
 
         address guard = deployLivenessGuard();
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
         console.log("LivenessGuard setup on SecurityCouncilSafe");
-        _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(ModuleManager.enableModule, (module)) });
-        console.log("LivenessModule enabled on SecurityCouncilSafe");
 
-        // Add a more realistic number of signers to the Council Safe
-        uint256 numSigners = 2 * LivenessModule(module).minOwners();
-
-        // There is already one signer, so we need to add numSigners - 1 additional signers.
-        // During a production deployment, the signer used during setup should be removed at the end, however
-        // this is not feasible here because it would require us to reach a threshold of signatures.
-        address[] memory additionalSigners = new address[](numSigners - 1);
-
-        // Add the additional signers
-        for (uint256 i = 0; i < additionalSigners.length; i++) {
-            additionalSigners[i] = makeAddr(string.concat("Security Council Signer ", vm.toString((i + 1))));
+        address[] memory securityCouncilOwners = cfg.securityCouncilOwners();
+        for (uint256 i = 0; i < securityCouncilOwners.length; i++) {
             _callViaSafe({
                 _safe: safe,
                 _target: address(safe),
-                _data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (additionalSigners[i], 1))
+                _data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (securityCouncilOwners[i], 1))
             });
         }
 
-        // Now that the signers have been added, we can set the threshold to the required value.
-        uint256 newThreshold = LivenessModule(module).getRequiredThreshold(numSigners);
+        // Now that the owners have been added, we can set the threshold to the desired value.
+        uint256 newThreshold = cfg.securityCouncilThreshold();
         _callViaSafe({
             _safe: safe,
             _target: address(safe),
             _data: abi.encodeCall(OwnerManager.changeThreshold, (newThreshold))
         });
 
+        // Now that the owners have been added and the threshold increased we can deploy the liveness module (otherwise
+        // constructor checks will fail).
+        address module = _deployLivenessModule();
+
+        // Unfortunately, a threshold of owners is required to actually enable the module, so we're unable to do that
+        // here, and will settle for logging a warning below.
         addr_ = address(safe);
         console.log("New SecurityCouncilSafe deployed at %s", address(safe));
+        console.log(
+            string.concat(
+                "\x1b[1;33mWARNING: The SecurityCouncilSafe is deployed with the LivenessGuard enabled.\n",
+                "  The final setup will require a threshold of signers to\n",
+                "    1. call enableModule() to enable the LivenessModule deployed at ",
+                vm.toString(module),
+                "\n",
+                "    2. remove the deployer at ",
+                vm.toString(securityCouncilOwners.length),
+                " which is still an owner.x1b[0m"
+            )
+        );
     }
 
     /// @notice Deploy the AddressManager

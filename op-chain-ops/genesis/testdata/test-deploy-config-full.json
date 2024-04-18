@@ -89,8 +89,5 @@
   "daChallengeProxy": "0x0000000000000000000000000000000000000000",
   "daChallengeWindow": 0,
   "daResolveWindow": 0,
-  "daResolverRefundPercentage": 0,
-  "livenessModuleInterval": 31536000,
-  "livenessModuleThresholdPercentage": 20,
-  "livenessModuleMinOwners": 1
+  "daResolverRefundPercentage": 0
 }
