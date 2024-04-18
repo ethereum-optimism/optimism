@@ -54,7 +54,7 @@ contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
 
 contract DeputyGuardianModule_Getters_Test is DeputyGuardianModule_TestInit {
     /// @dev Tests that the constructor sets the correct values
-    function test_getters_works() external {
+    function test_getters_works() external view {
         assertEq(address(deputyGuardianModule.safe()), address(safeInstance.safe));
         assertEq(address(deputyGuardianModule.deputyGuardian()), address(deputyGuardian));
         assertEq(address(deputyGuardianModule.superchainConfig()), address(superchainConfig));
