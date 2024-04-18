@@ -69,13 +69,13 @@
     {
       "abi": "L2StandardBridge",
       "address": "0x4200000000000000000000000000000000000010",
-      "startBlock": 1145230,
+      "startBlock": 1168639,
       "chain": "boba-eth"
     },
     {
       "abi": "L2ToL1MessagePasser",
       "address": "0x4200000000000000000000000000000000000016",
-      "startBlock": 0,
+      "startBlock": 1149019,
       "chain": "boba-eth"
     },
     {
