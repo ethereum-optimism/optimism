@@ -92,8 +92,8 @@
     "sourceCodeHash": "0x9633cea9b66077e222f470439fe3e9a31f3e33b4f7a5618374c44310fd234b24"
   },
   "src/Safe/LivenessModule.sol": {
-    "initCodeHash": "0xcd8b76f70634330e242d4ff497bba1f8e0aaa11d7aecf9845090029c43027a7f",
-    "sourceCodeHash": "0x3b358b51fce4f1516191104d2e1f782c8ec3edecee63c502cc301671aa632b93"
+    "initCodeHash": "0xa8b233f0f26f8a73b997b12ba06d64cefa8ee98d523f68cd63320e9787468fae",
+    "sourceCodeHash": "0x73aa5934e56ba2a45f368806c5db1d442bf5713d51b2184749f4638eaceb832e"
   },
   "src/cannon/MIPS.sol": {
     "initCodeHash": "0xaf2ac814f64ccf12e9c6738db7cef865f51f9e39f39105adef9fba11465f6ee1",

@@ -20,9 +20,10 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
     event RemovedOwner(address indexed owner);
     event OwnershipTransferredToFallback();
 
-    uint256 initTime = 10;
-    uint256 livenessInterval = 30 days;
-    uint256 minOwners = 6;
+    uint256 constant INIT_TIME = 10;
+    uint256 constant LIVENESS_INTERVAL = 30 days;
+    uint256 constant MIN_OWNERS = 6;
+    uint256 constant THRESHOLD_PERCENTAGE = 75;
     LivenessModule livenessModule;
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
@@ -40,14 +41,35 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
 
     /// @dev Set the current time to after the liveness interval
     function _warpPastLivenessInterval() internal {
-        vm.warp(initTime + livenessInterval + 1);
+        vm.warp(INIT_TIME + LIVENESS_INTERVAL + 1);
+    }
+
+    /// @dev Helper function to calculate the required threshold for a given number of owners and threshold percentage.
+    ///      This does a lot of extra work to set up a dummy LivenessModule and Safe, but helps to keep the tests clean.
+    function _getRequiredThreshold(uint256 _numOwners, uint256 _thresholdPercentage) internal returns (uint256) {
+        // Mock calls made to the Safe by the LivenessModule's constructor
+        address[] memory dummyOwners = new address[](_numOwners);
+        dummyOwners[0] = address(0);
+        vm.mockCall(address(0), abi.encodeCall(OwnerManager.getOwners, ()), abi.encode(dummyOwners));
+        vm.mockCall(address(0), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(dummyOwners.length));
+        // This module is only used to calculate the required threshold for the Safe. It's state will not be modified
+        // after it is created so the constructor arguments are not important.
+        LivenessModule dummyLivenessModule = new LivenessModule({
+            _safe: Safe(payable(address(0))),
+            _livenessGuard: LivenessGuard(address(0)),
+            _livenessInterval: 0,
+            _thresholdPercentage: _thresholdPercentage,
+            _minOwners: 0,
+            _fallbackOwner: address(0)
+        });
+        return dummyLivenessModule.getRequiredThreshold(_numOwners);
     }
 
     /// @dev Sets up the test environment
     function setUp() public virtual {
         // Set the block timestamp to the initTime, so that signatures recorded in the first block
         // are non-zero.
-        vm.warp(initTime);
+        vm.warp(INIT_TIME);
 
         // Create a Safe with 10 owners
         (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("moduleTest", 10);
@@ -58,8 +80,9 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         livenessModule = new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
-            _livenessInterval: livenessInterval,
-            _minOwners: minOwners,
+            _livenessInterval: LIVENESS_INTERVAL,
+            _thresholdPercentage: THRESHOLD_PERCENTAGE,
+            _minOwners: MIN_OWNERS,
             _fallbackOwner: fallbackOwner
         });
         safeInstance.setGuard(address(livenessGuard));
@@ -74,24 +97,26 @@ contract LivenessModule_Constructor_TestFail is LivenessModule_TestInit {
         new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
-            _livenessInterval: livenessInterval,
-            _minOwners: 11,
+            _livenessInterval: LIVENESS_INTERVAL,
+            _thresholdPercentage: THRESHOLD_PERCENTAGE,
+            _minOwners: safeInstance.owners.length + 1,
             _fallbackOwner: address(0)
         });
     }
 
     /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
     function test_constructor_wrongThreshold_reverts() external {
-        uint256 wrongThreshold = livenessModule.get75PercentThreshold(safeInstance.owners.length) - 1;
+        uint256 wrongThreshold = livenessModule.getRequiredThreshold(safeInstance.owners.length) - 1;
         vm.mockCall(
             address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(wrongThreshold)
         );
-        vm.expectRevert("LivenessModule: Safe must have a threshold of at least 75% of the number of owners");
+        vm.expectRevert("LivenessModule: Insufficient threshold for the number of owners");
         new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
-            _livenessInterval: livenessInterval,
-            _minOwners: minOwners,
+            _livenessInterval: LIVENESS_INTERVAL,
+            _thresholdPercentage: THRESHOLD_PERCENTAGE,
+            _minOwners: MIN_OWNERS,
             _fallbackOwner: address(0)
         });
     }
@@ -104,6 +129,8 @@ contract LivenessModule_Getters_Test is LivenessModule_TestInit {
         assertEq(address(livenessModule.livenessGuard()), address(livenessGuard));
         assertEq(livenessModule.livenessInterval(), 30 days);
         assertEq(livenessModule.minOwners(), 6);
+        assertEq(livenessModule.thresholdPercentage(), THRESHOLD_PERCENTAGE);
+        assertEq(safeInstance.safe.getThreshold(), livenessModule.getRequiredThreshold(safeInstance.owners.length));
         assertEq(livenessModule.fallbackOwner(), fallbackOwner);
     }
 }
@@ -126,30 +153,93 @@ contract LivenessModule_CanRemove_Test is LivenessModule_TestInit {
     }
 }
 
-contract LivenessModule_Get75PercentThreshold_Test is LivenessModule_TestInit {
-    /// @dev check the return values of the get75PercentThreshold function against manually
+contract LivenessModule_GetRequiredThreshold_Test is LivenessModule_TestInit {
+    /// @dev Tests if getRequiredThreshold work correctly by implementing the same logic in a different manner
+    function _getLeastIntegerValueAbovePercentage(
+        uint256 _total,
+        uint256 _percentage
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        require(_percentage > 0 && _percentage <= 100);
+        uint256 toAdd;
+
+        // If the total multiplied by the percentage is not divisible by 100, we need to add 1 to the result to
+        // compensate for the rounding down by integer division.
+        if ((_total * _percentage) % 100 > 0) {
+            toAdd = 1;
+        }
+        return (_total * _percentage) / 100 + toAdd;
+    }
+
+    /// @dev Differentially tests the getRequiredThreshold function against _getLeastIntegerValueAbovePercentage
+    function testFuzz_getRequiredThreshold_works(uint256 _numOwners, uint256 _percentage) external {
+        // Enforce valid percentages
+        uint256 percentage = bound(_percentage, 1, 100);
+        // Enforce a sane number of owners to keep runtime in check
+        uint256 numOwners = bound(_numOwners, 1, 100);
+        assertEq(
+            _getRequiredThreshold(numOwners, percentage), _getLeastIntegerValueAbovePercentage(numOwners, percentage)
+        );
+    }
+
+    /// @dev check the return values of the getRequiredThreshold function against the boundary conditions of 1 and 100
+    ///      percent.
+    function testFuzz_getRequiredThreshold_atBoundaries_works(uint256 _numOwners) external {
+        // Enforce a sane number of owners to keep runtime in check
+        uint256 numOwners = bound(_numOwners, 1, 100);
+        assertEq(_getRequiredThreshold(numOwners, 100), numOwners);
+        assertEq(_getRequiredThreshold(numOwners, 1), 1);
+    }
+
+    /// @dev check the return values of the getRequiredThreshold function against manually
     ///      calculated values.
-    function test_get75PercentThreshold_Works() external view {
-        assertEq(livenessModule.get75PercentThreshold(20), 15);
-        assertEq(livenessModule.get75PercentThreshold(19), 15);
-        assertEq(livenessModule.get75PercentThreshold(18), 14);
-        assertEq(livenessModule.get75PercentThreshold(17), 13);
-        assertEq(livenessModule.get75PercentThreshold(16), 12);
-        assertEq(livenessModule.get75PercentThreshold(15), 12);
-        assertEq(livenessModule.get75PercentThreshold(14), 11);
-        assertEq(livenessModule.get75PercentThreshold(13), 10);
-        assertEq(livenessModule.get75PercentThreshold(12), 9);
-        assertEq(livenessModule.get75PercentThreshold(11), 9);
-        assertEq(livenessModule.get75PercentThreshold(10), 8);
-        assertEq(livenessModule.get75PercentThreshold(9), 7);
-        assertEq(livenessModule.get75PercentThreshold(8), 6);
-        assertEq(livenessModule.get75PercentThreshold(7), 6);
-        assertEq(livenessModule.get75PercentThreshold(6), 5);
-        assertEq(livenessModule.get75PercentThreshold(5), 4);
-        assertEq(livenessModule.get75PercentThreshold(4), 3);
-        assertEq(livenessModule.get75PercentThreshold(3), 3);
-        assertEq(livenessModule.get75PercentThreshold(2), 2);
-        assertEq(livenessModule.get75PercentThreshold(1), 1);
+    function test_getRequiredThreshold_hardcoded_works() external {
+        // 75% threshold
+        assertEq(_getRequiredThreshold(20, 75), 15);
+        assertEq(_getRequiredThreshold(19, 75), 15);
+        assertEq(_getRequiredThreshold(18, 75), 14);
+        assertEq(_getRequiredThreshold(17, 75), 13);
+        assertEq(_getRequiredThreshold(16, 75), 12);
+        assertEq(_getRequiredThreshold(15, 75), 12);
+        assertEq(_getRequiredThreshold(14, 75), 11);
+        assertEq(_getRequiredThreshold(13, 75), 10);
+        assertEq(_getRequiredThreshold(12, 75), 9);
+        assertEq(_getRequiredThreshold(11, 75), 9);
+        assertEq(_getRequiredThreshold(10, 75), 8);
+        assertEq(_getRequiredThreshold(9, 75), 7);
+        assertEq(_getRequiredThreshold(8, 75), 6);
+        assertEq(_getRequiredThreshold(7, 75), 6);
+        assertEq(_getRequiredThreshold(6, 75), 5);
+        assertEq(_getRequiredThreshold(5, 75), 4);
+        assertEq(_getRequiredThreshold(4, 75), 3);
+        assertEq(_getRequiredThreshold(3, 75), 3);
+        assertEq(_getRequiredThreshold(2, 75), 2);
+        assertEq(_getRequiredThreshold(1, 75), 1);
+
+        // 33% threshold
+        assertEq(_getRequiredThreshold(20, 33), 7);
+        assertEq(_getRequiredThreshold(19, 33), 7);
+        assertEq(_getRequiredThreshold(18, 33), 6);
+        assertEq(_getRequiredThreshold(17, 33), 6);
+        assertEq(_getRequiredThreshold(16, 33), 6);
+        assertEq(_getRequiredThreshold(15, 33), 5);
+        assertEq(_getRequiredThreshold(14, 33), 5);
+        assertEq(_getRequiredThreshold(13, 33), 5);
+        assertEq(_getRequiredThreshold(12, 33), 4);
+        assertEq(_getRequiredThreshold(11, 33), 4);
+        assertEq(_getRequiredThreshold(10, 33), 4);
+        assertEq(_getRequiredThreshold(9, 33), 3);
+        assertEq(_getRequiredThreshold(8, 33), 3);
+        assertEq(_getRequiredThreshold(7, 33), 3);
+        assertEq(_getRequiredThreshold(6, 33), 2);
+        assertEq(_getRequiredThreshold(5, 33), 2);
+        assertEq(_getRequiredThreshold(4, 33), 2);
+        assertEq(_getRequiredThreshold(3, 33), 1);
+        assertEq(_getRequiredThreshold(2, 33), 1);
+        assertEq(_getRequiredThreshold(1, 33), 1);
     }
 }
 
@@ -275,7 +365,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         );
 
         _warpPastLivenessInterval();
-        vm.expectRevert("LivenessModule: Safe must have a threshold of 75% of the number of owners");
+        vm.expectRevert("LivenessModule: Insufficient threshold for the number of owners");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 }
@@ -325,11 +415,6 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
     }
 }
 
-/// @dev A copy of LivenessModule.get75PercentThreshold as a free function to use below.
-function get75PercentThreshold(uint256 _numOwners) pure returns (uint256 threshold_) {
-    threshold_ = (_numOwners * 75 + 99) / 100;
-}
-
 contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
     using SafeTestLib for SafeInstance;
 
@@ -349,7 +434,7 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
     /// @dev This contract inherits the storage layout from the LivenessModule_TestInit contract, but we
     ///      override the base setUp function, to avoid instantiating an unnecessary Safe and liveness checking system.
     function setUp() public override {
-        vm.warp(initTime);
+        vm.warp(INIT_TIME);
         fallbackOwner = makeAddr("fallbackOwner");
     }
 
@@ -357,10 +442,11 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
     function _prepare(
         uint256 _numOwners,
         uint256 _minOwners,
-        uint256 _numLiveOwners
+        uint256 _numLiveOwners,
+        uint256 _thresholdPercentage
     )
         internal
-        returns (uint256 numOwners_, uint256 minOwners_, uint256 numLiveOwners_)
+        returns (uint256 numOwners_, uint256 minOwners_, uint256 numLiveOwners_, uint256 thresholdPercentage_)
     {
         // First we modify the test parameters to ensure that they describe a plausible starting point.
         //
@@ -374,6 +460,9 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
         // Ensure that _numLiveOwners is less than _numOwners so that we can remove at least one owner.
         numLiveOwners_ = bound(_numLiveOwners, 0, numOwners_ - 1);
 
+        // thresholdPercentage must be between a percentage greater than 0.
+        thresholdPercentage_ = bound(_thresholdPercentage, 1, 100);
+
         // The above bounds are a bit tricky, so we assert that the resulting parameters enable us to test all possible
         // success and revert cases in the removeOwners function.
         // This is also necessary to avoid underflows or out of bounds accesses in the test.
@@ -385,13 +474,14 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
 
         // Create a Safe with _numOwners owners
         (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("rmOwnersTest", numOwners_);
-        uint256 threshold = get75PercentThreshold(numOwners_);
+        uint256 threshold = _getRequiredThreshold(numOwners_, thresholdPercentage_);
         safeInstance = _setupSafe(keys, threshold);
         livenessGuard = new LivenessGuard(safeInstance.safe);
         livenessModule = new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
-            _livenessInterval: livenessInterval,
+            _livenessInterval: LIVENESS_INTERVAL,
+            _thresholdPercentage: thresholdPercentage_,
             _minOwners: minOwners_,
             _fallbackOwner: fallbackOwner
         });
@@ -407,13 +497,15 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
         uint256 _numOwners,
         uint256 _minOwners,
         uint256 _numLiveOwners,
+        uint256 _thresholdPercentage,
         uint256 _shutDownBehavior,
         uint256 _numOwnersToRemoveinShutDown
     )
         external
     {
         // Prepare the test env and test params
-        (uint256 numOwners, uint256 minOwners, uint256 numLiveOwners) = _prepare(_numOwners, _minOwners, _numLiveOwners);
+        (uint256 numOwners, uint256 minOwners, uint256 numLiveOwners, uint256 thresholdPercentage) =
+            _prepare(_numOwners, _minOwners, _numLiveOwners, _thresholdPercentage);
 
         // Create an array of live owners, and call showLiveness for each of them
         address[] memory liveOwners = new address[](numLiveOwners);
@@ -437,7 +529,7 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
 
             // Validate the resulting state of the Safe
             assertEq(safeInstance.safe.getOwners().length, numLiveOwners);
-            assertEq(safeInstance.safe.getThreshold(), get75PercentThreshold(numLiveOwners));
+            assertEq(safeInstance.safe.getThreshold(), _getRequiredThreshold(numLiveOwners, thresholdPercentage));
             for (uint256 i; i < numLiveOwners; i++) {
                 assertTrue(safeInstance.safe.isOwner(liveOwners[i]));
             }
@@ -507,7 +599,7 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
                 }
                 // For both of the incorrect behaviors, verify no change to the Safe state
                 assertEq(safeInstance.safe.getOwners().length, numOwners);
-                assertEq(safeInstance.safe.getThreshold(), get75PercentThreshold(numOwners));
+                assertEq(safeInstance.safe.getThreshold(), _getRequiredThreshold(numOwners, thresholdPercentage));
                 for (uint256 i; i < numOwners; i++) {
                     assertTrue(safeInstance.safe.isOwner(safeInstance.owners[i]));
                 }
