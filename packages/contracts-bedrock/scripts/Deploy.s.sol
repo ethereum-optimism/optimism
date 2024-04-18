@@ -452,13 +452,12 @@ contract Deploy is Deployer {
 
         address fallbackOwner = mustGetAddress("SystemOwnerSafe");
         module_ = address(
-            // todo: set these values in the deploy config???
             new LivenessModule({
                 _safe: councilSafe,
                 _livenessGuard: LivenessGuard(guard_),
                 _livenessInterval: cfg.livenessModuleInterval(),
                 _thresholdPercentage: cfg.livenessModuleThresholdPercentage(),
-                _minOwners: 1,
+                _minOwners: cfg.livenessModuleMinOwners(),
                 _fallbackOwner: fallbackOwner
             })
         );
