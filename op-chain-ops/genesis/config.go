@@ -267,13 +267,14 @@ type DeployConfig struct {
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 
+	// DeploySecurityCouncil is a flag that indicates if a security council should be deployed
+	DeploySecurityCouncil bool `json:"deploySecurityCouncil"`
 	// The interval, in seconds, during which a security council owner must have demonstrated liveness
 	LivenessModuleInterval uint64 `json:"livenessModuleInterval"`
 	// The percentage used to calculate the threshold for the security council safe.
 	LivenessModuleThresholdPercentage uint64 `json:"livenessModuleThresholdPercentage"`
 	// The minimum number of owners before ownership of the safe is transferred to the fallback owner.
 	LivenessModuleMinOwners uint64 `json:"livenessModuleMinOwners"`
-
 	// The threshold of the Security Council Safe
 	SecurityCouncilThreshold uint64 `json:"securityCouncilThreshold"`
 	// The owners of the Security Council Safe
@@ -431,20 +432,22 @@ func (d *DeployConfig) Check() error {
 	if d.DisputeGameFinalityDelaySeconds == 0 {
 		log.Warn("DisputeGameFinalityDelaySeconds is 0")
 	}
-	if d.LivenessModuleInterval == 0 {
-		log.Warn("LivenessModuleInterval is 0")
-	}
-	if d.LivenessModuleThresholdPercentage == 0 || d.LivenessModuleThresholdPercentage > 100 {
-		return fmt.Errorf("LivenessModuleThresholdPercentage (%d) is not a valid percentage", d.LivenessModuleThresholdPercentage)
-	}
-	if d.LivenessModuleMinOwners == 0 {
-		return fmt.Errorf("LivenessModuleMinOwners (%d) must be greater than 0", d.LivenessModuleMinOwners)
-	}
-	if d.SecurityCouncilThreshold == 0 {
-		return fmt.Errorf("SecurityCouncilThreshold (%d) must be at least 1", d.SecurityCouncilThreshold)
-	}
-	if len(d.SecurityCouncilOwners) == 0 {
-		return fmt.Errorf("%w: Must provide at least one address for SecurityCouncilOwners", ErrInvalidDeployConfig)
+	if d.DeploySecurityCouncil {
+		if d.LivenessModuleInterval == 0 {
+			log.Warn("LivenessModuleInterval is 0")
+		}
+		if d.LivenessModuleThresholdPercentage == 0 || d.LivenessModuleThresholdPercentage > 100 {
+			return fmt.Errorf("LivenessModuleThresholdPercentage (%d) is not a valid percentage", d.LivenessModuleThresholdPercentage)
+		}
+		if d.LivenessModuleMinOwners == 0 {
+			return fmt.Errorf("LivenessModuleMinOwners (%d) must be greater than 0", d.LivenessModuleMinOwners)
+		}
+		if d.SecurityCouncilThreshold == 0 {
+			return fmt.Errorf("SecurityCouncilThreshold (%d) must be at least 1", d.SecurityCouncilThreshold)
+		}
+		if len(d.SecurityCouncilOwners) == 0 {
+			return fmt.Errorf("%w: Must provide at least one address for SecurityCouncilOwners", ErrInvalidDeployConfig)
+		}
 	}
 	if d.UsePlasma {
 		if d.DAChallengeWindow == 0 {
