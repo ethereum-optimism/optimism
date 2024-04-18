@@ -66,5 +66,6 @@
   "daBondSize": 1000,
   "daResolverRefundPercentage": 50,
   "livenessModuleInterval": 31536000,
-  "livenessModuleThresholdPercentage": 20
+  "livenessModuleThresholdPercentage": 20,
+  "livenessModuleMinOwners": 1
 }
