@@ -11,7 +11,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
-	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon/core"
@@ -122,12 +121,12 @@ func AllocToGenesis(g *types.Genesis, head *types.Header) (*state.IntraBlockStat
 		}
 		// See https://github.com/NethermindEth/nethermind/blob/master/src/Nethermind/Nethermind.Consensus.AuRa/InitializationSteps/LoadGenesisBlockAuRa.cs
 		if hasConstructorAllocation && g.Config.Aura != nil {
-			statedb.CreateAccount(libcommon.Address{}, false)
+			statedb.CreateAccount(common.Address{}, false)
 		}
 
 		keys := sortedAllocKeys(g.Alloc)
 		for _, key := range keys {
-			addr := libcommon.BytesToAddress([]byte(key))
+			addr := common.BytesToAddress([]byte(key))
 			account := g.Alloc[addr]
 
 			var (
@@ -178,7 +177,7 @@ func AllocToGenesis(g *types.Genesis, head *types.Header) (*state.IntraBlockStat
 	wg.Wait()
 
 	if err != nil {
-		return nil, libcommon.Hash{}, err
+		return nil, common.Hash{}, err
 	}
 
 	return statedb, root, nil

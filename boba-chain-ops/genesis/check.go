@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"sync"
 
+	"github.com/bobanetwork/boba/boba-bindings/bindings"
 	"github.com/bobanetwork/boba/boba-bindings/predeploys"
 	"github.com/bobanetwork/boba/boba-chain-ops/chain"
 	"github.com/bobanetwork/boba/boba-chain-ops/crossdomain"
@@ -77,6 +78,8 @@ var (
 			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000010000000000000000000000000000000000000000"),
 			// Slot 0xcc (204) is xDomainMsgSender
 			libcommon.Hash{31: 0xcc}: libcommon.HexToHash("0x000000000000000000000000000000000000000000000000000000000000dead"),
+			// Slot 0xcd (205) is msgNonce
+			libcommon.Hash{31: 0xcd}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30007"),
@@ -84,12 +87,17 @@ var (
 		predeploys.L2StandardBridgeAddr: {
 			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
 			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+			// Slot 0x03 (1) is the L2CrossDomainMessengerAddr
+			libcommon.Hash{31: 0x3}: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000007"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30010"),
 		},
 		predeploys.SequencerFeeVaultAddr: eip1967Slots(predeploys.SequencerFeeVaultAddr),
 		predeploys.OptimismMintableERC20FactoryAddr: {
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+			// Slot 0x01 (1) is the L2StandardBridgeAddr
+			libcommon.Hash{31: 0x1}: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30012"),
@@ -98,6 +106,8 @@ var (
 		predeploys.GasPriceOracleAddr: eip1967Slots(predeploys.GasPriceOracleAddr),
 		predeploys.L2ERC721BridgeAddr: {
 			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+			//	Slot 0x03 (1) is the L2CrossDomainMessengerAddr
+			libcommon.Hash{31: 0x1}: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000007"),
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30014"),
@@ -125,6 +135,8 @@ func PostCheckMigratedDB(
 	g *types.Genesis,
 	migrationData crossdomain.MigrationData,
 	l1XDM *libcommon.Address,
+	l1StandardBridge *libcommon.Address,
+	l1ERC721Bridge *libcommon.Address,
 	l1ChainID uint64,
 	finalSystemOwner libcommon.Address,
 	proxyAdminOwner libcommon.Address,
@@ -132,6 +144,12 @@ func PostCheckMigratedDB(
 	timestamp int,
 	info *L1BlockInfo,
 ) error {
+	// quick hack
+	// insert l1standardbridge into L2StandardBridgeAddr
+	ExpectedStorageSlots[predeploys.L2StandardBridgeAddr][libcommon.Hash{31: 0x4}] = l1StandardBridge.Hash()
+	// insert l1erc721bridge into L2ERC721BridgeAddr
+	ExpectedStorageSlots[predeploys.L2ERC721BridgeAddr][libcommon.Hash{31: 0x2}] = l1ERC721Bridge.Hash()
+
 	log.Info("Validating database migration")
 
 	tx, err := chaindb.BeginRo(context.Background())
@@ -188,36 +206,45 @@ func PostCheckMigratedDB(
 		return fmt.Errorf("expected bedrock block to be %d, but got %d", transitionBlockNumber, chainConfig.BedrockBlock)
 	}
 
+	accounts, err := state.GetAllAccounts(tx)
+	if err != nil {
+		return fmt.Errorf("failed to read accounts from database: %w", err)
+	}
+	storages, err := state.GetAllStorages(tx)
+	if err != nil {
+		return fmt.Errorf("failed to read storages from database: %w", err)
+	}
+
 	if err := CheckPreBedrockAllocation(tx); err != nil {
 		return err
 	}
 
-	if err := PostCheckPredeployStorage(tx, finalSystemOwner, proxyAdminOwner); err != nil {
+	if err := PostCheckPredeployStorage(tx, finalSystemOwner, proxyAdminOwner, storages); err != nil {
 		return err
 	}
 	log.Info("checked predeploy storage")
 
-	if err := PostCheckUntouchables(tx, g); err != nil {
+	if err := PostCheckUntouchables(tx, g, storages); err != nil {
 		return err
 	}
 	log.Info("checked untouchables")
 
-	if err := PostCheckPredeploys(tx, g); err != nil {
+	if err := PostCheckPredeploys(tx, g, accounts, storages); err != nil {
 		return err
 	}
 	log.Info("checked predeploys")
 
-	if err := PostCheckL1Block(tx, info); err != nil {
+	if err := PostCheckL1Block(tx, info, storages); err != nil {
 		return err
 	}
 	log.Info("checked L1Block")
 
-	if err := PostCheckLegacyETH(tx, g, migrationData); err != nil {
+	if err := PostCheckLegacyETH(tx, g, migrationData, accounts, storages); err != nil {
 		return err
 	}
 	log.Info("checked legacy eth")
 
-	if err := CheckWithdrawalsAfter(tx, migrationData, l1XDM); err != nil {
+	if err := CheckWithdrawalsAfter(tx, migrationData, l1XDM, storages); err != nil {
 		return err
 	}
 	log.Info("checked withdrawals")
@@ -227,13 +254,32 @@ func PostCheckMigratedDB(
 
 // PostCheckUntouchables will check that the untouchable contracts have
 // not been modified by the migration process.
-func PostCheckUntouchables(tx kv.Tx, g *types.Genesis) error {
+func PostCheckUntouchables(tx kv.Tx, g *types.Genesis, storages map[libcommon.Address]map[libcommon.Hash]libcommon.Hash) error {
 	for addr := range UntouchablePredeploys {
 		// Check that the code is the same.
 		hash, err := state.GetContractCodeHash(tx, addr)
 		if err != nil {
 			return fmt.Errorf("failed to read code hash from database: %w", err)
 		}
+
+		// This is the speical case for boba token not predeploy in 0x4200...023
+		if addr == predeploys.BobaL2Addr && !chain.IsBobaTokenPredeploy(g.Config.ChainID) {
+			if hash == nil {
+				return fmt.Errorf("no code found at predeploy %s for the special case of Boba token", addr)
+			}
+
+			// There must be an admin
+			if _, ok := storages[addr]; !ok {
+				return fmt.Errorf("no storage found at predeploy %s", addr)
+			}
+			hash := storages[addr][AdminSlot]
+			adminAddr := libcommon.BytesToAddress(hash[:])
+			if addr != predeploys.ProxyAdminAddr && adminAddr != predeploys.ProxyAdminAddr {
+				return fmt.Errorf("expected admin for %s to be %s but got %s", addr, predeploys.ProxyAdminAddr, adminAddr)
+			}
+			continue
+		}
+
 		expHash := UntouchableCodeHashes[addr][g.Config.ChainID.Uint64()]
 		if *hash != expHash {
 			return fmt.Errorf("expected code hash for %s to be %s, but got %s", addr, expHash, hash)
@@ -252,11 +298,11 @@ func PostCheckUntouchables(tx kv.Tx, g *types.Genesis) error {
 		}
 
 		for expKey, expValue := range expSlots {
-			hash, err := state.GetStorage(tx, addr, expKey)
-			if err != nil {
-				return fmt.Errorf("failed to read storage from database: %w", err)
+			if _, ok := storages[addr]; !ok {
+				return fmt.Errorf("no storage found at predeploy %s", addr)
 			}
-			if *hash != expValue {
+			hash := storages[addr][expKey]
+			if hash != expValue {
 				return fmt.Errorf("expected slot %s on %s to be %s, but got %s", expKey, addr, expValue, hash)
 			}
 		}
@@ -268,7 +314,7 @@ func PostCheckUntouchables(tx kv.Tx, g *types.Genesis) error {
 
 // PostCheckPredeploys will check that there is code at each predeploy
 // address
-func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
+func PostCheckPredeploys(tx kv.Tx, g *types.Genesis, accounts map[libcommon.Address][]byte, storages map[libcommon.Address]map[libcommon.Hash]libcommon.Hash) error {
 	for i := uint64(0); i <= 2048; i++ {
 		// Compute the predeploy address
 		bigAddr := new(big.Int).Or(BigL2PredeployNamespace, new(big.Int).SetUint64(i))
@@ -285,16 +331,16 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 			return fmt.Errorf("no code found at predeploy %s", addr)
 		}
 
-		if UntouchablePredeploys[addr] {
+		if UntouchablePredeploys[addr] && (addr != predeploys.BobaL2Addr || chain.IsBobaTokenPredeploy(g.Config.ChainID)) {
 			log.Trace("skipping untouchable predeploy", "address", addr)
 			continue
 		}
 
 		// There must be an admin
-		hash, err := state.GetStorage(tx, addr, AdminSlot)
-		if err != nil {
-			return fmt.Errorf("failed to read admin from database: %w", err)
+		if _, ok := storages[addr]; !ok {
+			return fmt.Errorf("no storage found at predeploy %s", addr)
 		}
+		hash := storages[addr][AdminSlot]
 		adminAddr := libcommon.BytesToAddress(hash[:])
 		if addr != predeploys.ProxyAdminAddr && adminAddr != predeploys.ProxyAdminAddr {
 			return fmt.Errorf("expected admin for %s to be %s but got %s", addr, predeploys.ProxyAdminAddr, adminAddr)
@@ -311,10 +357,7 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 			newNonce   []byte
 			newBalance []byte
 		)
-		storageByte, err := state.GetAccount(tx, addr)
-		if err != nil {
-			return fmt.Errorf("failed to read account from database: %w", err)
-		}
+		storageByte := accounts[addr]
 		newNonce, newBalance, err = decodeNonceBalanceFromStorage(storageByte)
 		if err != nil {
 			return fmt.Errorf("failed to decode nonce and balance from storage: %w", err)
@@ -325,51 +368,73 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 		if oldBalance.Cmp(new(big.Int).SetBytes(newBalance)) != 0 {
 			return fmt.Errorf("expected balance for %s to be %d but got %d", addr, oldBalance, new(big.Int).SetBytes(newBalance))
 		}
+	}
 
-		// For each predeploy, check that we've set the implementation correctly when
-		// necessary and that there's code at the implementation.
-		for _, proxyAddr := range predeploys.Predeploys {
-			if UntouchablePredeploys[*proxyAddr] {
-				log.Trace("skipping untouchable predeploy", "address", proxyAddr)
-				continue
-			}
+	// For each predeploy, check that we've set the implementation correctly when
+	// necessary and that there's code at the implementation.
+	for _, proxyAddr := range predeploys.Predeploys {
+		if UntouchablePredeploys[*proxyAddr] {
+			log.Trace("skipping untouchable predeploy", "address", proxyAddr)
+			continue
+		}
 
-			if *proxyAddr == predeploys.LegacyERC20ETHAddr {
-				log.Trace("skipping legacy eth predeploy")
-				continue
-			}
+		if *proxyAddr == predeploys.LegacyERC20ETHAddr {
+			log.Trace("skipping legacy eth predeploy")
+			continue
+		}
 
-			if *proxyAddr == predeploys.ProxyAdminAddr {
-				implCode, err := state.GetContractCode(tx, *proxyAddr)
-				if err != nil {
-					return fmt.Errorf("failed to read contract code from database: %w", err)
-				}
-				if implCode == nil || len(implCode) == 0 {
-					return errors.New("no code found at proxy admin")
-				}
-				continue
-			}
-
-			expImplAddr, err := AddressToCodeNamespace(*proxyAddr)
-			if err != nil {
-				return fmt.Errorf("error converting to code namespace: %w", err)
-			}
-
+		if *proxyAddr == predeploys.Create2DeployerAddr || *proxyAddr == predeploys.DeterministicDeploymentProxyAddr {
 			implCode, err := state.GetContractCode(tx, *proxyAddr)
 			if err != nil {
 				return fmt.Errorf("failed to read contract code from database: %w", err)
 			}
 			if implCode == nil || len(implCode) == 0 {
-				return fmt.Errorf("no code found at predeploy impl %s", *proxyAddr)
+				return errors.New("no code found at create2 deployer")
 			}
+			if *proxyAddr == predeploys.DeterministicDeploymentProxyAddr {
+				if *implCode != libcommon.HexToHash(bindings.DeterministicDeploymentProxyDeployedBin) {
+					return fmt.Errorf("expected code at deterministic deployment proxy to be %x but got %x", bindings.DeterministicDeploymentProxyDeployedBin, *implCode)
+				}
+			}
+			if *proxyAddr == predeploys.Create2DeployerAddr {
+				if *implCode != libcommon.HexToHash(bindings.Create2DeployerDeployedBin) {
+					return fmt.Errorf("expected code at create2 deployer to be %x but got %x", bindings.Create2DeployerDeployedBin, *implCode)
+				}
+			}
+			log.Trace("skipping special predeploy", "address", *proxyAddr)
+			continue
+		}
 
-			actImplAddr, err := state.GetStorage(tx, *proxyAddr, ImplementationSlot)
+		if *proxyAddr == predeploys.ProxyAdminAddr {
+			implCode, err := state.GetContractCode(tx, *proxyAddr)
 			if err != nil {
-				return fmt.Errorf("failed to read implementation from database: %w", err)
+				return fmt.Errorf("failed to read contract code from database: %w", err)
 			}
-			if expImplAddr != libcommon.HexToAddress(actImplAddr.Hex()) {
-				return fmt.Errorf("expected implementation for %s to be at %s, but got %s", *proxyAddr, expImplAddr, actImplAddr)
+			if implCode == nil || len(implCode) == 0 {
+				return errors.New("no code found at proxy admin")
 			}
+			continue
+		}
+
+		expImplAddr, err := AddressToCodeNamespace(*proxyAddr)
+		if err != nil {
+			return fmt.Errorf("error converting %s to code namespace: %w", *proxyAddr, err)
+		}
+
+		implCode, err := state.GetContractCode(tx, *proxyAddr)
+		if err != nil {
+			return fmt.Errorf("failed to read contract code from database: %w", err)
+		}
+		if implCode == nil || len(implCode) == 0 {
+			return fmt.Errorf("no code found at predeploy impl %s", *proxyAddr)
+		}
+
+		if _, ok := storages[*proxyAddr]; !ok {
+			return fmt.Errorf("no storage found at predeploy %s", *proxyAddr)
+		}
+		actImplAddr := storages[*proxyAddr][ImplementationSlot]
+		if expImplAddr != libcommon.HexToAddress(actImplAddr.Hex()) {
+			return fmt.Errorf("expected implementation for %s to be at %s, but got %s", *proxyAddr, expImplAddr, actImplAddr)
 		}
 	}
 
@@ -378,7 +443,7 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 
 // PostCheckPredeployStorage will ensure that the predeploys had their storage
 // wiped correctly.
-func PostCheckPredeployStorage(tx kv.Tx, finalSystemOwner libcommon.Address, proxyAdminOwner libcommon.Address) error {
+func PostCheckPredeployStorage(tx kv.Tx, finalSystemOwner libcommon.Address, proxyAdminOwner libcommon.Address, storages map[libcommon.Address]map[libcommon.Hash]libcommon.Hash) error {
 	for name, addr := range predeploys.Predeploys {
 		if addr == nil {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
@@ -392,23 +457,7 @@ func PostCheckPredeployStorage(tx kv.Tx, finalSystemOwner libcommon.Address, pro
 
 		// Create a mapping of all storage slots. These values were wiped
 		// so it should not take long to iterate through all of them.
-		slots := make(map[libcommon.Hash]libcommon.Hash)
-		cursor, err := tx.Cursor(kv.PlainState)
-		if err != nil {
-			return fmt.Errorf("failed to create cursor: %w", err)
-		}
-		defer cursor.Close()
-
-		for k, v, err := cursor.First(); k != nil; k, v, err = cursor.Next() {
-			if err != nil {
-				return fmt.Errorf("failed to iterate cursor: %w", err)
-			}
-			// Storage is 20 bytes account address + 8 byte incarnation + 32 byte storage key
-			if len(k) == 60 && libcommon.BytesToAddress(k[:20]) == *addr {
-				slots[libcommon.BytesToHash(k[20:])] = libcommon.BytesToHash(v)
-			}
-		}
-
+		slots := storages[*addr]
 		log.Info("predeploy storage", "name", name, "address", *addr, "count", len(slots))
 		for key, value := range slots {
 			log.Debug("storage values", "key", key.String(), "value", value.String())
@@ -434,7 +483,7 @@ func PostCheckPredeployStorage(tx kv.Tx, finalSystemOwner libcommon.Address, pro
 
 			if slots[key] != value {
 				log.Debug("validated storage value", "key", key.String(), "value", value.String())
-				return fmt.Errorf("expected storage slot %s to be %s but got %s", key, value, slots[key])
+				return fmt.Errorf("expected storage slot %s of %s to be %s but got %s", key, *addr, value, slots[key])
 			}
 		}
 	}
@@ -444,7 +493,7 @@ func PostCheckPredeployStorage(tx kv.Tx, finalSystemOwner libcommon.Address, pro
 // PostCheckLegacyETH checks that the legacy eth migration was successful.
 // It checks that the total supply was set to 0, and randomly samples storage
 // slots pre- and post-migration to ensure that balances were correctly migrated.
-func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.MigrationData) error {
+func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.MigrationData, accounts map[libcommon.Address][]byte, storages map[libcommon.Address]map[libcommon.Hash]libcommon.Hash) error {
 	allowanceSlots := make(map[libcommon.Hash]bool)
 	addresses := make(map[libcommon.Hash]libcommon.Address)
 
@@ -456,6 +505,10 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 
 	for _, addr := range migrationData.Addresses() {
 		addresses[ether.CalcOVMETHStorageKey(addr)] = addr
+	}
+
+	if _, ok := storages[predeploys.LegacyERC20ETHAddr]; !ok {
+		return fmt.Errorf("no storage found at predeploy %s", predeploys.LegacyERC20ETHAddr)
 	}
 
 	// This is for bobabeam and bobaopera
@@ -471,18 +524,15 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 		}
 		for _, slot := range defaultSlots {
 			if g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot] != (libcommon.Hash{}) {
-				actValue, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, slot)
-				if err != nil {
-					return fmt.Errorf("failed to get storage for %s: %w", slot, err)
-				}
+				actValue := storages[predeploys.LegacyERC20ETHAddr][slot]
 				// The total supply should be 0
 				if slot == libcommon.BytesToHash([]byte{2}) {
-					if *actValue != (libcommon.Hash{}) {
+					if actValue != (libcommon.Hash{}) {
 						return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, (libcommon.Hash{}), actValue)
 					}
 					continue
 				}
-				if *actValue != g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot] {
+				if actValue != g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot] {
 					return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot], actValue)
 				}
 			}
@@ -490,11 +540,8 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 	} else {
 		log.Info("checking legacy eth fixed storage slots", "chainID", g.Config.ChainID)
 		for slot, expValue := range LegacyETHCheckSlots {
-			actValue, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, slot)
-			if err != nil {
-				return fmt.Errorf("failed to get storage for %s: %w", slot, err)
-			}
-			if *actValue != expValue {
+			actValue := storages[predeploys.LegacyERC20ETHAddr][slot]
+			if actValue != expValue {
 				return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
 			}
 		}
@@ -555,11 +602,7 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 		// Migrated state balance should equal the OVM ETH balance.
 		m.Lock()
 		defer m.Unlock()
-		account, err := state.GetAccount(tx, addr)
-		if err != nil {
-			innerErr = fmt.Errorf("failed to get account for %s: %w", addr, err)
-			return innerErr
-		}
+		account := accounts[addr]
 		_, balance, err := decodeNonceBalanceFromStorage(account)
 		if err != nil {
 			innerErr = fmt.Errorf("failed to decode nonce and balance for %s: %w", addr, err)
@@ -571,11 +614,7 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 			return innerErr
 		}
 		// Migrated OVM ETH balance should be zero, since we wipe the slots.
-		migratedBalance, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, key)
-		if err != nil {
-			innerErr = fmt.Errorf("failed to get OVM_ETH post-migration ERC20 balance for %s: %w", addr, err)
-			return innerErr
-		}
+		migratedBalance := storages[predeploys.LegacyERC20ETHAddr][key]
 		if migratedBalance.Big().Cmp(libcommon.Big0) != 0 {
 			innerErr = fmt.Errorf("expected OVM_ETH post-migration ERC20 balance for %s to be 0, but got %s", addr, migratedBalance)
 			return innerErr
@@ -598,12 +637,12 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 }
 
 // PostCheckL1Block checks that the L1Block contract was properly set to the L1 origin.
-func PostCheckL1Block(tx kv.Tx, info *L1BlockInfo) error {
+func PostCheckL1Block(tx kv.Tx, info *L1BlockInfo, storages map[libcommon.Address]map[libcommon.Hash]libcommon.Hash) error {
 	// Slot 0 is the concatenation of the block number and timestamp
-	hash, err := state.GetStorage(tx, predeploys.L1BlockAddr, libcommon.Hash{})
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
+	if _, ok := storages[predeploys.L1BlockAddr]; !ok {
+		return fmt.Errorf("no storage found at predeploy %s", predeploys.L1BlockAddr)
 	}
+	hash := storages[predeploys.L1BlockAddr][libcommon.Hash{}]
 	data := hash.Bytes()
 	// data := db.GetState(predeploys.L1BlockAddr, common.Hash{}).Bytes()
 	blockNumber := binary.BigEndian.Uint64(data[24:])
@@ -618,10 +657,7 @@ func PostCheckL1Block(tx kv.Tx, info *L1BlockInfo) error {
 	log.Debug("validated L1Block timestamp", "expected", info.Time)
 
 	// Slot 1 is the basefee.
-	hash, err = state.GetStorage(tx, predeploys.L1BlockAddr, libcommon.Hash{31: 0x01})
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
-	}
+	hash = storages[predeploys.L1BlockAddr][libcommon.Hash{31: 0x01}]
 	baseFee := hash.Big()
 	if baseFee.Cmp(info.BaseFee) != 0 {
 		return fmt.Errorf("expected L1Block basefee to be %s, but got %s", info.BaseFee, baseFee)
@@ -629,31 +665,22 @@ func PostCheckL1Block(tx kv.Tx, info *L1BlockInfo) error {
 	log.Debug("validated L1Block basefee", "expected", info.BaseFee)
 
 	// Slot 2 is the block hash
-	hash, err = state.GetStorage(tx, predeploys.L1BlockAddr, libcommon.Hash{31: 0x02})
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
-	}
-	if *hash != info.BlockHash {
+	hash = storages[predeploys.L1BlockAddr][libcommon.Hash{31: 0x02}]
+	if hash != info.BlockHash {
 		return fmt.Errorf("expected L1Block hash to be %s, but got %s", info.BlockHash, hash)
 	}
 	log.Debug("validated L1Block hash", "expected", info.BlockHash)
 
 	// Slot 3 is the sequence number. It is expected to be zero.
-	sequenceNumber, err := state.GetStorage(tx, predeploys.L1BlockAddr, libcommon.Hash{31: 0x03})
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
-	}
+	sequenceNumber := storages[predeploys.L1BlockAddr][libcommon.Hash{31: 0x03}]
 	expSequenceNumber := libcommon.Hash{}
-	if expSequenceNumber != *sequenceNumber {
+	if expSequenceNumber != sequenceNumber {
 		return fmt.Errorf("expected L1Block sequence number to be %s, but got %s", expSequenceNumber, sequenceNumber)
 	}
 	log.Debug("validated L1Block sequence number", "expected", expSequenceNumber)
 
 	// Slot 4 is the versioned hash to authenticate the batcher. It is expected to be the initial batch sender.
-	batcherHash, err := state.GetStorage(tx, predeploys.L1BlockAddr, libcommon.Hash{31: 0x04})
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
-	}
+	batcherHash := storages[predeploys.L1BlockAddr][libcommon.Hash{31: 0x04}]
 	batchSender := libcommon.BytesToAddress(batcherHash.Bytes())
 	if batchSender != info.BatcherAddr {
 		return fmt.Errorf("expected L1Block batcherHash to be %s, but got %s", info.BatcherAddr, batchSender)
@@ -661,30 +688,21 @@ func PostCheckL1Block(tx kv.Tx, info *L1BlockInfo) error {
 	log.Debug("validated L1Block batcherHash", "expected", info.BatcherAddr)
 
 	// Slot 5 is the L1 fee overhead.
-	l1FeeOverhead, err := state.GetStorage(tx, predeploys.L1BlockAddr, libcommon.Hash{31: 0x05})
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
-	}
+	l1FeeOverhead := storages[predeploys.L1BlockAddr][libcommon.Hash{31: 0x05}]
 	if !bytes.Equal(l1FeeOverhead.Bytes(), info.L1FeeOverhead[:]) {
 		return fmt.Errorf("expected L1Block L1FeeOverhead to be %s, but got %s", info.L1FeeOverhead, l1FeeOverhead)
 	}
 	log.Debug("validated L1Block L1FeeOverhead", "expected", info.L1FeeOverhead)
 
 	// Slot 6 is the L1 fee scalar.
-	l1FeeScalar, err := state.GetStorage(tx, predeploys.L1BlockAddr, libcommon.Hash{31: 0x06})
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
-	}
+	l1FeeScalar := storages[predeploys.L1BlockAddr][libcommon.Hash{31: 0x06}]
 	if !bytes.Equal(l1FeeScalar.Bytes(), info.L1FeeScalar[:]) {
 		return fmt.Errorf("expected L1Block L1FeeScalar to be %s, but got %s", info.L1FeeScalar, l1FeeScalar)
 	}
 	log.Debug("validated L1Block L1FeeScalar", "expected", info.L1FeeScalar)
 
 	// Check EIP-1967
-	admin, err := state.GetStorage(tx, predeploys.L1BlockAddr, AdminSlot)
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
-	}
+	admin := storages[predeploys.L1BlockAddr][AdminSlot]
 	proxyAdmin := libcommon.BytesToAddress(admin.Bytes())
 	if proxyAdmin != predeploys.ProxyAdminAddr {
 		return fmt.Errorf("expected L1Block admin to be %s, but got %s", predeploys.ProxyAdminAddr, proxyAdmin)
@@ -694,40 +712,25 @@ func PostCheckL1Block(tx kv.Tx, info *L1BlockInfo) error {
 	if err != nil {
 		return fmt.Errorf("failed to get expected implementation for L1Block: %w", err)
 	}
-	impl, err := state.GetStorage(tx, predeploys.L1BlockAddr, ImplementationSlot)
-	if err != nil {
-		return fmt.Errorf("failed to read L1Block storage: %w", err)
-	}
+	impl := storages[predeploys.L1BlockAddr][ImplementationSlot]
 	actImplementation := libcommon.BytesToAddress(impl.Bytes())
 	if expImplementation != actImplementation {
 		return fmt.Errorf("expected L1Block implementation to be %s, but got %s", expImplementation, actImplementation)
 	}
 	log.Debug("validated L1Block implementation", "expected", expImplementation)
 
-	var count int
-	cursor, err := tx.Cursor(kv.PlainState)
-	if err != nil {
-		return fmt.Errorf("failed to create cursor: %w", err)
-	}
-	defer cursor.Close()
-	for k, _, err := cursor.First(); k != nil; k, _, err = cursor.Next() {
-		if err != nil {
-			return fmt.Errorf("failed to read storage from database: %w", err)
-		}
-		// Storage is 20 bytes account address + 8 byte incarnation + 32 byte storage key
-		if len(k) == 60 && libcommon.BytesToAddress(k[:20]) == predeploys.L1BlockAddr {
-			count++
-		}
-	}
-	if count != 8 {
-		return fmt.Errorf("expected L1Block to have 8 storage slots, but got %d", count)
+	if len(storages[predeploys.L1BlockAddr]) != 8 {
+		return fmt.Errorf("expected L1Block to have 8 storage slots, but got %d", len(storages[predeploys.L1BlockAddr]))
 	}
 	log.Debug("validated L1Block storage slot count", "expected", 8)
 
 	return nil
 }
 
-func CheckWithdrawalsAfter(tx kv.Tx, data crossdomain.MigrationData, l1CrossDomainMessenger *libcommon.Address) error {
+func CheckWithdrawalsAfter(tx kv.Tx, data crossdomain.MigrationData, l1CrossDomainMessenger *libcommon.Address, storages map[libcommon.Address]map[libcommon.Hash]libcommon.Hash) error {
+	if _, ok := storages[predeploys.L2ToL1MessagePasserAddr]; !ok {
+		return fmt.Errorf("no storage found at predeploy %s", predeploys.L2ToL1MessagePasserAddr)
+	}
 	wds, invalidMessages, err := data.ToWithdrawals()
 	if err != nil {
 		return err
@@ -789,12 +792,9 @@ func CheckWithdrawalsAfter(tx kv.Tx, data crossdomain.MigrationData, l1CrossDoma
 		// Make sure invalid slots don't get migrated.
 		_, isInvalidSlot := invalidMessagesByOldSlot[key]
 		if isInvalidSlot {
-			value, err := state.GetStorage(tx, predeploys.L2ToL1MessagePasserAddr, key)
-			if err != nil {
-				innerErr = fmt.Errorf("failed to read L2ToL1MessagePasser storage: %w", err)
-				return false
-			}
-			if *value != abiFalse {
+			// value, err := state.GetStorage(tx, predeploys.L2ToL1MessagePasserAddr, key)
+			value := storages[predeploys.L2ToL1MessagePasserAddr][key]
+			if value != abiFalse {
 				innerErr = fmt.Errorf("expected invalid slot not to be migrated, but got %s", value)
 				return false
 			}
@@ -809,23 +809,19 @@ func CheckWithdrawalsAfter(tx kv.Tx, data crossdomain.MigrationData, l1CrossDoma
 		}
 
 		// Look up the migrated slot in the DB.
-		migratedValue, err := state.GetStorage(tx, predeploys.L2ToL1MessagePasserAddr, migratedSlot)
-		if err != nil {
-			innerErr = fmt.Errorf("failed to read L2ToL1MessagePasser storage: %w", err)
-			return false
-		}
+		migratedValue := storages[predeploys.L2ToL1MessagePasserAddr][migratedSlot]
 
 		// If the sender is _not_ the L2XDM, the value should not be migrated.
 		wd := wdsByOldSlot[key]
 		if wd.MessageSender == predeploys.L2CrossDomainMessengerAddr {
 			// Make sure the value is abiTrue if this withdrawal should be migrated.
-			if *migratedValue != abiTrue {
+			if migratedValue != abiTrue {
 				innerErr = fmt.Errorf("expected migrated value to be true, but got %s", migratedValue)
 				return false
 			}
 		} else {
 			// Otherwise, ensure that withdrawals from senders other than the L2XDM are _not_ migrated.
-			if *migratedValue != abiFalse {
+			if migratedValue != abiFalse {
 				innerErr = fmt.Errorf("a migration from a sender other than the L2XDM was migrated. sender: %s, migrated value: %s", wd.MessageSender, migratedValue)
 				return false
 			}

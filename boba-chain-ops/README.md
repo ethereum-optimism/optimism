@@ -112,7 +112,7 @@ Run `make boba-connect`
 
 Before the migration, we need these following files
 
-* `witness.txt` - this includes the set of withdrawals through the `L2CrossDomainMessenger` from after the evm equivalence upgrade. To generate this file, we add the following environment variable in the l2geth client.
+* `witness.txt` - this includes the set of withdrawals through the `L2CrossDomainMessenger` from after the evm equivalence upgrade. To generate this file, we add the following environment variable in the l2geth client. 
 
   ```yaml
   environment:
@@ -127,9 +127,33 @@ Before the migration, we need these following files
   go run ./cmd/boba-crawler --rpc-url=https://mainnet.boba.network --output-path=./eth-addresses.json
   ```
 
-* `eth-allowance.json` - this includes all allowances of the `OVM_ETH` contract. For Goerli L2, this file is **EMPTY**. For Mainnet L2, this file is needed and **SHOULDN'T** be empty. Otherwsie, we can't bypass the security checks.
+  Another way to generate this file is by adding the following environment variable to the l2geth client, which is faster.
 
-* `ovm-message.json` - this includes the set of withdrawals through the `L2CrossDomainMessenger` from before the evm equivalence upgrade. For Goerli L2, this file is **EMPTY**.
+  ```yaml
+  image: bobanetwork/l2geth:eth-dump
+  environment:
+    L2GETH_ETH_DUMP_PATH: "/dump/eth-address.txt"
+  volumes:
+    - VOLUME_LOCATION:/dump
+  ```
+
+* `eth-allowance.json` - this includes all allowances of the `OVM_ETH` contract.
+
+  For Sepolia L2, this file is **EMPTY**. 
+
+  For Mainnet L2, this file is needed and **SHOULDN'T** be empty. You can download this file from [s3](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/eth-allowances.json).
+
+* `ovm-message.json` - this includes the set of withdrawals through the `L2CrossDomainMessenger` from before the evm equivalence upgrade. 
+
+  This file is **EMPTY**.
+
+### Verification
+
+Before the actual migration, we can ensure that `eth-addresses.json` and `eth-allowance.json` are able to generate all slots in the `OVM_ETH` contract, and that `witness.txt` can regenerate the cross-chain messages in the `L2CrossChainMessenger` contract. To verify this, you need to run [geth-dump](https://github.com/bobanetwork/boba/blob/develop/op-chain-ops/cmd/geth-dump/main.go) in `op-chain-ops` to generate the allocation file from the `l2geth` database. After obtaining the allocation file, you can execute `boba-crawler` in `boba-chain-ops` by running:
+
+```bash
+go run ./cmd/boba-crawler --eth-addresses-output-path=./eth-addresses.json --eth-allowances-output-path=./eth-allowance.json --witness-file-path=./witness.txt --alloc-path=alloc.json --post-check-only=true
+```
 
 ### Contracts
 
@@ -145,7 +169,7 @@ The names of the deployment files for `Proxy__L1StandardBridge` and `Proxy__L1Cr
 
 The new network settings should be added to [hardhat.config.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/hardhat.config.ts) and the configuration file should be added to the [deploy-config](https://github.com/bobanetwork/boba/tree/develop/packages/contracts-bedrock/deploy-config) folder.
 
-To avoid the upgrade, delete the [022-SystemDictatorSteps-1.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy/022-SystemDictatorSteps-1.ts) and [022-SystemDictatorSteps-2.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy/023-SystemDictatorSteps-2.ts) and run
+To avoid the upgrade, delete the [024-SystemDictatorInit.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy/024-SystemDictatorInit.ts), [025-SystemDictatorSteps-1.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy/025-SystemDictatorSteps-1.ts) and [026-SystemDictatorSteps-2.ts](https://github.com/bobanetwork/boba/blob/develop/packages/contracts-bedrock/deploy/026-SystemDictatorSteps-2.ts) run
 
 ```bash
 yarn deploy:hardhat --network boba-mainnet
@@ -155,22 +179,12 @@ In this process, we won't update the implementation contracts and initialize it.
 
 ### Erigon
 
-Before generating the database, we need to add the genesis block information to the [op-erigon](https://github.com/bobanetwork/op-erigon/blob/bedrock-migration/erigon-lib/chain/chain_config.go) so that the first block can match the legacy chain. For example,
-
-```go
-BobaGoerliChainId = big.NewInt(2888)
-BobaGoerliGenesisGasLimit = 11000000
-BobaGoerliGenesisCoinbase = "0x0000000000000000000000000000000000000000"
-BobaGoerliGenesisExtraData = "000000000000000000000000000000000000000000000000000000000000000000000398232e2064f896018496b4b44b3d62751f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-BobaGoerliGenesisRoot = "0x36c808dc3bb586c14bebde3ca630a4d49a1fdad0b01d7e58f96f2fcd1aa0003d"
-```
-
 A genesis file is needed when we generate the database. An example is
 
 ```json
 {
   "config": {
-    "chainId": CHAIN_ID,
+    "chainId": 288,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip150Hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -181,32 +195,38 @@ A genesis file is needed when we generate the database. An example is
     "petersburgBlock": 0,
     "istanbulBlock": 0,
     "muirGlacierBlock": 0,
-    "berlinBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
-    "londonBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
-    "arrowGlacierBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
-    "grayGlacierBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
-    "mergeNetsplitBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
-    "bedrockBlock": BEDROCK_BLOCK, // This can be any block number, but it must be larger than the actual transition block so that we can continuously insert the legacy blocks until the transition block is reached.
+    "berlinBlock": 1000000000, // Future blocks
+    "londonBlock": 1000000000, // Future blocks
+    "arrowGlacierBlock": 1000000000, // Future blocks
+    "grayGlacierBlock": 1000000000, // Future blocks
+    "mergeNetsplitBlock": 1000000000, // Future blocks
+    "bedrockBlock": 1000000000, // Future blocks
     "terminalTotalDifficulty": 0,
     "terminalTotalDifficultyPassed": true,
     "optimism": {
       "eip1559Elasticity": 6,
-      "eip1559Denominator": 50
-    }
+      "eip1559Denominator": 50,
+      "eip1559DenominatorCanyon": 250
+    },
+    "regolithTime": 1811059381, // Future timestamp
+    "shanghaiTime": 1811059381, // Future timestamp
+    "canyonTime": 1811059381 // Future timestamp
   },
   "nonce": "0x0",
   "timestamp": "0x0",
   "extraData": "0x",
-  "gasLimit": "0xA7D8C0", // This must be 11,000,000 to match the legacy blocks
+  "gasLimit": "0xA7D8C0", // 11,000,000
   "difficulty": "0x0",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x4200000000000000000000000000000000000011",
-  "alloc":{},
+  "alloc":{}, // MUST BE EMPTY
   "number": "0x0",
   "gasUsed": "0x0",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "baseFeePerGas": "0x1"
 }
+
+
 ```
 
 **!! THE `alloc` MUST BE EMPTY !!**
@@ -243,7 +263,7 @@ go run ./cmd/geth-dump --db-path=db --output-path=genesis.json
 
 > The **hardfork block number** is the **last block number of the legacy chain + 1**.
 
-We now can stop the [boba-regenerate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) and the specific erigon built from the [boba-regenerate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) branch once it reaches the hardfork block.
+We now can stop the [boba-regenerate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/cmd/boba-regenerate/main.go) and the specific erigon built from the [bedrock-migration](https://github.com/bobanetwork/op-erigon/pull/58) branch once it reaches the hardfork block.
 
 ---
 
@@ -261,23 +281,12 @@ yarn deploy:hardhat --network boba-mainnet
 
 The command will finish the rest of configuration settings.
 
-The final step is to insert the transition block and create a `rollup.json` for `op-node`. The genesis block information is needed for [boba-migrate](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops) during the verification process. We can add the following information to the [codebase](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/chain/chain.go).
-
-```go
-BobaGoerliChainId = big.NewInt(2888)
-BobaGoerliGenesisGasLimit = 11000000
-BobaGoerliGenesisCoinbase = "0x0000000000000000000000000000000000000000"
-BobaGoerliGenesisExtraData="000000000000000000000000000000000000000000000000000000000000000000000398232e2064f896018496b4b44b3d62751f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"	BobaGoerliGenesisRoot="0x36c808dc3bb586c14bebde3ca630a4d49a1fdad0b01d7e58f96f2fcd1aa0003d"
-BobaGoerliGenesisBlockHash="0xde36bac664c1215f9a7d87cddd3745594b351d3464e8a624e322eddd59ccacf3"
-BobaTokenGoerliL1Address = "0xeCCD355862591CBB4bB7E7dD55072070ee3d0fC1"
-```
-
 Then we create a genesis file for the migration. For example,
 
 ```json
 {
   "config": {
-    "chainId": CHAIN_ID,
+    "chainId": 288,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip150Hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -288,31 +297,37 @@ Then we create a genesis file for the migration. For example,
     "petersburgBlock": 0,
     "istanbulBlock": 0,
     "muirGlacierBlock": 0,
-    "berlinBlock": BEDROCK_BLOCK,
-    "londonBlock": BEDROCK_BLOCK,
-    "arrowGlacierBlock": BEDROCK_BLOCK,
-    "grayGlacierBlock": BEDROCK_BLOCK,
-    "mergeNetsplitBlock": BEDROCK_BLOCK,
-    "bedrockBlock": BEDROCK_BLOCK,
+    "berlinBlock": 1135204, // Transition block
+    "londonBlock": 1135204, // Transition block
+    "arrowGlacierBlock": 1135204, // Transition block
+    "grayGlacierBlock": 1135204, // Transition block
+    "mergeNetsplitBlock": 1135204, // Transition block
+    "bedrockBlock": 1135204, // Transition block
     "terminalTotalDifficulty": 0,
     "terminalTotalDifficultyPassed": true,
     "optimism": {
       "eip1559Elasticity": 6,
-      "eip1559Denominator": 50
-    }
+      "eip1559Denominator": 50,
+      "eip1559DenominatorCanyon": 250
+    },
+    "regolithTime": 1711654404, // l2OutputOracleStartingTimestamp
+    "shanghaiTime": 1711654404, // l2OutputOracleStartingTimestamp
+    "canyonTime": 1711654404, // l2OutputOracleStartingTimestamp
+    "cancunTime": 1711654405,  // l2OutputOracleStartingTimestamp + 1
+    "ecotoneTime": 1711654405 // l2OutputOracleStartingTimestamp + 1 
   },
   "nonce": "0x0",
   "timestamp": "0x0",
   "extraData": "0x",
   "gasLimit": "0x1C9C380", // 30,000,000
-  "difficulty": "0x0",
+  "difficulty": "0x22A4C7", // The difficulty of the last block
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x4200000000000000000000000000000000000011",
   "alloc":{},
   "number": "0x0",
   "gasUsed": "0x0",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "baseFeePerGas": "0xF4240"
+  "baseFeePerGas": "0x3b9aca00"
 }
 ```
 
@@ -330,10 +345,11 @@ go run ./cmd/boba-migrate
 --ovm-allowances=eth-allowance.json \
 --ovm-messages=ovm-message.json \
 --witness-file=witness.txt \
---deploy-config=boba-local.json \
---network=boba-local \
+--deploy-config=config.json \
+--network=boba-mainnet \
 --hardhat-deployments=deployment-folder \
---outfile-rollup=rollup.json \
+--outfile-rollup=/files/rollup.json
+--outfile-genesis=/files/alloc-transition.json
 ```
 
 If all checks pass during the above process, we are ready to lanuch the bedrock!
@@ -349,6 +365,7 @@ We will run a replica node and add this new configuration to generate the `witne
 ```yaml
 environment:
   L2GETH_STATE_DUMP_PATH: "/dump/witness.txt"
+  L2GETH_ETH_DUMP_PATH: "/dump/eth-address.txt"
 volumes:
   - VOLUME_LOCATION:/dump
 ```

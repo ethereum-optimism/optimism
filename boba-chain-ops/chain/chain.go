@@ -36,6 +36,19 @@ var (
 	// Sepolia L1 BOBA Address
 	BobaTokenSepoliaL1Address = "0x33faF65b3DfcC6A1FccaD4531D9ce518F0FDc896"
 
+	// Optimism Mainnet
+	OptimismMainnetChainId = big.NewInt(10)
+	// Optimism Mainnet genesis gas limit
+	OptimismMainnetGenesisGasLimit = 15000000
+	// Optimism Mainnet genesis block coinbase
+	OptimismMainnetGenesisCoinbase = "0x0000000000000000000000000000000000000000"
+	// Optimism Mainnet genesis block extra data
+	OptimismMainnetGenesisExtraData = "000000000000000000000000000000000000000000000000000000000000000000000398232e2064f896018496b4b44b3d62751f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	// Optimism Mainnet genesis root
+	OptimismMainnetGenesisRoot = "0xeddb4c1786789419153a27c4c80ff44a2226b6eda04f7e22ce5bae892ea568eb"
+	// Optimism Mainnet genesis block hash
+	OptimismMainnetGenesisBlockHash = "0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b"
+
 	// error
 	ErrInvalidChainID = errors.New("invalid chain id")
 )
@@ -47,6 +60,10 @@ func IsBobaValidChainId(chainId *big.Int) bool {
 	}
 	// Sepolia
 	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return true
+	}
+	// Optimism Mainnet
+	if OptimismMainnetChainId.Cmp(chainId) == 0 {
 		return true
 	}
 	return false
@@ -61,6 +78,10 @@ func GetBobaGenesisGasLimit(chainId *big.Int) int {
 	if BobaSepoliaChainId.Cmp(chainId) == 0 {
 		return BobaSepoliaGenesisGasLimit
 	}
+	// Optimism Mainnet
+	if OptimismMainnetChainId.Cmp(chainId) == 0 {
+		return OptimismMainnetGenesisGasLimit
+	}
 	return 11000000
 }
 
@@ -72,6 +93,10 @@ func GetBobaGenesisCoinbase(chainId *big.Int) string {
 	// Sepolia
 	if BobaSepoliaChainId.Cmp(chainId) == 0 {
 		return BobaSepoliaGenesisCoinbase
+	}
+	// Optimism Mainnet
+	if OptimismMainnetChainId.Cmp(chainId) == 0 {
+		return OptimismMainnetGenesisCoinbase
 	}
 	return "0x0000000000000000000000000000000000000000"
 }
@@ -85,6 +110,10 @@ func GetBobaGenesisExtraData(chainId *big.Int) string {
 	if BobaSepoliaChainId.Cmp(chainId) == 0 {
 		return BobaSepoliaGenesisExtraData
 	}
+	// Optimism Mainnet
+	if OptimismMainnetChainId.Cmp(chainId) == 0 {
+		return OptimismMainnetGenesisExtraData
+	}
 	return ""
 }
 
@@ -97,6 +126,10 @@ func GetBobaGenesisRoot(chainId *big.Int) string {
 	if BobaSepoliaChainId.Cmp(chainId) == 0 {
 		return BobaSepoliaGenesisRoot
 	}
+	// Optimism Mainnet
+	if OptimismMainnetChainId.Cmp(chainId) == 0 {
+		return OptimismMainnetGenesisRoot
+	}
 	return ""
 }
 
@@ -108,6 +141,10 @@ func GetBobaGenesisHash(chainId *big.Int) string {
 	// Sepolia
 	if BobaSepoliaChainId.Cmp(chainId) == 0 {
 		return BobaSepoliaGenesisBlockHash
+	}
+	// Optimism Mainnet
+	if OptimismMainnetChainId.Cmp(chainId) == 0 {
+		return OptimismMainnetGenesisBlockHash
 	}
 	return ""
 }
@@ -122,4 +159,16 @@ func GetBobaTokenL1Address(chainId *big.Int) string {
 		return BobaTokenSepoliaL1Address
 	}
 	return "0x0000000000000000000000000000000000000000"
+}
+
+func IsBobaTokenPredeploy(chainId *big.Int) bool {
+	// Mainnet
+	if BobaMainnetChainId.Cmp(chainId) == 0 {
+		return false
+	}
+	// Sepolia
+	if BobaSepoliaChainId.Cmp(chainId) == 0 {
+		return true
+	}
+	return true
 }

@@ -147,9 +147,6 @@ func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig)
 	if config.L2OutputOracleStartingBlockNumber == parentHeader.Number.Uint64() {
 		return nil, fmt.Errorf("cannot write genesis: genesis block already exists")
 	}
-	if config.L2OutputOracleStartingBlockNumber != parentHeader.Number.Uint64()+1 {
-		return nil, fmt.Errorf("L2OutputOracleStartingBlockNumber must be %d", parentHeader.Number.Uint64()+1)
-	}
 	transitionBlockNumber := config.L2OutputOracleStartingBlockNumber
 
 	var root libcommon.Hash
@@ -269,7 +266,6 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 		return err
 	}
 	if err := rawdb.WriteHeaderNumber(tx, block.Hash(), block.NumberU64()); err != nil {
-		fmt.Println("Failed to write WriteHeaderNumber")
 		panic(err)
 	}
 

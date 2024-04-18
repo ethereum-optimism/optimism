@@ -178,11 +178,12 @@ func TestLoadAddresses(t *testing.T) {
 		Client:             nil,
 		EndBlock:           100,
 		RpcPollingInterval: 1 * time.Second,
-		OutputPath:         "invalid.json",
+		AddrOutputPath:     "invalid.json",
+		AlloOutputPath:     "invalid.json",
 	}
 	_, _, err := crawler.LoadAddresses()
 	require.ErrorContains(t, err, "no such file or directory")
-	crawler.OutputPath = "./testdata/eth-addresses.json"
+	crawler.AddrOutputPath = "./testdata/eth-addresses.json"
 	blockNumber, addresses, err := crawler.LoadAddresses()
 	require.NoError(t, err)
 	require.Equal(t, int64(2), blockNumber)
@@ -196,7 +197,8 @@ func TestSaveAddresses(t *testing.T) {
 		Client:             nil,
 		EndBlock:           100,
 		RpcPollingInterval: 1 * time.Second,
-		OutputPath:         "./testdata/test-addresses.json",
+		AddrOutputPath:     "./testdata/test-addresses.json",
+		AlloOutputPath:     "invalid.json",
 	}
 	address1, address2 := common.Address{1}, common.Address{2}
 	addresses := []*common.Address{&address1, &address2}
@@ -209,13 +211,59 @@ func TestSaveAddresses(t *testing.T) {
 	require.ElementsMatch(t, addresses, inputAddresses)
 }
 
+func TestLoadAllowances(t *testing.T) {
+	crawler := &Crawler{
+		Client:             nil,
+		EndBlock:           100,
+		RpcPollingInterval: 1 * time.Second,
+		AddrOutputPath:     "invalid.json",
+		AlloOutputPath:     "invalid.json",
+	}
+	_, _, err := crawler.LoadAllowances()
+	require.ErrorContains(t, err, "no such file or directory")
+	crawler.AlloOutputPath = "./testdata/eth-allowances.json"
+	blockNumber, allowances, err := crawler.LoadAllowances()
+	require.NoError(t, err)
+	require.Equal(t, int64(2), blockNumber)
+	require.NotNil(t, allowances)
+	address1, address2 := common.HexToAddress("0x4200000000000000000000000000000000000000"), common.HexToAddress("0x4200000000000000000000000000000000000001")
+	expectedAllowances := []*Allowance{&Allowance{
+		From: address1,
+		To:   address2,
+	}}
+	require.ElementsMatch(t, allowances, expectedAllowances)
+}
+
+func TestSaveAllowances(t *testing.T) {
+	crawler := &Crawler{
+		Client:             nil,
+		EndBlock:           100,
+		RpcPollingInterval: 1 * time.Second,
+		AddrOutputPath:     "invalid.json",
+		AlloOutputPath:     "./testdata/eth-allowances.json",
+	}
+	address1, address2 := common.HexToAddress("0x4200000000000000000000000000000000000000"), common.HexToAddress("0x4200000000000000000000000000000000000001")
+	allowances := []*Allowance{&Allowance{
+		From: address1,
+		To:   address2,
+	}}
+	err := crawler.SaveAllowances(2, allowances)
+	require.NoError(t, err)
+	defer os.Remove("./testdata/test-addresses.json")
+	blockNumber, inputAllowances, err := crawler.LoadAllowances()
+	require.NoError(t, err)
+	require.Equal(t, int64(2), blockNumber)
+	require.ElementsMatch(t, allowances, inputAllowances)
+}
+
 func TestGetTraceTransaction(t *testing.T) {
 	fakeRPC := &nodefakes.FakeRPC{}
 	crawler := &Crawler{
 		Client:             fakeRPC,
 		EndBlock:           100,
 		RpcPollingInterval: 1 * time.Second,
-		OutputPath:         "invalid.json",
+		AddrOutputPath:     "invalid.json",
+		AlloOutputPath:     "invalid.json",
 	}
 	traceTransaction := generateTraceTranscation(
 		common.HexToAddress("0x4200000000000000000000000000000000000001"),
@@ -366,7 +414,156 @@ func TestMapToAddresses(t *testing.T) {
 	}
 }
 
-func TestGetToFromEthMintLogs(t *testing.T) {
+func TestMapAllowances(t *testing.T) {
+	tests := []MappingTest{
+		{
+			name: "Test 1",
+			input: []*Allowance{
+				&Allowance{
+					From: common.Address{1},
+					To:   common.Address{2},
+				},
+			},
+			expected: map[Allowance]bool{
+				{
+					From: common.Address{1},
+					To:   common.Address{2},
+				}: true,
+			},
+		},
+		{
+			name: "Test 2",
+			input: []*Allowance{
+				&Allowance{
+					From: common.Address{1},
+					To:   common.Address{2},
+				},
+				&Allowance{
+					From: common.Address{1},
+					To:   common.Address{2},
+				},
+			},
+			expected: map[Allowance]bool{
+				{
+					From: common.Address{1},
+					To:   common.Address{2},
+				}: true,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			input, ok := test.input.([]*Allowance)
+			require.Equal(t, true, ok)
+			expected, ok := test.expected.(map[Allowance]bool)
+			require.Equal(t, true, ok)
+			result := MapAllowances(input)
+			require.Equal(t, expected, result)
+		})
+	}
+}
+
+func TestAddAllowancesToMap(t *testing.T) {
+	type inputStruct struct {
+		allowances    map[Allowance]bool
+		allowancesMap map[Allowance]bool
+	}
+	tests := []MappingTest{
+		{
+			name: "Test 1",
+			input: inputStruct{
+				allowances: map[Allowance]bool{
+					Allowance{
+						From: common.Address{1},
+						To:   common.Address{2},
+					}: true,
+				},
+				allowancesMap: map[Allowance]bool{
+					Allowance{
+						From: common.Address{1},
+						To:   common.Address{2},
+					}: true,
+				},
+			},
+			expected: map[Allowance]bool{
+				Allowance{
+					From: common.Address{1},
+					To:   common.Address{2},
+				}: true,
+			},
+		},
+		{
+			name: "Test 2",
+			input: inputStruct{
+				allowances: map[Allowance]bool{
+					Allowance{
+						From: common.Address{1},
+						To:   common.Address{2},
+					}: true,
+				},
+				allowancesMap: map[Allowance]bool{
+					Allowance{
+						From: common.Address{1},
+						To:   common.Address{3},
+					}: true,
+				},
+			},
+			expected: map[Allowance]bool{
+				Allowance{
+					From: common.Address{1},
+					To:   common.Address{2},
+				}: true,
+				Allowance{
+					From: common.Address{1},
+					To:   common.Address{3},
+				}: true,
+			},
+		},
+	}
+	for _, test := range tests {
+		input, ok := test.input.(inputStruct)
+		require.Equal(t, true, ok)
+		expected, ok := test.expected.(map[Allowance]bool)
+		require.Equal(t, true, ok)
+		t.Run(test.name, func(t *testing.T) {
+			AddAllowancesToMap(input.allowances, input.allowancesMap)
+			require.Equal(t, expected, input.allowances)
+		})
+
+	}
+}
+
+func TestMapToAllowances(t *testing.T) {
+	tests := []MappingTest{
+		{
+			name: "Test 1",
+			input: map[Allowance]bool{
+				{
+					From: common.Address{1},
+					To:   common.Address{2},
+				}: true,
+			},
+			expected: []*Allowance{
+				&Allowance{
+					From: common.Address{1},
+					To:   common.Address{2},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		input, ok := test.input.(map[Allowance]bool)
+		require.Equal(t, true, ok)
+		expected, ok := test.expected.([]*Allowance)
+		require.Equal(t, true, ok)
+		t.Run(test.name, func(t *testing.T) {
+			result := MapToAllowances(input)
+			require.ElementsMatch(t, expected, result)
+		})
+	}
+}
+
+func TestGetToFromEthLogs(t *testing.T) {
 	LegacyERC20ETHMetaData := bindings.MetaData{
 		ABI: bindings.LegacyERC20ETHABI,
 		Bin: bindings.LegacyERC20ETHBin,
@@ -378,7 +575,12 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 		Client:             fakeRPC,
 		EndBlock:           100,
 		RpcPollingInterval: 1 * time.Second,
-		OutputPath:         "invalid.json",
+		AddrOutputPath:     "invalid.json",
+		AlloOutputPath:     "invalid.json",
+	}
+	type expectedOutput struct {
+		addr []*common.Address
+		allo []*Allowance
 	}
 	tests := []MappingTest{
 		{
@@ -393,9 +595,12 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 					},
 				},
 			},
-			expected: []*common.Address{
-				{2},
-				{1},
+			expected: expectedOutput{
+				addr: []*common.Address{
+					{2},
+					{1},
+				},
+				allo: []*Allowance(nil),
 			},
 		},
 		{
@@ -410,8 +615,11 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 					},
 				},
 			},
-			expected: []*common.Address{
-				{1},
+			expected: expectedOutput{
+				addr: []*common.Address{
+					{1},
+				},
+				allo: []*Allowance(nil),
 			},
 		},
 		{
@@ -434,11 +642,14 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 					},
 				},
 			},
-			expected: []*common.Address{
-				{2},
-				{1},
-				{1},
-				{2},
+			expected: expectedOutput{
+				addr: []*common.Address{
+					{2},
+					{1},
+					{1},
+					{2},
+				},
+				allo: []*Allowance(nil),
 			},
 		},
 		{
@@ -452,10 +663,118 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 					},
 				},
 			},
-			expected: []*common.Address(nil),
+			expected: expectedOutput{
+				addr: []*common.Address(nil),
+				allo: []*Allowance(nil),
+			},
 		},
 		{
 			name: "Test 5",
+			input: []*types.Log{
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Approval"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+						common.BytesToHash(common.Address{2}.Bytes()),
+					},
+				},
+			},
+			expected: expectedOutput{
+				addr: []*common.Address(nil),
+				allo: []*Allowance{
+					{
+						From: common.Address{1},
+						To:   common.Address{2},
+					},
+				},
+			},
+		},
+		{
+			name: "Test 6",
+			input: []*types.Log{
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Approval"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+						common.BytesToHash(common.Address{2}.Bytes()),
+					},
+				},
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Approval"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+						common.BytesToHash(common.Address{2}.Bytes()),
+					},
+				},
+			},
+			expected: expectedOutput{
+				addr: []*common.Address(nil),
+				allo: []*Allowance{
+					{
+						From: common.Address{1},
+						To:   common.Address{2},
+					},
+					{
+						From: common.Address{1},
+						To:   common.Address{2},
+					},
+				},
+			},
+		},
+		{
+			name: "Test 7",
+			input: []*types.Log{
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Approval"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+					},
+				},
+			},
+			expected: expectedOutput{
+				addr: []*common.Address(nil),
+				allo: []*Allowance(nil),
+			},
+		},
+		{
+			name: "Test 8",
+			input: []*types.Log{
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Approval"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+						common.BytesToHash(common.Address{2}.Bytes()),
+					},
+				},
+				{
+					Address: predeploys.LegacyERC20ETHAddr,
+					Topics: []common.Hash{
+						ABI.Events["Transfer"].ID,
+						common.BytesToHash(common.Address{1}.Bytes()),
+						common.BytesToHash(common.Address{2}.Bytes()),
+					},
+				},
+			},
+			expected: expectedOutput{
+				addr: []*common.Address{
+					{2},
+					{1},
+				},
+				allo: []*Allowance{
+					{
+						From: common.Address{1},
+						To:   common.Address{2},
+					},
+				},
+			},
+		},
+		{
+			name: "Test 8",
 			input: []*types.Log{
 				{
 					Address: predeploys.LegacyERC20ETHAddr,
@@ -466,7 +785,10 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 					},
 				},
 			},
-			expected: []*common.Address(nil),
+			expected: expectedOutput{
+				addr: []*common.Address(nil),
+				allo: []*Allowance(nil),
+			},
 		},
 	}
 	for i, test := range tests {
@@ -475,12 +797,13 @@ func TestGetToFromEthMintLogs(t *testing.T) {
 			if !ok {
 				t.Errorf("Test %d: Invalid input", i)
 			}
-			expected, ok := test.expected.([]*common.Address)
+			expected, ok := test.expected.(expectedOutput)
 			require.Equal(t, true, ok)
 			fakeRPC.GetLogsReturns(input, nil)
-			result, err := crawler.GetToFromEthMintLogs(common.Big0)
+			addr, allo, err := crawler.GetToFromEthLogs(common.Big0)
 			require.NoError(t, err)
-			require.Equal(t, expected, result)
+			require.Equal(t, expected.addr, addr)
+			require.Equal(t, expected.allo, allo)
 		})
 	}
 
@@ -496,14 +819,20 @@ func TestCheckEthSlots(t *testing.T) {
 		Client:             nil,
 		EndBlock:           100,
 		RpcPollingInterval: 1 * time.Second,
-		OutputPath:         "./testdata/eth-addresses.json",
+		AddrOutputPath:     "./testdata/eth-addresses.json",
+		AlloOutputPath:     "./testdata/eth-allowances.json",
 	}
 	_, addresses, err := crawler.LoadAddresses()
 	require.NoError(t, err)
 	for _, addr := range addresses {
 		alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcOVMETHStorageKey(*addr)] = common.Hash{1}
 	}
-	err = CheckEthSlots(alloc, "./testdata/eth-addresses.json")
+	_, allowances, err := crawler.LoadAllowances()
+	require.NoError(t, err)
+	for _, allo := range allowances {
+		alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcAllowanceStorageKey(allo.From, allo.To)] = common.Hash{1}
+	}
+	err = CheckEthSlots(alloc, "./testdata/eth-addresses.json", "./testdata/eth-allowances.json")
 	require.NoError(t, err)
 
 	commonStorageKey := []common.Hash{
@@ -516,11 +845,11 @@ func TestCheckEthSlots(t *testing.T) {
 	for _, slot := range commonStorageKey {
 		alloc[predeploys.LegacyERC20ETHAddr].Storage[slot] = common.Hash{1}
 	}
-	err = CheckEthSlots(alloc, "./testdata/eth-addresses.json")
+	err = CheckEthSlots(alloc, "./testdata/eth-addresses.json", "./testdata/eth-allowances.json")
 	require.NoError(t, err)
 
 	alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcOVMETHStorageKey(common.Address{1})] = common.Hash{1}
-	err = CheckEthSlots(alloc, "./testdata/eth-addresses.json")
+	err = CheckEthSlots(alloc, "./testdata/eth-addresses.json", "./testdata/eth-allowances.json")
 	require.ErrorContains(t, err, "not valid")
 }
 

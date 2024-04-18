@@ -140,6 +140,12 @@ type Allowance struct {
 	To   common.Address `json:"to"`
 }
 
+// EthAllowances represents the middle layer that saves the addresses
+type EthAllowances struct {
+	BlockNumber int64        `json:"blockNumber"`
+	Allowances  []*Allowance `json:"allowances"`
+}
+
 // NewAllowances will read the ovm-allowances.json from the file system.
 func NewAllowances(path string) ([]*Allowance, error) {
 	file, err := os.ReadFile(path)
@@ -152,12 +158,12 @@ func NewAllowances(path string) ([]*Allowance, error) {
 		return nil, nil
 	}
 
-	var allowances []*Allowance
-	if err := json.Unmarshal(file, &allowances); err != nil {
+	var ethAllowances EthAllowances
+	if err := json.Unmarshal(file, &ethAllowances); err != nil {
 		return nil, err
 	}
 
-	return allowances, nil
+	return ethAllowances.Allowances, nil
 }
 
 // NewAddresses represents the middle layer that saves the addresses

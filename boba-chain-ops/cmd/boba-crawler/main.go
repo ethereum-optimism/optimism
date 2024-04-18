@@ -1,11 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/bobanetwork/boba/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/boba/boba-chain-ops/ether"
 	"github.com/bobanetwork/boba/boba-chain-ops/genesis"
 	"github.com/bobanetwork/boba/boba-chain-ops/node"
+	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/log/v3"
 	"github.com/urfave/cli/v2"
 )
@@ -23,6 +26,13 @@ func main() {
 				Required: true,
 				EnvVars:  []string{"RPC_URL"},
 			},
+			&cli.StringFlag{
+				Name: "backup-rpc-url",
+				Usage: "Backup RPC URL for an Ethereum Node. " +
+					"If the primary RPC URL is unavailable, the crawler will use this URL instead",
+				Required: false,
+				EnvVars:  []string{"BACKUP_RPC_URL"},
+			},
 			&cli.Int64Flag{
 				Name:    "end-block",
 				Usage:   "Block number to end crawling at",
@@ -30,10 +40,23 @@ func main() {
 				EnvVars: []string{"END_BLOCK"},
 			},
 			&cli.StringFlag{
-				Name:    "output-path",
-				Usage:   "File to write the output to",
+				Name:    "eth-addresses-output-path",
+				Usage:   "File to write eth addresses to",
 				Value:   "eth-addresses.json",
-				EnvVars: []string{"OUTPUT_PATH"},
+				EnvVars: []string{"ETH_ADDRESSES_OUTPUT_PATH"},
+			},
+			&cli.StringFlag{
+				Name:    "eth-allowances-output-path",
+				Usage:   "File to write eth allowances to",
+				Value:   "eth-allowances.json",
+				EnvVars: []string{"ETH_ALLOWANCES_OUTPUT_PATH"},
+			},
+			&cli.StringFlag{
+				Name:     "witness-file-path",
+				Usage:    "File to load the witness from",
+				Hidden:   true,
+				Required: false,
+				EnvVars:  []string{"WITNESS_FILE_PATH"},
 			},
 			&cli.StringFlag{
 				Name:    "rpc-time-out",
@@ -84,25 +107,65 @@ func main() {
 				if err != nil {
 					return err
 				}
-				if err := ether.CheckEthSlots(*alloc, ctx.String("output-path")); err != nil {
+				if err := ether.CheckEthSlots(*alloc, ctx.String("eth-addresses-output-path"), ctx.String("eth-allowances-output-path")); err != nil {
 					return err
 				}
+				witnessPath := ctx.String("witness-file-path")
+				if witnessPath != "" {
+					ovmAddresses, err := crossdomain.NewAddresses(ctx.String("eth-addresses-output-path"))
+					if err != nil {
+						return err
+					}
+					ovmAllowances, err := crossdomain.NewAllowances(ctx.String("eth-allowances-output-path"))
+					if err != nil {
+						return err
+					}
+					evmMessages, evmAddresses, err := crossdomain.ReadWitnessData(ctx.String("witness-file-path"))
+					if err != nil {
+						return err
+					}
+					migrationData := crossdomain.MigrationData{
+						OvmAddresses:  ovmAddresses,
+						EvmAddresses:  evmAddresses,
+						OvmAllowances: ovmAllowances,
+						OvmMessages:   []*crossdomain.SentMessage{},
+						EvmMessages:   evmMessages,
+					}
+					unfilteredWithdrawals, invalidMessages, err := migrationData.ToWithdrawals()
+					if err != nil {
+						return fmt.Errorf("cannot serialize withdrawals: %w", err)
+					}
+					g := &types.Genesis{
+						Alloc: *alloc,
+					}
+					_, err = crossdomain.PreCheckWithdrawals(g, unfilteredWithdrawals, invalidMessages)
+					if err != nil {
+						return fmt.Errorf("failed to precheck withdrawals: %w", err)
+					}
+				}
+
 				log.Info("All checks passed")
 				return nil
 			}
 
 			rpcURL := ctx.String("rpc-url")
+			backupRpcURL := ctx.String("backup-rpc-url")
 			endBlock := ctx.Int64("end-block")
 			rpcTimeout := ctx.Duration("rpc-time-out")
 			rpcPollingInterval := ctx.Duration("polling-interval")
-			outputPath := ctx.String("output-path")
+			addrOutputPath := ctx.String("eth-addresses-output-path")
+			alloOutputPath := ctx.String("eth-allowances-output-path")
 
 			client, err := node.NewRPC(rpcURL, rpcTimeout, logger)
 			if err != nil {
 				return err
 			}
+			backupClient, err := node.NewRPC(backupRpcURL, rpcTimeout, logger)
+			if err != nil {
+				return err
+			}
 
-			crawler := ether.NewCrawler(client, endBlock, rpcPollingInterval, outputPath)
+			crawler := ether.NewCrawler(client, backupClient, endBlock, rpcPollingInterval, addrOutputPath, alloOutputPath)
 			if err := crawler.Start(); err != nil {
 				return err
 			}

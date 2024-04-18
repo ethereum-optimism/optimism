@@ -2,8 +2,6 @@ module github.com/bobanetwork/boba/boba-chain-ops
 
 go 1.21
 
-toolchain go1.21.1
-
 require (
 	github.com/bobanetwork/boba/boba-bindings v0.0.0-00010101000000-000000000000
 	github.com/c2h5oh/datasize v0.0.0-20220606134207-859f65c6625b
@@ -45,7 +43,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/erigontech/mdbx-go v0.35.2-0.20231101074031-9f999220e9ed // indirect
 	github.com/erigontech/silkworm-go v0.10.0 // indirect
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240201223137-d57c2429e4fc // indirect
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240315155522-09647974da0d // indirect
 	github.com/go-llsqlite/adapter v0.0.0-20230912124304-94ed0e573c23 // indirect
 	github.com/go-llsqlite/crawshaw v0.0.0-20230910110433-7e901377eb6c // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
@@ -196,8 +194,8 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/thomaso-mirodin/intmath v0.0.0-20160323211736-5dc6d854e46e // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
-	github.com/ugorji/go/codec v1.1.13 // indirect
-	github.com/ugorji/go/codec/codecgen v1.1.13 // indirect
+	github.com/ugorji/go/codec v1.2.12 // indirect
+	github.com/ugorji/go/codec/codecgen v1.2.12 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/xsleonard/go-merkle v1.1.0 // indirect
@@ -219,9 +217,9 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/op-erigon v0.0.0-20240223222735-55b4885d2ef7
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/op-erigon v1.1.4
 
-replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/op-erigon/erigon-lib v0.0.0-20240223222735-55b4885d2ef7
+replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/op-erigon/erigon-lib v0.0.0-20240410224918-ef569a9782e2
 
 replace github.com/bobanetwork/boba/boba-bindings => ../boba-bindings
 

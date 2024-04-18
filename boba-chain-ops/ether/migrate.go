@@ -161,7 +161,7 @@ func doMigration(g *types.Genesis, addresses []common.Address, allowances []*cro
 		bal := GetBalance(g, addr)
 		m.Unlock()
 
-		if bal.Sign() != 0 {
+		if bal.Sign() != 0 && slotType == BalanceSlot {
 			log.Error(
 				"account has non-zero balance in state - should never happen",
 				"addr", addr,

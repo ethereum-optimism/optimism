@@ -92,9 +92,13 @@ func main() {
 				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "outfile-rollup",
-				Usage: "Path to output file for rollup node",
-				Value: "rollup",
+				Name:     "outfile-rollup",
+				Usage:    "Path to output file for rollup node",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:  "outfile-genesis",
+				Usage: "Path to output file for genesis",
 			},
 			&cli.BoolFlag{
 				Name:  "dry-run",
@@ -295,6 +299,12 @@ func main() {
 			// close the database handle
 			chaindb.Close()
 
+			if ctx.String("outfile-genesis") != "" {
+				if err := writeGenesisFile(ctx.String("outfile-genesis"), genesisBlock); err != nil {
+					return err
+				}
+			}
+
 			postChaindb, err := node.OpenDatabase(context.Background(), stack.Config(), kv.ChainDB, "", false, logger)
 			if err != nil {
 				log.Error("failed to open post chaindb", "err", err)
@@ -307,6 +317,8 @@ func main() {
 				&transitionBlockOrigin,
 				migrationData,
 				&config.L1CrossDomainMessengerProxy,
+				&config.L1StandardBridgeProxy,
+				&config.L1ERC721BridgeProxy,
 				config.L1ChainID,
 				config.FinalSystemOwner,
 				config.ProxyAdminOwner,
