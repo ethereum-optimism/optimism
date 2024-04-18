@@ -1271,7 +1271,7 @@ jobs:
           command: |
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup -C e4ab9f4
+            foundryup --version nightly-440ec525deb00b4dca138794865c27d1e8ea4d01
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
             source $HOME/.bashrc
             forge --version
