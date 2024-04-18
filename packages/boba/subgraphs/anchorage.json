@@ -45,7 +45,7 @@
       "path": "./abis/SystemDictator.json"
     }
   },
-  "chains": ["mainnet","boba-mainnet"],
+  "chains": ["mainnet","boba-eth"],
   "instances": [
     {
       "abi": "L1CrossDomainMessenger",
@@ -70,13 +70,13 @@
       "abi": "L2StandardBridge",
       "address": "0x4200000000000000000000000000000000000010",
       "startBlock": 1143399,
-      "chain": "boba-mainnet"
+      "chain": "boba-eth"
     },
     {
       "abi": "L2ToL1MessagePasser",
       "address": "0x4200000000000000000000000000000000000016",
       "startBlock": 0,
-      "chain": "boba-mainnet"
+      "chain": "boba-eth"
     },
     {
       "abi": "L2OutputOracle",
