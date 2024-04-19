@@ -56,5 +56,20 @@
   "proofMaturityDelaySeconds": 604800,
   "disputeGameFinalityDelaySeconds": 302400,
   "respectedGameType": 0,
-  "useFaultProofs": true
+  "useFaultProofs": true,
+  "livenessModuleInterval": 31536000,
+  "livenessModuleThresholdPercentage": 20,
+  "livenessModuleMinOwners": 2,
+  "securityCouncilThreshold": 2,
+  "securityCouncilOwners": [
+    "0xEA96f8d33Af98839C20547D970EE0961f8865009",
+    "0xb3973057A2A57a71D34a75A7a58e663F121f892B",
+    "0xA367e326694aa2236CE2886e3e2aa4965EEa1d7f",
+    "0xE09d881A1A13C805ED2c6823f0C7E4443A260f2f",
+    "0x10303fe151a505bE8aFd23E1d285D3C733BDC721",
+    "0xad70Ad7Ac30Cee75EB9638D377EACD8DfDfE0C3c",
+    "0x1084092Ac2f04c866806CF3d4a385Afa4F6A6C97",
+    "0xF0871b2F75ecD07e2D709b7a2cc0AF6848c1cE76",
+    "0x2E2E33FEdd27FdeCFC851ae98E45a5ecb76904fE"
+  ]
 }
