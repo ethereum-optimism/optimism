@@ -114,8 +114,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0-beta+custom-gas-token
+    string public constant version = "2.1.0-beta+custom-gas-token";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -261,8 +261,15 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Getter for the gas paying asset address.
-    function gasPayingToken() external view returns (address addr_, uint8 decimals_) {
+    function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = GasPayingToken.getToken();
+    }
+
+    /// @notice Getter for custom gas token paying networks. Returns true if the
+    ///         network uses a custom gas token.
+    function isCustomGasToken() public view returns (bool) {
+        (address token,) = gasPayingToken();
+        return token != Constants.ETHER;
     }
 
     /// @notice Getter for the gas paying token name.
@@ -276,9 +283,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Internal setter for the gas paying token address, includes validation.
+    ///         The token must not already be set and must be non zero and not the ether address
+    ///         to set the token address. This prevents the token address from being changed
+    ///         and makes it explicitly opt-in to use custom gas token.
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
-        if (_token != address(0) && _token != Constants.ETHER) {
+        if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
             );

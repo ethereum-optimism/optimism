@@ -610,6 +610,11 @@
   },
   {
     "inputs": [],
+    "name": "NonReentrant",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OnlyCustomGasToken",
     "type": "error"
   },
