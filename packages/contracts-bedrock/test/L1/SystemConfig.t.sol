@@ -220,7 +220,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
     /// @dev Helper to clean storage and then initialize the system config with an arbitrary gas token address.
     function cleanStorageAndInit(address _gasPayingToken) internal {
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        vm.store(address(systemConfig), bytes32(0), bytes32(0)); // initailizer
         vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SLOT, bytes32(0));
         vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_NAME_SLOT, bytes32(0));
         vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(0));
@@ -247,7 +247,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     }
 
     /// @dev Tests that initialization sets the correct values and getters work.
-    function test_initialize_customGasToken_succeeds() external {
+    function test_initialize_customGasToken_succeeds() external view {
         (address addr, uint8 decimals) = systemConfig.gasPayingToken();
         assertEq(addr, address(token));
         assertEq(decimals, 18);
