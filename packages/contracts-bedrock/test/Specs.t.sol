@@ -382,6 +382,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("gasPayingToken()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("gasPayingTokenName()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("gasPayingTokenSymbol()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("isCustomGasToken()") });
 
         // ProxyAdmin
         _addSpec({ _name: "ProxyAdmin", _sel: _getSel("addressManager()") });
