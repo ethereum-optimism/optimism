@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
@@ -49,6 +48,18 @@ var (
 	ErrUnsupportedKeyType   = errors.New("unsupported preimage key type")
 )
 
+// preimageOracleLeaf matches the contract representation of a large preimage leaf
+type preimageOracleLeaf struct {
+	Input           []byte
+	Index           *big.Int
+	StateCommitment [32]byte
+}
+
+// libKeccakStateMatrix matches the contract representation of a keccak state matrix
+type libKeccakStateMatrix struct {
+	State [25]uint64
+}
+
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
 type PreimageOracleContract struct {
 	addr        common.Address
@@ -64,8 +75,8 @@ type PreimageOracleContract struct {
 }
 
 // toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
-func toPreimageOracleLeaf(l keccakTypes.Leaf) bindings.PreimageOracleLeaf {
-	return bindings.PreimageOracleLeaf{
+func toPreimageOracleLeaf(l keccakTypes.Leaf) preimageOracleLeaf {
+	return preimageOracleLeaf{
 		Input:           l.Input[:],
 		Index:           new(big.Int).SetUint64(l.Index),
 		StateCommitment: l.StateCommitment,
@@ -193,8 +204,8 @@ func (c *PreimageOracleContract) Squeeze(
 	return call.ToTxCandidate()
 }
 
-func abiEncodeSnapshot(packedState keccakTypes.StateSnapshot) bindings.LibKeccakStateMatrix {
-	return bindings.LibKeccakStateMatrix{State: packedState}
+func abiEncodeSnapshot(packedState keccakTypes.StateSnapshot) libKeccakStateMatrix {
+	return libKeccakStateMatrix{State: packedState}
 }
 
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {

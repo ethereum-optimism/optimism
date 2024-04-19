@@ -7,12 +7,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -224,7 +224,7 @@ func TestCreateTx(t *testing.T) {
 }
 
 func setupDisputeGameFactoryTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DisputeGameFactoryContract) {
-	fdgAbi, err := bindings.DisputeGameFactoryMetaData.GetAbi()
+	fdgAbi, err := snapshots.LoadDisputeGameFactoryABI()
 	require.NoError(t, err)
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, factoryAddr, fdgAbi)

@@ -5,11 +5,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,7 @@ func TestDelayedWeth_GetWithdrawals(t *testing.T) {
 }
 
 func setupDelayedWethTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DelayedWETHContract) {
-	delayedWethAbi, err := bindings.DelayedWETHMetaData.GetAbi()
+	delayedWethAbi, err := snapshots.LoadDelayedWETHABI()
 	require.NoError(t, err)
 	stubRpc := batchingTest.NewAbiBasedRpc(t, delayedWeth, delayedWethAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)

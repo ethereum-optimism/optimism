@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -16,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -456,12 +456,12 @@ func TestFaultDisputeGame_ClaimCreditTx(t *testing.T) {
 }
 
 func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
-	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
+	fdgAbi, err := snapshots.LoadFaultDisputeGameABI()
 	require.NoError(t, err)
 
-	vmAbi, err := bindings.MIPSMetaData.GetAbi()
+	vmAbi, err := snapshots.LoadMIPSABI()
 	require.NoError(t, err)
-	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
+	oracleAbi, err := snapshots.LoadPreimageOracleABI()
 	require.NoError(t, err)
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
