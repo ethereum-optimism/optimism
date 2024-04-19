@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -21,7 +21,7 @@ type VMContract struct {
 }
 
 func NewVMContract(addr common.Address, caller *batching.MultiCaller) (*VMContract, error) {
-	mipsAbi, err := bindings.MIPSMetaData.GetAbi()
+	mipsAbi, err := snapshots.LoadMIPSABI()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load VM ABI: %w", err)
 	}
