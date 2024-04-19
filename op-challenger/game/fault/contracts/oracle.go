@@ -74,7 +74,7 @@ type PreimageOracleContract struct {
 	minBondSizeLPP atomic.Uint64
 }
 
-// toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
+// toPreimageOracleLeaf converts a Leaf to the contract format.
 func toPreimageOracleLeaf(l keccakTypes.Leaf) preimageOracleLeaf {
 	return preimageOracleLeaf{
 		Input:           l.Input[:],
