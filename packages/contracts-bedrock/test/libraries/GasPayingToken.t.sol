@@ -79,7 +79,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
     }
 
     /// @dev Differentially test `sanitize`.
-    function testDiff_sanitize_succeeds(string memory _str) external view {
+    function testDiff_sanitize_succeeds(string memory _str) external pure {
         vm.assume(bytes(_str).length <= 32);
         vm.assume(bytes(_str).length > 0);
 
@@ -105,7 +105,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
     }
 
     /// @dev Test that `sanitize` works as expected when the input string is empty.
-    function test_sanitize_empty_succeeds() external view {
+    function test_sanitize_empty_succeeds() external pure {
         assertEq(GasPayingToken.sanitize(""), "");
     }
 }
