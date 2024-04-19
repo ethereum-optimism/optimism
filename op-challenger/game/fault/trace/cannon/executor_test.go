@@ -26,10 +26,10 @@ func TestGenerateProof(t *testing.T) {
 	tempDir := t.TempDir()
 	dir := filepath.Join(tempDir, "gameDir")
 	cfg := config.NewConfig(common.Address{0xbb}, "http://localhost:8888", "http://localhost:9000", tempDir, config.TraceTypeCannon)
+	cfg.L2Rpc = "http://localhost:9999"
 	cfg.CannonAbsolutePreState = "pre.json"
 	cfg.CannonBin = "./bin/cannon"
 	cfg.CannonServer = "./bin/op-program"
-	cfg.CannonL2 = "http://localhost:9999"
 	cfg.CannonSnapshotFreq = 500
 	cfg.CannonInfoFreq = 900
 
@@ -93,7 +93,7 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, "--server", args[cfg.CannonServer])
 		require.Equal(t, cfg.L1EthRpc, args["--l1"])
 		require.Equal(t, cfg.L1Beacon, args["--l1.beacon"])
-		require.Equal(t, cfg.CannonL2, args["--l2"])
+		require.Equal(t, cfg.L2Rpc, args["--l2"])
 		require.Equal(t, filepath.Join(dir, utils.PreimagesDir), args["--datadir"])
 		require.Equal(t, filepath.Join(dir, utils.ProofsDir, "%d.json.gz"), args["--proof-fmt"])
 		require.Equal(t, filepath.Join(dir, utils.SnapsDir, "%d.json.gz"), args["--snapshot-fmt"])

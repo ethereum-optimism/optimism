@@ -93,7 +93,7 @@ func applyCannonConfig(
 	l2Endpoint string,
 ) {
 	require := require.New(t)
-	c.CannonL2 = l2Endpoint
+	c.L2Rpc = l2Endpoint
 	root := findMonorepoRoot(t)
 	c.CannonBin = root + "cannon/bin/cannon"
 	c.CannonServer = root + "op-program/bin/op-program"

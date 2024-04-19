@@ -61,13 +61,9 @@ func RegisterGameTypes(
 	var closer CloseFunc
 	var l2Client *ethclient.Client
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) || cfg.TraceTypeEnabled(config.TraceTypePermissioned) || cfg.TraceTypeEnabled(config.TraceTypeAsterisc) {
-		l2RpcUrl := cfg.CannonL2
-		if cfg.TraceTypeEnabled(config.TraceTypeAsterisc) {
-			l2RpcUrl = cfg.AsteriscL2
-		}
-		l2, err := ethclient.DialContext(ctx, l2RpcUrl)
+		l2, err := ethclient.DialContext(ctx, cfg.L2Rpc)
 		if err != nil {
-			return nil, fmt.Errorf("dial l2 client %v: %w", l2RpcUrl, err)
+			return nil, fmt.Errorf("dial l2 client %v: %w", cfg.L2Rpc, err)
 		}
 		l2Client = l2
 		closer = l2Client.Close

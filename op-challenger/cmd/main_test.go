@@ -23,17 +23,16 @@ var (
 	gameFactoryAddressValue = "0xbb00000000000000000000000000000000000000"
 	cannonNetwork           = "op-mainnet"
 	testNetwork             = "op-sepolia"
+	l2Rpc                   = "http://example.com:9545"
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"
 	datadir                 = "./test_data"
-	cannonL2                = "http://example.com:9545"
 	rollupRpc               = "http://example.com:8555"
 	asteriscNetwork         = "op-mainnet"
 	asteriscBin             = "./bin/asterisc"
 	asteriscServer          = "./bin/op-program"
 	asteriscPreState        = "./pre.json"
-	asteriscL2              = "http://example.com:9545"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -300,18 +299,31 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscL2-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestL2Rpc-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTraceLegacy", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-l2"))
+			})
+
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--asterisc-l2"))
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--l2-rpc"))
 			})
 
 			t.Run("RequiredForAsteriscTrace", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag asterisc-l2 is required", addRequiredArgsExcept(traceType, "--asterisc-l2"))
+				verifyArgsInvalid(t, "flag l2-rpc is required", addRequiredArgsExcept(traceType, "--l2-rpc"))
+			})
+
+			t.Run("ValidLegacy", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--l2-rpc", fmt.Sprintf("--cannon-l2=%s", l2Rpc)))
+				require.Equal(t, l2Rpc, cfg.L2Rpc)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType))
-				require.Equal(t, asteriscL2, cfg.AsteriscL2)
+				require.Equal(t, l2Rpc, cfg.L2Rpc)
+			})
+
+			t.Run("InvalidUsingBothFlags", func(t *testing.T) {
+				verifyArgsInvalid(t, "flag cannon-l2 and l2-rpc must not be both set", addRequiredArgsExcept(traceType, "", fmt.Sprintf("--cannon-l2=%s", l2Rpc)))
 			})
 		})
 
@@ -459,18 +471,27 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonL2-%v", traceType), func(t *testing.T) {
-			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestL2Rpc-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTraceLegacy", func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-l2"))
 			})
 
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--l2-rpc"))
+			})
+
 			t.Run("RequiredForCannonTrace", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag cannon-l2 is required", addRequiredArgsExcept(traceType, "--cannon-l2"))
+				verifyArgsInvalid(t, "flag l2-rpc is required", addRequiredArgsExcept(traceType, "--l2-rpc"))
+			})
+
+			t.Run("ValidLegacy", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--l2-rpc", fmt.Sprintf("--cannon-l2=%s", l2Rpc)))
+				require.Equal(t, l2Rpc, cfg.L2Rpc)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType))
-				require.Equal(t, cannonL2, cfg.CannonL2)
+				require.Equal(t, l2Rpc, cfg.L2Rpc)
 			})
 		})
 
@@ -741,7 +762,7 @@ func addRequiredCannonArgs(args map[string]string) {
 	args["--cannon-bin"] = cannonBin
 	args["--cannon-server"] = cannonServer
 	args["--cannon-prestate"] = cannonPreState
-	args["--cannon-l2"] = cannonL2
+	args["--l2-rpc"] = l2Rpc
 	addRequiredOutputArgs(args)
 }
 
@@ -750,7 +771,7 @@ func addRequiredAsteriscArgs(args map[string]string) {
 	args["--asterisc-bin"] = asteriscBin
 	args["--asterisc-server"] = asteriscServer
 	args["--asterisc-prestate"] = asteriscPreState
-	args["--asterisc-l2"] = asteriscL2
+	args["--l2-rpc"] = l2Rpc
 	addRequiredOutputArgs(args)
 }
 

@@ -40,7 +40,7 @@ func NewExecutor(logger log.Logger, m AsteriscMetricer, cfg *config.Config, inpu
 		metrics:          m,
 		l1:               cfg.L1EthRpc,
 		l1Beacon:         cfg.L1Beacon,
-		l2:               cfg.AsteriscL2,
+		l2:               cfg.L2Rpc,
 		inputs:           inputs,
 		asterisc:         cfg.AsteriscBin,
 		server:           cfg.AsteriscServer,

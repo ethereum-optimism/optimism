@@ -40,7 +40,7 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 		metrics:          m,
 		l1:               cfg.L1EthRpc,
 		l1Beacon:         cfg.L1Beacon,
-		l2:               cfg.CannonL2,
+		l2:               cfg.L2Rpc,
 		inputs:           inputs,
 		cannon:           cfg.CannonBin,
 		server:           cfg.CannonServer,

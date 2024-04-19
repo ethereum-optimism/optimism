@@ -19,7 +19,7 @@ var (
 	ErrMissingTraceType              = errors.New("no supported trace types specified")
 	ErrMissingDatadir                = errors.New("missing datadir")
 	ErrMaxConcurrencyZero            = errors.New("max concurrency must not be 0")
-	ErrMissingCannonL2               = errors.New("missing cannon L2")
+	ErrMissingL2Rpc                  = errors.New("missing L2 rpc url")
 	ErrMissingCannonBin              = errors.New("missing cannon bin")
 	ErrMissingCannonServer           = errors.New("missing cannon server")
 	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
@@ -35,7 +35,6 @@ var (
 	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
 	ErrMissingRollupRpc              = errors.New("missing rollup rpc url")
 
-	ErrMissingAsteriscL2               = errors.New("missing asterisc L2")
 	ErrMissingAsteriscBin              = errors.New("missing asterisc bin")
 	ErrMissingAsteriscServer           = errors.New("missing asterisc server")
 	ErrMissingAsteriscAbsolutePreState = errors.New("missing asterisc absolute pre-state")
@@ -122,6 +121,8 @@ type Config struct {
 
 	RollupRpc string // L2 Rollup RPC Url
 
+	L2Rpc string // L2 RPC Url
+
 	// Specific to the cannon trace provider
 	CannonBin              string // Path to the cannon executable to run when generating trace data
 	CannonServer           string // Path to the op-program executable that provides the pre-image oracle server
@@ -129,9 +130,8 @@ type Config struct {
 	CannonNetwork          string
 	CannonRollupConfigPath string
 	CannonL2GenesisPath    string
-	CannonL2               string // L2 RPC Url
-	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
-	CannonInfoFreq         uint   // Frequency of cannon progress log messages (in VM instructions)
+	CannonSnapshotFreq     uint // Frequency of snapshots to create when executing cannon (in VM instructions)
+	CannonInfoFreq         uint // Frequency of cannon progress log messages (in VM instructions)
 
 	// Specific to the asterisc trace provider
 	AsteriscBin              string // Path to the asterisc executable to run when generating trace data
@@ -140,9 +140,8 @@ type Config struct {
 	AsteriscNetwork          string
 	AsteriscRollupConfigPath string
 	AsteriscL2GenesisPath    string
-	AsteriscL2               string // L2 RPC Url
-	AsteriscSnapshotFreq     uint   // Frequency of snapshots to create when executing asterisc (in VM instructions)
-	AsteriscInfoFreq         uint   // Frequency of asterisc progress log messages (in VM instructions)
+	AsteriscSnapshotFreq     uint // Frequency of snapshots to create when executing asterisc (in VM instructions)
+	AsteriscInfoFreq         uint // Frequency of asterisc progress log messages (in VM instructions)
 
 	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
 
@@ -237,8 +236,8 @@ func (c Config) Check() error {
 		if c.CannonAbsolutePreState == "" {
 			return ErrMissingCannonAbsolutePreState
 		}
-		if c.CannonL2 == "" {
-			return ErrMissingCannonL2
+		if c.L2Rpc == "" {
+			return ErrMissingL2Rpc
 		}
 		if c.CannonSnapshotFreq == 0 {
 			return ErrMissingCannonSnapshotFreq
@@ -275,8 +274,8 @@ func (c Config) Check() error {
 		if c.AsteriscAbsolutePreState == "" {
 			return ErrMissingAsteriscAbsolutePreState
 		}
-		if c.AsteriscL2 == "" {
-			return ErrMissingAsteriscL2
+		if c.L2Rpc == "" {
+			return ErrMissingL2Rpc
 		}
 		if c.AsteriscSnapshotFreq == 0 {
 			return ErrMissingAsteriscSnapshotFreq
