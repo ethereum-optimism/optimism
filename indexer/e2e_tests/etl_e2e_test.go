@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	legacybindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
@@ -53,7 +52,7 @@ func TestE2EL1ETLInactivityWindow(t *testing.T) {
 func TestE2EETL(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
-	l2OutputOracle, err := legacybindings.NewL2OutputOracle(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, testSuite.L1Client)
+	l2OutputOracle, err := bindings.NewL2OutputOracle(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, testSuite.L1Client)
 	require.NoError(t, err)
 
 	disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(testSuite.OpCfg.L1Deployments.DisputeGameFactoryProxy, testSuite.L1Client)
