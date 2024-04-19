@@ -1,4 +1,4 @@
-package contracts_bedrock
+package snapshots
 
 import (
 	"testing"

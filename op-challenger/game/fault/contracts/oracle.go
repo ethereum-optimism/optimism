@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -72,7 +73,7 @@ func toPreimageOracleLeaf(l keccakTypes.Leaf) bindings.PreimageOracleLeaf {
 }
 
 func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller) (*PreimageOracleContract, error) {
-	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
+	oracleAbi, err := snapshots.LoadPreimageOracleABI()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load preimage oracle ABI: %w", err)
 	}

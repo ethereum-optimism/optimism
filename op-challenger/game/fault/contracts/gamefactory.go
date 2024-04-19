@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -30,7 +30,7 @@ type DisputeGameFactoryContract struct {
 }
 
 func NewDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DisputeGameFactoryContract, error) {
-	factoryAbi, err := bindings.DisputeGameFactoryMetaData.GetAbi()
+	factoryAbi, err := snapshots.LoadDisputeGameFactoryABI()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load dispute game factory ABI: %w", err)
 	}

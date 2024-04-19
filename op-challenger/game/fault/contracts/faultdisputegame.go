@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	contracts_bedrock "github.com/ethereum-optimism/optimism/packages/contracts-bedrock"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -58,7 +58,7 @@ type Proposal struct {
 }
 
 func NewFaultDisputeGameContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
-	contractAbi, err := contracts_bedrock.LoadFaultDisputeGameABI()
+	contractAbi, err := snapshots.LoadFaultDisputeGameABI()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fault dispute game ABI: %w", err)
 	}

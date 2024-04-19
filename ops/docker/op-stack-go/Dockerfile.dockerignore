@@ -8,7 +8,7 @@
 !/op-bootnode
 !/op-chain-ops
 !/op-challenger
-!/packages/contracts-bedrock
+!/packages/contracts-bedrock/snapshots
 !/op-dispute-mon
 !/op-conductor
 !/op-heartbeat
