@@ -146,11 +146,19 @@ library ForgeArtifacts {
     /// @notice Returns the function ABIs of all L1 contracts.
     function getContractFunctionAbis(
         string memory path,
-        string memory excludes
+        string[] memory pathExcludes
     )
         internal
         returns (Abi[] memory abis_)
     {
+        string memory pathExcludesPat;
+        for (uint256 i = 0; i < pathExcludes.length; i++) {
+            pathExcludesPat = string.concat(pathExcludesPat, " -path ", pathExcludes[i]);
+            if (i != pathExcludes.length - 1) {
+                pathExcludesPat = string.concat(pathExcludesPat, " -o ");
+            }
+        }
+
         string[] memory command = new string[](3);
         command[0] = Executables.bash;
         command[1] = "-c";
@@ -158,8 +166,8 @@ library ForgeArtifacts {
             Executables.find,
             " ",
             path,
+            bytes(pathExcludesPat).length > 0 ? string.concat(" ! \\( ", pathExcludesPat, " \\)") : "",
             " -type f ",
-            bytes(excludes).length > 0 ? string.concat(" ! -name ", excludes, " ") : "",
             "-exec basename {} \\;",
             " | ",
             Executables.sed,
