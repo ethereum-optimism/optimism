@@ -12,7 +12,11 @@ func TestLoadABIs(t *testing.T) {
 		contract string
 		method   func() (*abi.ABI, error)
 	}{
+		{"DisputeGameFactory", LoadDisputeGameFactoryABI},
 		{"FaultDisputeGame", LoadFaultDisputeGameABI},
+		{"PreimageOracle", LoadPreimageOracleABI},
+		{"MIPS", LoadMIPSABI},
+		{"DelayedWETH", LoadDelayedWETHABI},
 	}
 	for _, test := range tests {
 		test := test
