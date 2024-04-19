@@ -8,13 +8,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	contracts_bedrock "github.com/ethereum-optimism/optimism/packages/contracts-bedrock"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -58,7 +58,7 @@ type Proposal struct {
 }
 
 func NewFaultDisputeGameContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
-	contractAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
+	contractAbi, err := contracts_bedrock.LoadFaultDisputeGameABI()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fault dispute game ABI: %w", err)
 	}
