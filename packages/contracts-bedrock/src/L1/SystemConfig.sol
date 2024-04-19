@@ -273,7 +273,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Internal setter for the gas paying token address, includes validation.
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
-        if (_token != address(0) && _token != Constants.ETHER) {
+        (address currentToken,) = gasPayingToken();
+        if (_token != address(0) && _token != Constants.ETHER && currentToken == Constants.ETHER) {
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
             );
