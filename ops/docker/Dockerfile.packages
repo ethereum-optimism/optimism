@@ -17,7 +17,7 @@ FROM alpine:3.16 as manifests
 RUN apk add coreutils
 
 WORKDIR /tmp
-COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/
+COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json .pnpmfile.cjs ./src/
 COPY packages src/packages/
 RUN mkdir manifests && \
   cd src && \
@@ -28,7 +28,9 @@ RUN mkdir manifests && \
   # pnpm-workspace.yaml
   cp pnpm-workspace.yaml ../manifests/ && \
   # .nvmrc
-  cp .nvmrc ../manifests/
+  cp .nvmrc ../manifests/ && \
+  # .pnpmfile.cjs
+  cp .pnpmfile.cjs ../manifests/
 
 FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
 # bullseye-slim is debian based
