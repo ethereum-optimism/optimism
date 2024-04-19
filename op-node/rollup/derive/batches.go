@@ -351,6 +351,9 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 			for _, tx := range safeBlockTxs {
 				if tx[0] == types.DepositTxType {
 					depositCount++
+				} else {
+					// all deposit transactions are in the beginning
+					break
 				}
 			}
 			if len(safeBlockTxs)-depositCount != len(batchTxs) {
