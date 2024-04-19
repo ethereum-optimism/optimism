@@ -113,6 +113,9 @@ func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block)
 	return co.AddSingularBatch(batch, l1Info.SequenceNumber)
 }
 
+// SkipOptimize is only true for test
+var SkipOptimize bool
+
 // AddSingularBatch adds a SingularBatch to the channel, compressing the data if necessary.
 // if the new batch would make the channel exceed the target size, the last batch is reverted,
 // and the compression happens on the previous RLP buffer instead
@@ -152,9 +155,11 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 
 	// if the compressed data *plus* the new rlp data is under the target size, return early
 	// this optimizes out cases where the compressor will obviously come in under the target size
-	rlpGrowth := co.activeRLP().Len() - co.lastCompressedRLPSize
-	if uint64(co.compressed.Len()+rlpGrowth) < co.target {
-		return nil
+	if !SkipOptimize {
+		rlpGrowth := co.activeRLP().Len() - co.lastCompressedRLPSize
+		if uint64(co.compressed.Len()+rlpGrowth) < co.target {
+			return nil
+		}
 	}
 
 	// we must compress the data to check if we've met or exceeded the target size

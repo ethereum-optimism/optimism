@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,6 +45,8 @@ func newMiniL2Block(numTx int) *types.Block {
 	return newMiniL2BlockWithNumberParent(numTx, new(big.Int), (common.Hash{}))
 }
 
+var incrementalBlockTime atomic.Uint64
+
 // newMiniL2Block returns a minimal L2 block with a minimal valid L1InfoDeposit
 // transaction as first transaction. Both blocks are minimal in the sense that
 // most fields are left at defaults or are unset. Block number and parent hash
@@ -51,7 +54,7 @@ func newMiniL2Block(numTx int) *types.Block {
 //
 // If numTx > 0, that many empty DynamicFeeTxs will be added to the txs.
 func newMiniL2BlockWithNumberParent(numTx int, number *big.Int, parent common.Hash) *types.Block {
-	return newMiniL2BlockWithNumberParentAndL1Information(numTx, number, parent, 100, 0)
+	return newMiniL2BlockWithNumberParentAndL1Information(numTx, number, parent, 100, incrementalBlockTime.Add(2))
 }
 
 // newMiniL2BlockWithNumberParentAndL1Information returns a minimal L2 block with a minimal valid L1InfoDeposit
@@ -77,6 +80,7 @@ func newMiniL2BlockWithNumberParentAndL1Information(numTx int, l2Number *big.Int
 	return types.NewBlock(&types.Header{
 		Number:     l2Number,
 		ParentHash: parent,
+		Time:       blockTime,
 	}, txs, nil, nil, trie.NewStackTrie(nil))
 }
 
@@ -532,6 +536,10 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	require.ErrorIs(t, cb.FullErr(), ErrMaxFrameIndex)
 }
 
+func init() {
+	derive.SkipOptimize = true
+}
+
 // TestChannelBuilder_FullShadowCompressor is a regression test testing that
 // the shadow compressor is correctly marked as full if adding another block
 // would produce a leftover frame.
@@ -542,7 +550,10 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	require := require.New(t)
 	cfg := ChannelConfig{
-		MaxFrameSize:    752,
+		// 985 is the compressed batch size of the first block,
+		// it's carefully chosen so that the channel is not full after the 1st call to AddBlock,
+		// but will be full after the 2nd call to AddBlock below.
+		MaxFrameSize:    985 + 1 + derive.FrameV0OverHeadSize,
 		TargetNumFrames: 1,
 		BatchType:       derive.SpanBatchType,
 	}
@@ -552,11 +563,15 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	require.NoError(err)
 
 	rng := rand.New(rand.NewSource(420))
-	a := dtest.RandomL2BlockWithChainId(rng, 1, defaultTestRollupConfig.L2ChainID)
+	blockTime := time.Now()
+	a := dtest.RandomL2BlockWithChainIdAndTime(rng, 1, defaultTestRollupConfig.L2ChainID, blockTime.Add(time.Duration(1)*time.Second))
 	_, err = cb.AddBlock(a)
 	require.NoError(err)
+	require.Nil(cb.fullErr)
+	a = dtest.RandomL2BlockWithChainIdAndTime(rng, 1, defaultTestRollupConfig.L2ChainID, blockTime.Add(time.Duration(2)*time.Second))
 	_, err = cb.AddBlock(a)
 	require.ErrorIs(err, derive.ErrCompressorFull)
+	require.ErrorIs(cb.fullErr, derive.ErrCompressorFull)
 	// without fix, adding the second block would succeed and then adding a
 	// third block would fail with full error and the compressor would be full.
 
