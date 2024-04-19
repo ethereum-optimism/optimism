@@ -507,6 +507,16 @@ jobs:
             pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          # The solc warnings check must be the first step to build the contracts, that way the
+          # warnings are output here. On subsequent runs, forge will read artifacts from the cache
+          # so warnings would not occur.
+          name: solc warnings check
+          command: |
+            forge build --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
           name: gas snapshot
           command: |
             pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
@@ -528,14 +538,7 @@ jobs:
       - run:
           name: size check
           command: |
-            forge build --sizes --force || echo "export SIZE_CHECK=1" >> "$BASH_ENV"
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: solc warnings check
-          command: |
-            forge build --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
+            forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**" || echo "export SIZE_CHECK=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -544,6 +547,10 @@ jobs:
           command: |
             if [[ "$LINT_STATUS" -ne 0 ]]; then
               echo "Linting failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$SOLC_WARNINGS_CHECK" -ne 0 ]]; then
+              echo "Solidity emitted warnings, see job output for details."
               FAILED=1
             fi
             if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
@@ -568,10 +575,6 @@ jobs:
             fi
             if [[ "$SIZE_CHECK" -ne 0 ]]; then
               echo "Contract(s) exceed size limit, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$SOLC_WARNINGS_CHECK" -ne 0 ]]; then
-              echo "Solidity emitted warnings, see job output for details."
               FAILED=1
             fi
             if [[ "$FAILED" -ne 0 ]]; then
