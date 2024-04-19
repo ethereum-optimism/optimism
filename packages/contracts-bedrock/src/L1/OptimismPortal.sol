@@ -103,8 +103,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.6.0
-    string public constant version = "2.6.0";
+    /// @custom:semver 2.6.0-beta+custom-gas-token
+    string public constant version = "2.6.0-beta+custom-gas-token";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
@@ -216,7 +216,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
-        require(_tx.target != address(this), "OptimismPortal: you cannot send messages to the portal contract");
+        if (_tx.target == address(this)) revert BadTarget();
 
         // Get the output root and load onto the stack to prevent multiple mloads. This will
         // revert if there is no output root for the given block number.
@@ -286,9 +286,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
-        require(
-            l2Sender == Constants.DEFAULT_L2_SENDER, "OptimismPortal: can only trigger one withdrawal per transaction"
-        );
+        if (l2Sender != Constants.DEFAULT_L2_SENDER) revert NonReentrant();
 
         // Grab the proven withdrawal from the `provenWithdrawals` map.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
