@@ -9,10 +9,6 @@ import (
 )
 
 // txData represents the data for a single transaction.
-//
-// Note: The batcher currently sends exactly one frame per transaction. This
-// might change in the future to allow for multiple frames from possibly
-// different channels.
 type txData struct {
 	frames []frameData
 }
