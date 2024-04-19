@@ -25,8 +25,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     SystemConfig public systemConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.0
-    string public constant version = "2.4.0";
+    /// @custom:semver 2.3.0-beta+custom-gas-token
+    string public constant version = "2.3.0-beta+custom-gas-token";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {

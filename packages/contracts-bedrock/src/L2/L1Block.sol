@@ -58,6 +58,9 @@ contract L1Block is ISemver {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
+    /// @custom:semver 1.2.0-beta+custom-gas-token
+    string public constant version = "1.2.0-beta+custom-gas-token";
+
     /// @notice Returns the gas paying token, its decimals, name and symbol.
     ///         If nothing is set in state, then it means ether is used.
     function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
@@ -82,9 +85,6 @@ contract L1Block is ISemver {
         (address token,) = gasPayingToken();
         return token != Constants.ETHER;
     }
-
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
 
     /// @custom:legacy
     /// @notice Updates the L1 block values.
