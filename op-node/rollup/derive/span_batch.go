@@ -505,7 +505,7 @@ func (b *SpanBatch) peek(n int) *SpanBatchElement { return b.Batches[len(b.Batch
 // updates l1OriginCheck or parentCheck if needed.
 func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uint64) error {
 	// if this new element is not ordered with respect to the last element, panic
-	if len(b.Batches) > 0 && b.peek(0).Timestamp > singularBatch.Timestamp {
+	if len(b.Batches) > 0 && b.peek(0).Timestamp >= singularBatch.Timestamp {
 		panic("span batch is not ordered")
 	}
 
