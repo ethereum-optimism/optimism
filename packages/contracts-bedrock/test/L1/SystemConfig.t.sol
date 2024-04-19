@@ -33,6 +33,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     address unsafeBlockSigner;
     address systemConfigImpl;
     address optimismMintableERC20Factory;
+    uint32 basefeeScalar;
+    uint32 blobbasefeeScalar;
 
     function setUp() public virtual override {
         super.setUp();
@@ -40,6 +42,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         owner = deploy.cfg().finalSystemOwner();
         overhead = deploy.cfg().gasPriceOracleOverhead();
         scalar = deploy.cfg().gasPriceOracleScalar();
+        basefeeScalar = deploy.cfg().basefeeScalar();
+        blobbasefeeScalar = deploy.cfg().blobbasefeeScalar();
         batcherHash = bytes32(uint256(uint160(deploy.cfg().batchSenderAddress())));
         gasLimit = uint64(deploy.cfg().l2GenesisBlockGasLimit());
         unsafeBlockSigner = deploy.cfg().p2pSequencerAddress();
@@ -56,6 +60,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(impl.batcherHash(), bytes32(0));
         assertEq(impl.gasLimit(), 1);
         assertEq(impl.unsafeBlockSigner(), address(0));
+        assertEq(impl.basefeeScalar(), 0);
+        assertEq(impl.blobbasefeeScalar(), 0);
         ResourceMetering.ResourceConfig memory actual = impl.resourceConfig();
         assertEq(actual.maxResourceLimit, 1);
         assertEq(actual.elasticityMultiplier, 1);
@@ -86,6 +92,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(systemConfig.batcherHash(), batcherHash);
         assertEq(systemConfig.gasLimit(), gasLimit);
         assertEq(systemConfig.unsafeBlockSigner(), unsafeBlockSigner);
+        assertEq(systemConfig.basefeeScalar(), basefeeScalar);
+        assertEq(systemConfig.blobbasefeeScalar(), blobbasefeeScalar);
         // Depends on `initialize` being called with defaults
         ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory actual = systemConfig.resourceConfig();
@@ -127,8 +135,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.expectRevert("SystemConfig: gas limit too low");
         systemConfig.initialize({
             _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
@@ -157,8 +165,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.prank(systemConfig.owner());
         systemConfig.initialize({
             _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
@@ -188,8 +196,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.prank(systemConfig.owner());
         systemConfig.initialize({
             _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
@@ -474,6 +482,24 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         systemConfig.setGasConfig(0, 0);
     }
 
+    /// @notice Ensures that `setGasConfig` reverts if version byte is set.
+    function test_setGasConfig_badValues_reverts() external {
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: scalar exceeds max.");
+        systemConfig.setGasConfig({
+            _overhead: 0,
+            _scalar: type(uint256).max
+        });
+    }
+
+    function test_setGasConfigEcotone_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setGasConfigEcotone({
+            _basefeeScalar: 0,
+            _blobbasefeeScalar: 0
+        });
+    }
+
     /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
     function test_setGasLimit_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
@@ -523,6 +549,29 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         systemConfig.setGasConfig(newOverhead, newScalar);
         assertEq(systemConfig.overhead(), newOverhead);
         assertEq(systemConfig.scalar(), newScalar);
+    }
+
+    function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
+        bytes32 encoded = ffi.encodeScalarEcotone({
+            _basefeeScalar: _basefeeScalar,
+            _blobbasefeeScalar: _blobbasefeeScalar
+        });
+
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(systemConfig.overhead(), encoded));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setGasConfigEcotone({
+            _basefeeScalar: _basefeeScalar,
+            _blobbasefeeScalar: _blobbasefeeScalar
+        });
+        assertEq(systemConfig.basefeeScalar(), _basefeeScalar);
+        assertEq(systemConfig.blobbasefeeScalar(), _blobbasefeeScalar);
+        assertEq(systemConfig.scalar(), uint256(encoded));
+
+        (uint32 basefeeScalar, uint32 blobbbasefeeScalar) = ffi.decodeScalarEcotone(encoded);
+        assertEq(uint256(basefeeScalar), uint256(_basefeeScalar));
+        assertEq(uint256(blobbbasefeeScalar), uint256(_blobbasefeeScalar));
     }
 
     /// @dev Tests that `setGasLimit` updates the gas limit successfully.

@@ -71,8 +71,8 @@ library ChainAssertions {
 
         if (_isProxy) {
             require(config.owner() == _cfg.finalSystemOwner());
-            require(config.overhead() == _cfg.gasPriceOracleOverhead());
-            require(config.scalar() == _cfg.gasPriceOracleScalar());
+            require(config.basefeeScalar() == _cfg.basefeeScalar());
+            require(config.blobbasefeeScalar() == _cfg.blobbasefeeScalar());
             require(config.batcherHash() == bytes32(uint256(uint160(_cfg.batchSenderAddress()))));
             require(config.gasLimit() == uint64(_cfg.l2GenesisBlockGasLimit()));
             require(config.unsafeBlockSigner() == _cfg.p2pSequencerAddress());
@@ -98,7 +98,9 @@ library ChainAssertions {
         } else {
             require(config.owner() == address(0xdead));
             require(config.overhead() == 0);
-            require(config.scalar() == 0);
+            require(config.scalar() == uint256(0x01) << 248); // version 1
+            require(config.basefeeScalar() == 0);
+            require(config.blobbasefeeScalar() == 0);
             require(config.batcherHash() == bytes32(0));
             require(config.gasLimit() == 1);
             require(config.unsafeBlockSigner() == address(0));

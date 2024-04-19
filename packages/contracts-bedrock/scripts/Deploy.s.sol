@@ -985,8 +985,8 @@ contract Deploy is Deployer {
                 SystemConfig.initialize,
                 (
                     cfg.finalSystemOwner(),
-                    cfg.gasPriceOracleOverhead(),
-                    cfg.gasPriceOracleScalar(),
+                    cfg.basefeeScalar(),
+                    cfg.blobbasefeeScalar(),
                     batcherHash,
                     uint64(cfg.l2GenesisBlockGasLimit()),
                     cfg.p2pSequencerAddress(),
