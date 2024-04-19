@@ -622,7 +622,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that gasPayingToken returns the correct values for ETH.
-    function test_gasPayingToken_ether_succeeds() external {
+    function test_gasPayingToken_ether_succeeds() external view {
         (address token, uint8 decimals) = l1CrossDomainMessenger.gasPayingToken();
         assertEq(token, address(Constants.ETHER));
         assertEq(decimals, 18);

@@ -28,7 +28,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
     }
 
     /// @dev Test that the gas paying token returns values associated with Ether when unset.
-    function test_get_empty_succeeds() external {
+    function test_get_empty_succeeds() external view {
         (address token, uint8 decimals) = GasPayingToken.getToken();
         assertEq(Constants.ETHER, token);
         assertEq(18, decimals);
@@ -79,7 +79,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
     }
 
     /// @dev Differentially test `sanitize`.
-    function testDiff_sanitize_succeeds(string memory _str) external {
+    function testDiff_sanitize_succeeds(string memory _str) external view {
         vm.assume(bytes(_str).length <= 32);
         vm.assume(bytes(_str).length > 0);
 
@@ -105,7 +105,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
     }
 
     /// @dev Test that `sanitize` works as expected when the input string is empty.
-    function test_sanitize_empty_succeeds() external {
+    function test_sanitize_empty_succeeds() external view {
         assertEq(GasPayingToken.sanitize(""), "");
     }
 }

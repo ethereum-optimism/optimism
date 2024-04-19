@@ -449,7 +449,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that gasPayingToken returns the correct values for ETH.
-    function test_gasPayingToken_ether_succeeds() external {
+    function test_gasPayingToken_ether_succeeds() external view {
         (address token, uint8 decimals) = optimismPortal.gasPayingToken();
         assertEq(token, Constants.ETHER);
         assertEq(decimals, 18);

@@ -52,8 +52,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.9.0
-    string public constant version = "1.9.0";
+    /// @custom:semver 1.9.0-beta+custom-gas-token
+    string public constant version = "1.9.0-beta+custom-gas-token";
 
     /// @notice Constructs the L2StandardBridge contract.
     constructor() StandardBridge() {

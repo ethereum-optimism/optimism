@@ -83,8 +83,8 @@ contract L1Block is ISemver {
         return token != Constants.ETHER;
     }
 
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.3.0-beta+custom-gas-token
+    string public constant version = "1.3.0-beta+custom-gas-token";
 
     /// @custom:legacy
     /// @notice Updates the L1 block values.
