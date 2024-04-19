@@ -9,7 +9,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 /// @custom:proxied
-/// @custom:predeploy 0x4200000000000000000000000000000000000022
+/// @custom:predeploy 0x4200000000000000000000000000000000000024
 /// @title RevenueSharer
 /// @dev Withdraws funds from system FeeVault contracts,
 /// pays a share of revenue to a designated Beneficiary
