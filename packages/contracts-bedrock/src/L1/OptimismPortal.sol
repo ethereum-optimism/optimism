@@ -366,17 +366,13 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 // Update the contracts internal accounting of the amount of native asset in L2.
                 _balance -= _tx.value;
 
-                // Read the balance of the target contract before the transfer so the consistency
-                // of the transfer can be checked afterwards.
-                uint256 startBalance = IERC20(token).balanceOf(address(this));
-
                 // Transfer the ERC20 balance to the target, accounting for non standard ERC20
                 // implementations that may not return a boolean. This reverts if the low level
                 // call is not successful.
                 IERC20(token).safeTransfer({ to: _tx.target, value: _tx.value });
 
                 // The balance must be transferred exactly.
-                if (IERC20(token).balanceOf(address(this)) != startBalance - _tx.value) {
+                if (IERC20(token).balanceOf(address(this)) != _balance) {
                     revert TransferFailed();
                 }
             }
@@ -426,19 +422,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         (address token,) = gasPayingToken();
         if (token == Constants.ETHER) revert OnlyCustomGasToken();
 
-        // Get the balance of the portal before the transfer.
-        uint256 startBalance = IERC20(token).balanceOf(address(this));
+        // Gives overflow protection for L2 account balances.
+        _balance += _mint;
 
         // Take ownership of the token. It is assumed that the user has given the portal an approval.
         IERC20(token).safeTransferFrom({ from: msg.sender, to: address(this), value: _mint });
 
         // Double check that the portal now has the exact amount of token.
-        if (IERC20(token).balanceOf(address(this)) != startBalance + _mint) {
+        if (IERC20(token).balanceOf(address(this)) != _balance) {
             revert TransferFailed();
         }
-
-        // Gives overflow protection for L2 account balances.
-        _balance += _mint;
 
         _depositTransaction({
             _to: _to,
