@@ -170,19 +170,21 @@ func entrypoint(ctx *cli.Context) error {
 			return errors.New("genesis-header based genesis must have no withdrawals")
 		}
 		out := Genesis{
-			Nonce:      genesisHeader.Nonce.Uint64(),
-			Timestamp:  genesisHeader.Time,
-			ExtraData:  genesisHeader.Extra,
-			GasLimit:   genesisHeader.GasLimit,
-			Difficulty: (*hexutil.Big)(genesisHeader.Difficulty),
-			Mixhash:    genesisHeader.MixDigest,
-			Coinbase:   genesisHeader.Coinbase,
-			Number:     genesisHeader.Number.Uint64(),
-			GasUsed:    genesisHeader.GasUsed,
-			ParentHash: genesisHeader.ParentHash,
-			BaseFee:    (*hexutil.Big)(genesisHeader.BaseFee),
-			Alloc:      make(jsonutil.LazySortedJsonMap[common.Address, GenesisAccount]),
-			StateHash:  &genesisHeader.Root,
+			Nonce:         genesisHeader.Nonce.Uint64(),
+			Timestamp:     genesisHeader.Time,
+			ExtraData:     genesisHeader.Extra,
+			GasLimit:      genesisHeader.GasLimit,
+			Difficulty:    (*hexutil.Big)(genesisHeader.Difficulty),
+			Mixhash:       genesisHeader.MixDigest,
+			Coinbase:      genesisHeader.Coinbase,
+			Number:        genesisHeader.Number.Uint64(),
+			GasUsed:       genesisHeader.GasUsed,
+			ParentHash:    genesisHeader.ParentHash,
+			BaseFee:       (*hexutil.Big)(genesisHeader.BaseFee),
+			ExcessBlobGas: genesisHeader.ExcessBlobGas, // EIP-4844
+			BlobGasUsed:   genesisHeader.BlobGasUsed,   // EIP-4844
+			Alloc:         make(jsonutil.LazySortedJsonMap[common.Address, GenesisAccount]),
+			StateHash:     &genesisHeader.Root,
 		}
 		if err := writeGzipJSON(ctx.Path(OutputFlag.Name), out); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
