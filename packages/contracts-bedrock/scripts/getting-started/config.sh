@@ -83,7 +83,7 @@ config=$(cat << EOL
   "eip1559Elasticity": 6,
 
   "l2GenesisEcotoneTimeOffset": "0x0",
-  "l2GenesisDeltaTimeOffset": null,
+  "l2GenesisDeltaTimeOffset": "0x0",
   "l2GenesisCanyonTimeOffset": "0x0",
 
   "systemConfigStartBlock": 0,
