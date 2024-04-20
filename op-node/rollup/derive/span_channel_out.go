@@ -230,7 +230,7 @@ func (co *SpanChannelOut) checkFull() {
 	if co.full != nil {
 		return
 	}
-	if uint64(co.compressed.Len()) >= co.target {
+	if uint64(co.compressed.Len()) > co.target {
 		co.full = ErrCompressorFull
 	}
 }
