@@ -602,3 +602,42 @@ func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
+
+func TestSpanBatchRevert(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x44337711))
+
+	chainID := new(big.Int).SetUint64(rng.Uint64())
+
+	singularBatches := RandomValidConsecutiveSingularBatches(rng, chainID)
+	// initialize empty span batch
+	spanBatch := initializedSpanBatch([]*SingularBatch{}, uint64(0), chainID)
+
+	for i := 0; i < len(singularBatches); i++ {
+		err := spanBatch.AppendSingularBatch(singularBatches[i], uint64(i))
+		require.NoError(t, err)
+		spanBatch.revertLastBatch()
+
+		spanBatch2 := initializedSpanBatch(singularBatches[:i], uint64(0), chainID)
+
+		if i > 0 {
+
+			// we can't compare spanBatch and spanBatch2 directly,
+			// as two big.Int(s) of the same math value can have different representations.
+			// instead, we compare them after serialization.
+			rawSpanBatch, err := spanBatch.ToRawSpanBatch()
+			require.NoError(t, err)
+			rawSpanBatch2, err := spanBatch2.ToRawSpanBatch()
+			require.NoError(t, err)
+
+			binary, err := NewBatchData(rawSpanBatch).MarshalBinary()
+			require.NoError(t, err)
+			binary2, err := NewBatchData(rawSpanBatch2).MarshalBinary()
+			require.NoError(t, err)
+			require.Equal(t, binary, binary2)
+
+		}
+
+		err = spanBatch.AppendSingularBatch(singularBatches[i], uint64(i))
+		require.NoError(t, err)
+	}
+}

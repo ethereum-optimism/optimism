@@ -417,11 +417,13 @@ type SpanBatch struct {
 	Batches          []*SpanBatchElement // List of block input in derived form
 
 	// caching
+	originBits    *big.Int
+	blockTxCounts []uint64
+	sbtxs         *spanBatchTxs
+
+	// caching values for revertLastBatch
 	lastParentCheck   [20]byte
 	lastL1OriginCheck [20]byte
-	originBits        *big.Int
-	blockTxCounts     []uint64
-	sbtxs             *spanBatchTxs
 }
 
 // spanBatchMarshaling is a helper type used for JSON marshaling.
@@ -517,6 +519,10 @@ func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uin
 	// always update the L1 origin check
 	copy(b.lastL1OriginCheck[:], b.L1OriginCheck[:])
 	copy(b.L1OriginCheck[:], singularBatch.EpochHash.Bytes()[:20])
+
+	// it's easy to tend to only update lastParentCheck when ParentCheck is updated,
+	// but it's wrong because if done that way, lastParentCheck will always be empty.
+	copy(b.lastParentCheck[:], b.ParentCheck[:])
 	// if there is only one batch, initialize the ParentCheck
 	// and set the epochBit based on the seqNum
 	epochBit := uint(0)
@@ -524,7 +530,6 @@ func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uin
 		if seqNum == 0 {
 			epochBit = 1
 		}
-		copy(b.lastParentCheck[:], b.ParentCheck[:])
 		copy(b.ParentCheck[:], singularBatch.ParentHash.Bytes()[:20])
 	} else {
 		// if there is more than one batch, set the epochBit based on the last two batches
@@ -552,15 +557,14 @@ func (b *SpanBatch) revertLastBatch() {
 	if len(b.Batches) == 0 {
 		panic("revertLastBatch should only be called when there's at least 1 batch")
 	}
-	// revert ParentCheck and lastParentCheck
+	// revert ParentCheck
 	copy(b.ParentCheck[:], b.lastParentCheck[:])
-	b.lastParentCheck = [20]byte{}
-	// revert L1OriginCheck and lastL1OriginCheck
+	// revert L1OriginCheck
 	copy(b.L1OriginCheck[:], b.lastL1OriginCheck[:])
-	b.lastL1OriginCheck = [20]byte{}
 	reverted := b.Batches[len(b.Batches)-1]
 	// revert Batches
 	b.Batches = b.Batches[0 : len(b.Batches)-1]
+
 	// revert originBits
 	if len(b.Batches) == 0 {
 		b.originBits.SetBit(b.originBits, 0, 0)
@@ -571,6 +575,7 @@ func (b *SpanBatch) revertLastBatch() {
 	}
 	// revert blockTxCounts
 	b.blockTxCounts = b.blockTxCounts[0 : len(b.blockTxCounts)-1]
+
 	// revert sbtxs
 	b.sbtxs.revertLastBatch(reverted.Transactions)
 }
