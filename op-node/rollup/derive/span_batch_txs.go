@@ -468,3 +468,40 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 	sbtx.totalBlockTxCount += totalBlockTxCount
 	return nil
 }
+
+func (sbtx *spanBatchTxs) revertLastBatch(txs []hexutil.Bytes) {
+	totalBlockTxCount := uint64(len(txs))
+	for idx := 0; idx < int(totalBlockTxCount); idx++ {
+		var tx types.Transaction
+		if err := tx.UnmarshalBinary(txs[len(txs)-1-idx] /* iterate in reverse order */); err != nil {
+			panic("impossible since already checked by AddTxs")
+		}
+
+		if tx.Type() == types.LegacyTxType {
+			// revert protectedBits and totalLegacyTxCount
+			sbtx.protectedBits.SetBit(sbtx.protectedBits, int(sbtx.totalLegacyTxCount)-1, 0)
+			sbtx.totalLegacyTxCount--
+		}
+		// revert txSigs
+		sbtx.txSigs = sbtx.txSigs[0 : len(sbtx.txSigs)-1]
+		// revert txTos
+		if tx.To() != nil {
+			sbtx.txTos = sbtx.txTos[0 : len(sbtx.txTos)-1]
+		}
+		offset := int(sbtx.totalBlockTxCount) - 1 - idx
+		// revert contractCreationBits
+		sbtx.contractCreationBits.SetBit(sbtx.contractCreationBits, offset, 0)
+		// revert yParityBits
+		sbtx.yParityBits.SetBit(sbtx.yParityBits, offset, 0)
+		// revert txNonces
+		sbtx.txNonces = sbtx.txNonces[0 : len(sbtx.txNonces)-1]
+		// revert txGases
+		sbtx.txGases = sbtx.txGases[0 : len(sbtx.txGases)-1]
+		// revert txDatas
+		sbtx.txDatas = sbtx.txDatas[0 : len(sbtx.txDatas)-1]
+		// revert txTypes
+		sbtx.txTypes = sbtx.txTypes[0 : len(sbtx.txTypes)-1]
+	}
+	// revert totalBlockTxCount
+	sbtx.totalBlockTxCount -= totalBlockTxCount
+}

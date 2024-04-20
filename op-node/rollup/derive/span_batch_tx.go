@@ -69,7 +69,7 @@ func (tx *spanBatchTx) MarshalBinary() ([]byte, error) {
 }
 
 // setDecoded sets the inner transaction after decoding.
-func (tx *spanBatchTx) setDecoded(inner spanBatchTxData, size uint64) {
+func (tx *spanBatchTx) setDecoded(inner spanBatchTxData, _ /*size*/ uint64) {
 	tx.inner = inner
 }
 

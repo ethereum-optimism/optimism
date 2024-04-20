@@ -120,7 +120,7 @@ var SkipOptimize bool
 // if the new batch would make the channel exceed the target size, the last batch is reverted,
 // and the compression happens on the previous RLP buffer instead
 // if the input is too small to need compression, data is accumulated but not compressed
-func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) error {
+func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) (err error) {
 	// sentinel error for closed or full channel
 	if co.closed {
 		return ErrChannelOutAlreadyClosed
@@ -133,6 +133,12 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	if err := co.spanBatch.AppendSingularBatch(batch, seqNum); err != nil {
 		return fmt.Errorf("failed to append SingularBatch to SpanBatch: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			co.spanBatch.revertLastBatch()
+		}
+	}()
+
 	// convert Span batch to RawSpanBatch
 	rawSpanBatch, err := co.spanBatch.ToRawSpanBatch()
 	if err != nil {
