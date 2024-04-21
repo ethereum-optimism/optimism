@@ -111,10 +111,7 @@ func registerAlphabet(
 	claimants []common.Address,
 ) error {
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
-		if err != nil {
-			return nil, err
-		}
+		contract := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
@@ -151,7 +148,7 @@ func registerAlphabet(
 	registry.RegisterGameType(faultTypes.AlphabetGameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller), nil
 	}
 	registry.RegisterBondContract(faultTypes.AlphabetGameType, contractCreator)
 	return nil
@@ -162,10 +159,7 @@ func registerOracle(ctx context.Context, m metrics.Metricer, oracles OracleRegis
 	if err != nil {
 		return fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
 	}
-	contract, err := contracts.NewFaultDisputeGameContract(m, implAddr, caller)
-	if err != nil {
-		return err
-	}
+	contract := contracts.NewFaultDisputeGameContract(m, implAddr, caller)
 	oracle, err := contract.GetOracle(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load oracle address: %w", err)
@@ -264,10 +258,7 @@ func registerCannon(
 ) error {
 	cannonPrestateProvider := cannon.NewPrestateProvider(cfg.CannonAbsolutePreState)
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
-		if err != nil {
-			return nil, err
-		}
+		contract := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
@@ -304,7 +295,7 @@ func registerCannon(
 	registry.RegisterGameType(gameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller), nil
 	}
 	registry.RegisterBondContract(gameType, contractCreator)
 	return nil

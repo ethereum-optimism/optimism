@@ -1,41 +1,47 @@
 package snapshots
 
 import (
-	"embed"
-	"fmt"
-	"path/filepath"
+	"bytes"
+	_ "embed"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
-//go:embed abi
-var abis embed.FS
+//go:embed abi/DisputeGameFactory.json
+var disputeGameFactory []byte
 
-func LoadDisputeGameFactoryABI() (*abi.ABI, error) {
-	return loadABI("DisputeGameFactory")
+//go:embed abi/FaultDisputeGame.json
+var faultDisputeGame []byte
+
+//go:embed abi/PreimageOracle.json
+var preimageOracle []byte
+
+//go:embed abi/MIPS.json
+var mips []byte
+
+//go:embed abi/DelayedWETH.json
+var delayedWETH []byte
+
+func LoadDisputeGameFactoryABI() *abi.ABI {
+	return loadABI(disputeGameFactory)
 }
-func LoadFaultDisputeGameABI() (*abi.ABI, error) {
-	return loadABI("FaultDisputeGame")
+func LoadFaultDisputeGameABI() *abi.ABI {
+	return loadABI(faultDisputeGame)
 }
-func LoadPreimageOracleABI() (*abi.ABI, error) {
-	return loadABI("PreimageOracle")
+func LoadPreimageOracleABI() *abi.ABI {
+	return loadABI(preimageOracle)
 }
-func LoadMIPSABI() (*abi.ABI, error) {
-	return loadABI("MIPS")
+func LoadMIPSABI() *abi.ABI {
+	return loadABI(mips)
 }
-func LoadDelayedWETHABI() (*abi.ABI, error) {
-	return loadABI("DelayedWETH")
+func LoadDelayedWETHABI() *abi.ABI {
+	return loadABI(delayedWETH)
 }
 
-func loadABI(name string) (*abi.ABI, error) {
-	in, err := abis.Open(filepath.Join("abi", name+".json"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to load ABI for contract %v: %w", name, err)
-	}
-	defer in.Close()
-	if parsed, err := abi.JSON(in); err != nil {
-		return nil, err
+func loadABI(json []byte) *abi.ABI {
+	if parsed, err := abi.JSON(bytes.NewReader(json)); err != nil {
+		panic(err)
 	} else {
-		return &parsed, nil
+		return &parsed
 	}
 }

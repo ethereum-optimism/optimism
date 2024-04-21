@@ -15,12 +15,10 @@ import (
 )
 
 func TestVMContract_Oracle(t *testing.T) {
-	vmAbi, err := snapshots.LoadMIPSABI()
-	require.NoError(t, err)
+	vmAbi := snapshots.LoadMIPSABI()
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, vmAddr, vmAbi)
-	vmContract, err := NewVMContract(vmAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
-	require.NoError(t, err)
+	vmContract := NewVMContract(vmAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
 
 	stubRpc.SetResponse(vmAddr, methodOracle, rpcblock.Latest, nil, []interface{}{oracleAddr})
 

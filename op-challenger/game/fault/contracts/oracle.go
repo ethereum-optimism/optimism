@@ -83,17 +83,14 @@ func toPreimageOracleLeaf(l keccakTypes.Leaf) preimageOracleLeaf {
 	}
 }
 
-func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller) (*PreimageOracleContract, error) {
-	oracleAbi, err := snapshots.LoadPreimageOracleABI()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load preimage oracle ABI: %w", err)
-	}
+func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller) *PreimageOracleContract {
+	oracleAbi := snapshots.LoadPreimageOracleABI()
 
 	return &PreimageOracleContract{
 		addr:        addr,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(oracleAbi, addr),
-	}, nil
+	}
 }
 
 func (c *PreimageOracleContract) Addr() common.Address {

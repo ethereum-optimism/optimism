@@ -10,7 +10,7 @@ import (
 func TestLoadABIs(t *testing.T) {
 	tests := []struct {
 		contract string
-		method   func() (*abi.ABI, error)
+		method   func() *abi.ABI
 	}{
 		{"DisputeGameFactory", LoadDisputeGameFactoryABI},
 		{"FaultDisputeGame", LoadFaultDisputeGameABI},
@@ -21,8 +21,7 @@ func TestLoadABIs(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.contract, func(t *testing.T) {
-			actual, err := test.method()
-			require.NoError(t, err)
+			actual := test.method()
 			require.NotNil(t, actual)
 		})
 	}

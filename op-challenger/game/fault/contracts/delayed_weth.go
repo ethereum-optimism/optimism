@@ -27,16 +27,13 @@ type WithdrawalRequest struct {
 	Timestamp *big.Int
 }
 
-func NewDelayedWETHContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DelayedWETHContract, error) {
-	contractAbi, err := snapshots.LoadDelayedWETHABI()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load delayed weth ABI: %w", err)
-	}
+func NewDelayedWETHContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) *DelayedWETHContract {
+	contractAbi := snapshots.LoadDelayedWETHABI()
 	return &DelayedWETHContract{
 		metrics:     metrics,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(contractAbi, addr),
-	}, nil
+	}
 }
 
 // GetWithdrawals returns all withdrawals made from the contract since the given block.
