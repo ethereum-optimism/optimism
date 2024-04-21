@@ -29,6 +29,7 @@ type GameCaller interface {
 	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	BondCaller
 	BalanceCaller
+	ClaimCaller
 }
 
 type GameCallerCreator struct {

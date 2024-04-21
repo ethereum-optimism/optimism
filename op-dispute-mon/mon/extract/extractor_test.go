@@ -196,6 +196,8 @@ type mockGameCaller struct {
 	withdrawalsCalls  int
 	withdrawalsErr    error
 	withdrawals       []*contracts.WithdrawalRequest
+	resolvedErr       error
+	resolved          map[int]bool
 }
 
 func (m *mockGameCaller) GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error) {
@@ -264,6 +266,17 @@ func (m *mockGameCaller) GetBalance(_ context.Context, _ rpcblock.Block) (*big.I
 		return nil, common.Address{}, m.balanceErr
 	}
 	return m.balance, m.balanceAddr, nil
+}
+
+func (m *mockGameCaller) IsResolved(_ context.Context, _ rpcblock.Block, claims ...faultTypes.Claim) ([]bool, error) {
+	if m.resolvedErr != nil {
+		return nil, m.resolvedErr
+	}
+	resolved := make([]bool, len(claims))
+	for i, claim := range claims {
+		resolved[i] = m.resolved[claim.ContractIndex]
+	}
+	return resolved, nil
 }
 
 type mockEnricher struct {
