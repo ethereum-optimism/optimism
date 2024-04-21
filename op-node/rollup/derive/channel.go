@@ -58,7 +58,7 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 		return fmt.Errorf("cannot add ending frame to a closed channel. id %v", ch.id)
 	}
 	if _, ok := ch.inputs[uint64(frame.FrameNumber)]; ok {
-		return DuplicateErr
+		return ErrDuplicate
 	}
 	if ch.closed && frame.FrameNumber >= ch.endFrameNumber {
 		return fmt.Errorf("frame number (%d) is greater than or equal to end frame number (%d) of a closed channel", frame.FrameNumber, ch.endFrameNumber)
