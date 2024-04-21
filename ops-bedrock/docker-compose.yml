@@ -205,10 +205,14 @@ services:
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
 
   da-server:
+    depends_on:
+      - op_stack_go_builder
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
     build:
       context: ../
       dockerfile: ./op-plasma/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     command: >
       da-server
       --file.path=/data
