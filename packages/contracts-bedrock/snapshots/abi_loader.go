@@ -32,6 +32,7 @@ func loadABI(name string) (*abi.ABI, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load ABI for contract %v: %w", name, err)
 	}
+	defer in.Close()
 	if parsed, err := abi.JSON(in); err != nil {
 		return nil, err
 	} else {
