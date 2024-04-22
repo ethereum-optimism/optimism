@@ -82,7 +82,7 @@ func CheckRecentTxs(
 
 	// Decrease block num until we find the block before the most recent batcher tx was sent
 	targetNonce := currentNonce - 1
-	for currentNonce > targetNonce {
+	for currentNonce > targetNonce && currentBlock.Cmp(oldestBlock) != -1 {
 		currentBlock.Sub(currentBlock, big.NewInt(1))
 		currentNonce, err = l1.NonceAt(ctx, addr, currentBlock)
 		if err != nil {
