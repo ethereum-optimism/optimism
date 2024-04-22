@@ -15,13 +15,13 @@ import (
 
 type faultDisputeConfigOpts func(cfg *op_e2e.SystemConfig)
 
-func withBatcherStopped() faultDisputeConfigOpts {
+func WithBatcherStopped() faultDisputeConfigOpts {
 	return func(cfg *op_e2e.SystemConfig) {
 		cfg.DisableBatcher = true
 	}
 }
 
-func withBlobBatches() faultDisputeConfigOpts {
+func WithBlobBatches() faultDisputeConfigOpts {
 	return func(cfg *op_e2e.SystemConfig) {
 		cfg.DataAvailabilityType = batcherFlags.BlobsType
 
@@ -32,7 +32,7 @@ func withBlobBatches() faultDisputeConfigOpts {
 	}
 }
 
-func withEcotone() faultDisputeConfigOpts {
+func WithEcotone() faultDisputeConfigOpts {
 	return func(cfg *op_e2e.SystemConfig) {
 		genesisActivation := hexutil.Uint64(0)
 		cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
@@ -41,13 +41,13 @@ func withEcotone() faultDisputeConfigOpts {
 	}
 }
 
-func withSequencerWindowSize(size uint64) faultDisputeConfigOpts {
+func WithSequencerWindowSize(size uint64) faultDisputeConfigOpts {
 	return func(cfg *op_e2e.SystemConfig) {
 		cfg.DeployConfig.SequencerWindowSize = size
 	}
 }
 
-func startFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_e2e.System, *ethclient.Client) {
+func StartFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_e2e.System, *ethclient.Client) {
 	cfg := op_e2e.DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
 	for _, opt := range opts {
@@ -64,7 +64,7 @@ func startFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_
 	return sys, sys.Clients["l1"]
 }
 
-func sendKZGPointEvaluationTx(t *testing.T, sys *op_e2e.System, l2Node string, privateKey *ecdsa.PrivateKey) *types.Receipt {
+func SendKZGPointEvaluationTx(t *testing.T, sys *op_e2e.System, l2Node string, privateKey *ecdsa.PrivateKey) *types.Receipt {
 	return op_e2e.SendL2Tx(t, sys.Cfg, sys.Clients[l2Node], privateKey, func(opts *op_e2e.TxOpts) {
 		precompile := common.BytesToAddress([]byte{0x0a})
 		opts.Gas = 100_000
