@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -38,7 +40,7 @@ func TestCustomGasTokenLockAndMint(t *testing.T) {
 	require.Nil(t, err)
 
 	// Deploy WETH
-	_, tx, WETH, err := bindings.DeployWETH(opts, l1Client)
+	wethAddress, tx, WETH, err := bindings.DeployWETH(opts, l1Client)
 	require.NoError(t, err)
 	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err, "Waiting for deposit tx on L1")
@@ -60,7 +62,75 @@ func TestCustomGasTokenLockAndMint(t *testing.T) {
 	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err)
 
-	// Bridge the WETH]
+	// TODO activate the custom gas token by redeploying the SystemConfig
+	// proxyAdmin, err := bindings.NewProxyAdmin(cfg.L1Deployments.ProxyAdmin, l1Client)
+
+	systemConfig, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfig, l1Client)
+	require.NoError(t, err)
+
+	owner, err := systemConfig.Owner(&bind.CallOpts{})
+	require.NoError(t, err)
+	overhead, err := systemConfig.Overhead(&bind.CallOpts{})
+	require.NoError(t, err)
+	scalar, err := systemConfig.Scalar(&bind.CallOpts{})
+	require.NoError(t, err)
+	batcherHash, err := systemConfig.BatcherHash(&bind.CallOpts{})
+	require.NoError(t, err)
+	gasLimit, err := systemConfig.GasLimit(&bind.CallOpts{})
+	require.NoError(t, err)
+	unsafeBlockSigner, err := systemConfig.UnsafeBlockSigner(&bind.CallOpts{})
+	require.NoError(t, err)
+	resourceConfig, err := systemConfig.ResourceConfig(&bind.CallOpts{})
+	require.NoError(t, err)
+	batchInbox, err := systemConfig.BatchInbox(&bind.CallOpts{})
+	require.NoError(t, err)
+	addresses := bindings.SystemConfigAddresses{}
+	addresses.L1CrossDomainMessenger, err = systemConfig.L1CrossDomainMessenger(&bind.CallOpts{})
+	require.NoError(t, err)
+	addresses.L1ERC721Bridge, err = systemConfig.L1ERC721Bridge(&bind.CallOpts{})
+	require.NoError(t, err)
+	addresses.L1StandardBridge, err = systemConfig.L1StandardBridge(&bind.CallOpts{})
+	require.NoError(t, err)
+	addresses.L2OutputOracle, err = systemConfig.L2OutputOracle(&bind.CallOpts{})
+	require.NoError(t, err)
+	addresses.OptimismPortal, err = systemConfig.OptimismPortal(&bind.CallOpts{})
+	require.NoError(t, err)
+	addresses.OptimismMintableERC20Factory, err = systemConfig.OptimismMintableERC20Factory(&bind.CallOpts{})
+	require.NoError(t, err)
+	addresses.GasPayingToken = wethAddress
+
+	newSystemConfigAddr, tx, _, err := bindings.DeploySystemConfig(opts, l1Client)
+
+	require.NoError(t, err)
+	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+	require.NoError(t, err)
+
+	abi, err := abi.JSON(strings.NewReader(bindings.SystemConfigABI))
+	require.NoError(t, err)
+	encodedInitializeCall, err := abi.Pack("initialize",
+		owner,
+		overhead,
+		scalar,
+		batcherHash,
+		gasLimit,
+		unsafeBlockSigner,
+		resourceConfig,
+		batchInbox,
+		addresses)
+	require.NoError(t, err)
+
+	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+	require.NoError(t, err)
+
+	proxyAdmin, err := bindings.NewProxyAdmin(cfg.L1Deployments.ProxyAdmin, l1Client)
+	require.NoError(t, err)
+
+	tx, err = proxyAdmin.UpgradeAndCall(opts, cfg.L1Deployments.SystemConfigProxy, newSystemConfigAddr, encodedInitializeCall)
+	require.NoError(t, err)
+	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+	require.NoError(t, err)
+
+	// Bridge the WETH
 	portal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
 	require.NoError(t, err)
 
