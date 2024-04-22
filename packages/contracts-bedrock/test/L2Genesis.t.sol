@@ -109,8 +109,6 @@ contract L2GenesisTest is Test {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
-        // jq 'map_values(.storage | select(."0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103" ==
-        // "0x0000000000000000000000004200000000000000000000000000000000000018"))'
         commands[2] = string.concat(
             "jq 'map_values(.storage | select(.\"",
             vm.toString(slot),
