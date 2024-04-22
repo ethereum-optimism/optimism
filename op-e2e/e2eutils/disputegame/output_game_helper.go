@@ -30,15 +30,15 @@ import (
 const defaultTimeout = 5 * time.Minute
 
 type OutputGameHelper struct {
-	t                     *testing.T
-	require               *require.Assertions
-	client                *ethclient.Client
-	opts                  *bind.TransactOpts
-	game                  *bindings.FaultDisputeGame
-	factoryAddr           common.Address
-	addr                  common.Address
-	correctOutputProvider *outputs.OutputTraceProvider
-	system                DisputeSystem
+	T                     *testing.T
+	Require               *require.Assertions
+	Client                *ethclient.Client
+	Opts                  *bind.TransactOpts
+	Game                  *bindings.FaultDisputeGame
+	FactoryAddr           common.Address
+	Addr                  common.Address
+	CorrectOutputProvider *outputs.OutputTraceProvider
+	System                DisputeSystem
 }
 
 type moveCfg struct {

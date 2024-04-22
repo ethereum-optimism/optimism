@@ -64,27 +64,27 @@ func (s Status) String() string {
 	}
 }
 
-type gameCfg struct {
+type GameCfg struct {
 	allowFuture bool
 	allowUnsafe bool
 }
 type GameOpt interface {
-	Apply(cfg *gameCfg)
+	Apply(cfg *GameCfg)
 }
-type gameOptFn func(c *gameCfg)
+type gameOptFn func(c *GameCfg)
 
-func (g gameOptFn) Apply(cfg *gameCfg) {
+func (g gameOptFn) Apply(cfg *GameCfg) {
 	g(cfg)
 }
 
 func WithUnsafeProposal() GameOpt {
-	return gameOptFn(func(c *gameCfg) {
+	return gameOptFn(func(c *GameCfg) {
 		c.allowUnsafe = true
 	})
 }
 
 func WithFutureProposal() GameOpt {
-	return gameOptFn(func(c *gameCfg) {
+	return gameOptFn(func(c *GameCfg) {
 		c.allowFuture = true
 	})
 }
@@ -104,13 +104,13 @@ type DisputeSystem interface {
 }
 
 type FactoryHelper struct {
-	t           *testing.T
-	require     *require.Assertions
-	system      DisputeSystem
-	client      *ethclient.Client
-	opts        *bind.TransactOpts
-	factoryAddr common.Address
-	factory     *bindings.DisputeGameFactory
+	T           *testing.T
+	Require     *require.Assertions
+	System      DisputeSystem
+	Client      *ethclient.Client
+	Opts        *bind.TransactOpts
+	FactoryAddr common.Address
+	Factory     *bindings.DisputeGameFactory
 }
 
 func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *FactoryHelper {

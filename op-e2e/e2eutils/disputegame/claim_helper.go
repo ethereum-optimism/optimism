@@ -15,9 +15,9 @@ import (
 type ClaimHelper struct {
 	require     *require.Assertions
 	game        *OutputGameHelper
-	index       int64
-	parentIndex uint32
-	position    types.Position
+	Index       int64
+	ParentIndex uint32
+	Position    types.Position
 	claim       common.Hash
 }
 
