@@ -190,6 +190,7 @@ func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	return &driver.Config{
+		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:    ctx.Bool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:    ctx.Bool(flags.SequencerStoppedFlag.Name),
@@ -203,7 +204,7 @@ func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, e
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
-	rollupConfig, err := newRollupConfig(log, network, rollupConfigPath)
+	rollupConfig, err := NewRollupConfig(log, network, rollupConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +212,7 @@ func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, e
 	return rollupConfig, nil
 }
 
-func newRollupConfig(log log.Logger, network string, rollupConfigPath string) (*rollup.Config, error) {
+func NewRollupConfig(log log.Logger, network string, rollupConfigPath string) (*rollup.Config, error) {
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.

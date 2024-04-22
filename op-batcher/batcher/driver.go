@@ -337,19 +337,23 @@ func (l *BatchSubmitter) loop() {
 // waitNodeSync Check to see if there was a batcher tx sent recently that
 // still needs more block confirmations before being considered finalized
 func (l *BatchSubmitter) waitNodeSync() error {
-	rollupClient, err := l.EndpointProvider.RollupClient(l.shutdownCtx)
+	ctx, cancel := context.WithTimeout(l.shutdownCtx, l.Config.NetworkTimeout)
+	defer cancel()
+
+	rollupClient, err := l.EndpointProvider.RollupClient(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get rollup client: %w", err)
 	}
 
-	l1Tip, err := l.l1Tip(l.shutdownCtx)
+	l1Tip, err := l.l1Tip(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve l1 tip: %w", err)
 	}
 
 	l1TargetBlock := l1Tip.Number
 	if l.Config.CheckRecentTxsDepth != 0 {
-		recentBlock, found, err := eth.CheckRecentTxs(l.shutdownCtx, l.Log, l.L1Client, l.Config.CheckRecentTxsDepth, l.Txmgr.From())
+		l.Log.Info("Checking for recently submitted batcher transactions on L1")
+		recentBlock, found, err := eth.CheckRecentTxs(ctx, l.L1Client, l.Config.CheckRecentTxsDepth, l.Txmgr.From())
 		if err != nil {
 			return fmt.Errorf("failed when checking recent batcher txs: %w", err)
 		}

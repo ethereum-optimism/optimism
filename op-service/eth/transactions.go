@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type L1Client interface {
@@ -55,7 +54,6 @@ func TransactionsToHashes(elems []*types.Transaction) []common.Hash {
 // and returns the most recent block and true, if any was found, or the oldest block checked and false, if not.
 func CheckRecentTxs(
 	ctx context.Context,
-	lgr log.Logger,
 	l1 L1Client,
 	depth int,
 	addr common.Address,
@@ -79,11 +77,9 @@ func CheckRecentTxs(
 	}
 
 	if currentNonce == previousNonce {
-		lgr.Info("No recent batcher txs detected. No need to wait for rollup sync")
 		return oldestBlock.Uint64(), false, nil
 	}
 
-	lgr.Info("Recent tx detected. Searching for block with most recent tx")
 	// Decrease block num until we find the block before the most recent batcher tx was sent
 	targetNonce := currentNonce - 1
 	for currentNonce > targetNonce {

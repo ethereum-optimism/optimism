@@ -55,7 +55,6 @@ type Config struct {
 	Genesis Genesis `json:"genesis"`
 	// Seconds per L2 block
 	BlockTime uint64 `json:"block_time"`
-
 	// Sequencer batches may not be more than MaxSequencerDrift seconds after
 	// the L1 timestamp of the sequencing window end.
 	//

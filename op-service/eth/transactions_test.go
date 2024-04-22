@@ -5,10 +5,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -79,7 +77,6 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			l1Client := new(MockL1Client)
 			ctx := context.Background()
-			lgr := testlog.Logger(t, log.LevelDebug)
 
 			currentNonce := uint64(6)
 			previousNonce := uint64(5)
@@ -106,7 +103,7 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 				}
 			}
 
-			blockNum, found, err := CheckRecentTxs(ctx, lgr, l1Client, 5, common.Address{})
+			blockNum, found, err := CheckRecentTxs(ctx, l1Client, 5, common.Address{})
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedBlockNum, blockNum)
 			require.Equal(t, tt.expectedFound, found)
