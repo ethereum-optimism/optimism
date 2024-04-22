@@ -21,6 +21,16 @@ type OutputHonestHelper struct {
 	correctTrace types.TraceAccessor
 }
 
+func NewOutputHonestHelper(t *testing.T, require *require.Assertions, game *OutputGameHelper, contract *contracts.FaultDisputeGameContract, correctTrace types.TraceAccessor) *OutputHonestHelper {
+	return &OutputHonestHelper{
+		t:            t,
+		require:      require,
+		game:         game,
+		contract:     contract,
+		correctTrace: correctTrace,
+	}
+}
+
 func (h *OutputHonestHelper) CounterClaim(ctx context.Context, claim *ClaimHelper, opts ...MoveOpt) *ClaimHelper {
 	game, target := h.loadState(ctx, claim.index)
 	value, err := h.correctTrace.Get(ctx, game, target, target.Position)

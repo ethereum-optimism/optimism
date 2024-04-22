@@ -40,6 +40,16 @@ type Helper struct {
 	chl     cliapp.Lifecycle
 }
 
+func NewHelper(log log.Logger, t *testing.T, require *require.Assertions, dir string, chl cliapp.Lifecycle) *Helper {
+	return &Helper{
+		log:     log,
+		t:       t,
+		require: require,
+		dir:     dir,
+		chl:     chl,
+	}
+}
+
 type Option func(config2 *config.Config)
 
 func WithFactoryAddress(addr common.Address) Option {

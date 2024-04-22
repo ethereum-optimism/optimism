@@ -41,6 +41,21 @@ type OutputGameHelper struct {
 	System                DisputeSystem
 }
 
+func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts,
+	game *bindings.FaultDisputeGame, factoryAddr common.Address, addr common.Address, correctOutputProvider *outputs.OutputTraceProvider, system DisputeSystem) *OutputGameHelper {
+	return &OutputGameHelper{
+		T:                     t,
+		Require:               require,
+		Client:                client,
+		Opts:                  opts,
+		Game:                  game,
+		FactoryAddr:           factoryAddr,
+		Addr:                  addr,
+		CorrectOutputProvider: correctOutputProvider,
+		System:                system,
+	}
+}
+
 type moveCfg struct {
 	opts        *bind.TransactOpts
 	ignoreDupes bool
