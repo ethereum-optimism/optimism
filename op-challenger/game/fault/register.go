@@ -190,10 +190,7 @@ func registerAsterisc(
 ) error {
 	asteriscPrestateProvider := asterisc.NewPrestateProvider(cfg.AsteriscAbsolutePreState)
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
-		if err != nil {
-			return nil, err
-		}
+		contract := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
@@ -230,7 +227,7 @@ func registerAsterisc(
 	registry.RegisterGameType(gameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller), nil
 	}
 	registry.RegisterBondContract(gameType, contractCreator)
 	return nil
