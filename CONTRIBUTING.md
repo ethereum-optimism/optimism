@@ -68,7 +68,7 @@ You'll need the following:
 * [pnpm](https://pnpm.io/installation)
 * [Docker](https://docs.docker.com/get-docker/)
 * [Docker Compose](https://docs.docker.com/compose/install/)
-* [Go](https://go.dev/dl/)
+* [Go](h0ttps://go.dev/dl/)
 * [Foundry](https://getfoundry.sh)
 * [jq](https://jqlang.github.io/jq/)
 * [go-ethereum](https://github.com/ethereum/go-ethereum)

@@ -125,6 +125,53 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	require.Equal(t, upperBoundCost.Uint64(), upperBound.Uint64())
 }
 
+func FuzzFastLz(f *testing.F) {
+	f.Fuzz(func(gt *testing.T, data []byte) {
+		if len(data) <= 71 {
+			return
+		}
+
+		t := NewDefaultTesting(gt)
+		dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+		genesisBlock := hexutil.Uint64(0)
+
+		dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
+
+		// Activate all forks at genesis, and schedule Fjord the block after
+		dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisFjordTimeOffset = &genesisBlock
+
+		require.NoError(t, dp.DeployConfig.Check(), "must have valid config")
+
+		sd := e2eutils.Setup(t, dp, defaultAlloc)
+		log := testlog.Logger(t, log.LvlDebug)
+		_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
+		ethCl := engine.EthClient()
+
+		// start op-nodes
+		sequencer.ActL2PipelineFull(t)
+		verifier.ActL2PipelineFull(t)
+
+		// Build to the Fjord block
+		sequencer.ActBuildL2ToFjord(t)
+
+		// Get gas price from oracle
+		gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, ethCl)
+		require.NoError(t, err)
+
+		used, err := gasPriceOracle.GetL1Fee(&bind.CallOpts{}, data)
+		require.NoError(t, err)
+
+		fastLzLength := types.FlzCompressLen(data)
+		cost := fjordL1Cost(t, gasPriceOracle, int64(fastLzLength), int64(len(data)))
+
+		require.Equal(t, cost.Uint64(), used.Uint64())
+	})
+}
+
 // The new cost function:
 // l1BaseFeeScaled = l1BaseFeeScalar * l1BaseFee * 16
 // l1BlobFeeScaled = l1BlobFeeScalar * l1BlobBaseFee
