@@ -19,6 +19,14 @@ interface IFaultDisputeGame is IDisputeGame {
         Clock clock;
     }
 
+    /// @notice The `ResolutionCheckpoint` struct represents the data associated with an in-progress claim resolution.
+    struct ResolutionCheckpoint {
+        bool initialCheckpointComplete;
+        uint32 subgameIndex;
+        Position leftmostPosition;
+        address counteredBy;
+    }
+
     /// @notice Emitted when a new claim is added to the DAG by `claimant`
     /// @param parentIndex The index within the `claimData` array of the parent claim
     /// @param claim The claim being added
@@ -60,7 +68,8 @@ interface IFaultDisputeGame is IDisputeGame {
     ///      A subgame root claims is valid if, and only if, all of its child claims are invalid.
     ///      At the deepest level in the DAG, a claim is invalid if there's a successful step against it.
     /// @param _claimIndex The index of the subgame root claim to resolve.
-    function resolveClaim(uint256 _claimIndex) external;
+    /// @param _numToResolve The number of subgames to resolve in this call.
+    function resolveClaim(uint256 _claimIndex, uint256 _numToResolve) external;
 
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() external view returns (uint256 l2BlockNumber_);

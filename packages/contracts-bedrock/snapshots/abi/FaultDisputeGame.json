@@ -363,6 +363,25 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_claimIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "getNumToResolve",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "numRemainingChildren_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "Position",
         "name": "_position",
         "type": "uint128"
@@ -475,6 +494,40 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "resolutionCheckpoints",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "initialCheckpointComplete",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint32",
+        "name": "subgameIndex",
+        "type": "uint32"
+      },
+      {
+        "internalType": "Position",
+        "name": "leftmostPosition",
+        "type": "uint128"
+      },
+      {
+        "internalType": "address",
+        "name": "counteredBy",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "resolve",
     "outputs": [
@@ -492,6 +545,11 @@
       {
         "internalType": "uint256",
         "name": "_claimIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_numToResolve",
         "type": "uint256"
       }
     ],

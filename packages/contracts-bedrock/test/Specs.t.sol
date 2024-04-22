@@ -536,7 +536,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("move(uint256,bytes32,bool)") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("proposer()") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("resolve()") });
-        _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("resolveClaim(uint256)") });
+        _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("getNumToResolve(uint256)") });
+        _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("resolveClaim(uint256,uint256)") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("resolvedAt()") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("resolvedSubgames(uint256)") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("rootClaim()") });
