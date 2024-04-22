@@ -125,8 +125,18 @@ func TestCustomGasTokenLockAndMint(t *testing.T) {
 	proxyAdmin, err := bindings.NewProxyAdmin(cfg.L1Deployments.ProxyAdmin, l1Client)
 	require.NoError(t, err)
 
-	ownerOpts, err := bind.NewKeyedTransactorWithChainID(sys.Cfg.Secrets.Deployer, cfg.L1ChainIDBig())
+	deployerOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Deployer, cfg.L1ChainIDBig())
 	require.NoError(t, err)
+
+	proxyAdminOwner, err := proxyAdmin.Owner(&bind.CallOpts{})
+	safe, err := bindings.NewSafe(proxyAdminOwner, l1Client)
+	require.NoError(t, err)
+
+	safe.ExecTransaction(deployerOpts, cfg.L1Deployments.ProxyAdmin, 0, data)
+
+	require.NoError(t, err)
+
+	require.Equal(t, proxyAdminOwner, ownerOpts.From)
 
 	// TODO looks like we need
 	// Account #9: 0xa0ee7a142d267c1f36714e4a8f75612f20a79720 (10000 ETH)
@@ -134,6 +144,7 @@ func TestCustomGasTokenLockAndMint(t *testing.T) {
 
 	tx, err = proxyAdmin.UpgradeAndCall(ownerOpts, cfg.L1Deployments.SystemConfigProxy, newSystemConfigAddr, encodedInitializeCall)
 	require.NoError(t, err)
+
 	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err)
 
