@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -360,12 +361,13 @@ func parseTraceTypes(ctx *cli.Context) ([]config.TraceType, error) {
 	return traceTypes, nil
 }
 
-func getL2Rpc(ctx *cli.Context) (string, error) {
+func getL2Rpc(ctx *cli.Context, logger log.Logger) (string, error) {
 	if ctx.IsSet(CannonL2Flag.Name) && ctx.IsSet(L2RpcFlag.Name) {
 		return "", fmt.Errorf("flag %v and %v must not be both set", CannonL2Flag.Name, L2RpcFlag.Name)
 	}
 	l2Rpc := ""
 	if ctx.IsSet(CannonL2Flag.Name) {
+		logger.Warn(fmt.Sprintf("flag %v is deprecated, please use %v", CannonL2Flag.Name, L2RpcFlag.Name))
 		l2Rpc = ctx.String(CannonL2Flag.Name)
 	}
 	if ctx.IsSet(L2RpcFlag.Name) {
@@ -375,7 +377,7 @@ func getL2Rpc(ctx *cli.Context) (string, error) {
 }
 
 // NewConfigFromCLI parses the Config from the provided flags or environment variables.
-func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
+func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, error) {
 	traceTypes, err := parseTraceTypes(ctx)
 	if err != nil {
 		return nil, err
@@ -424,7 +426,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		}
 		cannonPrestatesURL = parsed
 	}
-	l2Rpc, err := getL2Rpc(ctx)
+	l2Rpc, err := getL2Rpc(ctx, logger)
 	if err != nil {
 		return nil, err
 	}
