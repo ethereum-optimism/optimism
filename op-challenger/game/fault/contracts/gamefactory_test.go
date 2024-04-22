@@ -224,12 +224,10 @@ func TestCreateTx(t *testing.T) {
 }
 
 func setupDisputeGameFactoryTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DisputeGameFactoryContract) {
-	fdgAbi, err := snapshots.LoadDisputeGameFactoryABI()
-	require.NoError(t, err)
+	fdgAbi := snapshots.LoadDisputeGameFactoryABI()
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, factoryAddr, fdgAbi)
 	caller := batching.NewMultiCaller(stubRpc, batchSize)
-	factory, err := NewDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller)
-	require.NoError(t, err)
+	factory := NewDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller)
 	return stubRpc, factory
 }

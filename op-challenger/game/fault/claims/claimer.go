@@ -62,8 +62,9 @@ func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr c
 
 	contract, err := c.contractCreator(game)
 	if err != nil {
-		return fmt.Errorf("failed to create bond contract bindings: %w", err)
+		return fmt.Errorf("failed to create bond contract: %w", err)
 	}
+
 	credit, status, err := contract.GetCredit(ctx, addr)
 	if err != nil {
 		return fmt.Errorf("failed to get credit: %w", err)

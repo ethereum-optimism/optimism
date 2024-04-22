@@ -702,8 +702,7 @@ func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.Preim
 
 func (g *OutputGameHelper) oracle(ctx context.Context) *contracts.PreimageOracleContract {
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
-	g.require.NoError(err, "Failed to create game contract")
+	contract := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
 	oracle, err := contract.GetOracle(ctx)
 	g.require.NoError(err, "Failed to create oracle contract")
 	return oracle

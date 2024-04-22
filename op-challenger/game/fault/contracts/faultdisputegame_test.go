@@ -481,19 +481,15 @@ func TestFaultDisputeGame_IsResolved(t *testing.T) {
 }
 
 func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
-	fdgAbi, err := snapshots.LoadFaultDisputeGameABI()
-	require.NoError(t, err)
+	fdgAbi := snapshots.LoadFaultDisputeGameABI()
 
-	vmAbi, err := snapshots.LoadMIPSABI()
-	require.NoError(t, err)
-	oracleAbi, err := snapshots.LoadPreimageOracleABI()
-	require.NoError(t, err)
+	vmAbi := snapshots.LoadMIPSABI()
+	oracleAbi := snapshots.LoadPreimageOracleABI()
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
 	stubRpc.AddContract(vmAddr, vmAbi)
 	stubRpc.AddContract(oracleAddr, oracleAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	game, err := NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, fdgAddr, caller)
-	require.NoError(t, err)
+	game := NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, fdgAddr, caller)
 	return stubRpc, game
 }

@@ -40,10 +40,7 @@ func ListGames(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller)
-	if err != nil {
-		return fmt.Errorf("failed to create dispute game bindings: %w", err)
-	}
+	contract := contracts.NewDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller)
 	head, err := l1Client.HeaderByNumber(ctx.Context, nil)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve current head block: %w", err)
@@ -69,10 +66,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 	infos := make([]*gameInfo, len(games))
 	var wg sync.WaitGroup
 	for idx, game := range games {
-		gameContract, err := contracts.NewFaultDisputeGameContract(metrics.NoopContractMetrics, game.Proxy, caller)
-		if err != nil {
-			return fmt.Errorf("failed to bind game contract at %v: %w", game.Proxy, err)
-		}
+		gameContract := contracts.NewFaultDisputeGameContract(metrics.NoopContractMetrics, game.Proxy, caller)
 		info := gameInfo{GameMetadata: game}
 		infos[idx] = &info
 		gameProxy := game.Proxy

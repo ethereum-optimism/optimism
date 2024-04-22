@@ -58,17 +58,14 @@ type Proposal struct {
 	OutputRoot    common.Hash
 }
 
-func NewFaultDisputeGameContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
-	contractAbi, err := snapshots.LoadFaultDisputeGameABI()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load fault dispute game ABI: %w", err)
-	}
+func NewFaultDisputeGameContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) *FaultDisputeGameContract {
+	contractAbi := snapshots.LoadFaultDisputeGameABI()
 
 	return &FaultDisputeGameContract{
 		metrics:     metrics,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(contractAbi, addr),
-	}, nil
+	}
 }
 
 // GetBalance returns the total amount of ETH controlled by this contract.
@@ -263,7 +260,7 @@ func (f *FaultDisputeGameContract) getDelayedWETH(ctx context.Context) (*Delayed
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch WETH addr: %w", err)
 	}
-	return NewDelayedWETHContract(f.metrics, result.GetAddress(0), f.multiCaller)
+	return NewDelayedWETHContract(f.metrics, result.GetAddress(0), f.multiCaller), nil
 }
 
 func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
@@ -377,7 +374,7 @@ func (f *FaultDisputeGameContract) vm(ctx context.Context) (*VMContract, error) 
 		return nil, fmt.Errorf("failed to fetch VM addr: %w", err)
 	}
 	vmAddr := result.GetAddress(0)
-	return NewVMContract(vmAddr, f.multiCaller)
+	return NewVMContract(vmAddr, f.multiCaller), nil
 }
 
 func (f *FaultDisputeGameContract) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {

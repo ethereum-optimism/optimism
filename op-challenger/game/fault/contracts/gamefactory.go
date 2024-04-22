@@ -29,16 +29,13 @@ type DisputeGameFactoryContract struct {
 	contract    *batching.BoundContract
 }
 
-func NewDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DisputeGameFactoryContract, error) {
-	factoryAbi, err := snapshots.LoadDisputeGameFactoryABI()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load dispute game factory ABI: %w", err)
-	}
+func NewDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) *DisputeGameFactoryContract {
+	factoryAbi := snapshots.LoadDisputeGameFactoryABI()
 	return &DisputeGameFactoryContract{
 		metrics:     m,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(factoryAbi, addr),
-	}, nil
+	}
 }
 
 func (f *DisputeGameFactoryContract) GetGameFromParameters(ctx context.Context, traceType uint32, outputRoot common.Hash, l2BlockNum uint64) (common.Address, error) {
