@@ -47,6 +47,8 @@ type SpanChannelOut struct {
 
 	zstdCompressed *bytes.Buffer
 	zstdCompressor *zstd.Writer
+
+	zstdLevel uint64
 }
 
 func (co *SpanChannelOut) ID() ChannelID {
@@ -58,7 +60,7 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressorAlgo string) (*SpanChannelOut, error) {
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressorAlgo string, zstdLevel uint64) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:         ChannelID{},
 		frame:      0,
@@ -68,6 +70,8 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		zstdCompressed: &bytes.Buffer{},
 		target:     targetOutputSize,
 		compressorAlgo: compressorAlgo,
+		zstdLevel: zstdLevel,
+
 	}
 	var err error
 	if err = c.setRandomID(); err != nil {
@@ -80,7 +84,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 	}
 
 	// zstd compressor
-	c.zstdCompressor = zstd.NewWriterLevel(c.zstdCompressed, 22)
+	c.zstdCompressor = zstd.NewWriterLevel(c.zstdCompressed, int(zstdLevel))
 
 	return c, nil
 }
@@ -92,7 +96,7 @@ func (co *SpanChannelOut) compressorReset() {
 	} else if co.compressorAlgo == "zstd" {
 		co.zstdCompressed.Reset()
 		// no reset, start a new zstd compressor
-		co.zstdCompressor = zstd.NewWriterLevel(co.zstdCompressed, 22)
+		co.zstdCompressor = zstd.NewWriterLevel(co.zstdCompressed, int(co.zstdLevel))
 	} else {
 		panic("unknown compressor")
 	}

@@ -18,6 +18,7 @@ type Config struct {
 	Kind string
 
 	CompressionAlgo string
+	ZstdLevel int
 }
 
 func (c Config) NewCompressor() (derive.Compressor, error) {
