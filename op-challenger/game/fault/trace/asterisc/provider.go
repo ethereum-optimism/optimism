@@ -1,4 +1,4 @@
-package cannon
+package asterisc
 
 import (
 	"context"
@@ -16,17 +16,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
-type CannonMetricer interface {
-	RecordCannonExecutionTime(t float64)
+const (
+	proofsDir      = "proofs"
+	diskStateCache = "state.json.gz"
+)
+
+type AsteriscMetricer interface {
+	RecordAsteriscExecutionTime(t float64)
 }
 
-type CannonTraceProvider struct {
+type AsteriscTraceProvider struct {
 	logger         log.Logger
 	dir            string
 	prestate       string
@@ -39,18 +41,18 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
-	return &CannonTraceProvider{
+func NewTraceProvider(logger log.Logger, m AsteriscMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
+	return &AsteriscTraceProvider{
 		logger:         logger,
 		dir:            dir,
-		prestate:       cfg.CannonAbsolutePreState,
+		prestate:       cfg.AsteriscAbsolutePreState,
 		generator:      NewExecutor(logger, m, cfg, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 	}
 }
 
-func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
+func (p *AsteriscTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
 	traceIndex := pos.TraceIndex(p.gameDepth)
 	if !traceIndex.IsUint64() {
 		return common.Hash{}, errors.New("trace index out of bounds")
@@ -67,7 +69,7 @@ func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (comm
 	return value, nil
 }
 
-func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
+func (p *AsteriscTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
 	traceIndex := pos.TraceIndex(p.gameDepth)
 	if !traceIndex.IsUint64() {
 		return nil, nil, nil, errors.New("trace index out of bounds")
@@ -91,29 +93,25 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	return value, data, oracleData, nil
 }
 
-func (p *CannonTraceProvider) absolutePreState() ([]byte, error) {
+func (p *AsteriscTraceProvider) absolutePreState() (*VMState, error) {
 	state, err := parseState(p.prestate)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load absolute pre-state: %w", err)
 	}
-	return state.EncodeWitness(), nil
+	return state, nil
 }
 
-func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
+func (p *AsteriscTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
 	state, err := p.absolutePreState()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
 	}
-	hash, err := mipsevm.StateWitness(state).StateHash()
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("cannot hash absolute pre-state: %w", err)
-	}
-	return hash, nil
+	return state.StateHash, nil
 }
 
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
-func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.ProofData, error) {
+func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.ProofData, error) {
 	// Attempt to read the last step from disk cache
 	if p.lastStep == 0 {
 		step, err := utils.ReadLastStep(p.dir)
@@ -127,11 +125,11 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 	if p.lastStep != 0 && i > p.lastStep {
 		i = p.lastStep
 	}
-	path := filepath.Join(p.dir, utils.ProofsDir, fmt.Sprintf("%d.json.gz", i))
+	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
 	file, err := ioutil.OpenDecompressed(path)
 	if errors.Is(err, os.ErrNotExist) {
 		if err := p.generator.GenerateProof(ctx, p.dir, i); err != nil {
-			return nil, fmt.Errorf("generate cannon trace with proof at %v: %w", i, err)
+			return nil, fmt.Errorf("generate asterisc trace with proof at %v: %w", i, err)
 		}
 		// Try opening the file again now and it should exist.
 		file, err = ioutil.OpenDecompressed(path)
@@ -148,14 +146,9 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 				p.lastStep = state.Step - 1
 				// Extend the trace out to the full length using a no-op instruction that doesn't change any state
 				// No execution is done, so no proof-data or oracle values are required.
-				witness := state.EncodeWitness()
-				witnessHash, err := mipsevm.StateWitness(witness).StateHash()
-				if err != nil {
-					return nil, fmt.Errorf("cannot hash witness: %w", err)
-				}
 				proof := &utils.ProofData{
-					ClaimValue:   witnessHash,
-					StateData:    hexutil.Bytes(witness),
+					ClaimValue:   state.StateHash,
+					StateData:    state.Witness,
 					ProofData:    []byte{},
 					OracleKey:    nil,
 					OracleValue:  nil,
@@ -182,7 +175,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 	return &proof, nil
 }
 
-func (c *CannonTraceProvider) finalState() (*mipsevm.State, error) {
+func (c *AsteriscTraceProvider) finalState() (*VMState, error) {
 	state, err := parseState(filepath.Join(c.dir, utils.FinalState))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read final state: %w", err)
@@ -190,30 +183,30 @@ func (c *CannonTraceProvider) finalState() (*mipsevm.State, error) {
 	return state, nil
 }
 
-// CannonTraceProviderForTest is a CannonTraceProvider that can find the step referencing the preimage read
+// AsteriscTraceProviderForTest is a AsteriscTraceProvider that can find the step referencing the preimage read
 // Only to be used for testing
-type CannonTraceProviderForTest struct {
-	*CannonTraceProvider
+type AsteriscTraceProviderForTest struct {
+	*AsteriscTraceProvider
 }
 
-func NewTraceProviderForTest(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
-	p := &CannonTraceProvider{
+func NewTraceProviderForTest(logger log.Logger, m AsteriscMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProviderForTest {
+	p := &AsteriscTraceProvider{
 		logger:         logger,
 		dir:            dir,
-		prestate:       cfg.CannonAbsolutePreState,
+		prestate:       cfg.AsteriscAbsolutePreState,
 		generator:      NewExecutor(logger, m, cfg, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 	}
-	return &CannonTraceProviderForTest{p}
+	return &AsteriscTraceProviderForTest{p}
 }
 
-func (p *CannonTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage utils.PreimageOpt) (uint64, error) {
-	// Run cannon to find the step that meets the preimage conditions
+func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage utils.PreimageOpt) (uint64, error) {
+	// Run asterisc to find the step that meets the preimage conditions
 	if err := p.generator.(*Executor).generateProof(ctx, p.dir, start, math.MaxUint64, preimage()...); err != nil {
-		return 0, fmt.Errorf("generate cannon trace (until preimage read): %w", err)
+		return 0, fmt.Errorf("generate asterisc trace (until preimage read): %w", err)
 	}
-	// Load the step from the state cannon finished with
+	// Load the step from the state asterisc finished with
 	state, err := p.finalState()
 	if err != nil {
 		return 0, fmt.Errorf("failed to load final state: %w", err)

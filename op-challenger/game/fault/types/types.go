@@ -18,6 +18,7 @@ var (
 const (
 	CannonGameType       uint32 = 0
 	PermissionedGameType uint32 = 1
+	AsteriscGameType     uint32 = 2
 	AlphabetGameType     uint32 = 255
 )
 

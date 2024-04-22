@@ -1,4 +1,4 @@
-package cannon
+package asterisc
 
 import (
 	"context"
@@ -17,12 +17,12 @@ import (
 
 type Executor struct {
 	logger           log.Logger
-	metrics          CannonMetricer
+	metrics          AsteriscMetricer
 	l1               string
 	l1Beacon         string
 	l2               string
 	inputs           utils.LocalGameInputs
-	cannon           string
+	asterisc         string
 	server           string
 	network          string
 	rollupConfig     string
@@ -34,7 +34,7 @@ type Executor struct {
 	cmdExecutor      utils.CmdExecutor
 }
 
-func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs utils.LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m AsteriscMetricer, cfg *config.Config, inputs utils.LocalGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
 		metrics:          m,
@@ -42,34 +42,34 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 		l1Beacon:         cfg.L1Beacon,
 		l2:               cfg.L2Rpc,
 		inputs:           inputs,
-		cannon:           cfg.CannonBin,
-		server:           cfg.CannonServer,
-		network:          cfg.CannonNetwork,
-		rollupConfig:     cfg.CannonRollupConfigPath,
-		l2Genesis:        cfg.CannonL2GenesisPath,
-		absolutePreState: cfg.CannonAbsolutePreState,
-		snapshotFreq:     cfg.CannonSnapshotFreq,
-		infoFreq:         cfg.CannonInfoFreq,
+		asterisc:         cfg.AsteriscBin,
+		server:           cfg.AsteriscServer,
+		network:          cfg.AsteriscNetwork,
+		rollupConfig:     cfg.AsteriscRollupConfigPath,
+		l2Genesis:        cfg.AsteriscL2GenesisPath,
+		absolutePreState: cfg.AsteriscAbsolutePreState,
+		snapshotFreq:     cfg.AsteriscSnapshotFreq,
+		infoFreq:         cfg.AsteriscInfoFreq,
 		selectSnapshot:   utils.FindStartingSnapshot,
 		cmdExecutor:      utils.RunCmd,
 	}
 }
 
-// GenerateProof executes cannon to generate a proof at the specified trace index.
+// GenerateProof executes asterisc to generate a proof at the specified trace index.
 // The proof is stored at the specified directory.
 func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) error {
 	return e.generateProof(ctx, dir, i, i)
 }
 
-// generateProof executes cannon from the specified starting trace index until the end trace index.
+// generateProof executes asterisc from the specified starting trace index until the end trace index.
 // The proof is stored at the specified directory.
-func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, end uint64, extraCannonArgs ...string) error {
+func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, end uint64, extraAsteriscArgs ...string) error {
 	snapshotDir := filepath.Join(dir, utils.SnapsDir)
 	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
-	proofDir := filepath.Join(dir, utils.ProofsDir)
+	proofDir := filepath.Join(dir, proofsDir)
 	dataDir := utils.PreimageDir(dir)
 	lastGeneratedState := filepath.Join(dir, utils.FinalState)
 	args := []string{
@@ -86,7 +86,7 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 	if end < math.MaxUint64 {
 		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
 	}
-	args = append(args, extraCannonArgs...)
+	args = append(args, extraAsteriscArgs...)
 	args = append(args,
 		"--",
 		e.server, "--server",
@@ -119,9 +119,9 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 	if err := os.MkdirAll(proofDir, 0755); err != nil {
 		return fmt.Errorf("could not create proofs directory %v: %w", proofDir, err)
 	}
-	e.logger.Info("Generating trace", "proof", end, "cmd", e.cannon, "args", strings.Join(args, ", "))
+	e.logger.Info("Generating trace", "proof", end, "cmd", e.asterisc, "args", strings.Join(args, ", "))
 	execStart := time.Now()
-	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cannon, args...)
-	e.metrics.RecordCannonExecutionTime(time.Since(execStart).Seconds())
+	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.asterisc, args...)
+	e.metrics.RecordAsteriscExecutionTime(time.Since(execStart).Seconds())
 	return err
 }

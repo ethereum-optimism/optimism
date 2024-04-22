@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/asterisc"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func NewOutputCannonTraceAccessor(
+func NewOutputAsteriscTraceAccessor(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
@@ -32,18 +32,18 @@ func NewOutputCannonTraceAccessor(
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
 	outputProvider := NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
-	cannonCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+	asteriscCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		logger := logger.New("pre", agreed.OutputRoot, "post", claimed.OutputRoot, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
 		localInputs, err := utils.FetchLocalInputsFromProposals(ctx, l1Head.Hash, l2Client, agreed, claimed)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
+			return nil, fmt.Errorf("failed to fetch asterisc local inputs: %w", err)
 		}
-		provider := cannon.NewTraceProvider(logger, m, cfg, localInputs, subdir, depth)
+		provider := asterisc.NewTraceProvider(logger, m, cfg, localInputs, subdir, depth)
 		return provider, nil
 	}
 
-	cache := NewProviderCache(m, "output_cannon_provider", cannonCreator)
+	cache := NewProviderCache(m, "output_asterisc_provider", asteriscCreator)
 	selector := split.NewSplitProviderSelector(outputProvider, splitDepth, OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
 	return trace.NewAccessor(selector), nil
 }
