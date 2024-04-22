@@ -89,7 +89,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice A mapping of subgames rooted at a claim index to other claim indices in the subgame.
     mapping(uint256 => uint256[]) public subgames;
 
-    /// @notice An mapping of resolved subgames rooted at a claim index.
+    /// @notice A mapping of resolved subgames rooted at a claim index.
     mapping(uint256 => bool) public resolvedSubgames;
 
     /// @notice A mapping of claim indices to resolution checkpoints.
@@ -440,6 +440,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
+    function getNumToResolve(uint256 _claimIndex) public view returns (uint256 numRemainingChildren_) {
+        ResolutionCheckpoint storage checkpoint = resolutionCheckpoints[_claimIndex];
+        uint256[] storage challengeIndices = subgames[_claimIndex];
+        uint256 challengeIndicesLen = challengeIndices.length;
+
+        numRemainingChildren_ = challengeIndicesLen - checkpoint.subgameIndex;
+    }
+
+    /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
         l2BlockNumber_ = _getArgUint256(0x54);
     }
@@ -525,7 +534,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Assume parent is honest until proven otherwise
         uint256 lastToResolve = checkpoint.subgameIndex + _numToResolve;
         uint256 finalCursor = lastToResolve > challengeIndicesLen ? challengeIndicesLen : lastToResolve;
-        for (uint256 i = checkpoint.subgameIndex; i < finalCursor; ++i) {
+        for (uint256 i = checkpoint.subgameIndex; i < finalCursor; i++) {
             uint256 challengeIndex = challengeIndices[i];
 
             // INVARIANT: Cannot resolve a subgame containing an unresolved claim
@@ -557,16 +566,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (checkpoint.subgameIndex == challengeIndicesLen) {
             address countered = checkpoint.counteredBy;
 
-            // If the parent was not successfully countered, pay out the parent's bond to the claimant.
-            // If the parent was successfully countered, pay out the parent's bond to the challenger.
-            _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
-
             // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
             // resolveClaim will not need to traverse this subgame.
             subgameRootClaim.counteredBy = countered;
 
             // Mark the subgame as resolved.
             resolvedSubgames[_claimIndex] = true;
+
+            // If the parent was not successfully countered, pay out the parent's bond to the claimant.
+            // If the parent was successfully countered, pay out the parent's bond to the challenger.
+            _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
         }
     }
 
@@ -697,16 +706,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint64 challengeDuration =
             uint64(parentClock.duration().raw() + (block.timestamp - subgameRootClaim.clock.timestamp().raw()));
         duration_ = challengeDuration > MAX_CLOCK_DURATION.raw() ? MAX_CLOCK_DURATION : Duration.wrap(challengeDuration);
-    }
-
-    /// @notice Returns the number of children that still need to be resolved in order to fully resolve a subgame rooted
-    ///         at `_claimIndex`.
-    function getNumToResolve(uint256 _claimIndex) public view returns (uint256 numRemainingChildren_) {
-        ResolutionCheckpoint storage checkpoint = resolutionCheckpoints[_claimIndex];
-        uint256[] storage challengeIndices = subgames[_claimIndex];
-        uint256 challengeIndicesLen = challengeIndices.length;
-
-        numRemainingChildren_ = challengeIndicesLen - checkpoint.subgameIndex;
     }
 
     /// @notice Returns the length of the `claimData` array.

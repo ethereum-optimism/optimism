@@ -62,14 +62,24 @@ interface IFaultDisputeGame is IDisputeGame {
     /// @param _partOffset The offset of the data to post.
     function addLocalData(uint256 _ident, uint256 _execLeafIdx, uint256 _partOffset) external;
 
-    /// @notice Resolves the subgame rooted at the given claim index.
+    /// @notice Resolves the subgame rooted at the given claim index. `_numToResolve` specifies how many children of
+    ///         the subgame will be checked in this call. If `_numToResolve` is less than the number of children, an
+    ///         internal cursor will be updated and this function may be called again to complete resolution of the
+    ///         subgame.
     /// @dev This function must be called bottom-up in the DAG
     ///      A subgame is a tree of claims that has a maximum depth of 1.
     ///      A subgame root claims is valid if, and only if, all of its child claims are invalid.
     ///      At the deepest level in the DAG, a claim is invalid if there's a successful step against it.
     /// @param _claimIndex The index of the subgame root claim to resolve.
-    /// @param _numToResolve The number of subgames to resolve in this call.
+    /// @param _numToResolve The number of subgames to resolve in this call. If the input is `0`, and this is the first
+    ///                      page, this function will attempt to check all of the subgame's children at once.
     function resolveClaim(uint256 _claimIndex, uint256 _numToResolve) external;
+
+    /// @notice Returns the number of children that still need to be resolved in order to fully resolve a subgame rooted
+    ///         at `_claimIndex`.
+    /// @param _claimIndex The subgame root claim's index within `claimData`.
+    /// @return numRemainingChildren_ The number of children that still need to be checked to resolve the subgame.
+    function getNumToResolve(uint256 _claimIndex) external view returns (uint256 numRemainingChildren_);
 
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() external view returns (uint256 l2BlockNumber_);
