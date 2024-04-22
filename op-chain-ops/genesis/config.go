@@ -427,9 +427,6 @@ func (d *DeployConfig) Check() error {
 		if d.DAResolveWindow == 0 {
 			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
 		}
-		if d.DAChallengeProxy == (common.Address{}) {
-			return fmt.Errorf("%w: DAChallengeContract cannot be empty when using plasma mode", ErrInvalidDeployConfig)
-		}
 	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
@@ -493,6 +490,10 @@ func (d *DeployConfig) CheckAddresses() error {
 	}
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
+	if d.UsePlasma && d.DAChallengeProxy == (common.Address{}) {
+		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using plasma mode", ErrInvalidDeployConfig)
+
 	}
 	return nil
 }
