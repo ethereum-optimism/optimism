@@ -1989,6 +1989,21 @@ workflows:
           context:
             - oplabs-gcr-release
       - docker-build:
+          name: da-server-docker-release
+          filters:
+            tags:
+              only: /^da-server\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: da-server
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - docker-build:
           name: op-ufm-docker-release
           filters:
             tags:

@@ -30,6 +30,7 @@ on:
           - op-program
           - op-dispute-mon
           - op-ufm
+          - da-server
           - proxyd
           - ufm-metamask
           - op-contracts
