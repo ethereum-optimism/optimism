@@ -277,6 +277,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         symbol_ = GasPayingToken.getSymbol();
     }
 
+    function setGasPayingToken(address _token) external onlyOwner {
+        _setGasPayingToken(_token);
+    }
+
     /// @notice Internal setter for the gas paying token address, includes validation.
     ///         The token must not already be set and must be non zero and not the ether address
     ///         to set the token address. This prevents the token address from being changed
