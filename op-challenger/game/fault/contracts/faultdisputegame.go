@@ -27,6 +27,7 @@ var (
 	methodClaimCount          = "claimDataLen"
 	methodClaim               = "claimData"
 	methodL1Head              = "l1Head"
+	methodResolvedSubgames    = "resolvedSubgames"
 	methodResolve             = "resolve"
 	methodResolveClaim        = "resolveClaim"
 	methodAttack              = "attack"
@@ -351,6 +352,23 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context, block rpcbl
 		claims = append(claims, f.decodeClaim(result, idx))
 	}
 	return claims, nil
+}
+
+func (f *FaultDisputeGameContract) IsResolved(ctx context.Context, block rpcblock.Block, claims ...types.Claim) ([]bool, error) {
+	defer f.metrics.StartContractRequest("IsResolved")()
+	calls := make([]batching.Call, 0, len(claims))
+	for _, claim := range claims {
+		calls = append(calls, f.contract.Call(methodResolvedSubgames, big.NewInt(int64(claim.ContractIndex))))
+	}
+	results, err := f.multiCaller.Call(ctx, block, calls...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve resolved subgames: %w", err)
+	}
+	resolved := make([]bool, 0, len(claims))
+	for _, result := range results {
+		resolved = append(resolved, result.GetBool(0))
+	}
+	return resolved, nil
 }
 
 func (f *FaultDisputeGameContract) vm(ctx context.Context) (*VMContract, error) {

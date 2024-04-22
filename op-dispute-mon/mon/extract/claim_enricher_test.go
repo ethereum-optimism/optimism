@@ -2,7 +2,7 @@ package extract
 
 import (
 	"context"
-	"math/big"
+	"errors"
 	"testing"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -11,30 +11,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMaxValue(t *testing.T) {
-	require.Equal(t, resolvedBondAmount.String(), "340282366920938463463374607431768211455")
-}
-
 func TestClaimEnricher(t *testing.T) {
+	caller := &mockGameCaller{resolved: make(map[int]bool)}
 	enricher := NewClaimEnricher()
+	expected := []bool{true, false, false, false, false}
 	game := &types.EnrichedGameData{
-		Claims: []types.EnrichedClaim{
-			newClaimWithBond(resolvedBondAmount),
-			newClaimWithBond(big.NewInt(0)),
-			newClaimWithBond(big.NewInt(100)),
-			newClaimWithBond(new(big.Int).Sub(resolvedBondAmount, big.NewInt(1))),
-			newClaimWithBond(new(big.Int).Add(resolvedBondAmount, big.NewInt(1))),
-		},
+		Claims: claimsWithResolvedSubgames(caller, expected...),
 	}
-	caller := &mockGameCaller{}
 	err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 	require.NoError(t, err)
-	expected := []bool{true, false, false, false, false}
 	for i, claim := range game.Claims {
 		require.Equal(t, expected[i], claim.Resolved)
 	}
 }
 
-func newClaimWithBond(bond *big.Int) types.EnrichedClaim {
-	return types.EnrichedClaim{Claim: faultTypes.Claim{ClaimData: faultTypes.ClaimData{Bond: bond}}}
+func TestClaimEnricherError(t *testing.T) {
+	expectedErr := errors.New("boom")
+	caller := &mockGameCaller{resolved: make(map[int]bool), resolvedErr: expectedErr}
+	enricher := NewClaimEnricher()
+	game := &types.EnrichedGameData{
+		Claims: claimsWithResolvedSubgames(caller, true, false),
+	}
+	err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
+	require.ErrorIs(t, err, expectedErr)
+}
+
+func claimsWithResolvedSubgames(caller *mockGameCaller, resolved ...bool) []types.EnrichedClaim {
+	claims := make([]types.EnrichedClaim, len(resolved))
+	for i, r := range resolved {
+		claims[i] = types.EnrichedClaim{Claim: faultTypes.Claim{ContractIndex: i}}
+		caller.resolved[i] = r
+	}
+	return claims
 }

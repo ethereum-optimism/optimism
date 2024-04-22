@@ -455,6 +455,31 @@ func TestFaultDisputeGame_ClaimCreditTx(t *testing.T) {
 	})
 }
 
+func TestFaultDisputeGame_IsResolved(t *testing.T) {
+	stubRpc, game := setupFaultDisputeGameTest(t)
+
+	block := rpcblock.ByNumber(482)
+
+	claims := []faultTypes.Claim{
+		{ContractIndex: 1},
+		{ContractIndex: 5},
+		{ContractIndex: 13},
+	}
+	claimIdxs := []*big.Int{big.NewInt(1), big.NewInt(5), big.NewInt(13)}
+	expected := []bool{false, true, true}
+
+	for i, idx := range claimIdxs {
+		stubRpc.SetResponse(fdgAddr, methodResolvedSubgames, block, []interface{}{idx}, []interface{}{expected[i]})
+	}
+
+	actual, err := game.IsResolved(context.Background(), block, claims...)
+	require.NoError(t, err)
+	require.Equal(t, len(expected), len(actual))
+	for i := range expected {
+		require.Equal(t, expected[i], actual[i])
+	}
+}
+
 func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
 	fdgAbi, err := snapshots.LoadFaultDisputeGameABI()
 	require.NoError(t, err)
