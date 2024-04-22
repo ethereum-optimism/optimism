@@ -1150,9 +1150,11 @@ jobs:
             echo "Actual:   ${ACTUAL}"
             if [[ "${EXPECTED_PRESTATE_HASH}" != "${ACTUAL}" ]]
             then
-              echo "Prestate has did not match expected"
+              echo "Prestate did not match expected"
               exit 1
             fi
+      - notify-failures-on-develop:
+          mentions: "@proofs-squad"
 
 
   devnet-allocs:
@@ -2331,3 +2333,5 @@ workflows:
           matrix:
             parameters:
               version: ["0.1.0", "0.2.0"]
+          context:
+            slack
