@@ -277,7 +277,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         symbol_ = GasPayingToken.getSymbol();
     }
 
-    function setGasPayingToken(address _token) external onlyOwner {
+    function setGasPayingToken(address _token) external {
         _setGasPayingToken(_token);
     }
 
