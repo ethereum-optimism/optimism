@@ -3,12 +3,11 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { L2Genesis, OutputMode, L1Dependencies } from "scripts/L2Genesis.s.sol";
-import { console2 as console } from "forge-std/console2.sol";
-import { VmSafe } from "forge-std/Vm.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
+/// @title L2GenesisTest
+/// @notice Test suite for L2Genesis script.
 contract L2GenesisTest is Test {
     L2Genesis genesis;
 
@@ -20,6 +19,7 @@ contract L2GenesisTest is Test {
         genesis.setUp();
     }
 
+    /// @notice Creates a temp file and returns the path to it.
     function tmpfile() internal returns (string memory) {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
@@ -29,6 +29,8 @@ contract L2GenesisTest is Test {
         return string(result);
     }
 
+    /// @notice Deletes a file at a given filesystem path. Does not force delete
+    ///         and does not recursively delete.
     function deleteFile(string memory path) internal {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
@@ -37,14 +39,8 @@ contract L2GenesisTest is Test {
         vm.ffi(commands);
     }
 
-    function readJSON(string memory path) internal returns (string memory) {
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        commands[2] = string.concat("jq < ", path);
-        return string(vm.ffi(commands));
-    }
-
+    /// @notice Returns the number of top level keys in a JSON object at a given
+    ///         file path.
     function getJSONKeyCount(string memory path) internal returns (uint256) {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
@@ -53,29 +49,14 @@ contract L2GenesisTest is Test {
         return abi.decode(vm.ffi(commands), (uint256));
     }
 
+    /// @notice Helper function to run a function with a temporary dump file.
     function withTempDump(function (string memory) internal f) internal {
         string memory path = tmpfile();
         f(path);
         deleteFile(path);
     }
 
-    function getAccount(string memory path, string memory key) internal returns (string memory) {
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        commands[2] = string.concat("jq '.[\"", key, "\"]' < ", path);
-        return string(vm.ffi(commands));
-    }
-
-    // this is slower..
-    function getBalance(string memory account) internal returns (uint256) {
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        commands[2] = string.concat("echo '", account, "' | jq -r '.balance'");
-        return vm.parseUint(string(vm.ffi(commands)));
-    }
-
+    /// @notice Helper function for reading the number of storage keys for a given account.
     function getStorageKeysCount(string memory _path, address _addr) internal returns (uint256) {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
@@ -83,27 +64,6 @@ contract L2GenesisTest is Test {
         commands[2] =
             string.concat("jq -r '.[\"", vm.toLowercase(vm.toString(_addr)), "\"].storage | length' < ", _path);
         return vm.parseUint(string(vm.ffi(commands)));
-    }
-
-    function getAccountCountWithNoCodeAndNoBalance(string memory path) internal returns (uint256) {
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        commands[2] = string.concat(
-            "jq 'map_values(select(.nonce == \"0x0\" and .balance == \"0x0\")) | length' < ",
-            path,
-            " | xargs cast abi-encode 'f(uint256)'"
-        );
-        return abi.decode(vm.ffi(commands), (uint256));
-    }
-
-    // Go from keys
-    function getCode(string memory account) internal returns (bytes memory) {
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        commands[2] = string.concat("echo '", account, "' | jq -r '.code'");
-        return bytes(vm.ffi(commands));
     }
 
     /// @notice Returns the number of accounts that contain particular code at a given path to a genesis file.
@@ -122,20 +82,7 @@ contract L2GenesisTest is Test {
         return abi.decode(vm.ffi(commands), (uint256));
     }
 
-    function getPredeployCountWithStorage(string memory path, uint256 count) internal returns (uint256) {
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        commands[2] = string.concat(
-            "jq 'map_values(.storage | select(length == ",
-            vm.toString(count),
-            ")) | keys | length' < ",
-            path,
-            " | xargs cast abi-encode 'f(uint256)'"
-        );
-        return abi.decode(vm.ffi(commands), (uint256));
-    }
-
+    /// @notice Returns the number of accounts that have a particular slot set.
     function getPredeployCountWithSlotSet(string memory path, bytes32 slot) internal returns (uint256) {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
@@ -150,6 +97,7 @@ contract L2GenesisTest is Test {
         return abi.decode(vm.ffi(commands), (uint256));
     }
 
+    /// @notice Returns the number of accounts that have a particular slot set to a particular value.
     function getPredeployCountWithSlotSetToValue(
         string memory path,
         bytes32 slot,
@@ -175,24 +123,12 @@ contract L2GenesisTest is Test {
         return abi.decode(vm.ffi(commands), (uint256));
     }
 
-    function getImplementationAtAPath(string memory path, address addr) internal returns (address) {
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        // Forge state dumps use lower-case addresses as keys in the allocs dictionary.
-        commands[2] = string.concat(
-            "jq -r '.\"",
-            vm.toLowercase(vm.toString(addr)),
-            "\".storage.\"0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc\"' < ",
-            path
-        );
-        return address(uint160(uint256(abi.decode(vm.ffi(commands), (bytes32)))));
-    }
-
+    /// @notice Tests the genesis predeploys setup using a temp file.
     function test_genesis_predeploys() external {
         withTempDump(_test_genesis_predeploys);
     }
 
+    /// @notice Tests the genesis predeploys setup.
     function _test_genesis_predeploys(string memory _path) internal {
         // Set the predeploy proxies into state
         genesis.setPredeployProxies();
@@ -215,10 +151,12 @@ contract L2GenesisTest is Test {
         // Also see Predeploys.t.test_predeploysSet_succeeds which uses L1Genesis for the CommonTest prestate.
     }
 
+    /// @notice Tests the number of accounts in the genesis setup
     function test_allocs_size() external {
         withTempDump(_test_allocs_size);
     }
 
+    /// @notice Creates mock L1Dependencies for testing purposes.
     function _dummyL1Deps() internal pure returns (L1Dependencies memory _deps) {
         return L1Dependencies({
             l1CrossDomainMessengerProxy: payable(address(0x100000)),
@@ -227,6 +165,7 @@ contract L2GenesisTest is Test {
         });
     }
 
+    /// @notice Tests the number of accounts in the genesis setup
     function _test_allocs_size(string memory _path) internal {
         genesis.runWithOptions(OutputMode.LOCAL_LATEST, _dummyL1Deps());
         genesis.writeGenesisAllocs(_path);
