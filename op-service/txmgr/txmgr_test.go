@@ -13,7 +13,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
@@ -366,7 +365,7 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 }
 
 // TestTxMgrNeverConfirmCancel asserts that a Send can be canceled even if no
-// transaction is mined. This is done to ensure the the tx mgr can properly
+// transaction is mined. This is done to ensure the tx mgr can properly
 // abort on shutdown, even if a txn is in the process of being published.
 func TestTxMgrNeverConfirmCancel(t *testing.T) {
 	t.Parallel()
