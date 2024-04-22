@@ -1,4 +1,5 @@
-pragma solidity ^0.5.13;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.15;
 
 interface IEscrow {
     function transfer(
