@@ -18,6 +18,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// The maximum number of children that will be processed during a call to `resolveClaim`
+var maxChildChecks = big.NewInt(512)
+
 var (
 	methodMaxClockDuration    = "maxClockDuration"
 	methodMaxGameDepth        = "maxGameDepth"
@@ -30,6 +33,7 @@ var (
 	methodResolvedSubgames    = "resolvedSubgames"
 	methodResolve             = "resolve"
 	methodResolveClaim        = "resolveClaim"
+	methodGetNumToResolve     = "getNumToResolve"
 	methodAttack              = "attack"
 	methodDefend              = "defend"
 	methodStep                = "step"
@@ -394,21 +398,43 @@ func (f *FaultDisputeGameContract) StepTx(claimIdx uint64, isAttack bool, stateD
 
 func (f *FaultDisputeGameContract) CallResolveClaim(ctx context.Context, claimIdx uint64) error {
 	defer f.metrics.StartContractRequest("CallResolveClaim")()
-	call := f.resolveClaimCall(claimIdx)
-	_, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
+	call, err := f.resolveClaimCall(ctx, claimIdx)
+	if err != nil {
+		return fmt.Errorf("Failed to construct resolveClaim call: %w", err)
+	}
+	_, err = f.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
 	if err != nil {
 		return fmt.Errorf("failed to call resolve claim: %w", err)
 	}
 	return nil
 }
 
-func (f *FaultDisputeGameContract) ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error) {
-	call := f.resolveClaimCall(claimIdx)
+func (f *FaultDisputeGameContract) ResolveClaimTx(ctx context.Context, claimIdx uint64) (txmgr.TxCandidate, error) {
+	call, err := f.resolveClaimCall(ctx, claimIdx)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
 	return call.ToTxCandidate()
 }
 
-func (f *FaultDisputeGameContract) resolveClaimCall(claimIdx uint64) *batching.ContractCall {
-	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx))
+func (f *FaultDisputeGameContract) resolveClaimCall(ctx context.Context, claimIdx uint64) (*batching.ContractCall, error) {
+	call := f.getNumToResolveCall(claimIdx)
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch number of claims to check in `resolveClaim` call: %w", err)
+	}
+
+	// The maximum number of claims to check is `maxChildChecks`
+	numToResolve := result.GetBigInt(0)
+	if numToResolve.Cmp(maxChildChecks) == 1 {
+		numToResolve = maxChildChecks
+	}
+
+	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx), numToResolve), nil
+}
+
+func (f *FaultDisputeGameContract) getNumToResolveCall(claimIdx uint64) *batching.ContractCall {
+	return f.contract.Call(methodGetNumToResolve, new(big.Int).SetUint64(claimIdx))
 }
 
 func (f *FaultDisputeGameContract) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {

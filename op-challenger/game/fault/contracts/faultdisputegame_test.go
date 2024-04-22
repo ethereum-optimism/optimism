@@ -250,15 +250,17 @@ func TestGetBalance(t *testing.T) {
 
 func TestCallResolveClaim(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
-	stubRpc.SetResponse(fdgAddr, methodResolveClaim, rpcblock.Latest, []interface{}{big.NewInt(123)}, nil)
+	stubRpc.SetResponse(fdgAddr, methodResolveClaim, rpcblock.Latest, []interface{}{big.NewInt(123), big.NewInt(1)}, nil)
+	stubRpc.SetResponse(fdgAddr, methodGetNumToResolve, rpcblock.Latest, []interface{}{big.NewInt(123)}, []interface{}{big.NewInt(1)})
 	err := game.CallResolveClaim(context.Background(), 123)
 	require.NoError(t, err)
 }
 
 func TestResolveClaimTxTest(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
-	stubRpc.SetResponse(fdgAddr, methodResolveClaim, rpcblock.Latest, []interface{}{big.NewInt(123)}, nil)
-	tx, err := game.ResolveClaimTx(123)
+	stubRpc.SetResponse(fdgAddr, methodResolveClaim, rpcblock.Latest, []interface{}{big.NewInt(123), big.NewInt(1)}, nil)
+	stubRpc.SetResponse(fdgAddr, methodGetNumToResolve, rpcblock.Latest, []interface{}{big.NewInt(123)}, []interface{}{big.NewInt(1)})
+	tx, err := game.ResolveClaimTx(context.Background(), 123)
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
 }
