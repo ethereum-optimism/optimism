@@ -31,11 +31,6 @@ type EnrichedGameData struct {
 	// Credits records the paid out bonds for the game, keyed by recipient.
 	Credits map[common.Address]*big.Int
 
-	// RequiredBonds maps *resolved* claim indices to their required bond amounts.
-	// Required bonds are not needed for unresolved claims since
-	// the `Bond` field in the claim is the required bond amount.
-	RequiredBonds map[int]*big.Int
-
 	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
 	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest
 

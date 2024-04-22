@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -38,13 +40,7 @@ func TestCheckBonds(t *testing.T) {
 		ETHCollateral: weth2Balance,
 	}
 
-	logger := testlog.Logger(t, log.LvlInfo)
-	metrics := &stubBondMetrics{
-		credits:  make(map[metrics.CreditExpectation]int),
-		recorded: make(map[common.Address]Collateral),
-	}
-	bonds := NewBonds(logger, metrics, clock.NewDeterministicClock(frozen))
-
+	bonds, metrics, _ := setupBondMetricsTest(t)
 	bonds.CheckBonds([]*monTypes.EnrichedGameData{game1, game2})
 
 	require.Len(t, metrics.recorded, 2)
@@ -54,6 +50,345 @@ func TestCheckBonds(t *testing.T) {
 	require.Equal(t, metrics.recorded[weth1].Actual.Uint64(), weth1Balance.Uint64())
 	require.Equal(t, metrics.recorded[weth2].Required.Uint64(), uint64(46))
 	require.Equal(t, metrics.recorded[weth2].Actual.Uint64(), weth2Balance.Uint64())
+}
+
+func TestCheckRecipientCredit(t *testing.T) {
+	addr1 := common.Address{0x1a}
+	addr2 := common.Address{0x2b}
+	addr3 := common.Address{0x3c}
+	addr4 := common.Address{0x4d}
+	// Game has not reached max duration
+	game1 := &monTypes.EnrichedGameData{
+		MaxClockDuration: 50000,
+		GameMetadata: gameTypes.GameMetadata{
+			Proxy:     common.Address{0x11},
+			Timestamp: uint64(frozen.Unix()),
+		},
+		Claims: []monTypes.EnrichedClaim{
+			{ // Expect 10 credits for addr1
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(10),
+					},
+					Claimant: addr1,
+				},
+				Resolved: true,
+			},
+			{ // No expected credits as not resolved
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(15),
+					},
+					Claimant: addr1,
+				},
+				Resolved: false,
+			},
+			{ // Expect 5 credits for addr1
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(5),
+					},
+					Claimant: addr1,
+				},
+				Resolved: true,
+			},
+			{ // Expect 7 credits for addr2
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(7),
+					},
+					Claimant:    addr3,
+					CounteredBy: addr2,
+				},
+				Resolved: true,
+			},
+			{ // Expect 3 credits for addr4
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(3),
+					},
+					Claimant: addr4,
+				},
+				Resolved: true,
+			},
+		},
+		Credits: map[common.Address]*big.Int{
+			// addr1 has correct credits
+			addr1: big.NewInt(10 + 5),
+			// addr2 has too few credits
+			addr2: big.NewInt(2),
+			// addr3 has too many credits
+			addr3: big.NewInt(1),
+			// addr4 has too few (no) credits
+		},
+		WETHContract:  common.Address{0xff},
+		ETHCollateral: big.NewInt(6000),
+	}
+	// Max duration has been reached
+	game2 := &monTypes.EnrichedGameData{
+		MaxClockDuration: 5,
+		GameMetadata: gameTypes.GameMetadata{
+			Proxy:     common.Address{0x22},
+			Timestamp: uint64(frozen.Unix()) - 11,
+		},
+		Claims: []monTypes.EnrichedClaim{
+			{ // Expect 11 credits for addr1
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(11),
+					},
+					Claimant: addr1,
+				},
+				Resolved: true,
+			},
+			{ // No expected credits as not resolved
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(15),
+					},
+					Claimant: addr1,
+				},
+				Resolved: false,
+			},
+			{ // Expect 6 credits for addr1
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(6),
+					},
+					Claimant: addr1,
+				},
+				Resolved: true,
+			},
+			{ // Expect 8 credits for addr2
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(8),
+					},
+					Claimant:    addr3,
+					CounteredBy: addr2,
+				},
+				Resolved: true,
+			},
+			{ // Expect 4 credits for addr4
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(4),
+					},
+					Claimant: addr4,
+				},
+				Resolved: true,
+			},
+		},
+		Credits: map[common.Address]*big.Int{
+			// addr1 has too few credits
+			addr1: big.NewInt(10),
+			// addr2 has correct credits
+			addr2: big.NewInt(8),
+			// addr3 has too many credits
+			addr3: big.NewInt(1),
+			// addr4 has correct credits
+			addr4: big.NewInt(4),
+		},
+		WETHContract:  common.Address{0xff},
+		ETHCollateral: big.NewInt(6000),
+	}
+
+	// Game has not reached max duration
+	game3 := &monTypes.EnrichedGameData{
+		MaxClockDuration: 50000,
+		GameMetadata: gameTypes.GameMetadata{
+			Proxy:     common.Address{0x33},
+			Timestamp: uint64(frozen.Unix()) - 11,
+		},
+		Claims: []monTypes.EnrichedClaim{
+			{ // Expect 9 credits for addr1
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(9),
+					},
+					Claimant: addr1,
+				},
+				Resolved: true,
+			},
+			{ // Expect 6 credits for addr2
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(6),
+					},
+					Claimant:    addr4,
+					CounteredBy: addr2,
+				},
+				Resolved: true,
+			},
+			{ // Expect 2 credits for addr4
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(2),
+					},
+					Claimant: addr4,
+				},
+				Resolved: true,
+			},
+		},
+		Credits: map[common.Address]*big.Int{
+			// addr1 has correct credits
+			addr1: big.NewInt(9),
+			// addr2 has too few credits
+			addr2: big.NewInt(5),
+			// addr3 is not involved in this game
+			// addr4 has too many credits
+			addr4: big.NewInt(3),
+		},
+		WETHContract:  common.Address{0xff},
+		ETHCollateral: big.NewInt(6000),
+	}
+
+	// Game has not reached max duration
+	game4 := &monTypes.EnrichedGameData{
+		MaxClockDuration: 10,
+		GameMetadata: gameTypes.GameMetadata{
+			Proxy:     common.Address{44},
+			Timestamp: uint64(frozen.Unix()) - 22,
+		},
+		Claims: []monTypes.EnrichedClaim{
+			{ // Expect 9 credits for addr1
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(9),
+					},
+					Claimant: addr1,
+				},
+				Resolved: true,
+			},
+			{ // Expect 6 credits for addr2
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(6),
+					},
+					Claimant:    addr4,
+					CounteredBy: addr2,
+				},
+				Resolved: true,
+			},
+			{ // Expect 2 credits for addr4
+				Claim: types.Claim{
+					ClaimData: types.ClaimData{
+						Bond: big.NewInt(2),
+					},
+					Claimant: addr4,
+				},
+				Resolved: true,
+			},
+		},
+		Credits: map[common.Address]*big.Int{
+			// addr1 has correct credits
+			addr1: big.NewInt(9),
+			// addr2 has too few credits
+			addr2: big.NewInt(5),
+			// addr3 is not involved in this game
+			// addr4 has too many credits
+			addr4: big.NewInt(3),
+		},
+		WETHContract:  common.Address{0xff},
+		ETHCollateral: big.NewInt(6000),
+	}
+
+	bonds, m, logs := setupBondMetricsTest(t)
+	bonds.CheckBonds([]*monTypes.EnrichedGameData{game1, game2, game3, game4})
+
+	require.Len(t, m.credits, 6)
+	require.Contains(t, m.credits, metrics.CreditBelowMaxDuration)
+	require.Contains(t, m.credits, metrics.CreditEqualMaxDuration)
+	require.Contains(t, m.credits, metrics.CreditAboveMaxDuration)
+	require.Contains(t, m.credits, metrics.CreditBelowNonMaxDuration)
+	require.Contains(t, m.credits, metrics.CreditEqualNonMaxDuration)
+	require.Contains(t, m.credits, metrics.CreditAboveNonMaxDuration)
+
+	// Game 2 and 4 recipients added here as it has reached max duration
+	require.Equal(t, 2, m.credits[metrics.CreditBelowMaxDuration], "CreditBelowMaxDuration")
+	require.Equal(t, 3, m.credits[metrics.CreditEqualMaxDuration], "CreditEqualMaxDuration")
+	require.Equal(t, 2, m.credits[metrics.CreditAboveMaxDuration], "CreditAboveMaxDuration")
+
+	// Game 1 and 3 recipients added here as it hasn't reached max duration
+	require.Equal(t, 3, m.credits[metrics.CreditBelowNonMaxDuration], "CreditBelowNonMaxDuration")
+	require.Equal(t, 2, m.credits[metrics.CreditEqualNonMaxDuration], "CreditEqualNonMaxDuration")
+	require.Equal(t, 2, m.credits[metrics.CreditAboveNonMaxDuration], "CreditAboveNonMaxDuration")
+
+	// Logs from game1
+	// addr1 is correct so has no logs
+	// addr2 is below expected before max duration, so warn about early withdrawal
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Credit withdrawn early"),
+		testlog.NewAttributesFilter("gameAddr", game1.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr2.Hex()),
+		testlog.NewAttributesFilter("duration", "unreached")))
+	// addr3 is above expected
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Credit above expected amount"),
+		testlog.NewAttributesFilter("gameAddr", game1.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr3.Hex()),
+		testlog.NewAttributesFilter("duration", "unreached")))
+	// addr4 is below expected before max duration, so warn about early withdrawal
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Credit withdrawn early"),
+		testlog.NewAttributesFilter("gameAddr", game1.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr4.Hex()),
+		testlog.NewAttributesFilter("duration", "unreached")))
+
+	// Logs from game 2
+	// addr1 is below expected - no warning as withdrawals may now be possible
+	// addr2 is correct
+	// addr3 is above expected - warn
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Credit above expected amount"),
+		testlog.NewAttributesFilter("gameAddr", game2.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr3.Hex()),
+		testlog.NewAttributesFilter("duration", "reached")))
+	// addr4 is correct
+
+	// Logs from game 3
+	// addr1 is correct so has no logs
+	// addr2 is below expected before max duration, so warn about early withdrawal
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Credit withdrawn early"),
+		testlog.NewAttributesFilter("gameAddr", game3.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr2.Hex()),
+		testlog.NewAttributesFilter("duration", "unreached")))
+	// addr3 is not involved so no logs
+	// addr4 is above expected before max duration, so warn
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Credit above expected amount"),
+		testlog.NewAttributesFilter("gameAddr", game3.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr4.Hex()),
+		testlog.NewAttributesFilter("duration", "unreached")))
+
+	// Logs from game 4
+	// addr1 is correct so has no logs
+	// addr2 is below expected before max duration, no long because withdrawals may be possible
+	// addr3 is not involved so no logs
+	// addr4 is above expected before max duration, so warn
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Credit above expected amount"),
+		testlog.NewAttributesFilter("gameAddr", game4.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr4.Hex()),
+		testlog.NewAttributesFilter("duration", "reached")))
+}
+
+func setupBondMetricsTest(t *testing.T) (*Bonds, *stubBondMetrics, *testlog.CapturingHandler) {
+	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+	metrics := &stubBondMetrics{
+		credits:  make(map[metrics.CreditExpectation]int),
+		recorded: make(map[common.Address]Collateral),
+	}
+	bonds := NewBonds(logger, metrics, clock.NewDeterministicClock(frozen))
+	return bonds, metrics, logs
 }
 
 type stubBondMetrics struct {
