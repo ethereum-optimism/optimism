@@ -440,9 +440,6 @@ importers:
       '@eth-optimism/contracts':
         specifier: 0.6.0
         version: 0.6.0(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@6.0.3))(utf-8-validate@6.0.3)
-      '@eth-optimism/contracts-bedrock':
-        specifier: workspace:*
-        version: link:../contracts-bedrock
       '@eth-optimism/core-utils':
         specifier: workspace:*
         version: link:../core-utils

@@ -62,7 +62,6 @@
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.6.0",
-    "@eth-optimism/contracts-bedrock": "workspace:*",
     "@eth-optimism/core-utils": "workspace:*",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.3.11",

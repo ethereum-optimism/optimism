@@ -6,14 +6,14 @@ import 'hardhat-deploy'
 import { Deployment } from 'hardhat-deploy/types'
 import { predeploys } from '@eth-optimism/core-utils'
 import { providers, utils, ethers } from 'ethers'
-import Artifact__L2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json'
-import Artifact__L2CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L2CrossDomainMessenger.sol/L2CrossDomainMessenger.json'
-import Artifact__L2StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2StandardBridge.sol/L2StandardBridge.json'
-import Artifact__OptimismPortal from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal.sol/OptimismPortal.json'
-import Artifact__L1CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L1CrossDomainMessenger.sol/L1CrossDomainMessenger.json'
-import Artifact__L1StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1StandardBridge.sol/L1StandardBridge.json'
-import Artifact__L2OutputOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/L2OutputOracle.sol/L2OutputOracle.json'
 
+import Artifact__L2ToL1MessagePasser from '../src/forge-artifacts/L2ToL1MessagePasser.json'
+import Artifact__L2CrossDomainMessenger from '../src/forge-artifacts/L2CrossDomainMessenger.json'
+import Artifact__L2StandardBridge from '../src/forge-artifacts/L2StandardBridge.json'
+import Artifact__OptimismPortal from '../src/forge-artifacts/OptimismPortal.json'
+import Artifact__L1CrossDomainMessenger from '../src/forge-artifacts/L1CrossDomainMessenger.json'
+import Artifact__L1StandardBridge from '../src/forge-artifacts/L1StandardBridge.json'
+import Artifact__L2OutputOracle from '../src/forge-artifacts/L2OutputOracle.json'
 import {
   CrossChainMessenger,
   MessageStatus,
