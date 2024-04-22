@@ -190,7 +190,6 @@ func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	return &driver.Config{
-		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:    ctx.Bool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:    ctx.Bool(flags.SequencerStoppedFlag.Name),
@@ -253,7 +252,6 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		ecotone := ctx.Uint64(opflags.EcotoneOverrideFlagName)
 		rollupConfig.EcotoneTime = &ecotone
 	}
-	rollupConfig.VerifierConfDepth = ctx.Uint64(flags.VerifierL1Confs.Name)
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {

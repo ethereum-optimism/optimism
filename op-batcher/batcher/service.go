@@ -41,8 +41,10 @@ type BatcherConfig struct {
 
 	// UsePlasma is true if the rollup config has a DA challenge address so the batcher
 	// will post inputs to the Plasma DA server and post commitments to blobs or calldata.
-	UsePlasma             bool
-	CheckRecentTxsOnStart bool
+	UsePlasma bool
+
+	WaitNodeSync        bool
+	CheckRecentTxsDepth int
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -73,8 +75,7 @@ type BatcherService struct {
 	balanceMetricer io.Closer
 	stopped         atomic.Bool
 
-	NotSubmittingOnStart  bool
-	CheckRecentTxsOnStart bool
+	NotSubmittingOnStart bool
 }
 
 // BatcherServiceFromCLIConfig creates a new BatcherService from a CLIConfig.
@@ -98,7 +99,8 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.PollInterval = cfg.PollInterval
 	bs.MaxPendingTransactions = cfg.MaxPendingTransactions
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
-	bs.CheckRecentTxsOnStart = cfg.CheckRecentTxs
+	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
+	bs.WaitNodeSync = cfg.WaitNodeSync
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}

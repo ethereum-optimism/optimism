@@ -67,8 +67,16 @@ type CLIConfig struct {
 	// Type of compressor to use. Must be one of [compressor.KindKeys].
 	Compressor string
 
-	Stopped        bool
-	CheckRecentTxs bool
+	// If Stopped is true, the batcher starts stopped and won't start batching right away.
+	// Batching needs to be started via an admin RPC.
+	Stopped bool
+
+	// Whether to wait for the sequencer to sync to a recent block at startup.
+	WaitNodeSync bool
+
+	// How many blocks back to look for recent batcher transactions during node sync at startup.
+	// If 0, the batcher will just use the current head.
+	CheckRecentTxsDepth int
 
 	BatchType uint
 

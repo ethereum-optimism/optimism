@@ -127,12 +127,19 @@ var (
 		Value:   2 * time.Minute,
 		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
 	}
-	CheckRecentTxsFlag = &cli.BoolFlag{
-		Name: "check-recent-txs",
+	CheckRecentTxsDepthFlag = &cli.IntFlag{
+		Name: "check-recent-txs-depth",
+		Usage: "Indicates how many blocks back the batcher should look during startup for a recent batch tx " +
+			"on L1. This should help avoid duplicate batcher txs.",
+		Value:   0,
+		EnvVars: prefixEnvVars("CHECK_RECENT_TXS_DEPTH"),
+	}
+	WaitNodeSync = &cli.BoolFlag{
+		Name: "wait-node-sync",
 		Usage: "Indicates if, during startup, the batcher should wait for a recent batcher tx on L1 to " +
 			"finalize (via more block confirmations). This should help avoid duplicate batcher txs.",
 		Value:   false,
-		EnvVars: prefixEnvVars("CHECK_RECENT_TXS"),
+		EnvVars: prefixEnvVars("WAIT_NODE_SYNC"),
 	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
@@ -145,7 +152,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
-	CheckRecentTxsFlag,
+	CheckRecentTxsDepthFlag,
 	SubSafetyMarginFlag,
 	PollIntervalFlag,
 	MaxPendingTransactionsFlag,
