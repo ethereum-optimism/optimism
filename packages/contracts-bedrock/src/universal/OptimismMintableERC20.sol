@@ -5,6 +5,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ILegacyMintableERC20, IOptimismMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { FeeCurrency } from "src/celo/FeeCurrency.sol";
 
 /// @title OptimismMintableERC20
 /// @notice OptimismMintableERC20 is a standard extension of the base ERC20 token contract designed
@@ -12,7 +13,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         use an OptimismMintablERC20 as the L2 representation of an L1 token, or vice-versa.
 ///         Designed to be backwards compatible with the older StandardL2ERC20 token which was only
 ///         meant for use on L2.
-contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, ERC20, ISemver {
+contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, ERC20, ISemver, FeeCurrency {
     /// @notice Address of the corresponding version of this token on the remote chain.
     address public immutable REMOTE_TOKEN;
 
