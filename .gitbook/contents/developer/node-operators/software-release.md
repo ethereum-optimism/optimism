@@ -10,9 +10,30 @@ These are the minimal required versions for the `op-node`, `op-erigon` and `op-g
 
 | Network      | op-node                                                      | op-erigon                                                    | op-geth                                                      |
 | ------------ | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Boba Mainnet | [v1.6.3](https://github.com/bobanetwork/boba/releases/tag/v1.6.3) | [v1.1.5](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.5) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
 | Boba Sepolia | [v1.6.2](https://github.com/bobanetwork/boba/releases/tag/v1.6.2) | [v1.1.4](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.4) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
-| Op Sepolia   | [v1.6.2](https://github.com/bobanetwork/boba/releases/tag/v1.6.2) | [v1.1.4](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.4) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
 | Op Mainnet   | [v1.6.2](https://github.com/bobanetwork/boba/releases/tag/v1.6.2) | [v1.1.4](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.4) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
+| Op Sepolia   | [v1.6.2](https://github.com/bobanetwork/boba/releases/tag/v1.6.2) | [v1.1.4](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.4) | [v1.101308.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101308.1) |
+
+## [op-node v1.6.3](https://github.com/bobanetwork/boba/releases/tag/v1.6.3)
+
+**Description**
+
+This is a mandatory release for node operators on Boba Mainnet network. The Anchorage upgrades will activate on Apr 16 2024 21:27:59 UTC 2024 on Boba Mainnet network.
+
+**Required Action**
+
+Upgrade your `op-node` software.
+
+## [op-erigon v1.1.5](https://github.com/bobanetwork/op-erigon/releases/tag/v1.1.5)
+
+**Description**
+
+This is a mandatory release for node operators on Boba Mainnet network. The Anchorage upgrades will activate on Apr 16 2024 21:27:59 UTC 2024 on Boba Mainnet network.
+
+**Required Action**
+
+Upgrade your `op-erigon` software.
 
 ## [op-node v1.6.2](https://github.com/bobanetwork/boba/releases/tag/v1.6.2)
 

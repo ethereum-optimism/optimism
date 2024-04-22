@@ -41,6 +41,20 @@ You can download the database snapshot for the client and network you wish to ru
 
 Always verify snapshots by comparing the sha256sum of the downloaded file to the sha256sum listed on this [page](./snapshot-downloads.md). Check the sha256sum of the downloaded file by running `sha256sum <filename>`in a terminal.
 
+* BOBA Mainnet
+
+  The **erigon** db can be downloaded from the [boba mainnet erigon db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz).
+
+  ```bash
+  curl -o boba-mainnet-erigon-db-1149019.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz
+  ```
+
+  The **geth** db can be downloaded from [boba mainnet geth db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-114909.tgz).
+
+  ```bash
+  curl -o boba-mainnet-geth-db-114909.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-114909.tgz
+  ```
+
 - BOBA Sepolia
 
   The **erigon** db can be downloaded from the [boba sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz).
@@ -111,10 +125,10 @@ docker-compose -f [docker-compose-file] up -d
 
 ## Optional: Run the Node with Geth
 
-We support both geth and erigon as the execution engines for Boba Sepolia node. You can start the node with geth using the following command:
+We support both geth and erigon as the execution engines for Boba Mainnet node. You can start the node with geth using the following command:
 
 ```bash
-docker-compose -f docker-compose-sepolia-geth.yml up -d
+docker-compose -f docker-compose-mainnet-geth.yml up -d
 ```
 
 ## Operating the Node
