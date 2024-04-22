@@ -44,7 +44,7 @@ DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
   --cannon-bin ./cannon/bin/cannon \
   --cannon-server ./op-program/bin/op-program \
   --cannon-prestate ./op-program/bin/prestate.json \
-  --cannon-l2 http://localhost:9545 \
+  --l2-rpc http://localhost:9545 \
   --mnemonic "test test test test test test test test test test test junk" \
   --hd-path "m/44'/60'/0'/0/8" \
   --num-confirmations 1

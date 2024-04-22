@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -130,7 +131,7 @@ func (g *OutputCannonGameHelper) CreateStepPreimageLoadCheck(ctx context.Context
 // 2. Descending the execution game tree to reach the step that loads the preimage
 // 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
-func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage cannon.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
+func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage utils.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
 	// Identifying the first state transition that loads a global preimage
 	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
 	targetTraceIndex, err := provider.FindStep(ctx, 0, preimage)
@@ -229,7 +230,7 @@ func (g *OutputCannonGameHelper) VerifyPreimage(ctx context.Context, outputRootC
 	start := uint64(0)
 	found := false
 	for offset := uint32(0); ; offset += 4 {
-		preimageOpt := cannon.PreimageLoad(preimageKey, offset)
+		preimageOpt := utils.PreimageLoad(preimageKey, offset)
 		g.t.Logf("Searching for step with key %x and offset %v", preimageKey.PreimageKey(), offset)
 		targetTraceIndex, err := provider.FindStep(ctx, start, preimageOpt)
 		if errors.Is(err, io.EOF) {
@@ -310,7 +311,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 		agreed, disputed, err := outputs.FetchProposals(ctx, outputProvider, pre, post)
 		g.require.NoError(err)
 		g.t.Logf("Using trace between blocks %v and %v\n", agreed.L2BlockNumber, disputed.L2BlockNumber)
-		localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, l1Head.Hash, l2Client, agreed, disputed)
+		localInputs, err := utils.FetchLocalInputsFromProposals(ctx, l1Head.Hash, l2Client, agreed, disputed)
 		g.require.NoError(err, "Failed to fetch local inputs")
 		localContext = outputs.CreateLocalContext(pre, post)
 		dir := filepath.Join(cfg.Datadir, "cannon-trace")

@@ -36,9 +36,10 @@ func (*NoopMetricsImpl) RecordPreimageChallengeFailed() {}
 func (*NoopMetricsImpl) RecordBondClaimFailed()   {}
 func (*NoopMetricsImpl) RecordBondClaimed(uint64) {}
 
-func (*NoopMetricsImpl) RecordCannonExecutionTime(t float64) {}
-func (*NoopMetricsImpl) RecordClaimResolutionTime(t float64) {}
-func (*NoopMetricsImpl) RecordGameActTime(t float64)         {}
+func (*NoopMetricsImpl) RecordCannonExecutionTime(t float64)   {}
+func (*NoopMetricsImpl) RecordAsteriscExecutionTime(t float64) {}
+func (*NoopMetricsImpl) RecordClaimResolutionTime(t float64)   {}
+func (*NoopMetricsImpl) RecordGameActTime(t float64)           {}
 
 func (*NoopMetricsImpl) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}
 

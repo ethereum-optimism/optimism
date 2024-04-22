@@ -51,7 +51,7 @@ func (g *GameCallerCreator) CreateContract(game gameTypes.GameMetadata) (GameCal
 		return fdg, nil
 	}
 	switch game.GameType {
-	case faultTypes.CannonGameType, faultTypes.AlphabetGameType:
+	case faultTypes.CannonGameType, faultTypes.AsteriscGameType, faultTypes.AlphabetGameType:
 		fdg, err := contracts.NewFaultDisputeGameContract(g.m, game.Proxy, g.caller)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create FaultDisputeGameContract: %w", err)

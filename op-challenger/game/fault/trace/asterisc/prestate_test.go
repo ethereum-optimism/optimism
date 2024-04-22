@@ -1,4 +1,4 @@
-package cannon
+package asterisc
 
 import (
 	"context"
@@ -6,13 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-func newCannonPrestateProvider(dataDir string, prestate string) *CannonPrestateProvider {
-	return &CannonPrestateProvider{
+func newAsteriscPrestateProvider(dataDir string, prestate string) *AsteriscPreStateProvider {
+	return &AsteriscPreStateProvider{
 		prestate: filepath.Join(dataDir, prestate),
 	}
 }
@@ -23,45 +21,21 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 	prestate := "state.json"
 
 	t.Run("StateUnavailable", func(t *testing.T) {
-		provider := newCannonPrestateProvider("/dir/does/not/exist", prestate)
+		provider := newAsteriscPrestateProvider("/dir/does/not/exist", prestate)
 		_, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.ErrorIs(t, err, os.ErrNotExist)
 	})
 
 	t.Run("InvalidStateFile", func(t *testing.T) {
 		setupPreState(t, dataDir, "invalid.json")
-		provider := newCannonPrestateProvider(dataDir, prestate)
+		provider := newAsteriscPrestateProvider(dataDir, prestate)
 		_, err := provider.AbsolutePreStateCommitment(context.Background())
-		require.ErrorContains(t, err, "invalid mipsevm state")
-	})
-
-	t.Run("ExpectedAbsolutePreState", func(t *testing.T) {
-		setupPreState(t, dataDir, "state.json")
-		provider := newCannonPrestateProvider(dataDir, prestate)
-		actual, err := provider.AbsolutePreStateCommitment(context.Background())
-		require.NoError(t, err)
-		state := mipsevm.State{
-			Memory:         mipsevm.NewMemory(),
-			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
-			PreimageOffset: 0,
-			PC:             0,
-			NextPC:         1,
-			LO:             0,
-			HI:             0,
-			Heap:           0,
-			ExitCode:       0,
-			Exited:         false,
-			Step:           0,
-			Registers:      [32]uint32{},
-		}
-		expected, err := state.EncodeWitness().StateHash()
-		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.ErrorContains(t, err, "invalid asterisc VM state")
 	})
 
 	t.Run("CacheAbsolutePreState", func(t *testing.T) {
 		setupPreState(t, dataDir, prestate)
-		provider := newCannonPrestateProvider(dataDir, prestate)
+		provider := newAsteriscPrestateProvider(dataDir, prestate)
 		first, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
 
