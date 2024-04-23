@@ -17,7 +17,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
 )
 
 // ABI types
@@ -274,7 +275,7 @@ func DiffTestUtils() {
 		// Create a secure trie for state
 		state, err := trie.NewStateTrie(
 			trie.TrieID(types.EmptyRootHash),
-			trie.NewDatabase(rawdb.NewMemoryDatabase(), &trie.Config{HashDB: hashdb.Defaults}),
+			triedb.NewDatabase(rawdb.NewMemoryDatabase(), &triedb.Config{HashDB: hashdb.Defaults}),
 		)
 		checkErr(err, "Error creating secure trie")
 
@@ -285,7 +286,7 @@ func DiffTestUtils() {
 		// Create a secure trie for the world state
 		world, err := trie.NewStateTrie(
 			trie.TrieID(types.EmptyRootHash),
-			trie.NewDatabase(rawdb.NewMemoryDatabase(), &trie.Config{HashDB: hashdb.Defaults}),
+			triedb.NewDatabase(rawdb.NewMemoryDatabase(), &triedb.Config{HashDB: hashdb.Defaults}),
 		)
 		checkErr(err, "Error creating secure trie")
 
