@@ -59,6 +59,7 @@ contract Reentrant {
     }
 
     /// @notice Sets reentrancy value.
+    /// @param _value Value to set as reentrancy value.
     function setReentrancyValue(uint256 _value) public {
         reentrancy_value = _value;
     }
@@ -95,6 +96,7 @@ contract TransientTest is Test {
 
     /// @notice Test setting a transient variable in a reentrant function fails.
     /// @param _value Value to fail to set.
+    /// @param _reentrancyValue Value to set by the reentrant function.
     function test_transient_reentrant_fails(uint256 _value, uint256 _reentrancyValue) public {
         // Ensure the value is not the reentrancy value, otherwise the values will match.
         vm.assume(_value != _reentrancyValue);
