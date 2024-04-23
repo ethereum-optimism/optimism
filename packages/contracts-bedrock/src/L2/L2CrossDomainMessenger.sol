@@ -52,6 +52,16 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @inheritdoc CrossDomainMessenger
+    function gasPayingTokenName() public view override returns (string memory name_) {
+        name_ = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function gasPayingTokenSymbol() public view override returns (string memory symbol_) {
+        symbol_ = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
+    }
+
+    /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
         return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == address(otherMessenger);
     }

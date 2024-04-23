@@ -37,7 +37,7 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the `isCustomGasToken` function returns the correct value when the gas token is ether.
-    function test_isCustomGasToken_ether_succeeds() external {
+    function test_isCustomGasToken_ether_succeeds() external view {
         assertFalse(l1StandardBridge.isCustomGasToken());
     }
 
