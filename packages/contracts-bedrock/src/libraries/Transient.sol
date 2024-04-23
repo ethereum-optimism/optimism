@@ -111,6 +111,7 @@ library Transient {
 /// @notice Reentrancy-aware modifier for transient storage, which increments and
 ///         decrements the call depth when entering and exiting a function.
 contract TransientReentrancyAware {
+    /// @notice Modifier to make a function reentrancy-aware.
     modifier reentrantAware() {
         Transient.incrementCallDepth();
         _;
