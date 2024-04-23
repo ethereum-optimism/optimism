@@ -83,21 +83,21 @@ func TestResolveClaim(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
-		err := responder.ResolveClaims(context.Background(), 0)
+		err := responder.ResolveClaims(0)
 		require.ErrorIs(t, err, mockSendError)
 		require.Equal(t, 0, mockTxMgr.sends)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
-		err := responder.ResolveClaims(context.Background(), 0)
+		err := responder.ResolveClaims(0)
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
 	})
 
 	t.Run("Multiple", func(t *testing.T) {
 		responder, mockTxMgr, _, _, _ := newTestFaultResponder(t)
-		err := responder.ResolveClaims(context.Background(), 0, 1, 2, 3)
+		err := responder.ResolveClaims(0, 1, 2, 3)
 		require.NoError(t, err)
 		require.Equal(t, 4, mockTxMgr.sends)
 	})
@@ -383,7 +383,7 @@ func (m *mockContract) CallResolveClaim(_ context.Context, _ uint64) error {
 	return nil
 }
 
-func (m *mockContract) ResolveClaimTx(ctx context.Context, _ uint64) (txmgr.TxCandidate, error) {
+func (m *mockContract) ResolveClaimTx(_ uint64) (txmgr.TxCandidate, error) {
 	return txmgr.TxCandidate{}, nil
 }
 

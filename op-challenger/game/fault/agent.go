@@ -24,7 +24,7 @@ type Responder interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve() error
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
-	ResolveClaims(ctx context.Context, claimIdx ...uint64) error
+	ResolveClaims(claimIdx ...uint64) error
 	PerformAction(ctx context.Context, action types.Action) error
 }
 
@@ -189,7 +189,7 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 	}
 	a.log.Info("Resolving claims", "numClaims", len(resolvableClaims))
 
-	if err := a.responder.ResolveClaims(ctx, resolvableClaims...); err != nil {
+	if err := a.responder.ResolveClaims(resolvableClaims...); err != nil {
 		a.log.Error("Failed to resolve claims", "err", err)
 	}
 	return nil

@@ -228,7 +228,7 @@ func (s *stubResponder) CallResolveClaim(_ context.Context, _ uint64) error {
 	return s.callResolveClaimErr
 }
 
-func (s *stubResponder) ResolveClaims(_ context.Context, claims ...uint64) error {
+func (s *stubResponder) ResolveClaims(claims ...uint64) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 	s.resolveClaimCount += len(claims)

@@ -19,7 +19,7 @@ type GameContract interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	ResolveTx() (txmgr.TxCandidate, error)
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
-	ResolveClaimTx(ctx context.Context, claimIdx uint64) (txmgr.TxCandidate, error)
+	ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error)
 	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
@@ -77,10 +77,10 @@ func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx uint64) 
 }
 
 // ResolveClaims executes resolveClaim transactions to resolve claims in a dispute game.
-func (r *FaultResponder) ResolveClaims(ctx context.Context, claimIdxs ...uint64) error {
+func (r *FaultResponder) ResolveClaims(claimIdxs ...uint64) error {
 	txs := make([]txmgr.TxCandidate, 0, len(claimIdxs))
 	for _, claimIdx := range claimIdxs {
-		candidate, err := r.contract.ResolveClaimTx(ctx, claimIdx)
+		candidate, err := r.contract.ResolveClaimTx(claimIdx)
 		if err != nil {
 			return err
 		}
