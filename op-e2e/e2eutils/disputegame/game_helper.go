@@ -334,7 +334,7 @@ func (g *FaultGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []b
 
 // ResolveClaim resolves a single subgame
 func (g *FaultGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
-	tx, err := g.game.ResolveClaim(g.opts, big.NewInt(claimIdx))
+	tx, err := g.game.ResolveClaim(g.opts, big.NewInt(claimIdx), common.Big0)
 	g.require.NoError(err, "ResolveClaim transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "ResolveClaim transaction was not OK")

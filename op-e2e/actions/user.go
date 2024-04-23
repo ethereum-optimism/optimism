@@ -569,7 +569,7 @@ func (s *CrossLayerUser) ResolveClaim(t Testing, l2TxHash common.Hash) common.Ha
 	require.Nil(t, err)
 
 	time.Sleep(time.Duration(expiry) * time.Second)
-	resolveClaimTx, err := game.ResolveClaim(&s.L1.txOpts, common.Big0)
+	resolveClaimTx, err := game.ResolveClaim(&s.L1.txOpts, common.Big0, common.Big0)
 	require.Nil(t, err)
 
 	err = s.L1.env.EthCl.SendTransaction(t.Ctx(), resolveClaimTx)
