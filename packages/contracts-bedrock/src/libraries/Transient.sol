@@ -5,7 +5,8 @@ pragma solidity ^0.8.24;
 /// @notice Library for transient storage.
 library Transient {
     /// @notice Slot for call depth.
-    uint256 internal constant CALL_DEPTH_SLOT = 0;
+    ///         Equal to bytes32(uint256(keccak256("transient.calldepth")) - 1).
+    uint256 internal constant CALL_DEPTH_SLOT = 0x7a74fd168763fd280eaec3bcd2fd62d0e795027adc8183a693c497a7c2b10b5c;
 
     /// @notice Gets the current call depth.
     /// @return _callDepth Current call depth.
