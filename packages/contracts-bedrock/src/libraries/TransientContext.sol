@@ -6,7 +6,7 @@ pragma solidity ^0.8.24;
 library TransientContext {
     /// @notice Slot for call depth.
     ///         Equal to bytes32(uint256(keccak256("transient.calldepth")) - 1).
-    uint256 internal constant CALL_DEPTH_SLOT = 0x7a74fd168763fd280eaec3bcd2fd62d0e795027adc8183a693c497a7c2b10b5c;
+    bytes32 internal constant CALL_DEPTH_SLOT = 0x7a74fd168763fd280eaec3bcd2fd62d0e795027adc8183a693c497a7c2b10b5c;
 
     /// @notice Gets the call depth.
     /// @return _callDepth Current call depth.
@@ -46,8 +46,10 @@ library TransientContext {
     }
 
     /// @notice Decrements call depth.
+    ///         Reverts if call depth is zero.
     function decrement() internal {
         assembly {
+            if iszero(tload(CALL_DEPTH_SLOT)) { revert(0, 0) }
             tstore(CALL_DEPTH_SLOT, sub(tload(CALL_DEPTH_SLOT), 1))
         }
     }
