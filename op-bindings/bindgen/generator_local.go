@@ -67,8 +67,6 @@ func (generator *BindGenGeneratorLocal) processContracts(contracts []string) err
 		return err
 	}
 
-	contractMetadataFileTemplate := template.Must(template.New("localContractMetadata").Parse(localContractMetadataTemplate))
-
 	for _, contractName := range contracts {
 		generator.Logger.Info("Generating bindings and metadata for local contract", "contract", contractName)
 
@@ -84,32 +82,6 @@ func (generator *BindGenGeneratorLocal) processContracts(contracts []string) err
 
 		err = genContractBindings(generator.Logger, generator.MonorepoBasePath, abiFilePath, bytecodeFilePath, generator.BindingsPackageName, contractName)
 		if err != nil {
-			return err
-		}
-
-		deployedSourceMap, canonicalStorageStr, err := generator.canonicalizeStorageLayout(forgeArtifact, sourceMapsSet, contractName)
-		if err != nil {
-			return err
-		}
-
-		re := regexp.MustCompile(`\s+`)
-		immutableRefs, err := json.Marshal(re.ReplaceAllString(string(forgeArtifact.DeployedBytecode.ImmutableReferences), ""))
-		if err != nil {
-			return fmt.Errorf("error marshaling immutable references: %w", err)
-		}
-
-		hasImmutables := string(immutableRefs) != `""`
-
-		contractMetaData := localContractMetadata{
-			Name:                   contractName,
-			StorageLayout:          canonicalStorageStr,
-			DeployedBin:            forgeArtifact.DeployedBytecode.Object.String(),
-			Package:                generator.BindingsPackageName,
-			DeployedSourceMap:      deployedSourceMap,
-			HasImmutableReferences: hasImmutables,
-		}
-
-		if err := generator.writeContractMetadata(contractMetaData, contractName, contractMetadataFileTemplate); err != nil {
 			return err
 		}
 	}
