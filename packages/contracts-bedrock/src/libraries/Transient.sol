@@ -2,50 +2,118 @@
 pragma solidity ^0.8.24;
 
 /// @title Transient
-/// @notice Transient handles transient storage for reentrancy.
-///         Forked from https://github.com/jtriley-eth/tcontext
+/// @notice Library for transient storage.
 library Transient {
-    /// @notice Slot for transient context.
-    uint256 internal constant CONTEXT_SLOT = 0;
+    /// @notice Slot for call depth.
+    uint256 internal constant CALL_DEPTH_SLOT = 0;
 
-    /// @notice Get the transient context.
-    /// @return _ctx Transient context.
-    function getTransientContext() internal view returns (uint256 _ctx) {
+    /// @notice Gets the current call depth.
+    /// @return _callDepth Current call depth.
+    function getCallDepth() internal view returns (uint256 _callDepth) {
         assembly {
-            mstore(0x00, tload(CONTEXT_SLOT))
-            _ctx := keccak256(0x00, 0x20)
+            _callDepth := tload(CALL_DEPTH_SLOT)
         }
     }
 
-    /// @notice Set a transient value.
+    /// @notice Increments call depth.
+    function incrementCallDepth() internal {
+        // Get the current call depth
+        uint256 currentCallDepth = getCallDepth();
+
+        // Increment the call depth
+        assembly {
+            tstore(CALL_DEPTH_SLOT, add(currentCallDepth, 1))
+        }
+    }
+
+    /// @notice Decrements call depth.
+    function decrementCallDepth() internal {
+        // Get the current call depth
+        uint256 currentCallDepth = getCallDepth();
+
+        // Decrement the call depth
+        assembly {
+            tstore(CALL_DEPTH_SLOT, sub(currentCallDepth, 1))
+        }
+    }
+
+    /// @notice Gets corresponding transient slot for an arbitrary slot at a given call depth.
+    /// @param _callDepth Call depth to get transient slot for.
+    /// @param _slot      Slot to get transient slot for.
+    /// @return Corresponding transient slot at the given call depth.
+    function getTransientSlot(uint256 _callDepth, bytes32 _slot) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_callDepth, _slot));
+    }
+
+    /// @notice Gets corresponding transient slot for an arbitrary slot at current call depth.
+    /// @param _slot Slot to get transient slot for.
+    /// @return Corresponding transient slot at the current call depth.
+    function getTransientSlotCurrentDepth(bytes32 _slot) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked(getCallDepth(), _slot));
+    }
+
+    /// @notice Sets a value in transient storage at slot at a given call depth.
+    /// @param _callDepth Call depth to get transient slot for.
+    /// @param _slot    Slot to set.
     /// @param _value   Value to set.
-    /// @param _target  Target contract to call.
-    /// @param _payload Payload to call target with.
-    function setTransientValue(uint256 _value, address _target, bytes memory _payload) public {
+    function setTransientValue(uint256 _callDepth, bytes32 _slot, uint256 _value) internal {
+        // Get the slot at the given call depth
+        bytes32 slot = getTransientSlot(_callDepth, _slot);
+
+        // Set the value at the slot
         assembly {
-            tstore(CONTEXT_SLOT, add(tload(CONTEXT_SLOT), 1))
+            tstore(slot, _value)
         }
-
-        uint256 ctx = getTransientContext();
-
-        assembly {
-            tstore(ctx, _value)
-        }
-
-        if (_target == address(0)) return;
-
-        (bool success,) = _target.call(_payload);
-
-        require(success, "setTransientValue::call");
     }
 
-    /// @notice Get value in transient context.
-    /// @return _value Transient value.
-    function getTransientValue() public view returns (uint256 _value) {
-        uint256 ctx = getTransientContext();
+    /// @notice Sets a value in transient storage at slot at current call depth.
+    /// @param _slot    Slot to set.
+    /// @param _value   Value to set.
+    function setTransientValueCurrentDepth(bytes32 _slot, uint256 _value) internal {
+        // Get the slot at the current call depth
+        bytes32 slot = getTransientSlotCurrentDepth(_slot);
 
+        // Set the value at the slot
         assembly {
-            _value := tload(ctx)
+            tstore(slot, _value)
         }
+    }
+
+    /// @notice Gets value in transient storage at slot at a given call depth.
+    /// @param _callDepth Call depth to get transient slot for.
+    /// @param _slot Slot to get.
+    /// @return _value Transient value.
+    function getTransientValue(uint256 _callDepth, bytes32 _slot) internal view returns (uint256 _value) {
+        // Get the slot at the current call depth
+        bytes32 slot = getTransientSlot(_callDepth, _slot);
+
+        // Get the value at the slot
+        assembly {
+            _value := tload(slot)
+        }
+    }
+
+    /// @notice Gets value in transient storage at slot at current call depth.
+    /// @param _slot Slot to get.
+    /// @return _value Transient value.
+    function getTransientValueCurrentDepth(bytes32 _slot) internal view returns (uint256 _value) {
+        // Get the slot at the current call depth
+        bytes32 slot = getTransientSlotCurrentDepth(_slot);
+
+        // Get the value at the slot
+        assembly {
+            _value := tload(slot)
+        }
+    }
+}
+
+/// @title TransientReentrancyAware
+/// @notice Reentrancy-aware modifier for transient storage, which increments and
+///         decrements the call depth when entering and exiting a function.
+contract TransientReentrancyAware {
+    modifier reentrantAware() {
+        Transient.incrementCallDepth();
+        _;
+        Transient.decrementCallDepth();
     }
 }
