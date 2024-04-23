@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -119,7 +118,7 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 	require.Truef(t, game.AvailableCredit(ctx, alice).Cmp(big.NewInt(0)) > 0, "Expected alice credit to be above zero")
 
 	// The actor should have no credit available because all its bonds were paid to Alice.
-	actorCredit := game.AvailableCredit(ctx, deployer.TestAddress)
+	actorCredit := game.AvailableCredit(ctx, disputegame.TestAddress)
 	require.True(t, actorCredit.Cmp(big.NewInt(0)) == 0, "Expected alice available credit to be zero")
 
 	// Advance the time past the weth unlock delay

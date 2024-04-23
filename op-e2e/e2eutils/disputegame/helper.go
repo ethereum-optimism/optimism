@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -26,9 +25,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	// TestKey is the same test key that geth uses
+	TestKey, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	TestAddress = crypto.PubkeyToAddress(TestKey.PublicKey)
 )
 
 const (
@@ -112,7 +118,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 	client := system.NodeClient("l1")
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
-	opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, chainID)
+	opts, err := bind.NewKeyedTransactorWithChainID(TestKey, chainID)
 	require.NoError(err)
 
 	l1Deployments := system.L1Deployments()
