@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Storage } from "src/libraries/Storage.sol";
-import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
+import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
@@ -13,7 +13,7 @@ import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 ///         Values within this contract are updated once per epoch (every L1 block) and can only be
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
-contract L1Block is ISemver {
+contract L1Block is ISemver, IGasToken {
     /// @notice Error returns when a non-depositor account tries to set L1 block values.
     error NotDepositor();
 

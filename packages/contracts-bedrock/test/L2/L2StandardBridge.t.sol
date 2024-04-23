@@ -200,7 +200,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the `isCustomGasToken` function returns the correct value when the gas token is ether.
-    function test_isCustomGasToken_ether_succeeds() external {
+    function test_isCustomGasToken_ether_succeeds() external view {
         assertFalse(l2StandardBridge.isCustomGasToken());
     }
 

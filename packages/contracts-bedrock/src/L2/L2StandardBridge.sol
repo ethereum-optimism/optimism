@@ -81,6 +81,16 @@ contract L2StandardBridge is StandardBridge, ISemver {
         (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
 
+    /// @inheritdoc StandardBridge
+    function gasPayingTokenName() public view override returns (string memory name_) {
+        name_ = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
+    }
+
+    /// @inheritdoc StandardBridge
+    function gasPayingTokenSymbol() public view override returns (string memory symbol_) {
+        symbol_ = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
+    }
+
     /// @custom:legacy
     /// @notice Initiates a withdrawal from L2 to L1.
     ///         This function only works with OptimismMintableERC20 tokens or ether. Use the
