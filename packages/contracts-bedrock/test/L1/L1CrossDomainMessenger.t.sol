@@ -639,7 +639,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that isCustomGasToken returns the correct value for ETH as the gas token.
-    function test_isCustomGasToken_ether_succeeds() external {
+    function test_isCustomGasToken_ether_succeeds() external view {
         assertFalse(l1CrossDomainMessenger.isCustomGasToken());
     }
 
