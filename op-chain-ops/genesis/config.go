@@ -14,7 +14,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -818,11 +817,11 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 }
 
 type ForgeAllocs struct {
-	Accounts core.GenesisAlloc `json:"accounts"`
+	Accounts types.GenesisAlloc `json:"accounts"`
 }
 
 func (d *ForgeAllocs) Copy() *ForgeAllocs {
-	out := make(core.GenesisAlloc, len(d.Accounts))
+	out := make(types.GenesisAlloc, len(d.Accounts))
 	maps.Copy(out, d.Accounts)
 	return &ForgeAllocs{Accounts: out}
 }
@@ -842,10 +841,10 @@ func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &allocs); err != nil {
 		return err
 	}
-	d.Accounts = make(core.GenesisAlloc, len(allocs.Accounts))
+	d.Accounts = make(types.GenesisAlloc, len(allocs.Accounts))
 	for addr, acc := range allocs.Accounts {
 		acc := acc
-		d.Accounts[addr] = core.GenesisAccount{
+		d.Accounts[addr] = types.Account{
 			Code:       acc.Code,
 			Storage:    acc.Storage,
 			Balance:    acc.Balance.ToInt(),

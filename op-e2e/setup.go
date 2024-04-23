@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	geth_eth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -464,14 +465,14 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l1Genesis.Alloc[addr]; ok {
-			l1Genesis.Alloc[addr] = core.GenesisAccount{
+			l1Genesis.Alloc[addr] = types.Account{
 				Code:    existing.Code,
 				Storage: existing.Storage,
 				Balance: amount,
 				Nonce:   existing.Nonce,
 			}
 		} else {
-			l1Genesis.Alloc[addr] = core.GenesisAccount{
+			l1Genesis.Alloc[addr] = types.Account{
 				Balance: amount,
 				Nonce:   0,
 			}
@@ -493,14 +494,14 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	sys.L2GenesisCfg = l2Genesis
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l2Genesis.Alloc[addr]; ok {
-			l2Genesis.Alloc[addr] = core.GenesisAccount{
+			l2Genesis.Alloc[addr] = types.Account{
 				Code:    existing.Code,
 				Storage: existing.Storage,
 				Balance: amount,
 				Nonce:   existing.Nonce,
 			}
 		} else {
-			l2Genesis.Alloc[addr] = core.GenesisAccount{
+			l2Genesis.Alloc[addr] = types.Account{
 				Balance: amount,
 				Nonce:   0,
 			}

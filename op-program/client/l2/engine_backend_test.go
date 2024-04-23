@@ -294,7 +294,7 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int, enableEcoton
 	l2Genesis, err := genesis.NewL2Genesis(deployConfig, l1Genesis.ToBlock())
 	require.NoError(t, err)
 
-	l2Genesis.Alloc[fundedAddress] = core.GenesisAccount{
+	l2Genesis.Alloc[fundedAddress] = types.Account{
 		Balance: big.NewInt(1_000_000_000_000_000_000),
 		Nonce:   0,
 	}

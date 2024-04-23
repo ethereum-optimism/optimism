@@ -160,7 +160,7 @@ func createGenesis() *core.Genesis {
 		Difficulty: common.Big0,
 		ParentHash: common.Hash{},
 		BaseFee:    big.NewInt(7),
-		Alloc: map[common.Address]core.GenesisAccount{
+		Alloc: map[common.Address]types.Account{
 			userAccount: {
 				Balance: big.NewInt(1_000_000_000_000_000_000),
 				Nonce:   10,
