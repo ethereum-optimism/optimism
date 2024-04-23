@@ -40,12 +40,17 @@ contract NonReentrant {
 /// @title Reentrant
 /// @notice This contract uses the Base contract to set a transient value and call a function that reads it.
 contract Reentrant {
+    /// @notice Value to set in msg.sender.
+    uint256 public constant REENTRANCY_VALUE = 1;
+
     /// @notice Transient variable.
     uint256 public tVariable;
 
     /// @notice Set the transient variable and call a function that reads it.
     function reentrant() public {
-        Base(msg.sender).setTransientValue(1, address(this), abi.encodeWithSelector(this.getTVariable.selector));
+        Base(msg.sender).setTransientValue(
+            REENTRANCY_VALUE, address(this), abi.encodeWithSelector(this.getTVariable.selector)
+        );
     }
 
     /// @notice Get the transient variable.
@@ -84,6 +89,9 @@ contract TransientTest is Test {
     /// @notice Test setting a transient variable in a reentrant function fails.
     /// @param _value Value to fail to set.
     function test_transient_reentrant_fails(uint256 _value) public {
+        // Ensure the value is not the reentrancy value, otherwise the values will match.
+        vm.assume(_value != reentrant.REENTRANCY_VALUE());
+
         base.setTransientValue(_value, address(reentrant), abi.encodeWithSelector(Reentrant.reentrant.selector));
 
         assertNotEq(_value, reentrant.tVariable());
