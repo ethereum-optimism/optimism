@@ -84,7 +84,7 @@ contract TransientTest is Test {
         reentrant = new Reentrant();
     }
 
-    /// @notice Test setting a transient variable in a non-reentrant function.
+    /// @notice Tests setting a transient variable in a non-reentrant function.
     /// @param _value Value to set.
     function testFuzz_transient_nonReentrant_succeeds(uint256 _value) public {
         // Set the transient value in the base contract.
@@ -94,10 +94,10 @@ contract TransientTest is Test {
         assertEq(_value, nonReentrant.tVariable());
     }
 
-    /// @notice Test setting a transient variable in a reentrant function fails.
+    /// @notice Tests setting a transient variable in a reentrant function fails.
     /// @param _value Value to fail to set.
     /// @param _reentrancyValue Value to set by the reentrant function.
-    function test_transient_reentrant_fails(uint256 _value, uint256 _reentrancyValue) public {
+    function testFuzz_transient_reentrant_fails(uint256 _value, uint256 _reentrancyValue) public {
         // Ensure the value is not the reentrancy value, otherwise the values will match.
         vm.assume(_value != _reentrancyValue);
 
