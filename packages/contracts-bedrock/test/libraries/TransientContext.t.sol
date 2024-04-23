@@ -38,7 +38,7 @@ contract TransientContextTest is Test {
         assertEq(TransientContext.callDepth(), _startingCallDepth + 2);
     }
 
-    function testFuzz_increment_fromMax_reverts() public {
+    function test_increment_overflow_succeeds() public {
         uint256 _startingCallDepth = type(uint256).max;
         assembly {
             tstore(CALL_DEPTH_SLOT, _startingCallDepth)
@@ -46,6 +46,7 @@ contract TransientContextTest is Test {
         assertEq(TransientContext.callDepth(), _startingCallDepth);
 
         TransientContext.increment();
+        assertEq(TransientContext.callDepth(), 0);
     }
 
     function testFuzz_decrement_succeeds(uint256 _startingCallDepth) public {
