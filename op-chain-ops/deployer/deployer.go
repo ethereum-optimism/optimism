@@ -2,7 +2,6 @@ package deployer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -160,77 +159,6 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 	}
 
 	return results, nil
-}
-
-// DeployWithDeterministicDeployer deploys a smart contract on a simulated Ethereum blockchain using a deterministic deployment proxy (Arachnid's).
-//
-// Parameters:
-// - backend: A pointer to backends.SimulatedBackend, representing the simulated Ethereum blockchain.
-// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewBackendWithChainIDAndPredeploys handles this for you.
-// - contractName: A string representing the name of the contract to be deployed.
-//
-// Returns:
-// - []byte: The deployed bytecode of the contract.
-// - error: An error object indicating any issues encountered during the deployment process.
-//
-// The function logs a fatal error and exits if there are any issues with transaction mining, if the deployment fails,
-// or if the deployed bytecode is not found at the computed address.
-func DeployWithDeterministicDeployer(backend *backends.SimulatedBackend, contractName string) ([]byte, error) {
-	cid, err := backend.ChainID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	opts, err := bind.NewKeyedTransactorWithChainID(TestKey, cid)
-	if err != nil {
-		return nil, fmt.Errorf("NewKeyedTransactorWithChainID failed: %w", err)
-	}
-
-	deployerAddress, err := bindings.GetDeployerAddress(contractName)
-	if err != nil {
-		return nil, err
-	}
-
-	deploymentSalt, err := bindings.GetDeploymentSalt(contractName)
-	if err != nil {
-		return nil, err
-	}
-
-	initBytecode, err := bindings.GetInitBytecode(contractName)
-	if err != nil {
-		return nil, err
-	}
-
-	transactor, err := bindings.NewDeterministicDeploymentProxyTransactor(common.BytesToAddress(deployerAddress), backend)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize deployment proxy transactor at %s: %w", deployerAddress, err)
-	}
-
-	backend.Commit() // make sure at least one block is written or the below Fallback call can fail
-	tx, err := transactor.Fallback(opts, append(deploymentSalt, initBytecode...))
-	if err != nil {
-		return nil, fmt.Errorf("Fallback failed: %w", err)
-	}
-
-	receipt, err := WaitMined(context.Background(), backend, tx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get transaction receipt: %w", err)
-	}
-	if receipt.Status == 0 {
-		return nil, errors.New("failed to deploy contract using proxy deployer")
-	}
-
-	address := create2Address(
-		deployerAddress,
-		deploymentSalt,
-		initBytecode,
-	)
-
-	code, _ := backend.CodeAt(context.Background(), address, nil)
-	if len(code) == 0 {
-		return nil, fmt.Errorf("no code found for %s at: %s", contractName, address)
-	}
-
-	return code, nil
 }
 
 func u64ptr(n uint64) *uint64 {
