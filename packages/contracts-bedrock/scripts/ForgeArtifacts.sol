@@ -143,6 +143,14 @@ library ForgeArtifacts {
         slot_ = abi.decode(rawSlot, (StorageSlot));
     }
 
+    /// @notice Returns whether or not a contract is initialized.
+    ///         Needs the name to get the storage layout.
+    function isInitialized(string memory _name, address _address) internal returns (bool initialized_) {
+        StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(_name);
+        bytes32 slotVal = vm.load(_address, bytes32(vm.parseUint(slot.slot)));
+        initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF) != 0;
+    }
+
     /// @notice Returns the function ABIs of all L1 contracts.
     function getContractFunctionAbis(
         string memory path,
@@ -196,10 +204,7 @@ library ForgeArtifacts {
     /// @notice Accepts a filepath and then ensures that the directory
     ///         exists for the file to live in.
     function ensurePath(string memory _path) internal {
-        (, bytes memory returndata) =
-            address(vm).call(abi.encodeWithSignature("split(string,string)", _path, string("/")));
-        string[] memory outputs = abi.decode(returndata, (string[]));
-
+        string[] memory outputs = vm.split(_path, "/");
         string memory path = "";
         for (uint256 i = 0; i < outputs.length - 1; i++) {
             path = string.concat(path, outputs[i], "/");

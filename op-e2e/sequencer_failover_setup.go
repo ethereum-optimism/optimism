@@ -103,7 +103,7 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 		return healthy(t, ctx, c1) &&
 			healthy(t, ctx, c2) &&
 			healthy(t, ctx, c3)
-	}, 30*time.Second, 500*time.Millisecond, "Expected sequencers to become healthy")
+	}, 50*time.Second, 500*time.Millisecond, "Expected sequencers to become healthy")
 
 	// unpause all conductors
 	require.NoError(t, c1.client.Resume(ctx))

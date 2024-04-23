@@ -26,7 +26,6 @@ import (
 func TestMissingGasLimit(t *testing.T) {
 	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.FundDevAccounts = false
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	opGeth, err := NewOpGeth(t, ctx, &cfg)
@@ -72,17 +71,19 @@ func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 func TestInvalidDepositInFCU(t *testing.T) {
 	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.FundDevAccounts = false
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	opGeth, err := NewOpGeth(t, ctx, &cfg)
 	require.NoError(t, err)
 	defer opGeth.Close()
 
-	// Create a deposit from alice that will always fail (not enough funds)
-	fromAddr := cfg.Secrets.Addresses().Alice
+	// Create a deposit from a new account that will always fail (not enough funds)
+	fromKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	fromAddr := crypto.PubkeyToAddress(fromKey.PublicKey)
 	balance, err := opGeth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
+	t.Logf("alice balance: %d, %s", balance, fromAddr)
 	require.Equal(t, 0, balance.Cmp(common.Big0))
 
 	badDepositTx := types.NewTx(&types.DepositTx{
@@ -98,7 +99,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	_, err = opGeth.AddL2Block(ctx, badDepositTx)
 	require.NoError(t, err)
 
-	// Deposit tx was included, but Alice still shouldn't have any ETH
+	// Deposit tx was included, but our account still shouldn't have any ETH
 	balance, err = opGeth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 	require.Equal(t, 0, balance.Cmp(common.Big0))

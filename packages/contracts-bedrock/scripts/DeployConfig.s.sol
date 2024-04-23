@@ -35,8 +35,10 @@ contract DeployConfig is Script {
     address public proxyAdminOwner;
     address public baseFeeVaultRecipient;
     uint256 public baseFeeVaultMinimumWithdrawalAmount;
+    uint256 public baseFeeVaultWithdrawalNetwork;
     address public l1FeeVaultRecipient;
     uint256 public l1FeeVaultMinimumWithdrawalAmount;
+    uint256 public l1FeeVaultWithdrawalNetwork;
     address public sequencerFeeVaultRecipient;
     uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
     uint256 public sequencerFeeVaultWithdrawalNetwork;
@@ -44,7 +46,6 @@ contract DeployConfig is Script {
     string public governanceTokenSymbol;
     address public governanceTokenOwner;
     uint256 public l2GenesisBlockGasLimit;
-    uint256 public l2GenesisBlockBaseFeePerGas;
     uint256 public gasPriceOracleOverhead;
     uint256 public gasPriceOracleScalar;
     bool public enableGovernance;
@@ -98,12 +99,14 @@ contract DeployConfig is Script {
         l2OutputOracleProposer = stdJson.readAddress(_json, "$.l2OutputOracleProposer");
         l2OutputOracleChallenger = stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
         finalizationPeriodSeconds = stdJson.readUint(_json, "$.finalizationPeriodSeconds");
-        fundDevAccounts = stdJson.readBool(_json, "$.fundDevAccounts");
+        fundDevAccounts = _readOr(_json, "$.fundDevAccounts", false);
         proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
         baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
         baseFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.baseFeeVaultMinimumWithdrawalAmount");
+        baseFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.baseFeeVaultWithdrawalNetwork");
         l1FeeVaultRecipient = stdJson.readAddress(_json, "$.l1FeeVaultRecipient");
         l1FeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.l1FeeVaultMinimumWithdrawalAmount");
+        l1FeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.l1FeeVaultWithdrawalNetwork");
         sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
         sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
         sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
@@ -111,7 +114,6 @@ contract DeployConfig is Script {
         governanceTokenSymbol = stdJson.readString(_json, "$.governanceTokenSymbol");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
-        l2GenesisBlockBaseFeePerGas = stdJson.readUint(_json, "$.l2GenesisBlockBaseFeePerGas");
         gasPriceOracleOverhead = stdJson.readUint(_json, "$.gasPriceOracleOverhead");
         gasPriceOracleScalar = stdJson.readUint(_json, "$.gasPriceOracleScalar");
         enableGovernance = stdJson.readBool(_json, "$.enableGovernance");
@@ -121,10 +123,10 @@ contract DeployConfig is Script {
         requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
         recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
 
-        useFaultProofs = stdJson.readBool(_json, "$.useFaultProofs");
-        proofMaturityDelaySeconds = stdJson.readUint(_json, "$.proofMaturityDelaySeconds");
-        disputeGameFinalityDelaySeconds = stdJson.readUint(_json, "$.disputeGameFinalityDelaySeconds");
-        respectedGameType = stdJson.readUint(_json, "$.respectedGameType");
+        useFaultProofs = _readOr(_json, "$.useFaultProofs", false);
+        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", 0);
+        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", 0);
+        respectedGameType = _readOr(_json, "$.respectedGameType", 0);
 
         faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
         faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
