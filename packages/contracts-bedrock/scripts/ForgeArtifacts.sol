@@ -143,6 +143,14 @@ library ForgeArtifacts {
         slot_ = abi.decode(rawSlot, (StorageSlot));
     }
 
+    /// @notice Returns whether or not a contract is initialized.
+    ///         Needs the name to get the storage layout.
+    function isInitialized(string memory _name, address _address) internal returns (bool initialized_) {
+        StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(_name);
+        bytes32 slotVal = vm.load(_address, bytes32(vm.parseUint(slot.slot)));
+        initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF) != 0;
+    }
+
     /// @notice Returns the function ABIs of all L1 contracts.
     function getContractFunctionAbis(
         string memory path,

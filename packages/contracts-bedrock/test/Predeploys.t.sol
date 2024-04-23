@@ -2,8 +2,8 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { console2 as console } from "forge-std/console2.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title PredeploysTest
@@ -76,7 +76,6 @@ contract PredeploysTest is CommonTest {
         bytes memory proxyCode = vm.getDeployedCode("Proxy.sol:Proxy");
 
         for (uint256 i = 0; i < count; i++) {
-            console.log("asserting predeploy %d", i);
             address addr = address(prefix | uint160(i));
             bytes memory code = addr.code;
             assertTrue(code.length > 0);
@@ -85,7 +84,6 @@ contract PredeploysTest is CommonTest {
 
             if (_isOmitted(addr)) {
                 assertEq(implAddr.code.length, 0, "must have no code");
-                console.log("predeploy %d is intentionally not in genesis", i);
                 continue;
             }
             bool isPredeploy = _isPredeploy(addr);
@@ -100,21 +98,16 @@ contract PredeploysTest is CommonTest {
             string memory cname = Predeploys.getName(addr);
             assertNotEq(cname, "", "must have a name");
 
-            console.log("finding supposed code");
             bytes memory supposedCode = vm.getDeployedCode(string.concat(cname, ".sol:", cname));
             assertNotEq(supposedCode.length, 0, "must have supposed code");
 
             if (proxied == false) {
+                // can't check bytecode if it's modified with immutables in genesis.
                 if (!_usesImmutables(addr)) {
-                    // can't check bytecode if it's modified with immutables in genesis.
                     assertEq(code, supposedCode, "non-proxy contract should be deployed in-place");
                 }
-                console.log("predeploy %d is not a proxy", i);
-                // TODO: should we still test the "initialized" slot?
                 continue;
             }
-
-            console.log("checking proxy properties of active predeploy");
 
             // The code is a proxy
             assertEq(code, proxyCode);
@@ -131,17 +124,7 @@ contract PredeploysTest is CommonTest {
             }
 
             if (_isInitializable(addr)) {
-                console.log("loading initialized slot of %s", cname);
-                uint8 initializedSlot = l2Genesis.loadInitializedSlot(cname);
-                bytes32 implInitialized = vm.load(implAddr, bytes32(uint256(initializedSlot)));
-                bytes32 proxyInitialized = vm.load(addr, bytes32(uint256(initializedSlot)));
-                console.log("loaded initialized slot of %s: slot=%s, impl=%s, proxy=%s", cname, initializedSlot);
-                console.log("slot values: impl=%s, proxy=%s", uint256(implInitialized), uint256(proxyInitialized));
-                // TODO: should we be asserting a global initialized value as constant? Or can they differ?
-                // Storage packing causes some edge cases in this assertion
-                //                assertNotEq(bytes32(0), implInitialized, "implementation must be initialized, even
-                // though behind a proxy");
-                //                assertNotEq(bytes32(0), proxyInitialized , "proxy must be initialized");
+                assertEq(l2Genesis.loadInitializedSlot(cname), uint8(1));
             }
         }
     }
