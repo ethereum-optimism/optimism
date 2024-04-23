@@ -71,6 +71,26 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @custom:network-specific
     SystemConfig public systemConfig;
 
+    /// @custom:spacer disputeGameFactory
+    /// @notice Spacer for backwards compatibility.
+    address private spacer_56_0_20;
+
+    /// @custom:spacer provenWithdrawals
+    /// @notice Spacer for backwards compatibility.
+    bytes32 private spacer_57_0_32;
+
+    /// @custom:spacer disputeGameBlacklist
+    /// @notice Spacer for backwards compatibility.
+    bytes32 private spacer_58_0_32;
+
+    /// @custom:spacer respectedGameType + respectedGameTypeUpdatedAt
+    /// @notice Spacer for backwards compatibility.
+    bytes32 private spacer_59_0_32;
+
+    /// @custom:spacer proofSubmitters
+    /// @notice Spacer for backwards compatibility.
+    bytes32 private spacer_60_0_32;
+
     /// @notice The total amount of gas paying asset in the L2. Incremented on deposits and
     ///         decremented on withdrawals. Mey be larger than the amount of gas paying asset
     ///         for L2s that use ether to buy gas.
@@ -103,8 +123,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.6.0-beta+custom-gas-token
-    string public constant version = "2.6.0-beta+custom-gas-token";
+    /// @custom:semver 2.7.0-beta+custom-gas-token
+    string public constant version = "2.7.0-beta+custom-gas-token";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
