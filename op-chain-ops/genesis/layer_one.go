@@ -98,12 +98,17 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 	return memDB.Genesis(), nil
 }
 
+// CreateAccountNotExists creates the account in the `vm.StateDB` if it doesn't exist.
+func CreateAccountNotExists(db vm.StateDB, account common.Address) {
+	if !db.Exist(account) {
+		db.CreateAccount(account)
+	}
+}
+
 // FundDevAccounts will fund each of the development accounts.
 func FundDevAccounts(db vm.StateDB) {
 	for _, account := range DevAccounts {
-		if !db.Exist(account) {
-			db.CreateAccount(account)
-		}
+		CreateAccountNotExists(db, account)
 		db.AddBalance(account, uint256.MustFromBig(devBalance))
 	}
 }
@@ -113,7 +118,7 @@ func FundDevAccounts(db vm.StateDB) {
 func SetPrecompileBalances(db vm.StateDB) {
 	for i := 0; i < PrecompileCount; i++ {
 		addr := common.BytesToAddress([]byte{byte(i)})
-		db.CreateAccount(addr)
+		CreateAccountNotExists(db, addr)
 		db.AddBalance(addr, uint256.NewInt(1))
 	}
 }
