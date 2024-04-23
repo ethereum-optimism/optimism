@@ -94,7 +94,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 	fmt.Printf(lineFormat, "Idx", "Game", "Type", "Created (Local)", "L2 Block", "Output Root", "Claims", "Status")
 	for idx, game := range infos {
 		if game.err != nil {
-			return err
+			return game.err
 		}
 		created := time.Unix(int64(game.Timestamp), 0).Format(time.DateTime)
 		fmt.Printf(lineFormat,
