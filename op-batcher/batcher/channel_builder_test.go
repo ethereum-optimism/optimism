@@ -536,10 +536,6 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	require.ErrorIs(t, cb.FullErr(), ErrMaxFrameIndex)
 }
 
-func init() {
-	derive.SkipOptimize = true
-}
-
 // TestChannelBuilder_FullShadowCompressor is a regression test testing that
 // the shadow compressor is correctly marked as full if adding another block
 // would produce a leftover frame.
