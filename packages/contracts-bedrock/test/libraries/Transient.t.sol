@@ -40,8 +40,8 @@ contract NonReentrant {
 /// @title Reentrant
 /// @notice This contract uses the Base contract to set a transient value and call a function that reads it.
 contract Reentrant {
-    /// @notice Value to set in msg.sender.
-    uint256 public constant REENTRANCY_VALUE = 1;
+    /// @notice Value to set in msg.sender by reentrant function.
+    uint256 public reentrancy_value;
 
     /// @notice Transient variable.
     uint256 public tVariable;
@@ -49,13 +49,18 @@ contract Reentrant {
     /// @notice Set the transient variable and call a function that reads it.
     function reentrant() public {
         Base(msg.sender).setTransientValue(
-            REENTRANCY_VALUE, address(this), abi.encodeWithSelector(this.getTVariable.selector)
+            reentrancy_value, address(this), abi.encodeWithSelector(this.getTVariable.selector)
         );
     }
 
     /// @notice Get the transient variable.
     function getTVariable() public {
         tVariable = Base(msg.sender).getTransientValue();
+    }
+
+    /// @notice Sets reentrancy value.
+    function setReentrancyValue(uint256 _value) public {
+        reentrancy_value = _value;
     }
 }
 
@@ -81,19 +86,29 @@ contract TransientTest is Test {
     /// @notice Test setting a transient variable in a non-reentrant function.
     /// @param _value Value to set.
     function testFuzz_transient_nonReentrant_succeeds(uint256 _value) public {
+        // Set the transient value in the base contract.
         base.setTransientValue(_value, address(nonReentrant), abi.encodeCall(NonReentrant.setTVariable, ()));
 
+        // Ensure the transient value is set in the non-reentrant contract.
         assertEq(_value, nonReentrant.tVariable());
     }
 
     /// @notice Test setting a transient variable in a reentrant function fails.
     /// @param _value Value to fail to set.
-    function test_transient_reentrant_fails(uint256 _value) public {
+    function test_transient_reentrant_fails(uint256 _value, uint256 _reentrancyValue) public {
         // Ensure the value is not the reentrancy value, otherwise the values will match.
-        vm.assume(_value != reentrant.REENTRANCY_VALUE());
+        vm.assume(_value != _reentrancyValue);
 
+        // Set the reentrancy value in the reentrant contract.
+        reentrant.setReentrancyValue(_reentrancyValue);
+
+        // Set the transient value in the base contract and call the reentrant function in the reentrant contract.
         base.setTransientValue(_value, address(reentrant), abi.encodeWithSelector(Reentrant.reentrant.selector));
 
+        // Ensure the reentrancy value is set in the reentrant contract.
+        assertEq(_reentrancyValue, reentrant.tVariable());
+
+        // Ensure the transient value is not set in the reentrant contract.
         assertNotEq(_value, reentrant.tVariable());
     }
 }
