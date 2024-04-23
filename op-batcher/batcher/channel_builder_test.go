@@ -287,6 +287,7 @@ func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 }
 
 func TestChannelBuilderBatchType(t *testing.T) {
+	// hello
 	tests := []struct {
 		name string
 		f    func(t *testing.T, batchType uint)
