@@ -229,37 +229,10 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(l2CrossDomainMessenger.failedMessages(hash), true);
     }
 
-    /// @dev Tests that gasPayingToken returns the correct values for ETH.
-    function test_gasPayingToken_ether_succeeds() external view {
-        (address token, uint8 decimals) = l2CrossDomainMessenger.gasPayingToken();
-        assertEq(token, address(Constants.ETHER));
-        assertEq(decimals, 18);
-    }
-
-    /// @dev Tests that gasPayingToken returns the correct values for non-ETH tokens.
-    function test_gasPayingToken_nonEther_succeeds() external {
-        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        (address token, uint8 decimals) = l2CrossDomainMessenger.gasPayingToken();
-        assertEq(token, address(1));
-        assertEq(decimals, 2);
-    }
-
-    /// @dev Tests that isCustomGasToken returns the correct value for ETH as the gas token.
-    function test_isCustomGasToken_ether_succeeds() external view {
-        assertFalse(l2CrossDomainMessenger.isCustomGasToken());
-    }
-
-    /// @dev Tests that isCustomGasToken returns the correct value for non-ETH as the gas token.
-    function test_isCustomGasToken_nonEther_succeeds() external {
-        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        assertTrue(l2CrossDomainMessenger.isCustomGasToken());
-    }
-
     /// @dev Tests that sendMessage succeeds with a custom gas token when the call value is zero.
     function test_sendMessage_customGasToken_noValue_succeeds() external {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        assertTrue(l2CrossDomainMessenger.isCustomGasToken());
 
         bytes memory xDomainCallData =
             Encoding.encodeCrossDomainMessage(l2CrossDomainMessenger.messageNonce(), alice, recipient, 0, 100, hex"ff");
@@ -302,7 +275,6 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     function test_sendMessage_customGasToken_withValue_reverts() external {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        assertTrue(l2CrossDomainMessenger.isCustomGasToken());
 
         vm.expectRevert("CrossDomainMessenger: cannot send value with custom gas token");
         l2CrossDomainMessenger.sendMessage{ value: 1 }(recipient, hex"ff", uint32(100));
@@ -312,7 +284,6 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     function test_relayMessage_customGasToken_noValue_succeeds() external {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        assertTrue(l2CrossDomainMessenger.isCustomGasToken());
 
         address target = address(0xabcd);
         address sender = address(l1CrossDomainMessenger);
@@ -349,7 +320,6 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     function test_relayMessage_customGasToken_withValue_reverts() external virtual {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        assertTrue(l2CrossDomainMessenger.isCustomGasToken());
         vm.expectRevert("CrossDomainMessenger: value must be zero unless message is from a system address");
 
         l2CrossDomainMessenger.relayMessage{ value: 1 }(

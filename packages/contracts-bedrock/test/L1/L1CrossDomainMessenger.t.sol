@@ -621,43 +621,12 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
     }
 
-    /// @dev Tests that gasPayingToken returns the correct values for ETH.
-    function test_gasPayingToken_ether_succeeds() external view {
-        (address token, uint8 decimals) = l1CrossDomainMessenger.gasPayingToken();
-        assertEq(token, address(Constants.ETHER));
-        assertEq(decimals, 18);
-    }
-
-    /// @dev Tests that gasPayingToken returns the correct values for non-ETH tokens.
-    function test_gasPayingToken_nonEther_succeeds() external {
-        vm.mockCall(
-            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
-        );
-        (address token, uint8 decimals) = l1CrossDomainMessenger.gasPayingToken();
-        assertEq(token, address(1));
-        assertEq(decimals, 2);
-    }
-
-    /// @dev Tests that isCustomGasToken returns the correct value for ETH as the gas token.
-    function test_isCustomGasToken_ether_succeeds() external view {
-        assertFalse(l1CrossDomainMessenger.isCustomGasToken());
-    }
-
-    /// @dev Tests that isCustomGasToken returns the correct value for non-ETH as the gas token.
-    function test_isCustomGasToken_nonEther_succeeds() external {
-        vm.mockCall(
-            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
-        );
-        assertTrue(l1CrossDomainMessenger.isCustomGasToken());
-    }
-
     /// @dev Tests that sendMessage succeeds with a custom gas token when the call value is zero.
     function test_sendMessage_customGasToken_noValue_succeeds() external {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
-        assertTrue(l1CrossDomainMessenger.isCustomGasToken());
 
         // deposit transaction on the optimism portal should be called
         vm.expectCall(
@@ -704,7 +673,6 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.mockCall(
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
-        assertTrue(l1CrossDomainMessenger.isCustomGasToken());
 
         vm.expectRevert("CrossDomainMessenger: cannot send value with custom gas token");
         l1CrossDomainMessenger.sendMessage{ value: 1 }(recipient, hex"aa", uint32(500_000));
@@ -716,7 +684,6 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.mockCall(
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
-        assertTrue(l1CrossDomainMessenger.isCustomGasToken());
 
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -757,7 +724,6 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.mockCall(
             address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
         );
-        assertTrue(l1CrossDomainMessenger.isCustomGasToken());
         vm.expectRevert("CrossDomainMessenger: value must be zero unless message is from a system address");
 
         l1CrossDomainMessenger.relayMessage{ value: 1 }(

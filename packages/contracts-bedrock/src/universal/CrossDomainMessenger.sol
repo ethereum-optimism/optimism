@@ -6,7 +6,6 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { IGasToken } from "src/libraries/GasPayingToken.sol";
 
 /// @custom:legacy
 /// @title CrossDomainMessengerLegacySpacer0
@@ -88,8 +87,7 @@ contract CrossDomainMessengerLegacySpacer1 {
 abstract contract CrossDomainMessenger is
     CrossDomainMessengerLegacySpacer0,
     Initializable,
-    CrossDomainMessengerLegacySpacer1,
-    IGasToken
+    CrossDomainMessengerLegacySpacer1
 {
     /// @notice Current message version identifier.
     uint16 public constant MESSAGE_VERSION = 1;
@@ -364,18 +362,11 @@ abstract contract CrossDomainMessenger is
         + RELAY_GAS_CHECK_BUFFER;
     }
 
-    /// @inheritdoc IGasToken
-    /// @notice Must be implemented by the contracts that inherit it.
-    function gasPayingToken() public view virtual returns (address, uint8);
+    /// @notice Returns the address of the custom gas token and the token's decimals.
+    function gasPayingToken() internal view virtual returns (address, uint8);
 
-    /// @inheritdoc IGasToken
-    function gasPayingTokenName() public view virtual returns (string memory);
-
-    /// @inheritdoc IGasToken
-    function gasPayingTokenSymbol() public view virtual returns (string memory);
-
-    /// @inheritdoc IGasToken
-    function isCustomGasToken() public view returns (bool) {
+    /// @notice Returns whether the chain uses a custom gas token or not.
+    function isCustomGasToken() internal view returns (bool) {
         (address token,) = gasPayingToken();
         return token != Constants.ETHER;
     }

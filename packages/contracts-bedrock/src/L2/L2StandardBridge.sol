@@ -77,18 +77,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
     }
 
     /// @inheritdoc StandardBridge
-    function gasPayingToken() public view override returns (address addr_, uint8 decimals_) {
+    function gasPayingToken() internal view override returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
-    }
-
-    /// @inheritdoc StandardBridge
-    function gasPayingTokenName() public view override returns (string memory name_) {
-        name_ = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
-    }
-
-    /// @inheritdoc StandardBridge
-    function gasPayingTokenSymbol() public view override returns (string memory symbol_) {
-        symbol_ = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
     }
 
     /// @custom:legacy

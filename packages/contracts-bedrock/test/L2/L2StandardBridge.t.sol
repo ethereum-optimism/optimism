@@ -200,32 +200,6 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 100);
     }
-
-    /// @dev Tests that the `isCustomGasToken` function returns the correct value when the gas token is ether.
-    function test_isCustomGasToken_ether_succeeds() external view {
-        assertFalse(l2StandardBridge.isCustomGasToken());
-    }
-
-    /// @dev Tests that the `isCustomGasToken` function returns the correct value when the gas token is not ether.
-    function test_isCustomGasToken_nonEther_succeeds() external {
-        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        assertTrue(l2StandardBridge.isCustomGasToken());
-    }
-
-    /// @dev Tests that gasPayingToken returns the correct values for ETH.
-    function test_gasPayingToken_ether_succeeds() external view {
-        (address token, uint8 decimals) = l2StandardBridge.gasPayingToken();
-        assertEq(token, Constants.ETHER);
-        assertEq(decimals, 18);
-    }
-
-    /// @dev Tests that gasPayingToken returns the correct values for non-ETH tokens.
-    function test_gasPayingToken_nonEther_succeeds() external {
-        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        (address token, uint8 decimals) = l2StandardBridge.gasPayingToken();
-        assertEq(token, address(1));
-        assertEq(decimals, 2);
-    }
 }
 
 contract PreBridgeERC20 is Bridge_Initializer {
