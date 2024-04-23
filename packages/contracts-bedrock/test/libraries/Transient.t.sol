@@ -5,7 +5,7 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 
 // Target contract
-import { Transient } from "src/libraries/Transient.sol";
+import { TransientContext } from "src/libraries/TransientContext.sol";
 
 /// @title Base
 /// @notice This contract uses the Transient library to set and get transient values.
@@ -15,13 +15,13 @@ contract Base {
     /// @param _target  Target contract to call.
     /// @param _payload Payload to call target with.
     function setTransientValue(uint256 _value, address _target, bytes memory _payload) public {
-        Transient.setTransientValue(_value, _target, _payload);
+        TransientContext.setTransientValue(_value, _target, _payload);
     }
 
     /// @notice Get value in transient context.
     /// @return _value Transient value.
     function getTransientValue() public view returns (uint256 _value) {
-        return Transient.getTransientValue();
+        return TransientContext.getTransientValue();
     }
 }
 
