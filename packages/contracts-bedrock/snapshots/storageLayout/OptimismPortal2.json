@@ -117,5 +117,12 @@
     "offset": 0,
     "slot": "60",
     "type": "mapping(bytes32 => address[])"
+  },
+  {
+    "bytes": "32",
+    "label": "spacer_61_0_32",
+    "offset": 0,
+    "slot": "61",
+    "type": "bytes32"
   }
 ]
