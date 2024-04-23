@@ -21,9 +21,9 @@ library TransientContext {
     /// @return _value Transient value.
     function get(bytes32 _slot) internal view returns (uint256 _value) {
         assembly {
-            mstore(0x00, tload(CALL_DEPTH_SLOT))
-            mstore(0x20, _slot)
-            _value := tload(keccak256(0x00, 64))
+            mstore(0, tload(CALL_DEPTH_SLOT))
+            mstore(32, _slot)
+            _value := tload(keccak256(0, 64))
         }
     }
 
@@ -32,9 +32,9 @@ library TransientContext {
     /// @param _value   Value to set.
     function set(bytes32 _slot, uint256 _value) internal {
         assembly {
-            mstore(0x00, tload(CALL_DEPTH_SLOT))
-            mstore(0x20, _slot)
-            tstore(keccak256(0x00, 64), _value)
+            mstore(0, tload(CALL_DEPTH_SLOT))
+            mstore(32, _slot)
+            tstore(keccak256(0, 64), _value)
         }
     }
 
