@@ -23,6 +23,9 @@ parameters:
   fault_proofs_dispatch:
     type: boolean
     default: false
+  reproducibility_dispatch:
+    type: boolean
+    default: false
   kontrol_dispatch:
     type: boolean
     default: false
@@ -1142,6 +1145,50 @@ jobs:
             - "op-program/bin/prestate.json"
             - "op-program/bin/meta.json"
             - "op-program/bin/prestate-proof.json"
+
+  preimage-reproducibility:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    parameters:
+      version:
+        type: string
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Switch to tag
+          command: |
+            git fetch
+            git checkout "op-program/v<<parameters.version>>"
+            git submodule update --init --recursive
+      - run:
+          name: Set expected prestate hashes
+          command: |
+            if [[ "<<parameters.version>>" == "0.1.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x038942ec840131a63c49fa514a3f0577ae401fd5584d56ad50cdf5a8b41d4538"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "0.2.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808"' >> $BASH_ENV
+            else
+              echo "Unknown prestate version <<parameters.version>>"
+              exit 1
+            fi
+      - run:
+          name: Build prestate
+          command: make reproducible-prestate
+      - run:
+          name: Verify prestate
+          command: |
+            ACTUAL=$(jq -r .pre ./op-program/bin/prestate-proof.json)
+            echo "Expected: ${EXPECTED_PRESTATE_HASH}"
+            echo "Actual:   ${ACTUAL}"
+            if [[ "${EXPECTED_PRESTATE_HASH}" != "${ACTUAL}" ]]
+            then
+              echo "Prestate did not match expected"
+              exit 1
+            fi
+      - notify-failures-on-develop:
+          mentions: "@proofs-squad"
+
 
   devnet-allocs:
     docker:
@@ -2324,3 +2371,17 @@ workflows:
           context:
             - slack
             - oplabs-etherscan
+
+  scheduled-preimage-reproducibility:
+    when:
+      or:
+        - equal: [build_daily, <<pipeline.schedule.name>> ]
+        # Trigger on manual triggers if explicitly requested
+        - equal: [ true, << pipeline.parameters.reproducibility_dispatch >> ]
+    jobs:
+      - preimage-reproducibility:
+          matrix:
+            parameters:
+              version: ["0.1.0", "0.2.0"]
+          context:
+            slack
