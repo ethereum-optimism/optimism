@@ -62,8 +62,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.17.0
-    string public constant version = "0.17.0";
+    /// @custom:semver 0.18.0
+    string public constant version = "0.18.0";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -89,8 +89,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice A mapping of subgames rooted at a claim index to other claim indices in the subgame.
     mapping(uint256 => uint256[]) public subgames;
 
-    /// @notice An interneal mapping of resolved subgames rooted at a claim index.
+    /// @notice A mapping of resolved subgames rooted at a claim index.
     mapping(uint256 => bool) public resolvedSubgames;
+
+    /// @notice A mapping of claim indices to resolution checkpoints.
+    mapping(uint256 => ResolutionCheckpoint) public resolutionCheckpoints;
 
     /// @notice The latest finalized output root, serving as the anchor for output bisection.
     OutputRoot public startingOutputRoot;
@@ -437,6 +440,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
+    function getNumToResolve(uint256 _claimIndex) public view returns (uint256 numRemainingChildren_) {
+        ResolutionCheckpoint storage checkpoint = resolutionCheckpoints[_claimIndex];
+        uint256[] storage challengeIndices = subgames[_claimIndex];
+        uint256 challengeIndicesLen = challengeIndices.length;
+
+        numRemainingChildren_ = challengeIndicesLen - checkpoint.subgameIndex;
+    }
+
+    /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
         l2BlockNumber_ = _getArgUint256(0x54);
     }
@@ -475,7 +487,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function resolveClaim(uint256 _claimIndex) external {
+    function resolveClaim(uint256 _claimIndex, uint256 _numToResolve) external {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -507,10 +519,22 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             return;
         }
 
+        // Fetch the resolution checkpoint from storage.
+        ResolutionCheckpoint memory checkpoint = resolutionCheckpoints[_claimIndex];
+
+        // If the checkpoint does not currently exist, initialize the current left most position as max u128.
+        if (!checkpoint.initialCheckpointComplete) {
+            checkpoint.leftmostPosition = Position.wrap(type(uint128).max);
+            checkpoint.initialCheckpointComplete = true;
+
+            // If `_numToResolve == 0`, assume that we can check all child subgames in this one callframe.
+            if (_numToResolve == 0) _numToResolve = challengeIndicesLen;
+        }
+
         // Assume parent is honest until proven otherwise
-        address countered = address(0);
-        Position leftmostCounter = Position.wrap(type(uint128).max);
-        for (uint256 i = 0; i < challengeIndicesLen; ++i) {
+        uint256 lastToResolve = checkpoint.subgameIndex + _numToResolve;
+        uint256 finalCursor = lastToResolve > challengeIndicesLen ? challengeIndicesLen : lastToResolve;
+        for (uint256 i = checkpoint.subgameIndex; i < finalCursor; i++) {
             uint256 challengeIndex = challengeIndices[i];
 
             // INVARIANT: Cannot resolve a subgame containing an unresolved claim
@@ -524,22 +548,35 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // from countering invalid subgame roots via an invalid defense position. As such positions
             // cannot be correctly countered.
             // Note that correctly positioned defense, but invalid claimes can still be successfully countered.
-            if (claim.counteredBy == address(0) && leftmostCounter.raw() > claim.position.raw()) {
-                countered = claim.claimant;
-                leftmostCounter = claim.position;
+            if (claim.counteredBy == address(0) && checkpoint.leftmostPosition.raw() > claim.position.raw()) {
+                checkpoint.counteredBy = claim.claimant;
+                checkpoint.leftmostPosition = claim.position;
             }
         }
 
-        // If the parent was not successfully countered, pay out the parent's bond to the claimant.
-        // If the parent was successfully countered, pay out the parent's bond to the challenger.
-        _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
+        // Increase the checkpoint's cursor position by the number of children that were checked.
+        checkpoint.subgameIndex = uint32(finalCursor);
 
-        // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
-        // resolveClaim will not need to traverse this subgame.
-        subgameRootClaim.counteredBy = countered;
+        // Persist the checkpoint and allow for continuing in a separate transaction, if resolution is not already
+        // complete.
+        resolutionCheckpoints[_claimIndex] = checkpoint;
 
-        // Mark the subgame as resolved.
-        resolvedSubgames[_claimIndex] = true;
+        // If all children have been traversed in the above loop, the subgame may be resolved. Otherwise, persist the
+        // checkpoint and allow for continuation in a separate transaction.
+        if (checkpoint.subgameIndex == challengeIndicesLen) {
+            address countered = checkpoint.counteredBy;
+
+            // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
+            // resolveClaim will not need to traverse this subgame.
+            subgameRootClaim.counteredBy = countered;
+
+            // Mark the subgame as resolved.
+            resolvedSubgames[_claimIndex] = true;
+
+            // If the parent was not successfully countered, pay out the parent's bond to the claimant.
+            // If the parent was successfully countered, pay out the parent's bond to the challenger.
+            _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
+        }
     }
 
     /// @inheritdoc IDisputeGame

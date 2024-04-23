@@ -63,10 +63,17 @@
     "type": "mapping(uint256 => bool)"
   },
   {
+    "bytes": "32",
+    "label": "resolutionCheckpoints",
+    "offset": 0,
+    "slot": "6",
+    "type": "mapping(uint256 => struct IFaultDisputeGame.ResolutionCheckpoint)"
+  },
+  {
     "bytes": "64",
     "label": "startingOutputRoot",
     "offset": 0,
-    "slot": "6",
+    "slot": "7",
     "type": "struct OutputRoot"
   }
 ]

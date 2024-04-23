@@ -18,6 +18,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// The maximum number of children that will be processed during a call to `resolveClaim`
+var maxChildChecks = big.NewInt(512)
+
 var (
 	methodMaxClockDuration    = "maxClockDuration"
 	methodMaxGameDepth        = "maxGameDepth"
@@ -408,7 +411,7 @@ func (f *FaultDisputeGameContract) ResolveClaimTx(claimIdx uint64) (txmgr.TxCand
 }
 
 func (f *FaultDisputeGameContract) resolveClaimCall(claimIdx uint64) *batching.ContractCall {
-	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx))
+	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx), maxChildChecks)
 }
 
 func (f *FaultDisputeGameContract) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {

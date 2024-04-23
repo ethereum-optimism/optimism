@@ -36,7 +36,7 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
         (,,, uint256 rootBond,,,) = gameProxy.claimData(0);
 
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
-            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
+            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1, 0)));
             assertTrue(success);
         }
         gameProxy.resolve();
