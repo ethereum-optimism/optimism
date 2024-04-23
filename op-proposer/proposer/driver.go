@@ -415,11 +415,36 @@ func (l *L2OutputSubmitter) loop() {
 	defer l.wg.Done()
 	ctx := l.ctx
 
+	if l.Cfg.WaitNodeSync {
+		err := l.waitNodeSync()
+		if err != nil {
+			l.Log.Error("Error waiting for node sync", "err", err)
+			return
+		}
+	}
+
 	if l.dgfContract == nil {
 		l.loopL2OO(ctx)
 	} else {
 		l.loopDGF(ctx)
 	}
+}
+
+func (l *L2OutputSubmitter) waitNodeSync() error {
+	ctx, cancel := context.WithTimeout(l.ctx, l.Cfg.NetworkTimeout)
+	defer cancel()
+
+	l1head, err := l.Txmgr.BlockNumber(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve current L1 block number: %w", err)
+	}
+
+	rollupClient, err := l.RollupProvider.RollupClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get rollup client: %w", err)
+	}
+
+	return dial.WaitRollupSync(l.ctx, l.Log, rollupClient, l1head, time.Second*12)
 }
 
 func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
