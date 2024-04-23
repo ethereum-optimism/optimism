@@ -11,14 +11,13 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { IGasToken } from "src/libraries/GasPayingToken.sol";
 
 /// @custom:upgradeable
 /// @title StandardBridge
 /// @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges. It handles
 ///         the core bridging logic, including escrowing tokens that are native to the local chain
 ///         and minting/burning tokens that are native to the remote chain.
-abstract contract StandardBridge is Initializable, IGasToken {
+abstract contract StandardBridge is Initializable {
     using SafeERC20 for IERC20;
 
     /// @notice The L2 gas limit set when eth is depoisited using the receive() function.
@@ -131,18 +130,11 @@ abstract contract StandardBridge is Initializable, IGasToken {
     ///         Must be implemented by contracts that inherit.
     receive() external payable virtual;
 
-    /// @inheritdoc IGasToken
-    function gasPayingToken() public view virtual returns (address, uint8);
+    /// @notice Returns the address of the custom gas token and the token's decimals.
+    function gasPayingToken() internal view virtual returns (address, uint8);
 
-    /// @inheritdoc IGasToken
-    function gasPayingTokenName() public view virtual returns (string memory);
-
-    /// @inheritdoc IGasToken
-    function gasPayingTokenSymbol() public view virtual returns (string memory);
-
-    /// @notice Getter for custom gas token paying networks. Returns true if the
-    ///         network uses a custom gas token.
-    function isCustomGasToken() public view returns (bool) {
+    /// @notice Returns whether the chain uses a custom gas token or not.
+    function isCustomGasToken() internal view returns (bool) {
         (address token,) = gasPayingToken();
         return token != Constants.ETHER;
     }

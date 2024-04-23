@@ -30,40 +30,6 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
         assert(l1StandardBridge.MESSENGER() == l1CrossDomainMessenger);
         assert(l1StandardBridge.superchainConfig() == superchainConfig);
         assert(l1StandardBridge.systemConfig() == systemConfig);
-        (address token, uint8 decimals) = l1StandardBridge.gasPayingToken();
-        (address expectedToken, uint8 expectedDecimals) = systemConfig.gasPayingToken();
-        assert(token == expectedToken);
-        assert(decimals == expectedDecimals);
-    }
-
-    /// @dev Tests that the `isCustomGasToken` function returns the correct value when the gas token is ether.
-    function test_isCustomGasToken_ether_succeeds() external view {
-        assertFalse(l1StandardBridge.isCustomGasToken());
-    }
-
-    /// @dev Tests that the `isCustomGasToken` function returns the correct value when the gas token is not ether.
-    function test_isCustomGasToken_nonEther_succeeds() external {
-        vm.mockCall(
-            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
-        );
-        assertTrue(l1StandardBridge.isCustomGasToken());
-    }
-
-    /// @dev Tests that gasPayingToken returns the correct values for ETH.
-    function test_gasPayingToken_ether_succeeds() external view {
-        (address token, uint8 decimals) = l1StandardBridge.gasPayingToken();
-        assertEq(token, Constants.ETHER);
-        assertEq(decimals, 18);
-    }
-
-    /// @dev Tests that gasPayingToken returns the correct values for non-ETH tokens.
-    function test_gasPayingToken_nonEther_succeeds() external {
-        vm.mockCall(
-            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
-        );
-        (address token, uint8 decimals) = l1StandardBridge.gasPayingToken();
-        assertEq(token, address(1));
-        assertEq(decimals, 2);
     }
 }
 
@@ -91,10 +57,6 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
         assertEq(address(l1StandardBridge.otherBridge()), Predeploys.L2_STANDARD_BRIDGE);
         assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
         assertEq(address(l1StandardBridge.systemConfig()), address(systemConfig));
-        (address token, uint8 decimals) = l1StandardBridge.gasPayingToken();
-        (address expectedToken, uint8 expectedDecimals) = systemConfig.gasPayingToken();
-        assertEq(token, expectedToken);
-        assertEq(decimals, expectedDecimals);
     }
 }
 
