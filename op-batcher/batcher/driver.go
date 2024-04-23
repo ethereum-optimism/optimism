@@ -355,11 +355,11 @@ func (l *BatchSubmitter) waitNodeSync() error {
 		l.Log.Info("Checking for recently submitted batcher transactions on L1")
 		recentBlock, found, err := eth.CheckRecentTxs(ctx, l.L1Client, l.Config.CheckRecentTxsDepth, l.Txmgr.From())
 		if err != nil {
-			return fmt.Errorf("failed when checking recent batcher txs: %w", err)
+			return fmt.Errorf("failed checking recent batcher txs: %w", err)
 		}
-		if found {
-			l1TargetBlock = recentBlock
-		}
+		l.Log.Info("Checked for recently submitted batcher transactions on L1",
+			"l1_head", l1Tip, "l1_recent", recentBlock, "found", found)
+		l1TargetBlock = recentBlock
 	}
 
 	return dial.WaitRollupSync(l.shutdownCtx, l.Log, rollupClient, l1TargetBlock, time.Second*12)
