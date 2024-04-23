@@ -38,6 +38,16 @@ contract TransientContextTest is Test {
         assertEq(TransientContext.callDepth(), _startingCallDepth + 2);
     }
 
+    function testFuzz_increment_fromMax_reverts() public {
+        uint256 _startingCallDepth = type(uint256).max;
+        assembly {
+            tstore(CALL_DEPTH_SLOT, _startingCallDepth)
+        }
+        assertEq(TransientContext.callDepth(), _startingCallDepth);
+
+        TransientContext.increment();
+    }
+
     function testFuzz_decrement_succeeds(uint256 _startingCallDepth) public {
         vm.assume(_startingCallDepth > 0);
         assembly {
