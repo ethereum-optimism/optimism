@@ -520,8 +520,6 @@ func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uin
 	copy(b.lastL1OriginCheck[:], b.L1OriginCheck[:])
 	copy(b.L1OriginCheck[:], singularBatch.EpochHash.Bytes()[:20])
 
-	// it's easy to tend to only update lastParentCheck when ParentCheck is updated,
-	// but it's wrong because if done that way, lastParentCheck will always be empty.
 	copy(b.lastParentCheck[:], b.ParentCheck[:])
 	// if there is only one batch, initialize the ParentCheck
 	// and set the epochBit based on the seqNum
@@ -553,6 +551,8 @@ func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uin
 	return b.sbtxs.AddTxs(newTxs, b.ChainID)
 }
 
+// revertLastBatch can only revert the changes by the latest AppendSingularBatch call,
+// it can not revert changes by previous AppendSingularBatch calls.
 func (b *SpanBatch) revertLastBatch() {
 	if len(b.Batches) == 0 {
 		panic("revertLastBatch should only be called when there's at least 1 batch")
@@ -577,7 +577,7 @@ func (b *SpanBatch) revertLastBatch() {
 	b.blockTxCounts = b.blockTxCounts[0 : len(b.blockTxCounts)-1]
 
 	// revert sbtxs
-	b.sbtxs.revertLastBatch(reverted.Transactions)
+	b.sbtxs.revertLastTxs(reverted.Transactions)
 }
 
 // ToRawSpanBatch merges SingularBatch List and initialize single RawSpanBatch

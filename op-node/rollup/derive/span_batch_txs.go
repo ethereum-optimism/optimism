@@ -469,7 +469,7 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 	return nil
 }
 
-func (sbtx *spanBatchTxs) revertLastBatch(txs []hexutil.Bytes) {
+func (sbtx *spanBatchTxs) revertLastTxs(txs []hexutil.Bytes) {
 	totalBlockTxCount := uint64(len(txs))
 	for idx := 0; idx < int(totalBlockTxCount); idx++ {
 		var tx types.Transaction

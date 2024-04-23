@@ -567,7 +567,7 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	a := dtest.RandomL2BlockWithChainIdAndTime(rng, 1, defaultTestRollupConfig.L2ChainID, blockTime.Add(time.Duration(1)*time.Second))
 	_, err = cb.AddBlock(a)
 	require.NoError(err)
-	require.Nil(cb.fullErr)
+	require.NoError(cb.fullErr)
 	a = dtest.RandomL2BlockWithChainIdAndTime(rng, 1, defaultTestRollupConfig.L2ChainID, blockTime.Add(time.Duration(2)*time.Second))
 	_, err = cb.AddBlock(a)
 	require.ErrorIs(err, derive.ErrCompressorFull)

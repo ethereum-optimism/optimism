@@ -69,7 +69,7 @@ func (tx *spanBatchTx) MarshalBinary() ([]byte, error) {
 }
 
 // setDecoded sets the inner transaction after decoding.
-func (tx *spanBatchTx) setDecoded(inner spanBatchTxData, _ /*size*/ uint64) {
+func (tx *spanBatchTx) setDecoded(inner spanBatchTxData) {
 	tx.inner = inner
 }
 
@@ -108,7 +108,7 @@ func (tx *spanBatchTx) UnmarshalBinary(b []byte) error {
 		if err != nil {
 			return fmt.Errorf("failed to decode spanBatchLegacyTxData: %w", err)
 		}
-		tx.setDecoded(&data, uint64(len(b)))
+		tx.setDecoded(&data)
 		return nil
 	}
 	// It's an EIP2718 typed transaction envelope.
@@ -116,7 +116,7 @@ func (tx *spanBatchTx) UnmarshalBinary(b []byte) error {
 	if err != nil {
 		return err
 	}
-	tx.setDecoded(inner, uint64(len(b)))
+	tx.setDecoded(inner)
 	return nil
 }
 
