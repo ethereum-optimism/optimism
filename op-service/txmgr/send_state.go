@@ -43,6 +43,9 @@ type SendState struct {
 
 	// Miscellaneous tracking
 	bumpCount int // number of times we have bumped the gas price
+
+	// The last error encountered
+	err error
 }
 
 // NewSendStateWithNow creates a new send state with the provided clock.
@@ -73,11 +76,14 @@ func (s *SendState) ProcessSendError(err error) {
 	// Record the type of error
 	switch {
 	case err == nil:
+		s.err = nil
 		s.successFullPublishCount++
 	case errStringMatch(err, core.ErrNonceTooLow):
 		s.nonceTooLowCount++
 	case errStringMatch(err, ErrAlreadyReserved):
 		s.alreadyReserved = true
+	default:
+		s.err = err
 	}
 }
 
@@ -131,7 +137,7 @@ func (s *SendState) CriticalError() error {
 		// incompatible tx type in mempool
 		return ErrAlreadyReserved
 	}
-	return nil
+	return s.err
 }
 
 // IsWaitingForConfirmation returns true if we have at least one confirmation on
