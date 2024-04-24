@@ -40,6 +40,14 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	opts, err := bind.NewKeyedTransactorWithChainID(sys.Cfg.Secrets.Alice, cfg.L1ChainIDBig())
 	require.Nil(t, err)
 
+	optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortal, l1Client)
+	require.NoError(t, err)
+
+	opsc, err := optimismPortal.SystemConfig(&bind.CallOpts{})
+	require.NoError(t, err)
+
+	require.Equal(t, cfg.L1Deployments.SystemConfigProxy, opsc)
+
 	// Deploy WETH9
 	weth9Address, tx, WETH9, err := bindings.DeployWETH9(opts, l1Client)
 	require.NoError(t, err)
