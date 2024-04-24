@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -44,24 +41,6 @@ func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.St
 		return nil, err
 	}
 	return encoded, nil
-}
-
-// SetStorage will set the storage values in a db given a contract name,
-// address and the storage values
-func SetStorage(name string, address common.Address, values StorageValues, db vm.StateDB) error {
-	layout, err := bindings.GetStorageLayout(name)
-	if err != nil {
-		return fmt.Errorf("cannot set storage: %w", err)
-	}
-	slots, err := ComputeStorageSlots(layout, values)
-	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
-	for _, slot := range slots {
-		db.SetState(address, slot.Key, slot.Value)
-		log.Trace("setting storage", "address", address.Hex(), "key", slot.Key.Hex(), "value", slot.Value.Hex())
-	}
-	return nil
 }
 
 // ComputeStorageSlots will compute the storage slots for a given contract.
