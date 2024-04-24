@@ -123,6 +123,8 @@ jobs:
       - checkout
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
+      - attach_workspace:
+          at: "."
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -783,12 +785,19 @@ jobs:
       on_changes:
         description: changed pattern to fire fuzzer on
         type: string
+      uses_artifacts:
+        description: should load in foundry artifacts
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
           patterns: "<<parameters.package_name>>"
+      - attach_workspace:
+          at: "."
+          if: ${{ uses_artifacts }}
       - restore_cache:
           name: Restore Go modules cache
           key: gomod-{{ checksum "go.sum" }}
@@ -1708,7 +1717,8 @@ workflows:
           name: cannon-fuzz
           package_name: cannon
           on_changes: cannon,packages/contracts-bedrock/src/cannon
-          requires: ["go-mod-download"]
+          uses_artifacts: true
+          requires: ["go-mod-download", "pnpm-monorepo"]
       - go-test:
           name: op-heartbeat-tests
           module: op-heartbeat
@@ -1907,7 +1917,9 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
-      - cannon-go-lint-and-test
+      - cannon-go-lint-and-test:
+          requires:
+            - pnpm-monorepo
       - cannon-build-test-vectors
       - shellcheck/check:
           name: shell-check
