@@ -39,6 +39,8 @@ library TransientContext {
     }
 
     /// @notice Increments call depth.
+    ///         This function can overflow. However, this is ok because there's still
+    ///         only one value stored per slot.
     function increment() internal {
         assembly {
             tstore(CALL_DEPTH_SLOT, add(tload(CALL_DEPTH_SLOT), 1))
@@ -46,7 +48,8 @@ library TransientContext {
     }
 
     /// @notice Decrements call depth.
-    ///         Reverts if call depth is zero.
+    ///         This function can underflow. However, this is ok because there's still
+    ///         only one value stored per slot.
     function decrement() internal {
         assembly {
             tstore(CALL_DEPTH_SLOT, sub(tload(CALL_DEPTH_SLOT), 1))
