@@ -10,7 +10,17 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
-import { L2ToL2CrossDomainMessenger, NotEntered } from "src/L2/L2ToL2CrossDomainMessenger.sol";
+import {
+    L2ToL2CrossDomainMessenger,
+    NotEntered,
+    SendMessageDestinationMismatch,
+    RelayMessageCallerMismatch,
+    RelayMessageOriginMismatch,
+    RelayMessageDestinationMismatch,
+    RelayMessageCannotCallCrossL2Inbox,
+    RelayMessageCannotCallL2ToL2CrossDomainMessenger,
+    RelayMessageAlreadyRelayed
+} from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev L2ToL2CrossDomainMessenger contract instance.
@@ -19,7 +29,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev Sets up the test suite.
     function setUp() public {
         vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2Inbox()).code);
-        l2ToL2CrossDomainMessenger = new L2ToL2CrossDomainMessenger();
+        vm.etch(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(new L2ToL2CrossDomainMessenger()).code);
+        l2ToL2CrossDomainMessenger = L2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 
     /// @dev Tests the `sendMessage` function.
@@ -37,16 +48,11 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         vm.deal(address(this), _value);
 
-        vm.expectEmit(address(l2ToL2CrossDomainMessenger));
+        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit L2ToL2CrossDomainMessenger.SentMessage(
-            abi.encodeWithSelector(
-                L2ToL2CrossDomainMessenger.relayMessage.selector,
-                _destination,
-                block.chainid,
-                0,
-                address(this),
-                _target,
-                _message
+            abi.encodeCall(
+                L2ToL2CrossDomainMessenger.relayMessage,
+                (_destination, block.chainid, messageNoncePre, address(this), _target, _message)
             )
         );
 
@@ -61,7 +67,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
     /// @dev Tests that the `sendMessage` function fails when the destination is the same as the source.
     function test_sendMessage_toSelf_fails() external {
-        vm.expectRevert("L2ToL2CrossDomainMessenger: cannot send message to self");
+        vm.expectRevert(abi.encodeWithSelector(SendMessageDestinationMismatch.selector, block.chainid));
         l2ToL2CrossDomainMessenger.sendMessage({
             _destination: block.chainid,
             _target: address(0x1234),
@@ -85,10 +91,10 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
             data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
-            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
+            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
         });
 
-        vm.expectEmit(address(l2ToL2CrossDomainMessenger));
+        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit L2ToL2CrossDomainMessenger.RelayedMessage(
             keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
         );
@@ -112,8 +118,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     }
 
     /// @dev Tests that the `relayMessage` function fails when the sender is not the CrossL2Inbox contract.
-    function test_relayMessage_senderNotCrossL2Inbox_fails() external {
-        vm.expectRevert("L2ToL2CrossDomainMessenger: sender not CrossL2Inbox");
+    function test_relayMessage_callerNotCrossL2Inbox_fails() external {
+        vm.expectRevert(abi.encodeWithSelector(RelayMessageCallerMismatch.selector, address(this)));
         l2ToL2CrossDomainMessenger.relayMessage({
             _destination: block.chainid,
             _source: block.chainid,
@@ -133,7 +139,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert("L2ToL2CrossDomainMessenger: CrossL2Inbox origin not this contract");
+        vm.expectRevert(abi.encodeWithSelector(RelayMessageOriginMismatch.selector, address(0)));
         l2ToL2CrossDomainMessenger.relayMessage({
             _destination: block.chainid,
             _source: block.chainid,
@@ -149,26 +155,41 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
             data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
-            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
+            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert("L2ToL2CrossDomainMessenger: destination not this chain");
+        vm.expectRevert(abi.encodeWithSelector(RelayMessageDestinationMismatch.selector, 0));
         l2ToL2CrossDomainMessenger.relayMessage(0, block.chainid, 0, address(0x1234), address(0xabcd), hex"1234");
     }
 
-    /// @dev Tests that the `relayMessage` function fails when the target is the CrossL2Inbox contract.
-    function test_relayMessage_crossL2InboxCannotCallItself_fails() external {
+    /// @dev Tests that the `relayMessage` function fails when the target is CrossL2Inbox.
+    function test_relayMessage_cannotCallCrossL2Inbox_fails() external {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
             data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
-            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
+            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert("L2ToL2CrossDomainMessenger: CrossL2Inbox cannot call itself");
+        vm.expectRevert(RelayMessageCannotCallCrossL2Inbox.selector);
         l2ToL2CrossDomainMessenger.relayMessage(
             block.chainid, block.chainid, 0, address(0x1234), Predeploys.CROSS_L2_INBOX, hex"1234"
+        );
+    }
+
+    /// @dev Tests that the `relayMessage` function fails when the target is L2ToL2CrossDomainMessenger.
+    function test_relayMessage_cannotCallL2ToL2CrossDomainMessenger_fails() external {
+        vm.mockCall({
+            callee: Predeploys.CROSS_L2_INBOX,
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
+            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+        });
+
+        vm.prank(Predeploys.CROSS_L2_INBOX);
+        vm.expectRevert(RelayMessageCannotCallL2ToL2CrossDomainMessenger.selector);
+        l2ToL2CrossDomainMessenger.relayMessage(
+            block.chainid, block.chainid, 0, address(0x1234), Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, hex"1234"
         );
     }
 
@@ -177,7 +198,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
             data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
-            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
+            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
         });
 
         // First call should succeed
@@ -193,7 +214,14 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Second call should fail
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert("L2ToL2CrossDomainMessenger: message already relayed");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RelayMessageAlreadyRelayed.selector,
+                keccak256(
+                    abi.encode(block.chainid, block.chainid, uint256(0), address(0x1234), address(0xabcd), hex"1234")
+                )
+            )
+        );
         l2ToL2CrossDomainMessenger.relayMessage({
             _destination: block.chainid,
             _source: block.chainid,
@@ -209,14 +237,14 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
             data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
-            returnData: abi.encode(address(l2ToL2CrossDomainMessenger))
+            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
         });
 
         // Target call should fail, so we etch a Reverter() to the target contract
         vm.etch(address(0xabcd), address(new Reverter()).code);
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectEmit(address(l2ToL2CrossDomainMessenger));
+        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
             keccak256(abi.encode(block.chainid, block.chainid, 0, address(0x1234), address(0xabcd), hex"1234"))
         );

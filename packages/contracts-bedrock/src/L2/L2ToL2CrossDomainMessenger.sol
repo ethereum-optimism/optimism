@@ -8,8 +8,34 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-/// @notice Thrown when a non-written tstore slot is attempted to be read from.
+/// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
 error NotEntered();
+
+/// @notice Thrown when attempting to send a message to the chain that the message is being sent from.
+/// @param destination Destination of the message being sent.
+error SendMessageDestinationMismatch(uint256 destination);
+
+/// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not CrossL2Inbox.
+/// @param caller Caller of the relayMessage function.
+error RelayMessageCallerMismatch(address caller);
+
+/// @notice Thrown when attempting to relay a message where CrossL2Inbox's origin is not L2ToL2CrossDomainMessenger.
+/// @param origin Origin of the message being relayed.
+error RelayMessageOriginMismatch(address origin);
+
+/// @notice Thrown when attempting to relay a message whose destination chain is not the chain relaying it.
+/// @param destination Destination of the message being relayed.
+error RelayMessageDestinationMismatch(uint256 destination);
+
+/// @notice Thrown when attempting to relay a message whose target is CrossL2Inbox.
+error RelayMessageCannotCallCrossL2Inbox();
+
+/// @notice Thrown when attempting to relay a message whose target is L2ToL2CrossDomainMessenger.
+error RelayMessageCannotCallL2ToL2CrossDomainMessenger();
+
+/// @notice Thrown when attempting to relay a message that has already been relayed.
+/// @param messageHash Hash of the message that has already been relayed.
+error RelayMessageAlreadyRelayed(bytes32 messageHash);
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
@@ -50,7 +76,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
 
     /// @notice Emitted whenever a message is sent to the other chain.
     /// @param data Encoded data of the message that was sent.
-    event SentMessage(bytes data) anonymous;
+    event SentMessage(bytes data);
 
     /// @notice Emitted whenever a message is successfully relayed on this chain.
     /// @param msgHash Hash of the message that was relayed.
@@ -104,7 +130,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable {
-        require(_destination != block.chainid, "L2ToL2CrossDomainMessenger: cannot send message to self");
+        if (_destination == block.chainid) revert SendMessageDestinationMismatch(_destination);
 
         bytes memory data = abi.encodeCall(
             L2ToL2CrossDomainMessenger.relayMessage,
@@ -135,17 +161,21 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
         payable
         nonReentrant
     {
-        require(msg.sender == Predeploys.CROSS_L2_INBOX, "L2ToL2CrossDomainMessenger: sender not CrossL2Inbox");
-        require(
-            CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin() == address(this),
-            "L2ToL2CrossDomainMessenger: CrossL2Inbox origin not this contract"
-        );
-        require(_destination == block.chainid, "L2ToL2CrossDomainMessenger: destination not this chain");
-        require(_target != Predeploys.CROSS_L2_INBOX, "L2ToL2CrossDomainMessenger: CrossL2Inbox cannot call itself");
-        require(_target != Predeploys.L2_TO_L2_CROSSDOMAIN_MESSENGER, "L2ToL2CrossDomainMessenger: cannot call self");
+        if (msg.sender != Predeploys.CROSS_L2_INBOX) revert RelayMessageCallerMismatch(msg.sender);
+        {
+            address origin = CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin();
+            if (origin != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert RelayMessageOriginMismatch(origin);
+        }
+        if (_destination != block.chainid) revert RelayMessageDestinationMismatch(_destination);
+        if (_target == Predeploys.CROSS_L2_INBOX) revert RelayMessageCannotCallCrossL2Inbox();
+        if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+            revert RelayMessageCannotCallL2ToL2CrossDomainMessenger();
+        }
 
         bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
-        require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
+        if (successfulMessages[messageHash] == true) {
+            revert RelayMessageAlreadyRelayed(messageHash);
+        }
 
         _storeMessageMetadata(_source, _sender);
 
