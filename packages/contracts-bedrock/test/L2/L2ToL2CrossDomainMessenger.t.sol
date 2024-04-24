@@ -13,13 +13,13 @@ import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import {
     L2ToL2CrossDomainMessenger,
     NotEntered,
-    SendMessageDestinationMismatch,
-    RelayMessageCallerMismatch,
-    RelayMessageOriginMismatch,
-    RelayMessageDestinationMismatch,
-    RelayMessageCannotCallCrossL2Inbox,
-    RelayMessageCannotCallL2ToL2CrossDomainMessenger,
-    RelayMessageAlreadyRelayed
+    MessageDestinationSameChain,
+    RelayCallerNotCrossL2Inbox,
+    CrossL2InboxOriginNotL2ToL2CrossDomainMessenger,
+    MessageDestinationNotRelayChain,
+    MessageTargetCrossL2Inbox,
+    MessageTargetL2ToL2CrossDomainMessenger,
+    MessageAlreadyRelayed
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 contract L2ToL2CrossDomainMessengerTest is Test {
@@ -67,7 +67,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
     /// @dev Tests that the `sendMessage` function fails when the destination is the same as the source.
     function test_sendMessage_toSelf_fails() external {
-        vm.expectRevert(abi.encodeWithSelector(SendMessageDestinationMismatch.selector, block.chainid));
+        vm.expectRevert(abi.encodeWithSelector(MessageDestinationSameChain.selector, block.chainid));
         l2ToL2CrossDomainMessenger.sendMessage({
             _destination: block.chainid,
             _target: address(0x1234),
@@ -119,7 +119,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
     /// @dev Tests that the `relayMessage` function fails when the sender is not the CrossL2Inbox contract.
     function test_relayMessage_callerNotCrossL2Inbox_fails() external {
-        vm.expectRevert(abi.encodeWithSelector(RelayMessageCallerMismatch.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(RelayCallerNotCrossL2Inbox.selector, address(this)));
         l2ToL2CrossDomainMessenger.relayMessage({
             _destination: block.chainid,
             _source: block.chainid,
@@ -139,7 +139,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert(abi.encodeWithSelector(RelayMessageOriginMismatch.selector, address(0)));
+        vm.expectRevert(abi.encodeWithSelector(CrossL2InboxOriginNotL2ToL2CrossDomainMessenger.selector, address(0)));
         l2ToL2CrossDomainMessenger.relayMessage({
             _destination: block.chainid,
             _source: block.chainid,
@@ -159,7 +159,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert(abi.encodeWithSelector(RelayMessageDestinationMismatch.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(MessageDestinationNotRelayChain.selector, 0));
         l2ToL2CrossDomainMessenger.relayMessage(0, block.chainid, 0, address(0x1234), address(0xabcd), hex"1234");
     }
 
@@ -172,7 +172,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert(RelayMessageCannotCallCrossL2Inbox.selector);
+        vm.expectRevert(MessageTargetCrossL2Inbox.selector);
         l2ToL2CrossDomainMessenger.relayMessage(
             block.chainid, block.chainid, 0, address(0x1234), Predeploys.CROSS_L2_INBOX, hex"1234"
         );
@@ -187,7 +187,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
 
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert(RelayMessageCannotCallL2ToL2CrossDomainMessenger.selector);
+        vm.expectRevert(MessageTargetL2ToL2CrossDomainMessenger.selector);
         l2ToL2CrossDomainMessenger.relayMessage(
             block.chainid, block.chainid, 0, address(0x1234), Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, hex"1234"
         );
@@ -216,7 +216,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.prank(Predeploys.CROSS_L2_INBOX);
         vm.expectRevert(
             abi.encodeWithSelector(
-                RelayMessageAlreadyRelayed.selector,
+                MessageAlreadyRelayed.selector,
                 keccak256(
                     abi.encode(block.chainid, block.chainid, uint256(0), address(0x1234), address(0xabcd), hex"1234")
                 )
