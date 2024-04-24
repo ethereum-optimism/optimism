@@ -831,7 +831,9 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 }
 
 func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
-	for _, back := range bg.Backends {
+	backends := bg.orderedBackendsForRequest()
+
+	for _, back := range backends {
 		proxier, err := back.ProxyWS(clientConn, methodWhitelist)
 		if errors.Is(err, ErrBackendOffline) {
 			log.Warn(
