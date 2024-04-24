@@ -493,6 +493,24 @@ contract Deploy is Deployer {
         console.log("New DeputyGuardianModule deployed at %s", address(module_));
     }
 
+    function deploySecurityCouncilExtensions(
+        address _councilSafe,
+        address _foundationSafe,
+        address _superchainConfig
+    )
+        public
+    {
+        save("SecurityCouncilSafe", _councilSafe);
+        save("SystemOwnerSafe", _foundationSafe);
+        save("SuperchainConfig", _superchainConfig);
+        vm.startBroadcast();
+        console.log("Deploying Security Council Extensions");
+        deployLivenessGuard();
+        deployLivenessModule();
+        deployDeputyGuardianModule();
+        vm.stopBroadcast();
+    }
+
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
     function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
         console.log("Deploying Security Council Safe");
