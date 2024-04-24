@@ -462,12 +462,27 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag cannon-prestate is required", addRequiredArgsExcept(traceType, "--cannon-prestate"))
+				verifyArgsInvalid(t, "flag cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(traceType, "--cannon-prestate"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-prestate", "--cannon-prestate=./pre.json"))
 				require.Equal(t, "./pre.json", cfg.CannonAbsolutePreState)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestCannonAbsolutePrestateBaseURL-%v", traceType), func(t *testing.T) {
+			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-prestates-url"))
+			})
+
+			t.Run("Required", func(t *testing.T) {
+				verifyArgsInvalid(t, "flag cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(traceType, "--cannon-prestate"))
+			})
+
+			t.Run("Valid", func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-prestates-url", "--cannon-prestates-url=http://localhost/foo"))
+				require.Equal(t, "http://localhost/foo", cfg.CannonAbsolutePreStateBaseURL.String())
 			})
 		})
 

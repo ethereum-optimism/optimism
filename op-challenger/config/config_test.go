@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"runtime"
 	"testing"
 
@@ -12,16 +13,17 @@ import (
 )
 
 var (
-	validL1EthRpc              = "http://localhost:8545"
-	validL1BeaconUrl           = "http://localhost:9000"
-	validGameFactoryAddress    = common.Address{0x23}
-	validCannonBin             = "./bin/cannon"
-	validCannonOpProgramBin    = "./bin/op-program"
-	validCannonNetwork         = "mainnet"
-	validCannonAbsolutPreState = "pre.json"
-	validDatadir               = "/tmp/data"
-	validL2Rpc                 = "http://localhost:9545"
-	validRollupRpc             = "http://localhost:8555"
+	validL1EthRpc                        = "http://localhost:8545"
+	validL1BeaconUrl                     = "http://localhost:9000"
+	validGameFactoryAddress              = common.Address{0x23}
+	validCannonBin                       = "./bin/cannon"
+	validCannonOpProgramBin              = "./bin/op-program"
+	validCannonNetwork                   = "mainnet"
+	validCannonAbsolutPreState           = "pre.json"
+	validCannonAbsolutPreStateBaseURL, _ = url.Parse("http://localhost/foo/")
+	validDatadir                         = "/tmp/data"
+	validL2Rpc                           = "http://localhost:9545"
+	validRollupRpc                       = "http://localhost:8555"
 
 	validAsteriscBin             = "./bin/asterisc"
 	validAsteriscOpProgramBin    = "./bin/op-program"
@@ -34,7 +36,7 @@ var cannonTraceTypes = []TraceType{TraceTypeCannon, TraceTypePermissioned}
 func applyValidConfigForCannon(cfg *Config) {
 	cfg.CannonBin = validCannonBin
 	cfg.CannonServer = validCannonOpProgramBin
-	cfg.CannonAbsolutePreState = validCannonAbsolutPreState
+	cfg.CannonAbsolutePreStateBaseURL = validCannonAbsolutPreStateBaseURL
 	cfg.CannonNetwork = validCannonNetwork
 	cfg.L2Rpc = validL2Rpc
 }
@@ -124,10 +126,32 @@ func TestCannonRequiredArgs(t *testing.T) {
 			require.ErrorIs(t, config.Check(), ErrMissingCannonServer)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateRequired-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateOrBaseURLRequired-%v", traceType), func(t *testing.T) {
 			config := validConfig(traceType)
 			config.CannonAbsolutePreState = ""
+			config.CannonAbsolutePreStateBaseURL = nil
 			require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
+		})
+
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreState-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.CannonAbsolutePreState = validCannonAbsolutPreState
+			config.CannonAbsolutePreStateBaseURL = nil
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateBaseURL-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.CannonAbsolutePreState = ""
+			config.CannonAbsolutePreStateBaseURL = validCannonAbsolutPreStateBaseURL
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestMustNotSupplyBothCannonAbsolutePreStateAndBaseURL-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.CannonAbsolutePreState = validCannonAbsolutPreState
+			config.CannonAbsolutePreStateBaseURL = validCannonAbsolutPreStateBaseURL
+			require.ErrorIs(t, config.Check(), ErrCannonAbsolutePreStateAndBaseURL)
 		})
 
 		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", traceType), func(t *testing.T) {
@@ -238,6 +262,7 @@ func TestRequireConfigForMultipleTraceTypesForCannon(t *testing.T) {
 
 	// Require cannon specific args
 	cfg.CannonAbsolutePreState = ""
+	cfg.CannonAbsolutePreStateBaseURL = nil
 	require.ErrorIs(t, cfg.Check(), ErrMissingCannonAbsolutePreState)
 	cfg.CannonAbsolutePreState = validCannonAbsolutPreState
 

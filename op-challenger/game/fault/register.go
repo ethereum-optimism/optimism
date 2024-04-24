@@ -3,6 +3,7 @@ package fault
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/asterisc"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
@@ -34,6 +36,13 @@ type Registry interface {
 
 type OracleRegistry interface {
 	RegisterOracle(oracle keccakTypes.LargePreimageOracle)
+}
+
+type PrestateSource interface {
+	// PrestatePath returns the path to the prestate file to use for the game.
+	// The provided prestateHash may be used to differentiate between different states but no guarantee is made that
+	// the returned prestate matches the supplied hash.
+	PrestatePath(prestateHash common.Hash) (string, error)
 }
 
 type RollupClient interface {
@@ -253,9 +262,25 @@ func registerCannon(
 	selective bool,
 	claimants []common.Address,
 ) error {
-	cannonPrestateProvider := cannon.NewPrestateProvider(cfg.CannonAbsolutePreState)
+	var prestateSource PrestateSource
+	if cfg.CannonAbsolutePreStateBaseURL != nil {
+		prestateSource = prestates.NewMultiPrestateProvider(cfg.CannonAbsolutePreStateBaseURL, filepath.Join(cfg.Datadir, "cannon-prestates"))
+	} else {
+		prestateSource = prestates.NewSinglePrestateSource(cfg.CannonAbsolutePreState)
+	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		contract := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		requiredPrestatehash, err := contract.GetAbsolutePrestateHash(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load prestate hash for game %v: %w", game.Proxy, err)
+		}
+
+		prestatePath, err := prestateSource.PrestatePath(requiredPrestatehash)
+		if err != nil {
+			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
+		}
+		cannonPrestateProvider := cannon.NewPrestateProvider(prestatePath)
+
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
