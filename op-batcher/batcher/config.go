@@ -67,7 +67,16 @@ type CLIConfig struct {
 	// Type of compressor to use. Must be one of [compressor.KindKeys].
 	Compressor string
 
+	// If Stopped is true, the batcher starts stopped and won't start batching right away.
+	// Batching needs to be started via an admin RPC.
 	Stopped bool
+
+	// Whether to wait for the sequencer to sync to a recent block at startup.
+	WaitNodeSync bool
+
+	// How many blocks back to look for recent batcher transactions during node sync at startup.
+	// If 0, the batcher will just use the current head.
+	CheckRecentTxsDepth int
 
 	BatchType uint
 
@@ -118,6 +127,9 @@ func (c *CLIConfig) Check() error {
 	if c.BatchType > 1 {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)
 	}
+	if c.CheckRecentTxsDepth > 128 {
+		return fmt.Errorf("CheckRecentTxsDepth cannot be set higher than 128: %v", c.CheckRecentTxsDepth)
+	}
 	if c.DataAvailabilityType == flags.BlobsType && c.TargetNumFrames > 6 {
 		return errors.New("too many frames for blob transactions, max 6")
 	}
@@ -157,6 +169,8 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
 		Compressor:                   ctx.String(flags.CompressorFlag.Name),
 		Stopped:                      ctx.Bool(flags.StoppedFlag.Name),
+		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
+		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
 		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
 		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/indexer/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 
 	"github.com/ethereum/go-ethereum/common"

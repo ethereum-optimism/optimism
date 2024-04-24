@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
@@ -17,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -355,12 +355,10 @@ func setupPreimageOracleTestWithProposals(t *testing.T, block rpcblock.Block) (*
 }
 
 func setupPreimageOracleTest(t *testing.T) (*batchingTest.AbiBasedRpc, *PreimageOracleContract) {
-	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
-	require.NoError(t, err)
+	oracleAbi := snapshots.LoadPreimageOracleABI()
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, oracleAddr, oracleAbi)
-	oracleContract, err := NewPreimageOracleContract(oracleAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
-	require.NoError(t, err)
+	oracleContract := NewPreimageOracleContract(oracleAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
 
 	return stubRpc, oracleContract
 }
@@ -593,7 +591,7 @@ func TestChallenge_First(t *testing.T) {
 	stubRpc.SetResponse(oracleAddr, methodChallengeFirstLPP, rpcblock.Latest,
 		[]interface{}{
 			ident.Claimant, ident.UUID,
-			bindings.PreimageOracleLeaf{
+			preimageOracleLeaf{
 				Input:           challenge.Poststate.Input[:],
 				Index:           new(big.Int).SetUint64(challenge.Poststate.Index),
 				StateCommitment: challenge.Poststate.StateCommitment,
@@ -631,14 +629,14 @@ func TestChallenge_NotFirst(t *testing.T) {
 	stubRpc.SetResponse(oracleAddr, methodChallengeLPP, rpcblock.Latest,
 		[]interface{}{
 			ident.Claimant, ident.UUID,
-			bindings.LibKeccakStateMatrix{State: challenge.StateMatrix},
-			bindings.PreimageOracleLeaf{
+			libKeccakStateMatrix{State: challenge.StateMatrix},
+			preimageOracleLeaf{
 				Input:           challenge.Prestate.Input[:],
 				Index:           new(big.Int).SetUint64(challenge.Prestate.Index),
 				StateCommitment: challenge.Prestate.StateCommitment,
 			},
 			challenge.PrestateProof,
-			bindings.PreimageOracleLeaf{
+			preimageOracleLeaf{
 				Input:           challenge.Poststate.Input[:],
 				Index:           new(big.Int).SetUint64(challenge.Poststate.Index),
 				StateCommitment: challenge.Poststate.StateCommitment,

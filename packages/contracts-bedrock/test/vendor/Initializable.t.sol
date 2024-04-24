@@ -11,6 +11,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 import "src/L1/ProtocolVersions.sol";
+import "src/libraries/DisputeTypes.sol";
 import "scripts/Deployer.sol";
 
 /// @title Initializer_Test
@@ -132,8 +133,14 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: deploy.mustGetAddress("OptimismPortal2"),
                 initCalldata: abi.encodeCall(
-                    optimismPortal2.initialize, (disputeGameFactory, systemConfig, superchainConfig)
-                    ),
+                    optimismPortal2.initialize,
+                    (
+                        disputeGameFactory,
+                        systemConfig,
+                        superchainConfig,
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
+                    )
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal2")
             })
         );
@@ -176,7 +183,7 @@ contract Initializer_Test is Bridge_Initializer {
                             optimismMintableERC20Factory: address(0)
                         })
                     )
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("SystemConfig")
             })
         );
@@ -211,7 +218,7 @@ contract Initializer_Test is Bridge_Initializer {
                             optimismMintableERC20Factory: address(0)
                         })
                     )
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("SystemConfigProxy")
             })
         );
@@ -221,7 +228,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: deploy.mustGetAddress("ProtocolVersions"),
                 initCalldata: abi.encodeCall(
                     protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersions")
             })
         );
@@ -231,7 +238,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: address(protocolVersions),
                 initCalldata: abi.encodeCall(
                     protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
-                    ),
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersionsProxy")
             })
         );

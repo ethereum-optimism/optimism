@@ -292,7 +292,7 @@ func DiffTestUtils() {
 		// Put the put the rlp encoded account in the world trie
 		account := types.StateAccount{
 			Nonce:   0,
-			Balance: big.NewInt(0),
+			Balance: common.U2560,
 			Root:    state.Hash(),
 		}
 		writer := new(bytes.Buffer)

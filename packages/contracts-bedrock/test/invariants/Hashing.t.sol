@@ -116,7 +116,7 @@ contract Hashing_Invariant is StdInvariant, InvariantTest {
     ///
     ///                   The `hashCrossDomainMessage` function should always revert if
     ///                   the `version` passed is > `1`.
-    function invariant_hash_xdomain_msg_high_version() external {
+    function invariant_hash_xdomain_msg_high_version() external view {
         // ASSERTION: The round trip aliasing done in testRoundTrip(...) should never fail.
         assertFalse(actor.failedCrossDomainHashHighVersion());
     }
@@ -126,7 +126,7 @@ contract Hashing_Invariant is StdInvariant, InvariantTest {
     ///
     ///                   If the version passed is 0, `hashCrossDomainMessage` and
     ///                   `hashCrossDomainMessageV0` should be equivalent.
-    function invariant_hash_xdomain_msg_0() external {
+    function invariant_hash_xdomain_msg_0() external view {
         // ASSERTION: A call to hashCrossDomainMessage and hashCrossDomainMessageV0
         // should always match when the version passed is 0
         assertFalse(actor.failedCrossDomainHashV0());
@@ -137,7 +137,7 @@ contract Hashing_Invariant is StdInvariant, InvariantTest {
     ///
     ///                   If the version passed is 1, `hashCrossDomainMessage` and
     ///                   `hashCrossDomainMessageV1` should be equivalent.
-    function invariant_hash_xdomain_msg_1() external {
+    function invariant_hash_xdomain_msg_1() external view {
         // ASSERTION: A call to hashCrossDomainMessage and hashCrossDomainMessageV1
         // should always match when the version passed is 1
         assertFalse(actor.failedCrossDomainHashV1());

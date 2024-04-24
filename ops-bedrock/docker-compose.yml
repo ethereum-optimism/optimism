@@ -7,6 +7,9 @@ version: '3.4'
 volumes:
   l1_data:
   l2_data:
+  safedb_data:
+  challenger_data:
+  da_data:
   op_log:
 
 
@@ -89,12 +92,16 @@ services:
       --metrics.port=7300
       --pprof.enabled
       --rpc.enable-admin
+      --safedb.path=/db
+      --plasma.enabled=${PLASMA_ENABLED}
+      --plasma.da-server=http://da-server:3100
     ports:
       - "7545:8545"
       - "9003:9003"
       - "7300:7300"
       - "6060:6060"
     volumes:
+      - "safedb_data:/db"
       - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
       - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
@@ -163,6 +170,8 @@ services:
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_BATCH_TYPE: 0
+      OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
+      OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
 
   op-challenger:
     depends_on:
@@ -176,6 +185,9 @@ services:
       args:
         OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:devnet
+    volumes:
+      - "challenger_data:/db"
+      - "../op-program/bin:/op-program"
     environment:
       OP_CHALLENGER_L1_ETH_RPC: http://l1:8545
       # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
@@ -186,16 +198,50 @@ services:
       # The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
       # before the L2 genesis is known.
       OP_CHALLENGER_UNSAFE_ALLOW_INVALID_PRESTATE: "true"
-      OP_CHALLENGER_DATADIR: temp/challenger-data
+      OP_CHALLENGER_DATADIR: /db
       OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./.devnet/rollup.json
       OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2.json
       OP_CHALLENGER_CANNON_BIN: ./cannon/bin/cannon
-      OP_CHALLENGER_CANNON_SERVER: ./op-program/bin/op-program
-      OP_CHALLENGER_CANNON_PRESTATE: ./op-program/bin/prestate.json
+      OP_CHALLENGER_CANNON_SERVER: /op-program/op-program
+      OP_CHALLENGER_CANNON_PRESTATE: /op-program/prestate.json
       OP_CHALLENGER_CANNON_L2: http://l2:8545
       OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
       OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
+
+  da-server:
+    depends_on:
+      - op_stack_go_builder
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
+    build:
+      context: ../
+      dockerfile: ./op-plasma/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+    command: >
+      da-server
+      --file.path=/data
+      --addr=0.0.0.0
+      --port=3100
+      --log.level=debug
+    ports:
+      - "3100:3100"
+    volumes:
+      - "da_data:/data"
+
+  sentinel:
+    image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
+    volumes:
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+    # private-key is mnemonic index 5 of the test mnemonic.
+    command: >
+      sentinel
+      --datadir=data
+      --l1-rpc-http=http://l1:8545
+      --l1-rpc-ws=ws://l1:8546
+      --da-storage-uri=http://da-server:3100
+      --private-key=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+      --config=/rollup.json
 
   artifact-server:
     depends_on:

@@ -34,7 +34,7 @@ contract Transactor_Initializer is Test {
 
 contract TransactorTest is Transactor_Initializer {
     /// @notice Tests if the owner was set correctly during deploy
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() external view {
         assertEq(address(alice), transactor.owner());
     }
 

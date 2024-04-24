@@ -60,7 +60,7 @@ func (c *ClaimMonitor) checkGameClaims(
 ) {
 	// Check if the game is in the first half
 	duration := uint64(c.clock.Now().Unix()) - game.Timestamp
-	firstHalf := duration <= (game.Duration / 2)
+	firstHalf := duration <= game.MaxClockDuration
 
 	// Iterate over the game's claims
 	for _, claim := range game.Claims {
@@ -74,7 +74,7 @@ func (c *ClaimMonitor) checkGameClaims(
 			c.logger.Error("Claim resolved in the first half of the game duration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex)
 		}
 
-		maxChessTime := time.Duration(game.Duration/2) * time.Second
+		maxChessTime := time.Duration(game.MaxClockDuration) * time.Second
 		accumulatedTime := claim.ChessTime(c.clock.Now())
 		clockExpired := accumulatedTime >= maxChessTime
 

@@ -55,7 +55,7 @@ contract LivenessGuard_Constructor_Test is LivenessGuard_TestInit {
 
 contract LivenessGuard_Getters_Test is LivenessGuard_TestInit {
     /// @dev Tests that the getters return the correct values
-    function test_getters_works() external {
+    function test_getters_works() external view {
         assertEq(address(livenessGuard.safe()), address(safeInstance.safe));
         assertEq(livenessGuard.lastLive(address(0)), 0);
     }

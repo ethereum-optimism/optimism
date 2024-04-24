@@ -42,6 +42,9 @@ func (c *DAClient) GetInput(ctx context.Context, comm Keccak256Commitment) ([]by
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrNotFound
 	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get preimage: %v", resp.StatusCode)
+	}
 	defer resp.Body.Close()
 	input, err := io.ReadAll(resp.Body)
 	if err != nil {

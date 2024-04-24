@@ -30,7 +30,7 @@ contract DelayedWETH_Init is CommonTest {
 
 contract DelayedWETH_Initialize_Test is DelayedWETH_Init {
     /// @dev Tests that initialization is successful.
-    function test_initialize_succeeds() public {
+    function test_initialize_succeeds() public view {
         assertEq(delayedWeth.owner(), address(this));
         assertEq(address(delayedWeth.config()), address(superchainConfig));
     }
@@ -158,7 +158,7 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_Init {
         vm.warp(block.timestamp + delayedWeth.delay() + 1);
 
         // Pause the contract.
-        address guardian = optimismPortal.GUARDIAN();
+        address guardian = optimismPortal.guardian();
         vm.prank(guardian);
         superchainConfig.pause("identifier");
 

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -29,16 +29,13 @@ type DisputeGameFactoryContract struct {
 	contract    *batching.BoundContract
 }
 
-func NewDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DisputeGameFactoryContract, error) {
-	factoryAbi, err := bindings.DisputeGameFactoryMetaData.GetAbi()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load dispute game factory ABI: %w", err)
-	}
+func NewDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) *DisputeGameFactoryContract {
+	factoryAbi := snapshots.LoadDisputeGameFactoryABI()
 	return &DisputeGameFactoryContract{
 		metrics:     m,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(factoryAbi, addr),
-	}, nil
+	}
 }
 
 func (f *DisputeGameFactoryContract) GetGameFromParameters(ctx context.Context, traceType uint32, outputRoot common.Hash, l2BlockNum uint64) (common.Address, error) {

@@ -58,6 +58,9 @@ type CLIConfig struct {
 
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
+
+	// Whether to wait for the sequencer to sync to a recent block at startup.
+	WaitNodeSync bool
 }
 
 func (c *CLIConfig) Check() error {
@@ -106,5 +109,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ProposalInterval:             ctx.Duration(flags.ProposalIntervalFlag.Name),
 		DisputeGameType:              uint32(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
+		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
 	}
 }

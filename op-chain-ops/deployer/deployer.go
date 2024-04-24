@@ -5,18 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/beacon"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
 // TestKey is the same test key that geth uses
@@ -47,31 +49,23 @@ type Deployment struct {
 
 type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (*types.Transaction, error)
 
-// NewL1Backend returns a SimulatedBackend suitable for L1. It has
-// the latest L1 hardforks enabled.
+// NewBackend returns a SimulatedBackend suitable for EVM simulation, without L2 features.
+// It has up to Shanghai enabled.
 // The returned backend should be closed after use.
-func NewL1Backend() (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, true, nil)
+func NewBackend() (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, nil)
 	return backend, err
 }
 
-// NewL2Backend returns a SimulatedBackend suitable for L2.
-// It has the latest L2 hardforks enabled.
+// NewBackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for EVM simulation, without L2 features.
+// It has up to Shanghai enabled, and allows for the configuration of the network's chain ID and predeploys.
 // The returned backend should be closed after use.
-func NewL2Backend() (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, false, nil)
+func NewBackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, predeploys)
 	return backend, err
 }
 
-// NewL2BackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
-// It has the latest L2 hardforks enabled, and allows for the configuration of the network's chain ID and predeploys.
-// The returned backend should be closed after use.
-func NewL2BackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
-	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, false, predeploys)
-	return backend, err
-}
-
-func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, shanghai bool, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
 	chainConfig := params.ChainConfig{
 		ChainID:             chainID,
 		HomesteadBlock:      big.NewInt(0),
@@ -95,10 +89,7 @@ func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, shanghai bool, 
 		MergeNetsplitBlock:            big.NewInt(0),
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
-	}
-
-	if shanghai {
-		chainConfig.ShanghaiTime = u64ptr(0)
+		ShanghaiTime:                  u64ptr(0),
 	}
 
 	alloc := core.GenesisAlloc{
@@ -116,19 +107,16 @@ func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, shanghai bool, 
 		}
 	}
 
-	return backends.NewSimulatedBackendWithOpts(
-		backends.WithCacheConfig(&core.CacheConfig{
-			Preimages: true,
-		}),
-		backends.WithGenesis(core.Genesis{
-			Config:     &chainConfig,
-			Timestamp:  ts,
-			Difficulty: big.NewInt(0),
-			Alloc:      alloc,
-			GasLimit:   30_000_000,
-		}),
-		backends.WithConsensus(beacon.New(ethash.NewFaker())),
-	), nil
+	cfg := ethconfig.Defaults
+	cfg.Preimages = true
+	cfg.Genesis = &core.Genesis{
+		Config:     &chainConfig,
+		Timestamp:  ts,
+		Difficulty: big.NewInt(0),
+		Alloc:      alloc,
+		GasLimit:   30_000_000,
+	}
+	return backends.NewSimulatedBackendFromConfig(cfg), nil
 }
 
 func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb Deployer) ([]Deployment, error) {
@@ -148,14 +136,11 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 			return nil, err
 		}
 
-		// The simulator performs asynchronous processing,
-		// so we need to both commit the change here as
-		// well as wait for the transaction receipt.
-		backend.Commit()
-		addr, err := bind.WaitDeployed(ctx, backend, tx)
+		r, err := WaitMined(ctx, backend, tx)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", deployment.Name, err)
 		}
+		addr := r.ContractAddress
 
 		if addr == (common.Address{}) {
 			return nil, fmt.Errorf("no address for %s", deployment.Name)
@@ -181,7 +166,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 //
 // Parameters:
 // - backend: A pointer to backends.SimulatedBackend, representing the simulated Ethereum blockchain.
-// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewL2BackendWithChainIDAndPredeploys handles this for you.
+// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewBackendWithChainIDAndPredeploys handles this for you.
 // - contractName: A string representing the name of the contract to be deployed.
 //
 // Returns:
@@ -191,9 +176,13 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 // The function logs a fatal error and exits if there are any issues with transaction mining, if the deployment fails,
 // or if the deployed bytecode is not found at the computed address.
 func DeployWithDeterministicDeployer(backend *backends.SimulatedBackend, contractName string) ([]byte, error) {
-	opts, err := bind.NewKeyedTransactorWithChainID(TestKey, backend.Blockchain().Config().ChainID)
+	cid, err := backend.ChainID(context.Background())
 	if err != nil {
 		return nil, err
+	}
+	opts, err := bind.NewKeyedTransactorWithChainID(TestKey, cid)
+	if err != nil {
+		return nil, fmt.Errorf("NewKeyedTransactorWithChainID failed: %w", err)
 	}
 
 	deployerAddress, err := bindings.GetDeployerAddress(contractName)
@@ -216,14 +205,13 @@ func DeployWithDeterministicDeployer(backend *backends.SimulatedBackend, contrac
 		return nil, fmt.Errorf("failed to initialize deployment proxy transactor at %s: %w", deployerAddress, err)
 	}
 
+	backend.Commit() // make sure at least one block is written or the below Fallback call can fail
 	tx, err := transactor.Fallback(opts, append(deploymentSalt, initBytecode...))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Fallback failed: %w", err)
 	}
 
-	backend.Commit()
-
-	receipt, err := bind.WaitMined(context.Background(), backend, tx)
+	receipt, err := WaitMined(context.Background(), backend, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction receipt: %w", err)
 	}
@@ -268,4 +256,29 @@ func create2Address(creatorAddress, salt, initCode []byte) common.Address {
 	payload = append(payload, initCodeHash...)
 
 	return common.BytesToAddress(crypto.Keccak256(payload)[12:])
+}
+
+// WaitMined waits for tx to be mined on the blockchain with a simulated backend, calling Commit()
+// on the backend before attemping to fetch the transaction receipt in a wait loop.  It stops
+// waiting when the context is canceled.
+func WaitMined(ctx context.Context, b *backends.SimulatedBackend, tx *types.Transaction) (*types.Receipt, error) {
+	queryTicker := time.NewTicker(100 * time.Millisecond)
+	defer queryTicker.Stop()
+
+	for {
+		// Call commit with each try since earlier calls may have preceded the tx reaching the
+		// txpool.
+		b.Commit()
+		receipt, err := b.TransactionReceipt(ctx, tx.Hash())
+		if err == nil {
+			return receipt, nil
+		}
+		// Wait for the next round.
+		log.Warn("waiting on receipt due to error", "err", err)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-queryTicker.C:
+		}
+	}
 }

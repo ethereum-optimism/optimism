@@ -297,6 +297,7 @@ func TestChannelBuilderBatchType(t *testing.T) {
 		{"ChannelBuilder_PendingFrames_TotalFrames", ChannelBuilder_PendingFrames_TotalFrames},
 		{"ChannelBuilder_InputBytes", ChannelBuilder_InputBytes},
 		{"ChannelBuilder_OutputBytes", ChannelBuilder_OutputBytes},
+		{"ChannelBuilder_OutputWrongFramePanic", ChannelBuilder_OutputWrongFramePanic},
 	}
 	for _, test := range tests {
 		test := test
@@ -354,8 +355,9 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 }
 
 // TestChannelBuilder_OutputWrongFramePanic tests that a panic is thrown when a frame is pushed with an invalid frame id
-func TestChannelBuilder_OutputWrongFramePanic(t *testing.T) {
+func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint) {
 	channelConfig := defaultTestChannelConfig()
+	channelConfig.BatchType = batchType
 
 	// Construct a channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -363,9 +365,10 @@ func TestChannelBuilder_OutputWrongFramePanic(t *testing.T) {
 
 	// Mock the internals of `ChannelBuilder.outputFrame`
 	// to construct a single frame
+	// the type of batch does not matter here because we are using it to construct a broken frame
 	c, err := channelConfig.CompressorConfig.NewCompressor()
 	require.NoError(t, err)
-	co, err := derive.NewChannelOut(derive.SingularBatchType, c, nil)
+	co, err := derive.NewSingularChannelOut(c)
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	fn, err := co.OutputFrame(&buf, channelConfig.MaxFrameSize)

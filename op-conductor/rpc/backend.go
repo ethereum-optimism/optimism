@@ -45,6 +45,16 @@ func NewAPIBackend(log log.Logger, con conductor) *APIBackend {
 
 var _ API = (*APIBackend)(nil)
 
+// Paused implements API.
+func (api *APIBackend) Paused(ctx context.Context) (bool, error) {
+	return api.con.Paused(), nil
+}
+
+// Stopped implements API.
+func (api *APIBackend) Stopped(ctx context.Context) (bool, error) {
+	return api.con.Stopped(), nil
+}
+
 // Active implements API.
 func (api *APIBackend) Active(_ context.Context) (bool, error) {
 	return !api.con.Stopped() && !api.con.Paused(), nil

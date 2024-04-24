@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,6 +27,7 @@ var ErrBatcherNotRunning = errors.New("batcher is not running")
 
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 }
 
 type L2Client interface {
@@ -252,6 +254,13 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
+	if l.Config.WaitNodeSync {
+		err := l.waitNodeSync()
+		if err != nil {
+			l.Log.Error("Error waiting for node sync", "err", err)
+			return
+		}
+	}
 
 	receiptsCh := make(chan txmgr.TxReceipt[txID])
 	queue := txmgr.NewQueue[txID](l.killCtx, l.Txmgr, l.Config.MaxPendingTransactions)
@@ -283,6 +292,7 @@ func (l *BatchSubmitter) loop() {
 			l.Log.Info("Txmgr is closed, remaining channel data won't be sent")
 		}
 	}
+
 	for {
 		select {
 		case <-ticker.C:
@@ -322,6 +332,37 @@ func (l *BatchSubmitter) loop() {
 			return
 		}
 	}
+}
+
+// waitNodeSync Check to see if there was a batcher tx sent recently that
+// still needs more block confirmations before being considered finalized
+func (l *BatchSubmitter) waitNodeSync() error {
+	ctx, cancel := context.WithTimeout(l.shutdownCtx, l.Config.NetworkTimeout)
+	defer cancel()
+
+	rollupClient, err := l.EndpointProvider.RollupClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get rollup client: %w", err)
+	}
+
+	l1Tip, err := l.l1Tip(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve l1 tip: %w", err)
+	}
+
+	l1TargetBlock := l1Tip.Number
+	if l.Config.CheckRecentTxsDepth != 0 {
+		l.Log.Info("Checking for recently submitted batcher transactions on L1")
+		recentBlock, found, err := eth.CheckRecentTxs(ctx, l.L1Client, l.Config.CheckRecentTxsDepth, l.Txmgr.From())
+		if err != nil {
+			return fmt.Errorf("failed when checking recent batcher txs: %w", err)
+		}
+		if found {
+			l1TargetBlock = recentBlock
+		}
+	}
+
+	return dial.WaitRollupSync(l.shutdownCtx, l.Log, rollupClient, l1TargetBlock, time.Second*12)
 }
 
 // publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is

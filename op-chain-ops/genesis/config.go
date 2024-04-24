@@ -10,8 +10,12 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -169,9 +173,15 @@ type DeployConfig struct {
 	// as part of the derivation pipeline.
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
 	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
+	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
+	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
+	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
+	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
+	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
+	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar"`
 	// EnableGovernance configures whether or not include governance token predeploy.
 	EnableGovernance bool `json:"enableGovernance"`
 	// GovernanceTokenSymbol represents the  ERC20 symbol of the GovernanceToken.
@@ -203,10 +213,12 @@ type DeployConfig struct {
 	// supports. Ideally, this should be conservatively set so that there is always enough
 	// room for a full Cannon trace.
 	FaultGameMaxDepth uint64 `json:"faultGameMaxDepth"`
-	// FaultGameMaxDuration is the maximum amount of time (in seconds) that the fault dispute
-	// game can run for before it is ready to be resolved. Each side receives half of this value
-	// on their chess clock at the inception of the dispute.
-	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// FaultGameClockExtension is the amount of time that the dispute game will set the potential grandchild claim's,
+	// clock to, if the remaining time is less than this value at the time of a claim's creation.
+	FaultGameClockExtension uint64 `json:"faultGameClockExtension"`
+	// FaultGameMaxClockDuration is the maximum amount of time that may accumulate on a team's chess clock before they
+	// may no longer respond.
+	FaultGameMaxClockDuration uint64 `json:"faultGameMaxClockDuration"`
 	// FaultGameGenesisBlock is the block number for genesis.
 	FaultGameGenesisBlock uint64 `json:"faultGameGenesisBlock"`
 	// FaultGameGenesisOutputRoot is the output root for the genesis block.
@@ -356,7 +368,13 @@ func (d *DeployConfig) Check() error {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
 	if d.GasPriceOracleScalar == 0 {
-		return fmt.Errorf("%w: GasPriceOracleScalar cannot be 0", ErrInvalidDeployConfig)
+		log.Warn("GasPriceOracleScalar is 0")
+	}
+	if d.GasPriceOracleBaseFeeScalar == 0 {
+		log.Warn("GasPriceOracleBaseFeeScalar is 0")
+	}
+	if d.GasPriceOracleBlobBaseFeeScalar == 0 {
+		log.Warn("GasPriceOracleBlobBaseFeeScalar is 0")
 	}
 	if d.EIP1559Denominator == 0 {
 		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
@@ -412,9 +430,6 @@ func (d *DeployConfig) Check() error {
 		if d.DAResolveWindow == 0 {
 			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
 		}
-		if d.DAChallengeProxy == (common.Address{}) {
-			return fmt.Errorf("%w: DAChallengeContract cannot be empty when using plasma mode", ErrInvalidDeployConfig)
-		}
 	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
@@ -447,6 +462,18 @@ func (d *DeployConfig) Check() error {
 	return nil
 }
 
+// FeeScalar returns the raw serialized fee scalar. Uses pre-Ecotone if legacy config is present,
+// otherwise uses the post-Ecotone scalar serialization.
+func (d *DeployConfig) FeeScalar() [32]byte {
+	if d.GasPriceOracleScalar != 0 {
+		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
+	}
+	return eth.EncodeScalar(eth.EcostoneScalars{
+		BlobBaseFeeScalar: d.GasPriceOracleBlobBaseFeeScalar,
+		BaseFeeScalar:     d.GasPriceOracleBaseFeeScalar,
+	})
+}
+
 // CheckAddresses will return an error if the addresses are not set.
 // These values are required to create the L2 genesis state and are present in the deploy config
 // even though the deploy config is required to deploy the contracts on L1. This creates a
@@ -466,6 +493,10 @@ func (d *DeployConfig) CheckAddresses() error {
 	}
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
+	if d.UsePlasma && d.DAChallengeProxy == (common.Address{}) {
+		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using plasma mode", ErrInvalidDeployConfig)
+
 	}
 	return nil
 }
@@ -573,7 +604,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 			SystemConfig: eth.SystemConfig{
 				BatcherAddr: d.BatchSenderAddress,
 				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
+				Scalar:      eth.Bytes32(d.FeeScalar()),
 				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 			},
 		},
@@ -775,6 +806,7 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	d.Root = dump.Root
 	d.Accounts = make(map[string]gstate.DumpAccount)
 	for addr, acc := range dump.Accounts {
+		acc := acc
 		d.Accounts[addr.String()] = gstate.DumpAccount{
 			Balance:     acc.Balance,
 			Nonce:       (uint64)(acc.Nonce),
@@ -784,6 +816,45 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 			Storage:     acc.Storage,
 			Address:     acc.Address,
 			AddressHash: acc.AddressHash,
+		}
+	}
+	return nil
+}
+
+type ForgeAllocs struct {
+	Accounts core.GenesisAlloc `json:"accounts"`
+}
+
+func (d *ForgeAllocs) Copy() *ForgeAllocs {
+	out := make(core.GenesisAlloc, len(d.Accounts))
+	maps.Copy(out, d.Accounts)
+	return &ForgeAllocs{Accounts: out}
+}
+
+func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
+	// forge, since integrating Alloy, likes to hex-encode everything.
+	type forgeAllocAccount struct {
+		Balance hexutil.Big                 `json:"balance"`
+		Nonce   hexutil.Uint64              `json:"nonce"`
+		Code    hexutil.Bytes               `json:"code,omitempty"`
+		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
+	}
+	type forgeAllocs struct {
+		Accounts map[common.Address]forgeAllocAccount `json:"accounts"`
+	}
+	var allocs forgeAllocs
+	if err := json.Unmarshal(b, &allocs); err != nil {
+		return err
+	}
+	d.Accounts = make(core.GenesisAlloc, len(allocs.Accounts))
+	for addr, acc := range allocs.Accounts {
+		acc := acc
+		d.Accounts[addr] = core.GenesisAccount{
+			Code:       acc.Code,
+			Storage:    acc.Storage,
+			Balance:    acc.Balance.ToInt(),
+			Nonce:      (uint64)(acc.Nonce),
+			PrivateKey: nil,
 		}
 	}
 	return nil
@@ -874,7 +945,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	return &cfg, nil
 }
 
-// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis block.
+// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis L1 anchor block.
 func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 
@@ -912,15 +983,24 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initializing": false,
 		"bridge":        predeploys.L2StandardBridgeAddr,
 	}
+
+	excessBlobGas := block.ExcessBlobGas()
+	if excessBlobGas == nil {
+		excessBlobGas = u64ptr(0)
+	}
+
 	storage["L1Block"] = state.StorageValues{
-		"number":         block.Number(),
-		"timestamp":      block.Time(),
-		"basefee":        block.BaseFee(),
-		"hash":           block.Hash(),
-		"sequenceNumber": 0,
-		"batcherHash":    eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
-		"l1FeeOverhead":  config.GasPriceOracleOverhead,
-		"l1FeeScalar":    config.GasPriceOracleScalar,
+		"number":            block.Number(),
+		"timestamp":         block.Time(),
+		"basefee":           block.BaseFee(),
+		"hash":              block.Hash(),
+		"sequenceNumber":    0,
+		"blobBaseFeeScalar": config.GasPriceOracleBlobBaseFeeScalar,
+		"baseFeeScalar":     config.GasPriceOracleBaseFeeScalar,
+		"batcherHash":       eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
+		"l1FeeOverhead":     config.GasPriceOracleOverhead,
+		"l1FeeScalar":       config.GasPriceOracleScalar,
+		"blobBaseFee":       eip4844.CalcBlobFee(*excessBlobGas),
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
 		"_name":   "Ether",

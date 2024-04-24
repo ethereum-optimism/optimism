@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -27,16 +27,13 @@ type WithdrawalRequest struct {
 	Timestamp *big.Int
 }
 
-func NewDelayedWETHContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DelayedWETHContract, error) {
-	contractAbi, err := bindings.DelayedWETHMetaData.GetAbi()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load delayed weth ABI: %w", err)
-	}
+func NewDelayedWETHContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) *DelayedWETHContract {
+	contractAbi := snapshots.LoadDelayedWETHABI()
 	return &DelayedWETHContract{
 		metrics:     metrics,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(contractAbi, addr),
-	}, nil
+	}
 }
 
 // GetWithdrawals returns all withdrawals made from the contract since the given block.

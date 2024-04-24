@@ -209,11 +209,8 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 }
 
 func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract, err := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
+	factoryContract := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
 		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
-	if err != nil {
-		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
-	}
 	s.factoryContract = factoryContract
 	return nil
 }

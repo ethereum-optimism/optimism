@@ -29,6 +29,7 @@ type GameCaller interface {
 	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	BondCaller
 	BalanceCaller
+	ClaimCaller
 }
 
 type GameCallerCreator struct {
@@ -50,11 +51,8 @@ func (g *GameCallerCreator) CreateContract(game gameTypes.GameMetadata) (GameCal
 		return fdg, nil
 	}
 	switch game.GameType {
-	case faultTypes.CannonGameType, faultTypes.AlphabetGameType:
-		fdg, err := contracts.NewFaultDisputeGameContract(g.m, game.Proxy, g.caller)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create FaultDisputeGameContract: %w", err)
-		}
+	case faultTypes.CannonGameType, faultTypes.AsteriscGameType, faultTypes.AlphabetGameType:
+		fdg := contracts.NewFaultDisputeGameContract(g.m, game.Proxy, g.caller)
 		g.cache.Add(game.Proxy, fdg)
 		return fdg, nil
 	default:

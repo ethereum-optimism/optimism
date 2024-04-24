@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.46.1
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.48.0
   ci_builder_rust_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
@@ -135,7 +135,8 @@ jobs:
       - run:
           name: Cannon Go tests
           command: |
-            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/cannon.xml \
+            mkdir -p /testlogs
+            gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
             -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
           working_directory: cannon
       - run:
@@ -143,6 +144,9 @@ jobs:
           command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
           path: /tmp/test-results
+      - store_artifacts:
+          path: /testlogs
+          when: always
   cannon-build-test-vectors:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -225,11 +229,17 @@ jobs:
             - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
             - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
             - ".devnet/allocs-l1.json"
+            - ".devnet/allocs-l2.json"
+            - ".devnet/allocs-l2-delta.json"
             - ".devnet/addresses.json"
             - ".devnet-fault-proofs/allocs-l1.json"
             - ".devnet-fault-proofs/addresses.json"
+            - ".devnet-fault-proofs/allocs-l2.json"
+            - ".devnet-fault-proofs/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l1.json"
             - ".devnet-plasma/addresses.json"
+            - ".devnet-plasma/allocs-l2.json"
+            - ".devnet-plasma/allocs-l2-delta.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
 
@@ -503,6 +513,16 @@ jobs:
             pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          # The solc warnings check must be the first step to build the contracts, that way the
+          # warnings are output here. On subsequent runs, forge will read artifacts from the cache
+          # so warnings would not occur.
+          name: solc warnings check
+          command: |
+            forge build --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
           name: gas snapshot
           command: |
             pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
@@ -522,10 +542,21 @@ jobs:
             pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          name: size check
+          command: |
+            forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**" || echo "export SIZE_CHECK=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
           name: check statuses
           command: |
             if [[ "$LINT_STATUS" -ne 0 ]]; then
               echo "Linting failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$SOLC_WARNINGS_CHECK" -ne 0 ]]; then
+              echo "Solidity emitted warnings, see job output for details."
               FAILED=1
             fi
             if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
@@ -546,6 +577,10 @@ jobs:
             fi
             if [[ "$SNAPSHOTS_STATUS" -ne 0 ]]; then
               echo "Snapshots check failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$SIZE_CHECK" -ne 0 ]]; then
+              echo "Contract(s) exceed size limit, see job output for details."
               FAILED=1
             fi
             if [[ "$FAILED" -ne 0 ]]; then
@@ -847,11 +882,11 @@ jobs:
             - golang-build-cache-
       - run:
           name: prep results dir
-          command: mkdir -p /tmp/test-results
+          command: mkdir -p /tmp/test-results &&  mkdir -p /testlogs
       - run:
           name: run tests
           command: |
-            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
+            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:
@@ -864,6 +899,9 @@ jobs:
           #command: codecov --verbose --clean --flags bedrock-go-tests
       - store_test_results:
           path: /tmp/test-results
+      - store_artifacts:
+          path: /testlogs
+          when: always
 
   go-e2e-test:
     parameters:
@@ -931,6 +969,8 @@ jobs:
           name: Load devnet-allocs
           command: |
             mkdir -p .devnet
+            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l2.json .devnet/allocs-l2.json
+            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
             cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l1.json .devnet/allocs-l1.json
             cp /tmp/workspace/.devnet<<parameters.fpac>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
@@ -950,7 +990,7 @@ jobs:
             export OP_E2E_CANNON_ENABLED="false"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>> 2>&1 | tee /testlogs/test.log
+            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=/testlogs/test.log make <<parameters.target>>
           working_directory: <<parameters.module>>
       - store_artifacts:
           path: /testlogs
@@ -994,10 +1034,13 @@ jobs:
           name: Test
           command: |
             mkdir -p /test-results
-            gotestsum  --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=2
+            gotestsum  --format=testname --junitfile /test-results/tests.xml --jsonfile /test-results/log.json -- -parallel=2
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
+      - store_artifacts:
+          path: /testlogs
+          when: always
       - when:
           condition:
             equal: [ true, <<parameters.build>> ]
@@ -1120,6 +1163,8 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
+            - ".devnet/allocs-l2.json"
+            - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l1.json"
             - ".devnet/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
@@ -1136,15 +1181,23 @@ jobs:
       DEVNET_NO_BUILD: 'true'
       # Default value; Can be overridden.
       DEVNET_FPAC: 'false'
+      DEVNET_PLASMA: 'false'
     steps:
       - checkout
       - when:
           condition:
-            equal: ['-fault-proofs', <<parameters.fpac>>]
+            equal: ['fault-proofs', <<parameters.fpac>>]
           steps:
             - run:
                 name: Set DEVNET_FPAC = true
                 command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['plasma', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_PLASMA = true
+                command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
@@ -1192,6 +1245,14 @@ jobs:
           command: make submodules
       - attach_workspace:
           at: "."
+      - when:
+          condition:
+            not:
+              equal: ['legacy', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Use non-legacy devnet allocs
+                command: rm -r .devnet && mv .devnet-<<parameters.fpac>> .devnet
       - run:
           name: Load and tag docker images
           command: |
@@ -1201,11 +1262,13 @@ jobs:
             docker load < "./op-node.tar"
             docker load < "./op-proposer.tar"
             docker load < "./op-batcher.tar"
+            docker load < "./da-server.tar"
             # rename to the tags that the docker-compose of the devnet expects
             docker tag "$IMAGE_BASE_PREFIX/op-stack-go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-stack-go:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/da-server:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/da-server:devnet"
       - run:
           name: pnpm i
           command: |
@@ -1247,6 +1310,11 @@ jobs:
           name: Dump op-challenger logs
           command: |
             docker logs ops-bedrock-op-challenger-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump da-server logs
+          command: |
+            docker logs ops-bedrock-da-server-1 || echo "No logs."
           when: on_fail
       - run:
           name: Log deployment artifact
@@ -1762,18 +1830,25 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
+      - docker-build:
+          name: da-server-docker-build
+          docker_name: da-server
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: ['op-stack-go-docker-build']
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - cannon-prestate:
           requires:
             - go-mod-download
       - devnet:
           matrix:
             parameters:
-              fpac: ["legacy", "fault-proofs"]
+              fpac: ["legacy", "fault-proofs", "plasma"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
             - op-proposer-docker-build
             - op-node-docker-build
+            - da-server-docker-build
             - cannon-prestate
       - docker-build:
           name: indexer-docker-build
@@ -1803,14 +1878,14 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build: # just to warm up the cache (other jobs run in parallel)
           name: op-stack-go-docker-build-release
           filters:
             tags:
-              only: /^(proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
           docker_name: op-stack-go
@@ -1916,6 +1991,21 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-conductor
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - docker-build:
+          name: da-server-docker-release
+          filters:
+            tags:
+              only: /^da-server\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: da-server
           docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"

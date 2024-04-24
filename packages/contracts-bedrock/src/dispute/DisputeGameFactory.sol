@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
+import { LibClone } from "@solady/utils/LibClone.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
@@ -20,11 +20,11 @@ import "src/libraries/DisputeErrors.sol";
 ///         dispute games easier.
 contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver {
     /// @dev Allows for the creation of clone proxies with immutable arguments.
-    using ClonesWithImmutableArgs for address;
+    using LibClone for address;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.3.0
-    string public constant version = "0.3.0";
+    /// @custom:semver 0.6.0
+    string public constant version = "0.6.0";
 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;
@@ -103,7 +103,17 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         bytes32 parentHash = blockhash(block.number - 1);
 
         // Clone the implementation contract and initialize it with the given parameters.
-        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, parentHash, _extraData)));
+        //
+        // CWIA Calldata Layout:
+        // ┌──────────────┬────────────────────────────────────┐
+        // │    Bytes     │            Description             │
+        // ├──────────────┼────────────────────────────────────┤
+        // │ [0, 20)      │ Game creator address               │
+        // │ [20, 52)     │ Root claim                         │
+        // │ [52, 84)     │ Parent block hash at creation time │
+        // │ [84, 84 + n) │ Extra data (opaque)                │
+        // └──────────────┴────────────────────────────────────┘
+        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData)));
         proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.

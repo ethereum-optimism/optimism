@@ -1004,10 +1004,10 @@ func TestL1InfoContract(t *testing.T) {
 			BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
 		}
 		if sys.RollupConfig.IsEcotone(b.Time()) && !sys.RollupConfig.IsEcotoneActivationBlock(b.Time()) {
-			blobBaseFeeScalar, baseFeeScalar, err := sys.RollupConfig.Genesis.SystemConfig.EcotoneScalars()
+			scalars, err := sys.RollupConfig.Genesis.SystemConfig.EcotoneScalars()
 			require.NoError(t, err)
-			l1blocks[h].BlobBaseFeeScalar = blobBaseFeeScalar
-			l1blocks[h].BaseFeeScalar = baseFeeScalar
+			l1blocks[h].BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
+			l1blocks[h].BaseFeeScalar = scalars.BaseFeeScalar
 			if excess := b.ExcessBlobGas(); excess != nil {
 				l1blocks[h].BlobBaseFee = eip4844.CalcBlobFee(*excess)
 			} else {
@@ -1222,6 +1222,10 @@ func testFees(t *testing.T, cfg SystemConfig) {
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
 	l1 := sys.Clients["l1"]
+
+	// Wait for first block after genesis. The genesis block has zero L1Block values and will throw off the GPO checks
+	_, err = geth.WaitForBlock(big.NewInt(1), l2Verif, time.Minute)
+	require.NoError(t, err)
 
 	config := sys.L2Genesis().Config
 

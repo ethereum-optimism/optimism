@@ -30,13 +30,23 @@ interface IDisputeGame is IInitializable {
     /// @return gameType_ The type of proof system being used.
     function gameType() external view returns (GameType gameType_);
 
-    /// @notice Getter for the root claim.
+    /// @notice Getter for the creator of the dispute game.
     /// @dev `clones-with-immutable-args` argument #1
+    /// @return creator_ The creator of the dispute game.
+    function gameCreator() external pure returns (address creator_);
+
+    /// @notice Getter for the root claim.
+    /// @dev `clones-with-immutable-args` argument #2
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() external pure returns (Claim rootClaim_);
 
+    /// @notice Getter for the parent hash of the L1 block when the dispute game was created.
+    /// @dev `clones-with-immutable-args` argument #3
+    /// @return l1Head_ The parent hash of the L1 block when the dispute game was created.
+    function l1Head() external pure returns (Hash l1Head_);
+
     /// @notice Getter for the extra data.
-    /// @dev `clones-with-immutable-args` argument #2
+    /// @dev `clones-with-immutable-args` argument #4
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() external pure returns (bytes memory extraData_);
 

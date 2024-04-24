@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const getTraceTimeout = 10 * time.Minute
+
 type OutputHonestHelper struct {
 	t            *testing.T
 	require      *require.Assertions
@@ -44,7 +46,7 @@ func (h *OutputHonestHelper) Attack(ctx context.Context, claimIdx int64, opts ..
 	// Ensure the claim exists
 	h.game.WaitForClaimCount(ctx, claimIdx+1)
 
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, getTraceTimeout)
 	defer cancel()
 
 	game, claim := h.loadState(ctx, claimIdx)
@@ -61,7 +63,7 @@ func (h *OutputHonestHelper) Defend(ctx context.Context, claimIdx int64, opts ..
 	// Ensure the claim exists
 	h.game.WaitForClaimCount(ctx, claimIdx+1)
 
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, getTraceTimeout)
 	defer cancel()
 	game, claim := h.loadState(ctx, claimIdx)
 	defendPos := claim.Position.Defend()

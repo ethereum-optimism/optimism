@@ -34,7 +34,7 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInterval, minPeerCount uint64, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
 	return &SequencerHealthMonitor{
 		log:            log,
 		done:           make(chan struct{}),
@@ -42,6 +42,7 @@ func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInt
 		healthUpdateCh: make(chan error),
 		rollupCfg:      rollupCfg,
 		unsafeInterval: unsafeInterval,
+		safeEnabled:    safeEnabled,
 		safeInterval:   safeInterval,
 		minPeerCount:   minPeerCount,
 		timeProviderFn: currentTimeProvicer,
@@ -58,6 +59,7 @@ type SequencerHealthMonitor struct {
 
 	rollupCfg          *rollup.Config
 	unsafeInterval     uint64
+	safeEnabled        bool
 	safeInterval       uint64
 	minPeerCount       uint64
 	interval           uint64
@@ -169,7 +171,7 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 		return ErrSequencerNotHealthy
 	}
 
-	if now-status.SafeL2.Time > hm.safeInterval {
+	if hm.safeEnabled && now-status.SafeL2.Time > hm.safeInterval {
 		hm.log.Error(
 			"safe head is not progressing as expected",
 			"now", now,

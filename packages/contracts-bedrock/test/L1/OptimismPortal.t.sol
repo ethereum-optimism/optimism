@@ -21,6 +21,7 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import "src/libraries/PortalErrors.sol";
 
 contract OptimismPortal_Test is CommonTest {
     address depositor;
@@ -37,9 +38,7 @@ contract OptimismPortal_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
-        assertEq(address(opImpl.L2_ORACLE()), address(0));
         assertEq(address(opImpl.l2Oracle()), address(0));
-        assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
         assertEq(address(opImpl.superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
@@ -54,11 +53,8 @@ contract OptimismPortal_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_initialize_succeeds() external virtual {
         address guardian = deploy.cfg().superchainConfigGuardian();
-        assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
-        assertEq(address(optimismPortal.SYSTEM_CONFIG()), address(systemConfig));
         assertEq(address(optimismPortal.systemConfig()), address(systemConfig));
-        assertEq(optimismPortal.GUARDIAN(), guardian);
         assertEq(optimismPortal.guardian(), guardian);
         assertEq(address(optimismPortal.superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal.l2Sender(), Constants.DEFAULT_L2_SENDER);
@@ -72,7 +68,7 @@ contract OptimismPortal_Test is CommonTest {
     /// @dev Tests that `pause` successfully pauses
     ///      when called by the GUARDIAN.
     function test_pause_succeeds() external {
-        address guardian = optimismPortal.GUARDIAN();
+        address guardian = optimismPortal.guardian();
 
         assertEq(optimismPortal.paused(), false);
 
@@ -89,7 +85,7 @@ contract OptimismPortal_Test is CommonTest {
     function test_pause_onlyGuardian_reverts() external {
         assertEq(optimismPortal.paused(), false);
 
-        assertTrue(optimismPortal.GUARDIAN() != alice);
+        assertTrue(optimismPortal.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can pause");
         vm.prank(alice);
         superchainConfig.pause("identifier");
@@ -100,7 +96,7 @@ contract OptimismPortal_Test is CommonTest {
     /// @dev Tests that `unpause` successfully unpauses
     ///      when called by the GUARDIAN.
     function test_unpause_succeeds() external {
-        address guardian = optimismPortal.GUARDIAN();
+        address guardian = optimismPortal.guardian();
 
         vm.prank(guardian);
         superchainConfig.pause("identifier");
@@ -116,13 +112,13 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `unpause` reverts when called by a non-GUARDIAN.
     function test_unpause_onlyGuardian_reverts() external {
-        address guardian = optimismPortal.GUARDIAN();
+        address guardian = optimismPortal.guardian();
 
         vm.prank(guardian);
         superchainConfig.pause("identifier");
         assertEq(optimismPortal.paused(), true);
 
-        assertTrue(optimismPortal.GUARDIAN() != alice);
+        assertTrue(optimismPortal.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can unpause");
         vm.prank(alice);
         superchainConfig.unpause();
@@ -156,7 +152,7 @@ contract OptimismPortal_Test is CommonTest {
     ///      for a contract creation deposit.
     function test_depositTransaction_contractCreation_reverts() external {
         // contract creation must have a target of address(0)
-        vm.expectRevert("OptimismPortal: must send to address(0) when creating a contract");
+        vm.expectRevert(BadTarget.selector);
         optimismPortal.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
@@ -165,7 +161,7 @@ contract OptimismPortal_Test is CommonTest {
     function test_depositTransaction_largeData_reverts() external {
         uint256 size = 120_001;
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(size));
-        vm.expectRevert("OptimismPortal: data too large");
+        vm.expectRevert(LargeCalldata.selector);
         optimismPortal.depositTransaction({
             _to: address(0),
             _value: 0,
@@ -177,7 +173,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `depositTransaction` reverts when the gas limit is too small.
     function test_depositTransaction_smallGasLimit_reverts() external {
-        vm.expectRevert("OptimismPortal: gas limit too small");
+        vm.expectRevert(SmallGasLimit.selector);
         optimismPortal.depositTransaction({ _to: address(1), _value: 0, _gasLimit: 0, _isCreation: false, _data: hex"" });
     }
 
@@ -187,7 +183,7 @@ contract OptimismPortal_Test is CommonTest {
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(_data.length));
         if (_shouldFail) {
             gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
-            vm.expectRevert("OptimismPortal: gas limit too small");
+            vm.expectRevert(SmallGasLimit.selector);
         }
 
         optimismPortal.depositTransaction({
@@ -202,7 +198,7 @@ contract OptimismPortal_Test is CommonTest {
     /// @dev Tests that `minimumGasLimit` succeeds for small calldata sizes.
     ///      The gas limit should be 21k for 0 calldata and increase linearly
     ///      for larger calldata sizes.
-    function test_minimumGasLimit_succeeds() external {
+    function test_minimumGasLimit_succeeds() external view {
         assertEq(optimismPortal.minimumGasLimit(0), 21_000);
         assertTrue(optimismPortal.minimumGasLimit(2) > optimismPortal.minimumGasLimit(1));
         assertTrue(optimismPortal.minimumGasLimit(3) > optimismPortal.minimumGasLimit(2));
@@ -413,10 +409,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
-        vm.prank(optimismPortal.GUARDIAN());
+        vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert("OptimismPortal: paused");
+        vm.expectRevert(CallPaused.selector);
         optimismPortal.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _l2OutputIndex: _proposedOutputIndex,
@@ -565,10 +561,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
     function test_finalizeWithdrawalTransaction_paused_reverts() external {
-        vm.prank(optimismPortal.GUARDIAN());
+        vm.prank(optimismPortal.guardian());
         superchainConfig.pause("identifier");
 
-        vm.expectRevert("OptimismPortal: paused");
+        vm.expectRevert(CallPaused.selector);
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 
@@ -918,7 +914,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
 contract OptimismPortalUpgradeable_Test is CommonTest {
     /// @dev Tests that the proxy is initialized correctly.
-    function test_params_initValuesOnProxy_succeeds() external {
+    function test_params_initValuesOnProxy_succeeds() external view {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal.params();
         ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
 

@@ -161,9 +161,9 @@ func (g *OutputGameHelper) correctOutputRoot(ctx context.Context, pos types.Posi
 	return outputRoot
 }
 
-func (g *OutputGameHelper) GameDuration(ctx context.Context) time.Duration {
-	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
-	g.require.NoError(err, "failed to get game duration")
+func (g *OutputGameHelper) MaxClockDuration(ctx context.Context) time.Duration {
+	duration, err := g.game.MaxClockDuration(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to get max clock duration")
 	return time.Duration(duration) * time.Second
 }
 
@@ -702,8 +702,7 @@ func (g *OutputGameHelper) uploadPreimage(ctx context.Context, data *types.Preim
 
 func (g *OutputGameHelper) oracle(ctx context.Context) *contracts.PreimageOracleContract {
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
-	g.require.NoError(err, "Failed to create game contract")
+	contract := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
 	oracle, err := contract.GetOracle(ctx)
 	g.require.NoError(err, "Failed to create oracle contract")
 	return oracle

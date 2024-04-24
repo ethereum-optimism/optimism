@@ -118,6 +118,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		HealthCheck: HealthCheckConfig{
 			Interval:       ctx.Uint64(flags.HealthCheckInterval.Name),
 			UnsafeInterval: ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
+			SafeEnabled:    ctx.Bool(flags.HealthCheckSafeEnabled.Name),
 			SafeInterval:   ctx.Uint64(flags.HealthCheckSafeInterval.Name),
 			MinPeerCount:   ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
 		},
@@ -137,6 +138,9 @@ type HealthCheckConfig struct {
 
 	// UnsafeInterval is the interval allowed between unsafe head and now in seconds.
 	UnsafeInterval uint64
+
+	// SafeEnabled is whether to enable safe head progression checks.
+	SafeEnabled bool
 
 	// SafeInterval is the interval between safe head progression measured in seconds.
 	SafeInterval uint64

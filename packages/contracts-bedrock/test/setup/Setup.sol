@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { console2 as console } from "forge-std/console2.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
@@ -24,6 +26,7 @@ import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
+import { L2Genesis, L1Dependencies, OutputMode } from "scripts/L2Genesis.s.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -50,6 +53,12 @@ contract Setup {
     /// @notice The address of the Deploy contract. Set into state with `etch` to avoid
     ///         mutating any nonces. MUST not have constructor logic.
     Deploy internal constant deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
+
+    L2Genesis internal constant l2Genesis =
+        L2Genesis(address(uint160(uint256(keccak256(abi.encode("optimism.l2genesis"))))));
+
+    // @notice Allows users of Setup to override what L2 genesis is being created.
+    OutputMode l2OutputMode = OutputMode.LOCAL_LATEST;
 
     OptimismPortal optimismPortal;
     OptimismPortal2 optimismPortal2;
@@ -89,13 +98,22 @@ contract Setup {
     ///      will also need to include the bytecode for the Deploy contract.
     ///      This is a hack as we are pushing solidity to the edge.
     function setUp() public virtual {
+        console.log("L1 setup start!");
         vm.etch(address(deploy), vm.getDeployedCode("Deploy.s.sol:Deploy"));
         vm.allowCheatcodes(address(deploy));
         deploy.setUp();
+        console.log("L1 setup done!");
+
+        console.log("L2 setup start!");
+        vm.etch(address(l2Genesis), vm.getDeployedCode("L2Genesis.s.sol:L2Genesis"));
+        vm.allowCheatcodes(address(l2Genesis));
+        l2Genesis.setUp();
+        console.log("L2 setup done!");
     }
 
     /// @dev Sets up the L1 contracts.
     function L1() public {
+        console.log("Setup: creating L1 deployments");
         // Set the deterministic deployer in state to ensure that it is there
         vm.etch(
             0x4e59b44847b379578588920cA78FbF26c0B4956C,
@@ -103,6 +121,7 @@ contract Setup {
         );
 
         deploy.run();
+        console.log("Setup: completed L1 deployment, registering addresses now");
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
         optimismPortal2 = OptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
@@ -151,61 +170,63 @@ contract Setup {
             vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallengeProxy");
             vm.label(deploy.mustGetAddress("DataAvailabilityChallenge"), "DataAvailabilityChallenge");
         }
+        console.log("Setup: registered L1 deployments");
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2() public {
-        string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis.json");
-        if (vm.isFile(allocsPath) == false) {
-            string[] memory args = new string[](3);
-            args[0] = Executables.bash;
-            args[1] = "-c";
-            args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
-            Vm.FfiResult memory result = vm.tryFfi(args);
-            if (result.exitCode != 0) {
-                revert FfiFailed(
-                    string.concat(
-                        "FFI call to generate genesis.json failed with exit code: ",
-                        string(abi.encodePacked(result.exitCode)),
-                        ".\nCommand: ",
-                        Executables.bash,
-                        " -c ",
-                        vm.projectRoot(),
-                        "/scripts/generate-l2-genesis.sh",
-                        ".\nOutput: ",
-                        string(result.stdout),
-                        "\nError: ",
-                        string(result.stderr)
-                    )
-                );
-            }
-        }
-
-        // Prevent race condition where the genesis.json file is not yet created
-        while (vm.isFile(allocsPath) == false) {
-            vm.sleep(1);
-        }
-
-        vm.loadAllocs(allocsPath);
+        console.log("Setup: creating L2 genesis, with output mode %d", uint256(l2OutputMode));
+        l2Genesis.runWithOptions(
+            l2OutputMode,
+            L1Dependencies({
+                l1CrossDomainMessengerProxy: payable(address(l1CrossDomainMessenger)),
+                l1StandardBridgeProxy: payable(address(l1StandardBridge)),
+                l1ERC721BridgeProxy: payable(address(l1ERC721Bridge))
+            })
+        );
 
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = deploy.cfg().finalSystemOwner();
         vm.prank(governanceToken.owner());
         governanceToken.transferOwnership(finalSystemOwner);
 
-        vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
-        vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
-        vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
-        vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
-        vm.label(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
-        vm.label(Predeploys.L2_ERC721_BRIDGE, "L2ERC721Bridge");
-        vm.label(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
-        vm.label(Predeploys.L1_FEE_VAULT, "L1FeeVault");
-        vm.label(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
-        vm.label(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
-        vm.label(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
-        vm.label(Predeploys.GOVERNANCE_TOKEN, "GovernanceToken");
-        vm.label(Predeploys.EAS, "EAS");
-        vm.label(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
+        // L2 predeploys
+        labelPredeploy(Predeploys.L2_STANDARD_BRIDGE);
+        labelPredeploy(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        labelPredeploy(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+        labelPredeploy(Predeploys.SEQUENCER_FEE_WALLET);
+        labelPredeploy(Predeploys.L2_ERC721_BRIDGE);
+        labelPredeploy(Predeploys.BASE_FEE_VAULT);
+        labelPredeploy(Predeploys.L1_FEE_VAULT);
+        labelPredeploy(Predeploys.L1_BLOCK_ATTRIBUTES);
+        labelPredeploy(Predeploys.GAS_PRICE_ORACLE);
+        labelPredeploy(Predeploys.LEGACY_MESSAGE_PASSER);
+        labelPredeploy(Predeploys.GOVERNANCE_TOKEN);
+        labelPredeploy(Predeploys.EAS);
+        labelPredeploy(Predeploys.SCHEMA_REGISTRY);
+
+        // L2 Preinstalls
+        labelPreinstall(Preinstalls.MultiCall3);
+        labelPreinstall(Preinstalls.Create2Deployer);
+        labelPreinstall(Preinstalls.Safe_v130);
+        labelPreinstall(Preinstalls.SafeL2_v130);
+        labelPreinstall(Preinstalls.MultiSendCallOnly_v130);
+        labelPreinstall(Preinstalls.SafeSingletonFactory);
+        labelPreinstall(Preinstalls.DeterministicDeploymentProxy);
+        labelPreinstall(Preinstalls.MultiSend_v130);
+        labelPreinstall(Preinstalls.Permit2);
+        labelPreinstall(Preinstalls.SenderCreator);
+        labelPreinstall(Preinstalls.EntryPoint);
+        labelPreinstall(Preinstalls.BeaconBlockRoots);
+
+        console.log("Setup: completed L2 genesis");
+    }
+
+    function labelPredeploy(address _addr) internal {
+        vm.label(_addr, Predeploys.getName(_addr));
+    }
+
+    function labelPreinstall(address _addr) internal {
+        vm.label(_addr, Preinstalls.getName(_addr));
     }
 }
