@@ -123,6 +123,8 @@ jobs:
       - checkout
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
+      - attach_workspace:
+          at: "."
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -793,17 +795,15 @@ jobs:
       - checkout
       - check-changed:
           patterns: "<<parameters.package_name>>"
+      - attach_workspace:
+          at: "."
+          if: ${{ uses_artifacts }}
       - restore_cache:
           name: Restore Go modules cache
           key: gomod-{{ checksum "go.sum" }}
       - restore_cache:
           name: Restore Go build cache
           key: golang-build-cache
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-          if: ${{ uses_artifacts }}
       - run:
           name: Fuzz
           command: make fuzz
