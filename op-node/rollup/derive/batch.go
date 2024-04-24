@@ -119,8 +119,12 @@ func (b *BatchData) decodeTyped(data []byte) error {
 	default:
 		return fmt.Errorf("unrecognized batch type: %d", data[0])
 	}
-	if err := inner.decode(bytes.NewReader(data[1:])); err != nil {
+	r := bytes.NewReader(data[1:])
+	if err := inner.decode(r); err != nil {
 		return err
+	}
+	if r.Len() != 0 {
+		return fmt.Errorf("extraneous bytes at the end of data:%d", r.Len())
 	}
 	b.inner = inner
 	return nil
