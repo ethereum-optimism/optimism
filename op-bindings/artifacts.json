@@ -42,8 +42,7 @@
     "DelayedVetoable",
     "ISemver",
     "StorageSetter",
-    "SuperchainConfig",
-    "DataAvailabilityChallenge"
+    "SuperchainConfig"
   ],
   "remote": [
     {
