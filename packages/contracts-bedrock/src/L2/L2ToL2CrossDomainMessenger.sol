@@ -190,6 +190,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     }
 
     /// @notice Stores message data such as sender and source in transient storage.
+    /// @param _source Chain ID of the source chain.
+    /// @param _sender Address of the sender of the message.
     function _storeMessageMetadata(uint256 _source, address _sender) internal {
         assembly {
             // update `entered` to non-zero
@@ -201,6 +203,9 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     }
 
     /// @notice Calls the target account with the message payload and all available gas.
+    /// @param _target Address of the target account.
+    /// @param _msg    Message payload to send to the target account.
+    /// @return _success True if the call was successful, and false otherwise.
     function _callWithAllGas(address _target, bytes memory _msg) internal returns (bool _success) {
         assembly {
             _success :=
