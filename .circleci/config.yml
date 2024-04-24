@@ -613,41 +613,6 @@ jobs:
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
 
-  op-bindings-build:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: check go bindings
-          command: make && git diff --exit-code
-          working_directory: op-bindings
-
-  bindgen-remote:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: bindgen remote bindings
-          command: make bindgen-remote && git diff --exit-code
-          working_directory: op-bindings
-      - notify-failures-on-develop
-
-  bindgen-test-e2e:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: bindgen test E2E
-          command: make test-bindgen-e2e
-          working_directory: op-bindings-e2e
-      - notify-failures-on-develop
-
   js-lint-test:
     parameters:
       package_name:
@@ -1653,7 +1618,6 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - op-bindings-build
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
@@ -2370,19 +2334,6 @@ workflows:
           context:
             - oplabs-gcr
             - slack
-
-  scheduled-bindgen:
-    when:
-      equal: [ build_daily, <<pipeline.schedule.name>> ]
-    jobs:
-      - bindgen-remote:
-          context:
-            - slack
-            - oplabs-etherscan
-      - bindgen-test-e2e:
-          context:
-            - slack
-            - oplabs-etherscan
 
   scheduled-preimage-reproducibility:
     when:
