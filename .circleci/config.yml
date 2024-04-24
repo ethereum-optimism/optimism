@@ -1708,7 +1708,7 @@ workflows:
           name: cannon-fuzz
           package_name: cannon
           on_changes: cannon,packages/contracts-bedrock/src/cannon
-          requires: ["go-mod-download"]
+          requires: ["go-mod-download", "pnpm-monorepo"]
       - go-test:
           name: op-heartbeat-tests
           module: op-heartbeat
@@ -1907,7 +1907,9 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
-      - cannon-go-lint-and-test
+      - cannon-go-lint-and-test:
+          requires:
+            - pnpm-monorepo
       - cannon-build-test-vectors
       - shellcheck/check:
           name: shell-check
