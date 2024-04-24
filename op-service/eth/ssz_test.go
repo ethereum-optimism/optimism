@@ -27,42 +27,17 @@ bool(true)
 
 // FuzzExecutionPayloadUnmarshal checks that our SSZ decoding never panics
 func FuzzExecutionPayloadUnmarshal(f *testing.F) {
-	f.Fuzz(func(t *testing.T, scope uint32, useLen bool, data []byte) {
-		// {
-		// 	var payload ExecutionPayload
-		// 	if useLen {
-		// 		scope = uint32(len(data))
-		// 	}
-		// 	err := payload.UnmarshalSSZ(BlockV1, scope, bytes.NewReader(data))
-		// 	if err != nil {
-		// 		// not every input is a valid ExecutionPayload, that's ok. Should just not panic.
-		// 		return
-		// 	}
-		// }
-
-		{
-			var payload ExecutionPayload
-			if useLen {
-				scope = uint32(len(data))
-			}
-			err := payload.UnmarshalSSZ(BlockV2, scope, bytes.NewReader(data))
-			if err != nil {
-				// not every input is a valid ExecutionPayload, that's ok. Should just not panic.
-				return
-			}
+	f.Add(int8(1), uint32(90), true, []byte("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\x00\x02\x00\x000000000000000000000000000000000000000000000000000000000000000000\x00\x02\x00\x000000"))
+	f.Fuzz(func(t *testing.T, version int8, scope uint32, useLen bool, data []byte) {
+		var payload ExecutionPayload
+		if useLen {
+			scope = uint32(len(data))
 		}
-
-		// {
-		// 	var payload ExecutionPayload
-		// 	if useLen {
-		// 		scope = uint32(len(data))
-		// 	}
-		// 	err := payload.UnmarshalSSZ(BlockV3, scope, bytes.NewReader(data))
-		// 	if err != nil {
-		// 		// not every input is a valid ExecutionPayload, that's ok. Should just not panic.
-		// 		return
-		// 	}
-		// }
+		err := payload.UnmarshalSSZ(BlockVersion(version), uint32(len(data)), bytes.NewReader(data))
+		if err != nil {
+			// not every input is a valid ExecutionPayload, that's ok. Should just not panic.
+			return
+		}
 	})
 }
 
