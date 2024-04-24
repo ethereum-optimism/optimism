@@ -19,16 +19,16 @@ error NotEntered();
 contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     /// @notice Transient storage slot that `entered` is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
-    bytes32 public constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
+    bytes32 internal constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
 
     /// @notice Storage slot for the sender of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
-    bytes32 public constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
+    bytes32 internal constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
         0xb83444d07072b122e2e72a669ce32857d892345c19856f4e7142d06a167ab3f3;
 
     /// @notice Storage slot for the source of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.source")) - 1)
-    bytes32 public constant CROSS_DOMAIN_MESSAGE_SOURCE_SLOT =
+    bytes32 internal constant CROSS_DOMAIN_MESSAGE_SOURCE_SLOT =
         0x711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee7;
 
     /// @notice Current message version identifier.
