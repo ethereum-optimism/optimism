@@ -14,6 +14,7 @@ import (
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -193,6 +194,73 @@ func TestGetGameImpl(t *testing.T) {
 	actual, err := factory.GetGameImpl(context.Background(), gameType)
 	require.NoError(t, err)
 	require.Equal(t, gameImplAddr, actual)
+}
+
+func TestDecodeDisputeGameCreatedLog(t *testing.T) {
+	_, factory := setupDisputeGameFactoryTest(t)
+	fdgAbi := snapshots.LoadDisputeGameFactoryABI()
+	eventAbi := fdgAbi.Events[eventDisputeGameCreated]
+	gameAddr := common.Address{0x11}
+	gameType := uint32(4)
+	rootClaim := common.Hash{0xaa, 0xbb, 0xcc}
+
+	createValidReceipt := func() *ethTypes.Receipt {
+		return &ethTypes.Receipt{
+			Status:          ethTypes.ReceiptStatusSuccessful,
+			ContractAddress: fdgAddr,
+			Logs: []*ethTypes.Log{
+				{
+					Address: fdgAddr,
+					Topics: []common.Hash{
+						eventAbi.ID,
+						common.BytesToHash(gameAddr.Bytes()),
+						common.BytesToHash(big.NewInt(int64(gameType)).Bytes()),
+						rootClaim,
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("IgnoreIncorrectContract", func(t *testing.T) {
+		rcpt := createValidReceipt()
+		rcpt.Logs[0].Address = common.Address{0xff}
+		_, _, _, err := factory.DecodeDisputeGameCreatedLog(rcpt)
+		require.ErrorIs(t, err, ErrEventNotFound)
+	})
+
+	t.Run("IgnoreInvalidEvent", func(t *testing.T) {
+		rcpt := createValidReceipt()
+		rcpt.Logs[0].Topics = rcpt.Logs[0].Topics[0:2]
+		_, _, _, err := factory.DecodeDisputeGameCreatedLog(rcpt)
+		require.ErrorIs(t, err, ErrEventNotFound)
+	})
+
+	t.Run("IgnoreWrongEvent", func(t *testing.T) {
+		rcpt := createValidReceipt()
+		rcpt.Logs[0].Topics = []common.Hash{
+			fdgAbi.Events["ImplementationSet"].ID,
+			common.BytesToHash(common.Address{0x11}.Bytes()), // Implementation addr
+			common.BytesToHash(big.NewInt(4).Bytes()),        // Game type
+
+		}
+		// Check the log is a valid ImplementationSet
+		name, _, err := factory.contract.DecodeEvent(rcpt.Logs[0])
+		require.NoError(t, err)
+		require.Equal(t, "ImplementationSet", name)
+
+		_, _, _, err = factory.DecodeDisputeGameCreatedLog(rcpt)
+		require.ErrorIs(t, err, ErrEventNotFound)
+	})
+
+	t.Run("ValidEvent", func(t *testing.T) {
+		rcpt := createValidReceipt()
+		actualGameAddr, actualGameType, actualRootClaim, err := factory.DecodeDisputeGameCreatedLog(rcpt)
+		require.NoError(t, err)
+		require.Equal(t, gameAddr, actualGameAddr)
+		require.Equal(t, gameType, actualGameType)
+		require.Equal(t, rootClaim, actualRootClaim)
+	})
 }
 
 func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockHash common.Hash, game types.GameMetadata) {
