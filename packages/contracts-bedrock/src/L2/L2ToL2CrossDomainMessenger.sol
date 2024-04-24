@@ -6,6 +6,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /// @notice Thrown when a non-written tstore slot is attempted to be read from.
 error NotEntered();
@@ -16,7 +17,7 @@ error NotEntered();
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
-contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
+contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, ReentrancyGuard {
     /// @notice Transient storage slot that `entered` is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
     bytes32 internal constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
@@ -132,6 +133,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     )
         external
         payable
+        nonReentrant
     {
         require(msg.sender == Predeploys.CROSS_L2_INBOX, "L2ToL2CrossDomainMessenger: sender not CrossL2Inbox");
         require(
@@ -140,6 +142,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
         );
         require(_destination == block.chainid, "L2ToL2CrossDomainMessenger: destination not this chain");
         require(_target != Predeploys.CROSS_L2_INBOX, "L2ToL2CrossDomainMessenger: CrossL2Inbox cannot call itself");
+        require(_target != Predeploys.L2_TO_L2_CROSSDOMAIN_MESSENGER, "L2ToL2CrossDomainMessenger: cannot call self");
 
         bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
         require(successfulMessages[messageHash] == false, "L2ToL2CrossDomainMessenger: message already relayed");
