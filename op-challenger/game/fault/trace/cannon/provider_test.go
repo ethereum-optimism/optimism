@@ -3,7 +3,6 @@ package cannon
 import (
 	"context"
 	"embed"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"math"

@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -217,7 +216,7 @@ func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ c
 	}, nil
 }
 
-func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, types.GameStatus, uint64, error) {
+func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
 	m.metadataCalls++
 	if m.metadataErr != nil {
 		return common.Hash{}, 0, common.Hash{}, 0, 0, m.metadataErr
