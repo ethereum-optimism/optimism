@@ -49,7 +49,6 @@ library TransientContext {
     ///         Reverts if call depth is zero.
     function decrement() internal {
         assembly {
-            if iszero(tload(CALL_DEPTH_SLOT)) { revert(0, 0) }
             tstore(CALL_DEPTH_SLOT, sub(tload(CALL_DEPTH_SLOT), 1))
         }
     }
