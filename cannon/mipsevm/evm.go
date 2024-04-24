@@ -2,8 +2,10 @@ package mipsevm
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -15,35 +17,37 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/forge-artifacts"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
 // LoadContracts loads the Cannon contracts, from the contracts package.
 func LoadContracts() (*Contracts, error) {
-	var mips, oracle Contract
-
-	mipsArtifact, err := forge_artifacts.LoadMIPS()
+	mips, err := loadContract("../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
 	}
 
-	oracleArtifact, err := forge_artifacts.LoadPreimageOracle()
+	oracle, err := loadContract("../../packages/contracts-bedrock/forge-artifacts/PreimageOracle.sol/PreimageOracle.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Oracle contract: %w", err)
 	}
 
-	mips.DeployedBytecode.Object = mipsArtifact.DeployedBytecode.Object
-	mips.Bytecode.Object = mipsArtifact.Bytecode.Object
-
-	oracle.DeployedBytecode.Object = oracleArtifact.DeployedBytecode.Object
-
 	return &Contracts{
-		MIPS:   &mips,
-		Oracle: &oracle,
+		MIPS:   mips,
+		Oracle: oracle,
 	}, nil
+}
+
+func loadContract(path string) (*Contract, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("artifact at %s not found: %w", path, err)
+	}
+
+	contract := Contract{}
+	if err := json.Unmarshal(file, &contract); err != nil {
+		return nil, err
+	}
+	return &contract, nil
 }
 
 type Contract struct {

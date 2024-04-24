@@ -1,8 +1,6 @@
 # Artifacts and Cache
 artifacts
 forge-artifacts
-!forge-artifacts/artifact_loader.go
-!forge-artifacts/artifact_loader_test.go
 cache
 broadcast
 kout-deployment
