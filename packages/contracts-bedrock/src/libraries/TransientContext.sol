@@ -9,21 +9,21 @@ library TransientContext {
     bytes32 internal constant CALL_DEPTH_SLOT = 0x7a74fd168763fd280eaec3bcd2fd62d0e795027adc8183a693c497a7c2b10b5c;
 
     /// @notice Gets the call depth.
-    /// @return _callDepth Current call depth.
-    function callDepth() internal view returns (uint256 _callDepth) {
+    /// @return callDepth_ Current call depth.
+    function callDepth() internal view returns (uint256 callDepth_) {
         assembly {
-            _callDepth := tload(CALL_DEPTH_SLOT)
+            callDepth_ := tload(CALL_DEPTH_SLOT)
         }
     }
 
     /// @notice Gets value in transient storage for a slot at the current call depth.
     /// @param _slot Slot to get.
-    /// @return _value Transient value.
-    function get(bytes32 _slot) internal view returns (uint256 _value) {
+    /// @return value_ Transient value.
+    function get(bytes32 _slot) internal view returns (uint256 value_) {
         assembly {
             mstore(0, tload(CALL_DEPTH_SLOT))
             mstore(32, _slot)
-            _value := tload(keccak256(0, 64))
+            value_ := tload(keccak256(0, 64))
         }
     }
 
