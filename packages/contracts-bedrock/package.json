@@ -10,10 +10,6 @@
     "src/**/*.sol"
   ],
   "scripts": {
-    "bindings": "pnpm bindings:ts && pnpm bindings:go",
-    "bindings:ts": "nx generate @eth-optimism/contracts-ts",
-    "bindings:go:no-build": "cd ../../op-bindings && make bindings-build",
-    "bindings:go": "pnpm clean && pnpm build && pnpm bindings:go:no-build",
     "prebuild": "./scripts/checks/check-foundry-install.sh",
     "build": "forge build",
     "build:go-ffi": "(cd scripts/go-ffi && go build)",
@@ -34,7 +30,7 @@
     "validate-spacers:no-build": "npx tsx scripts/checks/check-spacers.ts",
     "validate-spacers": "pnpm build && pnpm validate-spacers:no-build",
     "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./scripts/go-ffi/go-ffi ./.testdata ./deployments/hardhat/*",
-    "pre-pr:no-build": "pnpm gas-snapshot:no-build && pnpm snapshots && pnpm semver-lock && pnpm autogen:invariant-docs && pnpm lint && pnpm bindings:go:no-build",
+    "pre-pr:no-build": "pnpm gas-snapshot:no-build && pnpm snapshots && pnpm semver-lock && pnpm autogen:invariant-docs && pnpm lint",
     "pre-pr": "pnpm clean && pnpm build:go-ffi && pnpm build && pnpm pre-pr:no-build",
     "pre-pr:full": "pnpm test && pnpm validate-deploy-configs && pnpm validate-spacers && pnpm pre-pr",
     "lint:ts:check": "eslint . --max-warnings=0",
