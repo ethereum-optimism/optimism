@@ -1,4 +1,4 @@
-// SPDX-License-ICrossL2Inbox.Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 // Testing utilities
