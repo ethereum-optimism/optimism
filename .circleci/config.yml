@@ -783,6 +783,10 @@ jobs:
       on_changes:
         description: changed pattern to fire fuzzer on
         type: string
+      uses_artifacts:
+        description: should load in foundry artifacts
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     steps:
@@ -795,6 +799,11 @@ jobs:
       - restore_cache:
           name: Restore Go build cache
           key: golang-build-cache
+      - restore_cache:
+          name: Restore PNPM Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+          if: ${{ uses_artifacts }}
       - run:
           name: Fuzz
           command: make fuzz
@@ -1708,6 +1717,7 @@ workflows:
           name: cannon-fuzz
           package_name: cannon
           on_changes: cannon,packages/contracts-bedrock/src/cannon
+          uses_artifacts: true
           requires: ["go-mod-download", "pnpm-monorepo"]
       - go-test:
           name: op-heartbeat-tests
