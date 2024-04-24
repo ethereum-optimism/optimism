@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"sync/atomic"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -35,22 +32,15 @@ type InvalidProposer struct {
 	gameCreator  *GameCreator
 	client       RollupClient
 	traceType    uint64
-	interval     time.Duration
-	txMgr        txmgr.TxManager
 	selectReason func() InvalidityReason
-
-	cancelFunc context.CancelFunc
-	stopped    atomic.Bool
 }
 
-func NewInvalidProposer(logger log.Logger, gameCreator *GameCreator, client RollupClient, traceType uint64, interval time.Duration, txMgr txmgr.TxManager) *InvalidProposer {
+func NewInvalidProposer(logger log.Logger, gameCreator *GameCreator, client RollupClient, traceType uint64) *InvalidProposer {
 	return &InvalidProposer{
 		log:         logger,
 		gameCreator: gameCreator,
 		client:      client,
 		traceType:   traceType,
-		interval:    interval,
-		txMgr:       txMgr,
 		selectReason: func() InvalidityReason {
 			// Select a random invalidity reason
 			return InvalidityReason(rand.Intn(int(invalidityReasonCount)))
@@ -58,49 +48,7 @@ func NewInvalidProposer(logger log.Logger, gameCreator *GameCreator, client Roll
 	}
 }
 
-func (p *InvalidProposer) Start(ctx context.Context) error {
-	p.log.Info("Starting invalid proposer")
-	cancelCtx, cancelFunc := context.WithCancel(ctx)
-	p.cancelFunc = cancelFunc
-	go p.loop(cancelCtx)
-	return nil
-}
-
-func (p *InvalidProposer) Stop(_ context.Context) error {
-	p.log.Info("Stopping invalid proposer")
-	p.txMgr.Close()
-	p.cancelFunc()
-	p.stopped.Store(true)
-	return nil
-}
-
-func (p *InvalidProposer) Stopped() bool {
-	return p.stopped.Load()
-}
-
-func (p *InvalidProposer) loop(ctx context.Context) {
-	// Propose immediately at startup
-	if err := p.propose(ctx); err != nil {
-		p.log.Error("Failed to propose invalid output", "err", err)
-	}
-
-	// Then wait for the next instance
-	ticker := time.NewTicker(p.interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			p.log.Info("Exiting invalid proposer loop")
-			return
-		case <-ticker.C:
-			if err := p.propose(ctx); err != nil {
-				p.log.Error("Failed to propose invalid output", "err", err)
-			}
-		}
-	}
-}
-
-func (p *InvalidProposer) propose(ctx context.Context) error {
+func (p *InvalidProposer) Propose(ctx context.Context) error {
 	status, err := p.client.SyncStatus(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load sync status: %w", err)

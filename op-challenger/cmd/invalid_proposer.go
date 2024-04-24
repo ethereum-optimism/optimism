@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -55,9 +57,66 @@ func InvalidProposer(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecy
 		return nil, err
 	}
 	creator := tools.NewGameCreator(contract, txMgr)
-	proposer := tools.NewInvalidProposer(logger, creator, rollupClient, traceType, interval, txMgr)
+	proposer := tools.NewInvalidProposer(logger, creator, rollupClient, traceType)
+	service := &invalidProposerService{
+		log:      logger,
+		proposer: proposer,
+		interval: interval,
+		txMgr:    txMgr,
+	}
 
-	return proposer, nil
+	return service, nil
+}
+
+type invalidProposerService struct {
+	log        log.Logger
+	proposer   *tools.InvalidProposer
+	interval   time.Duration
+	txMgr      txmgr.TxManager
+	cancelFunc context.CancelFunc
+	stopped    atomic.Bool
+}
+
+func (p *invalidProposerService) Start(ctx context.Context) error {
+	p.log.Info("Starting invalid proposer")
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	p.cancelFunc = cancelFunc
+	go p.loop(cancelCtx)
+	return nil
+}
+
+func (p *invalidProposerService) Stop(_ context.Context) error {
+	p.log.Info("Stopping invalid proposer")
+	p.txMgr.Close()
+	p.cancelFunc()
+	p.stopped.Store(true)
+	return nil
+}
+
+func (p *invalidProposerService) Stopped() bool {
+	return p.stopped.Load()
+}
+
+func (p *invalidProposerService) loop(ctx context.Context) {
+	// Propose immediately at startup
+	if err := p.proposer.Propose(ctx); err != nil {
+		p.log.Error("Failed to propose invalid output", "err", err)
+	}
+
+	// Then wait for the next instance
+	ticker := time.NewTicker(p.interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Info("Exiting invalid proposer loop")
+			return
+		case <-ticker.C:
+			if err := p.proposer.Propose(ctx); err != nil {
+				p.log.Error("Failed to propose invalid output", "err", err)
+			}
+		}
+	}
 }
 
 func invalidProposerFlags() []cli.Flag {
