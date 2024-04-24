@@ -218,7 +218,7 @@ func entrypoint(ctx *cli.Context) error {
 		log.Info("OptimismPortal", "version", versions.OptimismPortal, "address", addresses.OptimismPortalProxy)
 		log.Info("SystemConfig", "version", versions.SystemConfig, "address", addresses.SystemConfigProxy)
 
-		implementations, ok := superchain.Implementations[l1ChainID.Uint64()]
+		implementations, ok := superchain.Implementations[chainConfig.Superchain]
 		if !ok {
 			return fmt.Errorf("no implementations for chain ID %d", l1ChainID.Uint64())
 		}

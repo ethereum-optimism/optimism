@@ -9,9 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"text/template"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/ast"
 	"github.com/ethereum-optimism/optimism/op-bindings/foundry"
 )
 
@@ -19,15 +17,6 @@ type BindGenGeneratorLocal struct {
 	BindGenGeneratorBase
 	SourceMapsList     string
 	ForgeArtifactsPath string
-}
-
-type localContractMetadata struct {
-	Name                   string
-	StorageLayout          string
-	DeployedBin            string
-	Package                string
-	DeployedSourceMap      string
-	HasImmutableReferences bool
 }
 
 func (generator *BindGenGeneratorLocal) GenerateBindings() error {
@@ -67,8 +56,6 @@ func (generator *BindGenGeneratorLocal) processContracts(contracts []string) err
 		return err
 	}
 
-	contractMetadataFileTemplate := template.Must(template.New("localContractMetadata").Parse(localContractMetadataTemplate))
-
 	for _, contractName := range contracts {
 		generator.Logger.Info("Generating bindings and metadata for local contract", "contract", contractName)
 
@@ -84,32 +71,6 @@ func (generator *BindGenGeneratorLocal) processContracts(contracts []string) err
 
 		err = genContractBindings(generator.Logger, generator.MonorepoBasePath, abiFilePath, bytecodeFilePath, generator.BindingsPackageName, contractName)
 		if err != nil {
-			return err
-		}
-
-		deployedSourceMap, canonicalStorageStr, err := generator.canonicalizeStorageLayout(forgeArtifact, sourceMapsSet, contractName)
-		if err != nil {
-			return err
-		}
-
-		re := regexp.MustCompile(`\s+`)
-		immutableRefs, err := json.Marshal(re.ReplaceAllString(string(forgeArtifact.DeployedBytecode.ImmutableReferences), ""))
-		if err != nil {
-			return fmt.Errorf("error marshaling immutable references: %w", err)
-		}
-
-		hasImmutables := string(immutableRefs) != `""`
-
-		contractMetaData := localContractMetadata{
-			Name:                   contractName,
-			StorageLayout:          canonicalStorageStr,
-			DeployedBin:            forgeArtifact.DeployedBytecode.Object.String(),
-			Package:                generator.BindingsPackageName,
-			DeployedSourceMap:      deployedSourceMap,
-			HasImmutableReferences: hasImmutables,
-		}
-
-		if err := generator.writeContractMetadata(contractMetaData, contractName, contractMetadataFileTemplate); err != nil {
 			return err
 		}
 	}
@@ -173,81 +134,3 @@ func (generator *BindGenGeneratorLocal) readForgeArtifact(contractName string, c
 
 	return forgeArtifact, nil
 }
-
-func (generator *BindGenGeneratorLocal) canonicalizeStorageLayout(forgeArtifact foundry.Artifact, sourceMapsSet map[string]struct{}, contractName string) (string, string, error) {
-	artifactStorageStruct := forgeArtifact.StorageLayout
-	canonicalStorageStruct := ast.CanonicalizeASTIDs(&artifactStorageStruct, generator.MonorepoBasePath)
-	canonicalStorageJson, err := json.Marshal(canonicalStorageStruct)
-	if err != nil {
-		return "", "", fmt.Errorf("error marshaling canonical storage: %w", err)
-	}
-	canonicalStorageStr := strings.Replace(string(canonicalStorageJson), "\"", "\\\"", -1)
-
-	deployedSourceMap := ""
-	if _, ok := sourceMapsSet[contractName]; ok {
-		deployedSourceMap = forgeArtifact.DeployedBytecode.SourceMap
-	}
-
-	return deployedSourceMap, canonicalStorageStr, nil
-}
-
-func (generator *BindGenGeneratorLocal) writeContractMetadata(contractMetaData localContractMetadata, contractName string, fileTemplate *template.Template) error {
-	metadataFilePath := filepath.Join(generator.MetadataOut, strings.ToLower(contractName)+"_more.go")
-	metadataFile, err := os.OpenFile(
-		metadataFilePath,
-		os.O_RDWR|os.O_CREATE|os.O_TRUNC,
-		0o600,
-	)
-	if err != nil {
-		return fmt.Errorf("error opening %s's metadata file at %s: %w", contractName, metadataFilePath, err)
-	}
-	defer metadataFile.Close()
-
-	if err := fileTemplate.Execute(metadataFile, contractMetaData); err != nil {
-		return fmt.Errorf("error writing %s's contract metadata at %s: %w", contractName, metadataFilePath, err)
-	}
-
-	generator.Logger.Debug("Successfully wrote contract metadata", "contract", contractName, "path", metadataFilePath)
-	return nil
-}
-
-// associated with a local Ethereum contract. This template is used to produce
-// Go code containing necessary constants and initialization logic for the contract's
-// storage layout, deployed bytecode, and optionally its deployed source map.
-//
-// The template expects the following fields to be provided:
-// - Package: The name of the Go package for the generated bindings.
-// - Name: The name of the contract.
-// - StorageLayout: Canonicalized storage layout of the contract as a JSON string.
-// - DeployedBin: The deployed bytecode of the contract.
-// - DeployedSourceMap (optional): The source map of the deployed contract.
-var localContractMetadataTemplate = `// Code generated - DO NOT EDIT.
-// This file is a generated binding and any manual changes will be lost.
-
-package {{.Package}}
-
-import (
-	"encoding/json"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/solc"
-)
-
-const {{.Name}}StorageLayoutJSON = "{{.StorageLayout}}"
-
-var {{.Name}}StorageLayout = new(solc.StorageLayout)
-
-var {{.Name}}DeployedBin = "{{.DeployedBin}}"
-{{if .DeployedSourceMap}}
-var {{.Name}}DeployedSourceMap = "{{.DeployedSourceMap}}"
-{{end}}
-
-func init() {
-	if err := json.Unmarshal([]byte({{.Name}}StorageLayoutJSON), {{.Name}}StorageLayout); err != nil {
-		panic(err)
-	}
-
-	layouts["{{.Name}}"] = {{.Name}}StorageLayout
-	deployedBytecodes["{{.Name}}"] = {{.Name}}DeployedBin
-	immutableReferences["{{.Name}}"] = {{.HasImmutableReferences}}
-}
-`

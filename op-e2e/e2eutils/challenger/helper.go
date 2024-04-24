@@ -40,6 +40,16 @@ type Helper struct {
 	chl     cliapp.Lifecycle
 }
 
+func NewHelper(log log.Logger, t *testing.T, require *require.Assertions, dir string, chl cliapp.Lifecycle) *Helper {
+	return &Helper{
+		log:     log,
+		t:       t,
+		require: require,
+		dir:     dir,
+		chl:     chl,
+	}
+}
+
 type Option func(config2 *config.Config)
 
 func WithFactoryAddress(addr common.Address) Option {
@@ -66,9 +76,9 @@ func WithPollInterval(pollInterval time.Duration) Option {
 	}
 }
 
-// findMonorepoRoot finds the relative path to the monorepo root
+// FindMonorepoRoot finds the relative path to the monorepo root
 // Different tests might be nested in subdirectories of the op-e2e dir.
-func findMonorepoRoot(t *testing.T) string {
+func FindMonorepoRoot(t *testing.T) string {
 	path := "./"
 	// Only search up 5 directories
 	// Avoids infinite recursion if the root isn't found for some reason
@@ -93,8 +103,8 @@ func applyCannonConfig(
 	l2Endpoint string,
 ) {
 	require := require.New(t)
-	c.CannonL2 = l2Endpoint
-	root := findMonorepoRoot(t)
+	c.L2Rpc = l2Endpoint
+	root := FindMonorepoRoot(t)
 	c.CannonBin = root + "cannon/bin/cannon"
 	c.CannonServer = root + "op-program/bin/op-program"
 	c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"

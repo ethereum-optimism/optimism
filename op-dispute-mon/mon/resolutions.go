@@ -52,7 +52,7 @@ func (r *ResolutionMonitor) CheckResolutions(games []*types.EnrichedGameData) {
 	for _, game := range games {
 		complete := game.Status != gameTypes.GameStatusInProgress
 		duration := uint64(r.clock.Now().Unix()) - game.Timestamp
-		maxDurationReached := duration >= game.Duration
+		maxDurationReached := duration >= game.MaxClockDuration
 		status.Inc(complete, maxDurationReached)
 	}
 	r.metrics.RecordGameResolutionStatus(true, true, status.completeMaxDuration)

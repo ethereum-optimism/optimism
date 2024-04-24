@@ -1,0 +1,186 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "internalType": "contract SuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_deputyGuardian",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract OptimismPortal2",
+        "name": "_portal",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "blacklistDisputeGame",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "deputyGuardian",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "deputyGuardian_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "safe",
+    "outputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "safe_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract OptimismPortal2",
+        "name": "_portal",
+        "type": "address"
+      },
+      {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "setRespectedGameType",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superchainConfig",
+    "outputs": [
+      {
+        "internalType": "contract SuperchainConfig",
+        "name": "superchainConfig_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "contract IDisputeGame",
+        "name": "game",
+        "type": "address"
+      }
+    ],
+    "name": "DisputeGameBlacklisted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "identifier",
+        "type": "string"
+      }
+    ],
+    "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "GameType",
+        "name": "gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "RespectedGameTypeSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "Unpaused",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "ExecutionFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
+    "type": "error"
+  }
+]

@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -16,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -44,12 +44,12 @@ func TestSimpleGetters(t *testing.T) {
 			},
 		},
 		{
-			methodAlias: "gameDuration",
-			method:      methodGameDuration,
+			methodAlias: "maxClockDuration",
+			method:      methodMaxClockDuration,
 			result:      uint64(5566),
 			expected:    5566 * time.Second,
 			call: func(game *FaultDisputeGameContract) (any, error) {
-				return game.GetGameDuration(context.Background())
+				return game.GetMaxClockDuration(context.Background())
 			},
 		},
 		{
@@ -250,14 +250,14 @@ func TestGetBalance(t *testing.T) {
 
 func TestCallResolveClaim(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
-	stubRpc.SetResponse(fdgAddr, methodResolveClaim, rpcblock.Latest, []interface{}{big.NewInt(123)}, nil)
+	stubRpc.SetResponse(fdgAddr, methodResolveClaim, rpcblock.Latest, []interface{}{big.NewInt(123), maxChildChecks}, nil)
 	err := game.CallResolveClaim(context.Background(), 123)
 	require.NoError(t, err)
 }
 
 func TestResolveClaimTxTest(t *testing.T) {
 	stubRpc, game := setupFaultDisputeGameTest(t)
-	stubRpc.SetResponse(fdgAddr, methodResolveClaim, rpcblock.Latest, []interface{}{big.NewInt(123)}, nil)
+	stubRpc.SetResponse(fdgAddr, methodResolveClaim, rpcblock.Latest, []interface{}{big.NewInt(123), maxChildChecks}, nil)
 	tx, err := game.ResolveClaimTx(123)
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
@@ -341,7 +341,7 @@ func TestGetGameMetadata(t *testing.T) {
 	stubRpc, contract := setupFaultDisputeGameTest(t)
 	expectedL1Head := common.Hash{0x0a, 0x0b}
 	expectedL2BlockNumber := uint64(123)
-	expectedGameDuration := uint64(456)
+	expectedMaxClockDuration := uint64(456)
 	expectedRootClaim := common.Hash{0x01, 0x02}
 	expectedStatus := types.GameStatusChallengerWon
 	block := rpcblock.ByNumber(889)
@@ -349,14 +349,14 @@ func TestGetGameMetadata(t *testing.T) {
 	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 	stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
 	stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
-	stubRpc.SetResponse(fdgAddr, methodGameDuration, block, nil, []interface{}{expectedGameDuration})
+	stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
 	l1Head, l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background(), block)
 	require.NoError(t, err)
 	require.Equal(t, expectedL1Head, l1Head)
 	require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
 	require.Equal(t, expectedRootClaim, rootClaim)
 	require.Equal(t, expectedStatus, status)
-	require.Equal(t, expectedGameDuration, duration)
+	require.Equal(t, expectedMaxClockDuration, duration)
 }
 
 func TestGetStartingRootHash(t *testing.T) {
@@ -455,20 +455,41 @@ func TestFaultDisputeGame_ClaimCreditTx(t *testing.T) {
 	})
 }
 
-func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
-	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-	require.NoError(t, err)
+func TestFaultDisputeGame_IsResolved(t *testing.T) {
+	stubRpc, game := setupFaultDisputeGameTest(t)
 
-	vmAbi, err := bindings.MIPSMetaData.GetAbi()
+	block := rpcblock.ByNumber(482)
+
+	claims := []faultTypes.Claim{
+		{ContractIndex: 1},
+		{ContractIndex: 5},
+		{ContractIndex: 13},
+	}
+	claimIdxs := []*big.Int{big.NewInt(1), big.NewInt(5), big.NewInt(13)}
+	expected := []bool{false, true, true}
+
+	for i, idx := range claimIdxs {
+		stubRpc.SetResponse(fdgAddr, methodResolvedSubgames, block, []interface{}{idx}, []interface{}{expected[i]})
+	}
+
+	actual, err := game.IsResolved(context.Background(), block, claims...)
 	require.NoError(t, err)
-	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
-	require.NoError(t, err)
+	require.Equal(t, len(expected), len(actual))
+	for i := range expected {
+		require.Equal(t, expected[i], actual[i])
+	}
+}
+
+func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
+	fdgAbi := snapshots.LoadFaultDisputeGameABI()
+
+	vmAbi := snapshots.LoadMIPSABI()
+	oracleAbi := snapshots.LoadPreimageOracleABI()
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
 	stubRpc.AddContract(vmAddr, vmAbi)
 	stubRpc.AddContract(oracleAddr, oracleAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	game, err := NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, fdgAddr, caller)
-	require.NoError(t, err)
+	game := NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, fdgAddr, caller)
 	return stubRpc, game
 }

@@ -6,6 +6,7 @@
     "outDir": "./dist"
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "src/forge-artifacts/*.json"
   ]
 }

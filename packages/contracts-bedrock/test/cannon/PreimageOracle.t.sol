@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test, console2 as console } from "forge-std/Test.sol";
+import { Test, Vm, console2 as console } from "forge-std/Test.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
@@ -329,10 +329,18 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Allocate the calldata so it isn't included in the gas measurement.
         bytes memory cd = abi.encodeCall(oracle.addLeavesLPP, (TEST_UUID, 0, data, stateCommitments, true));
 
+        // Record logs from the call. `expectEmit` does not capture assembly logs.
+        bytes memory expectedLog = abi.encodePacked(address(this), cd);
+        vm.recordLogs();
+
         uint256 gas = gasleft();
         (bool success,) = address(oracle).call(cd);
         uint256 gasUsed = gas - gasleft();
         assertTrue(success);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs[0].data, expectedLog);
+        assertEq(logs[0].emitter, address(oracle));
 
         console.log("Gas used: %d", gasUsed);
         console.log("Gas per byte (%d bytes streamed): %d", data.length, gasUsed / data.length);

@@ -91,7 +91,8 @@ config=$(cat << EOL
 
   "faultGameAbsolutePrestate": "0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98",
   "faultGameMaxDepth": 44,
-  "faultGameMaxDuration": 1200,
+  "faultGameClockExtension": 0,
+  "faultGameMaxClockDuration": 600,
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 14,

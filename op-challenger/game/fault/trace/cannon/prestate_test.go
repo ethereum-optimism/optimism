@@ -60,7 +60,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 	})
 
 	t.Run("CacheAbsolutePreState", func(t *testing.T) {
-		setupPreState(t, dataDir, "state.json")
+		setupPreState(t, dataDir, prestate)
 		provider := newCannonPrestateProvider(dataDir, prestate)
 		first, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)

@@ -10,18 +10,17 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -210,10 +209,12 @@ type DeployConfig struct {
 	// supports. Ideally, this should be conservatively set so that there is always enough
 	// room for a full Cannon trace.
 	FaultGameMaxDepth uint64 `json:"faultGameMaxDepth"`
-	// FaultGameMaxDuration is the maximum amount of time (in seconds) that the fault dispute
-	// game can run for before it is ready to be resolved. Each side receives half of this value
-	// on their chess clock at the inception of the dispute.
-	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// FaultGameClockExtension is the amount of time that the dispute game will set the potential grandchild claim's,
+	// clock to, if the remaining time is less than this value at the time of a claim's creation.
+	FaultGameClockExtension uint64 `json:"faultGameClockExtension"`
+	// FaultGameMaxClockDuration is the maximum amount of time that may accumulate on a team's chess clock before they
+	// may no longer respond.
+	FaultGameMaxClockDuration uint64 `json:"faultGameMaxClockDuration"`
 	// FaultGameGenesisBlock is the block number for genesis.
 	FaultGameGenesisBlock uint64 `json:"faultGameGenesisBlock"`
 	// FaultGameGenesisOutputRoot is the output root for the genesis block.
@@ -425,9 +426,6 @@ func (d *DeployConfig) Check() error {
 		if d.DAResolveWindow == 0 {
 			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
 		}
-		if d.DAChallengeProxy == (common.Address{}) {
-			return fmt.Errorf("%w: DAChallengeContract cannot be empty when using plasma mode", ErrInvalidDeployConfig)
-		}
 	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
@@ -491,6 +489,10 @@ func (d *DeployConfig) CheckAddresses() error {
 	}
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
+	if d.UsePlasma && d.DAChallengeProxy == (common.Address{}) {
+		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using plasma mode", ErrInvalidDeployConfig)
+
 	}
 	return nil
 }
@@ -800,6 +802,7 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	d.Root = dump.Root
 	d.Accounts = make(map[string]gstate.DumpAccount)
 	for addr, acc := range dump.Accounts {
+		acc := acc
 		d.Accounts[addr.String()] = gstate.DumpAccount{
 			Balance:     acc.Balance,
 			Nonce:       (uint64)(acc.Nonce),
@@ -814,168 +817,43 @@ func (d *ForgeDump) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
-// DeployConfig and a block.
-func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables.PredeploysImmutableConfig, error) {
-	if config.L1StandardBridgeProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1ERC721BridgeProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.SequencerFeeVaultRecipient == (common.Address{}) {
-		return nil, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.BaseFeeVaultRecipient == (common.Address{}) {
-		return nil, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1FeeVaultRecipient == (common.Address{}) {
-		return nil, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-
-	cfg := immutables.PredeploysImmutableConfig{
-		L2ToL1MessagePasser:    struct{}{},
-		DeployerWhitelist:      struct{}{},
-		WETH9:                  struct{}{},
-		L2CrossDomainMessenger: struct{}{},
-		L2StandardBridge:       struct{}{},
-		SequencerFeeVault: struct {
-			Recipient           common.Address
-			MinWithdrawalAmount *big.Int
-			WithdrawalNetwork   uint8
-		}{
-			Recipient:           config.SequencerFeeVaultRecipient,
-			MinWithdrawalAmount: (*big.Int)(config.SequencerFeeVaultMinimumWithdrawalAmount),
-			WithdrawalNetwork:   config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
-		},
-		L1BlockNumber:       struct{}{},
-		GasPriceOracle:      struct{}{},
-		L1Block:             struct{}{},
-		GovernanceToken:     struct{}{},
-		LegacyMessagePasser: struct{}{},
-		L2ERC721Bridge:      struct{}{},
-		OptimismMintableERC721Factory: struct {
-			Bridge        common.Address
-			RemoteChainId *big.Int
-		}{
-			Bridge:        predeploys.L2ERC721BridgeAddr,
-			RemoteChainId: new(big.Int).SetUint64(config.L1ChainID),
-		},
-		OptimismMintableERC20Factory: struct{}{},
-		ProxyAdmin:                   struct{}{},
-		BaseFeeVault: struct {
-			Recipient           common.Address
-			MinWithdrawalAmount *big.Int
-			WithdrawalNetwork   uint8
-		}{
-			Recipient:           config.BaseFeeVaultRecipient,
-			MinWithdrawalAmount: (*big.Int)(config.BaseFeeVaultMinimumWithdrawalAmount),
-			WithdrawalNetwork:   config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
-		},
-		L1FeeVault: struct {
-			Recipient           common.Address
-			MinWithdrawalAmount *big.Int
-			WithdrawalNetwork   uint8
-		}{
-			Recipient:           config.L1FeeVaultRecipient,
-			MinWithdrawalAmount: (*big.Int)(config.L1FeeVaultMinimumWithdrawalAmount),
-			WithdrawalNetwork:   config.L1FeeVaultWithdrawalNetwork.ToUint8(),
-		},
-		SchemaRegistry: struct{}{},
-		EAS: struct {
-			Name string
-		}{
-			Name: "EAS",
-		},
-		Create2Deployer: struct{}{},
-	}
-
-	if err := cfg.Check(); err != nil {
-		return nil, err
-	}
-	return &cfg, nil
+type ForgeAllocs struct {
+	Accounts core.GenesisAlloc `json:"accounts"`
 }
 
-// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis L1 anchor block.
-func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
-	storage := make(state.StorageConfig)
+func (d *ForgeAllocs) Copy() *ForgeAllocs {
+	out := make(core.GenesisAlloc, len(d.Accounts))
+	maps.Copy(out, d.Accounts)
+	return &ForgeAllocs{Accounts: out}
+}
 
-	if block.Number() == nil {
-		return storage, errors.New("block number not set")
+func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
+	// forge, since integrating Alloy, likes to hex-encode everything.
+	type forgeAllocAccount struct {
+		Balance hexutil.Big                 `json:"balance"`
+		Nonce   hexutil.Uint64              `json:"nonce"`
+		Code    hexutil.Bytes               `json:"code,omitempty"`
+		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
 	}
-	if block.BaseFee() == nil {
-		return storage, errors.New("block base fee not set")
+	type forgeAllocs struct {
+		Accounts map[common.Address]forgeAllocAccount `json:"accounts"`
 	}
-
-	storage["L2ToL1MessagePasser"] = state.StorageValues{
-		"msgNonce": 0,
+	var allocs forgeAllocs
+	if err := json.Unmarshal(b, &allocs); err != nil {
+		return err
 	}
-	storage["L2CrossDomainMessenger"] = state.StorageValues{
-		"_initialized":     1,
-		"_initializing":    false,
-		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
-		"msgNonce":         0,
-		"otherMessenger":   config.L1CrossDomainMessengerProxy,
-	}
-	storage["L2StandardBridge"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"otherBridge":   config.L1StandardBridgeProxy,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-	}
-	storage["L2ERC721Bridge"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"otherBridge":   config.L1ERC721BridgeProxy,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-	}
-	storage["OptimismMintableERC20Factory"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"bridge":        predeploys.L2StandardBridgeAddr,
-	}
-
-	excessBlobGas := block.ExcessBlobGas()
-	if excessBlobGas == nil {
-		excessBlobGas = u64ptr(0)
-	}
-
-	storage["L1Block"] = state.StorageValues{
-		"number":            block.Number(),
-		"timestamp":         block.Time(),
-		"basefee":           block.BaseFee(),
-		"hash":              block.Hash(),
-		"sequenceNumber":    0,
-		"blobBaseFeeScalar": config.GasPriceOracleBlobBaseFeeScalar,
-		"baseFeeScalar":     config.GasPriceOracleBaseFeeScalar,
-		"batcherHash":       eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
-		"l1FeeOverhead":     config.GasPriceOracleOverhead,
-		"l1FeeScalar":       config.GasPriceOracleScalar,
-		"blobBaseFee":       eip4844.CalcBlobFee(*excessBlobGas),
-	}
-	storage["LegacyERC20ETH"] = state.StorageValues{
-		"_name":   "Ether",
-		"_symbol": "ETH",
-	}
-	storage["WETH9"] = state.StorageValues{
-		"name":     "Wrapped Ether",
-		"symbol":   "WETH",
-		"decimals": 18,
-	}
-	if config.EnableGovernance {
-		storage["GovernanceToken"] = state.StorageValues{
-			"_name":   config.GovernanceTokenName,
-			"_symbol": config.GovernanceTokenSymbol,
-			"_owner":  config.GovernanceTokenOwner,
+	d.Accounts = make(core.GenesisAlloc, len(allocs.Accounts))
+	for addr, acc := range allocs.Accounts {
+		acc := acc
+		d.Accounts[addr] = core.GenesisAccount{
+			Code:       acc.Code,
+			Storage:    acc.Storage,
+			Balance:    acc.Balance.ToInt(),
+			Nonce:      (uint64)(acc.Nonce),
+			PrivateKey: nil,
 		}
 	}
-	storage["ProxyAdmin"] = state.StorageValues{
-		"_owner": config.ProxyAdminOwner,
-	}
-	return storage, nil
+	return nil
 }
 
 type MarshalableRPCBlockNumberOrHash rpc.BlockNumberOrHash

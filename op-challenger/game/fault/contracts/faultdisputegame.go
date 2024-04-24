@@ -8,18 +8,21 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// The maximum number of children that will be processed during a call to `resolveClaim`
+var maxChildChecks = big.NewInt(512)
+
 var (
-	methodGameDuration        = "gameDuration"
+	methodMaxClockDuration    = "maxClockDuration"
 	methodMaxGameDepth        = "maxGameDepth"
 	methodAbsolutePrestate    = "absolutePrestate"
 	methodStatus              = "status"
@@ -27,6 +30,7 @@ var (
 	methodClaimCount          = "claimDataLen"
 	methodClaim               = "claimData"
 	methodL1Head              = "l1Head"
+	methodResolvedSubgames    = "resolvedSubgames"
 	methodResolve             = "resolve"
 	methodResolveClaim        = "resolveClaim"
 	methodAttack              = "attack"
@@ -57,17 +61,14 @@ type Proposal struct {
 	OutputRoot    common.Hash
 }
 
-func NewFaultDisputeGameContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
-	contractAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load fault dispute game ABI: %w", err)
-	}
+func NewFaultDisputeGameContract(metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) *FaultDisputeGameContract {
+	contractAbi := snapshots.LoadFaultDisputeGameABI()
 
 	return &FaultDisputeGameContract{
 		metrics:     metrics,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(contractAbi, addr),
-	}, nil
+	}
 }
 
 // GetBalance returns the total amount of ETH controlled by this contract.
@@ -107,7 +108,7 @@ func (f *FaultDisputeGameContract) GetBlockRange(ctx context.Context) (prestateB
 	return
 }
 
-// GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, and game duration.
+// GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, and max clock duration.
 func (f *FaultDisputeGameContract) GetGameMetadata(ctx context.Context, block rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
 	defer f.metrics.StartContractRequest("GetGameMetadata")()
 	results, err := f.multiCaller.Call(ctx, block,
@@ -115,7 +116,7 @@ func (f *FaultDisputeGameContract) GetGameMetadata(ctx context.Context, block rp
 		f.contract.Call(methodL2BlockNumber),
 		f.contract.Call(methodRootClaim),
 		f.contract.Call(methodStatus),
-		f.contract.Call(methodGameDuration))
+		f.contract.Call(methodMaxClockDuration))
 	if err != nil {
 		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
 	}
@@ -262,7 +263,7 @@ func (f *FaultDisputeGameContract) getDelayedWETH(ctx context.Context) (*Delayed
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch WETH addr: %w", err)
 	}
-	return NewDelayedWETHContract(f.metrics, result.GetAddress(0), f.multiCaller)
+	return NewDelayedWETHContract(f.metrics, result.GetAddress(0), f.multiCaller), nil
 }
 
 func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
@@ -274,11 +275,11 @@ func (f *FaultDisputeGameContract) GetOracle(ctx context.Context) (*PreimageOrac
 	return vm.Oracle(ctx)
 }
 
-func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (time.Duration, error) {
-	defer f.metrics.StartContractRequest("GetGameDuration")()
-	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameDuration))
+func (f *FaultDisputeGameContract) GetMaxClockDuration(ctx context.Context) (time.Duration, error) {
+	defer f.metrics.StartContractRequest("GetMaxClockDuration")()
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodMaxClockDuration))
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch game duration: %w", err)
+		return 0, fmt.Errorf("failed to fetch max clock duration: %w", err)
 	}
 	return time.Duration(result.GetUint64(0)) * time.Second, nil
 }
@@ -353,13 +354,30 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context, block rpcbl
 	return claims, nil
 }
 
+func (f *FaultDisputeGameContract) IsResolved(ctx context.Context, block rpcblock.Block, claims ...types.Claim) ([]bool, error) {
+	defer f.metrics.StartContractRequest("IsResolved")()
+	calls := make([]batching.Call, 0, len(claims))
+	for _, claim := range claims {
+		calls = append(calls, f.contract.Call(methodResolvedSubgames, big.NewInt(int64(claim.ContractIndex))))
+	}
+	results, err := f.multiCaller.Call(ctx, block, calls...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve resolved subgames: %w", err)
+	}
+	resolved := make([]bool, 0, len(claims))
+	for _, result := range results {
+		resolved = append(resolved, result.GetBool(0))
+	}
+	return resolved, nil
+}
+
 func (f *FaultDisputeGameContract) vm(ctx context.Context) (*VMContract, error) {
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodVM))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch VM addr: %w", err)
 	}
 	vmAddr := result.GetAddress(0)
-	return NewVMContract(vmAddr, f.multiCaller)
+	return NewVMContract(vmAddr, f.multiCaller), nil
 }
 
 func (f *FaultDisputeGameContract) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {
@@ -393,7 +411,7 @@ func (f *FaultDisputeGameContract) ResolveClaimTx(claimIdx uint64) (txmgr.TxCand
 }
 
 func (f *FaultDisputeGameContract) resolveClaimCall(claimIdx uint64) *batching.ContractCall {
-	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx))
+	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx), maxChildChecks)
 }
 
 func (f *FaultDisputeGameContract) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {

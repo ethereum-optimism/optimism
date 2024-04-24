@@ -17,24 +17,19 @@ type EnrichedClaim struct {
 
 type EnrichedGameData struct {
 	types.GameMetadata
-	L1Head        common.Hash
-	L1HeadNum     uint64
-	L2BlockNumber uint64
-	RootClaim     common.Hash
-	Status        types.GameStatus
-	Duration      uint64
-	Claims        []EnrichedClaim
+	L1Head           common.Hash
+	L1HeadNum        uint64
+	L2BlockNumber    uint64
+	RootClaim        common.Hash
+	Status           types.GameStatus
+	MaxClockDuration uint64
+	Claims           []EnrichedClaim
 
 	// Recipients maps addresses to true if they are a bond recipient in the game.
 	Recipients map[common.Address]bool
 
 	// Credits records the paid out bonds for the game, keyed by recipient.
 	Credits map[common.Address]*big.Int
-
-	// RequiredBonds maps *resolved* claim indices to their required bond amounts.
-	// Required bonds are not needed for unresolved claims since
-	// the `Bond` field in the claim is the required bond amount.
-	RequiredBonds map[int]*big.Int
 
 	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
 	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest

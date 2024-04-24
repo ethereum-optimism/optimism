@@ -139,7 +139,7 @@ func TestSkipAttemptingToResolveClaimsWhenClockNotExpired(t *testing.T) {
 	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider(big.NewInt(0), depth))
 
 	claimLoader.claims = []types.Claim{
-		claimBuilder.CreateRootClaim(test.WithExpiredClock(agent.gameDuration)),
+		claimBuilder.CreateRootClaim(test.WithExpiredClock(agent.maxClockDuration)),
 	}
 
 	require.NoError(t, agent.Act(context.Background()))
@@ -170,7 +170,7 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := types.Depth(4)
-	gameDuration := 6 * time.Minute
+	gameDuration := 3 * time.Minute
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
 	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))

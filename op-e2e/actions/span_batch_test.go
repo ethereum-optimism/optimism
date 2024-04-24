@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"context"
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
@@ -501,6 +502,10 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 		addr := crypto.PubkeyToAddress(privateKey.PublicKey)
 		require.NoError(t, err)
 		addrs[i] = addr
+
+		bal, err := cl.BalanceAt(context.Background(), addr, nil)
+		require.NoError(gt, err)
+		require.Equal(gt, 1, bal.Cmp(common.Big0), "account %d must have non-zero balance, address: %s, balance: %d", i, addr, bal)
 	}
 
 	sequencer.ActL2PipelineFull(t)

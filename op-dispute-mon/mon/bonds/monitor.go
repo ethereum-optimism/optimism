@@ -39,52 +39,73 @@ func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
 		b.metrics.RecordBondCollateral(addr, collateral.Required, collateral.Actual)
 	}
 
-	for _, game := range games {
-		b.checkCredits(game)
-	}
+	b.checkCredits(games)
 }
 
-func (b *Bonds) checkCredits(game *types.EnrichedGameData) {
-	// Check if the max duration has been reached for this game
-	duration := uint64(b.clock.Now().Unix()) - game.Timestamp
-	maxDurationReached := duration >= game.Duration
-
-	// Iterate over claims and filter out resolved ones
-	recipients := make(map[int]common.Address)
-	for i, claim := range game.Claims {
-		// Skip unresolved claims since these bonds will not appear in the credits.
-		if !claim.Resolved {
-			continue
-		}
-		// The recipient of a resolved claim is the claimant unless it's been countered.
-		recipient := claim.Claimant
-		if claim.CounteredBy != (common.Address{}) {
-			recipient = claim.CounteredBy
-		}
-		recipients[i] = recipient
-	}
-
+func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 	creditMetrics := make(map[metrics.CreditExpectation]int)
-	for i, recipient := range recipients {
-		expected := game.Credits[recipient]
-		comparison := expected.Cmp(game.RequiredBonds[i])
-		if maxDurationReached {
-			if comparison > 0 {
-				creditMetrics[metrics.CreditBelowMaxDuration] += 1
-			} else if comparison == 0 {
-				creditMetrics[metrics.CreditEqualMaxDuration] += 1
-			} else {
-				creditMetrics[metrics.CreditAboveMaxDuration] += 1
-				b.logger.Warn("credit above expected amount", "recipient", recipient, "expected", expected, "gameAddr", game.Proxy, "duration", "max_duration")
+
+	for _, game := range games {
+		// Check if the max duration has been reached for this game
+		duration := uint64(b.clock.Now().Unix()) - game.Timestamp
+		maxDurationReached := duration >= game.MaxClockDuration*2
+
+		// Iterate over claims, filter out resolved ones and sum up expected credits per recipient
+		expectedCredits := make(map[common.Address]*big.Int)
+		for _, claim := range game.Claims {
+			// Skip unresolved claims since these bonds will not appear in the credits.
+			if !claim.Resolved {
+				continue
 			}
-		} else {
-			if comparison > 0 {
-				creditMetrics[metrics.CreditBelowNonMaxDuration] += 1
-			} else if comparison == 0 {
-				creditMetrics[metrics.CreditEqualNonMaxDuration] += 1
+			// The recipient of a resolved claim is the claimant unless it's been countered.
+			recipient := claim.Claimant
+			if claim.CounteredBy != (common.Address{}) {
+				recipient = claim.CounteredBy
+			}
+			current := expectedCredits[recipient]
+			if current == nil {
+				current = big.NewInt(0)
+			}
+			expectedCredits[recipient] = new(big.Int).Add(current, claim.Bond)
+		}
+
+		allRecipients := make(map[common.Address]bool)
+		for address := range expectedCredits {
+			allRecipients[address] = true
+		}
+		for address := range game.Credits {
+			allRecipients[address] = true
+		}
+
+		for recipient := range allRecipients {
+			actual := game.Credits[recipient]
+			if actual == nil {
+				actual = big.NewInt(0)
+			}
+			expected := expectedCredits[recipient]
+			if expected == nil {
+				expected = big.NewInt(0)
+			}
+			comparison := actual.Cmp(expected)
+			if maxDurationReached {
+				if comparison > 0 {
+					creditMetrics[metrics.CreditAboveMaxDuration] += 1
+					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "reached")
+				} else if comparison == 0 {
+					creditMetrics[metrics.CreditEqualMaxDuration] += 1
+				} else {
+					creditMetrics[metrics.CreditBelowMaxDuration] += 1
+				}
 			} else {
-				creditMetrics[metrics.CreditAboveNonMaxDuration] += 1
-				b.logger.Warn("credit above expected amount", "recipient", recipient, "expected", expected, "gameAddr", game.Proxy, "duration", "non_max_duration")
+				if comparison > 0 {
+					creditMetrics[metrics.CreditAboveNonMaxDuration] += 1
+					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "unreached")
+				} else if comparison == 0 {
+					creditMetrics[metrics.CreditEqualNonMaxDuration] += 1
+				} else {
+					creditMetrics[metrics.CreditBelowNonMaxDuration] += 1
+					b.logger.Warn("Credit withdrawn early", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "unreached")
+				}
 			}
 		}
 	}

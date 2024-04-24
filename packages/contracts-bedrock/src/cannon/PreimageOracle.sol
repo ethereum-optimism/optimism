@@ -29,8 +29,8 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 0.2.0
+    string public constant version = "0.2.0";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -460,6 +460,8 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         uint256 blocksProcessed = metaData.blocksProcessed();
 
         // The caller of `addLeavesLPP` must be an EOA.
+        // Note: This check may break if EIPs like EIP-3074 are introduced. We may query the data in the logs if this
+        // is the case.
         if (msg.sender != tx.origin) revert NotEOA();
 
         // Revert if the proposal has not been initialized. 0-size preimages are *not* allowed.
@@ -552,6 +554,14 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         proposalBlocks[msg.sender][_uuid].push(uint64(block.number));
         // Persist the updated metadata to storage.
         proposalMetadata[msg.sender][_uuid] = metaData;
+
+        // Clobber memory and `log0` all calldata. This is safe because there is no execution afterwards within
+        // this callframe.
+        assembly {
+            mstore(0x00, shl(96, caller()))
+            calldatacopy(0x14, 0x00, calldatasize())
+            log0(0x00, add(0x14, calldatasize()))
+        }
     }
 
     /// @notice Challenge a keccak256 block that was committed to in the merkle tree.

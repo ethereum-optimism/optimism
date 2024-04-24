@@ -121,23 +121,19 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.7.0
-    string public constant version = "3.7.0";
+    /// @custom:semver 3.8.0
+    string public constant version = "3.8.0";
 
     /// @notice Constructs the OptimismPortal contract.
-    constructor(
-        uint256 _proofMaturityDelaySeconds,
-        uint256 _disputeGameFinalityDelaySeconds,
-        GameType _initialRespectedGameType
-    ) {
+    constructor(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) {
         PROOF_MATURITY_DELAY_SECONDS = _proofMaturityDelaySeconds;
         DISPUTE_GAME_FINALITY_DELAY_SECONDS = _disputeGameFinalityDelaySeconds;
-        respectedGameType = _initialRespectedGameType;
 
         initialize({
             _disputeGameFactory: DisputeGameFactory(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _superchainConfig: SuperchainConfig(address(0))
+            _superchainConfig: SuperchainConfig(address(0)),
+            _initialRespectedGameType: GameType.wrap(0)
         });
     }
 
@@ -148,7 +144,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     function initialize(
         DisputeGameFactory _disputeGameFactory,
         SystemConfig _systemConfig,
-        SuperchainConfig _superchainConfig
+        SuperchainConfig _superchainConfig,
+        GameType _initialRespectedGameType
     )
         public
         initializer
@@ -156,9 +153,20 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         disputeGameFactory = _disputeGameFactory;
         systemConfig = _systemConfig;
         superchainConfig = _superchainConfig;
+
+        // Set the `l2Sender` slot, only if it is currently empty. This signals the first initialization of the
+        // contract.
         if (l2Sender == address(0)) {
             l2Sender = Constants.DEFAULT_L2_SENDER;
+
+            // Set the `respectedGameTypeUpdatedAt` timestamp, to ignore all games of the respected type prior
+            // to this operation.
+            respectedGameTypeUpdatedAt = uint64(block.timestamp);
+
+            // Set the initial respected game type
+            respectedGameType = _initialRespectedGameType;
         }
+
         __ResourceMetering_init();
     }
 

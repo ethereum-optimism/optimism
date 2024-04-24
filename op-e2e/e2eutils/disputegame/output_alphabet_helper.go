@@ -24,38 +24,31 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 	options ...challenger.Option,
 ) *challenger.Helper {
 	opts := []challenger.Option{
-		challenger.WithAlphabet(g.system.RollupEndpoint(l2Node)),
-		challenger.WithFactoryAddress(g.factoryAddr),
-		challenger.WithGameAddress(g.addr),
+		challenger.WithAlphabet(g.System.RollupEndpoint(l2Node)),
+		challenger.WithFactoryAddress(g.FactoryAddr),
+		challenger.WithGameAddress(g.Addr),
 	}
 	opts = append(opts, options...)
-	c := challenger.NewChallenger(g.t, ctx, g.system, name, opts...)
-	g.t.Cleanup(func() {
+	c := challenger.NewChallenger(g.T, ctx, g.System, name, opts...)
+	g.T.Cleanup(func() {
 		_ = c.Close()
 	})
 	return c
 }
 
 func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node string) *OutputHonestHelper {
-	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "HonestHelper", "game", g.addr)
-	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
-	g.require.NoError(err, "Failed to create game contact")
+	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
+	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
+	contract := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.Addr, caller)
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
-	g.require.NoError(err, "Get block range")
+	g.Require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
-	l1Head := g.getL1Head(ctx)
-	rollupClient := g.system.RollupClient(l2Node)
+	l1Head := g.GetL1Head(ctx)
+	rollupClient := g.System.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
-	g.require.NoError(err, "Create trace accessor")
-	return &OutputHonestHelper{
-		t:            g.t,
-		require:      g.require,
-		game:         &g.OutputGameHelper,
-		contract:     contract,
-		correctTrace: correctTrace,
-	}
+	g.Require.NoError(err, "Create trace accessor")
+	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, contract, correctTrace)
 }
 
 func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, l2Node string, defender bool) *DishonestHelper {

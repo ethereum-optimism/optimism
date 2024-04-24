@@ -51,7 +51,7 @@ var DevAccounts = []common.Address{
 	common.HexToAddress("0xcd3B766CCDd6AE721141F452C550Ca635964ce71"),
 	common.HexToAddress("0xdD2FD4581271e230360230F9337D5c0430Bf44C0"),
 	common.HexToAddress("0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097"),
-	common.HexToAddress("0xde3829a23df1479438622a08a116e8eb3f620bb5"),
+	common.HexToAddress("0xDe3829A23DF1479438622a08a116E8Eb3f620BB5"),
 	common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
 	// Test account used by geth tests
 	common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"),

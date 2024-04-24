@@ -91,6 +91,12 @@ error ClaimAboveSplit();
 ///         depth of the game.
 error InvalidSplitDepth();
 
+/// @notice Thrown on deployment if the max clock duration is less than or equal to the clock extension.
+error InvalidClockExtension();
+
+/// @notice Thrown on deployment if the max depth is greater than `LibPosition.`
+error MaxDepthTooLarge();
+
 /// @notice Thrown when trying to step against a claim for a second time, after it has already been countered with
 ///         an instruction step.
 error DuplicateStep();

@@ -7,6 +7,8 @@ version: '3.4'
 volumes:
   l1_data:
   l2_data:
+  safedb_data:
+  challenger_data:
   da_data:
   op_log:
 
@@ -90,6 +92,7 @@ services:
       --metrics.port=7300
       --pprof.enabled
       --rpc.enable-admin
+      --safedb.path=/db
       --plasma.enabled=${PLASMA_ENABLED}
       --plasma.da-server=http://da-server:3100
     ports:
@@ -98,6 +101,7 @@ services:
       - "7300:7300"
       - "6060:6060"
     volumes:
+      - "safedb_data:/db"
       - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
       - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
@@ -182,6 +186,7 @@ services:
         OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:devnet
     volumes:
+      - "challenger_data:/db"
       - "../op-program/bin:/op-program"
     environment:
       OP_CHALLENGER_L1_ETH_RPC: http://l1:8545
@@ -193,7 +198,7 @@ services:
       # The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
       # before the L2 genesis is known.
       OP_CHALLENGER_UNSAFE_ALLOW_INVALID_PRESTATE: "true"
-      OP_CHALLENGER_DATADIR: temp/challenger-data
+      OP_CHALLENGER_DATADIR: /db
       OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./.devnet/rollup.json
       OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2.json
       OP_CHALLENGER_CANNON_BIN: ./cannon/bin/cannon
@@ -205,10 +210,14 @@ services:
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
 
   da-server:
+    depends_on:
+      - op_stack_go_builder
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
     build:
       context: ../
       dockerfile: ./op-plasma/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     command: >
       da-server
       --file.path=/data

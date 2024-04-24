@@ -13,7 +13,7 @@ func WaitRollupSync(
 	lgr log.Logger,
 	rollup SyncStatusProvider,
 	l1BlockTarget uint64,
-	pollDuration time.Duration,
+	pollInterval time.Duration,
 ) error {
 	for {
 		syncst, err := rollup.SyncStatus(ctx)
@@ -29,7 +29,7 @@ func WaitRollupSync(
 		}
 
 		lgr.Info("rollup current L1 block still behind target, retrying")
-		timer := time.NewTimer(pollDuration)
+		timer := time.NewTimer(pollInterval)
 		select {
 		case <-timer.C: // next try
 		case <-ctx.Done():

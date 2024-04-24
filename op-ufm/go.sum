@@ -102,8 +102,8 @@ github.com/envoyproxy/go-control-plane v0.9.10-0.20210907150352-cf90f659a021/go.
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/ethereum-optimism/op-geth v1.101311.0-rc.1 h1:3JE5FyGXNQCnXUuiK3I6ZD3zbB2DBIcEMsXCpjrXUwM=
 github.com/ethereum-optimism/op-geth v1.101311.0-rc.1/go.mod h1:K23yb9efVf9DdUOv/vl/Ux57Tng00rLaFqWYlFF45CA=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240318114348-52d3dbd1605d h1:K7HdD/ZAcSFhcqqnUAbvU+8vsg0DzL8pvetHw5vRLCc=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240318114348-52d3dbd1605d/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240418160534-4156733e7232 h1:jRdLJs4E3ilsDGK7+k39QPi3QKL/b1cLnyv8mfOCVo4=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240418160534-4156733e7232/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
 github.com/ethereum/c-kzg-4844 v0.4.0 h1:3MS1s4JtA868KpJxroZoepdV0ZKBp3u/O5HcZ7R3nlY=
 github.com/ethereum/c-kzg-4844 v0.4.0/go.mod h1:VewdlzQmpT5QSrVhbBuGoCdFJkpaJlO1aQputP83wc0=
 github.com/fatih/color v1.15.0 h1:kOqh6YHBtK8aywxGerMG2Eq3H6Qgoqeo13Bk2Mv/nBs=
@@ -428,8 +428,8 @@ golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2/go.mod h1:9nx3DQGgdP8bBQD5qx
 golang.org/x/net v0.0.0-20220225172249-27dd8689420f/go.mod h1:CfG3xpIq0wQ8r1q4Su4UZFWDARRcnwPjda9FqA0JpMk=
 golang.org/x/net v0.0.0-20220607020251-c690dde0001d/go.mod h1:XRhObCWvk6IyKnWLug+ECip1KBveYUHfp+8e9klMJ9c=
 golang.org/x/net v0.0.0-20220722155237-a158d28d115b/go.mod h1:XRhObCWvk6IyKnWLug+ECip1KBveYUHfp+8e9klMJ9c=
-golang.org/x/net v0.21.0 h1:AQyQV4dYCvJ7vGmJyKki9+PBdyvhkSd8EIx/qb0AYv4=
-golang.org/x/net v0.21.0/go.mod h1:bIjVDfnllIU7BJ2DNgfnXvpSvtn8VRwhlsaeUTyUS44=
+golang.org/x/net v0.23.0 h1:7EYJ93RZ9vYSZAIb2x3lnuvqO5zneoD6IvWjuhfxjTs=
+golang.org/x/net v0.23.0/go.mod h1:JKghWKKOSdJwpW2GEx0Ja7fmaKnMsbu+MWVZTokSYmg=
 golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
 golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
 golang.org/x/oauth2 v0.16.0 h1:aDkGMBSYxElaoP81NpoUoz2oo2R2wHdZpGToUxfyQrQ=

@@ -262,8 +262,7 @@ contract Deploy is Deployer {
 
     function runWithStateDump() public {
         _run();
-
-        vm.dumpState(Config.stateDumpPath(name()));
+        vm.dumpState(Config.stateDumpPath(""));
     }
 
     /// @notice Deploy all L1 contracts and write the state diff to a file.
@@ -273,12 +272,16 @@ contract Deploy is Deployer {
 
     /// @notice Internal function containing the deploy logic.
     function _run() internal {
+        console.log("start of L1 Deploy!");
         deploySafe();
+        console.log("deployed Safe!");
         setupSuperchain();
+        console.log("set up superchain!");
         if (cfg.usePlasma()) {
             setupOpPlasma();
         }
         setupOpChain();
+        console.log("set up op chain!");
     }
 
     ////////////////////////////////////////////////////////////////
@@ -603,8 +606,7 @@ contract Deploy is Deployer {
 
         OptimismPortal2 portal = new OptimismPortal2{ salt: _implSalt() }({
             _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-            _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
-            _initialRespectedGameType: GameType.wrap(uint32(cfg.respectedGameType()))
+            _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
         });
 
         save("OptimismPortal2", address(portal));
@@ -1178,7 +1180,8 @@ contract Deploy is Deployer {
                 (
                     DisputeGameFactory(disputeGameFactoryProxy),
                     SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy)
+                    SuperchainConfig(superchainConfigProxy),
+                    GameType.wrap(uint32(cfg.respectedGameType()))
                 )
             )
         });
@@ -1363,7 +1366,8 @@ contract Deploy is Deployer {
                     _absolutePrestate: _params.absolutePrestate,
                     _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
-                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                    _clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
+                    _maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
                     _vm: _params.faultVm,
                     _weth: _params.weth,
                     _anchorStateRegistry: _params.anchorStateRegistry,
@@ -1378,7 +1382,8 @@ contract Deploy is Deployer {
                     _absolutePrestate: _params.absolutePrestate,
                     _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
-                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                    _clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
+                    _maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
                     _vm: _params.faultVm,
                     _weth: _params.weth,
                     _anchorStateRegistry: _params.anchorStateRegistry,
