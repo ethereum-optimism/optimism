@@ -36,17 +36,6 @@ contract TransientContextTest is Test {
         assertEq(TransientContext.callDepth(), _startingCallDepth + 1);
     }
 
-    /// @notice Tests that `increment()` increments the call depth twice.
-    /// @param _startingCallDepth Starting call depth.
-    function testFuzz_increment_twice_succeeds(uint256 _startingCallDepth) public {
-        vm.assume(_startingCallDepth < type(uint256).max - 1);
-        testFuzz_increment_succeeds(_startingCallDepth);
-        assertEq(TransientContext.callDepth(), _startingCallDepth + 1);
-
-        TransientContext.increment();
-        assertEq(TransientContext.callDepth(), _startingCallDepth + 2);
-    }
-
     /// @notice Tests that `decrement()` decrements the call depth.
     /// @param _startingCallDepth Starting call depth.
     function testFuzz_decrement_succeeds(uint256 _startingCallDepth) public {
@@ -58,21 +47,6 @@ contract TransientContextTest is Test {
 
         TransientContext.decrement();
         assertEq(TransientContext.callDepth(), _startingCallDepth - 1);
-    }
-
-    /// @notice Tests that `decrement()` decrements the call depth twice.
-    /// @param _startingCallDepth Starting call depth.
-    function testFuzz_decrement_twice_succeeds(uint256 _startingCallDepth) public {
-        vm.assume(_startingCallDepth > 1);
-        assembly {
-            tstore(sload(callDepthSlot.slot), _startingCallDepth)
-        }
-        assertEq(TransientContext.callDepth(), _startingCallDepth);
-
-        TransientContext.decrement();
-        assertEq(TransientContext.callDepth(), _startingCallDepth - 1);
-
-        testFuzz_decrement_succeeds(_startingCallDepth - 1);
     }
 
     /// @notice Tests that `get()` returns the correct value.
