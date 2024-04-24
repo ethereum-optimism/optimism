@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"runtime"
 	"slices"
 	"time"
@@ -16,24 +17,25 @@ import (
 )
 
 var (
-	ErrMissingTraceType              = errors.New("no supported trace types specified")
-	ErrMissingDatadir                = errors.New("missing datadir")
-	ErrMaxConcurrencyZero            = errors.New("max concurrency must not be 0")
-	ErrMissingL2Rpc                  = errors.New("missing L2 rpc url")
-	ErrMissingCannonBin              = errors.New("missing cannon bin")
-	ErrMissingCannonServer           = errors.New("missing cannon server")
-	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
-	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
-	ErrMissingL1Beacon               = errors.New("missing l1 beacon url")
-	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
-	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
-	ErrMissingCannonInfoFreq         = errors.New("missing cannon info freq")
-	ErrMissingCannonRollupConfig     = errors.New("missing cannon network or rollup config path")
-	ErrMissingCannonL2Genesis        = errors.New("missing cannon network or l2 genesis path")
-	ErrCannonNetworkAndRollupConfig  = errors.New("only specify one of network or rollup config path")
-	ErrCannonNetworkAndL2Genesis     = errors.New("only specify one of network or l2 genesis path")
-	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
-	ErrMissingRollupRpc              = errors.New("missing rollup rpc url")
+	ErrMissingTraceType                 = errors.New("no supported trace types specified")
+	ErrMissingDatadir                   = errors.New("missing datadir")
+	ErrMaxConcurrencyZero               = errors.New("max concurrency must not be 0")
+	ErrMissingL2Rpc                     = errors.New("missing L2 rpc url")
+	ErrMissingCannonBin                 = errors.New("missing cannon bin")
+	ErrMissingCannonServer              = errors.New("missing cannon server")
+	ErrMissingCannonAbsolutePreState    = errors.New("missing cannon absolute pre-state")
+	ErrCannonAbsolutePreStateAndBaseURL = errors.New("only specify one of cannon absolute pre-state and cannon absolute pre-state base URL")
+	ErrMissingL1EthRPC                  = errors.New("missing l1 eth rpc url")
+	ErrMissingL1Beacon                  = errors.New("missing l1 beacon url")
+	ErrMissingGameFactoryAddress        = errors.New("missing game factory address")
+	ErrMissingCannonSnapshotFreq        = errors.New("missing cannon snapshot freq")
+	ErrMissingCannonInfoFreq            = errors.New("missing cannon info freq")
+	ErrMissingCannonRollupConfig        = errors.New("missing cannon network or rollup config path")
+	ErrMissingCannonL2Genesis           = errors.New("missing cannon network or l2 genesis path")
+	ErrCannonNetworkAndRollupConfig     = errors.New("only specify one of network or rollup config path")
+	ErrCannonNetworkAndL2Genesis        = errors.New("only specify one of network or l2 genesis path")
+	ErrCannonNetworkUnknown             = errors.New("unknown cannon network")
+	ErrMissingRollupRpc                 = errors.New("missing rollup rpc url")
 
 	ErrMissingAsteriscBin              = errors.New("missing asterisc bin")
 	ErrMissingAsteriscServer           = errors.New("missing asterisc server")
@@ -124,14 +126,15 @@ type Config struct {
 	L2Rpc string // L2 RPC Url
 
 	// Specific to the cannon trace provider
-	CannonBin              string // Path to the cannon executable to run when generating trace data
-	CannonServer           string // Path to the op-program executable that provides the pre-image oracle server
-	CannonAbsolutePreState string // File to load the absolute pre-state for Cannon traces from
-	CannonNetwork          string
-	CannonRollupConfigPath string
-	CannonL2GenesisPath    string
-	CannonSnapshotFreq     uint // Frequency of snapshots to create when executing cannon (in VM instructions)
-	CannonInfoFreq         uint // Frequency of cannon progress log messages (in VM instructions)
+	CannonBin                     string   // Path to the cannon executable to run when generating trace data
+	CannonServer                  string   // Path to the op-program executable that provides the pre-image oracle server
+	CannonAbsolutePreState        string   // File to load the absolute pre-state for Cannon traces from
+	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
+	CannonNetwork                 string
+	CannonRollupConfigPath        string
+	CannonL2GenesisPath           string
+	CannonSnapshotFreq            uint // Frequency of snapshots to create when executing cannon (in VM instructions)
+	CannonInfoFreq                uint // Frequency of cannon progress log messages (in VM instructions)
 
 	// Specific to the asterisc trace provider
 	AsteriscBin              string // Path to the asterisc executable to run when generating trace data
@@ -233,8 +236,11 @@ func (c Config) Check() error {
 				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
 			}
 		}
-		if c.CannonAbsolutePreState == "" {
+		if c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
 			return ErrMissingCannonAbsolutePreState
+		}
+		if c.CannonAbsolutePreState != "" && c.CannonAbsolutePreStateBaseURL != nil {
+			return ErrCannonAbsolutePreStateAndBaseURL
 		}
 		if c.L2Rpc == "" {
 			return ErrMissingL2Rpc

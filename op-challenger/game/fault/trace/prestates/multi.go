@@ -22,15 +22,11 @@ type MultiPrestateProvider struct {
 	dataDir string
 }
 
-func NewMultiPrestateProvider(baseUrl string, dataDir string) (*MultiPrestateProvider, error) {
-	url, err := url.Parse(baseUrl)
-	if err != nil {
-		return nil, fmt.Errorf("invalid base URL (%v): %w", baseUrl, err)
-	}
+func NewMultiPrestateProvider(baseUrl *url.URL, dataDir string) *MultiPrestateProvider {
 	return &MultiPrestateProvider{
-		baseUrl: url,
+		baseUrl: baseUrl,
 		dataDir: dataDir,
-	}, nil
+	}
 }
 
 func (m *MultiPrestateProvider) PrestatePath(hash common.Hash) (string, error) {
@@ -46,6 +42,9 @@ func (m *MultiPrestateProvider) PrestatePath(hash common.Hash) (string, error) {
 }
 
 func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, dest string) error {
+	if err := os.MkdirAll(m.dataDir, 0755); err != nil {
+		return fmt.Errorf("error creating prestate dir: %w", err)
+	}
 	prestateUrl := m.baseUrl.JoinPath(hash.Hex() + ".json")
 	resp, err := http.Get(prestateUrl.String())
 	if err != nil {
@@ -59,7 +58,10 @@ func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, dest string) err
 	if err != nil {
 		return fmt.Errorf("failed to open atomic writer for %v: %w", dest, err)
 	}
-	defer out.Abort() // If errors occur, don't rename the file into place
+	defer func() {
+		// If errors occur, try to clean up without renaming the file into its final destination as Close() would do
+		_ = out.Abort()
+	}()
 	if _, err := io.Copy(out, resp.Body); err != nil {
 		return fmt.Errorf("failed to write file %v: %w", dest, err)
 	}

@@ -3,6 +3,7 @@ package fault
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
@@ -261,7 +262,12 @@ func registerCannon(
 	selective bool,
 	claimants []common.Address,
 ) error {
-	prestateSource := prestates.NewSinglePrestateSource(cfg.CannonAbsolutePreState)
+	var prestateSource PrestateSource
+	if cfg.CannonAbsolutePreStateBaseURL != nil {
+		prestateSource = prestates.NewMultiPrestateProvider(cfg.CannonAbsolutePreStateBaseURL, filepath.Join(cfg.Datadir, "cannon-prestates"))
+	} else {
+		prestateSource = prestates.NewSinglePrestateSource(cfg.CannonAbsolutePreState)
+	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		contract := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
 		requiredPrestatehash, err := contract.GetAbsolutePrestateHash(ctx)
