@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/ISemver.sol";
