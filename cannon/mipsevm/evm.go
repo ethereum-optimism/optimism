@@ -16,14 +16,30 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/forge-artifacts"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
-// LoadContracts loads the Cannon contracts, from op-bindings package
+// LoadContracts loads the Cannon contracts, from the contracts package.
 func LoadContracts() (*Contracts, error) {
 	var mips, oracle Contract
-	mips.DeployedBytecode.Object = hexutil.MustDecode(bindings.MIPSDeployedBin)
-	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.PreimageOracleDeployedBin)
+
+	mipsArtifact, err := forge_artifacts.LoadMIPS()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
+	}
+
+	oracleArtifact, err := forge_artifacts.LoadPreimageOracle()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Oracle contract: %w", err)
+	}
+
+	mips.DeployedBytecode.Object = mipsArtifact.DeployedBytecode.Object
+	mips.Bytecode.Object = mipsArtifact.Bytecode.Object
+
+	oracle.DeployedBytecode.Object = oracleArtifact.DeployedBytecode.Object
+
 	return &Contracts{
 		MIPS:   &mips,
 		Oracle: &oracle,
@@ -35,8 +51,10 @@ type Contract struct {
 		Object    hexutil.Bytes `json:"object"`
 		SourceMap string        `json:"sourceMap"`
 	} `json:"deployedBytecode"`
-
-	// ignore abi,bytecode,etc.
+	Bytecode struct {
+		Object hexutil.Bytes `json:"object"`
+	} `json:"bytecode"`
+	// ignore abi,etc.
 }
 
 type Contracts struct {
@@ -76,7 +94,7 @@ func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	var mipsCtorArgs [32]byte
 	copy(mipsCtorArgs[12:], addrs.Oracle[:])
-	mipsDeploy := append(hexutil.MustDecode(bindings.MIPSMetaData.Bin), mipsCtorArgs[:]...)
+	mipsDeploy := append(hexutil.MustDecode(contracts.MIPS.Bytecode.Object.String()), mipsCtorArgs[:]...)
 	startingGas := uint64(30_000_000)
 	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, common.U2560)
 	if err != nil {
