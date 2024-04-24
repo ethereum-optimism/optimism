@@ -627,7 +627,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Values taken from Big Bonds v1.5 (TM) spec.
         uint256 assumedBaseFee = 200 gwei;
         uint256 baseGasCharged = 400_000;
-        uint256 highGasCharged = 200_000_000;
+        uint256 highGasCharged = 300_000_000;
 
         // Goal here is to compute the fixed multiplier that will be applied to the base gas
         // charged to get the required gas amount for the given depth. We apply this multiplier
