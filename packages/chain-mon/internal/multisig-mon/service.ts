@@ -10,8 +10,8 @@ import {
 import { Provider } from '@ethersproject/abstract-provider'
 import { ethers } from 'ethers'
 
-import Safe from '../abi/IGnosisSafe.0.8.19.json'
-import OptimismPortal from '../abi/OptimismPortal.json'
+import Safe from '../../src/abi/IGnosisSafe.0.8.19.json'
+import OptimismPortal from '../../src/abi/OptimismPortal.json'
 import { version } from '../../package.json'
 
 type MultisigMonOptions = {
