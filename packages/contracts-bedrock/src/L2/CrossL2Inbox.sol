@@ -11,8 +11,8 @@ import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 interface IDependencySet {
     /// @notice Returns true iff the chain associated with input chain ID is in the interop dependency set.
     ///         Every chain is in the interop dependency set of itself.
-    /// @param _chainId The input chain ID.
-    /// @return True if the input chain ID corresponds to a chain in the interop dependency set. False otherwise.
+    /// @param _chainId Input chain ID.
+    /// @return True if the input chain ID corresponds to a chain in the interop dependency set, and false otherwise.
     function isInDependencySet(uint256 _chainId) external view returns (bool);
 }
 
@@ -20,17 +20,17 @@ interface IDependencySet {
 error NotEntered();
 
 /// @notice Thrown when trying to execute a cross chain message with an invalid Identifier timestamp.
-/// @param timestamp The timestamp of the Identifier.
-/// @param blockTimestamp The current block timestamp.
+/// @param timestamp      Timestamp of the Identifier.
+/// @param blockTimestamp Current block timestamp.
 error InvalidIdTimestamp(uint256 timestamp, uint256 blockTimestamp);
 
 /// @notice Thrown when trying to execute a cross chain message with a chain ID that is not in the dependency set.
-/// @param chainId The chain ID of the Identifier.
+/// @param chainId Chain ID of the Identifier.
 error ChainNotInDependencySet(uint256 chainId);
 
 /// @notice Thrown when trying to execute a cross chain message and the target call fails.
-/// @param target The target account that was called.
-/// @param message The message payload that was sent to the target account.
+/// @param target  Target address that was called.
+/// @param message Message payload of the call to the target.
 error TargetCallFailed(address target, bytes message);
 
 /// @custom:proxied
@@ -68,7 +68,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     string public constant version = "1.0.0";
 
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
-    ///         This is leveraged to differentiate between 0 and nil at tstorage slots.
+    ///         Used to differentiate between 0 and nil in transient storage.
     modifier notEntered() {
         if (TransientContext.get(ENTERED_SLOT) == 0) revert NotEntered();
         _;
@@ -105,9 +105,9 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     }
 
     /// @notice Executes a cross chain message on the destination chain.
-    /// @param _id An Identifier pointing to the initiating message.
-    /// @param _target Account that is called with _message.
-    /// @param _message The message payload, matching the initiating message.
+    /// @param _id      Identifier of the message.
+    /// @param _target  Target address to call.
+    /// @param _message Message payload to call target with.
     function executeMessage(
         Identifier calldata _id,
         address _target,
@@ -145,7 +145,10 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         TransientContext.set(CHAINID_SLOT, _id.chainId);
     }
 
-    /// @notice Calls the target account with the message payload and all available gas.
+    /// @notice Calls the target address with the message payload and all available gas.
+    /// @param _target  Target address to call.
+    /// @param _message Message payload to call target with.
+    /// @return _success True if the call was successful, and false otherwise.
     function _callWithAllGas(address _target, bytes memory _message) internal returns (bool _success) {
         assembly {
             _success :=
