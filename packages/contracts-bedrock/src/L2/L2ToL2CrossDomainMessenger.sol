@@ -24,7 +24,7 @@ error RelayCallerNotCrossL2Inbox(address caller);
 error CrossL2InboxOriginNotL2ToL2CrossDomainMessenger(address origin);
 
 /// @notice Thrown when attempting to relay a message whose destination chain is not the chain relaying it.
-/// @param destination Destination of the message being relayed.
+/// @param destination         Destination of the message being relayed.
 /// @param expectedDestination Expected destination of the message being relayed.
 error MessageDestinationNotRelayChain(uint256 destination, uint256 expectedDestination);
 
@@ -66,14 +66,13 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
-    ///         be present in this mapping if it has successfully been relayed on this chain, and
-    ///         can therefore not be relayed again.
+    /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
+    ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
     mapping(bytes32 => bool) public successfulMessages;
 
-    /// @notice Nonce for the next message to be sent, without the message version applied. Use the
-    ///         messageNonce getter which will insert the message version into the nonce to give you
-    ///         the actual nonce to be used for the message.
+    /// @notice Nonce for the next message to be sent, without the message version applied. Use the messageNonce getter,
+    ///         which will insert the message version into the nonce to give you the actual nonce to be used for the
+    ///         message.
     uint240 internal msgNonce;
 
     /// @notice Emitted whenever a message is sent to the other chain.
@@ -81,15 +80,15 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     event SentMessage(bytes data);
 
     /// @notice Emitted whenever a message is successfully relayed on this chain.
-    /// @param msgHash Hash of the message that was relayed.
-    event RelayedMessage(bytes32 indexed msgHash);
+    /// @param messageHash Hash of the message that was relayed.
+    event RelayedMessage(bytes32 indexed messageHash);
 
     /// @notice Emitted whenever a message fails to be relayed on this chain.
-    /// @param msgHash Hash of the message that failed to be relayed.
-    event FailedRelayedMessage(bytes32 indexed msgHash);
+    /// @param messageHash Hash of the message that failed to be relayed.
+    event FailedRelayedMessage(bytes32 indexed messageHash);
 
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
-    ///         This is leveraged to differentiate between 0 and nil at tstorage slots.
+    ///         Used to differentiate between 0 and nil in transient storage.
     modifier notEntered() {
         if (TransientContext.get(ENTERED_SLOT) == 0) revert NotEntered();
         _;
@@ -107,13 +106,12 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         return TransientContext.get(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT);
     }
 
-    /// @notice Sends a message to some target address on a destination chain. Note that if the call
-    ///         always reverts, then the message will be unrelayable, and any ETH sent will be
-    ///         permanently locked. The same will occur if the target on the other chain is
-    ///         considered unsafe (see the _isUnsafeTarget() function).
+    /// @notice Sends a message to some target address on a destination chain. Note that if the call always reverts,
+    ///         then the message will be unrelayable and any ETH sent will be permanently locked. The same will occur
+    ///         if the target on the other chain is considered unsafe (see the _isUnsafeTarget() function).
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
-    /// @param _message     Message to trigger the target address with.
+    /// @param _message     Message payload to call target with.
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable {
         if (_destination == block.chainid) revert MessageDestinationSameChain(_destination);
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
@@ -127,15 +125,15 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         msgNonce++;
     }
 
-    /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only
-    ///         be executed via cross-chain call from the other messenger OR if the message was
-    ///         already received once and is currently being replayed.
+    /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only be executed via
+    ///         cross-chain call from the other messenger OR if the message was already received once and is currently
+    ///         being replayed.
     /// @param _destination Chain ID of the destination chain.
     /// @param _source      Chain ID of the source chain.
     /// @param _nonce       Nonce of the message being relayed.
     /// @param _sender      Address of the user who sent the message.
     /// @param _target      Address that the message is targeted at.
-    /// @param _message     Message to send to the target.
+    /// @param _message     Message payload to call target with.
     function relayMessage(
         uint256 _destination,
         uint256 _source,
@@ -178,9 +176,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         }
     }
 
-    /// @notice Retrieves the next message nonce. Message version will be added to the upper two
-    ///         bytes of the message nonce. Message version allows us to treat messages as having
-    ///         different structures.
+    /// @notice Retrieves the next message nonce. Message version will be added to the upper two bytes of the message
+    ///         nonce. Message version allows us to treat messages as having different structures.
     /// @return Nonce of the next message to be sent, with added message version.
     function messageNonce() public view returns (uint256) {
         return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
@@ -197,19 +194,19 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         TransientContext.set(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source);
     }
 
-    /// @notice Calls the target account with the message payload and all available gas.
-    /// @param _target Address of the target account.
-    /// @param _msg    Message payload to send to the target account.
+    /// @notice Calls the target address with the message payload and all available gas.
+    /// @param _target  Target address to call.
+    /// @param _message Message payload to call target with.
     /// @return _success True if the call was successful, and false otherwise.
-    function _callWithAllGas(address _target, bytes memory _msg) internal returns (bool _success) {
+    function _callWithAllGas(address _target, bytes memory _message) internal returns (bool _success) {
         assembly {
             _success :=
                 call(
                     gas(), // gas
                     _target, // recipient
                     callvalue(), // ether value
-                    add(_msg, 32), // inloc
-                    mload(_msg), // inlen
+                    add(_message, 32), // inloc
+                    mload(_message), // inlen
                     0, // outloc
                     0 // outlen
                 )
