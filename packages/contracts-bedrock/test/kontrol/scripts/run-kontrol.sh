@@ -108,31 +108,25 @@ regen=
 #################################
 # Tests to symbolically execute #
 #################################
-
-# Temporarily unexecuted tests
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused5" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused6" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused7" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
-# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
-# "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
-# "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
-# "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
-# "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
-# "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
-
 test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
   test_list=(
-    "DummyTest.prove_success"
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused5" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused6" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused7" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
+    "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
+    "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
+    "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
+    "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
+    "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
   )
 elif [ "$CUSTOM_TESTS" != 0 ]; then
   test_list=( "${@:${CUSTOM_TESTS}}" )
@@ -159,16 +153,14 @@ else
 fi
 reinit=--reinit
 reinit=
-break_on_calls=--no-break-on-calls
-# break_on_calls=
-break_every_step=--break-every-step
-break_every_step=
+break_on_calls=--break-on-calls
+break_on_calls=
 auto_abstract=--auto-abstract-gas
 auto_abstract=
 bug_report=--bug-report
 bug_report=
-use_booster=--use-booster
-# use_booster=
+use_booster=--no-use-booster
+use_booster=
 state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
 
 #############
