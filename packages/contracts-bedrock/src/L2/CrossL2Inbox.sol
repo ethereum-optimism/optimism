@@ -47,9 +47,9 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
     bytes32 internal constant ORIGIN_SLOT = 0xd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c815;
 
-    /// @notice Transient storage slot that the blocknumber for an Identifier is stored at.
+    /// @notice Transient storage slot that the blockNumber for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.blocknumber")) - 1)
-    bytes32 internal constant BLOCKNUMBER_SLOT = 0x5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc;
+    bytes32 internal constant BLOCK_NUMBER_SLOT = 0x5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc;
 
     /// @notice Transient storage slot that the logIndex for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.logindex")) - 1)
@@ -83,7 +83,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @notice Returns the block number of the Identifier. If not entered, reverts.
     /// @return Block number of the Identifier.
     function blockNumber() external view notEntered returns (uint256) {
-        return TransientContext.get(BLOCKNUMBER_SLOT);
+        return TransientContext.get(BLOCK_NUMBER_SLOT);
     }
 
     /// @notice Returns the log index of the Identifier. If not entered, reverts.
@@ -139,7 +139,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         TransientContext.set(ENTERED_SLOT, 1);
 
         TransientContext.set(ORIGIN_SLOT, uint160(_id.origin));
-        TransientContext.set(BLOCKNUMBER_SLOT, _id.blockNumber);
+        TransientContext.set(BLOCK_NUMBER_SLOT, _id.blockNumber);
         TransientContext.set(LOG_INDEX_SLOT, _id.logIndex);
         TransientContext.set(TIMESTAMP_SLOT, _id.timestamp);
         TransientContext.set(CHAINID_SLOT, _id.chainId);
