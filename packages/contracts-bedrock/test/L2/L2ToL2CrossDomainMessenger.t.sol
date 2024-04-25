@@ -84,7 +84,10 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
     /// @dev Tests that the `sendMessage` function reverts when destination is the same as the source chain.
     function testFuzz_sendMessage_destinationSameChain_reverts(address _target, bytes calldata _message) external {
+        // Expect a revert with the MessageDestinationSameChain selector
         vm.expectRevert(abi.encodeWithSelector(MessageDestinationSameChain.selector, block.chainid));
+
+        // Call `sendMessage` with the current chain as the destination to prevent revert due to invalid destination
         l2ToL2CrossDomainMessenger.sendMessage({ _destination: block.chainid, _target: _target, _message: _message });
     }
 
@@ -93,7 +96,10 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure the destination is not the same as the source, otherwise the function will revert regardless of target
         vm.assume(_destination != block.chainid);
 
+        // Expect a revert with the MessageTargetCrossL2Inbox selector
         vm.expectRevert(MessageTargetCrossL2Inbox.selector);
+
+        // Call `senderMessage` with the CrossL2Inbox as the target to provoke revert
         l2ToL2CrossDomainMessenger.sendMessage({
             _destination: _destination,
             _target: Predeploys.CROSS_L2_INBOX,
@@ -111,7 +117,10 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure the destination is not the same as the source, otherwise the function will revert regardless of target
         vm.assume(_destination != block.chainid);
 
+        // Expect a revert with the MessageTargetL2ToL2CrossDomainMessenger selector
         vm.expectRevert(MessageTargetL2ToL2CrossDomainMessenger.selector);
+
+        // Call `senderMessage` with the L2ToL2CrossDomainMessenger as the target to provoke revert
         l2ToL2CrossDomainMessenger.sendMessage({
             _destination: _destination,
             _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
@@ -267,7 +276,10 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Add sufficient value to the contract to relay the message with
         vm.deal(address(this), _value);
 
+        // Expect a revert with the RelayCallerNotCrossL2Inbox selector
         vm.expectRevert(abi.encodeWithSelector(RelayCallerNotCrossL2Inbox.selector, address(this)));
+
+        // Call `relayMessage` with the current contract as the caller to provoke revert
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
             _destination: _destination,
             _source: _source,
@@ -301,7 +313,10 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
+        // Expect a revert with the CrossL2InboxOriginNotL2ToL2CrossDomainMessenger selector
         vm.expectRevert(abi.encodeWithSelector(CrossL2InboxOriginNotL2ToL2CrossDomainMessenger.selector, address(0)));
+
+        // Call `relayMessage` with invalid CrossL2Inbox origin to provoke revert
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
             _destination: _destination,
             _source: _source,
@@ -314,6 +329,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
     /// @dev Tests that the `relayMessage` function reverts when the destination is not the relay chain.
     function testFuzz_relayMessage_destinationNotRelayChain_reverts(
+        uint256 _destination,
         uint256 _source,
         uint256 _nonce,
         address _sender,
@@ -323,6 +339,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
+        // Ensure the destination is not this chain
+        vm.assume(_destination != block.chainid);
+
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
             callee: Predeploys.CROSS_L2_INBOX,
@@ -333,9 +352,12 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
+        // Expect a revert with the MessageDestinationNotRelayChain selector
         vm.expectRevert(abi.encodeWithSelector(MessageDestinationNotRelayChain.selector, 0, block.chainid));
+
+        // Call `relayMessage`
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: 0,
+            _destination: _destination,
             _source: _source,
             _nonce: _nonce,
             _sender: _sender,
@@ -364,7 +386,11 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
+        // Expect a revert with the MessageTargetCrossL2Inbox selector
         vm.expectRevert(MessageTargetCrossL2Inbox.selector);
+
+        // Call `relayMessage` with CrossL2Inbox as the target to provoke revert. The current chain is the destination
+        // to prevent revert due to invalid destination
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
             _destination: block.chainid,
             _source: _source,
@@ -395,7 +421,11 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
+        // Expect a revert with the MessageTargetL2ToL2CrossDomainMessenger selector
         vm.expectRevert(MessageTargetL2ToL2CrossDomainMessenger.selector);
+
+        // Call `relayMessage` with L2ToL2CrossDomainMessenger as the target to provoke revert. The current chain is the
+        // destination to prevent revert due to invalid destination
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
             _destination: block.chainid,
             _source: _source,
@@ -442,7 +472,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
         );
 
-        // First call should succeed
+        // First call to `relayMessage` should succeed. The current chain is the destination to prevent revert due to
+        // invalid destination
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
             _destination: block.chainid,
             _source: _source,
@@ -455,7 +486,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
-        // Second call should fail
+        // Second call should fail with MessageAlreadyRelayed selector
         vm.expectRevert(
             abi.encodeWithSelector(
                 MessageAlreadyRelayed.selector,
@@ -463,6 +494,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             )
         );
 
+        // Call `relayMessage` again. The current chain is the destination to prevent revert due to invalid destination
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
             _destination: block.chainid,
             _source: _source,
@@ -518,13 +550,19 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
     /// @dev Tests that `crossDomainMessageSender` reverts when not entered.
     function test_crossDomainMessageSender_notEntered_reverts() external {
+        // Expect a revert with the NotEntered selector
         vm.expectRevert(NotEntered.selector);
+
+        // Call `crossDomainMessageSender` to provoke revert
         l2ToL2CrossDomainMessenger.crossDomainMessageSender();
     }
 
     /// @dev Tests that `crossDomainMessageSource` reverts when not entered.
     function test_crossDomainMessageSource_notEntered_reverts() external {
+        // Expect a revert with the NotEntered selector
         vm.expectRevert(NotEntered.selector);
+
+        // Call `crossDomainMessageSource` to provoke revert
         l2ToL2CrossDomainMessenger.crossDomainMessageSource();
     }
 }
