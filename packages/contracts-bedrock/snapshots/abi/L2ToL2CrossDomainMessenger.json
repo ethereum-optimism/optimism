@@ -18,7 +18,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "_sender",
+        "name": "",
         "type": "address"
       }
     ],
@@ -31,7 +31,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "_source",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -211,6 +211,11 @@
         "internalType": "uint256",
         "name": "destination",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "expectedDestination",
+        "type": "uint256"
       }
     ],
     "name": "MessageDestinationNotRelayChain",
@@ -235,6 +240,11 @@
   {
     "inputs": [],
     "name": "MessageTargetL2ToL2CrossDomainMessenger",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotEntered",
     "type": "error"
   },
   {
