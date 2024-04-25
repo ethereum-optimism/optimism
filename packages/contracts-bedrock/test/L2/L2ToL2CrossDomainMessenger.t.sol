@@ -3,7 +3,6 @@ pragma solidity 0.8.25;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { Reverter } from "test/mocks/Callers.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -50,7 +49,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.assume(_destination != block.chainid);
 
         // Get the current message nonce
-        uint256 messageNoncePre = l2ToL2CrossDomainMessenger.messageNonce();
+        uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
 
         // Add sufficient value to the contract to send the message with
         vm.deal(address(this), _value);
@@ -60,7 +59,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         emit L2ToL2CrossDomainMessenger.SentMessage(
             abi.encodeCall(
                 L2ToL2CrossDomainMessenger.relayMessage,
-                (_destination, block.chainid, messageNoncePre, address(this), _target, _message)
+                (_destination, block.chainid, messageNonce, address(this), _target, _message)
             )
         );
 
@@ -71,7 +70,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
 
         // Ensure the message nonce has been incremented
-        assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNoncePre + 1);
+        assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
     }
 
     /// @dev Tests that the `sendMessage` function reverts when destination is the same as the source chain.
@@ -95,12 +94,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Ensure that the target contract does not revert
-        vm.assume(_target.code.length == 0);
-
-        // Ensure the target contract is payable if value is greater than 0
-        if (_value > 0) {
-            assumePayable(_target);
-        }
+        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: "" });
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
@@ -301,16 +295,14 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
+        // Ensure that payment doesn't overflow since we send value to L2ToL2CrossDomainMessenger twice
+        vm.assume(_value < type(uint256).max / 2);
+
         // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Ensure that the target contract does not revert
-        vm.assume(_target.code.length == 0);
-
-        // Ensure the target contract is payable if value is greater than 0
-        if (_value > 0) {
-            assumePayable(_target);
-        }
+        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: "" });
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
@@ -364,13 +356,17 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _source,
         uint256 _nonce,
         address _sender,
+        address _target,
         bytes memory _message,
         uint256 _value
     )
         external
     {
-        // Ensure that the target contract is not a precompile, since etch doesn't work with precompiles
-        address _target = address(0);
+        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+        // Ensure that the target contract reverts
+        vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: "" });
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
@@ -378,9 +374,6 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
             returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
         });
-
-        // Target call should fail, so we etch a Reverter() to the target contract
-        vm.etch(_target, address(new Reverter()).code);
 
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
         hoax(Predeploys.CROSS_L2_INBOX, _value);
