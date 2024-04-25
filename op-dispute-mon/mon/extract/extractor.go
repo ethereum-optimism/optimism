@@ -13,7 +13,7 @@ import (
 )
 
 type (
-	CreateGameCaller   func(game gameTypes.GameMetadata) (GameCaller, error)
+	CreateGameCaller   func(ctx context.Context, game gameTypes.GameMetadata) (GameCaller, error)
 	FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
 )
 
@@ -48,7 +48,7 @@ func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimes
 func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, games []gameTypes.GameMetadata) []*monTypes.EnrichedGameData {
 	var enrichedGames []*monTypes.EnrichedGameData
 	for _, game := range games {
-		caller, err := e.createContract(game)
+		caller, err := e.createContract(ctx, game)
 		if err != nil {
 			e.logger.Error("Failed to create game caller", "err", err)
 			continue

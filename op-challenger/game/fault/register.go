@@ -120,7 +120,10 @@ func registerAlphabet(
 	claimants []common.Address,
 ) error {
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create fault dispute game contract: %w", err)
+		}
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
@@ -157,7 +160,7 @@ func registerAlphabet(
 	registry.RegisterGameType(faultTypes.AlphabetGameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller), nil
+		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 	}
 	registry.RegisterBondContract(faultTypes.AlphabetGameType, contractCreator)
 	return nil
@@ -168,7 +171,10 @@ func registerOracle(ctx context.Context, m metrics.Metricer, oracles OracleRegis
 	if err != nil {
 		return fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
 	}
-	contract := contracts.NewFaultDisputeGameContract(m, implAddr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(ctx, m, implAddr, caller)
+	if err != nil {
+		return fmt.Errorf("failed to create fault dispute game contracts: %w", err)
+	}
 	oracle, err := contract.GetOracle(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load oracle address: %w", err)
@@ -199,7 +205,10 @@ func registerAsterisc(
 ) error {
 	asteriscPrestateProvider := asterisc.NewPrestateProvider(cfg.AsteriscAbsolutePreState)
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create fault dispute game contracts: %w", err)
+		}
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
@@ -236,7 +245,7 @@ func registerAsterisc(
 	registry.RegisterGameType(gameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller), nil
+		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 	}
 	registry.RegisterBondContract(gameType, contractCreator)
 	return nil
@@ -276,7 +285,10 @@ func registerCannon(
 		return cannon.NewPrestateProvider(prestatePath), nil
 	})
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create fault dispute game contracts: %w", err)
+		}
 		requiredPrestatehash, err := contract.GetAbsolutePrestateHash(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load prestate hash for game %v: %w", game.Proxy, err)
@@ -324,13 +336,13 @@ func registerCannon(
 	registry.RegisterGameType(gameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller), nil
+		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 	}
 	registry.RegisterBondContract(gameType, contractCreator)
 	return nil
 }
 
-func loadL1Head(contract *contracts.FaultDisputeGameContract, ctx context.Context, l1HeaderSource L1HeaderSource) (eth.BlockID, error) {
+func loadL1Head(contract contracts.FaultDisputeGameContract, ctx context.Context, l1HeaderSource L1HeaderSource) (eth.BlockID, error) {
 	l1Head, err := contract.GetL1Head(ctx)
 	if err != nil {
 		return eth.BlockID{}, fmt.Errorf("failed to load L1 head: %w", err)

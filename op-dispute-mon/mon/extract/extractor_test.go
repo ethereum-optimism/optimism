@@ -167,7 +167,7 @@ type mockGameCallerCreator struct {
 	caller *mockGameCaller
 }
 
-func (m *mockGameCallerCreator) CreateGameCaller(_ gameTypes.GameMetadata) (GameCaller, error) {
+func (m *mockGameCallerCreator) CreateGameCaller(_ context.Context, _ gameTypes.GameMetadata) (GameCaller, error) {
 	m.calls++
 	if m.err != nil {
 		return nil, m.err

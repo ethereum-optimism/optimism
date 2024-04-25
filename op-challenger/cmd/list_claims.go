@@ -48,11 +48,14 @@ func ListClaims(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract := contracts.NewFaultDisputeGameContract(metrics.NoopContractMetrics, gameAddr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(ctx.Context, metrics.NoopContractMetrics, gameAddr, caller)
+	if err != nil {
+		return err
+	}
 	return listClaims(ctx.Context, contract)
 }
 
-func listClaims(ctx context.Context, game *contracts.FaultDisputeGameContract) error {
+func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract) error {
 	maxDepth, err := game.GetMaxGameDepth(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve max depth: %w", err)
