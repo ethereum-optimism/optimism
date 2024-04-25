@@ -132,7 +132,7 @@ contract CrossL2InboxTest is Test {
         // Call the executeMessage function
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id1, _target: target, _message: message });
 
-        // Check that the reentrant function didn't update the Identifier at `executeMessage`'s call depth
+        // Check that the reentrant function didn't update Identifier in transient storage at first call's call depth
         CrossL2InboxWithIncrement(Predeploys.CROSS_L2_INBOX).increment();
         assertEq(crossL2Inbox.origin(), _id1.origin);
         assertEq(crossL2Inbox.blockNumber(), _id1.blockNumber);
@@ -140,7 +140,7 @@ contract CrossL2InboxTest is Test {
         assertEq(crossL2Inbox.timestamp(), _id1.timestamp);
         assertEq(crossL2Inbox.chainId(), _id1.chainId);
 
-        // Check that the reentrant function updated the Identifier at a deeper call depth
+        // Check that the reentrant function updated the Identifier at deeper call depth
         CrossL2InboxWithIncrement(Predeploys.CROSS_L2_INBOX).increment();
         assertEq(crossL2Inbox.origin(), _id2.origin);
         assertEq(crossL2Inbox.blockNumber(), _id2.blockNumber);
