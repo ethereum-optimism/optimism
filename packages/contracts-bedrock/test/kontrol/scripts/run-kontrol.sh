@@ -148,9 +148,10 @@ done
 max_depth=10000
 max_iterations=10000
 smt_timeout=100000
-max_workers=16 # Set to 7 since the CI machine has 8 CPUs
-# workers is the minimum between max_workers and the length of test_list
-# unless no test arguments are provided, in which case we default to max_workers
+max_workers=16 # Set to 16 since there are 16 proofs to run
+# workers is the minimum
+# between max_workers and the length of test_list unless no test
+# arguments are provided, in which case we default to max_workers
 if [ "$CUSTOM_TESTS" == 0 ] && [ "$SCRIPT_TESTS" == false ]; then
   workers=${max_workers}
 else
