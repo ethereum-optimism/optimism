@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { Reverter } from "test/mocks/Callers.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -18,53 +17,55 @@ import {
 } from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
+/// @title CrossL2InboxTest
+/// @dev Contract for testing the CrossL2Inbox contract.
 contract CrossL2InboxTest is Test {
+    /// @dev Selector for the `isInDependencySet` method of the L1Block contract.
     bytes4 constant L1BlockIsInDependencySetSelector = bytes4(keccak256("isInDependencySet(uint256)"));
 
     /// @dev CrossL2Inbox contract instance.
     CrossL2Inbox crossL2Inbox;
 
-    /// @dev Sample ICrossL2Inbox.Identifier.
-    ICrossL2Inbox.Identifier sampleIdentifier = ICrossL2Inbox.Identifier({
-        origin: address(0),
-        blocknumber: 0,
-        logIndex: 0,
-        timestamp: block.timestamp,
-        chainId: block.chainid
-    });
-
     /// @dev Sets up the test suite.
     function setUp() public {
-        crossL2Inbox = new CrossL2Inbox();
+        // Deploy the L2ToL2CrossDomainMessenger contract
+        vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2Inbox()).code);
+        crossL2Inbox = CrossL2Inbox(Predeploys.CROSS_L2_INBOX);
     }
 
-    /// @dev Tests that `executeMessage` succeeds when called with valid parameters.
+    /// @dev Tests that the `executeMessage` function  succeeds.
     function testFuzz_executeMessage_succeeds(
-        bytes calldata _msg,
         ICrossL2Inbox.Identifier calldata _id,
         address _target,
+        bytes calldata _message,
         uint256 _value
     )
         external
         payable
     {
+        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
         vm.assume(_id.timestamp <= block.timestamp);
-        vm.assume(_target.code.length == 0);
 
-        // need to prevent call to L1Block.isInDependencySet from reverting
+        // Ensure that the target call does not revert
+        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: "" });
+
+        // Ensure that the chain ID is in the dependency set
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
             data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
             returnData: abi.encode(true)
         });
 
-        vm.deal(tx.origin, _value);
+        // Ensure that the contract has enough balance to send with value
+        vm.deal(address(this), _value);
 
-        // executeMessage
-        vm.prank(tx.origin);
-        vm.expectCall(_target, _value, _msg);
-        crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _msg: _msg });
+        // Look for the call to the target contract
+        vm.expectCall(_target, _value, _message);
 
+        // Call the executeMessage function
+        crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
+
+        // Check that the Identifier was stored correctly
         assertEq(crossL2Inbox.origin(), _id.origin);
         assertEq(crossL2Inbox.blocknumber(), _id.blocknumber);
         assertEq(crossL2Inbox.logIndex(), _id.logIndex);
@@ -72,87 +73,119 @@ contract CrossL2InboxTest is Test {
         assertEq(crossL2Inbox.chainId(), _id.chainId);
     }
 
-    /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid timestamp.
-    function test_executeMessage_invalidTimestamp_fails() external {
-        sampleIdentifier.timestamp = block.timestamp + 1;
+    /// @dev Tests that the `executeMessage` function  reverts when called with an identifier with an invalid timestamp.
+    function testFuzz_executeMessage_invalidIdTimestamp_reverts(
+        ICrossL2Inbox.Identifier calldata _id,
+        address _target,
+        bytes calldata _message,
+        uint256 _value
+    )
+        external
+    {
+        // Ensure that the id's timestamp is invalid (greater than the current block timestamp)
+        vm.assume(_id.timestamp > block.timestamp);
 
-        vm.prank(tx.origin);
-        vm.expectRevert(
-            abi.encodeWithSelector(InvalidIdTimestamp.selector, sampleIdentifier.timestamp, block.timestamp)
-        );
-        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
+        // Ensure that the contract has enough balance to send with value
+        vm.deal(address(this), _value);
+
+        // Expect a revert with the InvalidIdTimestamp selector
+        vm.expectRevert(abi.encodeWithSelector(InvalidIdTimestamp.selector, _id.timestamp, block.timestamp));
+
+        // Call the executeMessage function
+        crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
     }
 
-    /// @dev Tests that `executeMessage` fails when called with an identifier with an invalid chain ID.
-    function test_executeMessage_invalidChainId_fails() external {
+    /// @dev Tests that the `executeMessage` function  reverts when called with an identifier with a chain ID not in
+    /// dependency set.
+    function testFuzz_executeMessage_chainNotInDependencySet_reverts(
+        ICrossL2Inbox.Identifier calldata _id,
+        address _target,
+        bytes calldata _message,
+        uint256 _value
+    )
+        external
+    {
+        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
+        vm.assume(_id.timestamp <= block.timestamp);
+
+        // Ensure that the chain ID is NOT in the dependency set
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, sampleIdentifier.chainId),
+            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
             returnData: abi.encode(false)
         });
 
-        vm.prank(tx.origin);
-        vm.expectRevert(abi.encodeWithSelector(ChainNotInDependencySet.selector, sampleIdentifier.chainId));
-        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
+        // Ensure that the contract has enough balance to send with value
+        vm.deal(address(this), _value);
+
+        // Expect a revert with the ChainNotInDependencySet selector
+        vm.expectRevert(abi.encodeWithSelector(ChainNotInDependencySet.selector, _id.chainId));
+
+        // Call the executeMessage function
+        crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
     }
 
-    /// @dev Tests that `executeMessage` succeeds when called with an identifier with the same chain ID as
-    ///      the current chain.
-    function test_executeMessage_sameChainId_succeeds() external {
+    /// @dev Tests that the `executeMessage` function  reverts when the target call fails.
+    function testFuzz_executeMessage_targetCallFailed_reverts(
+        ICrossL2Inbox.Identifier calldata _id,
+        address _target,
+        bytes calldata _message,
+        uint256 _value
+    )
+        external
+    {
+        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
+        vm.assume(_id.timestamp <= block.timestamp);
+
+        // Ensure that the target call reverts
+        vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: "" });
+
+        // Ensure that the chain ID is in the dependency set
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, sampleIdentifier.chainId),
+            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
             returnData: abi.encode(true)
         });
 
-        vm.prank(tx.origin);
-        vm.expectCall(address(0), hex"1234");
-        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
-    }
+        // Ensure that the contract has enough balance to send with value
+        vm.deal(address(this), _value);
 
-    /// @dev Tests that `executeMessage` fails when the underlying target call reverts.
-    function test_executeMessage_unsuccessfullSafeCall_fails() external {
-        // need to make sure address leads to unsuccessfull SafeCall by executeMessage
-        vm.etch(address(0), address(new Reverter()).code);
+        // Look for the call to the target contract
+        vm.expectCall(_target, _value, _message);
 
-        vm.mockCall({
-            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, sampleIdentifier.chainId),
-            returnData: abi.encode(true)
-        });
+        // Expect a revert with the TargetCallFailed selector
+        vm.expectRevert(abi.encodeWithSelector(TargetCallFailed.selector, _target, _message));
 
-        vm.prank(tx.origin);
-        vm.expectCall(address(0), hex"1234");
-        vm.expectRevert(abi.encodeWithSelector(TargetCallFailed.selector, address(0), hex"1234"));
-        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
+        // Call the executeMessage function
+        crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
     }
 
     /// @dev Tests that `origin` reverts when not entered.
-    function test_origin_notEntered_fails() external {
+    function test_origin_notEntered_reverts() external {
         vm.expectRevert(NotEntered.selector);
         crossL2Inbox.origin();
     }
 
     /// @dev Tests that `blocknumber` reverts when not entered.
-    function test_blocknumber_notEntered_fails() external {
+    function test_blocknumber_notEntered_reverts() external {
         vm.expectRevert(NotEntered.selector);
         crossL2Inbox.blocknumber();
     }
 
     /// @dev Tests that `logIndex` reverts when not entered.
-    function test_logIndex_notEntered_fails() external {
+    function test_logIndex_notEntered_reverts() external {
         vm.expectRevert(NotEntered.selector);
         crossL2Inbox.logIndex();
     }
 
     /// @dev Tests that `timestamp` reverts when not entered.
-    function test_timestamp_notEntered_fails() external {
+    function test_timestamp_notEntered_reverts() external {
         vm.expectRevert(NotEntered.selector);
         crossL2Inbox.timestamp();
     }
 
     /// @dev Tests that `chainId` reverts when not entered.
-    function test_chainId_notEntered_fails() external {
+    function test_chainId_notEntered_reverts() external {
         vm.expectRevert(NotEntered.selector);
         crossL2Inbox.chainId();
     }

@@ -29,8 +29,8 @@ error ChainNotInDependencySet(uint256 chainId);
 
 /// @notice Thrown when trying to execute a cross chain message and the target call fails.
 /// @param target The target account that was called.
-/// @param msg The message payload that was sent to the target account.
-error TargetCallFailed(address target, bytes msg);
+/// @param message The message payload that was sent to the target account.
+error TargetCallFailed(address target, bytes message);
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
@@ -120,9 +120,9 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
 
     /// @notice Executes a cross chain message on the destination chain.
     /// @param _id An Identifier pointing to the initiating message.
-    /// @param _target Account that is called with _msg.
-    /// @param _msg The message payload, matching the initiating message.
-    function executeMessage(Identifier calldata _id, address _target, bytes memory _msg) external payable {
+    /// @param _target Account that is called with _message.
+    /// @param _message The message payload, matching the initiating message.
+    function executeMessage(Identifier calldata _id, address _target, bytes memory _message) external payable {
         if (_id.timestamp > block.timestamp) revert InvalidIdTimestamp(_id.timestamp, block.timestamp);
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
             revert ChainNotInDependencySet(_id.chainId);
@@ -132,10 +132,10 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
         _storeIdentifier();
 
         // Call the target account with the message payload.
-        bool success = _callWithAllGas(_target, _msg);
+        bool success = _callWithAllGas(_target, _message);
 
         // Revert if the target call failed.
-        if (!success) revert TargetCallFailed(_target, _msg);
+        if (!success) revert TargetCallFailed(_target, _message);
     }
 
     /// @notice Stores the Identifier in transient storage.
@@ -153,15 +153,15 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     }
 
     /// @notice Calls the target account with the message payload and all available gas.
-    function _callWithAllGas(address _target, bytes memory _msg) internal returns (bool _success) {
+    function _callWithAllGas(address _target, bytes memory _message) internal returns (bool _success) {
         assembly {
             _success :=
                 call(
                     gas(), // gas
                     _target, // recipient
                     callvalue(), // ether value
-                    add(_msg, 32), // inloc
-                    mload(_msg), // inlen
+                    add(_message, 32), // inloc
+                    mload(_message), // inlen
                     0, // outloc
                     0 // outlen
                 )
