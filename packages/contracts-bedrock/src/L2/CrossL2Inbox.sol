@@ -2,6 +2,7 @@
 pragma solidity 0.8.25;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { TransientContext, TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
@@ -37,7 +38,7 @@ error TargetCallFailed(address target, bytes message);
 /// @title CrossL2Inbox
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
-contract CrossL2Inbox is ICrossL2Inbox, ISemver {
+contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @notice Transient storage slot that `entered` is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
     bytes32 internal constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
@@ -69,67 +70,60 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
     ///         This is leveraged to differentiate between 0 and nil at tstorage slots.
     modifier notEntered() {
-        assembly {
-            if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, 0xbca35af6) // 0xbca35af6 is the 4-byte selector of "NotEntered()"
-                revert(0x1C, 0x04)
-            }
-        }
+        if (TransientContext.get(ENTERED_SLOT) == 0) revert NotEntered();
         _;
     }
 
     /// @notice Returns the origin address of the Identifier. If not entered, reverts.
-    /// @return _origin The origin address of the Identifier.
-    function origin() external view notEntered returns (address _origin) {
-        assembly {
-            _origin := tload(ORIGIN_SLOT)
-        }
+    /// @return Origin address of the Identifier.
+    function origin() external view notEntered returns (address) {
+        return address(uint160(TransientContext.get(ORIGIN_SLOT)));
     }
 
     /// @notice Returns the block number of the Identifier. If not entered, reverts.
-    /// @return _blocknumber The block number of the Identifier.
-    function blocknumber() external view notEntered returns (uint256 _blocknumber) {
-        assembly {
-            _blocknumber := tload(BLOCKNUMBER_SLOT)
-        }
+    /// @return Block number of the Identifier.
+    function blockNumber() external view notEntered returns (uint256) {
+        return TransientContext.get(BLOCKNUMBER_SLOT);
     }
 
     /// @notice Returns the log index of the Identifier. If not entered, reverts.
-    /// @return _logIndex The log index of the Identifier.
-    function logIndex() external view notEntered returns (uint256 _logIndex) {
-        assembly {
-            _logIndex := tload(LOG_INDEX_SLOT)
-        }
+    /// @return Log index of the Identifier.
+    function logIndex() external view notEntered returns (uint256) {
+        return TransientContext.get(LOG_INDEX_SLOT);
     }
 
     /// @notice Returns the timestamp of the Identifier. If not entered, reverts.
-    /// @return _timestamp The timestamp of the Identifier.
-    function timestamp() external view notEntered returns (uint256 _timestamp) {
-        assembly {
-            _timestamp := tload(TIMESTAMP_SLOT)
-        }
+    /// @return Timestamp of the Identifier.
+    function timestamp() external view notEntered returns (uint256) {
+        return TransientContext.get(TIMESTAMP_SLOT);
     }
 
     /// @notice Returns the chain ID of the Identifier. If not entered, reverts.
     /// @return _chainId The chain ID of the Identifier.
-    function chainId() external view notEntered returns (uint256 _chainId) {
-        assembly {
-            _chainId := tload(CHAINID_SLOT)
-        }
+    function chainId() external view notEntered returns (uint256) {
+        return TransientContext.get(CHAINID_SLOT);
     }
 
     /// @notice Executes a cross chain message on the destination chain.
     /// @param _id An Identifier pointing to the initiating message.
     /// @param _target Account that is called with _message.
     /// @param _message The message payload, matching the initiating message.
-    function executeMessage(Identifier calldata _id, address _target, bytes memory _message) external payable {
+    function executeMessage(
+        Identifier calldata _id,
+        address _target,
+        bytes memory _message
+    )
+        external
+        payable
+        reentrantAware
+    {
         if (_id.timestamp > block.timestamp) revert InvalidIdTimestamp(_id.timestamp, block.timestamp);
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
             revert ChainNotInDependencySet(_id.chainId);
         }
 
         // Store the Identifier in transient storage.
-        _storeIdentifier();
+        _storeIdentifier(_id);
 
         // Call the target account with the message payload.
         bool success = _callWithAllGas(_target, _message);
@@ -139,17 +133,16 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     }
 
     /// @notice Stores the Identifier in transient storage.
-    function _storeIdentifier() internal {
-        assembly {
-            // update `entered` to non-zero
-            tstore(ENTERED_SLOT, 1)
+    /// @param _id Identifier to store.
+    function _storeIdentifier(Identifier calldata _id) internal {
+        // Update `entered` to non-zero
+        TransientContext.set(ENTERED_SLOT, 1);
 
-            tstore(ORIGIN_SLOT, calldataload(4))
-            tstore(BLOCKNUMBER_SLOT, calldataload(36))
-            tstore(LOG_INDEX_SLOT, calldataload(68))
-            tstore(TIMESTAMP_SLOT, calldataload(100))
-            tstore(CHAINID_SLOT, calldataload(132))
-        }
+        TransientContext.set(ORIGIN_SLOT, uint160(_id.origin));
+        TransientContext.set(BLOCKNUMBER_SLOT, _id.blockNumber);
+        TransientContext.set(LOG_INDEX_SLOT, _id.logIndex);
+        TransientContext.set(TIMESTAMP_SLOT, _id.timestamp);
+        TransientContext.set(CHAINID_SLOT, _id.chainId);
     }
 
     /// @notice Calls the target account with the message payload and all available gas.
