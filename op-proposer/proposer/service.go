@@ -44,6 +44,8 @@ type ProposerConfig struct {
 	// is never valid on an alternative L1 chain that would produce different L2 data.
 	// This option is not necessary when higher proposal latency is acceptable and L1 is healthy.
 	AllowNonFinalized bool
+
+	WaitNodeSync bool
 }
 
 type ProposerService struct {
@@ -89,6 +91,7 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.PollInterval = cfg.PollInterval
 	ps.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
+	ps.WaitNodeSync = cfg.WaitNodeSync
 
 	ps.initL2ooAddress(cfg)
 	ps.initDGF(cfg)

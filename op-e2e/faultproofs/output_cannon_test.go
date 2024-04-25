@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -21,7 +21,7 @@ import (
 func TestOutputCannonGame(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -68,7 +68,7 @@ func TestOutputCannonGame(t *testing.T) {
 	claim.WaitForCountered(ctx)
 	game.LogGameData(ctx)
 
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
@@ -77,7 +77,7 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 	// The dishonest actor always posts claims with all zeros.
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -96,7 +96,7 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 
 	game.LogGameData(ctx)
 
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 	game.LogGameData(ctx)
@@ -116,7 +116,7 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 			ctx := context.Background()
-			sys, _ := startFaultDisputeSystem(t)
+			sys, _ := StartFaultDisputeSystem(t)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", test.disputeL2BlockNumber, common.Hash{0x01})
@@ -147,7 +147,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 			ctx := context.Background()
-			sys, l1Client := startFaultDisputeSystem(t)
+			sys, l1Client := StartFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -171,7 +171,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 					}
 				})
 
-			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.LogGameData(ctx)
@@ -184,7 +184,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -208,7 +208,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 		}
 	})
 
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForInactivity(ctx, 10, true)
@@ -220,7 +220,7 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, _ := startFaultDisputeSystem(t, withBatcherStopped())
+	sys, _ := StartFaultDisputeSystem(t, WithBatcherStopped())
 	t.Cleanup(sys.Close)
 
 	// Manually send a tx from the correct batcher key to the batcher input with very large (invalid) data
@@ -252,18 +252,18 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	// execution game. We then move to challenge it to induce a large preimage load.
 	sender := sys.Cfg.Secrets.Addresses().Alice
 	preimageLoadCheck := game.CreateStepLargePreimageLoadCheck(ctx, sender)
-	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.PreimageLargerThan(preimage.MinPreimageSize), preimageLoadCheck, false)
+	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, utils.PreimageLargerThan(preimage.MinPreimageSize), preimageLoadCheck, false)
 	// The above method already verified the image was uploaded and step called successfully
 	// So we don't waste time resolving the game - that's tested elsewhere.
 }
 
 func TestOutputCannonStepWithPreimage(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	testPreimageStep := func(t *testing.T, preimageType cannon.PreimageOpt, preloadPreimage bool) {
+	testPreimageStep := func(t *testing.T, preimageType utils.PreimageOpt, preloadPreimage bool) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
-		sys, _ := startFaultDisputeSystem(t, withBlobBatches())
+		sys, _ := StartFaultDisputeSystem(t, WithBlobBatches())
 		t.Cleanup(sys.Close)
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -290,12 +290,12 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 	for _, preimageType := range preimageConditions {
 		preimageType := preimageType
 		t.Run("non-existing preimage-"+preimageType, func(t *testing.T) {
-			testPreimageStep(t, cannon.FirstPreimageLoadOfType(preimageType), false)
+			testPreimageStep(t, utils.FirstPreimageLoadOfType(preimageType), false)
 		})
 	}
 	// Only test pre-existing images with one type to save runtime
 	t.Run("preimage already exists", func(t *testing.T) {
-		testPreimageStep(t, cannon.FirstKeccakPreimageLoad(), true)
+		testPreimageStep(t, utils.FirstKeccakPreimageLoad(), true)
 	})
 }
 
@@ -306,7 +306,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
-		sys, _ := startFaultDisputeSystem(t, withEcotone())
+		sys, _ := StartFaultDisputeSystem(t, WithEcotone())
 		t.Cleanup(sys.Close)
 
 		// NOTE: Flake prevention
@@ -315,7 +315,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeBlock.NumberU64()+3))
 
-		receipt := sendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
+		receipt := SendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
 		precompileBlock := receipt.BlockNumber
 		t.Logf("KZG Point Evaluation block number: %d", precompileBlock)
 
@@ -334,7 +334,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
 		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, cannon.FirstPrecompilePreimageLoad(), preimageLoadCheck, preloadPreimage)
+		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, utils.FirstPrecompilePreimageLoad(), preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
 	}
@@ -406,7 +406,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 			ctx := context.Background()
-			sys, l1Client := startFaultDisputeSystem(t)
+			sys, l1Client := StartFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -426,7 +426,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 				})
 
 			// Time travel past when the game will be resolvable.
-			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForInactivity(ctx, 10, true)
@@ -440,7 +440,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -493,7 +493,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 	claimToIgnore2.RequireOnlyCounteredBy(ctx /* nothing */)
 
 	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.LogGameData(ctx)
@@ -504,7 +504,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -543,7 +543,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 	correctTrace.StepClaimFails(ctx, claim, false)
 
 	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
@@ -554,7 +554,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -594,7 +594,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 	claim.WaitForCountered(ctx)
 
 	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
@@ -605,7 +605,7 @@ func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -654,7 +654,7 @@ func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
 	claim.WaitForCountered(ctx)
 
 	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
@@ -693,7 +693,7 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
-			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000), withBatcherStopped())
+			sys, l1Client := StartFaultDisputeSystem(t, WithSequencerWindowSize(100000), WithBatcherStopped())
 			t.Cleanup(sys.Close)
 
 			blockNum := uint64(1)
@@ -714,7 +714,7 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 			})
 
 			// Time travel past when the game will be resolvable.
-			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
@@ -755,7 +755,7 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
-			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000))
+			sys, l1Client := StartFaultDisputeSystem(t, WithSequencerWindowSize(100000))
 			t.Cleanup(sys.Close)
 
 			farFutureBlockNum := uint64(10_000_000)
@@ -776,7 +776,7 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 			})
 
 			// Time travel past when the game will be resolvable.
-			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)

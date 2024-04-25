@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test, console2 as console } from "forge-std/Test.sol";
+import { Test, Vm, console2 as console } from "forge-std/Test.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
@@ -20,7 +20,7 @@ contract PreimageOracle_Test is Test {
     }
 
     /// @notice Test the pre-image key computation with a known pre-image.
-    function test_keccak256PreimageKey_succeeds() public {
+    function test_keccak256PreimageKey_succeeds() public pure {
         bytes memory preimage = hex"deadbeef";
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(preimage);
         bytes32 known = 0x02fd4e189132273036449fc9e11198c739161b4c0116a9a2dccdfa1c492006f1;
@@ -329,10 +329,18 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Allocate the calldata so it isn't included in the gas measurement.
         bytes memory cd = abi.encodeCall(oracle.addLeavesLPP, (TEST_UUID, 0, data, stateCommitments, true));
 
+        // Record logs from the call. `expectEmit` does not capture assembly logs.
+        bytes memory expectedLog = abi.encodePacked(address(this), cd);
+        vm.recordLogs();
+
         uint256 gas = gasleft();
         (bool success,) = address(oracle).call(cd);
         uint256 gasUsed = gas - gasleft();
         assertTrue(success);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs[0].data, expectedLog);
+        assertEq(logs[0].emitter, address(oracle));
 
         console.log("Gas used: %d", gasUsed);
         console.log("Gas per byte (%d bytes streamed): %d", data.length, gasUsed / data.length);

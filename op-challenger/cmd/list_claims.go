@@ -48,10 +48,7 @@ func ListClaims(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(metrics.NoopContractMetrics, gameAddr, caller)
-	if err != nil {
-		return fmt.Errorf("failed to create dispute game bindings: %w", err)
-	}
+	contract := contracts.NewFaultDisputeGameContract(metrics.NoopContractMetrics, gameAddr, caller)
 	return listClaims(ctx.Context, contract)
 }
 
@@ -103,7 +100,7 @@ func listClaims(ctx context.Context, game *contracts.FaultDisputeGameContract) e
 		if claim.Depth() <= splitDepth {
 			traceIdx = claim.TraceIndex(splitDepth)
 		} else {
-			relativePos, err := claim.Position.RelativeToAncestorAtDepth(splitDepth)
+			relativePos, err := claim.Position.RelativeToAncestorAtDepth(splitDepth + 1)
 			if err != nil {
 				fmt.Printf("Error calculating relative position for claim %v: %v", claim.ContractIndex, err)
 				traceIdx = big.NewInt(-1)

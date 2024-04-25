@@ -36,8 +36,8 @@ error NoCreditToClaim();
 /// @notice Thrown when the transfer of credit to a recipient account reverts.
 error BondTransferFailed();
 
-/// @notice Thrown when the `extraData` passed to the CWIA proxy is too long for the `FaultDisputeGame`.
-error ExtraDataTooLong();
+/// @notice Thrown when the `extraData` passed to the CWIA proxy is of improper length, or contains invalid information.
+error BadExtraData();
 
 /// @notice Thrown when a defense against the root claim is attempted.
 error CannotDefendRootClaim();
@@ -90,6 +90,12 @@ error ClaimAboveSplit();
 /// @notice Thrown on deployment if the split depth is greater than or equal to the max
 ///         depth of the game.
 error InvalidSplitDepth();
+
+/// @notice Thrown on deployment if the max clock duration is less than or equal to the clock extension.
+error InvalidClockExtension();
+
+/// @notice Thrown on deployment if the max depth is greater than `LibPosition.`
+error MaxDepthTooLarge();
 
 /// @notice Thrown when trying to step against a claim for a second time, after it has already been countered with
 ///         an instruction step.

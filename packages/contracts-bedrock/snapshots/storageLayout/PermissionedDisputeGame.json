@@ -21,6 +21,13 @@
     "type": "enum GameStatus"
   },
   {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 17,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
     "bytes": "32",
     "label": "claimData",
     "offset": 0,
@@ -49,24 +56,24 @@
     "type": "mapping(uint256 => uint256[])"
   },
   {
-    "bytes": "1",
-    "label": "subgameAtRootResolved",
+    "bytes": "32",
+    "label": "resolvedSubgames",
     "offset": 0,
     "slot": "5",
-    "type": "bool"
+    "type": "mapping(uint256 => bool)"
   },
   {
-    "bytes": "1",
-    "label": "initialized",
-    "offset": 1,
-    "slot": "5",
-    "type": "bool"
+    "bytes": "32",
+    "label": "resolutionCheckpoints",
+    "offset": 0,
+    "slot": "6",
+    "type": "mapping(uint256 => struct IFaultDisputeGame.ResolutionCheckpoint)"
   },
   {
     "bytes": "64",
     "label": "startingOutputRoot",
     "offset": 0,
-    "slot": "6",
+    "slot": "7",
     "type": "struct OutputRoot"
   }
 ]

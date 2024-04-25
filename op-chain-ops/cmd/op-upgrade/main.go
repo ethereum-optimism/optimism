@@ -36,14 +36,22 @@ func isAllowedChainID(chainId uint64) {
 	// mainnet/metal: 1750
 	// mainnet/mode: 34443
 	// mainnet/zora: 7777777
+	// mainnet/base: 8453
 	// sepolia/metal: 1740
 	// sepolia/mode: 919
 	// sepolia/zora: 999999999
-	allowed := chainId == 1750 || chainId == 34443 || chainId == 7777777 || chainId == 1740 || chainId == 919 || chainId == 999999999
+	// sepolia/base: 84532
+	allowed := chainId == 1750 ||
+		chainId == 34443 ||
+		chainId == 7777777 ||
+		chainId == 1740 ||
+		chainId == 919 ||
+		chainId == 999999999 ||
+		chainId == 8453 ||
+		chainId == 84532
 	if !allowed {
 		panic(fmt.Sprintf("Chain ID %d is not allowed. We panic if the chain ID does not correspond to the mainnet or sepolia versions of Metal, Mode, or Zora. This is because OP Sepolia is currently on FPAC, which corresponds to OptimismPortal v3.3.0. However, we do not want to upgrade other chains to that yet. A proper fix to op-upgrade to allow specifying the targets versions of contracts is a large change, and we might end up deprecating op-upgrade anyway. Therefore, we instead hardcode the chain IDs this script can be used for and panic if the chain ID is not one of them. This way it's not possible to erroneously upgrade a chain to an unexpected version.", chainId))
 	}
-
 }
 
 func main() {
@@ -115,6 +123,11 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	chainIDs := ctx.Uint64Slice("chain-ids")
+	if len(chainIDs) != 1 {
+		// This requirement is due to the `SYSTEM_CONFIG_START_BLOCK` environment variable
+		// that we read from in `op-chain-ops/upgrades/l1.go`
+		panic("op-upgrade currently only supports upgrading a single chain at a time")
+	}
 	deployConfig := ctx.Path("deploy-config")
 
 	// If no chain IDs are specified, upgrade all chains
@@ -205,7 +218,7 @@ func entrypoint(ctx *cli.Context) error {
 		log.Info("OptimismPortal", "version", versions.OptimismPortal, "address", addresses.OptimismPortalProxy)
 		log.Info("SystemConfig", "version", versions.SystemConfig, "address", addresses.SystemConfigProxy)
 
-		implementations, ok := superchain.Implementations[l1ChainID.Uint64()]
+		implementations, ok := superchain.Implementations[chainConfig.Superchain]
 		if !ok {
 			return fmt.Errorf("no implementations for chain ID %d", l1ChainID.Uint64())
 		}
@@ -218,7 +231,6 @@ func entrypoint(ctx *cli.Context) error {
 		targetUpgrade.OptimismPortal = "2.5.0"
 
 		list, err := implementations.Resolve(targetUpgrade)
-
 		if err != nil {
 			return err
 		}

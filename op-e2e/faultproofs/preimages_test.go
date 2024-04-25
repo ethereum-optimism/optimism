@@ -32,7 +32,7 @@ func TestLocalPreimages(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 			ctx := context.Background()
-			sys, _ := startFaultDisputeSystem(t)
+			sys, _ := StartFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)

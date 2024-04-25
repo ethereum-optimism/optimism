@@ -44,6 +44,8 @@ var (
 	// L1Deployments maps contract names to accounts in the L1
 	// genesis block state.
 	L1Deployments *genesis.L1Deployments
+	// l2Allocs represents the L2 allocs, by hardfork/mode (e.g. delta, ecotone, interop, other)
+	l2Allocs map[genesis.L2AllocsMode]*genesis.ForgeAllocs
 	// DeployConfig represents the deploy config used by the system.
 	DeployConfig *genesis.DeployConfig
 	// ExternalL2Shim is the shim to use if external ethereum client testing is
@@ -57,7 +59,7 @@ var (
 )
 
 func init() {
-	var l1AllocsPath, l1DeploymentsPath, deployConfigPath, externalL2 string
+	var l1AllocsPath, l2AllocsDir, l1DeploymentsPath, deployConfigPath, externalL2 string
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -69,10 +71,12 @@ func init() {
 	}
 
 	defaultL1AllocsPath := filepath.Join(root, ".devnet", "allocs-l1.json")
+	defaultL2AllocsDir := filepath.Join(root, ".devnet")
 	defaultL1DeploymentsPath := filepath.Join(root, ".devnet", "addresses.json")
 	defaultDeployConfigPath := filepath.Join(root, "packages", "contracts-bedrock", "deploy-config", "devnetL1.json")
 
 	flag.StringVar(&l1AllocsPath, "l1-allocs", defaultL1AllocsPath, "")
+	flag.StringVar(&l2AllocsDir, "l2-allocs-dir", defaultL2AllocsDir, "")
 	flag.StringVar(&l1DeploymentsPath, "l1-deployments", defaultL1DeploymentsPath, "")
 	flag.StringVar(&deployConfigPath, "deploy-config", defaultDeployConfigPath, "")
 	flag.StringVar(&externalL2, "externalL2", "", "Enable tests with external L2")
@@ -108,6 +112,20 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	l2Allocs = make(map[genesis.L2AllocsMode]*genesis.ForgeAllocs)
+	mustL2Allocs := func(mode genesis.L2AllocsMode) {
+		name := "allocs-l2"
+		if mode != "" {
+			name += "-" + string(mode)
+		}
+		allocs, err := genesis.LoadForgeAllocs(filepath.Join(l2AllocsDir, name+".json"))
+		if err != nil {
+			panic(err)
+		}
+		l2Allocs[mode] = allocs
+	}
+	mustL2Allocs(genesis.L2AllocsEcotone)
+	mustL2Allocs(genesis.L2AllocsDelta)
 	L1Deployments, err = genesis.NewL1Deployments(l1DeploymentsPath)
 	if err != nil {
 		panic(err)
@@ -136,6 +154,14 @@ func init() {
 			panic(fmt.Errorf("could not initialize external L2: %w", err))
 		}
 	}
+}
+
+func L2Allocs(mode genesis.L2AllocsMode) *genesis.ForgeAllocs {
+	allocs, ok := l2Allocs[mode]
+	if !ok {
+		panic(fmt.Errorf("unknown L2 allocs mode: %q", mode))
+	}
+	return allocs.Copy()
 }
 
 func initExternalL2(externalL2 string) error {

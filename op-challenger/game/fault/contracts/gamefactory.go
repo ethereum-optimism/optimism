@@ -2,16 +2,19 @@ package contracts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 const (
@@ -21,24 +24,29 @@ const (
 	methodInitBonds   = "initBonds"
 	methodCreateGame  = "create"
 	methodGames       = "games"
+
+	eventDisputeGameCreated = "DisputeGameCreated"
+)
+
+var (
+	ErrEventNotFound = errors.New("event not found")
 )
 
 type DisputeGameFactoryContract struct {
 	metrics     metrics.ContractMetricer
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
+	abi         *abi.ABI
 }
 
-func NewDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DisputeGameFactoryContract, error) {
-	factoryAbi, err := bindings.DisputeGameFactoryMetaData.GetAbi()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load dispute game factory ABI: %w", err)
-	}
+func NewDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) *DisputeGameFactoryContract {
+	factoryAbi := snapshots.LoadDisputeGameFactoryABI()
 	return &DisputeGameFactoryContract{
 		metrics:     m,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(factoryAbi, addr),
-	}, nil
+		abi:         factoryAbi,
+	}
 }
 
 func (f *DisputeGameFactoryContract) GetGameFromParameters(ctx context.Context, traceType uint32, outputRoot common.Hash, l2BlockNum uint64) (common.Address, error) {
@@ -158,6 +166,27 @@ func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, traceType uin
 	}
 	candidate.Value = initBond
 	return candidate, err
+}
+
+func (f *DisputeGameFactoryContract) DecodeDisputeGameCreatedLog(rcpt *ethTypes.Receipt) (common.Address, uint32, common.Hash, error) {
+	for _, log := range rcpt.Logs {
+		if log.Address != f.contract.Addr() {
+			// Not from this contract
+			continue
+		}
+		name, result, err := f.contract.DecodeEvent(log)
+		if err != nil {
+			// Not a valid event
+			continue
+		}
+		if name != eventDisputeGameCreated {
+			// Not the event we're looking for
+			continue
+		}
+
+		return result.GetAddress(0), result.GetUint32(1), result.GetHash(2), nil
+	}
+	return common.Address{}, 0, common.Hash{}, fmt.Errorf("%w: %v", ErrEventNotFound, eventDisputeGameCreated)
 }
 
 func (f *DisputeGameFactoryContract) decodeGame(result *batching.CallResult) types.GameMetadata {

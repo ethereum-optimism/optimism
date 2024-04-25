@@ -23,7 +23,12 @@
       },
       {
         "internalType": "Duration",
-        "name": "_gameDuration",
+        "name": "_clockExtension",
+        "type": "uint64"
+      },
+      {
+        "internalType": "Duration",
+        "name": "_maxClockDuration",
         "type": "uint64"
       },
       {
@@ -49,14 +54,6 @@
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "fallback"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
   },
   {
     "inputs": [],
@@ -92,6 +89,19 @@
     "name": "addLocalData",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "anchorStateRegistry",
+    "outputs": [
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "registry_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -188,6 +198,38 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "ClaimHash",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "claims",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "clockExtension",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "clockExtension_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "createdAt",
     "outputs": [
@@ -252,6 +294,19 @@
   },
   {
     "inputs": [],
+    "name": "gameCreator",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "creator_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gameData",
     "outputs": [
       {
@@ -275,11 +330,30 @@
   },
   {
     "inputs": [],
-    "name": "gameDuration",
+    "name": "gameType",
+    "outputs": [
+      {
+        "internalType": "GameType",
+        "name": "gameType_",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_claimIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "getChallengerDuration",
     "outputs": [
       {
         "internalType": "Duration",
-        "name": "gameDuration_",
+        "name": "duration_",
         "type": "uint64"
       }
     ],
@@ -287,13 +361,19 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "gameType",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_claimIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "getNumToResolve",
     "outputs": [
       {
-        "internalType": "GameType",
-        "name": "gameType_",
-        "type": "uint32"
+        "internalType": "uint256",
+        "name": "numRemainingChildren_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -366,6 +446,19 @@
   },
   {
     "inputs": [],
+    "name": "maxClockDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "maxClockDuration_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "maxGameDepth",
     "outputs": [
       {
@@ -401,6 +494,40 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "resolutionCheckpoints",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "initialCheckpointComplete",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint32",
+        "name": "subgameIndex",
+        "type": "uint32"
+      },
+      {
+        "internalType": "Position",
+        "name": "leftmostPosition",
+        "type": "uint128"
+      },
+      {
+        "internalType": "address",
+        "name": "counteredBy",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "resolve",
     "outputs": [
@@ -419,11 +546,16 @@
         "internalType": "uint256",
         "name": "_claimIndex",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_numToResolve",
+        "type": "uint256"
       }
     ],
     "name": "resolveClaim",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -434,6 +566,25 @@
         "internalType": "Timestamp",
         "name": "",
         "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "resolvedSubgames",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -548,6 +699,30 @@
     "name": "step",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "subgames",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -694,6 +869,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidClockExtension",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidLocalIdent",
     "type": "error"
   },
@@ -710,6 +890,11 @@
   {
     "inputs": [],
     "name": "InvalidSplitDepth",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MaxDepthTooLarge",
     "type": "error"
   },
   {

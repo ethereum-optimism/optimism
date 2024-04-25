@@ -11,6 +11,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 import "src/L1/ProtocolVersions.sol";
+import "src/libraries/DisputeTypes.sol";
 import "scripts/Deployer.sol";
 
 /// @title Initializer_Test
@@ -132,7 +133,13 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: deploy.mustGetAddress("OptimismPortal2"),
                 initCalldata: abi.encodeCall(
-                    optimismPortal2.initialize, (disputeGameFactory, systemConfig, superchainConfig)
+                    optimismPortal2.initialize,
+                    (
+                        disputeGameFactory,
+                        systemConfig,
+                        superchainConfig,
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
+                    )
                 ),
                 initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal2")
             })

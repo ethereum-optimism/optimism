@@ -45,7 +45,7 @@ func (s *stubResolutionMetrics) RecordGameResolutionStatus(complete bool, maxDur
 
 func newTestGames(duration uint64) []*types.EnrichedGameData {
 	newTestGame := func(duration uint64, status gameTypes.GameStatus) *types.EnrichedGameData {
-		return &types.EnrichedGameData{Duration: duration, Status: status}
+		return &types.EnrichedGameData{MaxClockDuration: duration, Status: status}
 	}
 	return []*types.EnrichedGameData{
 		newTestGame(duration, gameTypes.GameStatusInProgress),

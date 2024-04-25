@@ -32,9 +32,9 @@ func (g *FaultGameHelper) Addr() common.Address {
 	return g.addr
 }
 
-func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
-	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
-	g.require.NoError(err, "failed to get game duration")
+func (g *FaultGameHelper) MaxClockDuration(ctx context.Context) time.Duration {
+	duration, err := g.game.MaxClockDuration(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to get max clock duration")
 	return time.Duration(duration) * time.Second
 }
 
@@ -334,7 +334,7 @@ func (g *FaultGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []b
 
 // ResolveClaim resolves a single subgame
 func (g *FaultGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
-	tx, err := g.game.ResolveClaim(g.opts, big.NewInt(claimIdx))
+	tx, err := g.game.ResolveClaim(g.opts, big.NewInt(claimIdx), common.Big0)
 	g.require.NoError(err, "ResolveClaim transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "ResolveClaim transaction was not OK")

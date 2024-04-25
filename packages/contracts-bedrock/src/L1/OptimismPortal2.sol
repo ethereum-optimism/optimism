@@ -121,23 +121,19 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.6.0
-    string public constant version = "3.6.0";
+    /// @custom:semver 3.8.0
+    string public constant version = "3.8.0";
 
     /// @notice Constructs the OptimismPortal contract.
-    constructor(
-        uint256 _proofMaturityDelaySeconds,
-        uint256 _disputeGameFinalityDelaySeconds,
-        GameType _initialRespectedGameType
-    ) {
+    constructor(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) {
         PROOF_MATURITY_DELAY_SECONDS = _proofMaturityDelaySeconds;
         DISPUTE_GAME_FINALITY_DELAY_SECONDS = _disputeGameFinalityDelaySeconds;
-        respectedGameType = _initialRespectedGameType;
 
         initialize({
             _disputeGameFactory: DisputeGameFactory(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _superchainConfig: SuperchainConfig(address(0))
+            _superchainConfig: SuperchainConfig(address(0)),
+            _initialRespectedGameType: GameType.wrap(0)
         });
     }
 
@@ -148,7 +144,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     function initialize(
         DisputeGameFactory _disputeGameFactory,
         SystemConfig _systemConfig,
-        SuperchainConfig _superchainConfig
+        SuperchainConfig _superchainConfig,
+        GameType _initialRespectedGameType
     )
         public
         initializer
@@ -156,9 +153,20 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         disputeGameFactory = _disputeGameFactory;
         systemConfig = _systemConfig;
         superchainConfig = _superchainConfig;
+
+        // Set the `l2Sender` slot, only if it is currently empty. This signals the first initialization of the
+        // contract.
         if (l2Sender == address(0)) {
             l2Sender = Constants.DEFAULT_L2_SENDER;
+
+            // Set the `respectedGameTypeUpdatedAt` timestamp, to ignore all games of the respected type prior
+            // to this operation.
+            respectedGameTypeUpdatedAt = uint64(block.timestamp);
+
+            // Set the initial respected game type
+            respectedGameType = _initialRespectedGameType;
         }
+
         __ResourceMetering_init();
     }
 
@@ -253,26 +261,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
-        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[withdrawalHash][msg.sender];
 
         // We do not allow for proving withdrawals against dispute games that have resolved against the favor
         // of the root claim.
         require(
             gameProxy.status() != GameStatus.CHALLENGER_WINS,
             "OptimismPortal: cannot prove against invalid dispute games"
-        );
-
-        // We generally want to prevent users from proving the same withdrawal multiple times
-        // because each successive proof will update the timestamp. A malicious user can take
-        // advantage of this to prevent other users from finalizing their withdrawal. However,
-        // in the case that an honest user proves their withdrawal against a dispute game that
-        // resolves against the root claim, or the dispute game is blacklisted, we allow
-        // re-proving the withdrawal against a new proposal.
-        IDisputeGame oldGame = provenWithdrawal.disputeGameProxy;
-        require(
-            provenWithdrawal.timestamp == 0 || oldGame.status() == GameStatus.CHALLENGER_WINS
-                || disputeGameBlacklist[oldGame] || oldGame.gameType().raw() != respectedGameType.raw(),
-            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
         );
 
         // Compute the storage slot of the withdrawal hash in the L2ToL1MessagePasser contract.

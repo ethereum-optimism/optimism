@@ -15,6 +15,7 @@ contract LibGameId_Test is Test {
         IDisputeGame _gameProxy
     )
         public
+        pure
     {
         GameId gameId = LibGameId.pack(_gameType, _timestamp, _gameProxy);
         (GameType gameType_, Timestamp timestamp_, IDisputeGame gameProxy_) = LibGameId.unpack(gameId);

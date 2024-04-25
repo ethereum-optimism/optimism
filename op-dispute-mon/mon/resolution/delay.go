@@ -34,16 +34,16 @@ func (d *DelayCalculator) RecordClaimResolutionDelayMax(games []*types.EnrichedG
 func (d *DelayCalculator) getMaxResolutionDelay(game *types.EnrichedGameData) uint64 {
 	var maxDelay uint64 = 0
 	for _, claim := range game.Claims {
-		maxDelay = max(d.getOverflowTime(game.Duration, &claim), maxDelay)
+		maxDelay = max(d.getOverflowTime(game.MaxClockDuration, &claim), maxDelay)
 	}
 	return maxDelay
 }
 
-func (d *DelayCalculator) getOverflowTime(maxGameDuration uint64, claim *types.EnrichedClaim) uint64 {
+func (d *DelayCalculator) getOverflowTime(maxClockDuration uint64, claim *types.EnrichedClaim) uint64 {
 	if claim.Resolved {
 		return 0
 	}
-	maxChessTime := time.Duration(maxGameDuration/2) * time.Second
+	maxChessTime := time.Duration(maxClockDuration) * time.Second
 	accumulatedTime := claim.ChessTime(d.clock.Now())
 	if accumulatedTime < maxChessTime {
 		return 0

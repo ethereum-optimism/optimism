@@ -194,7 +194,7 @@ contract OptimismPortal2_Test is CommonTest {
     /// @dev Tests that `minimumGasLimit` succeeds for small calldata sizes.
     ///      The gas limit should be 21k for 0 calldata and increase linearly
     ///      for larger calldata sizes.
-    function test_minimumGasLimit_succeeds() external {
+    function test_minimumGasLimit_succeeds() external view {
         assertEq(optimismPortal2.minimumGasLimit(0), 21_000);
         assertTrue(optimismPortal2.minimumGasLimit(2) > optimismPortal2.minimumGasLimit(1));
         assertTrue(optimismPortal2.minimumGasLimit(3) > optimismPortal2.minimumGasLimit(2));
@@ -343,7 +343,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
         // Warp beyond the chess clocks and finalize the game.
-        vm.warp(block.timestamp + game.gameDuration().raw() / 2 + 1 seconds);
+        vm.warp(block.timestamp + game.maxClockDuration().raw() + 1 seconds);
 
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(optimismPortal2), 0xFFFFFFFF);
@@ -436,58 +436,6 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // modify the default test values to invalidate the proof.
         _defaultTx.data = hex"abcd";
         vm.expectRevert("MerkleTrie: path remainder must share all nibbles with key");
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already been proven, and the
-    ///      re-prove attempt is for the same dispute game.
-    function test_proveWithdrawalTransaction_replayProve_sameGame_reverts() external {
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash, alice, bob);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-
-        vm.expectRevert(
-            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
-        );
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @dev Tests that `proveWithdrawalTransaction` reverts when the withdrawal has already been proven, and the first
-    ///      game is currently being disputed, is otherwise not invalid, and has not been blacklisted.
-    function test_proveWithdrawalTransaction_replayProve_differentGameFirstGameGood_reverts() external {
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash, alice, bob);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-
-        // Create a new dispute game, but don't mock anything about the first game.
-        disputeGameFactory.create(
-            optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
-        );
-        _proposedGameIndex = disputeGameFactory.gameCount() - 1;
-
-        vm.expectRevert(
-            "OptimismPortal: withdrawal hash has already been proven, and the old dispute game is not invalid"
-        );
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -683,7 +631,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Warp and resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
 
@@ -711,7 +659,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Warp and resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
 
@@ -761,7 +709,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Warp and resolve the original dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
 
@@ -888,7 +836,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
@@ -912,7 +860,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
@@ -960,7 +908,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
@@ -1002,7 +950,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         optimismPortal2.proveWithdrawalTransaction(_testTx, _proposedGameIndex, outputRootProof, withdrawalProof);
 
         // Resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
@@ -1077,7 +1025,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         assertTrue(_game.rootClaim().raw() != bytes32(0));
 
         // Resolve the dispute game
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         // Warp past the finalization period
@@ -1101,7 +1049,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         });
 
         // Resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         vm.prank(optimismPortal2.guardian());
@@ -1129,7 +1077,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
         // Resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         // Attempt to finalize the withdrawal directly after the game resolves. This should fail.
@@ -1158,7 +1106,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
         // Resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         // Change the respected game type in the portal.
@@ -1185,7 +1133,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
         // Resolve the dispute game.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         // Change the respected game type in the portal.
@@ -1224,7 +1172,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
 
         // Finalize the dispute game and attempt to finalize the withdrawal again. This should also fail, since the
         // air gap dispute game delay has not elapsed.
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
         vm.expectRevert("OptimismPortal: output proposal in air-gap");
@@ -1245,7 +1193,7 @@ contract OptimismPortal2_Upgradeable_Test is CommonTest {
     }
 
     /// @dev Tests that the proxy is initialized correctly.
-    function test_params_initValuesOnProxy_succeeds() external {
+    function test_params_initValuesOnProxy_succeeds() external view {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal2.params();
         ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
 

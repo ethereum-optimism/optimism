@@ -76,7 +76,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the proxy is initialized with the correct values.
-    function test_initialize_succeeds() public {
+    function test_initialize_succeeds() public view {
         assertEq(address(l1ERC721Bridge.MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
@@ -316,7 +316,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
 contract L1ERC721Bridge_Pause_Test is Bridge_Initializer {
     /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
     ///      `superchainConfig`.
-    function test_paused_succeeds() external {
+    function test_paused_succeeds() external view {
         assertEq(l1ERC721Bridge.paused(), superchainConfig.paused());
     }
 

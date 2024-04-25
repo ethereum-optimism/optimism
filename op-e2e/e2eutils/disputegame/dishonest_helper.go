@@ -39,7 +39,7 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context, rootClaim 
 		}
 
 		d.LogGameData(ctx)
-		d.OutputGameHelper.t.Logf("Dishonest moves against claimIndex %d", claimIndex)
+		d.OutputGameHelper.T.Logf("Dishonest moves against claimIndex %d", claimIndex)
 		agreeWithLevel := d.defender == (pos.Depth()%2 == 0)
 		if !agreeWithLevel {
 			d.OutputHonestHelper.Attack(ctx, claimIndex, WithIgnoreDuplicates())
@@ -53,7 +53,7 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context, rootClaim 
 		}
 	}
 
-	numClaimsSeen := rootClaim.index
+	numClaimsSeen := rootClaim.Index
 	for {
 		// Use a short timeout since we don't know the challenger will respond,
 		// and this is only designed for the alphabet game where the response should be fast.
@@ -63,7 +63,7 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context, rootClaim 
 			// There's nothing to respond to.
 			break
 		}
-		d.OutputGameHelper.require.NoError(err)
+		d.OutputGameHelper.Require.NoError(err)
 
 		for ; numClaimsSeen < newCount; numClaimsSeen++ {
 			claimData := d.getClaim(ctx, numClaimsSeen)

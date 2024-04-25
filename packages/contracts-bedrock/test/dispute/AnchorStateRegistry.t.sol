@@ -22,7 +22,7 @@ contract AnchorStateRegistry_Init is FaultDisputeGame_Init {
 
 contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_Init {
     /// @dev Tests that initialization is successful.
-    function test_initialize_succeeds() public {
+    function test_initialize_succeeds() public view {
         (Hash cannonRoot, uint256 cannonL2BlockNumber) = anchorStateRegistry.anchors(GameTypes.CANNON);
         (Hash permissionedCannonRoot, uint256 permissionedCannonL2BlockNumber) =
             anchorStateRegistry.anchors(GameTypes.PERMISSIONED_CANNON);

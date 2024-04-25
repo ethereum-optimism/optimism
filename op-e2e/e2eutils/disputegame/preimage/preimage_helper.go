@@ -43,8 +43,7 @@ func NewHelper(t *testing.T, opts *bind.TransactOpts, client *ethclient.Client, 
 	oracleBindings, err := bindings.NewPreimageOracle(addr, client)
 	require.NoError(err)
 
-	oracle, err := contracts.NewPreimageOracleContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
-	require.NoError(err)
+	oracle := contracts.NewPreimageOracleContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
 	return &Helper{
 		t:              t,
 		require:        require,

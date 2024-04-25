@@ -1,140 +1,86 @@
 package genesis
 
 import (
+	"encoding/json"
 	"fmt"
-	"math/big"
+	"os"
+	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/common"
+	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
+	"github.com/holiman/uint256"
+
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/squash"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+type L2AllocsMode string
+
+const (
+	L2AllocsDelta   L2AllocsMode = "delta"
+	L2AllocsEcotone L2AllocsMode = "" // the default in solidity scripting / testing
+)
+
+type AllocsLoader func(mode L2AllocsMode) *ForgeAllocs
+
 // BuildL2Genesis will build the L2 genesis block.
-func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Genesis, error) {
+func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types.Block) (*core.Genesis, error) {
 	genspec, err := NewL2Genesis(config, l1StartBlock)
 	if err != nil {
 		return nil, err
 	}
-
-	db := state.NewMemoryStateDB(genspec)
-	if config.FundDevAccounts {
-		log.Info("Funding developer accounts in L2 genesis")
-		FundDevAccounts(db)
+	genspec.Alloc = dump.Accounts
+	// ensure the dev accounts are not funded unintentionally
+	if hasDevAccounts, err := HasAnyDevAccounts(dump.Accounts); err != nil {
+		return nil, fmt.Errorf("failed to check dev accounts: %w", err)
+	} else if hasDevAccounts != config.FundDevAccounts {
+		return nil, fmt.Errorf("deploy config mismatch with allocs. Deploy config fundDevAccounts: %v, actual allocs: %v", config.FundDevAccounts, hasDevAccounts)
 	}
-
-	SetPrecompileBalances(db)
-
-	storage, err := NewL2StorageConfig(config, l1StartBlock)
-	if err != nil {
-		return nil, err
+	// sanity check the permit2 immutable, to verify we using the allocs for the right chain.
+	chainID := [32]byte(genspec.Alloc[predeploys.Permit2Addr].Code[6945 : 6945+32])
+	expected := uint256.MustFromBig(genspec.Config.ChainID).Bytes32()
+	if chainID != expected {
+		return nil, fmt.Errorf("allocs were generated for chain ID %x, but expected chain %x (%d)", chainID, expected, genspec.Config.ChainID)
 	}
-
-	immutableConfig, err := NewL2ImmutableConfig(config, l1StartBlock)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set up the proxies
-	err = setProxies(db, predeploys.ProxyAdminAddr, BigL2PredeployNamespace, 2048)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set up the implementations that contain immutables
-	deployResults, err := immutables.Deploy(immutableConfig)
-	if err != nil {
-		return nil, fmt.Errorf("immutables.Deploy failed: %w", err)
-	}
-	for name, predeploy := range predeploys.Predeploys {
-		if predeploy.Enabled != nil && !predeploy.Enabled(config) {
-			log.Warn("Skipping disabled predeploy.", "name", name, "address", predeploy.Address)
-			continue
-		}
-
-		codeAddr := predeploy.Address
-		switch name {
-		case "Permit2":
-			deployerAddressBytes, err := bindings.GetDeployerAddress(name)
-			if err != nil {
-				return nil, err
-			}
-			deployerAddress := common.BytesToAddress(deployerAddressBytes)
-			predeploys := map[string]*common.Address{
-				"DeterministicDeploymentProxy": &deployerAddress,
-			}
-			backend, err := deployer.NewBackendWithChainIDAndPredeploys(
-				new(big.Int).SetUint64(config.L2ChainID),
-				predeploys,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("NewBackendWithChainIDAndPredeploys failed: %w", err)
-			}
-			deployedBin, err := deployer.DeployWithDeterministicDeployer(backend, name)
-			if err != nil {
-				backend.Close()
-				return nil, fmt.Errorf("DeployWithDeterministicDeployer failed: %w", err)
-			}
-			backend.Close()
-			deployResults[name] = deployedBin
-			fallthrough
-		case "MultiCall3", "Create2Deployer", "Safe_v130",
-			"SafeL2_v130", "MultiSendCallOnly_v130", "SafeSingletonFactory",
-			"DeterministicDeploymentProxy", "MultiSend_v130", "SenderCreator", "EntryPoint":
-			db.CreateAccount(codeAddr)
-		default:
-			if !predeploy.ProxyDisabled {
-				codeAddr, err = AddressToCodeNamespace(predeploy.Address)
-				if err != nil {
-					return nil, fmt.Errorf("error converting to code namespace: %w", err)
-				}
-				db.CreateAccount(codeAddr)
-				db.SetState(predeploy.Address, ImplementationSlot, eth.AddressAsLeftPaddedHash(codeAddr))
-				log.Info("Set proxy", "name", name, "address", predeploy.Address, "implementation", codeAddr)
-			}
-		}
-
-		if predeploy.ProxyDisabled && db.Exist(predeploy.Address) {
-			db.DeleteState(predeploy.Address, AdminSlot)
-		}
-
-		if err := setupPredeploy(db, deployResults, storage, name, predeploy.Address, codeAddr); err != nil {
-			return nil, fmt.Errorf("setupPredeploy failed: %w", err)
-		}
-		code := db.GetCode(codeAddr)
-		if len(code) == 0 {
-			return nil, fmt.Errorf("code not set for %s", name)
-		}
-	}
-
-	if err := PerformUpgradeTxs(db); err != nil {
-		return nil, fmt.Errorf("failed to perform upgrade txs: %w", err)
-	}
-
-	return db.Genesis(), nil
+	return genspec, nil
 }
 
-func PerformUpgradeTxs(db *state.MemoryStateDB) error {
-	// Only the Ecotone upgrade is performed with upgrade-txs.
-	if !db.Genesis().Config.IsEcotone(db.Genesis().Timestamp) {
-		return nil
-	}
-	sim := squash.NewSimulator(db)
-	ecotone, err := derive.EcotoneNetworkUpgradeTransactions()
+var testMnemonic = "test test test test test test test test test test test junk"
+
+func HasAnyDevAccounts(allocs core.GenesisAlloc) (bool, error) {
+	wallet, err := hdwallet.NewFromMnemonic(testMnemonic)
 	if err != nil {
-		return fmt.Errorf("failed to build ecotone upgrade txs: %w", err)
+		return false, fmt.Errorf("failed to create wallet: %w", err)
 	}
-	if err := sim.AddUpgradeTxs(ecotone); err != nil {
-		return fmt.Errorf("failed to apply ecotone upgrade txs: %w", err)
+	account := func(path string) accounts.Account {
+		return accounts.Account{URL: accounts.URL{Path: path}}
 	}
-	return nil
+	for i := 0; i < 30; i++ {
+		key, err := wallet.PrivateKey(account(fmt.Sprintf("m/44'/60'/0'/0/%d", i)))
+		if err != nil {
+			return false, err
+		}
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		if _, ok := allocs[addr]; ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func LoadForgeAllocs(allocsPath string) (*ForgeAllocs, error) {
+	path := filepath.Join(allocsPath)
+	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open forge allocs %q: %w", path, err)
+	}
+	defer f.Close()
+	var out ForgeAllocs
+	if err := json.NewDecoder(f).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to json-decode forge allocs %q: %w", path, err)
+	}
+	return &out, nil
 }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"runtime"
 	"testing"
 
@@ -12,28 +13,49 @@ import (
 )
 
 var (
-	validL1EthRpc              = "http://localhost:8545"
-	validL1BeaconUrl           = "http://localhost:9000"
-	validGameFactoryAddress    = common.Address{0x23}
-	validCannonBin             = "./bin/cannon"
-	validCannonOpProgramBin    = "./bin/op-program"
-	validCannonNetwork         = "mainnet"
-	validCannonAbsolutPreState = "pre.json"
-	validDatadir               = "/tmp/data"
-	validCannonL2              = "http://localhost:9545"
-	validRollupRpc             = "http://localhost:8555"
+	validL1EthRpc                        = "http://localhost:8545"
+	validL1BeaconUrl                     = "http://localhost:9000"
+	validGameFactoryAddress              = common.Address{0x23}
+	validCannonBin                       = "./bin/cannon"
+	validCannonOpProgramBin              = "./bin/op-program"
+	validCannonNetwork                   = "mainnet"
+	validCannonAbsolutPreState           = "pre.json"
+	validCannonAbsolutPreStateBaseURL, _ = url.Parse("http://localhost/foo/")
+	validDatadir                         = "/tmp/data"
+	validL2Rpc                           = "http://localhost:9545"
+	validRollupRpc                       = "http://localhost:8555"
+
+	validAsteriscBin             = "./bin/asterisc"
+	validAsteriscOpProgramBin    = "./bin/op-program"
+	validAsteriscNetwork         = "mainnet"
+	validAsteriscAbsolutPreState = "pre.json"
 )
 
 var cannonTraceTypes = []TraceType{TraceTypeCannon, TraceTypePermissioned}
 
+func applyValidConfigForCannon(cfg *Config) {
+	cfg.CannonBin = validCannonBin
+	cfg.CannonServer = validCannonOpProgramBin
+	cfg.CannonAbsolutePreStateBaseURL = validCannonAbsolutPreStateBaseURL
+	cfg.CannonNetwork = validCannonNetwork
+	cfg.L2Rpc = validL2Rpc
+}
+
+func applyValidConfigForAsterisc(cfg *Config) {
+	cfg.AsteriscBin = validAsteriscBin
+	cfg.AsteriscServer = validAsteriscOpProgramBin
+	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutPreState
+	cfg.AsteriscNetwork = validAsteriscNetwork
+	cfg.L2Rpc = validL2Rpc
+}
+
 func validConfig(traceType TraceType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validDatadir, traceType)
 	if traceType == TraceTypeCannon || traceType == TraceTypePermissioned {
-		cfg.CannonBin = validCannonBin
-		cfg.CannonServer = validCannonOpProgramBin
-		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
-		cfg.CannonL2 = validCannonL2
-		cfg.CannonNetwork = validCannonNetwork
+		applyValidConfigForCannon(&cfg)
+	}
+	if traceType == TraceTypeAsterisc {
+		applyValidConfigForAsterisc(&cfg)
 	}
 	cfg.RollupRpc = validRollupRpc
 	return cfg
@@ -104,16 +126,38 @@ func TestCannonRequiredArgs(t *testing.T) {
 			require.ErrorIs(t, config.Check(), ErrMissingCannonServer)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateRequired-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateOrBaseURLRequired-%v", traceType), func(t *testing.T) {
 			config := validConfig(traceType)
 			config.CannonAbsolutePreState = ""
+			config.CannonAbsolutePreStateBaseURL = nil
 			require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonL2Required-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreState-%v", traceType), func(t *testing.T) {
 			config := validConfig(traceType)
-			config.CannonL2 = ""
-			require.ErrorIs(t, config.Check(), ErrMissingCannonL2)
+			config.CannonAbsolutePreState = validCannonAbsolutPreState
+			config.CannonAbsolutePreStateBaseURL = nil
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateBaseURL-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.CannonAbsolutePreState = ""
+			config.CannonAbsolutePreStateBaseURL = validCannonAbsolutPreStateBaseURL
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestMustNotSupplyBothCannonAbsolutePreStateAndBaseURL-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.CannonAbsolutePreState = validCannonAbsolutPreState
+			config.CannonAbsolutePreStateBaseURL = validCannonAbsolutPreStateBaseURL
+			require.ErrorIs(t, config.Check(), ErrCannonAbsolutePreStateAndBaseURL)
+		})
+
+		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.L2Rpc = ""
+			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
 		})
 
 		t.Run(fmt.Sprintf("TestCannonSnapshotFreq-%v", traceType), func(t *testing.T) {
@@ -209,7 +253,7 @@ func TestRollupRpcRequired(t *testing.T) {
 	}
 }
 
-func TestRequireConfigForMultipleTraceTypes(t *testing.T) {
+func TestRequireConfigForMultipleTraceTypesForCannon(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
 	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet}
 	// Set all required options and check its valid
@@ -217,11 +261,57 @@ func TestRequireConfigForMultipleTraceTypes(t *testing.T) {
 	require.NoError(t, cfg.Check())
 
 	// Require cannon specific args
-	cfg.CannonL2 = ""
-	require.ErrorIs(t, cfg.Check(), ErrMissingCannonL2)
-	cfg.CannonL2 = validCannonL2
+	cfg.CannonAbsolutePreState = ""
+	cfg.CannonAbsolutePreStateBaseURL = nil
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonAbsolutePreState)
+	cfg.CannonAbsolutePreState = validCannonAbsolutPreState
 
 	// Require output cannon specific args
 	cfg.RollupRpc = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
+}
+
+func TestRequireConfigForMultipleTraceTypesForAsterisc(t *testing.T) {
+	cfg := validConfig(TraceTypeAsterisc)
+	cfg.TraceTypes = []TraceType{TraceTypeAsterisc, TraceTypeAlphabet}
+	// Set all required options and check its valid
+	cfg.RollupRpc = validRollupRpc
+	require.NoError(t, cfg.Check())
+
+	// Require asterisc specific args
+	cfg.AsteriscAbsolutePreState = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscAbsolutePreState)
+	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutPreState
+
+	// Require output asterisc specific args
+	cfg.RollupRpc = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
+}
+
+func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	applyValidConfigForAsterisc(&cfg)
+
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAsterisc, TraceTypeAlphabet}
+	// Set all required options and check its valid
+	cfg.RollupRpc = validRollupRpc
+	require.NoError(t, cfg.Check())
+
+	// Require cannon specific args
+	cfg.CannonBin = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonBin)
+	cfg.CannonBin = validCannonBin
+
+	// Require asterisc specific args
+	cfg.AsteriscAbsolutePreState = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscAbsolutePreState)
+	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutPreState
+
+	// Require cannon specific args
+	cfg.AsteriscServer = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscServer)
+	cfg.AsteriscServer = validAsteriscOpProgramBin
+
+	// Check final config is valid
+	require.NoError(t, cfg.Check())
 }

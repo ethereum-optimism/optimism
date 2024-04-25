@@ -122,7 +122,13 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l1Block)
+	var allocsMode genesis.L2AllocsMode
+	allocsMode = genesis.L2AllocsDelta
+	if ecotoneTime := deployConf.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
+		allocsMode = genesis.L2AllocsEcotone
+	}
+	l2Allocs := config.L2Allocs(allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block)
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {

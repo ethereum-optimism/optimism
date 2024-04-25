@@ -24,6 +24,9 @@ func makeTestGame() (*monTypes.EnrichedGameData, []common.Address) {
 		Claims: []monTypes.EnrichedClaim{
 			{
 				Claim: faultTypes.Claim{
+					ClaimData: faultTypes.ClaimData{
+						Position: faultTypes.NewPositionFromGIndex(big.NewInt(1)),
+					},
 					Claimant:    common.Address{0x01},
 					CounteredBy: common.Address{0x02},
 				},
@@ -32,7 +35,8 @@ func makeTestGame() (*monTypes.EnrichedGameData, []common.Address) {
 			{
 				Claim: faultTypes.Claim{
 					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(5),
+						Bond:     big.NewInt(5),
+						Position: faultTypes.NewPositionFromGIndex(big.NewInt(2)),
 					},
 					Claimant:    common.Address{0x03},
 					CounteredBy: common.Address{},
@@ -41,7 +45,8 @@ func makeTestGame() (*monTypes.EnrichedGameData, []common.Address) {
 			{
 				Claim: faultTypes.Claim{
 					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(7),
+						Bond:     big.NewInt(7),
+						Position: faultTypes.NewPositionFromGIndex(big.NewInt(3)),
 					},
 					Claimant:    common.Address{0x03},
 					CounteredBy: common.Address{0x04},
@@ -82,13 +87,7 @@ func TestBondEnricher(t *testing.T) {
 			recipients[1]: big.NewInt(30),
 			recipients[2]: big.NewInt(40),
 		}
-		requiredBonds := []*big.Int{
-			big.NewInt(10),
-			big.NewInt(20),
-			big.NewInt(30),
-			big.NewInt(40),
-		}
-		caller := &mockGameCaller{credits: expectedCredits, requiredBonds: requiredBonds}
+		caller := &mockGameCaller{credits: expectedCredits}
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 

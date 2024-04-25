@@ -33,17 +33,17 @@ type ClaimLoader interface {
 }
 
 type Agent struct {
-	metrics      metrics.Metricer
-	systemClock  clock.Clock
-	l1Clock      types.ClockReader
-	solver       *solver.GameSolver
-	loader       ClaimLoader
-	responder    Responder
-	selective    bool
-	claimants    []common.Address
-	maxDepth     types.Depth
-	gameDuration time.Duration
-	log          log.Logger
+	metrics          metrics.Metricer
+	systemClock      clock.Clock
+	l1Clock          types.ClockReader
+	solver           *solver.GameSolver
+	loader           ClaimLoader
+	responder        Responder
+	selective        bool
+	claimants        []common.Address
+	maxDepth         types.Depth
+	maxClockDuration time.Duration
+	log              log.Logger
 }
 
 func NewAgent(
@@ -52,7 +52,7 @@ func NewAgent(
 	l1Clock types.ClockReader,
 	loader ClaimLoader,
 	maxDepth types.Depth,
-	gameDuration time.Duration,
+	maxClockDuration time.Duration,
 	trace types.TraceAccessor,
 	responder Responder,
 	log log.Logger,
@@ -60,17 +60,17 @@ func NewAgent(
 	claimants []common.Address,
 ) *Agent {
 	return &Agent{
-		metrics:      m,
-		systemClock:  systemClock,
-		l1Clock:      l1Clock,
-		solver:       solver.NewGameSolver(maxDepth, trace),
-		loader:       loader,
-		responder:    responder,
-		selective:    selective,
-		claimants:    claimants,
-		maxDepth:     maxDepth,
-		gameDuration: gameDuration,
-		log:          log,
+		metrics:          m,
+		systemClock:      systemClock,
+		l1Clock:          l1Clock,
+		solver:           solver.NewGameSolver(maxDepth, trace),
+		loader:           loader,
+		responder:        responder,
+		selective:        selective,
+		claimants:        claimants,
+		maxDepth:         maxDepth,
+		maxClockDuration: maxClockDuration,
+		log:              log,
 	}
 }
 
@@ -163,11 +163,10 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 	if len(claims) == 0 {
 		return errNoResolvableClaims
 	}
-	maxChessTime := a.gameDuration / 2
 
 	var resolvableClaims []uint64
 	for _, claim := range claims {
-		if claim.ChessTime(a.l1Clock.Now()) <= maxChessTime {
+		if claim.ChessTime(a.l1Clock.Now()) <= a.maxClockDuration {
 			continue
 		}
 		if a.selective {

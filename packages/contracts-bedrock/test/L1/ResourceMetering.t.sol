@@ -62,7 +62,7 @@ contract ResourceMetering_Test is Test {
     }
 
     /// @dev Tests that the initial resource params are set correctly.
-    function test_meter_initialResourceParams_succeeds() external {
+    function test_meter_initialResourceParams_succeeds() external view {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
         ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
 
