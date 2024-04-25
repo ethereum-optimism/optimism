@@ -115,14 +115,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
         }
     }
 
-    /// @notice Retrieves the next message nonce. Message version will be added to the upper two
-    ///         bytes of the message nonce. Message version allows us to treat messages as having
-    ///         different structures.
-    /// @return Nonce of the next message to be sent, with added message version.
-    function messageNonce() public view returns (uint256) {
-        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
-    }
-
     /// @notice Sends a message to some target address on a destination chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
     ///         permanently locked. The same will occur if the target on the other chain is
@@ -190,6 +182,14 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
         } else {
             emit FailedRelayedMessage(messageHash);
         }
+    }
+
+    /// @notice Retrieves the next message nonce. Message version will be added to the upper two
+    ///         bytes of the message nonce. Message version allows us to treat messages as having
+    ///         different structures.
+    /// @return Nonce of the next message to be sent, with added message version.
+    function messageNonce() public view returns (uint256) {
+        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 
     /// @notice Stores message data such as sender and source in transient storage.
