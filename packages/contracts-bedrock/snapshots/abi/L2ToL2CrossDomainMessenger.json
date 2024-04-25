@@ -1,45 +1,6 @@
 [
   {
     "inputs": [],
-    "name": "CROSS_DOMAIN_MESSAGE_SENDER_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "CROSS_DOMAIN_MESSAGE_SOURCE_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "ENTERED_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "MESSAGE_VERSION",
     "outputs": [
       {
@@ -210,7 +171,7 @@
     "type": "event"
   },
   {
-    "anonymous": true,
+    "anonymous": false,
     "inputs": [
       {
         "indexed": false,
@@ -221,5 +182,70 @@
     ],
     "name": "SentMessage",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "origin",
+        "type": "address"
+      }
+    ],
+    "name": "CrossL2InboxOriginNotL2ToL2CrossDomainMessenger",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "messageHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "MessageAlreadyRelayed",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "destination",
+        "type": "uint256"
+      }
+    ],
+    "name": "MessageDestinationNotRelayChain",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "destination",
+        "type": "uint256"
+      }
+    ],
+    "name": "MessageDestinationSameChain",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageTargetCrossL2Inbox",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageTargetL2ToL2CrossDomainMessenger",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "caller",
+        "type": "address"
+      }
+    ],
+    "name": "RelayCallerNotCrossL2Inbox",
+    "type": "error"
   }
 ]
