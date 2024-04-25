@@ -353,7 +353,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
         // Expect a revert with the MessageDestinationNotRelayChain selector
-        vm.expectRevert(abi.encodeWithSelector(MessageDestinationNotRelayChain.selector, 0, block.chainid));
+        vm.expectRevert(abi.encodeWithSelector(MessageDestinationNotRelayChain.selector, _destination, block.chainid));
 
         // Call `relayMessage`
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
