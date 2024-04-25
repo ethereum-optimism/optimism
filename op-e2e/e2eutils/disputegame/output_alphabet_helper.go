@@ -39,7 +39,8 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node string) *OutputHonestHelper {
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
 	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.Addr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, g.Addr, caller)
+	g.Require.NoError(err)
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.Require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)

@@ -33,13 +33,13 @@ func TestSimpleGetters(t *testing.T) {
 		args        []interface{}
 		result      interface{}
 		expected    interface{} // Defaults to expecting the same as result
-		call        func(game *FaultDisputeGameContract) (any, error)
+		call        func(game FaultDisputeGameContract) (any, error)
 	}{
 		{
 			methodAlias: "status",
 			method:      methodStatus,
 			result:      types.GameStatusChallengerWon,
-			call: func(game *FaultDisputeGameContract) (any, error) {
+			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.GetStatus(context.Background())
 			},
 		},
@@ -48,7 +48,7 @@ func TestSimpleGetters(t *testing.T) {
 			method:      methodMaxClockDuration,
 			result:      uint64(5566),
 			expected:    5566 * time.Second,
-			call: func(game *FaultDisputeGameContract) (any, error) {
+			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.GetMaxClockDuration(context.Background())
 			},
 		},
@@ -57,7 +57,7 @@ func TestSimpleGetters(t *testing.T) {
 			method:      methodMaxGameDepth,
 			result:      big.NewInt(128),
 			expected:    faultTypes.Depth(128),
-			call: func(game *FaultDisputeGameContract) (any, error) {
+			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.GetMaxGameDepth(context.Background())
 			},
 		},
@@ -65,7 +65,7 @@ func TestSimpleGetters(t *testing.T) {
 			methodAlias: "absolutePrestate",
 			method:      methodAbsolutePrestate,
 			result:      common.Hash{0xab},
-			call: func(game *FaultDisputeGameContract) (any, error) {
+			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.GetAbsolutePrestateHash(context.Background())
 			},
 		},
@@ -74,7 +74,7 @@ func TestSimpleGetters(t *testing.T) {
 			method:      methodClaimCount,
 			result:      big.NewInt(9876),
 			expected:    uint64(9876),
-			call: func(game *FaultDisputeGameContract) (any, error) {
+			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.GetClaimCount(context.Background())
 			},
 		},
@@ -82,7 +82,7 @@ func TestSimpleGetters(t *testing.T) {
 			methodAlias: "l1Head",
 			method:      methodL1Head,
 			result:      common.Hash{0xdd, 0xbb},
-			call: func(game *FaultDisputeGameContract) (any, error) {
+			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.GetL1Head(context.Background())
 			},
 		},
@@ -90,7 +90,7 @@ func TestSimpleGetters(t *testing.T) {
 			methodAlias: "resolve",
 			method:      methodResolve,
 			result:      types.GameStatusInProgress,
-			call: func(game *FaultDisputeGameContract) (any, error) {
+			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.CallResolve(context.Background())
 			},
 		},
@@ -480,7 +480,7 @@ func TestFaultDisputeGame_IsResolved(t *testing.T) {
 	}
 }
 
-func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
+func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, FaultDisputeGameContract) {
 	fdgAbi := snapshots.LoadFaultDisputeGameABI()
 
 	vmAbi := snapshots.LoadMIPSABI()
@@ -490,6 +490,9 @@ func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultD
 	stubRpc.AddContract(vmAddr, vmAbi)
 	stubRpc.AddContract(oracleAddr, oracleAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	game := NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, fdgAddr, caller)
+
+	stubRpc.SetResponse(fdgAddr, methodVersion, rpcblock.Latest, nil, []interface{}{"0.18.0"})
+	game, err := NewFaultDisputeGameContract(context.Background(), contractMetrics.NoopContractMetrics, fdgAddr, caller)
+	require.NoError(t, err)
 	return stubRpc, game
 }
