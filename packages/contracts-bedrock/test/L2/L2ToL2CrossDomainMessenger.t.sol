@@ -22,7 +22,7 @@ import {
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
 /// @title L2ToL2CrossDomainMessengerTest
-/// @dev The L2ToL2CrossDomainMessengerTest contract tests the L2ToL2CrossDomainMessenger contract.
+/// @dev Contract for testing the L2ToL2CrossDomainMessenger contract.
 contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev L2ToL2CrossDomainMessenger contract instance.
     L2ToL2CrossDomainMessenger l2ToL2CrossDomainMessenger;
@@ -40,7 +40,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     function testFuzz_sendMessage_succeeds(
         uint256 _destination,
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
@@ -74,13 +74,13 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     }
 
     /// @dev Tests that the `sendMessage` function reverts when destination is the same as the source chain.
-    function testFuzz_sendMessage_destinationSameChain_reverts(address _target, bytes memory _message) external {
+    function testFuzz_sendMessage_destinationSameChain_reverts(address _target, bytes calldata _message) external {
         vm.expectRevert(abi.encodeWithSelector(MessageDestinationSameChain.selector, block.chainid));
         l2ToL2CrossDomainMessenger.sendMessage({ _destination: block.chainid, _target: _target, _message: _message });
     }
 
     /// @dev Tests that the `sendMessage` function reverts when the target is CrossL2Inbox.
-    function testFuzz_sendMessage_targetCrossL2Inbox_reverts(uint256 _destination, bytes memory _message) external {
+    function testFuzz_sendMessage_targetCrossL2Inbox_reverts(uint256 _destination, bytes calldata _message) external {
         // Ensure the destination is not the same as the source, otherwise the function will revert regardless of target
         vm.assume(_destination != block.chainid);
 
@@ -95,7 +95,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev Tests that the `sendMessage` function reverts when the target is L2ToL2CrossDomainMessenger.
     function testFuzz_sendMessage_targetL2ToL2CrossDomainMessenger_reverts(
         uint256 _destination,
-        bytes memory _message
+        bytes calldata _message
     )
         external
     {
@@ -116,7 +116,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
@@ -168,7 +168,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
@@ -195,7 +195,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
@@ -227,7 +227,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
@@ -258,7 +258,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _source,
         uint256 _nonce,
         address _sender,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
@@ -289,7 +289,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _source,
         uint256 _nonce,
         address _sender,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
@@ -321,7 +321,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
@@ -388,7 +388,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint256 _value
     )
         external
