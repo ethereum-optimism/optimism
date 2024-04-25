@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -72,10 +73,10 @@ var (
 		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
 		Value:   uint(runtime.NumCPU()),
 	}
-	L2RpcFlag = &cli.StringFlag{
-		Name:    "l2-rpc",
+	L2EthRpcFlag = &cli.StringFlag{
+		Name:    "l2-eth-rpc",
 		Usage:   "L2 Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)  (cannon/asterisc trace type only)",
-		EnvVars: prefixEnvVars("L2_RPC"),
+		EnvVars: prefixEnvVars("L2_ETH_RPC"),
 	}
 	MaxPendingTransactionsFlag = &cli.Uint64Flag{
 		Name:    "max-pending-tx",
@@ -135,7 +136,7 @@ var (
 	}
 	CannonL2Flag = &cli.StringFlag{
 		Name:    "cannon-l2",
-		Usage:   fmt.Sprintf("Deprecated: Use %v instead", L2RpcFlag.Name),
+		Usage:   fmt.Sprintf("Deprecated: Use %v instead", L2EthRpcFlag.Name),
 		EnvVars: prefixEnvVars("CANNON_L2"),
 	}
 	CannonSnapshotFreqFlag = &cli.UintFlag{
@@ -228,7 +229,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	TraceTypeFlag,
 	MaxConcurrencyFlag,
-	L2RpcFlag,
+	L2EthRpcFlag,
 	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
 	AdditionalBondClaimants,
@@ -288,9 +289,9 @@ func CheckCannonFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(CannonPreStateFlag.Name) && !ctx.IsSet(CannonPreStatesURLFlag.Name) {
 		return fmt.Errorf("flag %s or %s is required", CannonPreStatesURLFlag.Name, CannonPreStateFlag.Name)
 	}
-	// CannonL2Flag is checked because it is an alias with L2RpcFlag
-	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2RpcFlag.Name) {
-		return fmt.Errorf("flag %s is required", L2RpcFlag.Name)
+	// CannonL2Flag is checked because it is an alias with L2EthRpcFlag
+	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2EthRpcFlag.Name) {
+		return fmt.Errorf("flag %s is required", L2EthRpcFlag.Name)
 	}
 	return nil
 }
@@ -315,9 +316,9 @@ func CheckAsteriscFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(AsteriscPreStateFlag.Name) {
 		return fmt.Errorf("flag %s is required", AsteriscPreStateFlag.Name)
 	}
-	// CannonL2Flag is checked because it is an alias with L2RpcFlag
-	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2RpcFlag.Name) {
-		return fmt.Errorf("flag %s is required", L2RpcFlag.Name)
+	// CannonL2Flag is checked because it is an alias with L2EthRpcFlag
+	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2EthRpcFlag.Name) {
+		return fmt.Errorf("flag %s is required", L2EthRpcFlag.Name)
 	}
 	return nil
 }
@@ -360,22 +361,23 @@ func parseTraceTypes(ctx *cli.Context) ([]config.TraceType, error) {
 	return traceTypes, nil
 }
 
-func getL2Rpc(ctx *cli.Context) (string, error) {
-	if ctx.IsSet(CannonL2Flag.Name) && ctx.IsSet(L2RpcFlag.Name) {
-		return "", fmt.Errorf("flag %v and %v must not be both set", CannonL2Flag.Name, L2RpcFlag.Name)
+func getL2Rpc(ctx *cli.Context, logger log.Logger) (string, error) {
+	if ctx.IsSet(CannonL2Flag.Name) && ctx.IsSet(L2EthRpcFlag.Name) {
+		return "", fmt.Errorf("flag %v and %v must not be both set", CannonL2Flag.Name, L2EthRpcFlag.Name)
 	}
 	l2Rpc := ""
 	if ctx.IsSet(CannonL2Flag.Name) {
+		logger.Warn(fmt.Sprintf("flag %v is deprecated, please use %v", CannonL2Flag.Name, L2EthRpcFlag.Name))
 		l2Rpc = ctx.String(CannonL2Flag.Name)
 	}
-	if ctx.IsSet(L2RpcFlag.Name) {
-		l2Rpc = ctx.String(L2RpcFlag.Name)
+	if ctx.IsSet(L2EthRpcFlag.Name) {
+		l2Rpc = ctx.String(L2EthRpcFlag.Name)
 	}
 	return l2Rpc, nil
 }
 
 // NewConfigFromCLI parses the Config from the provided flags or environment variables.
-func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
+func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, error) {
 	traceTypes, err := parseTraceTypes(ctx)
 	if err != nil {
 		return nil, err
@@ -424,7 +426,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		}
 		cannonPrestatesURL = parsed
 	}
-	l2Rpc, err := getL2Rpc(ctx)
+	l2Rpc, err := getL2Rpc(ctx, logger)
 	if err != nil {
 		return nil, err
 	}
