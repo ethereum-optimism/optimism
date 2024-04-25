@@ -58,7 +58,7 @@ contract CrossL2InboxTest is Test {
         _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
 
         // Ensure that the target call does not revert
-        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: "" });
+        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
 
         // Ensure that the chain ID is in the dependency set
         vm.mockCall({
@@ -214,7 +214,7 @@ contract CrossL2InboxTest is Test {
         _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
 
         // Ensure that the target call reverts
-        vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: "" });
+        vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: abi.encode(false) });
 
         // Ensure that the chain ID is in the dependency set
         vm.mockCall({
