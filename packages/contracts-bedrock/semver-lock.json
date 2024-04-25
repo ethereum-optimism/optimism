@@ -88,8 +88,8 @@
     "sourceCodeHash": "0x8388b9b8075f31d580fed815b66b45394e40fb1a63cd8cda2272d2c390fc908c"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol": {
-    "initCodeHash": "0x652a0a2b82bcfda929f5fa844e3e6dec2c47535e0723d4de7741efd7b8ac6ac8",
-    "sourceCodeHash": "0xa120af1561fd0db1d51c353f474cfeb4bd47fe05b7d187ba5df7274562c3ad7b"
+    "initCodeHash": "0xa62d566b7704be5e94e23fc819afad8aa7ee45e88f39b9e297983b23304417e3",
+    "sourceCodeHash": "0xf755b6d2171c2da96e8dfb7395d7f7ca2ec2ac368d9e8f241d86fcc76c294178"
   },
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0xd62e193d89b1661d34031227a45ce1eade9c2a89b0bd7f362f511d03cceef294",
