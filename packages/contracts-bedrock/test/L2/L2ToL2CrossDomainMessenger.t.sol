@@ -79,6 +79,37 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.sendMessage({ _destination: block.chainid, _target: _target, _message: _message });
     }
 
+    /// @dev Tests that the `sendMessage` function reverts when the target is CrossL2Inbox.
+    function testFuzz_sendMessage_targetCrossL2Inbox_reverts(uint256 _destination, bytes memory _message) external {
+        // Ensure the destination is not the same as the source, otherwise the function will revert regardless of target
+        vm.assume(_destination != block.chainid);
+
+        vm.expectRevert(MessageTargetCrossL2Inbox.selector);
+        l2ToL2CrossDomainMessenger.sendMessage({
+            _destination: _destination,
+            _target: Predeploys.CROSS_L2_INBOX,
+            _message: _message
+        });
+    }
+
+    /// @dev Tests that the `sendMessage` function reverts when the target is L2ToL2CrossDomainMessenger.
+    function testFuzz_sendMessage_targetL2ToL2CrossDomainMessenger_reverts(
+        uint256 _destination,
+        bytes memory _message
+    )
+        external
+    {
+        // Ensure the destination is not the same as the source, otherwise the function will revert regardless of target
+        vm.assume(_destination != block.chainid);
+
+        vm.expectRevert(MessageTargetL2ToL2CrossDomainMessenger.selector);
+        l2ToL2CrossDomainMessenger.sendMessage({
+            _destination: _destination,
+            _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            _message: _message
+        });
+    }
+
     /// @dev Tests that the `relayMessage` function succeeds and emits the correct RelayedMessage event.
     function testFuzz_relayMessage_succeeds(
         uint256 _source,

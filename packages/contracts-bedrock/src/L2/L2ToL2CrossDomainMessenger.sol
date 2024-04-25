@@ -124,6 +124,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     /// @param _message     Message to trigger the target address with.
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable {
         if (_destination == block.chainid) revert MessageDestinationSameChain(_destination);
+        if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
+        if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
 
         bytes memory data = abi.encodeCall(
             L2ToL2CrossDomainMessenger.relayMessage,
@@ -168,7 +170,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
         }
 
         bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
-        if (successfulMessages[messageHash] == true) {
+        if (successfulMessages[messageHash]) {
             revert MessageAlreadyRelayed(messageHash);
         }
 
