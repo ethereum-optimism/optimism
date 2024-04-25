@@ -129,8 +129,6 @@ regen=
 # "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \
 # "L1CrossDomainMessengerKontrol.prove_relayMessage_paused"
 
-# "DummyTest.prove_success"
-# "DummyTest.prove_fail"
 test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
   test_list=(
