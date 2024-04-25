@@ -91,9 +91,16 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger and does not revert
+        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+        // Ensure that the target contract does not revert
         vm.assume(_target.code.length == 0);
-        assumePayable(_target);
+
+        // Ensure the target contract is payable if value is greater than 0
+        if (_value > 0) {
+            assumePayable(_target);
+        }
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
@@ -294,9 +301,16 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger and does not revert
+        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+        // Ensure that the target contract does not revert
         vm.assume(_target.code.length == 0);
-        assumePayable(_target);
+
+        // Ensure the target contract is payable if value is greater than 0
+        if (_value > 0) {
+            assumePayable(_target);
+        }
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
