@@ -74,27 +74,31 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 	}
 	version := result.GetString(0)
 
-	// TODO: Proper version comparison
 	if strings.HasPrefix(version, "0.8.") {
-		legacyAbi, err := abi.JSON(bytes.NewReader(faultDisputeGameAbi020))
-		if err != nil {
-			return nil, fmt.Errorf("invalid legacy abi: %w", err)
-		}
+		// Detected an older version of contracts, use a compatibility shim.
+		legacyAbi := mustParseAbi(faultDisputeGameAbi020)
 		return &FaultDisputeGameContract080{
 			FaultDisputeGameContractLatest: FaultDisputeGameContractLatest{
 				metrics:     metrics,
 				multiCaller: caller,
-				contract:    batching.NewBoundContract(&legacyAbi, addr),
+				contract:    batching.NewBoundContract(legacyAbi, addr),
 			},
 		}, nil
 	} else {
-
 		return &FaultDisputeGameContractLatest{
 			metrics:     metrics,
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(contractAbi, addr),
 		}, nil
 	}
+}
+
+func mustParseAbi(json []byte) *abi.ABI {
+	loaded, err := abi.JSON(bytes.NewReader(json))
+	if err != nil {
+		panic(err)
+	}
+	return &loaded
 }
 
 // GetBalance returns the total amount of ETH controlled by this contract.

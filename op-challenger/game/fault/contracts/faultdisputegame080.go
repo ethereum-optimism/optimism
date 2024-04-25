@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -51,6 +52,15 @@ func (f *FaultDisputeGameContract080) GetGameMetadata(ctx context.Context, block
 	}
 	duration := results[4].GetUint64(0)
 	return l1Head, l2BlockNumber, rootClaim, status, duration / 2, nil
+}
+
+func (f *FaultDisputeGameContract080) GetMaxClockDuration(ctx context.Context) (time.Duration, error) {
+	defer f.metrics.StartContractRequest("GetMaxClockDuration")()
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameDuration))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch game duration: %w", err)
+	}
+	return time.Duration(result.GetUint64(0)) * time.Second / 2, nil
 }
 
 func (f *FaultDisputeGameContract080) GetClaim(ctx context.Context, idx uint64) (types.Claim, error) {
