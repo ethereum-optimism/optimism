@@ -112,7 +112,7 @@ test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
   test_list=(
     "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
+    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1(" \
     "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
     "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
     "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
