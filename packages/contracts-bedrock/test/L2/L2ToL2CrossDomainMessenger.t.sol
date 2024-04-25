@@ -6,6 +6,7 @@ import { Test } from "forge-std/Test.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { TransientContext } from "src/libraries/TransientContext.sol";
 
 // Target contract
 import {
@@ -21,6 +22,16 @@ import {
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
+/// @title L2ToL2CrossDomainMessengerWithIncrement
+/// @dev L2ToL2CrossDomainMessenger contract with a method that allows incrementing the transient call depth.
+///      This is used to test the transient storage of the L2ToL2CrossDomainMessenger contract.
+contract L2ToL2CrossDomainMessengerWithIncrement is L2ToL2CrossDomainMessenger {
+    /// @dev Increments the call depth.
+    function increment() external {
+        TransientContext.increment();
+    }
+}
+
 /// @title L2ToL2CrossDomainMessengerTest
 /// @dev Contract for testing the L2ToL2CrossDomainMessenger contract.
 contract L2ToL2CrossDomainMessengerTest is Test {
@@ -32,7 +43,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Deploy the L2ToL2CrossDomainMessenger contract
         vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2Inbox()).code);
         // Deploy the L2ToL2CrossDomainMessenger contract
-        vm.etch(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(new L2ToL2CrossDomainMessenger()).code);
+        vm.etch(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(new L2ToL2CrossDomainMessengerWithIncrement()).code);
         l2ToL2CrossDomainMessenger = L2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 
@@ -156,7 +167,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _message: _message
         });
 
-        // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly
+        // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly, but first we have to
+        // increment the call depth to the one where the data is stored in transient storage
+        L2ToL2CrossDomainMessengerWithIncrement(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
     }

@@ -3,10 +3,10 @@ pragma solidity 0.8.25;
 
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import { TransientContext, TransientReentrancyAware } from "src/libraries/TransientContext.sol";
+import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
 /// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
 error NotEntered();
@@ -43,7 +43,7 @@ error MessageAlreadyRelayed(bytes32 messageHash);
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
-contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, ReentrancyGuard {
+contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, TransientReentrancyAware {
     /// @notice Transient storage slot that `entered` is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
     bytes32 internal constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
@@ -90,29 +90,20 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
     ///         This is leveraged to differentiate between 0 and nil at tstorage slots.
     modifier notEntered() {
-        assembly {
-            if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, 0xbca35af6) // 0xbca35af6 is the 4-byte selector of "NotEntered()"
-                revert(0x1C, 0x04)
-            }
-        }
+        if (TransientContext.get(ENTERED_SLOT) == 0) revert NotEntered();
         _;
     }
 
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
-    /// @return _sender Address of the sender of the current cross domain message.
-    function crossDomainMessageSender() external view notEntered returns (address _sender) {
-        assembly {
-            _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
-        }
+    /// @return Address of the sender of the current cross domain message.
+    function crossDomainMessageSender() external view notEntered returns (address) {
+        return address(uint160(TransientContext.get(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)));
     }
 
     /// @notice Retrieves the source of the current cross domain message. If not entered, reverts.
-    /// @return _source Chain ID of the source of the current cross domain message.
-    function crossDomainMessageSource() external view notEntered returns (uint256 _source) {
-        assembly {
-            _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
-        }
+    /// @return Chain ID of the source of the current cross domain message.
+    function crossDomainMessageSource() external view notEntered returns (uint256) {
+        return TransientContext.get(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT);
     }
 
     /// @notice Sends a message to some target address on a destination chain. Note that if the call
@@ -154,7 +145,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     )
         external
         payable
-        nonReentrant
+        reentrantAware
     {
         if (msg.sender != Predeploys.CROSS_L2_INBOX) revert RelayCallerNotCrossL2Inbox(msg.sender);
         {
@@ -198,13 +189,11 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     /// @param _source Chain ID of the source chain.
     /// @param _sender Address of the sender of the message.
     function _storeMessageMetadata(uint256 _source, address _sender) internal {
-        assembly {
-            // update `entered` to non-zero
-            tstore(ENTERED_SLOT, 1)
+        // Mark as entered in `ENTERED_SLOT`
+        TransientContext.set(ENTERED_SLOT, 1);
 
-            tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
-            tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
-        }
+        TransientContext.set(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, uint160(_sender));
+        TransientContext.set(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source);
     }
 
     /// @notice Calls the target account with the message payload and all available gas.
