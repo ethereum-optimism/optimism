@@ -1,89 +1,11 @@
 [
   {
     "inputs": [],
-    "name": "BLOCKNUMBER_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "CHAINID_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "ENTERED_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOG_INDEX_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "ORIGIN_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "TIMESTAMP_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "blocknumber",
+    "name": "blockNumber",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "_blocknumber",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -96,7 +18,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "_chainId",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -114,7 +36,7 @@
           },
           {
             "internalType": "uint256",
-            "name": "blocknumber",
+            "name": "blockNumber",
             "type": "uint256"
           },
           {
@@ -144,7 +66,7 @@
       },
       {
         "internalType": "bytes",
-        "name": "_msg",
+        "name": "_message",
         "type": "bytes"
       }
     ],
@@ -159,7 +81,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "_logIndex",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -172,7 +94,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "_origin",
+        "name": "",
         "type": "address"
       }
     ],
@@ -185,7 +107,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "_timestamp",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -204,5 +126,53 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "chainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChainNotInDependencySet",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "blockTimestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidIdTimestamp",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotEntered",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "message",
+        "type": "bytes"
+      }
+    ],
+    "name": "TargetCallFailed",
+    "type": "error"
   }
 ]
