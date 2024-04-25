@@ -26,28 +26,29 @@ error NotEntered();
 contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @notice Transient storage slot that `entered` is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
-    bytes32 public constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
+    bytes32 internal constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
 
     /// @notice Transient storage slot that the origin for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
-    bytes32 public constant ORIGIN_SLOT = 0xd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c815;
+    bytes32 internal constant ORIGIN_SLOT = 0xd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c815;
 
     /// @notice Transient storage slot that the blocknumber for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.blocknumber")) - 1)
-    bytes32 public constant BLOCKNUMBER_SLOT = 0x5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc;
+    bytes32 internal constant BLOCKNUMBER_SLOT = 0x5a1da0738b7fdc60047c07bb519beb02aa32a8619de57e6258da1f1c2e020ccc;
 
     /// @notice Transient storage slot that the logIndex for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.logindex")) - 1)
-    bytes32 public constant LOG_INDEX_SLOT = 0xab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d;
+    bytes32 internal constant LOG_INDEX_SLOT = 0xab8acc221aecea88a685fabca5b88bf3823b05f335b7b9f721ca7fe3ffb2c30d;
 
     /// @notice Transient storage slot that the timestamp for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.timestamp")) - 1)
-    bytes32 public constant TIMESTAMP_SLOT = 0x2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e02;
+    bytes32 internal constant TIMESTAMP_SLOT = 0x2e148a404a50bb94820b576997fd6450117132387be615e460fa8c5e11777e02;
 
     /// @notice Transient storage slot that the chainId for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1)
-    bytes32 public constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
+    bytes32 internal constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
+    /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
