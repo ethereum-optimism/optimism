@@ -235,7 +235,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 
 		banPeriod:          5 * time.Minute,
 		maxUpdateThreshold: 30 * time.Second,
-		maxBlockLag:        8, // 8*12 seconds = 96 seconds ~ 1.6 minutes
+		maxBlockLag:        2,
 		minPeerCount:       3,
 		interval:           DefaultPollerInterval,
 	}
