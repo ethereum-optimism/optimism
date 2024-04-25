@@ -142,7 +142,7 @@ func (ah *PollerAsyncHandler) Init() {
 	// create the group consensus poller
 	go func() {
 		for {
-			timer := time.NewTimer(ah.cp.interval)
+			timer := time.NewTimer(ah.cp.interval / 20)
 			ah.cp.UpdateBackendGroupConsensus(ah.ctx)
 
 			select {
@@ -374,13 +374,13 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	//        the lowest safe block number
 	//        the lowest finalized block number
 	var lowestLatestBlock hexutil.Uint64
-	var lowestLatestBlockHash string
+	//var lowestLatestBlockHash string
 	var lowestFinalizedBlock hexutil.Uint64
 	var lowestSafeBlock hexutil.Uint64
 	for _, bs := range candidates {
 		if lowestLatestBlock == 0 || bs.latestBlockNumber < lowestLatestBlock {
 			lowestLatestBlock = bs.latestBlockNumber
-			lowestLatestBlockHash = bs.latestBlockHash
+			//lowestLatestBlockHash = bs.latestBlockHash
 		}
 		if lowestFinalizedBlock == 0 || bs.finalizedBlockNumber < lowestFinalizedBlock {
 			lowestFinalizedBlock = bs.finalizedBlockNumber
@@ -393,63 +393,63 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	// find the proposed block among the candidates
 	// the proposed block needs have the same hash in the entire consensus group
 	proposedBlock := lowestLatestBlock
-	proposedBlockHash := lowestLatestBlockHash
-	hasConsensus := false
-	broken := false
+	//proposedBlockHash := lowestLatestBlockHash
+	//hasConsensus := false
+	//broken := false
 
 	if lowestLatestBlock > currentConsensusBlockNumber {
-		log.Debug("validating consensus on block", "lowestLatestBlock", lowestLatestBlock)
+		log.Debug("new lowest latest block amongst candidate. updating", "lowestLatestBlock", lowestLatestBlock)
 	}
 
 	// if there is a block to propose, check if it is the same in all backends
-	if proposedBlock > 0 {
-		for !hasConsensus {
-			allAgreed := true
-			for be := range candidates {
-				actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock.String())
-				if err != nil {
-					log.Warn("error updating backend", "name", be.Name, "err", err)
-					continue
-				}
-				if proposedBlockHash == "" {
-					proposedBlockHash = actualBlockHash
-				}
-				blocksDontMatch := (actualBlockNumber != proposedBlock) || (actualBlockHash != proposedBlockHash)
-				if blocksDontMatch {
-					if currentConsensusBlockNumber >= actualBlockNumber {
-						log.Warn("backend broke consensus",
-							"name", be.Name,
-							"actualBlockNumber", actualBlockNumber,
-							"actualBlockHash", actualBlockHash,
-							"proposedBlock", proposedBlock,
-							"proposedBlockHash", proposedBlockHash)
-						broken = true
-					}
-					allAgreed = false
-					break
-				}
-			}
-			if allAgreed {
-				hasConsensus = true
-			} else {
-				// walk one block behind and try again
-				proposedBlock -= 1
-				proposedBlockHash = ""
-				log.Debug("no consensus, now trying", "block:", proposedBlock)
-			}
-		}
-	}
+	//if proposedBlock > 0 {
+	//	for !hasConsensus {
+	//		allAgreed := true
+	//		for be := range candidates {
+	//			actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock.String())
+	//			if err != nil {
+	//				log.Warn("error updating backend", "name", be.Name, "err", err)
+	//				continue
+	//			}
+	//			if proposedBlockHash == "" {
+	//				proposedBlockHash = actualBlockHash
+	//			}
+	//			blocksDontMatch := (actualBlockNumber != proposedBlock) || (actualBlockHash != proposedBlockHash)
+	//			if blocksDontMatch {
+	//				if currentConsensusBlockNumber >= actualBlockNumber {
+	//					log.Warn("backend broke consensus",
+	//						"name", be.Name,
+	//						"actualBlockNumber", actualBlockNumber,
+	//						"actualBlockHash", actualBlockHash,
+	//						"proposedBlock", proposedBlock,
+	//						"proposedBlockHash", proposedBlockHash)
+	//					broken = true
+	//				}
+	//				allAgreed = false
+	//				break
+	//			}
+	//		}
+	//		if allAgreed {
+	//			hasConsensus = true
+	//		} else {
+	//			// walk one block behind and try again
+	//			proposedBlock -= 1
+	//			proposedBlockHash = ""
+	//			log.Debug("no consensus, now trying", "block:", proposedBlock)
+	//		}
+	//	}
+	//}
 
-	if broken {
-		// propagate event to other interested parts, such as cache invalidator
-		for _, l := range cp.listeners {
-			l()
-		}
-		log.Info("consensus broken",
-			"currentConsensusBlockNumber", currentConsensusBlockNumber,
-			"proposedBlock", proposedBlock,
-			"proposedBlockHash", proposedBlockHash)
-	}
+	//if broken {
+	//	// propagate event to other interested parts, such as cache invalidator
+	//	for _, l := range cp.listeners {
+	//		l()
+	//	}
+	//	log.Info("consensus broken",
+	//		"currentConsensusBlockNumber", currentConsensusBlockNumber,
+	//		"proposedBlock", proposedBlock,
+	//		"proposedBlockHash", proposedBlockHash)
+	//}
 
 	// update tracker
 	cp.tracker.SetLatestBlockNumber(proposedBlock)
@@ -481,11 +481,12 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	RecordGroupConsensusCount(cp.backendGroup, len(group))
 	RecordGroupConsensusFilteredCount(cp.backendGroup, len(filteredBackendsNames))
 	RecordGroupTotalCount(cp.backendGroup, len(cp.backendGroup.Backends))
-
-	log.Debug("group state",
-		"proposedBlock", proposedBlock,
-		"consensusBackends", strings.Join(consensusBackendsNames, ", "),
-		"filteredBackends", strings.Join(filteredBackendsNames, ", "))
+	if lowestLatestBlock > currentConsensusBlockNumber {
+		log.Debug("group state",
+			"proposedBlock", proposedBlock,
+			"consensusBackends", strings.Join(consensusBackendsNames, ", "),
+			"filteredBackends", strings.Join(filteredBackendsNames, ", "))
+	}
 }
 
 // IsBanned checks if a specific backend is banned
