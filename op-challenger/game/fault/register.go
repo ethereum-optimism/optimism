@@ -209,6 +209,13 @@ func registerAsterisc(
 	} else {
 		prestateSource = prestates.NewSinglePrestateSource(cfg.AsteriscAbsolutePreState)
 	}
+	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
+		prestatePath, err := prestateSource.PrestatePath(prestateHash)
+		if err != nil {
+			return nil, fmt.Errorf("required prestate %v not available: %w", prestateHash, err)
+		}
+		return asterisc.NewPrestateProvider(prestatePath), nil
+	})
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 		if err != nil {
@@ -218,11 +225,10 @@ func registerAsterisc(
 		if err != nil {
 			return nil, fmt.Errorf("failed to load prestate hash for game %v: %w", game.Proxy, err)
 		}
-		prestatePath, err := prestateSource.PrestatePath(requiredPrestatehash)
+		asteriscPrestateProvider, err := prestateProviderCache.GetOrCreate(requiredPrestatehash)
 		if err != nil {
 			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
 		}
-		asteriscPrestateProvider := asterisc.NewPrestateProvider(prestatePath)
 
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
