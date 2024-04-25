@@ -153,6 +153,8 @@ else
 fi
 reinit=--reinit
 reinit=
+break_every_step=--break-every-step
+break_every_step=
 break_on_calls=--break-on-calls
 break_on_calls=
 auto_abstract=--auto-abstract-gas
