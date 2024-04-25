@@ -19,7 +19,7 @@ import {
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 /// @title CrossL2InboxWithIncrement
-/// @dev CrossL2Inbox contract with a method that allows incrementing the call depth.
+/// @dev CrossL2Inbox contract with a method that allows incrementing the transient call depth.
 ///      This is used to test the transient storage of the CrossL2Inbox contract.
 contract CrossL2InboxWithIncrement is CrossL2Inbox {
     /// @dev Increments the call depth.
