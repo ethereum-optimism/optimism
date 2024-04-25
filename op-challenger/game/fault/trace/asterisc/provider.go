@@ -36,19 +36,22 @@ type AsteriscTraceProvider struct {
 	gameDepth      types.Depth
 	preimageLoader *utils.PreimageLoader
 
+	types.PrestateProvider
+
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m AsteriscMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
+func NewTraceProvider(logger log.Logger, m AsteriscMetricer, cfg *config.Config, prestateProvider types.PrestateProvider, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
 	return &AsteriscTraceProvider{
-		logger:         logger,
-		dir:            dir,
-		prestate:       cfg.AsteriscAbsolutePreState,
-		generator:      NewExecutor(logger, m, cfg, localInputs),
-		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		logger:           logger,
+		dir:              dir,
+		prestate:         cfg.AsteriscAbsolutePreState,
+		generator:        NewExecutor(logger, m, cfg, localInputs),
+		gameDepth:        gameDepth,
+		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		PrestateProvider: prestateProvider,
 	}
 }
 
@@ -91,22 +94,6 @@ func (p *AsteriscTraceProvider) GetStepData(ctx context.Context, pos types.Posit
 		return nil, nil, nil, fmt.Errorf("failed to load preimage: %w", err)
 	}
 	return value, data, oracleData, nil
-}
-
-func (p *AsteriscTraceProvider) absolutePreState() (*VMState, error) {
-	state, err := parseState(p.prestate)
-	if err != nil {
-		return nil, fmt.Errorf("cannot load absolute pre-state: %w", err)
-	}
-	return state, nil
-}
-
-func (p *AsteriscTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
-	state, err := p.absolutePreState()
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
-	}
-	return state.StateHash, nil
 }
 
 // loadProof will attempt to load or generate the proof data at the specified index
