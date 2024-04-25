@@ -18,6 +18,20 @@ interface IDependencySet {
 /// @notice Thrown when a non-written tstore slot is attempted to be read from.
 error NotEntered();
 
+/// @notice Thrown when trying to execute a cross chain message with an invalid Identifier timestamp.
+/// @param timestamp The timestamp of the Identifier.
+/// @param blockTimestamp The current block timestamp.
+error InvalidIdTimestamp(uint256 timestamp, uint256 blockTimestamp);
+
+/// @notice Thrown when trying to execute a cross chain message with a chain ID that is not in the dependency set.
+/// @param chainId The chain ID of the Identifier.
+error ChainNotInDependencySet(uint256 chainId);
+
+/// @notice Thrown when trying to execute a cross chain message and the target call fails.
+/// @param target The target account that was called.
+/// @param msg The message payload that was sent to the target account.
+error TargetCallFailed(address target, bytes msg);
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
 /// @title CrossL2Inbox
@@ -109,12 +123,10 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
     /// @param _target Account that is called with _msg.
     /// @param _msg The message payload, matching the initiating message.
     function executeMessage(Identifier calldata _id, address _target, bytes memory _msg) external payable {
-        require(msg.sender == tx.origin, "CrossL2Inbox: not EOA sender");
-        require(_id.timestamp <= block.timestamp, "CrossL2Inbox: invalid id timestamp");
-        require(
-            IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId),
-            "CrossL2Inbox: id chain not in dependency set"
-        );
+        if (_id.timestamp > block.timestamp) revert InvalidIdTimestamp(_id.timestamp, block.timestamp);
+        if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
+            revert ChainNotInDependencySet(_id.chainId);
+        }
 
         // Store the Identifier in transient storage.
         _storeIdentifier();
@@ -123,7 +135,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver {
         bool success = _callWithAllGas(_target, _msg);
 
         // Revert if the target call failed.
-        require(success, "CrossL2Inbox: target call failed");
+        if (!success) revert TargetCallFailed(_target, _msg);
     }
 
     /// @notice Stores the Identifier in transient storage.

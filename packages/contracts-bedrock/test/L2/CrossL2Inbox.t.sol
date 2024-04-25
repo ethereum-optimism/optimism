@@ -9,7 +9,13 @@ import { Reverter } from "test/mocks/Callers.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contracts
-import { CrossL2Inbox, NotEntered } from "src/L2/CrossL2Inbox.sol";
+import {
+    CrossL2Inbox,
+    NotEntered,
+    InvalidIdTimestamp,
+    ChainNotInDependencySet,
+    TargetCallFailed
+} from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 contract CrossL2InboxTest is Test {
@@ -71,7 +77,9 @@ contract CrossL2InboxTest is Test {
         sampleIdentifier.timestamp = block.timestamp + 1;
 
         vm.prank(tx.origin);
-        vm.expectRevert("CrossL2Inbox: invalid id timestamp");
+        vm.expectRevert(
+            abi.encodeWithSelector(InvalidIdTimestamp.selector, sampleIdentifier.timestamp, block.timestamp)
+        );
         crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
@@ -84,7 +92,7 @@ contract CrossL2InboxTest is Test {
         });
 
         vm.prank(tx.origin);
-        vm.expectRevert("CrossL2Inbox: id chain not in dependency set");
+        vm.expectRevert(abi.encodeWithSelector(ChainNotInDependencySet.selector, sampleIdentifier.chainId));
         crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
@@ -102,12 +110,6 @@ contract CrossL2InboxTest is Test {
         crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
-    /// @dev Tests that `executeMessage` fails when called by a non-EOA.
-    function test_executeMessage_invalidSender_fails() external {
-        vm.expectRevert("CrossL2Inbox: not EOA sender");
-        crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
-    }
-
     /// @dev Tests that `executeMessage` fails when the underlying target call reverts.
     function test_executeMessage_unsuccessfullSafeCall_fails() external {
         // need to make sure address leads to unsuccessfull SafeCall by executeMessage
@@ -121,7 +123,7 @@ contract CrossL2InboxTest is Test {
 
         vm.prank(tx.origin);
         vm.expectCall(address(0), hex"1234");
-        vm.expectRevert("CrossL2Inbox: target call failed");
+        vm.expectRevert(abi.encodeWithSelector(TargetCallFailed.selector, address(0), hex"1234"));
         crossL2Inbox.executeMessage({ _id: sampleIdentifier, _target: address(0), _msg: hex"1234" });
     }
 
