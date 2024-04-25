@@ -41,8 +41,6 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev Sets up the test suite.
     function setUp() public {
         // Deploy the L2ToL2CrossDomainMessenger contract
-        vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2Inbox()).code);
-        // Deploy the L2ToL2CrossDomainMessenger contract
         vm.etch(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(new L2ToL2CrossDomainMessengerWithIncrement()).code);
         l2ToL2CrossDomainMessenger = L2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
@@ -80,7 +78,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _message: _message
         });
 
-        // Ensure the message nonce has been incremented
+        // Check that the message nonce has been incremented
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
     }
 
@@ -175,10 +173,12 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     }
 
     /// @dev Mock reentrant function that calls the `relayMessage` function.
-    /// @param _source      Chain ID of the source chain.
-    /// @param _sender      Address of the user who sent the message.
+    /// @param _source Source chain ID of the message.
+    /// @param _sender Sender of the message.
     function mockReentrant(uint256 _source, uint256 _nonce, address _sender) external payable {
+        // Ensure caller is CrossL2Inbox to prevent a revert from the caller check
         vm.prank(Predeploys.CROSS_L2_INBOX);
+
         l2ToL2CrossDomainMessenger.relayMessage({
             _destination: block.chainid,
             _source: _source,
@@ -200,9 +200,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
-        // Ensure that the value does not lead to overflow upon transfer given that the target is this contract,
-        // which has a non-zero balance.
-        _value = bound(_value, 0, type(uint256).max - address(this).balance);
+        // Since the target is this contract, we want to ensure the payment doesn't lead to overflow, since this
+        // contract has a non-zero balance. Thus, we set this contract's balance to zero.
+        vm.deal(address(this), 0);
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
@@ -236,6 +236,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _target: target,
             _message: message
         });
+
+        // Check that the balance of the target contract is correct (i.e., the value was transferred successfully)
+        assertEq(target.balance, _value);
 
         // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly, but first we have to
         // increment the call depth to the one where the data is stored in transient storage
@@ -330,7 +333,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
-        vm.expectRevert(abi.encodeWithSelector(MessageDestinationNotRelayChain.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(MessageDestinationNotRelayChain.selector, 0, block.chainid));
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
             _destination: 0,
             _source: _source,

@@ -25,7 +25,8 @@ error CrossL2InboxOriginNotL2ToL2CrossDomainMessenger(address origin);
 
 /// @notice Thrown when attempting to relay a message whose destination chain is not the chain relaying it.
 /// @param destination Destination of the message being relayed.
-error MessageDestinationNotRelayChain(uint256 destination);
+/// @param expectedDestination Expected destination of the message being relayed.
+error MessageDestinationNotRelayChain(uint256 destination, uint256 expectedDestination);
 
 /// @notice Thrown when attempting to relay a message whose target is CrossL2Inbox.
 error MessageTargetCrossL2Inbox();
@@ -154,7 +155,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
                 revert CrossL2InboxOriginNotL2ToL2CrossDomainMessenger(origin);
             }
         }
-        if (_destination != block.chainid) revert MessageDestinationNotRelayChain(_destination);
+        if (_destination != block.chainid) revert MessageDestinationNotRelayChain(_destination, block.chainid);
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
             revert MessageTargetL2ToL2CrossDomainMessenger();
