@@ -201,6 +201,7 @@ func loadTransactionsFile(file string) fetch.TransactionWithMetadata {
 	dec := json.NewDecoder(f)
 	var txm fetch.TransactionWithMetadata
 	if err := dec.Decode(&txm); err != nil {
+		f.Close()
 		log.Fatalf("Failed to decode %v. Err: %v\n", file, err)
 	}
 	return txm
