@@ -22,13 +22,25 @@ import {
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
-/// @title L2ToL2CrossDomainMessengerWithIncrement
-/// @dev L2ToL2CrossDomainMessenger contract with a method that allows incrementing the transient call depth.
-///      This is used to test the transient storage of the L2ToL2CrossDomainMessenger contract.
-contract L2ToL2CrossDomainMessengerWithIncrement is L2ToL2CrossDomainMessenger {
+/// @title L2ToL2CrossDomainMessengerWithModifiableTransientStorage
+/// @dev L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
+///      This is used to test the transient storage of L2ToL2CrossDomainMessenger.
+contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2CrossDomainMessenger {
     /// @dev Increments the call depth.
     function increment() external {
         TransientContext.increment();
+    }
+
+    /// @dev Sets the cross domain messenger sender in transient storage.
+    /// @param _sender Sender address to set.
+    function setCrossDomainMessageSender(address _sender) external {
+        TransientContext.set(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, uint160(_sender));
+    }
+
+    /// @dev Sets the cross domain messenger source in transient storage.
+    /// @param _source Source chain ID to set.
+    function setCrossDomainMessageSource(uint256 _source) external {
+        TransientContext.set(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source);
     }
 }
 
@@ -41,7 +53,10 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev Sets up the test suite.
     function setUp() public {
         // Deploy the L2ToL2CrossDomainMessenger contract
-        vm.etch(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(new L2ToL2CrossDomainMessengerWithIncrement()).code);
+        vm.etch(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            address(new L2ToL2CrossDomainMessengerWithModifiableTransientStorage()).code
+        );
         l2ToL2CrossDomainMessenger = L2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 
@@ -176,7 +191,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly, but first we have to
         // increment the call depth to the one where the data is stored in transient storage
-        L2ToL2CrossDomainMessengerWithIncrement(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
     }
@@ -251,12 +266,12 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly, but first we have to
         // increment the call depth to the one where the data is stored in transient storage
-        L2ToL2CrossDomainMessengerWithIncrement(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender1);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source1);
 
         // Check that the reentrant function correctly updated the slots at deeper call depth
-        L2ToL2CrossDomainMessengerWithIncrement(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender2);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source2);
     }
@@ -505,7 +520,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
-    /// @dev Tests that the `relayMessage` function reverst when the target call fails.
+    /// @dev Tests that the `relayMessage` function reverts when the target call fails.
     function testFuzz_relayMessage_targetCallFails_reverts(
         uint256 _source,
         uint256 _nonce,
@@ -548,7 +563,18 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
-    /// @dev Tests that `crossDomainMessageSender` reverts when not entered.
+    /// @dev Tests that the `crossDomainMessageSender` function returns the correct value.
+    function testFuzz_crossDomainMessageSender_succeeds(address _sender) external {
+        // Increment the call depth to prevent NotEntered revert
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        // Set cross domain message sender in the transient storage
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            .setCrossDomainMessageSender(_sender);
+        // Check that the `crossDomainMessageSender` function returns the correct value
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
+    }
+
+    /// @dev Tests that the `crossDomainMessageSender` function reverts when not entered.
     function test_crossDomainMessageSender_notEntered_reverts() external {
         // Expect a revert with the NotEntered selector
         vm.expectRevert(NotEntered.selector);
@@ -557,7 +583,18 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.crossDomainMessageSender();
     }
 
-    /// @dev Tests that `crossDomainMessageSource` reverts when not entered.
+    /// @dev Tests that the `crossDomainMessageSource` function returns the correct value.
+    function testFuzz_crossDomainMessageSource_succeeds(uint256 _source) external {
+        // Increment the call depth to prevent NotEntered revert
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        // Set cross domain message source in the transient storage
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            .setCrossDomainMessageSource(_source);
+        // Check that the `crossDomainMessageSource` function returns the correct value
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
+    }
+
+    /// @dev Tests that the `crossDomainMessageSource` function reverts when not entered.
     function test_crossDomainMessageSource_notEntered_reverts() external {
         // Expect a revert with the NotEntered selector
         vm.expectRevert(NotEntered.selector);
