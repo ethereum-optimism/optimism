@@ -393,7 +393,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = 1000
-	channelConfig.InitNoneCompressor()
+	channelConfig.InitNoneCompressor("brotli", 10)
 
 	// Construct the channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -430,54 +430,72 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 }
 
 func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
-	channelConfig := defaultTestChannelConfig()
-	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
-	channelConfig.TargetNumFrames = 5
-	channelConfig.BatchType = derive.SpanBatchType
-	channelConfig.InitRatioCompressor(1)
+	testCases := []struct {
+		testName        string
+		algo            string
+		compressLevel   int
+		targetNumFrames int
+	}{
+		{testName: "Span Batch output frames with zlib", algo: "zlib", compressLevel: 9, targetNumFrames: 5},
+		{testName: "Span Batch output frames with brotli", algo: "brotli", compressLevel: 10, targetNumFrames: 1}, // to fill faster
+	}
 
-	// Construct the channel builder
-	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
-	require.NoError(t, err)
-	require.False(t, cb.IsFull())
-	require.Equal(t, 0, cb.PendingFrames())
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			channelConfig := defaultTestChannelConfig()
+			channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
+			channelConfig.TargetNumFrames = tc.targetNumFrames
+			channelConfig.BatchType = derive.SpanBatchType
+			channelConfig.InitRatioCompressor(1, tc.algo, tc.compressLevel)
 
-	// Calling OutputFrames without having called [AddBlock]
-	// should return no error
-	require.NoError(t, cb.OutputFrames())
-
-	// There should be no ready bytes yet
-	require.Equal(t, 0, cb.co.ReadyBytes())
-
-	// fill up
-	for {
-		err = addMiniBlock(cb)
-		if err == nil {
+			// Construct the channel builder
+			cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
+			require.NoError(t, err)
 			require.False(t, cb.IsFull())
-			// There should be no ready bytes until the channel is full
-			require.Equal(t, cb.co.ReadyBytes(), 0)
-		} else {
-			require.ErrorIs(t, err, derive.ErrCompressorFull)
-			break
-		}
+			require.Equal(t, 0, cb.PendingFrames())
+
+			// Calling OutputFrames without having called [AddBlock]
+			// should return no error
+			require.NoError(t, cb.OutputFrames())
+
+			// There should be no ready bytes yet
+			require.Equal(t, 0, cb.co.ReadyBytes())
+
+			// fill up
+			for {
+				err = addMiniBlock(cb)
+				if err == nil {
+					if cb.IsFull() {
+						// this happens when the data exactly fills the channel
+						break
+					}
+					require.False(t, cb.IsFull())
+					// There should be no ready bytes until the channel is full
+					require.Equal(t, cb.co.ReadyBytes(), 0)
+				} else {
+					require.ErrorIs(t, err, derive.ErrCompressorFull)
+					break
+				}
+			}
+
+			require.True(t, cb.IsFull())
+			// Check how many ready bytes
+			require.GreaterOrEqual(t,
+				cb.co.ReadyBytes()+derive.FrameV0OverHeadSize,
+				int(channelConfig.MaxFrameSize))
+			require.Equal(t, 0, cb.PendingFrames())
+
+			// We should be able to output the frames
+			require.NoError(t, cb.OutputFrames())
+
+			// There should be several frames in the channel builder now
+			require.Greater(t, cb.PendingFrames(), 1)
+			for i := 0; i < cb.numFrames-1; i++ {
+				require.Len(t, cb.frames[i].data, int(channelConfig.MaxFrameSize))
+			}
+			require.LessOrEqual(t, len(cb.frames[len(cb.frames)-1].data), int(channelConfig.MaxFrameSize))
+		})
 	}
-
-	require.True(t, cb.IsFull())
-	// Check how many ready bytes
-	require.GreaterOrEqual(t,
-		cb.co.ReadyBytes()+derive.FrameV0OverHeadSize,
-		int(channelConfig.MaxFrameSize))
-	require.Equal(t, 0, cb.PendingFrames())
-
-	// We should be able to output the frames
-	require.NoError(t, cb.OutputFrames())
-
-	// There should be several frames in the channel builder now
-	require.Greater(t, cb.PendingFrames(), 1)
-	for i := 0; i < cb.numFrames-1; i++ {
-		require.Len(t, cb.frames[i].data, int(channelConfig.MaxFrameSize))
-	}
-	require.LessOrEqual(t, len(cb.frames[len(cb.frames)-1].data), int(channelConfig.MaxFrameSize))
 }
 
 // ChannelBuilder_MaxRLPBytesPerChannel tests the [ChannelBuilder.OutputFrames]
@@ -486,7 +504,7 @@ func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 	t.Parallel()
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.MaxRLPBytesPerChannel * 2
-	channelConfig.InitNoneCompressor()
+	channelConfig.InitNoneCompressor("brotli", 10)
 	channelConfig.BatchType = batchType
 
 	// Construct the channel builder
@@ -504,7 +522,7 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = math.MaxUint16 + 1
-	channelConfig.InitRatioCompressor(.1)
+	channelConfig.InitRatioCompressor(.1, "brotli", 10)
 	channelConfig.BatchType = batchType
 
 	rng := rand.New(rand.NewSource(123))
@@ -539,34 +557,50 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 // This test fails in multiple places if the subtraction of
 // [derive.FrameV0OverHeadSize] in [MaxDataSize] is omitted, which has been the
 // case before it got fixed it #9887.
-func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
+func TestChannelBuilder_FullShadowCompressor_zlib(t *testing.T) {
 	require := require.New(t)
 	cfg := ChannelConfig{
 		MaxFrameSize:    752,
 		TargetNumFrames: 1,
 		BatchType:       derive.SpanBatchType,
 	}
-	cfg.InitShadowCompressor()
 
-	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
-	require.NoError(err)
+	testCases := []struct {
+		testName        string
+		algo            string
+		compressLevel   int
+		targetNumFrames int
+	}{
+		{testName: "Full shadow compressor with zlib", algo: "zlib", compressLevel: 9},
+		{testName: "Full shadow compressor with brotli", algo: "brotli", compressLevel: 10},
+	}
 
-	rng := rand.New(rand.NewSource(420))
-	a := dtest.RandomL2BlockWithChainId(rng, 1, defaultTestRollupConfig.L2ChainID)
-	_, err = cb.AddBlock(a)
-	require.NoError(err)
-	_, err = cb.AddBlock(a)
-	require.ErrorIs(err, derive.ErrCompressorFull)
-	// without fix, adding the second block would succeed and then adding a
-	// third block would fail with full error and the compressor would be full.
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			cfg.InitShadowCompressor(tc.algo, tc.compressLevel)
 
-	require.NoError(cb.OutputFrames())
+			cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
+			require.NoError(err)
 
-	require.True(cb.HasFrame())
-	f := cb.NextFrame()
-	require.Less(len(f.data), int(cfg.MaxFrameSize)) // would fail without fix, full frame
+			rng := rand.New(rand.NewSource(420))
+			a := dtest.RandomL2BlockWithChainId(rng, 1, defaultTestRollupConfig.L2ChainID)
 
-	require.False(cb.HasFrame(), "no leftover frame expected") // would fail without fix
+			for {
+				_, err = cb.AddBlock(a)
+				if err != nil {
+					require.ErrorIs(err, derive.ErrCompressorFull)
+					break
+				}
+			}
+
+			require.NoError(cb.OutputFrames())
+			require.True(cb.HasFrame())
+			f := cb.NextFrame()
+			require.Less(len(f.data), int(cfg.MaxFrameSize)) // would fail without fix, full frame
+
+			require.False(cb.HasFrame(), "no leftover frame expected") // would fail without fix
+		})
+	}
 }
 
 func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
@@ -577,7 +611,7 @@ func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
 	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
 	channelConfig.TargetNumFrames = 2
 	// Configure the Input Threshold params so we observe a full channel
-	channelConfig.InitRatioCompressor(1)
+	channelConfig.InitRatioCompressor(1, "brotli", 10)
 
 	// Construct the channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -700,7 +734,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = tnf
 	cfg.BatchType = batchType
-	cfg.InitShadowCompressor()
+	cfg.InitShadowCompressor("brotli", 10)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err)
 
@@ -782,7 +816,7 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = 16
 	cfg.BatchType = batchType
-	cfg.InitRatioCompressor(1.0)
+	cfg.InitRatioCompressor(1.0, "brotli", 10)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err, "NewChannelBuilder")
 

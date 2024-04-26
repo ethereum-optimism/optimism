@@ -64,7 +64,7 @@ func channelOutByType(batchType uint, compKey string) (derive.ChannelOut, error)
 		return derive.NewSingularChannelOut(compressors[compKey].compressor)
 	}
 	if batchType == derive.SpanBatchType {
-		return derive.NewSpanChannelOut(0, chainID, compressors[compKey].targetOutput)
+		return derive.NewSpanChannelOut(0, chainID, compressors[compKey].targetOutput, "brotli", 10)
 	}
 	return nil, fmt.Errorf("unsupported batch type: %d", batchType)
 }

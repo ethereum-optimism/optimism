@@ -8,11 +8,24 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/andybalholm/brotli"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
+
+const (
+	ZLIB  string = "zlib"
+	BROTLI string = "brotli"
+)
+
+type CompressorInterace interface {
+	Write([] byte) (int, error)
+	Flush() error
+	Close() error
+	Reset(io.Writer)
+}
 
 type SpanChannelOut struct {
 	id ChannelID
@@ -28,8 +41,8 @@ type SpanChannelOut struct {
 	lastCompressedRLPSize int
 	// compressed contains compressed data for making output frames
 	compressed *bytes.Buffer
-	// compress is the zlib writer for the channel
-	compressor *zlib.Writer
+	// the compressor for the channel
+	compressor CompressorInterace
 	// target is the target size of the compressed data
 	target uint64
 	// closed indicates if the channel is closed
@@ -49,7 +62,7 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64) (*SpanChannelOut, error) {
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo string, compressLevel int) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:         ChannelID{},
 		frame:      0,
@@ -62,9 +75,20 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 	if err = c.setRandomID(); err != nil {
 		return nil, err
 	}
-	if c.compressor, err = zlib.NewWriterLevel(c.compressed, zlib.BestCompression); err != nil {
-		return nil, err
+
+	if compressionAlgo == ZLIB {
+		if c.compressor, err = zlib.NewWriterLevel(c.compressed, compressLevel); err != nil {
+			return nil, err
+		}
+	} else if compressionAlgo == BROTLI {
+		c.compressor = brotli.NewWriterLevel(
+			c.compressed,
+			compressLevel,
+		)
+	} else {
+		return nil, fmt.Errorf("unsupported compression algorithm: %s", compressionAlgo)
 	}
+
 	return c, nil
 }
 

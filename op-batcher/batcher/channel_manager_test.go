@@ -25,7 +25,7 @@ func channelManagerTestConfig(maxFrameSize uint64, batchType uint) ChannelConfig
 		TargetNumFrames: 1,
 		BatchType:       batchType,
 	}
-	cfg.InitRatioCompressor(1)
+	cfg.InitRatioCompressor(1, "brotli", 10)
 	return cfg
 }
 
@@ -123,7 +123,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// channels on confirmation. This would result in [TxConfirmed]
 	// clearing confirmed transactions, and resetting the pendingChannels map
 	cfg.ChannelTimeout = 10
-	cfg.InitRatioCompressor(1)
+	cfg.InitRatioCompressor(1, "brotli", 10)
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 
 	// Channel Manager state should be empty by default
@@ -345,7 +345,7 @@ func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
 		ChannelTimeout:  1000,
 		TargetNumFrames: 100,
 	}
-	cfg.InitNoneCompressor()
+	cfg.InitNoneCompressor("brotli", 10)
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
@@ -397,7 +397,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelCrit)
 	cfg := channelManagerTestConfig(100, batchType)
 	cfg.TargetNumFrames = 1000
-	cfg.InitNoneCompressor()
+	cfg.InitNoneCompressor("brotli", 10)
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
@@ -445,7 +445,7 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 	const maxChannelDuration = 15
 	cfg := channelManagerTestConfig(1000, derive.SpanBatchType)
 	cfg.MaxChannelDuration = maxChannelDuration
-	cfg.InitNoneCompressor()
+	cfg.InitNoneCompressor("brotli", 10)
 
 	for _, tt := range []struct {
 		name                   string

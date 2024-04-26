@@ -219,7 +219,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("max frame size %d exceeds plasma max input size %d", cc.MaxFrameSize, plasma.MaxInputSize)
 	}
 
-	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor)
+	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor, cfg.CompressionAlgo, cfg.CompressLevel)
 
 	if bs.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
 		bs.Log.Error("Cannot use Blob data before Ecotone!") // log only, the batcher may not be actively running.

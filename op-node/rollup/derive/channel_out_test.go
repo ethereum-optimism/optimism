@@ -52,7 +52,7 @@ var channelTypes = []struct {
 	{
 		Name: "Span",
 		ChannelOut: func(t *testing.T) ChannelOut {
-			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000)
+			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000, "brotli", 10)
 			require.NoError(t, err)
 			return cout
 		},
@@ -225,7 +225,7 @@ func SpanChannelAndBatches(t *testing.T, target uint64, len int) (*SpanChannelOu
 	rng := rand.New(rand.NewSource(0x543331))
 	chainID := big.NewInt(rng.Int63n(1000))
 	txCount := 1
-	cout, err := NewSpanChannelOut(0, chainID, target)
+	cout, err := NewSpanChannelOut(0, chainID, target, "brotli", 10)
 	require.NoError(t, err)
 	batches := make([]*SingularBatch, len)
 	// adding the first batch should not cause an error

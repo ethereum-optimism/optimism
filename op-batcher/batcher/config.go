@@ -67,6 +67,9 @@ type CLIConfig struct {
 	// Type of compressor to use. Must be one of [compressor.KindKeys].
 	Compressor string
 
+	CompressionAlgo string
+	CompressLevel   int
+
 	// If Stopped is true, the batcher starts stopped and won't start batching right away.
 	// Batching needs to be started via an admin RPC.
 	Stopped bool
