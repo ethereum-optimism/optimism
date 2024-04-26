@@ -34,10 +34,6 @@ error TargetCallFailed();
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
 contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
-    /// @notice Transient storage slot that `entered` is stored at.
-    ///         Equal to bytes32(uint256(keccak256("crossl2inbox.entered")) - 1)
-    bytes32 internal constant ENTERED_SLOT = 0x6705f1f7a14e02595ec471f99cf251f123c2b0258ceb26554fcae9056c389a51;
-
     /// @notice Transient storage slot that the origin for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
     bytes32 internal constant ORIGIN_SLOT = 0xd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c815;
