@@ -1240,6 +1240,10 @@ jobs:
             tar -xzvf geth-alltools-linux-amd64-1.13.14-2bd6bd01.tar.gz
             sudo cp geth-alltools-linux-amd64-1.13.14-2bd6bd01/* /usr/local/bin
       - run:
+          name: Install eth2-testnet-genesis
+          command: |
+            go install -v github.com/protolambda/eth2-testnet-genesis@master
+      - run:
           name: foundryup
           command: |
             curl -L https://foundry.paradigm.xyz | bash

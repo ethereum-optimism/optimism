@@ -1,5 +1,9 @@
 #!/bin/sh
 
+set -eu
+
+echo "eth2-testnet-genesis path: $(which eth2-testnet-genesis)"
+
 eth2-testnet-genesis capella \
   --config=./beacon-data/config.yaml \
   --preset-phase0=minimal \

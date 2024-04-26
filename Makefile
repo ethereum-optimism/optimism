@@ -138,6 +138,9 @@ pre-devnet: submodules
 	@if ! [ -x "$(command -v geth)" ]; then \
 		make install-geth; \
 	fi
+	@if ! [ -x "$(command -v eth2-testnet-genesis)" ]; then \
+		make install-eth2-testnet-genesis; \
+	fi
 	@if [ ! -e op-program/bin ]; then \
 		make cannon-prestate; \
 	fi
@@ -218,3 +221,7 @@ install-geth:
  			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell jq -r .geth < versions.json); \
  			echo "Installed geth!"; true)
 .PHONY: install-geth
+
+install-eth2-testnet-genesis:
+	go install -v github.com/protolambda/eth2-testnet-genesis@$(shell jq -r .eth2_testnet_genesis < versions.json)
+.PHONY: install-eth2-testnet-genesis
