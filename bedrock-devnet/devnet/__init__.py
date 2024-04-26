@@ -229,7 +229,6 @@ def devnet_deploy(paths):
             '--l1-rpc', 'http://localhost:8545',
             '--deploy-config', paths.devnet_config_path,
             '--l2-allocs', l2_allocs_path,
-            '--l1-deployments', paths.addresses_json_path,
             '--outfile.l2', paths.genesis_l2_path,
             '--outfile.rollup', paths.rollup_config_path
         ], cwd=paths.op_node_dir)
