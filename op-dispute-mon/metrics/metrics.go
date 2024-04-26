@@ -65,11 +65,20 @@ const (
 	SecondHalfNotExpiredUnresolved
 )
 
+type HonestActorData struct {
+	PendingClaimCount int
+	ValidClaimCount   int
+	InvalidClaimCount int
+	PendingBonds      *big.Int
+	LostBonds         *big.Int
+	WonBonds          *big.Int
+}
+
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
-	RecordHonestActorClaimResolution(address common.Address, unexpected int, expected int)
+	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
 
 	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)
 
@@ -106,7 +115,8 @@ type Metrics struct {
 
 	claims prometheus.GaugeVec
 
-	honestActorClaimResolutions prometheus.GaugeVec
+	honestActorClaims prometheus.GaugeVec
+	honestActorBonds  prometheus.GaugeVec
 
 	withdrawalRequests prometheus.GaugeVec
 
@@ -165,13 +175,21 @@ func NewMetrics() *Metrics {
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
 		}),
-		honestActorClaimResolutions: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		honestActorClaims: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
-			Name:      "honest_actor_claim_resolutions",
-			Help:      "Total number of unexpected claim resolutions against an honest actor",
+			Name:      "honest_actor_claims",
+			Help:      "Total number of claims from an honest actor",
 		}, []string{
-			"resolution",
 			"honest_actor_address",
+			"state",
+		}),
+		honestActorBonds: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "honest_actor_bonds",
+			Help:      "Sum of bonds posted, won and lost by an honest actor",
+		}, []string{
+			"honest_actor_address",
+			"state",
 		}),
 		resolutionStatus: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -263,9 +281,14 @@ func (m *Metrics) RecordUp() {
 	m.up.Set(1)
 }
 
-func (m *Metrics) RecordHonestActorClaimResolution(address common.Address, unexpected int, expected int) {
-	m.honestActorClaimResolutions.WithLabelValues("invalid", address.Hex()).Set(float64(unexpected))
-	m.honestActorClaimResolutions.WithLabelValues("valid", address.Hex()).Set(float64(expected))
+func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorData) {
+	m.honestActorClaims.WithLabelValues(address.Hex(), "pending").Set(float64(stats.PendingClaimCount))
+	m.honestActorClaims.WithLabelValues(address.Hex(), "invalid").Set(float64(stats.InvalidClaimCount))
+	m.honestActorClaims.WithLabelValues(address.Hex(), "valid").Set(float64(stats.ValidClaimCount))
+
+	m.honestActorBonds.WithLabelValues(address.Hex(), "pending").Set(weiToEther(stats.PendingBonds))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "lost").Set(weiToEther(stats.LostBonds))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.WonBonds))
 }
 
 func (m *Metrics) RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int) {
