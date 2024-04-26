@@ -31,7 +31,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
         address l1StandardBridge;
-        address l2OutputOracle;
+        address disputeGameFactory;
         address optimismPortal;
         address optimismMintableERC20Factory;
     }
@@ -60,6 +60,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
 
     /// @notice Storage slot that the L2OutputOracle address is stored at.
+    /// @custom:deprecated
     bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
 
     /// @notice Storage slot that the OptimismPortal address is stored at.
@@ -74,6 +75,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
+
+    /// @notice Storage slot for the DisputeGameFactory address.
+    bytes32 public constant DISPUTE_GAME_FACTORY_SLOT =
+        bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
@@ -101,8 +106,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.12.0
-    string public constant version = "1.12.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -131,7 +136,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                l2OutputOracle: address(0),
+                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             })
@@ -177,7 +182,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
         Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
-        Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
+        Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, _addresses.disputeGameFactory);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
@@ -220,9 +225,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         addr_ = Storage.getAddress(L1_STANDARD_BRIDGE_SLOT);
     }
 
-    /// @notice Getter for the L2OutputOracle address.
-    function l2OutputOracle() external view returns (address addr_) {
-        addr_ = Storage.getAddress(L2_OUTPUT_ORACLE_SLOT);
+    /// @notice Getter for the DisputeGameFactory address.
+    function disputeGameFactory() external view returns (address addr_) {
+        addr_ = Storage.getAddress(DISPUTE_GAME_FACTORY_SLOT);
     }
 
     /// @notice Getter for the OptimismPortal address.
