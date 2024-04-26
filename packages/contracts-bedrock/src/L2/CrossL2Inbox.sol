@@ -130,9 +130,6 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @notice Stores the Identifier in transient storage.
     /// @param _id Identifier to store.
     function _storeIdentifier(Identifier calldata _id) internal {
-        // Mark as entered in `ENTERED_SLOT`
-        TransientContext.set(ENTERED_SLOT, 1);
-
         TransientContext.set(ORIGIN_SLOT, uint160(_id.origin));
         TransientContext.set(BLOCK_NUMBER_SLOT, _id.blockNumber);
         TransientContext.set(LOG_INDEX_SLOT, _id.logIndex);
