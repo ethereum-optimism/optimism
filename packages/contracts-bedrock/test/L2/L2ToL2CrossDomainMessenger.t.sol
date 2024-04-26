@@ -72,6 +72,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
+        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
         // Get the current message nonce
         uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
 
