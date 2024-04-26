@@ -184,51 +184,22 @@
     "type": "event"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "origin",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "name": "CrossL2InboxOriginNotL2ToL2CrossDomainMessenger",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "messageHash",
-        "type": "bytes32"
-      }
-    ],
+    "inputs": [],
     "name": "MessageAlreadyRelayed",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "destination",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "expectedDestination",
-        "type": "uint256"
-      }
-    ],
+    "inputs": [],
     "name": "MessageDestinationNotRelayChain",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "destination",
-        "type": "uint256"
-      }
-    ],
+    "inputs": [],
     "name": "MessageDestinationSameChain",
     "type": "error"
   },
@@ -248,14 +219,8 @@
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "caller",
-        "type": "address"
-      }
-    ],
-    "name": "RelayCallerNotCrossL2Inbox",
+    "inputs": [],
+    "name": "RelayMessageCallerNotCrossL2Inbox",
     "type": "error"
   }
 ]
