@@ -57,7 +57,7 @@
   },
   "src/L2/CrossL2Inbox.sol": {
     "initCodeHash": "0x61d6e220f21dd5e31b7a4de204f4e6851df6b594e211f344b69f109fe09cbe1f",
-    "sourceCodeHash": "0x1a7c9f06db828b96a30c2818dd9fc1a56c2aa01b7e9c5d13cdd14642c8029304"
+    "sourceCodeHash": "0xaddae016d2e3b5472aa694c7dfd544db2c0bf067378f00dfa26956d5459b1624"
   },
   "src/L2/GasPriceOracle.sol": {
     "initCodeHash": "0xfd456e91d8c9714590a4f0a2c1046ba70e102f1c629ead886c4eebc3f921c3c3",
