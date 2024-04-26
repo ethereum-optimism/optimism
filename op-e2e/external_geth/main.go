@@ -46,10 +46,10 @@ func run(configPath string) error {
 
 	binPath, err := filepath.Abs("op-geth")
 	if err != nil {
-		return fmt.Errorf("could not get absolute path of op-geth")
+		return errors.New("could not get absolute path of op-geth")
 	}
 	if _, err := os.Stat(binPath); err != nil {
-		return fmt.Errorf("could not locate op-geth in working directory, did you forget to run '--init'?")
+		return errors.New("could not locate op-geth in working directory, did you forget to run '--init'?")
 	}
 
 	fmt.Printf("================== op-geth shim initializing chain config ==========================\n")
@@ -66,7 +66,7 @@ func run(configPath string) error {
 
 	fmt.Printf("==================    op-geth shim encoding ready-file   ==========================\n")
 	if err := external.AtomicEncode(config.EndpointsReadyPath, sess.endpoints); err != nil {
-		return fmt.Errorf("could not encode endpoints")
+		return errors.New("could not encode endpoints")
 	}
 
 	fmt.Printf("==================    op-geth shim awaiting termination  ==========================\n")
@@ -101,7 +101,7 @@ func awaitExit(sess *gexec.Session) error {
 		case <-sess.Exited:
 			return nil
 		case <-time.After(30 * time.Second):
-			return fmt.Errorf("exiting after 30 second timeout")
+			return errors.New("exiting after 30 second timeout")
 		}
 	}
 }
@@ -164,7 +164,7 @@ func execute(binPath string, config external.Config) (*gethSession, error) {
 	for enginePort == 0 || httpPort == 0 {
 		match, err := matcher.Match(sess.Err)
 		if err != nil {
-			return nil, fmt.Errorf("could not execute matcher")
+			return nil, errors.New("could not execute matcher")
 		}
 		if !match {
 			if sess.Err.Closed() {
