@@ -231,7 +231,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         external
     {
         // Since the target is this contract, we want to ensure the payment doesn't lead to overflow, since this
-        // contract has a non-zero balance. Thus, we set this contract's balance to zero.
+        // contract has a non-zero balance. Thus, we set this contract's balance to zero and we hoax afterwards.
         vm.deal(address(this), 0);
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
@@ -280,6 +280,87 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender2);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source2);
+    }
+
+    /// @dev Mock reentrant function that calls the `relayMessage` function.
+    /// @param _source Source chain ID of the message.
+    /// @param _nonce Nonce of the message.
+    /// @param _sender Sender of the message.
+    /// @param _value Value to send with the message.
+    function mock_reentrant_messageAlreadyRelayed_succeeds(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        uint256 _value
+    )
+        external
+        payable
+    {
+        // Ensure caller is CrossL2Inbox to prevent a revert from the caller check
+        vm.prank(Predeploys.CROSS_L2_INBOX);
+
+        // Call `relayMessage` with a message that corresponds to the same messageHash as the original call. This is to
+        // try to override the successfulMessages mapping entry of the original call.
+        l2ToL2CrossDomainMessenger.relayMessage({
+            _destination: block.chainid,
+            _source: _source,
+            _nonce: _nonce,
+            _sender: _sender,
+            _target: address(this),
+            _message: abi.encodeWithSelector(
+                this.mock_reentrant_messageAlreadyRelayed_succeeds.selector, _source, _nonce, _sender, _value
+            )
+        });
+    }
+
+    /// @dev Tests that the `relayMessage` function successfully handles a reentrant call that tries to override the
+    ///      successfulMessages entry of the original call. The reentrant call should revert with the
+    ///      MessageAlreadyRelayed selector and the original call should succeed but emit FailedRelayedMessage.
+    function testFuzz_relayMessage_reentrant_messageAlreadyRelayed_succeeds(
+        uint256 _source,
+        address _sender,
+        uint256 _nonce,
+        uint256 _value
+    )
+        external
+    {
+        // Since the target is this contract, we want to ensure the payment doesn't lead to overflow, since this
+        // contract has a non-zero balance. Thus, we set this contract's balance to zero and we hoax afterwards.
+        vm.deal(address(this), 0);
+
+        // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
+        hoax(Predeploys.CROSS_L2_INBOX, _value);
+
+        // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
+        vm.mockCall({
+            callee: Predeploys.CROSS_L2_INBOX,
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
+            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+        });
+
+        // Set the message for the reentrant call
+        bytes memory message = abi.encodeWithSelector(
+            this.mock_reentrant_messageAlreadyRelayed_succeeds.selector, _source, _nonce, _sender, _value
+        );
+
+        // Ensure the target contract is called with the correct parameters
+        vm.expectCall({ callee: address(this), msgValue: _value, data: message });
+
+        // Look for the FailedRelayedMessage event for the original call
+        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, address(this), message)) // messageHash
+        );
+
+        // Call the relayMessage function
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
+            _destination: block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
+            _source: _source,
+            _nonce: _nonce,
+            _sender: _sender,
+            _target: address(this),
+            _message: message
+        });
     }
 
     /// @dev Tests that the `relayMessage` function reverts when the caller is not the CrossL2Inbox contract.
