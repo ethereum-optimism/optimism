@@ -128,30 +128,13 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "chainId",
-        "type": "uint256"
-      }
-    ],
-    "name": "ChainNotInDependencySet",
+    "inputs": [],
+    "name": "InvalidChainId",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "blockTimestamp",
-        "type": "uint256"
-      }
-    ],
-    "name": "InvalidIdTimestamp",
+    "inputs": [],
+    "name": "InvalidTimestamp",
     "type": "error"
   },
   {
@@ -160,18 +143,7 @@
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "target",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes",
-        "name": "message",
-        "type": "bytes"
-      }
-    ],
+    "inputs": [],
     "name": "TargetCallFailed",
     "type": "error"
   }
