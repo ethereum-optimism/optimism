@@ -12,21 +12,16 @@ import { ISemver } from "src/universal/ISemver.sol";
 error NotEntered();
 
 /// @notice Thrown when attempting to send a message to the chain that the message is being sent from.
-/// @param destination Destination of the message being sent.
-error MessageDestinationSameChain(uint256 destination);
+error MessageDestinationSameChain();
 
 /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not CrossL2Inbox.
-/// @param caller Caller of the relayMessage function.
-error RelayCallerNotCrossL2Inbox(address caller);
+error RelayMessageCallerNotCrossL2Inbox();
 
 /// @notice Thrown when attempting to relay a message where CrossL2Inbox's origin is not L2ToL2CrossDomainMessenger.
-/// @param origin Origin of the message being relayed.
-error CrossL2InboxOriginNotL2ToL2CrossDomainMessenger(address origin);
+error CrossL2InboxOriginNotL2ToL2CrossDomainMessenger();
 
 /// @notice Thrown when attempting to relay a message whose destination chain is not the chain relaying it.
-/// @param destination         Destination of the message being relayed.
-/// @param expectedDestination Expected destination of the message being relayed.
-error MessageDestinationNotRelayChain(uint256 destination, uint256 expectedDestination);
+error MessageDestinationNotRelayChain();
 
 /// @notice Thrown when attempting to relay a message whose target is CrossL2Inbox.
 error MessageTargetCrossL2Inbox();
@@ -35,8 +30,7 @@ error MessageTargetCrossL2Inbox();
 error MessageTargetL2ToL2CrossDomainMessenger();
 
 /// @notice Thrown when attempting to relay a message that has already been relayed.
-/// @param messageHash Hash of the message that has already been relayed.
-error MessageAlreadyRelayed(bytes32 messageHash);
+error MessageAlreadyRelayed();
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
@@ -113,7 +107,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable {
-        if (_destination == block.chainid) revert MessageDestinationSameChain(_destination);
+        if (_destination == block.chainid) revert MessageDestinationSameChain();
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
 
@@ -146,14 +140,11 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         payable
         reentrantAware
     {
-        if (msg.sender != Predeploys.CROSS_L2_INBOX) revert RelayCallerNotCrossL2Inbox(msg.sender);
-        {
-            address origin = CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin();
-            if (origin != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
-                revert CrossL2InboxOriginNotL2ToL2CrossDomainMessenger(origin);
-            }
+        if (msg.sender != Predeploys.CROSS_L2_INBOX) revert RelayMessageCallerNotCrossL2Inbox();
+        if (CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin() != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+            revert CrossL2InboxOriginNotL2ToL2CrossDomainMessenger();
         }
-        if (_destination != block.chainid) revert MessageDestinationNotRelayChain(_destination, block.chainid);
+        if (_destination != block.chainid) revert MessageDestinationNotRelayChain();
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
             revert MessageTargetL2ToL2CrossDomainMessenger();
@@ -161,7 +152,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
 
         bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
         if (successfulMessages[messageHash]) {
-            revert MessageAlreadyRelayed(messageHash);
+            revert MessageAlreadyRelayed();
         }
 
         _storeMessageMetadata(_source, _sender);
