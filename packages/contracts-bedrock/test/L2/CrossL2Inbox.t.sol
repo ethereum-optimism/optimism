@@ -9,13 +9,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { TransientContext } from "src/libraries/TransientContext.sol";
 
 // Target contracts
-import {
-    CrossL2Inbox,
-    NotEntered,
-    InvalidIdTimestamp,
-    ChainNotInDependencySet,
-    TargetCallFailed
-} from "src/L2/CrossL2Inbox.sol";
+import { CrossL2Inbox, NotEntered, InvalidTimestamp, InvalidChainId, TargetCallFailed } from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 /// @title CrossL2InboxWithIncrement
@@ -150,7 +144,7 @@ contract CrossL2InboxTest is Test {
     }
 
     /// @dev Tests that the `executeMessage` function  reverts when called with an identifier with an invalid timestamp.
-    function testFuzz_executeMessage_invalidIdTimestamp_reverts(
+    function testFuzz_executeMessage_invalidTimestamp_reverts(
         ICrossL2Inbox.Identifier calldata _id,
         address _target,
         bytes calldata _message,
@@ -164,8 +158,8 @@ contract CrossL2InboxTest is Test {
         // Ensure that the contract has enough balance to send with value
         vm.deal(address(this), _value);
 
-        // Expect a revert with the InvalidIdTimestamp selector
-        vm.expectRevert(abi.encodeWithSelector(InvalidIdTimestamp.selector, _id.timestamp, block.timestamp));
+        // Expect a revert with the InvalidTimestamp selector
+        vm.expectRevert(InvalidTimestamp.selector);
 
         // Call the executeMessage function
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
@@ -173,7 +167,7 @@ contract CrossL2InboxTest is Test {
 
     /// @dev Tests that the `executeMessage` function  reverts when called with an identifier with a chain ID not in
     /// dependency set.
-    function testFuzz_executeMessage_chainNotInDependencySet_reverts(
+    function testFuzz_executeMessage_invalidChainId_reverts(
         ICrossL2Inbox.Identifier memory _id,
         address _target,
         bytes calldata _message,
@@ -194,8 +188,8 @@ contract CrossL2InboxTest is Test {
         // Ensure that the contract has enough balance to send with value
         vm.deal(address(this), _value);
 
-        // Expect a revert with the ChainNotInDependencySet selector
-        vm.expectRevert(abi.encodeWithSelector(ChainNotInDependencySet.selector, _id.chainId));
+        // Expect a revert with the InvalidChainId selector
+        vm.expectRevert(InvalidChainId.selector);
 
         // Call the executeMessage function
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
@@ -230,7 +224,7 @@ contract CrossL2InboxTest is Test {
         vm.expectCall(_target, _value, _message);
 
         // Expect a revert with the TargetCallFailed selector
-        vm.expectRevert(abi.encodeWithSelector(TargetCallFailed.selector, _target, _message));
+        vm.expectRevert(TargetCallFailed.selector);
 
         // Call the executeMessage function
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });

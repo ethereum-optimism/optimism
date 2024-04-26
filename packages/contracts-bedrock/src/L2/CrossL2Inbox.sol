@@ -16,22 +16,17 @@ interface IDependencySet {
     function isInDependencySet(uint256 _chainId) external view returns (bool);
 }
 
-/// @notice Thrown when a non-written tstore slot is attempted to be read from.
+/// @notice Thrown when a non-written transient storage slot is attempted to be read from.
 error NotEntered();
 
 /// @notice Thrown when trying to execute a cross chain message with an invalid Identifier timestamp.
-/// @param timestamp      Timestamp of the Identifier.
-/// @param blockTimestamp Current block timestamp.
-error InvalidIdTimestamp(uint256 timestamp, uint256 blockTimestamp);
+error InvalidTimestamp();
 
-/// @notice Thrown when trying to execute a cross chain message with a chain ID that is not in the dependency set.
-/// @param chainId Chain ID of the Identifier.
-error ChainNotInDependencySet(uint256 chainId);
+/// @notice Thrown when trying to execute a cross chain message with an invalid Identifier chain ID.
+error InvalidChainId();
 
 /// @notice Thrown when trying to execute a cross chain message and the target call fails.
-/// @param target  Target address that was called.
-/// @param message Message payload of the call to the target.
-error TargetCallFailed(address target, bytes message);
+error TargetCallFailed();
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
@@ -117,9 +112,9 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         payable
         reentrantAware
     {
-        if (_id.timestamp > block.timestamp) revert InvalidIdTimestamp(_id.timestamp, block.timestamp);
+        if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
-            revert ChainNotInDependencySet(_id.chainId);
+            revert InvalidChainId();
         }
 
         // Store the Identifier in transient storage.
@@ -129,7 +124,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         bool success = _callWithAllGas(_target, _message);
 
         // Revert if the target call failed.
-        if (!success) revert TargetCallFailed(_target, _message);
+        if (!success) revert TargetCallFailed();
     }
 
     /// @notice Stores the Identifier in transient storage.
