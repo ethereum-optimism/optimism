@@ -69,7 +69,7 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
-	RecordUnexpectedClaimResolution(address common.Address, count int)
+	RecordHonestActorClaimResolution(address common.Address, unexpected int, expected int)
 
 	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)
 
@@ -106,7 +106,7 @@ type Metrics struct {
 
 	claims prometheus.GaugeVec
 
-	unexpectedClaimResolutions prometheus.GaugeVec
+	honestActorClaimResolutions prometheus.GaugeVec
 
 	withdrawalRequests prometheus.GaugeVec
 
@@ -165,11 +165,12 @@ func NewMetrics() *Metrics {
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
 		}),
-		unexpectedClaimResolutions: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		honestActorClaimResolutions: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
-			Name:      "unexpected_claim_resolutions",
+			Name:      "honest_actor_claim_resolutions",
 			Help:      "Total number of unexpected claim resolutions against an honest actor",
 		}, []string{
+			"resolution",
 			"honest_actor_address",
 		}),
 		resolutionStatus: *factory.NewGaugeVec(prometheus.GaugeOpts{
@@ -262,8 +263,9 @@ func (m *Metrics) RecordUp() {
 	m.up.Set(1)
 }
 
-func (m *Metrics) RecordUnexpectedClaimResolution(address common.Address, count int) {
-	m.unexpectedClaimResolutions.WithLabelValues(address.Hex()).Set(float64(count))
+func (m *Metrics) RecordHonestActorClaimResolution(address common.Address, unexpected int, expected int) {
+	m.honestActorClaimResolutions.WithLabelValues("invalid", address.Hex()).Set(float64(unexpected))
+	m.honestActorClaimResolutions.WithLabelValues("valid", address.Hex()).Set(float64(expected))
 }
 
 func (m *Metrics) RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int) {

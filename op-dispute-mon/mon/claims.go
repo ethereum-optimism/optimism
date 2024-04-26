@@ -15,7 +15,7 @@ type RClock interface {
 
 type ClaimMetrics interface {
 	RecordClaims(status metrics.ClaimStatus, count int)
-	RecordUnexpectedClaimResolution(address common.Address, count int)
+	RecordHonestActorClaimResolution(address common.Address, unexpected int, expected int)
 }
 
 type ClaimMonitor struct {
@@ -32,22 +32,27 @@ func NewClaimMonitor(logger log.Logger, clock RClock, honestActors []common.Addr
 func (c *ClaimMonitor) CheckClaims(games []*types.EnrichedGameData) {
 	claimStatus := make(map[metrics.ClaimStatus]int)
 	unexpected := make(map[common.Address]int)
+	expected := make(map[common.Address]int)
 	for _, game := range games {
-		c.checkGameClaims(game, claimStatus, unexpected)
+		c.checkGameClaims(game, claimStatus, unexpected, expected)
 	}
 	for status, count := range claimStatus {
 		c.metrics.RecordClaims(status, count)
 	}
-	for address, count := range unexpected {
-		c.metrics.RecordUnexpectedClaimResolution(address, count)
+	for _, actor := range c.honestActors {
+		c.metrics.RecordHonestActorClaimResolution(actor, unexpected[actor], expected[actor])
 	}
 }
 
-func (c *ClaimMonitor) checkResolvedAgainstHonestActor(proxy common.Address, claim *types.EnrichedClaim, unexpected map[common.Address]int) {
+func (c *ClaimMonitor) checkResolvedAgainstHonestActor(proxy common.Address, claim *types.EnrichedClaim, unexpected map[common.Address]int, expected map[common.Address]int) {
 	for _, actor := range c.honestActors {
-		if claim.Claimant == actor && claim.CounteredBy != (common.Address{}) {
-			unexpected[actor]++
-			c.logger.Error("Claim resolved against honest actor", "game", proxy, "honest_actor", actor, "countered_by", claim.CounteredBy, "claim_contract_index", claim.ContractIndex)
+		if claim.Claimant == actor {
+			if claim.CounteredBy != (common.Address{}) {
+				unexpected[actor]++
+				c.logger.Error("Claim resolved against honest actor", "game", proxy, "honest_actor", actor, "countered_by", claim.CounteredBy, "claim_contract_index", claim.ContractIndex)
+			} else {
+				expected[actor]++
+			}
 			break
 		}
 	}
@@ -57,6 +62,7 @@ func (c *ClaimMonitor) checkGameClaims(
 	game *types.EnrichedGameData,
 	claimStatus map[metrics.ClaimStatus]int,
 	unexpected map[common.Address]int,
+	expected map[common.Address]int,
 ) {
 	// Check if the game is in the first half
 	duration := uint64(c.clock.Now().Unix()) - game.Timestamp
@@ -66,7 +72,7 @@ func (c *ClaimMonitor) checkGameClaims(
 	for _, claim := range game.Claims {
 		// Check if the claim has resolved against an honest actor
 		if claim.Resolved {
-			c.checkResolvedAgainstHonestActor(game.Proxy, &claim, unexpected)
+			c.checkResolvedAgainstHonestActor(game.Proxy, &claim, unexpected, expected)
 		}
 
 		// Check if the clock has expired

@@ -39,12 +39,18 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 		monitor.CheckClaims(games)
 
 		// Our honest actors 0x01 has claims resolved against them (1 per game)
-		require.Equal(t, 2, cMetrics.unexpected[common.Address{0x01}])
-		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x02}])
+		require.Equal(t, 2, cMetrics.invalid[common.Address{0x01}])
+		require.Equal(t, 0, cMetrics.invalid[common.Address{0x02}])
 
-		// The other actors should not be metriced
-		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x03}])
-		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x04}])
+		// Should report the number of valid claims
+		require.Equal(t, 0, cMetrics.valid[common.Address{0x01}])
+		require.Equal(t, 2, cMetrics.valid[common.Address{0x02}])
+
+		// Should not have metrics for the actors not in the honest list
+		require.NotContains(t, cMetrics.invalid, common.Address{0x03})
+		require.NotContains(t, cMetrics.valid, common.Address{0x03})
+		require.NotContains(t, cMetrics.invalid, common.Address{0x04})
+		require.NotContains(t, cMetrics.valid, common.Address{0x04})
 	})
 }
 
@@ -60,8 +66,9 @@ func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock
 }
 
 type stubClaimMetrics struct {
-	calls      map[metrics.ClaimStatus]int
-	unexpected map[common.Address]int
+	calls   map[metrics.ClaimStatus]int
+	invalid map[common.Address]int
+	valid   map[common.Address]int
 }
 
 func (s *stubClaimMetrics) RecordClaims(status metrics.ClaimStatus, count int) {
@@ -71,11 +78,15 @@ func (s *stubClaimMetrics) RecordClaims(status metrics.ClaimStatus, count int) {
 	s.calls[status] += count
 }
 
-func (s *stubClaimMetrics) RecordUnexpectedClaimResolution(address common.Address, count int) {
-	if s.unexpected == nil {
-		s.unexpected = make(map[common.Address]int)
+func (s *stubClaimMetrics) RecordHonestActorClaimResolution(address common.Address, invalid int, valid int) {
+	if s.invalid == nil {
+		s.invalid = make(map[common.Address]int)
 	}
-	s.unexpected[address] += count
+	if s.valid == nil {
+		s.valid = make(map[common.Address]int)
+	}
+	s.invalid[address] += invalid
+	s.valid[address] += valid
 }
 
 func makeMultipleTestGames(duration uint64) []*types.EnrichedGameData {
