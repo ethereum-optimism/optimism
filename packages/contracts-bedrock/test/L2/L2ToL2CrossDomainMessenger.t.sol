@@ -157,6 +157,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
+        // Ensure that the target call is payable if value is sent
+        if (_value > 0) assumePayable(_target);
+
         // Ensure that the target contract does not revert
         vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
 
@@ -465,6 +468,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure that payment doesn't overflow since we send value to L2ToL2CrossDomainMessenger twice
         _value = bound(_value, 0, type(uint256).max / 2);
 
+        // Ensure that the target call is payable if value is sent
+        if (_value > 0) assumePayable(_target);
+
         // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
@@ -533,6 +539,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     {
         // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+        // Ensure that the target call is payable if value is sent
+        if (_value > 0) assumePayable(_target);
 
         // Ensure that the target contract reverts
         vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: abi.encode(false) });
