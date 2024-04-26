@@ -34,7 +34,6 @@ func TestMonitorGames(t *testing.T) {
 
 		go func() {
 			headerNotSent := true
-
 			for {
 				if len(sched.Scheduled()) >= 1 {
 					break
@@ -85,7 +84,6 @@ func TestMonitorGames(t *testing.T) {
 			})
 			require.NoError(t, waitErr)
 			mockHeadSource.Sub().errChan <- fmt.Errorf("test error")
-
 			for {
 				if len(sched.Scheduled()) >= 1 {
 					break
