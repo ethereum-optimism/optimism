@@ -51,6 +51,9 @@ contract CrossL2InboxTest is Test {
         // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
         _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
 
+        // Ensure that the target call is payable if value is sent
+        if (_value > 0) assumePayable(_target);
+
         // Ensure that the target call does not revert
         vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
 
@@ -206,6 +209,9 @@ contract CrossL2InboxTest is Test {
     {
         // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
         _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
+
+        // Ensure that the target call is payable if value is sent
+        if (_value > 0) assumePayable(_target);
 
         // Ensure that the target call reverts
         vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: abi.encode(false) });
