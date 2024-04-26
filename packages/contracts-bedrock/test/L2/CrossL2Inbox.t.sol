@@ -98,7 +98,7 @@ contract CrossL2InboxTest is Test {
         vm.deal(address(this), _value);
 
         // Look for the call to the target contract
-        vm.expectCall(_target, _value, _message);
+        vm.expectCall({ callee: _target, msgValue: _value, data: _message });
 
         // Call the executeMessage function
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
@@ -154,7 +154,7 @@ contract CrossL2InboxTest is Test {
         vm.deal(address(this), _value);
 
         // Look for the call to the target contract
-        vm.expectCall(target, _value, message);
+        vm.expectCall({ callee: target, msgValue: _value, data: message });
 
         // Call the executeMessage function
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id1, _target: target, _message: message });
@@ -257,7 +257,7 @@ contract CrossL2InboxTest is Test {
         vm.deal(address(this), _value);
 
         // Look for the call to the target contract
-        vm.expectCall(_target, _value, _message);
+        vm.expectCall({ callee: _target, msgValue: _value, data: _message });
 
         // Expect a revert with the TargetCallFailed selector
         vm.expectRevert(TargetCallFailed.selector);
