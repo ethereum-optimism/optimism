@@ -59,7 +59,7 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 		require.Equal(t, 2, actor2.ValidClaimCount)
 		require.Equal(t, 0, actor2.PendingClaimCount)
 		require.EqualValues(t, 0, actor2.LostBonds.Int64())
-		require.EqualValues(t, 8, actor2.WonBonds.Int64())
+		require.EqualValues(t, 6, actor2.WonBonds.Int64())
 		require.EqualValues(t, 0, actor2.PendingBonds.Int64())
 	})
 }
