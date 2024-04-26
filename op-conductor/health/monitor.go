@@ -192,6 +192,7 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 		return ErrSequencerNotHealthy
 	}
 
+	hm.log.Info("sequencer is healthy")
 	return nil
 }
 
