@@ -35,7 +35,6 @@ func TestMonitorGames(t *testing.T) {
 		go func() {
 			headerNotSent := true
 
-		loop:
 			for {
 				if len(sched.Scheduled()) >= 1 {
 					break
@@ -51,7 +50,7 @@ func TestMonitorGames(t *testing.T) {
 					}:
 						headerNotSent = false
 					case <-ctx.Done():
-						break loop
+						return
 					default:
 					}
 				}
@@ -87,7 +86,6 @@ func TestMonitorGames(t *testing.T) {
 			require.NoError(t, waitErr)
 			mockHeadSource.Sub().errChan <- fmt.Errorf("test error")
 
-		loop:
 			for {
 				if len(sched.Scheduled()) >= 1 {
 					break
@@ -101,13 +99,12 @@ func TestMonitorGames(t *testing.T) {
 					Number: big.NewInt(1),
 				}:
 				case <-ctx.Done():
-					break loop
+					return
 				default:
 				}
 				// Just to avoid a tight loop
 				time.Sleep(100 * time.Millisecond)
 			}
-			require.NoError(t, waitErr)
 			mockHeadSource.SetErr(fmt.Errorf("eth subscribe test error"))
 			cancel()
 		}()
