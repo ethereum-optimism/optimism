@@ -203,12 +203,27 @@ func registerAsterisc(
 	selective bool,
 	claimants []common.Address,
 ) error {
-	asteriscPrestateProvider := asterisc.NewPrestateProvider(cfg.AsteriscAbsolutePreState)
+	var prestateSource PrestateSource
+	if cfg.AsteriscAbsolutePreStateBaseURL != nil {
+		prestateSource = prestates.NewMultiPrestateProvider(cfg.AsteriscAbsolutePreStateBaseURL, filepath.Join(cfg.Datadir, "asterisc-prestates"))
+	} else {
+		prestateSource = prestates.NewSinglePrestateSource(cfg.AsteriscAbsolutePreState)
+	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create fault dispute game contracts: %w", err)
 		}
+		requiredPrestatehash, err := contract.GetAbsolutePrestateHash(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load prestate hash for game %v: %w", game.Proxy, err)
+		}
+		prestatePath, err := prestateSource.PrestatePath(requiredPrestatehash)
+		if err != nil {
+			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
+		}
+		asteriscPrestateProvider := asterisc.NewPrestateProvider(prestatePath)
+
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
