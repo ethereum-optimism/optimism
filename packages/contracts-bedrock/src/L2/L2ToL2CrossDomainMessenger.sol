@@ -153,12 +153,14 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
 
         _storeMessageMetadata(_source, _sender);
 
+        successfulMessages[messageHash] = true;
+
         bool success = _callWithAllGas(_target, _message);
 
         if (success) {
-            successfulMessages[messageHash] = true;
             emit RelayedMessage(messageHash);
         } else {
+            successfulMessages[messageHash] = false;
             emit FailedRelayedMessage(messageHash);
         }
     }
