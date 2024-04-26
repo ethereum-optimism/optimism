@@ -143,7 +143,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Ensure that the target contract does not revert
-        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: "" });
+        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
@@ -454,7 +454,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Ensure that the target contract does not revert
-        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: "" });
+        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
@@ -520,7 +520,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Ensure that the target contract reverts
-        vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: "" });
+        vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: abi.encode(false) });
 
         // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
         vm.mockCall({
