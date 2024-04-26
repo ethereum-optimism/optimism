@@ -187,9 +187,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @param _source Chain ID of the source chain.
     /// @param _sender Address of the sender of the message.
     function _storeMessageMetadata(uint256 _source, address _sender) internal {
-        // Mark as entered in `ENTERED_SLOT`
-        TransientContext.set(ENTERED_SLOT, 1);
-
         TransientContext.set(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, uint160(_sender));
         TransientContext.set(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source);
     }
