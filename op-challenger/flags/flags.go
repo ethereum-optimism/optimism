@@ -437,7 +437,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	if ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
 		parsed, err := url.Parse(ctx.String(AsteriscPreStatesURLFlag.Name))
 		if err != nil {
-			return nil, fmt.Errorf("invalid asterisc pre states url (%v): %w", ctx.String(CannonPreStatesURLFlag.Name), err)
+			return nil, fmt.Errorf("invalid asterisc pre states url (%v): %w", ctx.String(AsteriscPreStatesURLFlag.Name), err)
 		}
 		asteriscPreStatesURL = parsed
 	}
