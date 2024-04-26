@@ -107,8 +107,9 @@ contract CrossL2InboxTest is Test {
         // Call the executeMessage function
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
 
-        // Check that the Identifier was stored correctly, but first we have to increment the call depth to the one
-        // where the Identifier is stored in transient storage
+        // Check that the Identifier was stored correctly, but first we have to increment. This is because
+        // `executeMessage` increments + decrements the transient call depth, so we need to increment to have the
+        // getters use the right call depth.
         CrossL2InboxWithModifiableTransientStorage(Predeploys.CROSS_L2_INBOX).increment();
         assertEq(crossL2Inbox.origin(), _id.origin);
         assertEq(crossL2Inbox.blockNumber(), _id.blockNumber);
