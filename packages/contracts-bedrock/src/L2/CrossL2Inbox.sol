@@ -70,7 +70,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
     ///         Used to differentiate between 0 and nil in transient storage.
     modifier notEntered() {
-        if (TransientContext.get(ENTERED_SLOT) == 0) revert NotEntered();
+        if (TransientContext.callDepth() == 0) revert NotEntered();
         _;
     }
 
