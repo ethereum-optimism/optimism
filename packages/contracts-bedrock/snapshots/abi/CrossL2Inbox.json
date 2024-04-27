@@ -128,6 +128,25 @@
     "type": "function"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "encodedId",
+        "type": "bytes"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "message",
+        "type": "bytes"
+      }
+    ],
+    "name": "ExecutingMessage",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "InvalidChainId",
     "type": "error"
