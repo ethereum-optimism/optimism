@@ -9,9 +9,9 @@ cp -r /validator_setup/secrets /db/secrets
 
 exec /usr/local/bin/lighthouse \
   vc \
-	--datadir="/db" \
+  --datadir="/db" \
   --beacon-nodes="${LH_BEACON_NODES}" \
   --testnet-dir=/genesis \
   --init-slashing-protection \
-  --suggested-fee-recipient="0xff00000000000000000000000000000000c0ffee"
-	"$@"
+  --suggested-fee-recipient="0xff00000000000000000000000000000000c0ffee" \
+  "$@"
