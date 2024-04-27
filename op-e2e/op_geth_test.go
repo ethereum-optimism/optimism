@@ -889,7 +889,7 @@ func TestPreEcotone(t *testing.T) {
 		t.Run(fmt.Sprintf("NilParentBeaconRoot_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
 			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.ecotoneTime
+			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = test.ecotoneTime
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -910,7 +910,7 @@ func TestPreEcotone(t *testing.T) {
 		t.Run(fmt.Sprintf("RejectTstoreTxn%s", test.name), func(t *testing.T) {
 			InitParallel(t)
 			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.ecotoneTime
+			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = test.ecotoneTime
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
