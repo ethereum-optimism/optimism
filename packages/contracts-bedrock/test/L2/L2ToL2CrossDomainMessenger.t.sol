@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -82,19 +83,25 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.deal(address(this), _value);
 
         // Look for correct emitted event
-        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit L2ToL2CrossDomainMessenger.SentMessage(
-            abi.encodeCall(
-                L2ToL2CrossDomainMessenger.relayMessage,
-                (_destination, block.chainid, messageNonce, address(this), _target, _message)
-            )
-        );
+        vm.recordLogs();
 
+        // Call the sendMessage function
         l2ToL2CrossDomainMessenger.sendMessage{ value: _value }({
             _destination: _destination,
             _target: _target,
             _message: _message
         });
+
+        // Check that the SentMessage event was emitted with the correct parameters
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(
+            abi.decode(logs[0].data, (bytes)),
+            abi.encodeCall(
+                L2ToL2CrossDomainMessenger.relayMessage,
+                (_destination, block.chainid, messageNonce, address(this), _target, _message)
+            )
+        );
 
         // Check that the message nonce has been incremented
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);

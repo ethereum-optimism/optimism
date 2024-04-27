@@ -67,7 +67,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
 
     /// @notice Emitted whenever a message is sent to the other chain.
     /// @param data Encoded data of the message that was sent.
-    event SentMessage(bytes data);
+    event SentMessage(bytes data) anonymous;
 
     /// @notice Emitted whenever a message is successfully relayed on this chain.
     /// @param messageHash Hash of the message that was relayed.
