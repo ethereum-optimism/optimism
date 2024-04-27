@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/tools"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
@@ -38,7 +41,10 @@ func CreateGame(ctx *cli.Context) error {
 	traceType := ctx.Uint64(TraceTypeFlag.Name)
 	l2BlockNum := ctx.Uint64(L2BlockNumFlag.Name)
 
-	contract, txMgr, err := NewContractWithTxMgr[*contracts.DisputeGameFactoryContract](ctx, flags.FactoryAddressFlag.Name, contracts.NewDisputeGameFactoryContract)
+	contract, txMgr, err := NewContractWithTxMgr[*contracts.DisputeGameFactoryContract](ctx, flags.FactoryAddressFlag.Name,
+		func(ctx context.Context, metricer contractMetrics.ContractMetricer, address common.Address, caller *batching.MultiCaller) (*contracts.DisputeGameFactoryContract, error) {
+			return contracts.NewDisputeGameFactoryContract(metricer, address, caller), nil
+		})
 	if err != nil {
 		return fmt.Errorf("failed to create dispute game factory bindings: %w", err)
 	}

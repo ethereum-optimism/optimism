@@ -49,7 +49,7 @@ func TestMonitorGames(t *testing.T) {
 					}:
 						headerNotSent = false
 					case <-ctx.Done():
-						break
+						return
 					default:
 					}
 				}
@@ -97,13 +97,12 @@ func TestMonitorGames(t *testing.T) {
 					Number: big.NewInt(1),
 				}:
 				case <-ctx.Done():
-					break
+					return
 				default:
 				}
 				// Just to avoid a tight loop
 				time.Sleep(100 * time.Millisecond)
 			}
-			require.NoError(t, waitErr)
 			mockHeadSource.SetErr(fmt.Errorf("eth subscribe test error"))
 			cancel()
 		}()

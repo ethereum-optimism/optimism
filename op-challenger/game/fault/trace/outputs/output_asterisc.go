@@ -39,7 +39,7 @@ func NewOutputAsteriscTraceAccessor(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch asterisc local inputs: %w", err)
 		}
-		provider := asterisc.NewTraceProvider(logger, m, cfg, localInputs, subdir, depth)
+		provider := asterisc.NewTraceProvider(logger, m, cfg, prestateProvider, localInputs, subdir, depth)
 		return provider, nil
 	}
 
