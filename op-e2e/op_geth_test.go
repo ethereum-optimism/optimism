@@ -71,7 +71,6 @@ func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 	l2Seq := sys.Clients["sequencer"]
 	err = l2Seq.SendTransaction(ctx, tx)
 	require.ErrorContains(t, err, txpool.ErrGasLimit.Error())
-
 }
 
 // TestInvalidDepositInFCU runs an invalid deposit through a FCU/GetPayload/NewPayload/FCU set of calls.
@@ -749,6 +748,7 @@ func TestPreCanyon(t *testing.T) {
 			InitParallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.canyonTime
+			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -770,6 +770,7 @@ func TestPreCanyon(t *testing.T) {
 			InitParallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.canyonTime
+			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
