@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title Transient
+/// @title TransientContext
 /// @notice Library for transient storage.
 library TransientContext {
     /// @notice Slot for call depth.
