@@ -26,6 +26,7 @@ type OutputValidator interface {
 type ForecastMetrics interface {
 	RecordClaimResolutionDelayMax(delay float64)
 	RecordGameAgreement(status metrics.GameAgreementStatus, count int)
+	RecordIgnoredGames(count int)
 }
 
 type forecast struct {
@@ -42,17 +43,17 @@ func newForecast(logger log.Logger, metrics ForecastMetrics, validator OutputVal
 	}
 }
 
-func (f *forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData) {
+func (f *forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData, ignoredCount int) {
 	batch := monTypes.ForecastBatch{}
 	for _, game := range games {
 		if err := f.forecastGame(ctx, game, &batch); err != nil {
 			f.logger.Error("Failed to forecast game", "err", err)
 		}
 	}
-	f.recordBatch(batch)
+	f.recordBatch(batch, ignoredCount)
 }
 
-func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
+func (f *forecast) recordBatch(batch monTypes.ForecastBatch, ignoredCount int) {
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderWins, batch.AgreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderWins, batch.DisagreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.AgreeChallengerWins, batch.AgreeChallengerWins)
@@ -62,6 +63,8 @@ func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
 	f.metrics.RecordGameAgreement(metrics.DisagreeChallengerAhead, batch.DisagreeChallengerAhead)
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderAhead, batch.AgreeDefenderAhead)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderAhead, batch.DisagreeDefenderAhead)
+
+	f.metrics.RecordIgnoredGames(ignoredCount)
 }
 
 func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *monTypes.ForecastBatch) error {

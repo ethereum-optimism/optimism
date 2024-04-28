@@ -85,6 +85,8 @@ type Metricer interface {
 
 	RecordGameAgreement(status GameAgreementStatus, count int)
 
+	RecordIgnoredGames(count int)
+
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
 
 	caching.Metrics
@@ -120,6 +122,7 @@ type Metrics struct {
 	claimResolutionDelayMax prometheus.Gauge
 
 	gamesAgreement prometheus.GaugeVec
+	ignoredGames   prometheus.Gauge
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -214,6 +217,11 @@ func NewMetrics() *Metrics {
 			"completion",
 			"result_correctness",
 			"root_agreement",
+		}),
+		ignoredGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "ignored_games",
+			Help:      "Number of games present in the game window but ignored via config",
 		}),
 		requiredCollateral: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -350,6 +358,10 @@ func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {
 	m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(count))
 }
 
+func (m *Metrics) RecordIgnoredGames(count int) {
+	m.ignoredGames.Set(float64(count))
+}
+
 func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
 	balance := "sufficient"
 	if required.Cmp(available) > 0 {
@@ -400,6 +412,7 @@ func labelValuesFor(status GameAgreementStatus) []string {
 		return asStrings("agree_challenger_wins", !inProgress, !correct, agree)
 	case DisagreeChallengerWins:
 		return asStrings("disagree_challenger_wins", !inProgress, correct, !agree)
+
 	default:
 		panic(fmt.Errorf("unknown game agreement status: %v", status))
 	}
