@@ -205,7 +205,7 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 }
 
 func (cl *L1BeaconClient) fetchSidecars(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error) {
-	var errs []error
+	errs := make([]error, 0, cl.pool.Len())
 	for i := 0; i < cl.pool.Len(); i++ {
 		f := cl.pool.Get()
 		resp, err := f.BeaconBlobSideCars(ctx, cl.cfg.FetchAllSidecars, slot, hashes)
