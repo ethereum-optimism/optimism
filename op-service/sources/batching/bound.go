@@ -62,7 +62,7 @@ func (b *BoundContract) DecodeEvent(log *types.Log) (string, *CallResult, error)
 	}
 
 	argsMap := make(map[string]interface{})
-	var indexed abi.Arguments
+	indexed := make([]abi.Argument, 0, len(event.Inputs))
 	for _, arg := range event.Inputs {
 		if arg.Indexed {
 			indexed = append(indexed, arg)
