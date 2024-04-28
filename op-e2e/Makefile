@@ -64,7 +64,3 @@ clean:
 	rm -r ../.devnet
 	rm -r ../op-program/bin
 .PHONY: clean
-
-fuzz:
-	go test -ldflags=-extldflags=-Wl,-ld_classic -run NOTAREALTEST -v -fuzztime 60s -fuzz FuzzFastLz ./actions
-.PHONY: fuzz

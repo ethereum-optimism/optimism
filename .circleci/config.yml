@@ -1758,11 +1758,6 @@ workflows:
           on_changes: cannon,packages/contracts-bedrock/src/cannon
           uses_artifacts: true
           requires: ["go-mod-download", "pnpm-monorepo"]
-      - fuzz-golang:
-          name: op-e2e-fuzz
-          package_name: op-e2e
-          on_changes: op-e2e,packages/contracts-bedrock/src/
-          requires: [ "go-mod-download" ]
       - go-test:
           name: op-heartbeat-tests
           module: op-heartbeat

@@ -405,7 +405,6 @@ type FjordScalars struct {
 	BaseFeeScalar     uint32
 	CostIntercept     int32
 	CostFastLzCoef    int32
-	CostTxSizeCoef    int32
 }
 
 func (sysCfg *SystemConfig) FjordScalars() (FjordScalars, error) {
@@ -418,14 +417,12 @@ func (sysCfg *SystemConfig) FjordScalars() (FjordScalars, error) {
 				BaseFeeScalar:     math.MaxUint32,
 				CostIntercept:     0,
 				CostFastLzCoef:    0,
-				CostTxSizeCoef:    0,
 			}, nil
 		}
 		return FjordScalars{}, err
 	}
 	if sysCfg.Scalar[0] == L1ScalarFjord {
 		return FjordScalars{
-			CostTxSizeCoef:    int32(binary.BigEndian.Uint32(sysCfg.Scalar[12:16])),
 			CostFastLzCoef:    int32(binary.BigEndian.Uint32(sysCfg.Scalar[16:20])),
 			CostIntercept:     int32(binary.BigEndian.Uint32(sysCfg.Scalar[20:24])),
 			BlobBaseFeeScalar: binary.BigEndian.Uint32(sysCfg.Scalar[24:28]),
@@ -442,7 +439,6 @@ func (sysCfg *SystemConfig) FjordScalars() (FjordScalars, error) {
 			BaseFeeScalar:     ecotoneScalars.BaseFeeScalar,
 			CostIntercept:     0,
 			CostFastLzCoef:    0,
-			CostTxSizeCoef:    1_000_000,
 		}, nil
 	}
 }

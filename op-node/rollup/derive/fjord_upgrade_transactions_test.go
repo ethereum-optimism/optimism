@@ -4,10 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
 func TestFjordSourcesMatchSpec(t *testing.T) {
@@ -42,7 +39,7 @@ func TestFjordNetworkTransactions(t *testing.T) {
 	require.Equal(t, deployFjordGasPriceOracleSource.SourceHash(), deployGasPriceOracle.SourceHash())
 	require.Nil(t, deployGasPriceOracle.To())
 	require.Equal(t, uint64(1_450_000), deployGasPriceOracle.Gas())
-	require.Equal(t, bindings.GasPriceOracleMetaData.Bin, hexutil.Bytes(deployGasPriceOracle.Data()).String())
+	require.Equal(t, gasPriceOracleFjordDeploymentBytecode, deployGasPriceOracle.Data())
 
 	updateGasPriceOracleSender, updateGasPriceOracle := toDepositTxn(t, upgradeTxns[1])
 	require.Equal(t, updateGasPriceOracleSender, common.Address{})
@@ -57,6 +54,6 @@ func TestFjordNetworkTransactions(t *testing.T) {
 	require.Equal(t, enableFjordSource.SourceHash(), gpoSetFjord.SourceHash())
 	require.NotNil(t, gpoSetFjord.To())
 	require.Equal(t, *gpoSetFjord.To(), common.HexToAddress("0x420000000000000000000000000000000000000F"))
-	require.Equal(t, uint64(80_000), gpoSetFjord.Gas())
+	require.Equal(t, uint64(90_000), gpoSetFjord.Gas())
 	require.Equal(t, common.FromHex("0x8e98b106"), gpoSetFjord.Data())
 }

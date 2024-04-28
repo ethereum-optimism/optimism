@@ -231,7 +231,6 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 	if err != nil {
 		return nil, fmt.Errorf("failed to get time to slot function: %w", err)
 	}
-	// block time could have been wrong
 	slot, err := slotFn(ref.Time)
 	if err != nil {
 		return nil, fmt.Errorf("error in converting ref.Time to slot: %w", err)
