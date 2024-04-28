@@ -38,7 +38,7 @@ golang-docker:
 			--progress plain \
 			--load \
 			-f docker-bake.hcl \
-			op-node op-batcher op-proposer op-challenger
+			op-node op-batcher op-proposer op-challenger op-dispute-mon
 .PHONY: golang-docker
 
 chain-mon-docker:
