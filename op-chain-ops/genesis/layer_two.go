@@ -40,10 +40,15 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 		return nil, fmt.Errorf("deploy config mismatch with allocs. Deploy config fundDevAccounts: %v, actual allocs: %v", config.FundDevAccounts, hasDevAccounts)
 	}
 	// sanity check the permit2 immutable, to verify we using the allocs for the right chain.
-	chainID := [32]byte(genspec.Alloc[predeploys.Permit2Addr].Code[6945 : 6945+32])
-	expected := uint256.MustFromBig(genspec.Config.ChainID).Bytes32()
-	if chainID != expected {
-		return nil, fmt.Errorf("allocs were generated for chain ID %x, but expected chain %x (%d)", chainID, expected, genspec.Config.ChainID)
+	if permit2 := genspec.Alloc[predeploys.Permit2Addr].Code; len(permit2) != 0 {
+		if len(permit2) < 6945+32 {
+			return nil, fmt.Errorf("permit2 code is too short")
+		}
+		chainID := [32]byte(permit2[6945 : 6945+32])
+		expected := uint256.MustFromBig(genspec.Config.ChainID).Bytes32()
+		if chainID != expected {
+			return nil, fmt.Errorf("allocs were generated for chain ID %x, but expected chain %x (%d)", chainID, expected, genspec.Config.ChainID)
+		}
 	}
 	return genspec, nil
 }
