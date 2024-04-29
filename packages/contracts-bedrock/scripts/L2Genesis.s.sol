@@ -102,8 +102,14 @@ contract L2Genesis is Deployer {
     /// @notice Sets up the script and ensures the deployer account is used to make calls.
     function setUp() public override {
         deployer = makeAddr("deployer");
-        vm.startPrank(deployer);
         super.setUp();
+    }
+
+    /// @notice Modifier that starts and ends a prank around the function call.
+    modifier asDeployer() {
+        vm.startPrank(deployer)
+        _;
+        vm.endPrank();
     }
 
     function name() public pure override returns (string memory) {
@@ -137,7 +143,7 @@ contract L2Genesis is Deployer {
     }
 
     /// @notice Build the L2 genesis.
-    function runWithOptions(OutputMode _mode, L1Dependencies memory _l1Dependencies) public {
+    function runWithOptions(OutputMode _mode, L1Dependencies memory _l1Dependencies) public asDeployer {
         vm.chainId(cfg.l2ChainID());
 
         dealEthToPrecompiles();
