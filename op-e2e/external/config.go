@@ -54,7 +54,7 @@ type TestParms struct {
 	SkipTests map[string]string `json:"skip_tests"`
 }
 
-func (tp TestParms) SkipIfNecessary(t *testing.T) {
+func (tp TestParms) SkipIfNecessary(t testing.TB) {
 	if len(tp.SkipTests) == 0 {
 		return
 	}

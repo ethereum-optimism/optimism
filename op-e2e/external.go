@@ -65,7 +65,7 @@ func (eec *ExternalEthClient) Close() error {
 	return nil
 }
 
-func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {
+func (er *ExternalRunner) Run(t testing.TB) *ExternalEthClient {
 	if er.BinPath == "" {
 		t.Error("no external bin path set")
 	}

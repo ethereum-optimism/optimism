@@ -84,7 +84,7 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	}
 }
 
-func DefaultSystemConfig(t *testing.T) SystemConfig {
+func DefaultSystemConfig(t testing.TB) SystemConfig {
 	config.ExternalL2TestParms.SkipIfNecessary(t)
 
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
@@ -161,7 +161,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	}
 }
 
-func writeDefaultJWT(t *testing.T) string {
+func writeDefaultJWT(t testing.TB) string {
 	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
 	jwtPath := path.Join(t.TempDir(), "jwt_secret")
 	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0o600); err != nil {
