@@ -1211,6 +1211,18 @@ func TestFees(t *testing.T) {
 		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
 		testFees(t, cfg)
 	})
+	t.Run("fjord", func(t *testing.T) {
+		InitParallel(t)
+		cfg := DefaultSystemConfig(t)
+		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+
+		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisFjordTimeOffset = new(hexutil.Uint64)
+		testFees(t, cfg)
+	})
 }
 
 func testFees(t *testing.T, cfg SystemConfig) {
@@ -1352,11 +1364,48 @@ func testFees(t *testing.T, cfg SystemConfig) {
 	require.NoError(t, err)
 	require.Equal(t, sys.RollupConfig.IsEcotone(header.Time), gpoEcotone, "GPO and chain must have same ecotone view")
 
+	gpoFjord, err := gpoContract.IsFjord(nil)
+	require.NoError(t, err)
+	require.Equal(t, sys.RollupConfig.IsFjord(header.Time), gpoFjord, "GPO and chain must have same fjord view")
+
 	gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, bytes)
 	require.Nil(t, err)
 
 	adjustedGPOFee := gpoL1Fee
-	if sys.RollupConfig.IsRegolith(header.Time) {
+	if sys.RollupConfig.IsFjord(header.Time) {
+		// The tx fastlz size is 102, but the GPO calculation adds extra 68 bytes for the signature
+		// --- Fjord cost function: ---
+		// linear regression: -42.5856 + 102 * 0.8365 = 42
+		// As this value is below the min txn size of 71, we use 71 for calculating the cost
+		// --- GPO: ---
+		// linear regression: -42.5856 + 170 * 0.8365 = 99
+		// For GPO the linear regression output is above 71 due to the signature, so we use that instead
+		// There isn't an easy way to remove the overhead due to clamping. The below is a simple reimplementation
+		// of the solidity calculation.
+
+		l1BaseFee, err := gpoContract.L1BaseFee(&bind.CallOpts{})
+		require.NoError(t, err)
+
+		baseFeeScalar, err := gpoContract.BaseFeeScalar(&bind.CallOpts{})
+		require.NoError(t, err)
+
+		blobBaseFeeScalar, err := gpoContract.BlobBaseFeeScalar(&bind.CallOpts{})
+		require.NoError(t, err)
+
+		blobBaseFee, err := gpoContract.BlobBaseFee(&bind.CallOpts{})
+		require.NoError(t, err)
+
+		feeScaled := new(big.Int).Mul(big.NewInt(int64(baseFeeScalar)), big.NewInt(16))
+		feeScaled.Mul(feeScaled, l1BaseFee)
+
+		blobFeeScaled := new(big.Int).Mul(big.NewInt(int64(blobBaseFeeScalar)), blobBaseFee)
+		feeScaled.Add(feeScaled, blobFeeScaled)
+
+		result := new(big.Int).Mul(big.NewInt(71*1e6), feeScaled)
+		result.Div(result, big.NewInt(1e12))
+
+		adjustedGPOFee = result
+	} else if sys.RollupConfig.IsRegolith(header.Time) {
 		// if post-regolith, adjust the GPO fee by removing the overhead it adds because of signature data
 		artificialGPOOverhead := big.NewInt(68 * 16) // it adds 68 bytes to cover signature and RLP data
 		l1BaseFee := big.NewInt(7)                   // we assume the L1 basefee is the minimum, 7
