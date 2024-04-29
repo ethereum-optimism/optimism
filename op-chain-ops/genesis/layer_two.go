@@ -3,6 +3,7 @@ package genesis
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -22,6 +24,8 @@ type L2AllocsMode string
 const (
 	L2AllocsDelta   L2AllocsMode = "delta"
 	L2AllocsEcotone L2AllocsMode = "" // the default in solidity scripting / testing
+	// l2PredeployNamespace is the namespace for L2 predeploys
+	l2PredeployNamespace = common.HexToAddress("0x4200000000000000000000000000000000000000")
 )
 
 type AllocsLoader func(mode L2AllocsMode) *ForgeAllocs
@@ -42,7 +46,7 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 	// sanity check the permit2 immutable, to verify we using the allocs for the right chain.
 	if permit2 := genspec.Alloc[predeploys.Permit2Addr].Code; len(permit2) != 0 {
 		if len(permit2) < 6945+32 {
-			return nil, fmt.Errorf("permit2 code is too short")
+			return nil, fmt.Errorf("permit2 code is too short (%d)", len(permit2))
 		}
 		chainID := [32]byte(permit2[6945 : 6945+32])
 		expected := uint256.MustFromBig(genspec.Config.ChainID).Bytes32()
@@ -50,6 +54,14 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 			return nil, fmt.Errorf("allocs were generated for chain ID %x, but expected chain %x (%d)", chainID, expected, genspec.Config.ChainID)
 		}
 	}
+	// sanity check that all predeploys are present
+	for i := 0; i < 2048; i++ {
+		addr := common.BigToAddress(new(big.Int).Or(l2PredeployNamespace.Big(), big.NewInt(int64(i))))
+		if len(genspec.Alloc[addr].Code) == 0 {
+			return nil, fmt.Errorf("predeploy %x is missing from L2 genesis allocs", addr)
+		}
+	}
+
 	return genspec, nil
 }
 
