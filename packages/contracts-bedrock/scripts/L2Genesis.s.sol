@@ -109,7 +109,7 @@ contract L2Genesis is Deployer {
     modifier asDeployer() {
         vm.startPrank(deployer);
         _;
-        vm.endPrank();
+        vm.stopPrank();
     }
 
     function name() public pure override returns (string memory) {
