@@ -6,7 +6,7 @@ import "github.com/ethereum/go-ethereum/common"
 // This needs to be kept in sync with @eth-optimism/contracts-ts/wagmi.config.ts which also specifies this
 // To improve robustness and maintainability contracts-bedrock should export all addresses
 const (
-	RevenueSharer                 = "0x4200000000000000000000000000000000000022"
+	RevenueSharer                 = "0x4200000000000000000000000000000000000024"
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
 	WETH9                         = "0x4200000000000000000000000000000000000006"
