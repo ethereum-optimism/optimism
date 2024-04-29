@@ -149,14 +149,14 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	}
 	res, err := d.StartBlockBuilding(ctx, attrs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("start block building: %w", err)
 	}
 
 	envelope, err := d.l2Engine.GetPayload(ctx, eth.PayloadInfo{ID: *res.PayloadID, Timestamp: uint64(attrs.Timestamp)})
 	payload := envelope.ExecutionPayload
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get payload: %w", err)
 	}
 	if !reflect.DeepEqual(payload.Transactions, attrs.Transactions) {
 		return nil, errors.New("required transactions were not included")
@@ -164,7 +164,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 
 	status, err := d.l2Engine.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new payload: %w", err)
 	}
 	if status.Status != eth.ExecutionValid {
 		return nil, fmt.Errorf("%w: %s", ErrNewPayloadNotValid, status.Status)
@@ -176,7 +176,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	}
 	res, err = d.l2Engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("forkchoice update: %w", err)
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, fmt.Errorf("%w: %s", ErrForkChoiceUpdatedNotValid, res.PayloadStatus.Status)

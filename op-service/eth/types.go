@@ -22,6 +22,7 @@ type ErrorCode int
 
 const (
 	UnknownPayload           ErrorCode = -32001 // Payload does not exist / is not available.
+	InvalidParams            ErrorCode = -32602
 	InvalidForkchoiceState   ErrorCode = -38002 // Forkchoice state is invalid / inconsistent.
 	InvalidPayloadAttributes ErrorCode = -38003 // Payload attributes are invalid / inconsistent.
 )

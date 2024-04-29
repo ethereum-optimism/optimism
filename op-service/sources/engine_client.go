@@ -100,7 +100,7 @@ func (s *EngineAPIClient) ForkchoiceUpdate(ctx context.Context, fc *eth.Forkchoi
 		if rpcErr, ok := err.(rpc.Error); ok {
 			code := eth.ErrorCode(rpcErr.ErrorCode())
 			switch code {
-			case eth.InvalidForkchoiceState, eth.InvalidPayloadAttributes:
+			case eth.InvalidParams, eth.InvalidForkchoiceState, eth.InvalidPayloadAttributes:
 				return nil, eth.InputError{
 					Inner: err,
 					Code:  code,
