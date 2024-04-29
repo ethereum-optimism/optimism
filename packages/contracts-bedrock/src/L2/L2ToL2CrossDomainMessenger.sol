@@ -189,6 +189,16 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
         return Encoding.encodeVersionedNonce(msgNonce, messageVersion);
     }
 
+    /// @notice Stores message data such as sender and source in transient storage.
+    /// @param _source Chain ID of the source chain.
+    /// @param _sender Address of the sender of the message.
+    function _storeMessageMetadata(uint256 _source, address _sender) internal {
+        assembly {
+            tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
+            tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
+        }
+    }
+
     /// @notice Sets the entered value in transient storage to true.
     function _setEnteredTrue() internal {
         assembly {
@@ -200,16 +210,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     function _setEnteredFalse() internal {
         assembly {
             sstore(ENTERED_SLOT, 0)
-        }
-    }
-
-    /// @notice Stores message data such as sender and source in transient storage.
-    /// @param _source Chain ID of the source chain.
-    /// @param _sender Address of the sender of the message.
-    function _storeMessageMetadata(uint256 _source, address _sender) internal {
-        assembly {
-            tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
-            tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
         }
     }
 
