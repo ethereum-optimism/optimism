@@ -5,7 +5,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "_sender",
         "type": "address"
       }
     ],
@@ -18,7 +18,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_source",
         "type": "uint256"
       }
     ],
@@ -211,11 +211,6 @@
   {
     "inputs": [],
     "name": "MessageTargetL2ToL2CrossDomainMessenger",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotEntered",
     "type": "error"
   },
   {
