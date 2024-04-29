@@ -114,6 +114,7 @@ library Predeploys {
         if (_addr == GOVERNANCE_TOKEN) return "GovernanceToken";
         if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
         if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
+        if (_addr == REVENUE_SHARER) return "RevenueSharer";
         revert("Predeploys: unnamed predeploy");
     }
 
@@ -129,7 +130,8 @@ library Predeploys {
             || _addr == SEQUENCER_FEE_WALLET || _addr == OPTIMISM_MINTABLE_ERC20_FACTORY || _addr == L1_BLOCK_NUMBER
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
-            || _addr == L1_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS || _addr == GOVERNANCE_TOKEN;
+            || _addr == L1_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS || _addr == GOVERNANCE_TOKEN
+            || _addr == REVENUE_SHARER;
     }
 
     function isPredeployNamespace(address _addr) internal pure returns (bool) {

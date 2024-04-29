@@ -16,6 +16,7 @@ import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
+import { RevenueSharer } from "src/L2/RevenueSharer.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
@@ -214,7 +215,15 @@ contract L2Genesis is Deployer {
         // 1B,1C,1D,1E,1F: not used.
         setSchemaRegistry(); // 20
         setEAS(); // 21
+        setRevenueSharer(); // 24
         setGovernanceToken(); // 42: OP (not behind a proxy)
+    }
+
+    function setRevenueSharer() public {
+        RevenueSharer(Predeploys.REVENUE_SHARER).initialize({
+            _beneficiary: cfg.revenueShareRecipient(),
+            _l1Wallet: cfg.revenueShareRemainderRecipient()
+        });
     }
 
     function setProxyAdmin() public {
