@@ -109,19 +109,27 @@ contract L2Genesis is Deployer {
         });
     }
 
-    /// @dev Sets the precompiles, proxies, and the implementation accounts to be `vm.dumpState`
-    ///      to generate a L2 genesis alloc.
     /// @notice The alloc object is sorted numerically by address.
+    ///         Sets the precompiles, proxies, and the implementation accounts to be `vm.dumpState`
+    ///         to generate a L2 genesis alloc.
     function runWithStateDump() public {
         runWithOptions(OutputMode.DEFAULT_LATEST, artifactDependencies());
     }
 
-    // @dev This is used by op-e2e to have a version of the L2 allocs for each upgrade.
+    /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
+    function run() public {
+        runWithStateDump();
+    }
+
+    /// @notice This is used by op-e2e to have a version of the L2 allocs for each upgrade.
     function runWithAllUpgrades() public {
         runWithOptions(OutputMode.OUTPUT_ALL, artifactDependencies());
     }
 
+    /// @notice Build the L2 genesis.
     function runWithOptions(OutputMode _mode, L1Dependencies memory _l1Dependencies) public {
+        vm.chainId(cfg.l2ChainID());
+
         dealEthToPrecompiles();
         setPredeployProxies();
         setPredeployImplementations(_l1Dependencies);
@@ -151,11 +159,11 @@ contract L2Genesis is Deployer {
         }
     }
 
-    /// @dev Set up the accounts that correspond to the predeploys.
-    ///      The Proxy bytecode should be set. All proxied predeploys should have
-    ///      the 1967 admin slot set to the ProxyAdmin predeploy. All defined predeploys
-    ///      should have their implementations set.
-    ///      Warning: the predeploy accounts have contract code, but 0 nonce value.
+    /// @notice Set up the accounts that correspond to the predeploys.
+    ///         The Proxy bytecode should be set. All proxied predeploys should have
+    ///         the 1967 admin slot set to the ProxyAdmin predeploy. All defined predeploys
+    ///         should have their implementations set.
+    ///         Warning: the predeploy accounts have contract code, but 0 nonce value.
     function setPredeployProxies() public {
         console.log("Setting Predeploy proxies");
         bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
@@ -184,7 +192,7 @@ contract L2Genesis is Deployer {
         }
     }
 
-    /// @dev Sets all the implementations for the predeploy proxies. For contracts without proxies,
+    /// @notice Sets all the implementations for the predeploy proxies. For contracts without proxies,
     ///      sets the deployed bytecode at their expected predeploy address.
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
     function setPredeployImplementations(L1Dependencies memory _l1Dependencies) internal {
