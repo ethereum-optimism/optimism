@@ -533,6 +533,9 @@ contract L2Genesis is Deployer {
         vm.resetNonce(msg.sender);
         vm.deal(msg.sender, 0);
 
+        vm.deal(deployer, 0);
+        vm.resetNonce(deployer);
+
         console.log("Writing state dump to: %s", _path);
         vm.dumpState(_path);
         sortJsonByKeys(_path);
