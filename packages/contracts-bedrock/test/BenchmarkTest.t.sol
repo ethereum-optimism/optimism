@@ -9,6 +9,8 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Types } from "src/libraries/Types.sol";
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import "src/libraries/DisputeTypes.sol";
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
@@ -63,22 +65,23 @@ contract GasBenchMark_OptimismPortal is CommonTest {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = l2OutputOracle.nextBlockNumber();
-        _proposedOutputIndex = l2OutputOracle.nextOutputIndex();
+        _proposedBlockNumber = 0xFF;
+        _proposedOutputIndex = 0;
     }
 
     // Get the system into a nice ready-to-use state.
     function setUp() public virtual override {
         // Configure the oracle to return the output root we've prepared.
-        vm.warp(l2OutputOracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        vm.prank(l2OutputOracle.PROPOSER());
-        l2OutputOracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
-
-        // Warp beyond the finalization period for the block we've proposed.
-        vm.warp(
-            l2OutputOracle.getL2Output(_proposedOutputIndex).timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS()
-                + 1
+        FaultDisputeGame gameProxy = FaultDisputeGame(
+            address(
+                disputeGameFactory.create(GameTypes.CANNON, Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber))
+            )
         );
+
+        // Resolve the dispute so that the output root is accepted.
+        vm.warp(gameProxy.maxClockDuration().raw() * 2 + 1);
+        gameProxy.resolveClaim(0, 0);
+        gameProxy.resolve();
 
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(optimismPortal), 0xFFFFFFFF);

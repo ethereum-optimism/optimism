@@ -5,13 +5,17 @@ import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Types } from "src/libraries/Types.sol";
+
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import "src/libraries/DisputeTypes.sol";
 
 contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
@@ -76,7 +80,7 @@ contract OptimismPortal_Invariant_Harness is CommonTest {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
-    uint256 _proposedOutputIndex;
+    uint256 _proposedGameIndex;
     uint256 _proposedBlockNumber;
     bytes32 _stateRoot;
     bytes32 _storageRoot;
@@ -107,19 +111,25 @@ contract OptimismPortal_Invariant_Harness is CommonTest {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = l2OutputOracle.nextBlockNumber();
-        _proposedOutputIndex = l2OutputOracle.nextOutputIndex();
 
-        // Configure the oracle to return the output root we've prepared.
-        vm.warp(l2OutputOracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        vm.prank(l2OutputOracle.PROPOSER());
-        l2OutputOracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
-
-        // Warp beyond the finalization period for the block we've proposed.
-        vm.warp(
-            l2OutputOracle.getL2Output(_proposedOutputIndex).timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS()
-                + 1
+        // Create a dispute game with the output root we've proposed.
+        _proposedBlockNumber = 0xFF;
+        FaultDisputeGame game = FaultDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create(
+                        optimismPortal.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
+                    )
+                )
+            )
         );
+        _proposedGameIndex = disputeGameFactory.gameCount() - 1;
+
+        // Warp beyond the finalization period for the dispute game and resolve it.
+        vm.warp(block.timestamp + (game.maxClockDuration().raw() * 2) + 1 seconds);
+        game.resolveClaim(0, 0);
+        game.resolve();
+
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(optimismPortal), 0xFFFFFFFF);
     }
@@ -156,7 +166,7 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
         super.setUp();
 
         // Prove the withdrawal transaction
-        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
 
         // Set the target contract to the portal proxy
         targetContract(address(optimismPortal));
@@ -164,13 +174,12 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal)));
     }
 
-    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
-    ///                   period has not elapsed.
+    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the proof maturity period has not elapsed.
     ///
     ///                   A withdrawal that has been proven should not be able to be finalized
-    ///                   until after the finalization period has elapsed.
+    ///                   until after the proof maturity period has elapsed.
     function invariant_cannotFinalizeBeforePeriodHasPassed() external {
-        vm.expectRevert("OptimismPortal: proven withdrawal finalization period has not elapsed");
+        vm.expectRevert("OptimismPortal: proven withdrawal has not matured yet");
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
@@ -180,10 +189,10 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
         super.setUp();
 
         // Prove the withdrawal transaction
-        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
 
-        // Warp past the finalization period.
-        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        // Warp past the proof maturity period.
+        vm.warp(block.timestamp + optimismPortal.proofMaturityDelaySeconds() + 1);
 
         // Finalize the withdrawal transaction.
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
@@ -194,11 +203,10 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal)));
     }
 
-    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal
-    ///                   has already been finalized.
+    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal has already been finalized.
     ///
-    ///                   Ensures that there is no chain of calls that can be made that
-    ///                   allows a withdrawal to be finalized twice.
+    ///                   Ensures that there is no chain of calls that can be made that allows a withdrawal to be
+    ///                   finalized twice.
     function invariant_cannotFinalizeTwice() external {
         vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
         optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
@@ -210,10 +218,10 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant
         super.setUp();
 
         // Prove the withdrawal transaction
-        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
 
-        // Warp past the finalization period.
-        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        // Warp past the proof maturity period.
+        vm.warp(block.timestamp + optimismPortal.proofMaturityDelaySeconds() + 1);
 
         // Set the target contract to the portal proxy
         targetContract(address(optimismPortal));
@@ -221,13 +229,12 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal)));
     }
 
-    /// @custom:invariant A withdrawal should **always** be able to be finalized
-    ///                   `FINALIZATION_PERIOD_SECONDS` after it was successfully proven.
+    /// @custom:invariant A withdrawal should **always** be able to be finalized `PROOF_MATURITY_DELAY_SECONDS` after
+    ///                   it was successfully proven, if the game has resolved and passed the air-gap.
     ///
-    ///                   This invariant asserts that there is no chain of calls that can
-    ///                   be made that will prevent a withdrawal from being finalized
-    ///                   exactly `FINALIZATION_PERIOD_SECONDS` after it was successfully
-    ///                   proven.
+    ///                   This invariant asserts that there is no chain of calls that can be made that will prevent a
+    ///                   withdrawal from being finalized exactly `PROOF_MATURITY_DELAY_SECONDS` after it was
+    ///                   successfully proven and the game has resolved and passed the air-gap.
     function invariant_canAlwaysFinalize() external {
         uint256 bobBalanceBefore = address(bob).balance;
 

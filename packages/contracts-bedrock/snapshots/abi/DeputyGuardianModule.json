@@ -23,7 +23,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract OptimismPortal2",
+        "internalType": "contract OptimismPortal",
         "name": "_portal",
         "type": "address"
       },
@@ -74,7 +74,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract OptimismPortal2",
+        "internalType": "contract OptimismPortal",
         "name": "_portal",
         "type": "address"
       },

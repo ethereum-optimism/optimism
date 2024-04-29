@@ -19,7 +19,6 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -149,7 +148,6 @@ contract Deploy is Deployer {
             AnchorStateRegistry: mustGetAddress("AnchorStateRegistryProxy"),
             OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
-            OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
             SystemConfig: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
@@ -168,7 +166,6 @@ contract Deploy is Deployer {
             AnchorStateRegistry: getAddress("AnchorStateRegistryProxy"),
             OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: getAddress("OptimismPortalProxy"),
-            OptimismPortal2: getAddress("OptimismPortalProxy"),
             SystemConfig: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
@@ -365,11 +362,10 @@ contract Deploy is Deployer {
         deploySystemConfig();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
-        deployOptimismPortal();
         deployL2OutputOracle();
 
         // Fault proofs
-        deployOptimismPortal2();
+        deployOptimismPortal();
         deployDisputeGameFactory();
         deployDelayedWETH();
         deployPreimageOracle();
@@ -389,16 +385,7 @@ contract Deploy is Deployer {
         initializeDisputeGameFactory();
         initializeDelayedWETH();
         initializeAnchorStateRegistry();
-
-        // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
-        // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
-        // contract.
-        if (cfg.useFaultProofs()) {
-            console.log("WARNING: FPAC is enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
-            initializeOptimismPortal2();
-        } else {
-            initializeOptimismPortal();
-        }
+        initializeOptimismPortal();
     }
 
     /// @notice Add Plasma setup to the OP chain
@@ -580,7 +567,15 @@ contract Deploy is Deployer {
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
 
-        OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }();
+        // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
+        require(
+            uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
+        );
+
+        OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
+            _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
+        });
 
         save("OptimismPortal", address(portal));
         console.log("OptimismPortal deployed at %s", address(portal));
@@ -591,33 +586,6 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = address(portal);
         ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(portal);
-    }
-
-    /// @notice Deploy the OptimismPortal2
-    function deployOptimismPortal2() public broadcast returns (address addr_) {
-        console.log("Deploying OptimismPortal2 implementation");
-
-        // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
-        require(
-            uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
-        );
-
-        OptimismPortal2 portal = new OptimismPortal2{ salt: _implSalt() }({
-            _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-            _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
-        });
-
-        save("OptimismPortal2", address(portal));
-        console.log("OptimismPortal2 deployed at %s", address(portal));
-
-        // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
-        // to check the `OptimismPortal2` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal2 = address(portal);
-        ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         addr_ = address(portal);
     }
@@ -1139,7 +1107,7 @@ contract Deploy is Deployer {
         console.log("Upgrading and initializing OptimismPortal proxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
-        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
+        address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
@@ -1149,9 +1117,10 @@ contract Deploy is Deployer {
             _innerCallData: abi.encodeCall(
                 OptimismPortal.initialize,
                 (
-                    L2OutputOracle(l2OutputOracleProxy),
+                    DisputeGameFactory(disputeGameFactoryProxy),
                     SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy)
+                    SuperchainConfig(superchainConfigProxy),
+                    GameType.wrap(uint32(cfg.respectedGameType()))
                 )
             )
         });
@@ -1161,36 +1130,6 @@ contract Deploy is Deployer {
         console.log("OptimismPortal version: %s", version);
 
         ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-    }
-
-    /// @notice Initialize the OptimismPortal2
-    function initializeOptimismPortal2() public broadcast {
-        console.log("Upgrading and initializing OptimismPortal2 proxy");
-        address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
-        address optimismPortal2 = mustGetAddress("OptimismPortal2");
-        address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
-        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
-        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-
-        _upgradeAndCallViaSafe({
-            _proxy: payable(optimismPortalProxy),
-            _implementation: optimismPortal2,
-            _innerCallData: abi.encodeCall(
-                OptimismPortal2.initialize,
-                (
-                    DisputeGameFactory(disputeGameFactoryProxy),
-                    SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy),
-                    GameType.wrap(uint32(cfg.respectedGameType()))
-                )
-            )
-        });
-
-        OptimismPortal2 portal = OptimismPortal2(payable(optimismPortalProxy));
-        string memory version = portal.version();
-        console.log("OptimismPortal2 version: %s", version);
-
-        ChainAssertions.checkOptimismPortal2({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
     function initializeProtocolVersions() public broadcast {

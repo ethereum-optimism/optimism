@@ -21,7 +21,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant l1StandardBridgeProxyAddress = 0x0c8b5822b6e02CDa722174F19A1439A7495a3fA6;
     address internal constant l2OutputOracleAddress = 0x19652082F846171168Daf378C4fD3ee85a0D4A60;
     address internal constant l2OutputOracleProxyAddress = 0x8B71b41D4dBEb2b6821d44692d3fACAAf77480Bb;
-    address internal constant optimismPortalAddress = 0xCEa36be2e9724d88cB107C552c602a8025DB88bA;
+    address internal constant optimismPortalAddress = 0x03b31085AbfD36432E288e8d0604Acd4cB5B0E44;
     address internal constant optimismPortalProxyAddress = 0x978e3286EB805934215a88694d80b09aDed68D90;
     address internal constant protocolVersionsAddress = 0xfbfD64a6C0257F613feFCe050Aa30ecC3E3d7C3F;
     address internal constant protocolVersionsProxyAddress = 0x416C42991d05b31E9A6dC209e91AD22b79D87Ae6;
@@ -187,6 +187,9 @@ contract DeploymentSummary is DeploymentSummaryCode {
         vm.store(optimismPortalAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000032";
         value = hex"000000000000000000000000000000000000000000000000000000000000dead";
+        vm.store(optimismPortalAddress, slot, value);
+        slot = hex"000000000000000000000000000000000000000000000000000000000000003b";
+        value = hex"0000000000000000000000000000000000000000000000000000000100000000";
         vm.store(optimismPortalAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000001";
         value = hex"000000000000000100000000000000000000000000000000000000003b9aca00";
@@ -431,16 +434,13 @@ contract DeploymentSummary is DeploymentSummaryCode {
         value = hex"000000000000000000000000000000000000000000000000000000000000000a";
         vm.store(systemOwnerSafeAddress, slot, value);
         slot = hex"360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
-        value = hex"000000000000000000000000cea36be2e9724d88cb107c552c602a8025db88ba";
+        value = hex"00000000000000000000000003b31085abfd36432e288e8d0604acd4cb5b0e44";
         vm.store(optimismPortalProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
         value = hex"0000000000000000000000000000000000000000000000000000000000000001";
         vm.store(optimismPortalProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
         value = hex"0000000000000000000000000000000000000000000000000000000000000101";
-        vm.store(optimismPortalProxyAddress, slot, value);
-        slot = hex"0000000000000000000000000000000000000000000000000000000000000036";
-        value = hex"0000000000000000000000008b71b41d4dbeb2b6821d44692d3facaaf77480bb";
         vm.store(optimismPortalProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000037";
         value = hex"0000000000000000000000001c23a6d89f95ef3148bcda8e242cab145bf9c0e4";
@@ -450,6 +450,9 @@ contract DeploymentSummary is DeploymentSummaryCode {
         vm.store(optimismPortalProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000032";
         value = hex"000000000000000000000000000000000000000000000000000000000000dead";
+        vm.store(optimismPortalProxyAddress, slot, value);
+        slot = hex"000000000000000000000000000000000000000000000000000000000000003b";
+        value = hex"0000000000000000000000000000000000000000000000000000000100000000";
         vm.store(optimismPortalProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000001";
         value = hex"000000000000000100000000000000000000000000000000000000003b9aca00";

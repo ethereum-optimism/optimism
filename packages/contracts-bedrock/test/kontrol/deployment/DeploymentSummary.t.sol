@@ -55,7 +55,7 @@ contract DeploymentSummary_TestOptimismPortal is DeploymentSummary, OptimismPort
     function test_constructor_succeeds() external view override {
         // OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
         OptimismPortal opImpl = OptimismPortal(payable(optimismPortalAddress));
-        assertEq(address(opImpl.l2Oracle()), address(0));
+        assertEq(address(opImpl.disputeGameFactory()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
         assertEq(address(opImpl.superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), Constants.DEFAULT_L2_SENDER);
@@ -67,21 +67,13 @@ contract DeploymentSummary_TestOptimismPortal is DeploymentSummary, OptimismPort
     function test_initialize_succeeds() external view override {
         // address guardian = deploy.cfg().superchainConfigGuardian();
         address guardian = superchainConfig.guardian();
-        assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
+        assertEq(address(optimismPortal.disputeGameFactory()), address(disputeGameFactory));
         assertEq(address(optimismPortal.systemConfig()), address(systemConfig));
         assertEq(optimismPortal.guardian(), guardian);
         assertEq(address(optimismPortal.superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal.paused(), false);
     }
-
-    /// @notice This test is overridden because `KontrolDeployment` doesn't initialize
-    ///         the L2OutputOracle, which is needed in this test
-    function test_simple_isOutputFinalized_succeeds() external override { }
-
-    /// @notice This test is overridden because `KontrolDeployment` doesn't initialize
-    ///         the L2OutputOracle, which is needed in this test
-    function test_isOutputFinalized_succeeds() external override { }
 }
 
 contract DeploymentSummary_TestL1CrossDomainMessenger is DeploymentSummary, L1CrossDomainMessenger_Test {

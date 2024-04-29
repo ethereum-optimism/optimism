@@ -27,7 +27,6 @@ contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
 
     /// @dev Sets up the test environment
     function setUp() public virtual override {
-        super.enableFaultProofs();
         super.setUp();
 
         // Create a Safe with 10 owners
@@ -163,8 +162,8 @@ contract DeputyGuardianModule_BlacklistDisputeGame_Test is DeputyGuardianModule_
         emit DisputeGameBlacklisted(game);
 
         vm.prank(address(deputyGuardian));
-        deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
-        assertTrue(optimismPortal2.disputeGameBlacklist(game));
+        deputyGuardianModule.blacklistDisputeGame(optimismPortal, game);
+        assertTrue(optimismPortal.disputeGameBlacklist(game));
     }
 }
 
@@ -173,24 +172,24 @@ contract DeputyGuardianModule_BlacklistDisputeGame_TestFail is DeputyGuardianMod
     function test_blacklistDisputeGame_notDeputyGuardian_reverts() external {
         IDisputeGame game = IDisputeGame(makeAddr("game"));
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
-        deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
-        assertFalse(optimismPortal2.disputeGameBlacklist(game));
+        deputyGuardianModule.blacklistDisputeGame(optimismPortal, game);
+        assertFalse(optimismPortal.disputeGameBlacklist(game));
     }
 
     /// @dev Tests that when the call from the Safe reverts, the error message is returned.
     function test_blacklistDisputeGame_targetReverts_reverts() external {
         vm.mockCallRevert(
-            address(optimismPortal2),
-            abi.encodeWithSelector(optimismPortal2.blacklistDisputeGame.selector),
-            "OptimismPortal2: blacklistDisputeGame reverted"
+            address(optimismPortal),
+            abi.encodeWithSelector(optimismPortal.blacklistDisputeGame.selector),
+            "OptimismPortal: blacklistDisputeGame reverted"
         );
 
         IDisputeGame game = IDisputeGame(makeAddr("game"));
         vm.prank(address(deputyGuardian));
         vm.expectRevert(
-            abi.encodeWithSelector(ExecutionFailed.selector, "OptimismPortal2: blacklistDisputeGame reverted")
+            abi.encodeWithSelector(ExecutionFailed.selector, "OptimismPortal: blacklistDisputeGame reverted")
         );
-        deputyGuardianModule.blacklistDisputeGame(optimismPortal2, game);
+        deputyGuardianModule.blacklistDisputeGame(optimismPortal, game);
     }
 }
 
@@ -205,50 +204,50 @@ contract DeputyGuardianModule_setRespectedGameType_Test is DeputyGuardianModule_
         emit RespectedGameTypeSet(_gameType);
 
         vm.prank(address(deputyGuardian));
-        deputyGuardianModule.setRespectedGameType(optimismPortal2, _gameType);
-        assertEq(GameType.unwrap(optimismPortal2.respectedGameType()), GameType.unwrap(_gameType));
-        assertEq(optimismPortal2.respectedGameTypeUpdatedAt(), uint64(block.timestamp));
+        deputyGuardianModule.setRespectedGameType(optimismPortal, _gameType);
+        assertEq(GameType.unwrap(optimismPortal.respectedGameType()), GameType.unwrap(_gameType));
+        assertEq(optimismPortal.respectedGameTypeUpdatedAt(), uint64(block.timestamp));
     }
 }
 
 contract DeputyGuardianModule_setRespectedGameType_TestFail is DeputyGuardianModule_TestInit {
     /// @dev Tests that `setRespectedGameType` when called by a non deputy guardian.
     function testFuzz_setRespectedGameType_notDeputyGuardian_reverts(GameType _gameType) external {
-        vm.assume(GameType.unwrap(optimismPortal2.respectedGameType()) != GameType.unwrap(_gameType));
+        vm.assume(GameType.unwrap(optimismPortal.respectedGameType()) != GameType.unwrap(_gameType));
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
-        deputyGuardianModule.setRespectedGameType(optimismPortal2, _gameType);
-        assertNotEq(GameType.unwrap(optimismPortal2.respectedGameType()), GameType.unwrap(_gameType));
+        deputyGuardianModule.setRespectedGameType(optimismPortal, _gameType);
+        assertNotEq(GameType.unwrap(optimismPortal.respectedGameType()), GameType.unwrap(_gameType));
     }
 
     /// @dev Tests that when the call from the Safe reverts, the error message is returned.
     function test_setRespectedGameType_targetReverts_reverts() external {
         vm.mockCallRevert(
-            address(optimismPortal2),
-            abi.encodeWithSelector(optimismPortal2.setRespectedGameType.selector),
-            "OptimismPortal2: setRespectedGameType reverted"
+            address(optimismPortal),
+            abi.encodeWithSelector(optimismPortal.setRespectedGameType.selector),
+            "OptimismPortal: setRespectedGameType reverted"
         );
 
         GameType gameType = GameType.wrap(1);
         vm.prank(address(deputyGuardian));
         vm.expectRevert(
-            abi.encodeWithSelector(ExecutionFailed.selector, "OptimismPortal2: setRespectedGameType reverted")
+            abi.encodeWithSelector(ExecutionFailed.selector, "OptimismPortal: setRespectedGameType reverted")
         );
-        deputyGuardianModule.setRespectedGameType(optimismPortal2, gameType);
+        deputyGuardianModule.setRespectedGameType(optimismPortal, gameType);
     }
 }
 
 contract DeputyGuardianModule_NoPortalCollisions_Test is DeputyGuardianModule_TestInit {
-    /// @dev tests that no function selectors in the L1 contracts collide with the OptimismPortal2 functions called by
+    /// @dev tests that no function selectors in the L1 contracts collide with the OptimismPortal functions called by
     ///      the DeputyGuardianModule.
     function test_noPortalCollisions_succeeds() external {
         string[] memory excludes = new string[](1);
-        excludes[0] = "src/L1/OptimismPortal2.sol";
+        excludes[0] = "src/L1/OptimismPortal.sol";
         Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,universal}/", excludes);
         for (uint256 i; i < abis.length; i++) {
             for (uint256 j; j < abis[i].entries.length; j++) {
                 bytes4 sel = abis[i].entries[j].sel;
-                assertNotEq(sel, optimismPortal2.blacklistDisputeGame.selector);
-                assertNotEq(sel, optimismPortal2.setRespectedGameType.selector);
+                assertNotEq(sel, optimismPortal.blacklistDisputeGame.selector);
+                assertNotEq(sel, optimismPortal.setRespectedGameType.selector);
             }
         }
     }

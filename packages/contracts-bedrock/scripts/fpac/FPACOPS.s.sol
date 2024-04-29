@@ -16,7 +16,7 @@ contract FPACOPS is Deploy, StdAssertions {
     ////////////////////////////////////////////////////////////////
 
     function deployFPAC(address _proxyAdmin, address _systemOwnerSafe, address _superchainConfigProxy) public {
-        console.log("Deploying a fresh FPAC system and OptimismPortal2 implementation.");
+        console.log("Deploying a fresh FPAC system and OptimismPortal implementation.");
 
         prankDeployment("ProxyAdmin", msg.sender);
         prankDeployment("SystemOwnerSafe", msg.sender);
@@ -35,7 +35,7 @@ contract FPACOPS is Deploy, StdAssertions {
         deployMips();
 
         // Deploy the new `OptimismPortal` implementation.
-        deployOptimismPortal2();
+        deployOptimismPortal();
 
         // Initialize the proxies.
         initializeDisputeGameFactoryProxy();
@@ -153,7 +153,7 @@ contract FPACOPS is Deploy, StdAssertions {
     /// @notice Checks that the deployed system is configured correctly.
     function postDeployAssertions(address _proxyAdmin, address _systemOwnerSafe) internal view {
         Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal2 = mustGetAddress("OptimismPortal2");
+        contracts.OptimismPortal = mustGetAddress("OptimismPortal");
 
         // Ensure that `useFaultProofs` is set to `true`.
         assertTrue(cfg.useFaultProofs());
@@ -168,7 +168,7 @@ contract FPACOPS is Deploy, StdAssertions {
         ChainAssertions.checkDelayedWETH(contracts, cfg, true, _systemOwnerSafe);
 
         // Check the config elements in the deployed contracts.
-        ChainAssertions.checkOptimismPortal2(contracts, cfg, false);
+        ChainAssertions.checkOptimismPortal(contracts, cfg, false);
 
         PreimageOracle oracle = PreimageOracle(mustGetAddress("PreimageOracle"));
         assertEq(oracle.minProposalSize(), cfg.preimageOracleMinProposalSize());

@@ -14,7 +14,6 @@ import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -55,7 +54,6 @@ library ChainAssertions {
         checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
         checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
         checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkOptimismPortal2({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
 
@@ -294,42 +292,6 @@ library ChainAssertions {
         console.log("Running chain assertions on the OptimismPortal");
 
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
-
-        // Check that the contract is initialized
-        assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
-
-        address guardian = _cfg.superchainConfigGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Guardian has no code: %s", guardian);
-        }
-
-        if (_isProxy) {
-            require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
-            require(address(portal.systemConfig()) == _contracts.SystemConfig);
-            require(portal.guardian() == guardian);
-            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
-            require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
-            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
-        } else {
-            require(address(portal.l2Oracle()) == address(0));
-            require(address(portal.systemConfig()) == address(0));
-            require(address(portal.superchainConfig()) == address(0));
-            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
-        }
-    }
-
-    /// @notice Asserts the OptimismPortal2 is setup correctly
-    function checkOptimismPortal2(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy
-    )
-        internal
-        view
-    {
-        console.log("Running chain assertions on the OptimismPortal2");
-
-        OptimismPortal2 portal = OptimismPortal2(payable(_contracts.OptimismPortal2));
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });

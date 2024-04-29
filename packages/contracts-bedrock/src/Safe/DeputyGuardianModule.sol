@@ -5,7 +5,7 @@ import { Safe } from "safe-contracts/Safe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Unauthorized } from "src/libraries/PortalErrors.sol";
@@ -109,14 +109,14 @@ contract DeputyGuardianModule is ISemver {
     }
 
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
-    ///      necessary to call `blacklistDisputeGame()` on the `OptimismPortal2` contract.
+    ///      necessary to call `blacklistDisputeGame()` on the `OptimismPortal` contract.
     ///      Only the deputy guardian can call this function.
-    /// @param _portal The `OptimismPortal2` contract instance.
+    /// @param _portal The `OptimismPortal` contract instance.
     /// @param _game The `IDisputeGame` contract instance.
-    function blacklistDisputeGame(OptimismPortal2 _portal, IDisputeGame _game) external {
+    function blacklistDisputeGame(OptimismPortal _portal, IDisputeGame _game) external {
         _onlyDeputyGuardian();
 
-        bytes memory data = abi.encodeCall(OptimismPortal2.blacklistDisputeGame, (_game));
+        bytes memory data = abi.encodeCall(OptimismPortal.blacklistDisputeGame, (_game));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         if (!success) {
@@ -126,14 +126,14 @@ contract DeputyGuardianModule is ISemver {
     }
 
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
-    ///      necessary to call `setRespectedGameType()` on the `OptimismPortal2` contract.
+    ///      necessary to call `setRespectedGameType()` on the `OptimismPortal` contract.
     ///      Only the deputy guardian can call this function.
-    /// @param _portal The `OptimismPortal2` contract instance.
+    /// @param _portal The `OptimismPortal` contract instance.
     /// @param _gameType The `GameType` to set as the respected game type.
-    function setRespectedGameType(OptimismPortal2 _portal, GameType _gameType) external {
+    function setRespectedGameType(OptimismPortal _portal, GameType _gameType) external {
         _onlyDeputyGuardian();
 
-        bytes memory data = abi.encodeCall(OptimismPortal2.setRespectedGameType, (_gameType));
+        bytes memory data = abi.encodeCall(OptimismPortal.setRespectedGameType, (_gameType));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         if (!success) {
