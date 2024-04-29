@@ -59,7 +59,7 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 		}
 		logger.Info("Starting op-challenger", "version", VersionWithMeta)
 
-		cfg, err := flags.NewConfigFromCLI(ctx)
+		cfg, err := flags.NewConfigFromCLI(ctx, logger)
 		if err != nil {
 			return nil, err
 		}

@@ -21,7 +21,7 @@ import (
 func TestOutputCannonGame(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -77,7 +77,7 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 	// The dishonest actor always posts claims with all zeros.
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -116,7 +116,7 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 			ctx := context.Background()
-			sys, _ := startFaultDisputeSystem(t)
+			sys, _ := StartFaultDisputeSystem(t)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", test.disputeL2BlockNumber, common.Hash{0x01})
@@ -147,7 +147,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 			ctx := context.Background()
-			sys, l1Client := startFaultDisputeSystem(t)
+			sys, l1Client := StartFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -184,7 +184,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -220,7 +220,7 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, _ := startFaultDisputeSystem(t, withBatcherStopped())
+	sys, _ := StartFaultDisputeSystem(t, WithBatcherStopped())
 	t.Cleanup(sys.Close)
 
 	// Manually send a tx from the correct batcher key to the batcher input with very large (invalid) data
@@ -263,7 +263,7 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
-		sys, _ := startFaultDisputeSystem(t, withBlobBatches())
+		sys, _ := StartFaultDisputeSystem(t, WithBlobBatches())
 		t.Cleanup(sys.Close)
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -306,7 +306,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
-		sys, _ := startFaultDisputeSystem(t, withEcotone())
+		sys, _ := StartFaultDisputeSystem(t, WithEcotone())
 		t.Cleanup(sys.Close)
 
 		// NOTE: Flake prevention
@@ -315,7 +315,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeBlock.NumberU64()+3))
 
-		receipt := sendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
+		receipt := SendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
 		precompileBlock := receipt.BlockNumber
 		t.Logf("KZG Point Evaluation block number: %d", precompileBlock)
 
@@ -406,7 +406,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 			ctx := context.Background()
-			sys, l1Client := startFaultDisputeSystem(t)
+			sys, l1Client := StartFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -440,7 +440,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -504,7 +504,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -554,7 +554,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -605,7 +605,7 @@ func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -693,7 +693,7 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
-			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000), withBatcherStopped())
+			sys, l1Client := StartFaultDisputeSystem(t, WithSequencerWindowSize(100000), WithBatcherStopped())
 			t.Cleanup(sys.Close)
 
 			blockNum := uint64(1)
@@ -755,7 +755,7 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
-			sys, l1Client := startFaultDisputeSystem(t, withSequencerWindowSize(100000))
+			sys, l1Client := StartFaultDisputeSystem(t, WithSequencerWindowSize(100000))
 			t.Cleanup(sys.Close)
 
 			farFutureBlockNum := uint64(10_000_000)

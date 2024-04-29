@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.47.3
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.48.0
   ci_builder_rust_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
@@ -21,6 +21,9 @@ parameters:
     type: boolean
     default: true # default to running main in case the manual run cancelled an automatic run
   fault_proofs_dispatch:
+    type: boolean
+    default: false
+  reproducibility_dispatch:
     type: boolean
     default: false
   kontrol_dispatch:
@@ -120,6 +123,8 @@ jobs:
       - checkout
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
+      - attach_workspace:
+          at: "."
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -229,11 +234,17 @@ jobs:
             - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
             - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
             - ".devnet/allocs-l1.json"
+            - ".devnet/allocs-l2.json"
+            - ".devnet/allocs-l2-delta.json"
             - ".devnet/addresses.json"
             - ".devnet-fault-proofs/allocs-l1.json"
             - ".devnet-fault-proofs/addresses.json"
+            - ".devnet-fault-proofs/allocs-l2.json"
+            - ".devnet-fault-proofs/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l1.json"
             - ".devnet-plasma/addresses.json"
+            - ".devnet-plasma/allocs-l2.json"
+            - ".devnet-plasma/allocs-l2-delta.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
 
@@ -507,6 +518,16 @@ jobs:
             pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          # The solc warnings check must be the first step to build the contracts, that way the
+          # warnings are output here. On subsequent runs, forge will read artifacts from the cache
+          # so warnings would not occur.
+          name: solc warnings check
+          command: |
+            forge build --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
           name: gas snapshot
           command: |
             pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
@@ -526,10 +547,21 @@ jobs:
             pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          name: size check
+          command: |
+            forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**" || echo "export SIZE_CHECK=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
           name: check statuses
           command: |
             if [[ "$LINT_STATUS" -ne 0 ]]; then
               echo "Linting failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$SOLC_WARNINGS_CHECK" -ne 0 ]]; then
+              echo "Solidity emitted warnings, see job output for details."
               FAILED=1
             fi
             if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
@@ -550,6 +582,10 @@ jobs:
             fi
             if [[ "$SNAPSHOTS_STATUS" -ne 0 ]]; then
               echo "Snapshots check failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$SIZE_CHECK" -ne 0 ]]; then
+              echo "Contract(s) exceed size limit, see job output for details."
               FAILED=1
             fi
             if [[ "$FAILED" -ne 0 ]]; then
@@ -576,41 +612,6 @@ jobs:
           name: validate spacers
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
-
-  op-bindings-build:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: check go bindings
-          command: make && git diff --exit-code
-          working_directory: op-bindings
-
-  bindgen-remote:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: bindgen remote bindings
-          command: make bindgen-remote && git diff --exit-code
-          working_directory: op-bindings
-      - notify-failures-on-develop
-
-  bindgen-test-e2e:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: bindgen test E2E
-          command: make test-bindgen-e2e
-          working_directory: op-bindings-e2e
-      - notify-failures-on-develop
 
   js-lint-test:
     parameters:
@@ -749,12 +750,19 @@ jobs:
       on_changes:
         description: changed pattern to fire fuzzer on
         type: string
+      uses_artifacts:
+        description: should load in foundry artifacts
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
           patterns: "<<parameters.package_name>>"
+      - attach_workspace:
+          at: "."
+          if: ${{ uses_artifacts }}
       - restore_cache:
           name: Restore Go modules cache
           key: gomod-{{ checksum "go.sum" }}
@@ -938,6 +946,8 @@ jobs:
           name: Load devnet-allocs
           command: |
             mkdir -p .devnet
+            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l2.json .devnet/allocs-l2.json
+            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
             cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l1.json .devnet/allocs-l1.json
             cp /tmp/workspace/.devnet<<parameters.fpac>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
@@ -1110,6 +1120,52 @@ jobs:
             - "op-program/bin/meta.json"
             - "op-program/bin/prestate-proof.json"
 
+  preimage-reproducibility:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    parameters:
+      version:
+        type: string
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Switch to tag
+          command: |
+            git fetch
+            git checkout "op-program/v<<parameters.version>>"
+            git submodule update --init --recursive
+      - run:
+          name: Set expected prestate hashes
+          command: |
+            if [[ "<<parameters.version>>" == "0.1.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x038942ec840131a63c49fa514a3f0577ae401fd5584d56ad50cdf5a8b41d4538"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "0.2.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "0.3.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x034c8cc69f22c35ae386a97136715dd48aaf97fd190942a111bfa680c2f2f421"' >> $BASH_ENV
+            else
+              echo "Unknown prestate version <<parameters.version>>"
+              exit 1
+            fi
+      - run:
+          name: Build prestate
+          command: make reproducible-prestate
+      - run:
+          name: Verify prestate
+          command: |
+            ACTUAL=$(jq -r .pre ./op-program/bin/prestate-proof.json)
+            echo "Expected: ${EXPECTED_PRESTATE_HASH}"
+            echo "Actual:   ${ACTUAL}"
+            if [[ "${EXPECTED_PRESTATE_HASH}" != "${ACTUAL}" ]]
+            then
+              echo "Prestate did not match expected"
+              exit 1
+            fi
+      - notify-failures-on-develop:
+          mentions: "@proofs-squad"
+
+
   devnet-allocs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -1130,6 +1186,8 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
+            - ".devnet/allocs-l2.json"
+            - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l1.json"
             - ".devnet/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
@@ -1562,7 +1620,6 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - op-bindings-build
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
@@ -1626,7 +1683,8 @@ workflows:
           name: cannon-fuzz
           package_name: cannon
           on_changes: cannon,packages/contracts-bedrock/src/cannon
-          requires: ["go-mod-download"]
+          uses_artifacts: true
+          requires: ["go-mod-download", "pnpm-monorepo"]
       - go-test:
           name: op-heartbeat-tests
           module: op-heartbeat
@@ -1825,7 +1883,9 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
-      - cannon-go-lint-and-test
+      - cannon-go-lint-and-test:
+          requires:
+            - pnpm-monorepo
       - cannon-build-test-vectors
       - shellcheck/check:
           name: shell-check
@@ -1843,14 +1903,14 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build: # just to warm up the cache (other jobs run in parallel)
           name: op-stack-go-docker-build-release
           filters:
             tags:
-              only: /^(proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
           docker_name: op-stack-go
@@ -1956,6 +2016,21 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-conductor
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - docker-build:
+          name: da-server-docker-release
+          filters:
+            tags:
+              only: /^da-server\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: da-server
           docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
@@ -2262,15 +2337,16 @@ workflows:
             - oplabs-gcr
             - slack
 
-  scheduled-bindgen:
+  scheduled-preimage-reproducibility:
     when:
-      equal: [ build_daily, <<pipeline.schedule.name>> ]
+      or:
+        - equal: [build_daily, <<pipeline.schedule.name>> ]
+        # Trigger on manual triggers if explicitly requested
+        - equal: [ true, << pipeline.parameters.reproducibility_dispatch >> ]
     jobs:
-      - bindgen-remote:
+      - preimage-reproducibility:
+          matrix:
+            parameters:
+              version: ["0.1.0", "0.2.0", "0.3.0"]
           context:
-            - slack
-            - oplabs-etherscan
-      - bindgen-test-e2e:
-          context:
-            - slack
-            - oplabs-etherscan
+            slack

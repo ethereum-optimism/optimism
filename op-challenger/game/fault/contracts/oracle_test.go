@@ -355,12 +355,10 @@ func setupPreimageOracleTestWithProposals(t *testing.T, block rpcblock.Block) (*
 }
 
 func setupPreimageOracleTest(t *testing.T) (*batchingTest.AbiBasedRpc, *PreimageOracleContract) {
-	oracleAbi, err := snapshots.LoadPreimageOracleABI()
-	require.NoError(t, err)
+	oracleAbi := snapshots.LoadPreimageOracleABI()
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, oracleAddr, oracleAbi)
-	oracleContract, err := NewPreimageOracleContract(oracleAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
-	require.NoError(t, err)
+	oracleContract := NewPreimageOracleContract(oracleAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
 
 	return stubRpc, oracleContract
 }

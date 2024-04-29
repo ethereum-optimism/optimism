@@ -479,7 +479,14 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
+	var allocsMode genesis.L2AllocsMode
+	allocsMode = genesis.L2AllocsDelta
+	if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
+		allocsMode = genesis.L2AllocsEcotone
+	}
+	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
+	l2Allocs := config.L2Allocs(allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
 	if err != nil {
 		return nil, err
 	}

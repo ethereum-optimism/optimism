@@ -43,7 +43,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	genesisBlock := hexutil.Uint64(0)
-	ecotoneOffset := hexutil.Uint64(2)
+	ecotoneOffset := hexutil.Uint64(4)
 
 	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
 
@@ -58,6 +58,10 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
+
+	// build a single block to move away from the genesis with 0-values in L1Block contract
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
@@ -101,7 +105,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 		txn := transactions[i]
 		receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
 		require.NoError(t, err)
-		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %d must pass", i)
 		require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
 	}
 
@@ -162,11 +166,14 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NotNil(t, latestBlock.BeaconRoot())
 	require.Equal(t, *latestBlock.BeaconRoot(), common.Hash{},
 		"L1 genesis block has zeroed parent-beacon-block-root, since it has no parent block, and that propagates into L2")
-	// The first block is an exception in upgrade-networks,
-	// since the beacon-block root contract isn't there at Ecotone activation,
-	// and the beacon-block-root insertion is processed at the start of the block before deposit txs.
-	// If the contract was permissionlessly deployed before, the contract storage will be updated however.
-	checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, 0, "ecotone activation block has no data yet (since contract wasn't there)")
+	// Legacy check:
+	// > The first block is an exception in upgrade-networks,
+	// > since the beacon-block root contract isn't there at Ecotone activation,
+	// > and the beacon-block-root insertion is processed at the start of the block before deposit txs.
+	// > If the contract was permissionlessly deployed before, the contract storage will be updated however.
+	// > checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, 0, "ecotone activation block has no data yet (since contract wasn't there)")
+	// Note: 4788 is now installed as preinstall, and thus always there.
+	checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, latestBlock.Time(), "4788 lookup of first cancun block is 0 hash")
 
 	// Build empty L2 block, to pass ecotone activation
 	sequencer.ActL2StartBlock(t)

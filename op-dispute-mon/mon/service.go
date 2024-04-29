@@ -96,7 +96,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initGameCallerCreator() // Must be called before initForecast
 
 	s.initDelayCalculator()
-	s.initExtractor()
+	s.initExtractor(cfg)
 
 	s.initForecast(cfg)
 	s.initBonds()
@@ -133,11 +133,12 @@ func (s *Service) initDelayCalculator() {
 	s.delays = resolution.NewDelayCalculator(s.metrics, s.cl)
 }
 
-func (s *Service) initExtractor() {
+func (s *Service) initExtractor(cfg *config.Config) {
 	s.extractor = extract.NewExtractor(
 		s.logger,
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
+		cfg.IgnoredGames,
 		extract.NewClaimEnricher(),
 		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher
 		extract.NewWithdrawalsEnricher(),
@@ -209,11 +210,8 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 }
 
 func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract, err := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
+	factoryContract := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
 		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
-	if err != nil {
-		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
-	}
 	s.factoryContract = factoryContract
 	return nil
 }

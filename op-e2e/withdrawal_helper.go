@@ -205,7 +205,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		require.Nil(t, err)
 
 		time.Sleep(time.Duration(expiry) * time.Second)
-		resolveClaimTx, err := proxy.ResolveClaim(opts, common.Big0)
+		resolveClaimTx, err := proxy.ResolveClaim(opts, common.Big0, common.Big0)
 		require.Nil(t, err)
 
 		resolveClaimReceipt, err = wait.ForReceiptOK(ctx, l1Client, resolveClaimTx.Hash())

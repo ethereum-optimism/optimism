@@ -270,7 +270,7 @@ still there are opportunities to better document the proper process internally.
 ### Public disclosure
 
 Moving forward, we will adopt a process similar to the Geth team’s
-[silent patch policy](https://geth.ethereum.org/docs/vulnerabilities/vulnerabilities#why-silent-patches).
+[silent patch policy](https://geth.ethereum.org/docs/developers/geth-developer/disclosures#why-silent-patches).
 
 This means that we reserve the right to hide the fix, and delay the public announcement. We also
 reserve the right to directly notify a subset of downstream users prior to the public announcement.

@@ -262,8 +262,7 @@ contract Deploy is Deployer {
 
     function runWithStateDump() public {
         _run();
-
-        vm.dumpState(Config.stateDumpPath(name()));
+        vm.dumpState(Config.stateDumpPath(""));
     }
 
     /// @notice Deploy all L1 contracts and write the state diff to a file.
@@ -273,12 +272,16 @@ contract Deploy is Deployer {
 
     /// @notice Internal function containing the deploy logic.
     function _run() internal {
+        console.log("start of L1 Deploy!");
         deploySafe();
+        console.log("deployed Safe!");
         setupSuperchain();
+        console.log("set up superchain!");
         if (cfg.usePlasma()) {
             setupOpPlasma();
         }
         setupOpChain();
+        console.log("set up op chain!");
     }
 
     ////////////////////////////////////////////////////////////////
@@ -957,7 +960,7 @@ contract Deploy is Deployer {
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
                         l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
-                        l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
+                        disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy")
                     })

@@ -9,12 +9,18 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	gstate "github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 )
+
+// PrecompileCount represents the number of precompile addresses
+// starting from `address(0)` to PrecompileCount that are funded
+// with a single wei in the genesis state.
+const PrecompileCount = 256
 
 var (
 	// uint128Max is type(uint128).max and is set in the init function.
@@ -90,4 +96,29 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 	}
 
 	return memDB.Genesis(), nil
+}
+
+// CreateAccountNotExists creates the account in the `vm.StateDB` if it doesn't exist.
+func CreateAccountNotExists(db vm.StateDB, account common.Address) {
+	if !db.Exist(account) {
+		db.CreateAccount(account)
+	}
+}
+
+// FundDevAccounts will fund each of the development accounts.
+func FundDevAccounts(db vm.StateDB) {
+	for _, account := range DevAccounts {
+		CreateAccountNotExists(db, account)
+		db.AddBalance(account, uint256.MustFromBig(devBalance))
+	}
+}
+
+// SetPrecompileBalances will set a single wei at each precompile address.
+// This is an optimization to make calling them cheaper.
+func SetPrecompileBalances(db vm.StateDB) {
+	for i := 0; i < PrecompileCount; i++ {
+		addr := common.BytesToAddress([]byte{byte(i)})
+		CreateAccountNotExists(db, addr)
+		db.AddBalance(addr, uint256.NewInt(1))
+	}
 }

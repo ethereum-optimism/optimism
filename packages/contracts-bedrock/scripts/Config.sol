@@ -52,9 +52,10 @@ library Config {
 
     /// @notice Returns the path that the state dump file should be written to or read from
     ///         on the local filesystem.
-    function stateDumpPath(string memory _name) internal view returns (string memory _env) {
+    function stateDumpPath(string memory _suffix) internal view returns (string memory _env) {
         _env = vm.envOr(
-            "STATE_DUMP_PATH", string.concat(vm.projectRoot(), "/", _name, "-", vm.toString(block.chainid), ".json")
+            "STATE_DUMP_PATH",
+            string.concat(vm.projectRoot(), "/state-dump-", vm.toString(block.chainid), _suffix, ".json")
         );
     }
 
@@ -94,7 +95,7 @@ library Config {
             return "optimism-goerli";
         } else if (chainid == Chains.OPMainnet) {
             return "optimism-mainnet";
-        } else if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
+        } else if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet || chainid == Chains.OPLocalDevnet) {
             return "devnetL1";
         } else if (chainid == Chains.Hardhat) {
             return "hardhat";

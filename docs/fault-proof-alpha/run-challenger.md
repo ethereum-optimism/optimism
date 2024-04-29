@@ -45,7 +45,7 @@ make op-challenger op-program cannon
   --cannon-bin ./cannon/bin/cannon \
   --cannon-server ./op-program/bin/op-program \
   --cannon-prestate <PRESTATE> \
-  --l2-rpc <L2_URL> \
+  --l2-eth-rpc <L2_URL> \
   --private-key <PRIVATE_KEY>
 ```
 

@@ -30,7 +30,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant safeSingletonAddress = 0x90193C961A926261B756D1E5bb255e67ff9498A1;
     address internal constant superchainConfigAddress = 0x068E44eB31e111028c41598E4535be7468674D0A;
     address internal constant superchainConfigProxyAddress = 0xDEb1E9a6Be7Baf84208BB6E10aC9F9bbE1D70809;
-    address internal constant systemConfigAddress = 0xffbA8944650e26653823658d76A122946F27e2f2;
+    address internal constant systemConfigAddress = 0xD0D3Fd8cE0Ce980F6365c6bE1bfaD9892B979846;
     address internal constant systemConfigProxyAddress = 0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4;
     address internal constant systemOwnerSafeAddress = 0x2601573C28B77dea6C8B73385c25024A28a00C3F;
 
@@ -281,7 +281,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
         value = hex"0000000000000000000000000000000000000000000000000000000000000003";
         vm.store(systemOwnerSafeAddress, slot, value);
         slot = hex"360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
-        value = hex"000000000000000000000000ffba8944650e26653823658d76a122946f27e2f2";
+        value = hex"000000000000000000000000d0d3fd8ce0ce980f6365c6be1bfad9892b979846";
         vm.store(systemConfigProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
         value = hex"0000000000000000000000000000000000000000000000000000000000000001";
@@ -321,9 +321,6 @@ contract DeploymentSummary is DeploymentSummaryCode {
         vm.store(systemConfigProxyAddress, slot, value);
         slot = hex"9904ba90dde5696cda05c9e0dab5cbaa0fea005ace4d11218a02ac668dad6376";
         value = hex"0000000000000000000000000c8b5822b6e02cda722174f19a1439a7495a3fa6";
-        vm.store(systemConfigProxyAddress, slot, value);
-        slot = hex"e52a667f71ec761b9b381c7b76ca9b852adf7e8905da0e0ad49986a0a6871815";
-        value = hex"0000000000000000000000008b71b41d4dbeb2b6821d44692d3facaaf77480bb";
         vm.store(systemConfigProxyAddress, slot, value);
         slot = hex"4b6c74f9e688cb39801f2112c14a8c57232a3fc5202e1444126d4bce86eb19ac";
         value = hex"000000000000000000000000978e3286eb805934215a88694d80b09aded68d90";

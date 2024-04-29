@@ -28,10 +28,12 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     function test_constructor_succeeds() external view {
         L2StandardBridge impl =
             L2StandardBridge(payable(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2StandardBridge"))));
-        assertEq(address(impl.MESSENGER()), address(0));
-        assertEq(address(impl.messenger()), address(0));
-        assertEq(address(impl.OTHER_BRIDGE()), address(0));
-        assertEq(address(impl.otherBridge()), address(0));
+        // The implementation contract is initialized with a 0 L1 bridge address,
+        // but the L2 cross-domain-messenger is always set to the predeploy address for both proxy and implementation.
+        assertEq(address(impl.MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER, "constructor zero check MESSENGER");
+        assertEq(address(impl.messenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER, "constructor zero check messenger");
+        assertEq(address(impl.OTHER_BRIDGE()), address(0), "constructor zero check OTHER_BRIDGE");
+        assertEq(address(impl.otherBridge()), address(0), "constructor zero check otherBridge");
     }
 
     /// @dev Tests that the bridge is initialized correctly.

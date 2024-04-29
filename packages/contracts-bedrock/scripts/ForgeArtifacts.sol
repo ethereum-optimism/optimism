@@ -143,14 +143,30 @@ library ForgeArtifacts {
         slot_ = abi.decode(rawSlot, (StorageSlot));
     }
 
+    /// @notice Returns whether or not a contract is initialized.
+    ///         Needs the name to get the storage layout.
+    function isInitialized(string memory _name, address _address) internal returns (bool initialized_) {
+        StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(_name);
+        bytes32 slotVal = vm.load(_address, bytes32(vm.parseUint(slot.slot)));
+        initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF) != 0;
+    }
+
     /// @notice Returns the function ABIs of all L1 contracts.
     function getContractFunctionAbis(
         string memory path,
-        string memory excludes
+        string[] memory pathExcludes
     )
         internal
         returns (Abi[] memory abis_)
     {
+        string memory pathExcludesPat;
+        for (uint256 i = 0; i < pathExcludes.length; i++) {
+            pathExcludesPat = string.concat(pathExcludesPat, " -path ", pathExcludes[i]);
+            if (i != pathExcludes.length - 1) {
+                pathExcludesPat = string.concat(pathExcludesPat, " -o ");
+            }
+        }
+
         string[] memory command = new string[](3);
         command[0] = Executables.bash;
         command[1] = "-c";
@@ -158,8 +174,8 @@ library ForgeArtifacts {
             Executables.find,
             " ",
             path,
+            bytes(pathExcludesPat).length > 0 ? string.concat(" ! \\( ", pathExcludesPat, " \\)") : "",
             " -type f ",
-            bytes(excludes).length > 0 ? string.concat(" ! -name ", excludes, " ") : "",
             "-exec basename {} \\;",
             " | ",
             Executables.sed,
@@ -188,10 +204,7 @@ library ForgeArtifacts {
     /// @notice Accepts a filepath and then ensures that the directory
     ///         exists for the file to live in.
     function ensurePath(string memory _path) internal {
-        (, bytes memory returndata) =
-            address(vm).call(abi.encodeWithSignature("split(string,string)", _path, string("/")));
-        string[] memory outputs = abi.decode(returndata, (string[]));
-
+        string[] memory outputs = vm.split(_path, "/");
         string memory path = "";
         for (uint256 i = 0; i < outputs.length - 1; i++) {
             path = string.concat(path, outputs[i], "/");

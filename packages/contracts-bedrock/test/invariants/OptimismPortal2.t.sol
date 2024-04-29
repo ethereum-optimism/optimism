@@ -128,7 +128,7 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
 
         // Warp beyond the finalization period for the dispute game and resolve it.
         vm.warp(block.timestamp + (game.maxClockDuration().raw() * 2) + 1 seconds);
-        game.resolveClaim(0);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         // Fund the portal so that we can withdraw ETH.

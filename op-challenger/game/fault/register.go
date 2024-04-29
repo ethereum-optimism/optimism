@@ -3,6 +3,7 @@ package fault
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/asterisc"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
@@ -34,6 +36,13 @@ type Registry interface {
 
 type OracleRegistry interface {
 	RegisterOracle(oracle keccakTypes.LargePreimageOracle)
+}
+
+type PrestateSource interface {
+	// PrestatePath returns the path to the prestate file to use for the game.
+	// The provided prestateHash may be used to differentiate between different states but no guarantee is made that
+	// the returned prestate matches the supplied hash.
+	PrestatePath(prestateHash common.Hash) (string, error)
 }
 
 type RollupClient interface {
@@ -111,9 +120,9 @@ func registerAlphabet(
 	claimants []common.Address,
 ) error {
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create fault dispute game contract: %w", err)
 		}
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
@@ -151,7 +160,7 @@ func registerAlphabet(
 	registry.RegisterGameType(faultTypes.AlphabetGameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 	}
 	registry.RegisterBondContract(faultTypes.AlphabetGameType, contractCreator)
 	return nil
@@ -162,9 +171,9 @@ func registerOracle(ctx context.Context, m metrics.Metricer, oracles OracleRegis
 	if err != nil {
 		return fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
 	}
-	contract, err := contracts.NewFaultDisputeGameContract(m, implAddr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(ctx, m, implAddr, caller)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create fault dispute game contracts: %w", err)
 	}
 	oracle, err := contract.GetOracle(ctx)
 	if err != nil {
@@ -194,12 +203,33 @@ func registerAsterisc(
 	selective bool,
 	claimants []common.Address,
 ) error {
-	asteriscPrestateProvider := asterisc.NewPrestateProvider(cfg.AsteriscAbsolutePreState)
-	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+	var prestateSource PrestateSource
+	if cfg.AsteriscAbsolutePreStateBaseURL != nil {
+		prestateSource = prestates.NewMultiPrestateProvider(cfg.AsteriscAbsolutePreStateBaseURL, filepath.Join(cfg.Datadir, "asterisc-prestates"))
+	} else {
+		prestateSource = prestates.NewSinglePrestateSource(cfg.AsteriscAbsolutePreState)
+	}
+	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
+		prestatePath, err := prestateSource.PrestatePath(prestateHash)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("required prestate %v not available: %w", prestateHash, err)
 		}
+		return asterisc.NewPrestateProvider(prestatePath), nil
+	})
+	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
+		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create fault dispute game contracts: %w", err)
+		}
+		requiredPrestatehash, err := contract.GetAbsolutePrestateHash(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load prestate hash for game %v: %w", game.Proxy, err)
+		}
+		asteriscPrestateProvider, err := prestateProviderCache.GetOrCreate(requiredPrestatehash)
+		if err != nil {
+			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
+		}
+
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
@@ -236,7 +266,7 @@ func registerAsterisc(
 	registry.RegisterGameType(gameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 	}
 	registry.RegisterBondContract(gameType, contractCreator)
 	return nil
@@ -262,12 +292,35 @@ func registerCannon(
 	selective bool,
 	claimants []common.Address,
 ) error {
-	cannonPrestateProvider := cannon.NewPrestateProvider(cfg.CannonAbsolutePreState)
-	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		contract, err := contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+	var prestateSource PrestateSource
+	if cfg.CannonAbsolutePreStateBaseURL != nil {
+		prestateSource = prestates.NewMultiPrestateProvider(cfg.CannonAbsolutePreStateBaseURL, filepath.Join(cfg.Datadir, "cannon-prestates"))
+	} else {
+		prestateSource = prestates.NewSinglePrestateSource(cfg.CannonAbsolutePreState)
+	}
+	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
+		prestatePath, err := prestateSource.PrestatePath(prestateHash)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("required prestate %v not available: %w", prestateHash, err)
 		}
+		return cannon.NewPrestateProvider(prestatePath), nil
+	})
+	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
+		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create fault dispute game contracts: %w", err)
+		}
+		requiredPrestatehash, err := contract.GetAbsolutePrestateHash(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load prestate hash for game %v: %w", game.Proxy, err)
+		}
+
+		cannonPrestateProvider, err := prestateProviderCache.GetOrCreate(requiredPrestatehash)
+
+		if err != nil {
+			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
+		}
+
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
@@ -304,13 +357,13 @@ func registerCannon(
 	registry.RegisterGameType(gameType, playerCreator)
 
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(m, game.Proxy, caller)
+		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 	}
 	registry.RegisterBondContract(gameType, contractCreator)
 	return nil
 }
 
-func loadL1Head(contract *contracts.FaultDisputeGameContract, ctx context.Context, l1HeaderSource L1HeaderSource) (eth.BlockID, error) {
+func loadL1Head(contract contracts.FaultDisputeGameContract, ctx context.Context, l1HeaderSource L1HeaderSource) (eth.BlockID, error) {
 	l1Head, err := contract.GetL1Head(ctx)
 	if err != nil {
 		return eth.BlockID{}, fmt.Errorf("failed to load L1 head: %w", err)
