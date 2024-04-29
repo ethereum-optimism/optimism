@@ -24,8 +24,13 @@ type L2AllocsMode string
 const (
 	L2AllocsDelta   L2AllocsMode = "delta"
 	L2AllocsEcotone L2AllocsMode = "" // the default in solidity scripting / testing
+)
+
+var (
 	// l2PredeployNamespace is the namespace for L2 predeploys
 	l2PredeployNamespace = common.HexToAddress("0x4200000000000000000000000000000000000000")
+	// mnemonic for the test accounts in hardhat/foundry
+	testMnemonic = "test test test test test test test test test test test junk"
 )
 
 type AllocsLoader func(mode L2AllocsMode) *ForgeAllocs
@@ -64,8 +69,6 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 
 	return genspec, nil
 }
-
-var testMnemonic = "test test test test test test test test test test test junk"
 
 func HasAnyDevAccounts(allocs core.GenesisAlloc) (bool, error) {
 	wallet, err := hdwallet.NewFromMnemonic(testMnemonic)
