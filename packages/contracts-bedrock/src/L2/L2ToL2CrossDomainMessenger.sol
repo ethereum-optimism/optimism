@@ -202,14 +202,14 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     /// @notice Sets the entered value in transient storage to true.
     function _setEnteredTrue() internal {
         assembly {
-            sstore(ENTERED_SLOT, 1)
+            tstore(ENTERED_SLOT, 1)
         }
     }
 
     /// @notice Sets the entered value in transient storage to false.
     function _setEnteredFalse() internal {
         assembly {
-            sstore(ENTERED_SLOT, 0)
+            tstore(ENTERED_SLOT, 0)
         }
     }
 

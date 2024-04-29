@@ -44,9 +44,7 @@ contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2Cross
 
     /// @dev Sets the entered slot in transient storage to 1.
     function setEnteredTrue() external {
-        assembly {
-            tstore(ENTERED_SLOT, 1)
-        }
+        _setEnteredTrue();
     }
 
     /// @dev Returns whether the contract is entered.
