@@ -96,10 +96,6 @@ contract L2Genesis is Deployer {
         0x9DCCe783B6464611f38631e6C851bf441907c710 // 29
     ];
 
-    function name() public pure override returns (string memory) {
-        return "L2Genesis";
-    }
-
     function artifactDependencies() internal view returns (L1Dependencies memory l1Dependencies_) {
         console.log("retrieving L1 deployments from artifacts");
         return L1Dependencies({
