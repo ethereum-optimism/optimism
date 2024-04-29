@@ -164,9 +164,9 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
             revert MessageAlreadyRelayed();
         }
 
-        _setEnteredTrue();
-
         _storeMessageMetadata(_source, _sender);
+
+        _setEnteredTrue();
 
         successfulMessages[messageHash] = true;
 
