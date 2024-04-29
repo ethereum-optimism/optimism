@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
@@ -20,7 +21,7 @@ error FailedToShare();
 /// @dev Withdraws funds from system FeeVault contracts,
 /// pays a share of revenue to a designated Beneficiary
 /// and sends the remainder to a configurable adddress on L1.
-contract RevenueSharer {
+contract RevenueSharer is Initializable {
     /*//////////////////////////////////////////////////////////////
                             Constants
     //////////////////////////////////////////////////////////////*/
@@ -49,11 +50,11 @@ contract RevenueSharer {
     /**
      * @dev The address of the Optimism wallet that will receive Optimism's revenue share.
      */
-    address payable public immutable BENEFICIARY;
+    address payable public BENEFICIARY;
     /**
      * @dev The address of the L1 wallet that will receive the OP chain runner's share of fees.
      */
-    address public immutable L1_WALLET;
+    address public L1_WALLET;
 
     /*//////////////////////////////////////////////////////////////
                             Events
@@ -79,10 +80,13 @@ contract RevenueSharer {
      * @param _beneficiary The address which receives the revenue share.
      * @param _l1Wallet The L1 address which receives the remainder of the revenue.
      */
-    constructor(address payable _beneficiary, address _l1Wallet) {
+    constructor(address payable _beneficiary, address payable _l1Wallet) {
+        initialize(_beneficiary, _l1Wallet);
+    }
+
+    function initialize(address payable _beneficiary, address payable _l1Wallet) public initializer {
         if (_beneficiary == address(0)) revert ZeroAddress("_beneficiary");
         if (_l1Wallet == address(0)) revert ZeroAddress("_l1Wallet");
-
         BENEFICIARY = _beneficiary;
         L1_WALLET = _l1Wallet;
     }
