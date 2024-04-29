@@ -8,6 +8,12 @@ import { FeeVault } from "src/universal/FeeVault.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
+error OnlyFeeVaults();
+error ZeroAddress(string);
+error UnexpectedFeeVaultWithdrawalNetwork();
+error UnexpectedFeeVaultRecipient();
+error FailedToShare();
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000024
 /// @title RevenueSharer
@@ -32,7 +38,7 @@ contract RevenueSharer {
      */
     uint256 public constant REVENUE_COEFFICIENT_BASIS_POINTS = 1_500;
     /**
-     * @dev The percentage coefficient of profit denominated in basis points that is used in
+     * @dev The percentage coefficient of profit denominated in bass points that is used in
      *      Optimism revenue share calculation.
      */
     uint256 public constant PROFIT_COEFFICIENT_BASIS_POINTS = 250;
@@ -74,8 +80,8 @@ contract RevenueSharer {
      * @param _l1Wallet The L1 address which receives the remainder of the revenue.
      */
     constructor(address payable _beneficiary, address _l1Wallet) {
-        require(_beneficiary != address(0), "FeeDisburser: OptimismWallet cannot be address(0)");
-        require(_l1Wallet != address(0), "FeeDisburser: L1Wallet cannot be address(0)");
+        if (_beneficiary == address(0)) revert ZeroAddress("_beneficiary");
+        if (_l1Wallet == address(0)) revert ZeroAddress("_l1Wallet");
 
         BENEFICIARY = _beneficiary;
         L1_WALLET = _l1Wallet;
@@ -108,7 +114,9 @@ contract RevenueSharer {
         uint256 remainder = r - s;
 
         // Send Beneficiary their revenue share on L2
-        require(SafeCall.send(BENEFICIARY, gasleft(), s), "RevenueSharer: Failed to send funds to Beneficiary");
+        if (!SafeCall.send(BENEFICIARY, gasleft(), s)) {
+            revert FailedToShare();
+        }
 
         // Send remaining funds to L1 wallet on L1
         L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: remainder }(
@@ -135,7 +143,7 @@ contract RevenueSharer {
             msg.sender != Predeploys.SEQUENCER_FEE_WALLET && msg.sender != Predeploys.BASE_FEE_VAULT
                 && msg.sender != Predeploys.L1_FEE_VAULT
         ) {
-            revert("RevenueSharer: Only FeeVaults can send ETH to FeeDisburser");
+            revert OnlyFeeVaults();
         }
         emit FeesReceived(msg.sender, msg.value);
     }
@@ -150,14 +158,10 @@ contract RevenueSharer {
      *        the minimum withdrawal amount.
      */
     function feeVaultWithdrawal(address payable _feeVault) internal returns (uint256) {
-        require(
-            FeeVault(_feeVault).WITHDRAWAL_NETWORK() == FeeVault.WithdrawalNetwork.L2,
-            "RevenueSharer: FeeVault must withdraw to L2"
-        );
-        require(
-            FeeVault(_feeVault).RECIPIENT() == address(this),
-            "RevenueSharer: FeeVault must withdraw to RevenueSharer contract"
-        );
+        if (FeeVault(_feeVault).WITHDRAWAL_NETWORK() != FeeVault.WithdrawalNetwork.L2) {
+            revert UnexpectedFeeVaultWithdrawalNetwork();
+        }
+        if (FeeVault(_feeVault).RECIPIENT() != address(this)) revert UnexpectedFeeVaultRecipient();
         uint256 initial_balance = address(this).balance;
         FeeVault(_feeVault).withdraw(); // TODO do we need a reentrancy guard around this?
         return address(this).balance - initial_balance;
