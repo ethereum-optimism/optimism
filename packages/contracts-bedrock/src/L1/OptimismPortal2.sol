@@ -95,7 +95,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     mapping(bytes32 => address[]) public proofSubmitters;
 
     /// @custom:spacer _balance (custom gas token)
-    /// @notice Spacer for backwards compatibility.
+    /// @notice Spacer for forwards compatibility.
     bytes32 private spacer_61_0_32;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
