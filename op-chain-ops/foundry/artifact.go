@@ -3,7 +3,7 @@ package foundry
 import (
 	"encoding/json"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/solc"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
