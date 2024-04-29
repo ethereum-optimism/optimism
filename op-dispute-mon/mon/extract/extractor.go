@@ -26,28 +26,41 @@ type Extractor struct {
 	createContract CreateGameCaller
 	fetchGames     FactoryGameFetcher
 	enrichers      []Enricher
+	ignoredGames   map[common.Address]bool
 }
 
-func NewExtractor(logger log.Logger, creator CreateGameCaller, fetchGames FactoryGameFetcher, enrichers ...Enricher) *Extractor {
+func NewExtractor(logger log.Logger, creator CreateGameCaller, fetchGames FactoryGameFetcher, ignoredGames []common.Address, enrichers ...Enricher) *Extractor {
+	ignored := make(map[common.Address]bool)
+	for _, game := range ignoredGames {
+		ignored[game] = true
+	}
 	return &Extractor{
 		logger:         logger,
 		createContract: creator,
 		fetchGames:     fetchGames,
 		enrichers:      enrichers,
+		ignoredGames:   ignored,
 	}
 }
 
-func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*monTypes.EnrichedGameData, error) {
+func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*monTypes.EnrichedGameData, int, error) {
 	games, err := e.fetchGames(ctx, blockHash, minTimestamp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load games: %w", err)
+		return nil, 0, fmt.Errorf("failed to load games: %w", err)
 	}
-	return e.enrichGames(ctx, blockHash, games), nil
+	enriched, ignored := e.enrichGames(ctx, blockHash, games)
+	return enriched, ignored, nil
 }
 
-func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, games []gameTypes.GameMetadata) []*monTypes.EnrichedGameData {
+func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, games []gameTypes.GameMetadata) ([]*monTypes.EnrichedGameData, int) {
 	var enrichedGames []*monTypes.EnrichedGameData
+	ignored := 0
 	for _, game := range games {
+		if e.ignoredGames[game.Proxy] {
+			ignored++
+			e.logger.Warn("Ignoring game", "game", game.Proxy)
+			continue
+		}
 		caller, err := e.createContract(ctx, game)
 		if err != nil {
 			e.logger.Error("Failed to create game caller", "err", err)
@@ -82,7 +95,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 		}
 		enrichedGames = append(enrichedGames, enrichedGame)
 	}
-	return enrichedGames
+	return enrichedGames, ignored
 }
 
 func (e *Extractor) applyEnrichers(ctx context.Context, blockHash common.Hash, caller GameCaller, game *monTypes.EnrichedGameData) error {

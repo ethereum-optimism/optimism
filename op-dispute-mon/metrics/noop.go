@@ -35,4 +35,6 @@ func (*NoopMetricsImpl) RecordOutputFetchTime(_ float64) {}
 
 func (*NoopMetricsImpl) RecordGameAgreement(_ GameAgreementStatus, _ int) {}
 
+func (*NoopMetricsImpl) RecordIgnoredGames(_ int) {}
+
 func (i *NoopMetricsImpl) RecordBondCollateral(_ common.Address, _ *big.Int, _ *big.Int) {}
