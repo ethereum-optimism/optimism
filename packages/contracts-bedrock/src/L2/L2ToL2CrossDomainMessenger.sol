@@ -50,7 +50,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         0x711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee7;
 
     /// @notice Current message version identifier.
-    uint16 public constant MESSAGE_VERSION = uint16(0);
+    uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
