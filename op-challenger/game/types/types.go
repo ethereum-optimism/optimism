@@ -40,6 +40,7 @@ func GameStatusFromUint8(i uint8) (GameStatus, error) {
 }
 
 type GameMetadata struct {
+	Index     uint64
 	GameType  uint32
 	Timestamp uint64
 	Proxy     common.Address
