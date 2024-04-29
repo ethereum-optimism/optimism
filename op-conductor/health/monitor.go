@@ -134,7 +134,7 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 
 	var timeDiff, blockDiff, expectedBlocks uint64
 	if hm.lastSeenUnsafeNum != 0 {
-		timeDiff = now - hm.lastSeenUnsafeTime
+		timeDiff = calculateTimeDiff(now, hm.lastSeenUnsafeTime)
 		blockDiff = status.UnsafeL2.Number - hm.lastSeenUnsafeNum
 		// how many blocks do we expect to see, minus 1 to account for edge case with respect to time.
 		// for example, if diff = 2.001s and block time = 2s, expecting to see 1 block could potentially cause sequencer to be considered unhealthy.
@@ -160,7 +160,7 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 		return ErrSequencerNotHealthy
 	}
 
-	if now-status.UnsafeL2.Time > hm.unsafeInterval {
+	if calculateTimeDiff(now, status.UnsafeL2.Time) > hm.unsafeInterval {
 		hm.log.Error(
 			"unsafe head is not progressing as expected",
 			"now", now,
@@ -171,7 +171,7 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 		return ErrSequencerNotHealthy
 	}
 
-	if hm.safeEnabled && now-status.SafeL2.Time > hm.safeInterval {
+	if hm.safeEnabled && calculateTimeDiff(now, status.SafeL2.Time) > hm.safeInterval {
 		hm.log.Error(
 			"safe head is not progressing as expected",
 			"now", now,
@@ -194,6 +194,13 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 
 	hm.log.Info("sequencer is healthy")
 	return nil
+}
+
+func calculateTimeDiff(now, then uint64) uint64 {
+	if now < then {
+		return 0
+	}
+	return now - then
 }
 
 func currentTimeProvicer() uint64 {
