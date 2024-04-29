@@ -146,6 +146,7 @@ def devnet_l1_allocs(paths):
     run_command([
         'forge', 'script', fqn, "--sig", "runWithStateDump()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     ], env={
+      'DEPLOYMENT_OUTFILE': paths.l1_deployments_path,
       'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
     }, cwd=paths.contracts_bedrock_dir)
 
