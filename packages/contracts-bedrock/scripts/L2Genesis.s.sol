@@ -107,7 +107,7 @@ contract L2Genesis is Deployer {
 
     /// @notice Modifier that starts and ends a prank around the function call.
     modifier asDeployer() {
-        vm.startPrank(deployer)
+        vm.startPrank(deployer);
         _;
         vm.endPrank();
     }
