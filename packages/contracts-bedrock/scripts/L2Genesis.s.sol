@@ -495,10 +495,14 @@ contract L2Genesis is Deployer {
         vm.setNonce(Preinstalls.BeaconBlockRootsSender, 1);
     }
 
-    function activateEcotone() public prank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT()) {
+    /// @notice Activate Ecotone network upgrade.
+    function activateEcotone() public {
         require(Preinstalls.BeaconBlockRoots.code.length > 0, "L2Genesis: must have beacon-block-roots contract");
         console.log("Activating ecotone in GasPriceOracle contract");
+
+        vm.startPrank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
         GasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setEcotone();
+        vm.stopPrank();
     }
 
     /// @notice Sets the bytecode in state
