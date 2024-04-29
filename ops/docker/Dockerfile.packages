@@ -122,9 +122,9 @@ FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon/
 CMD ["start:wd-mon"]
 
-FROM base as fault-wd-mon
-WORKDIR /opt/optimism/packages/chain-mon
-CMD ["start:fault-wd-mon"]
+FROM base as faultproof-wd-mon
+WORKDIR /opt/optimism/packages/chain-mon/
+CMD ["start:faultproof-wd-mon"]
 
 FROM base as contracts-bedrock
 WORKDIR /opt/optimism/packages/contracts-bedrock
