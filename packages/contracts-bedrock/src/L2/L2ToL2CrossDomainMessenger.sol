@@ -3,7 +3,8 @@ pragma solidity 0.8.25;
 
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { TransientContext, TransientReentrancyAware } from "src/libraries/TransientContext.sol";
+import { TransientContext } from "src/libraries/TransientContext.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
@@ -38,7 +39,11 @@ error MessageAlreadyRelayed();
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
-contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, TransientReentrancyAware {
+contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, ReentrancyGuard {
+    /// @notice Storage slot for `entered` value.
+    ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.entered")) - 1)
+    bytes32 internal constant ENTERED_SLOT = 0xf53fc38c5e461bdcbbeb47887fecf014abd399293109cd50f65e5f9078cfd025;
+
     /// @notice Storage slot for the sender of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 internal constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
@@ -80,7 +85,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
     ///         Used to differentiate between 0 and nil in transient storage.
     modifier notEntered() {
-        if (TransientContext.callDepth() == 0) revert NotEntered();
+        if (TransientContext.get(ENTERED_SLOT) == 0) revert NotEntered();
         _;
     }
 
@@ -134,7 +139,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     )
         external
         payable
-        reentrantAware
+        nonReentrant
     {
         if (msg.sender != Predeploys.CROSS_L2_INBOX) revert RelayMessageCallerNotCrossL2Inbox();
         if (CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin() != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
@@ -169,13 +174,16 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     ///         nonce. Message version allows us to treat messages as having different structures.
     /// @return Nonce of the next message to be sent, with added message version.
     function messageNonce() public view returns (uint256) {
-        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
+        return Encoding.encodeVersionedNonce(msgNonce, messageVersion);
     }
 
     /// @notice Stores message data such as sender and source in transient storage.
     /// @param _source Chain ID of the source chain.
     /// @param _sender Address of the sender of the message.
     function _storeMessageMetadata(uint256 _source, address _sender) internal {
+        // Store non-zero value in slot for `entered`
+        TransientContext.set(ENTERED_SLOT, 1);
+
         TransientContext.set(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, uint160(_sender));
         TransientContext.set(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source);
     }

@@ -27,9 +27,9 @@ import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 /// @dev L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
 ///      This is used to test the transient storage of L2ToL2CrossDomainMessenger.
 contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2CrossDomainMessenger {
-    /// @dev Increments the call depth.
-    function increment() external {
-        TransientContext.increment();
+    /// @dev Sets the entered slot in transient storage to 1.
+    function setEnteredTrue() external {
+        TransientContext.set(ENTERED_SLOT, 1);
     }
 
     /// @dev Sets the cross domain messenger sender in transient storage.
@@ -210,9 +210,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             true
         );
 
-        // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly, but first we have to
-        // increment the call depth to the one where the data is stored in transient storage
-        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
     }
@@ -224,6 +222,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check
         vm.prank(Predeploys.CROSS_L2_INBOX);
 
+        vm.expectRevert("ReentrancyGuard: reentrant call");
+
         l2ToL2CrossDomainMessenger.relayMessage({
             _destination: block.chainid,
             _source: _source,
@@ -232,10 +232,13 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _target: address(0),
             _message: ""
         });
+
+        // Ensure the function still reverts if `expectRevert` succeeds
+        revert();
     }
 
-    /// @dev Tests that the `relayMessage` function  successfully handles reentrant calls.
-    function testFuzz_relayMessage_reentrant_succeeds(
+    /// @dev Tests that the `relayMessage` function reverts when reentrancy is attempted.
+    function testFuzz_relayMessage_reentrant_reverts(
         uint256 _source1, // source passed to `relayMessage` by the initial call.
         address _sender1, // sender passed to `relayMessage` by the initial call.
         uint256 _source2, // sender passed to `relayMessage` by the reentrant call.
@@ -262,7 +265,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Look for correct emitted event
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit L2ToL2CrossDomainMessenger.RelayedMessage(
+        emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
             keccak256(abi.encode(block.chainid, _source1, _nonce, _sender1, target, message))
         );
 
@@ -282,114 +285,15 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _message: message
         });
 
-        // Check that the balance of the target contract is correct (i.e., the value was transferred successfully)
-        assertEq(target.balance, _value);
-
-        // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly, but first we have to
-        // increment the call depth to the one where the data is stored in transient storage
-        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        // Check that the crossDomainMessageSender and crossDomainMessageSource update correctly
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender1);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source1);
-        // Check that successfulMessages mapping updates the message hash correctly for the initial call
         assertEq(
             l2ToL2CrossDomainMessenger.successfulMessages(
                 keccak256(abi.encode(block.chainid, _source1, _nonce, _sender1, target, message))
             ),
-            true
+            false
         );
-
-        // Check that the reentrant function correctly updated the slots at deeper call depth
-        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender2);
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source2);
-        // Check that successfulMessages mapping updates the message hash correctly for the reentrant call
-        assertEq(
-            l2ToL2CrossDomainMessenger.successfulMessages(
-                keccak256(abi.encode(block.chainid, _source2, _nonce, _sender2, address(0), ""))
-            ),
-            true
-        );
-    }
-
-    /// @dev Mock reentrant function that calls the `relayMessage` function.
-    /// @param _source Source chain ID of the message.
-    /// @param _nonce Nonce of the message.
-    /// @param _sender Sender of the message.
-    /// @param _value Value to send with the message.
-    function mock_reentrant_messageAlreadyRelayed_succeeds(
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        uint256 _value
-    )
-        external
-        payable
-    {
-        // Ensure caller is CrossL2Inbox to prevent a revert from the caller check
-        vm.prank(Predeploys.CROSS_L2_INBOX);
-
-        // Call `relayMessage` with a message that corresponds to the same messageHash as the initial call. This is to
-        // try to override the successfulMessages mapping entry of the initial call.
-        l2ToL2CrossDomainMessenger.relayMessage({
-            _destination: block.chainid,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: address(this),
-            _message: abi.encodeWithSelector(
-                this.mock_reentrant_messageAlreadyRelayed_succeeds.selector, _source, _nonce, _sender, _value
-            )
-        });
-    }
-
-    /// @dev Tests that the `relayMessage` function successfully handles a reentrant call that tries to override the
-    ///      successfulMessages entry of the initial call. The reentrant call should revert with the
-    ///      MessageAlreadyRelayed selector and the initial call should succeed but emit FailedRelayedMessage.
-    function testFuzz_relayMessage_reentrant_messageAlreadyRelayed_succeeds(
-        uint256 _source,
-        address _sender,
-        uint256 _nonce,
-        uint256 _value
-    )
-        external
-    {
-        // Since the target is this contract, we want to ensure the payment doesn't lead to overflow, since this
-        // contract has a non-zero balance. Thus, we set this contract's balance to zero and we hoax afterwards.
-        vm.deal(address(this), 0);
-
-        // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
-        hoax(Predeploys.CROSS_L2_INBOX, _value);
-
-        // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
-        vm.mockCall({
-            callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
-            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-        });
-
-        // Set the message for the reentrant call
-        bytes memory message = abi.encodeWithSelector(
-            this.mock_reentrant_messageAlreadyRelayed_succeeds.selector, _source, _nonce, _sender, _value
-        );
-
-        // Ensure the target contract is called with the correct parameters
-        vm.expectCall({ callee: address(this), msgValue: _value, data: message });
-
-        // Look for the FailedRelayedMessage event for the initial call
-        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
-            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, address(this), message)) // messageHash
-        );
-
-        // Call the relayMessage function
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: address(this),
-            _message: message
-        });
     }
 
     /// @dev Tests that the `relayMessage` function reverts when the caller is not the CrossL2Inbox contract.
@@ -682,8 +586,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
     /// @dev Tests that the `crossDomainMessageSender` function returns the correct value.
     function testFuzz_crossDomainMessageSender_succeeds(address _sender) external {
-        // Increment the call depth to prevent NotEntered revert
-        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        // Set `entered` to non-zero value to prevent NotEntered revert
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            .setEnteredTrue();
         // Set cross domain message sender in the transient storage
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
             .setCrossDomainMessageSender(_sender);
@@ -702,8 +607,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
     /// @dev Tests that the `crossDomainMessageSource` function returns the correct value.
     function testFuzz_crossDomainMessageSource_succeeds(uint256 _source) external {
-        // Increment the call depth to prevent NotEntered revert
-        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).increment();
+        // Set `entered` to non-zero value to prevent NotEntered revert
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            .setEnteredTrue();
         // Set cross domain message source in the transient storage
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
             .setCrossDomainMessageSource(_source);
