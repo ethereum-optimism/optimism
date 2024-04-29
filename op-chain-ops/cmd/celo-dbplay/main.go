@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/celo1"
 	"github.com/mattn/go-isatty"
 
 	"github.com/urfave/cli/v2"
@@ -82,18 +84,28 @@ func appMain(ctx *cli.Context) error {
 	}
 	log.Info("Loaded Celo L1 DB", "db", ldb)
 
-	printStats(ldb)
+	// printStats(ldb)
 
 	findFirstCorruptedHeader(ldb)
 
-	// // Read last block before gingerbread (alfajores)
-	// header, err := ReadCanonicalHeader(ldb, 19814000-1)
-	// if err != nil {
-	// 	return fmt.Errorf("cannot read header: %w", err)
-	// }
-	// log.Info("Read header", "header", header)
+	// tryHeader(ldb, 19814000-1) //just before gingerbread activation (alfajores)
+	// tryHeader(ldb, 19814000)   // just after gingerbread activation (alfajores)
+	// tryHeader(ldb, 4960000-1)  // before churrito block
+	// tryHeader(ldb, 4960000)    // churrito block
+	// tryHeader(ldb, 4960000)    // donut block
+	// tryHeader(ldb, 9472000)    // espresso block
 
 	return nil
+}
+
+func tryHeader(ldb ethdb.Database, number uint64) {
+	header, err := ReadCeloCanonicalHeader(ldb, number)
+	if err != nil {
+		log.Error("failed to load header", "number", number, "error", err)
+	} else {
+		log.Info("loaded header", "number", number, "hash", header.Hash())
+		log.Info("Read header", "header", header)
+	}
 }
 
 // Opens a Celo database, stored in the `celo` subfolder
@@ -133,10 +145,10 @@ func printStats(ldb ethdb.Database) {
 
 func canLoadHeader(ldb ethdb.Database, number uint64) bool {
 	// log.Trace("Checking if header can be loaded", "number", number)
-	_, err := ReadCanonicalHeader(ldb, number)
-	// if err != nil {
-	// 	log.Trace("failed to load header", "number", number, "error", err)
-	// }
+	_, err := ReadCeloCanonicalHeader(ldb, number)
+	if err != nil {
+		log.Debug("failed to load header", "number", number, "error", err)
+	}
 	return err == nil
 }
 
@@ -187,18 +199,56 @@ func printLastBlocks(ldb ethdb.Database, x uint64) {
 	}
 }
 
-func ReadCanonicalHeader(db ethdb.Reader, number uint64) (*types.Header, error) {
-	hash := rawdb.ReadCanonicalHash(db, number)
-	checkNumber := rawdb.ReadHeaderNumber(db, hash)
-	if checkNumber == nil || *checkNumber != number {
-		return nil, errors.New("something is bad")
-	}
-	return ReadHeader(db, hash, number)
+// ReadHeaderRLP retrieves a block header in its raw RLP database encoding. (copied from rawdb)
+func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
+	var data []byte
+	db.ReadAncients(func(reader ethdb.AncientReaderOp) error {
+		// First try to look up the data in ancient database. Extra hash
+		// comparison is necessary since ancient database only maintains
+		// the canonical data.
+		data, _ = reader.Ancient(rawdb.ChainFreezerHeaderTable, number)
+		if len(data) != 0 {
+			return nil
+		}
+		// If not, try reading from leveldb
+		data, _ = db.Get(headerKey(number, hash))
+		return nil
+	})
+	return data
 }
 
-// ReadHeader retrieves the block header corresponding to the hash.
+var (
+	headerPrefix = []byte("h") // headerPrefix + num (uint64 big endian) + hash -> header
+)
+
+// encodeBlockNumber encodes a block number as big endian uint64
+func encodeBlockNumber(number uint64) []byte {
+	enc := make([]byte, 8)
+	binary.BigEndian.PutUint64(enc, number)
+	return enc
+}
+
+// headerKey = headerPrefix + num (uint64 big endian) + hash
+func headerKey(number uint64, hash common.Hash) []byte {
+	return append(append(headerPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+}
+
+func ReadCeloHeader(db ethdb.Reader, hash common.Hash, number uint64) (*celo1.Header, error) {
+	data := ReadHeaderRLP(db, hash, number)
+	if len(data) == 0 {
+		return nil, errors.New("header not found")
+	}
+
+	header := new(celo1.Header)
+	if err := rlp.DecodeBytes(data, header); err != nil {
+		return nil, err
+	}
+	return header, nil
+}
+
+// ReadHeader retrieves the block header corresponding to the hash. (copied from rawdb)
 func ReadHeader(db ethdb.Reader, hash common.Hash, number uint64) (*types.Header, error) {
-	data := rawdb.ReadHeaderRLP(db, hash, number)
+	data := ReadHeaderRLP(db, hash, number)
 	if len(data) == 0 {
 		return nil, errors.New("header not found")
 	}
@@ -209,21 +259,14 @@ func ReadHeader(db ethdb.Reader, hash common.Hash, number uint64) (*types.Header
 	return header, nil
 }
 
-// func debugReadAncientHeader(db ethdb.Reader, hash common.Hash, number uint64) (*types.Header, error) {
-// 	db.ReadAncients(func(reader ethdb.AncientReaderOp) error {
-// 		data, err := reader.Ancient(rawdb.ChainFreezerHeaderTable, number)
-// 		if err != nil {
-// 			log.Error("Failed to read from ancient database", "err", err)
-// 			return err
-// 		}
-// 		if len(data) > 0 && crypto.Keccak256Hash(data) == hash {
-// 			return nil
-// 		}
-// 		data, err = db.Get(headerKey(number, hash))
-// 		if err != nil {
-// 			log.Error("Failed to read from leveldb", "err", err)
-// 			return err
-// 		}
-// 		return nil
-// 	})
-// }
+// ReadCanonicalHeader retrieves the cannoical block header at the given number.
+func ReadCanonicalHeader(db ethdb.Reader, number uint64) (*types.Header, error) {
+	hash := rawdb.ReadCanonicalHash(db, number)
+	return ReadHeader(db, hash, number)
+}
+
+// ReadCanonicalHeader retrieves the cannoical block header at the given number.
+func ReadCeloCanonicalHeader(db ethdb.Reader, number uint64) (*celo1.Header, error) {
+	hash := rawdb.ReadCanonicalHash(db, number)
+	return ReadCeloHeader(db, hash, number)
+}
