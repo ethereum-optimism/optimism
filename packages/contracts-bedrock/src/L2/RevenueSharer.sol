@@ -167,7 +167,9 @@ contract RevenueSharer is Initializable {
         }
         if (FeeVault(_feeVault).RECIPIENT() != address(this)) revert UnexpectedFeeVaultRecipient();
         uint256 initial_balance = address(this).balance;
-        FeeVault(_feeVault).withdraw(); // TODO do we need a reentrancy guard around this?
+        // The following line will call back into the receive() function on this contract,
+        // causing all of the ether from the fee vault to move to this contract:
+        FeeVault(_feeVault).withdraw();
         return address(this).balance - initial_balance;
     }
 }
