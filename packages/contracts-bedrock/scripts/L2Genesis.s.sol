@@ -96,6 +96,16 @@ contract L2Genesis is Deployer {
         0x9DCCe783B6464611f38631e6C851bf441907c710 // 29
     ];
 
+    /// @notice The address of the deployer account.
+    address internal deployer;
+
+    /// @notice Sets up the script and ensures the deployer account is used to make calls.
+    function setUp() public override {
+        deployer = makeAddr("deployer");
+        vm.startPrank(deployer);
+        super.setUp();
+    }
+
     function name() public pure override returns (string memory) {
         return "L2Genesis";
     }
