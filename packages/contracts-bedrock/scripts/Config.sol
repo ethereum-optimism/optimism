@@ -20,8 +20,8 @@ library Config {
 
     /// @notice Returns the path on the local filesystem where the deploy config is
     function deployConfigPath() internal view returns (string memory _env) {
-        require(vm.envExists("DEPLOY_CONFIG_PATH"), "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
-        _env = vm.envString("DEPLOY_CONFIG_PATH");
+        _env = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
+        require(bytes(_env).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
     }
 
     /// @notice Returns the chainid from the EVM context or the value of the CHAIN_ID env var as
