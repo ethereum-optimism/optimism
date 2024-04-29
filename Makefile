@@ -68,6 +68,13 @@ cross-op-node:
              else \
                  echo $$preferred_tag; \
              fi) \
+	docker buildx bake \
+			--progress plain \
+			--builder=buildx-build \
+			--load \
+			--no-cache \
+			-f docker-bake.hcl \
+			op-node
 .PHONY: golang-docker
 
 chain-mon-docker:

@@ -322,8 +322,20 @@ jobs:
             export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
             export GIT_COMMIT="$(git rev-parse HEAD)"
             export GIT_DATE="$(git show -s --format='%ct')"
-            export GIT_VERSION="<<pipeline.git.tag>>"
             export PLATFORMS="<<parameters.platforms>>"
+
+            # Set the version to the git tag for this op component. Set version to "untagged" if no git tag is found
+            export GIT_VERSION=$(tags=$$(git tag --points-at $(GIT_COMMIT) | grep "^<<parameters.docker_name>>/" | sed "s/<<parameters.docker_name>>\///" | sort -V); \
+              preferred_tag=$$(echo "$$tags" | grep -v -- "-rc" | tail -n 1); \
+              if [ -z "$$preferred_tag" ]; then \
+                  if [ -z "$$tags" ]; then \
+                      echo "untagged"; \
+                  else \
+                      echo "$$tags" | tail -n 1; \
+                  fi \
+              else \
+                  echo "$$preferred_tag"; \
+              fi)
 
             # Create, start (bootstrap) and use a *named* docker builder
             # This allows us to cross-build multi-platform,
