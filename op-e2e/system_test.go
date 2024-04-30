@@ -1401,7 +1401,7 @@ func testFees(t *testing.T, cfg SystemConfig) {
 		blobFeeScaled := new(big.Int).Mul(big.NewInt(int64(blobBaseFeeScalar)), blobBaseFee)
 		feeScaled.Add(feeScaled, blobFeeScaled)
 
-		result := new(big.Int).Mul(big.NewInt(71*1e6), feeScaled)
+		result := new(big.Int).Mul(types.MinTransactionSizeScaled, feeScaled)
 		result.Div(result, big.NewInt(1e12))
 
 		adjustedGPOFee = result

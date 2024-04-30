@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	fjordGasPriceOracleCodeHash = common.HexToHash("0xd932e30ee61cd4af3aa471df75293d2c4c3da7aac54ca3bfd5e0b65f4d7f5fa5")
+	fjordGasPriceOracleCodeHash = common.HexToHash("0x17563a1e2f4faeee2c47abda44d74d8c91438c26f2f1ba774ef4e3c41cc45f3b")
 	// https://basescan.org/tx/0x8debb2fe54200183fb8baa3c6dbd8e6ec2e4f7a4add87416cd60336b8326d16a
 	txHex = "02f875822105819b8405709fb884057d460082e97f94273ca93a52b817294830ed7572aa591ccfa647fd80881249c58b0021fb3fc080a05bb08ccfd68f83392e446dac64d88a2d28e7072c06502dfabc4a77e77b5c7913a05878d53dd4ebba4f6367e572d524dffcabeec3abb1d8725ee3ac5dc32e1852e3"
 

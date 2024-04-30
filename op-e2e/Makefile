@@ -66,5 +66,5 @@ clean:
 .PHONY: clean
 
 fuzz:
-	go test -ldflags=-extldflags=-Wl,-ld_classic -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLZ ./
-	go test -ldflags=-extldflags=-Wl,-ld_classic -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLZ ./
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./
