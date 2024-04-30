@@ -96,6 +96,15 @@ contract L2Genesis is Deployer {
         0x9DCCe783B6464611f38631e6C851bf441907c710 // 29
     ];
 
+    /// @notice The address of the deployer account.
+    address internal deployer;
+
+    /// @notice Sets up the script and ensures the deployer account is used to make calls.
+    function setUp() public override {
+        deployer = makeAddr("deployer");
+        super.setUp();
+    }
+
     function name() public pure override returns (string memory) {
         return "L2Genesis";
     }
@@ -128,6 +137,7 @@ contract L2Genesis is Deployer {
 
     /// @notice Build the L2 genesis.
     function runWithOptions(OutputMode _mode, L1Dependencies memory _l1Dependencies) public {
+        vm.startPrank(deployer);
         vm.chainId(cfg.l2ChainID());
 
         dealEthToPrecompiles();
@@ -137,6 +147,8 @@ contract L2Genesis is Deployer {
         if (cfg.fundDevAccounts()) {
             fundDevAccounts();
         }
+        vm.stopPrank();
+
         // Genesis is "complete" at this point, but some hardfork activation steps remain.
         // Depending on the "Output Mode" we perform the activations and output the necessary state dumps.
         if (_mode == OutputMode.LOCAL_DELTA) {
@@ -145,6 +157,7 @@ contract L2Genesis is Deployer {
         if (_mode == OutputMode.OUTPUT_ALL) {
             writeGenesisAllocs(Config.stateDumpPath("-delta"));
         }
+
         activateEcotone();
         if (_mode == OutputMode.OUTPUT_ALL || _mode == OutputMode.DEFAULT_LATEST) {
             writeGenesisAllocs(Config.stateDumpPath(""));
@@ -479,11 +492,14 @@ contract L2Genesis is Deployer {
         vm.setNonce(Preinstalls.BeaconBlockRootsSender, 1);
     }
 
+    /// @notice Activate Ecotone network upgrade.
     function activateEcotone() public {
         require(Preinstalls.BeaconBlockRoots.code.length > 0, "L2Genesis: must have beacon-block-roots contract");
         console.log("Activating ecotone in GasPriceOracle contract");
-        vm.prank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+
+        vm.startPrank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
         GasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setEcotone();
+        vm.stopPrank();
     }
 
     /// @notice Sets the bytecode in state
@@ -513,6 +529,9 @@ contract L2Genesis is Deployer {
         vm.etch(msg.sender, "");
         vm.resetNonce(msg.sender);
         vm.deal(msg.sender, 0);
+
+        vm.deal(deployer, 0);
+        vm.resetNonce(deployer);
 
         console.log("Writing state dump to: %s", _path);
         vm.dumpState(_path);
