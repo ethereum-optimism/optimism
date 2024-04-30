@@ -65,8 +65,8 @@ func (bs *backendState) IsBanned() bool {
 
 // GetConsensusGroup returns the backend members that are agreeing in a consensus
 func (cp *ConsensusPoller) GetConsensusGroup() []*Backend {
-	defer cp.consensusGroupMux.Unlock()
 	cp.consensusGroupMux.Lock()
+	defer cp.consensusGroupMux.Unlock()
 
 	g := make([]*Backend, len(cp.consensusGroup))
 	copy(g, cp.consensusGroup)
@@ -491,8 +491,8 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 // IsBanned checks if a specific backend is banned
 func (cp *ConsensusPoller) IsBanned(be *Backend) bool {
 	bs := cp.backendState[be]
-	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
+	defer bs.backendStateMux.Unlock()
 	return bs.IsBanned()
 }
 
@@ -503,8 +503,8 @@ func (cp *ConsensusPoller) Ban(be *Backend) {
 	}
 
 	bs := cp.backendState[be]
-	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
+	defer bs.backendStateMux.Unlock()
 	bs.bannedUntil = time.Now().Add(cp.banPeriod)
 
 	// when we ban a node, we give it the chance to start from any block when it is back
@@ -516,8 +516,8 @@ func (cp *ConsensusPoller) Ban(be *Backend) {
 // Unban removes any bans from the backends
 func (cp *ConsensusPoller) Unban(be *Backend) {
 	bs := cp.backendState[be]
-	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
+	defer bs.backendStateMux.Unlock()
 	bs.bannedUntil = time.Now().Add(-10 * time.Hour)
 }
 
@@ -594,8 +594,8 @@ func (cp *ConsensusPoller) isInSync(ctx context.Context, be *Backend) (result bo
 // getBackendState creates a copy of backend state so that the caller can use it without locking
 func (cp *ConsensusPoller) getBackendState(be *Backend) *backendState {
 	bs := cp.backendState[be]
-	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
+	defer bs.backendStateMux.Unlock()
 
 	return &backendState{
 		latestBlockNumber:    bs.latestBlockNumber,
