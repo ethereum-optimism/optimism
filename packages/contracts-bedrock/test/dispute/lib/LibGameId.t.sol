@@ -11,16 +11,16 @@ contract LibGameId_Test is Test {
     function testFuzz_gameId_roundTrip_succeeds(
         GameType _gameType,
         Timestamp _timestamp,
-        IDisputeGame _gameProxy
+        address _gameProxy
     )
         public
         pure
     {
         GameId gameId = LibGameId.pack(_gameType, _timestamp, _gameProxy);
-        (GameType gameType_, Timestamp timestamp_, IDisputeGame gameProxy_) = LibGameId.unpack(gameId);
+        (GameType gameType_, Timestamp timestamp_, address gameProxy_) = LibGameId.unpack(gameId);
 
         assertEq(GameType.unwrap(gameType_), GameType.unwrap(_gameType));
         assertEq(Timestamp.unwrap(timestamp_), Timestamp.unwrap(_timestamp));
-        assertEq(address(gameProxy_), address(_gameProxy));
+        assertEq(gameProxy_, _gameProxy);
     }
 }

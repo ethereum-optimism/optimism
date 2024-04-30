@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import "src/dispute/lib/LibPosition.sol";
 
 using LibClaim for Claim global;
@@ -89,7 +88,7 @@ library LibGameId {
     function pack(
         GameType _gameType,
         Timestamp _timestamp,
-        IDisputeGame _gameProxy
+        address _gameProxy
     )
         internal
         pure
@@ -108,7 +107,7 @@ library LibGameId {
     function unpack(GameId _gameId)
         internal
         pure
-        returns (GameType gameType_, Timestamp timestamp_, IDisputeGame gameProxy_)
+        returns (GameType gameType_, Timestamp timestamp_, address gameProxy_)
     {
         assembly {
             gameType_ := shr(224, _gameId)
