@@ -233,6 +233,10 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 	var parentBeaconBlockRoot *common.Hash
 	if d.L2ChainConfig.IsEcotone(uint64(timestamp)) {
 		parentBeaconBlockRoot = d.L1Head.ParentBeaconRoot()
+		// In case L1 hasn't activated Dencun yet.
+		if parentBeaconBlockRoot == nil {
+			parentBeaconBlockRoot = &(common.Hash{})
+		}
 	}
 
 	attrs := eth.PayloadAttributes{

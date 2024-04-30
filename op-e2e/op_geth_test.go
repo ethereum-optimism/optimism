@@ -257,6 +257,8 @@ func deltaSystemConfig(t *testing.T, deltaTimeOffset *hexutil.Uint64) SystemConf
 
 func ecotoneSystemConfig(t *testing.T, ecotoneTimeOffset *hexutil.Uint64) SystemConfig {
 	cfg := deltaSystemConfig(t, &genesisTime)
+	//  from Ecotone onwards, activate L1 Cancun at genesis
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = ecotoneTimeOffset
 	return cfg
 }
