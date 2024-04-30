@@ -71,15 +71,13 @@ func TestPrecompiles(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 			ctx := context.Background()
-			cfg := op_e2e.DefaultSystemConfig(t)
+			genesisTime := hexutil.Uint64(0)
+			cfg := op_e2e.EcotoneSystemConfig(t, &genesisTime)
 			// We don't need a verifier - just the sequencer is enough
 			delete(cfg.Nodes, "verifier")
 			// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
 			// But not too small to ensure that our claim and subsequent state change is published
 			cfg.DeployConfig.SequencerWindowSize = 16
-			minTs := hexutil.Uint64(0)
-			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
-			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &minTs
 
 			sys, err := cfg.Start(t)
 			require.Nil(t, err, "Error starting up system")

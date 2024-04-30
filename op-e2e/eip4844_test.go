@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -38,7 +37,7 @@ func TestSystem4844E2E(t *testing.T) {
 func testSystem4844E2E(t *testing.T, multiBlob bool) {
 	InitParallel(t)
 
-	cfg := DefaultSystemConfig(t)
+	cfg := EcotoneSystemConfig(t, &genesisTime)
 	cfg.DataAvailabilityType = batcherFlags.BlobsType
 	const maxBlobs = 6
 	var maxL1TxSize int
@@ -50,11 +49,6 @@ func testSystem4844E2E(t *testing.T, multiBlob bool) {
 		maxL1TxSize = derive.FrameV0OverHeadSize + 100
 		cfg.BatcherMaxL1TxSizeBytes = uint64(maxL1TxSize)
 	}
-
-	genesisActivation := hexutil.Uint64(0)
-	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")

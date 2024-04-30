@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
@@ -301,7 +300,7 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 }
 
 func sequencerFailoverSystemConfig(t *testing.T, ports map[string]int) SystemConfig {
-	cfg := DefaultSystemConfig(t)
+	cfg := EcotoneSystemConfig(t, &genesisTime)
 	delete(cfg.Nodes, "sequencer")
 	cfg.Nodes[Sequencer1Name] = sequencerCfg(ports[Sequencer1Name])
 	cfg.Nodes[Sequencer2Name] = sequencerCfg(ports[Sequencer2Name])
@@ -318,9 +317,6 @@ func sequencerFailoverSystemConfig(t *testing.T, ports map[string]int) SystemCon
 		Sequencer3Name: {VerifierName, Sequencer1Name},
 		VerifierName:   {Sequencer1Name, Sequencer2Name},
 	}
-	offset := hexutil.Uint64(0)
-	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &offset
-	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	return cfg
 }

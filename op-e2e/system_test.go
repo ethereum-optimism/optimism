@@ -222,8 +222,7 @@ func TestSystemE2EDencunAtGenesis(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	genesisActivation := hexutil.Uint64(0)
-	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -242,9 +241,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	// cancun is on from genesis:
-	genesisActivation := hexutil.Uint64(0)
-	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -1180,35 +1177,23 @@ func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) co
 func TestFees(t *testing.T) {
 	t.Run("pre-regolith", func(t *testing.T) {
 		InitParallel(t)
-		cfg := DefaultSystemConfig(t)
+		cfg := RegolithSystemConfig(t, nil)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
-		cfg.DeployConfig.L2GenesisRegolithTimeOffset = nil
-		cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 		testFees(t, cfg)
 	})
 	t.Run("regolith", func(t *testing.T) {
 		InitParallel(t)
-		cfg := DefaultSystemConfig(t)
+		cfg := RegolithSystemConfig(t, &genesisTime)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
-		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 		testFees(t, cfg)
 	})
 	t.Run("ecotone", func(t *testing.T) {
 		InitParallel(t)
-		cfg := DefaultSystemConfig(t)
+		cfg := EcotoneSystemConfig(t, &genesisTime)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
-		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
 		testFees(t, cfg)
 	})
 }
@@ -1386,8 +1371,7 @@ func testFees(t *testing.T, cfg SystemConfig) {
 func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	InitParallel(t)
 
-	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	cfg := DeltaSystemConfig(t, deltaTimeOffset)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()

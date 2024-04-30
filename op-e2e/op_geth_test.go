@@ -230,45 +230,6 @@ func TestGethOnlyPendingBlockIsLatest(t *testing.T) {
 	checkPending("canonical", 1)
 }
 
-var genesisTime = hexutil.Uint64(0)
-
-func regolithSystemConfig(t *testing.T, regolithTimeOffset *hexutil.Uint64) SystemConfig {
-	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = regolithTimeOffset
-	cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
-	cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
-	cfg.DeployConfig.L2GenesisFjordTimeOffset = nil
-	// ADD NEW FORKS HERE!
-	return cfg
-}
-
-func canyonSystemConfig(t *testing.T, canyonTimeOffset *hexutil.Uint64) SystemConfig {
-	cfg := regolithSystemConfig(t, &genesisTime)
-	cfg.DeployConfig.L2GenesisCanyonTimeOffset = canyonTimeOffset
-	return cfg
-}
-
-func deltaSystemConfig(t *testing.T, deltaTimeOffset *hexutil.Uint64) SystemConfig {
-	cfg := canyonSystemConfig(t, &genesisTime)
-	cfg.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
-	return cfg
-}
-
-func ecotoneSystemConfig(t *testing.T, ecotoneTimeOffset *hexutil.Uint64) SystemConfig {
-	cfg := deltaSystemConfig(t, &genesisTime)
-	//  from Ecotone onwards, activate L1 Cancun at genesis
-	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
-	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = ecotoneTimeOffset
-	return cfg
-}
-
-func fjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64) SystemConfig {
-	cfg := ecotoneSystemConfig(t, &genesisTime)
-	cfg.DeployConfig.L2GenesisFjordTimeOffset = fjordTimeOffset
-	return cfg
-}
-
 func TestPreregolith(t *testing.T) {
 	futureTimestamp := hexutil.Uint64(4)
 	tests := []struct {
@@ -284,7 +245,7 @@ func TestPreregolith(t *testing.T) {
 			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
-			cfg := regolithSystemConfig(t, test.regolithTime)
+			cfg := RegolithSystemConfig(t, test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -332,7 +293,7 @@ func TestPreregolith(t *testing.T) {
 			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
-			cfg := regolithSystemConfig(t, test.regolithTime)
+			cfg := RegolithSystemConfig(t, test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -388,7 +349,7 @@ func TestPreregolith(t *testing.T) {
 
 		t.Run("UnusedGasConsumed_"+test.name, func(t *testing.T) {
 			InitParallel(t)
-			cfg := regolithSystemConfig(t, test.regolithTime)
+			cfg := RegolithSystemConfig(t, test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -429,7 +390,7 @@ func TestPreregolith(t *testing.T) {
 
 		t.Run("AllowSystemTx_"+test.name, func(t *testing.T) {
 			InitParallel(t)
-			cfg := regolithSystemConfig(t, test.regolithTime)
+			cfg := RegolithSystemConfig(t, test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -467,7 +428,7 @@ func TestRegolith(t *testing.T) {
 			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
-			cfg := regolithSystemConfig(t, &test.regolithTime)
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -518,7 +479,7 @@ func TestRegolith(t *testing.T) {
 			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
-			cfg := regolithSystemConfig(t, &test.regolithTime)
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -577,7 +538,7 @@ func TestRegolith(t *testing.T) {
 
 		t.Run("ReturnUnusedGasToPool_"+test.name, func(t *testing.T) {
 			InitParallel(t)
-			cfg := regolithSystemConfig(t, &test.regolithTime)
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -619,7 +580,7 @@ func TestRegolith(t *testing.T) {
 
 		t.Run("RejectSystemTx_"+test.name, func(t *testing.T) {
 			InitParallel(t)
-			cfg := regolithSystemConfig(t, &test.regolithTime)
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -678,7 +639,7 @@ func TestRegolith(t *testing.T) {
 
 			deployData := append(deployPrefix, sstoreContract...)
 
-			cfg := regolithSystemConfig(t, &test.regolithTime)
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -776,7 +737,7 @@ func TestPreCanyon(t *testing.T) {
 
 		t.Run(fmt.Sprintf("ReturnsNilWithdrawals_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := canyonSystemConfig(t, test.canyonTime)
+			cfg := CanyonSystemConfig(t, test.canyonTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -796,7 +757,7 @@ func TestPreCanyon(t *testing.T) {
 
 		t.Run(fmt.Sprintf("RejectPushZeroTx_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := canyonSystemConfig(t, test.canyonTime)
+			cfg := CanyonSystemConfig(t, test.canyonTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -842,7 +803,7 @@ func TestCanyon(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("ReturnsEmptyWithdrawals_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := canyonSystemConfig(t, &test.canyonTime)
+			cfg := CanyonSystemConfig(t, &test.canyonTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -864,7 +825,7 @@ func TestCanyon(t *testing.T) {
 
 		t.Run(fmt.Sprintf("AcceptsPushZeroTxn_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := canyonSystemConfig(t, &test.canyonTime)
+			cfg := CanyonSystemConfig(t, &test.canyonTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -910,7 +871,7 @@ func TestPreEcotone(t *testing.T) {
 
 		t.Run(fmt.Sprintf("NilParentBeaconRoot_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := ecotoneSystemConfig(t, test.ecotoneTime)
+			cfg := EcotoneSystemConfig(t, test.ecotoneTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -930,7 +891,7 @@ func TestPreEcotone(t *testing.T) {
 
 		t.Run(fmt.Sprintf("RejectTstoreTxn_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := ecotoneSystemConfig(t, test.ecotoneTime)
+			cfg := EcotoneSystemConfig(t, test.ecotoneTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -978,7 +939,7 @@ func TestEcotone(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("HashParentBeaconBlockRoot_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := ecotoneSystemConfig(t, &test.ecotoneTime)
+			cfg := EcotoneSystemConfig(t, &test.ecotoneTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -1002,7 +963,7 @@ func TestEcotone(t *testing.T) {
 
 		t.Run(fmt.Sprintf("TstoreTxn_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := ecotoneSystemConfig(t, &test.ecotoneTime)
+			cfg := EcotoneSystemConfig(t, &test.ecotoneTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -1054,7 +1015,7 @@ func TestPreFjord(t *testing.T) {
 
 		t.Run(fmt.Sprintf("RIP7212_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := fjordSystemConfig(t, test.fjordTime)
+			cfg := FjordSystemConfig(t, test.fjordTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -1102,7 +1063,7 @@ func TestFjord(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("RIP7212_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := fjordSystemConfig(t, &test.fjordTime)
+			cfg := FjordSystemConfig(t, &test.fjordTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
