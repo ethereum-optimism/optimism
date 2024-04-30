@@ -137,8 +137,8 @@ contract L2Genesis is Deployer {
 
     /// @notice Build the L2 genesis.
     function runWithOptions(OutputMode _mode, L1Dependencies memory _l1Dependencies) public {
-        vm.startPrank(deployer);
         vm.chainId(cfg.l2ChainID());
+        vm.startPrank(deployer);
 
         dealEthToPrecompiles();
         setPredeployProxies();
@@ -496,8 +496,9 @@ contract L2Genesis is Deployer {
         require(Preinstalls.BeaconBlockRoots.code.length > 0, "L2Genesis: must have beacon-block-roots contract");
         console.log("Activating ecotone in GasPriceOracle contract");
 
-        vm.prank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+        vm.startPrank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
         GasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setEcotone();
+        vm.stopPrank();
     }
 
     /// @notice Sets the bytecode in state
