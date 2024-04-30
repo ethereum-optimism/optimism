@@ -94,6 +94,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Mapping of withdrawal hashes to addresses that have submitted a proof for the withdrawal.
     mapping(bytes32 => address[]) public proofSubmitters;
 
+    /// @custom:spacer _balance (custom gas token)
+    /// @notice Spacer for forwards compatibility.
+    bytes32 private spacer_61_0_32;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.

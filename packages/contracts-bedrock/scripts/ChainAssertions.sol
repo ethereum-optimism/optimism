@@ -352,6 +352,9 @@ library ChainAssertions {
             require(address(portal.superchainConfig()) == address(0));
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
         }
+        // This slot is the custom gas token _balance and this check ensures
+        // that it stays unset for forwards compatibility with custom gas token.
+        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0));
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
