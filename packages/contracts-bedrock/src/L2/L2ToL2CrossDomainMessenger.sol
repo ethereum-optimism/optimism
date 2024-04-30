@@ -85,29 +85,37 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
 
     /// @notice Enforces that a function cannot be re-entered.
     modifier nonReentrant() {
-        if (entered()) revert ReentrantCall();
-        _setEnteredValueTrue();
+        if (_entered()) revert ReentrantCall();
+        assembly {
+            tstore(ENTERED_SLOT, 1)
+        }
         _;
-        _setEnteredValueFalse();
+        assembly {
+            tstore(ENTERED_SLOT, 0)
+        }
     }
 
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
     ///         Used to differentiate between 0 and nil in transient storage.
     modifier onlyEntered() {
-        if (!entered()) revert NotEntered();
+        if (!_entered()) revert NotEntered();
         _;
     }
 
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
-    /// @return Address of the sender of the current cross domain message.
-    function crossDomainMessageSender() external view onlyEntered returns (address) {
-        return _crossDomainMessageSender();
+    /// @return _sender Address of the sender of the current cross domain message.
+    function crossDomainMessageSender() external view onlyEntered returns (address _sender) {
+        assembly {
+            _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
+        }
     }
 
     /// @notice Retrieves the source of the current cross domain message. If not entered, reverts.
-    /// @return Chain ID of the source of the current cross domain message.
-    function crossDomainMessageSource() external view onlyEntered returns (uint256) {
-        return _crossDomainMessageSource();
+    /// @return _source Chain ID of the source of the current cross domain message.
+    function crossDomainMessageSource() external view onlyEntered returns (uint256 _source) {
+        assembly {
+            _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
+        }
     }
 
     /// @notice Sends a message to some target address on a destination chain. Note that if the call always reverts,
@@ -167,14 +175,12 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
 
         _storeMessageMetadata(_source, _sender);
 
-        successfulMessages[messageHash] = true;
-
         bool success = _callWithAllGas(_target, _message);
 
         if (success) {
+            successfulMessages[messageHash] = true;
             emit RelayedMessage(messageHash);
         } else {
-            successfulMessages[messageHash] = false;
             emit FailedRelayedMessage(messageHash);
         }
 
@@ -190,42 +196,12 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
 
     /// @notice Retrieves whether the contract is currently entered or not.
     /// @return True if the contract is entered, and false otherwise.
-    function entered() public view returns (bool) {
+    function _entered() internal view returns (bool) {
         uint256 value;
         assembly {
             value := tload(ENTERED_SLOT)
         }
         return value != 0;
-    }
-
-    /// @notice Retrieves the sender of the current cross domain message.
-    /// @return _sender Address of the sender of the current cross domain message.
-    function _crossDomainMessageSender() internal view returns (address _sender) {
-        assembly {
-            _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
-        }
-    }
-
-    /// @notice Retrieves the source of the current cross domain message.
-    /// @return _source Chain ID of the source of the current cross domain message.
-    function _crossDomainMessageSource() internal view returns (uint256 _source) {
-        assembly {
-            _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
-        }
-    }
-
-    /// @notice Sets the entered value in transient storage to true.
-    function _setEnteredValueTrue() internal {
-        assembly {
-            tstore(ENTERED_SLOT, 1)
-        }
-    }
-
-    /// @notice Sets the entered value in transient storage to false.
-    function _setEnteredValueFalse() internal {
-        assembly {
-            tstore(ENTERED_SLOT, 0)
-        }
     }
 
     /// @notice Stores message data such as sender and source in transient storage.
