@@ -399,12 +399,6 @@ func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []b
 	return &info, info.unmarshalBinaryBedrock(data)
 }
 
-// L1BlockInteropInfoFromBytes is the inverse of L1InfoDeposit, to see where the L2 chain is derived from, under the Interop upgrade
-func L1BlockInteropInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []byte) (*L1BlockInfo, error) {
-	var info L1BlockInfo
-	return &info, info.unmarshalBinaryInterop(data)
-}
-
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
 func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber uint64, block eth.BlockInfo, l2BlockTime uint64) (*types.DepositTx, error) {
