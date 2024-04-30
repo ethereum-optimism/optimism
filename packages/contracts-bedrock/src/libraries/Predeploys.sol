@@ -86,6 +86,9 @@ library Predeploys {
     /// @notice Address of the CrossL2Inbox predeploy.
     address internal constant CROSS_L2_INBOX = 0x4200000000000000000000000000000000000022;
 
+    /// @notice Address of the L2ToL2CrossDomainMessenger predeploy.
+    address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
+
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
@@ -111,6 +114,7 @@ library Predeploys {
         if (_addr == GOVERNANCE_TOKEN) return "GovernanceToken";
         if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
         if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
+        if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
         revert("Predeploys: unnamed predeploy");
     }
 
