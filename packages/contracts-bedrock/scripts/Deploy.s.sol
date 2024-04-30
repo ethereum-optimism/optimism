@@ -1032,7 +1032,7 @@ contract Deploy is Deployer {
         ChainAssertions.checkL1ERC721Bridge({ _contracts: _proxies(), _isProxy: true });
     }
 
-    /// @notice Ininitialize the OptimismMintableERC20Factory
+    /// @notice Initialize the OptimismMintableERC20Factory
     function initializeOptimismMintableERC20Factory() public broadcast {
         console.log("Upgrading and initializing OptimismMintableERC20Factory proxy");
         address optimismMintableERC20FactoryProxy = mustGetAddress("OptimismMintableERC20FactoryProxy");
