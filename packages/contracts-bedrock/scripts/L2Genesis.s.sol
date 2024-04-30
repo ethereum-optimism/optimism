@@ -147,6 +147,8 @@ contract L2Genesis is Deployer {
         if (cfg.fundDevAccounts()) {
             fundDevAccounts();
         }
+        vm.stopPrank();
+
         // Genesis is "complete" at this point, but some hardfork activation steps remain.
         // Depending on the "Output Mode" we perform the activations and output the necessary state dumps.
         if (_mode == OutputMode.LOCAL_DELTA) {
@@ -155,7 +157,6 @@ contract L2Genesis is Deployer {
         if (_mode == OutputMode.OUTPUT_ALL) {
             writeGenesisAllocs(Config.stateDumpPath("-delta"));
         }
-        vm.stopPrank();
 
         activateEcotone();
         if (_mode == OutputMode.OUTPUT_ALL || _mode == OutputMode.DEFAULT_LATEST) {
