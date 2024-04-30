@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/mattn/go-isatty"
 )
 
@@ -161,9 +162,36 @@ func transformHeader(oldHeader []byte) ([]byte, error) {
 }
 
 // transformBlockBody migrates the block body from the old format to the new format (works with []byte input output)
-func transformBlockBody(oldBody []byte) ([]byte, error) {
+func transformBlockBody(oldBodyData []byte) ([]byte, error) {
 	// TODO: implement the transformation (remove epochSnarkData and randomness data from the body)
-	return oldBody, nil
+
+	// decode body into celo-blockchain Body structure
+	// remove epochSnarkData and randomness data
+	celoBody := new(CeloBody)
+	if err := rlp.DecodeBytes(oldBodyData, celoBody); err != nil {
+		log.Error("Invalid block body RLP", "err", err)
+		return nil, err
+	}
+
+	// Alternatively, decode into op-geth types.Body structure
+	// body := new(types.Body)
+	// newBodyData, err := rlp.EncodeToBytes(body)
+
+	// transform into op-geth types.Body structure
+	// since Body is a slice of types.Transactions, we can just remove the randomness and epochSnarkData and add empty array for UnclesHashes
+	newBodyData, err := rlp.EncodeToBytes([]interface{}{celoBody.Transactions, nil})
+	if err != nil {
+		log.Crit("Failed to RLP encode body", "err", err)
+	}
+	// encode the new structure into []byte
+	return newBodyData, nil
+}
+
+// CeloBody is the body of a celo block
+type CeloBody struct {
+	Transactions   rlp.RawValue
+	Randomness     rlp.RawValue
+	EpochSnarkData rlp.RawValue
 }
 
 // MustAncientLength returns the number of items in the ancients database
