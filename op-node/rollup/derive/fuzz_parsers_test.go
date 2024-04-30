@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -86,6 +87,41 @@ func FuzzL1InfoEcotoneRoundTrip(f *testing.F) {
 		}
 		var out L1BlockInfo
 		err = out.unmarshalBinaryEcotone(enc)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal binary: %v", err)
+		}
+		if !cmp.Equal(in, out, cmp.Comparer(testutils.BigEqual)) {
+			t.Fatalf("The data did not round trip correctly. in: %v. out: %v", in, out)
+		}
+
+	})
+}
+
+// FuzzL1InfoInteropRoundTrip checks that our Interop encoder round trips properly
+func FuzzL1InfoInteropRoundTrip(f *testing.F) {
+	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, blobBaseFee, hash []byte, seqNumber uint64, baseFeeScalar, blobBaseFeeScalar uint32, interopSetSize uint8) {
+		// Generate random chain ids
+		chainIds := make([]*big.Int, interopSetSize)
+		for i := 0; i < int(interopSetSize); i++ {
+			chainIds[i] = big.NewInt(int64(rand.Int()))
+		}
+		in := L1BlockInfo{
+			Number:            number,
+			Time:              time,
+			BaseFee:           BytesToBigInt(baseFee),
+			BlockHash:         common.BytesToHash(hash),
+			SequenceNumber:    seqNumber,
+			BlobBaseFee:       BytesToBigInt(blobBaseFee),
+			BaseFeeScalar:     baseFeeScalar,
+			BlobBaseFeeScalar: blobBaseFeeScalar,
+			DependencySet:     chainIds,
+		}
+		enc, err := in.marshalBinaryInterop()
+		if err != nil {
+			t.Fatalf("Failed to marshal binary: %v", err)
+		}
+		var out L1BlockInfo
+		err = out.unmarshalBinaryInterop(enc)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal binary: %v", err)
 		}
