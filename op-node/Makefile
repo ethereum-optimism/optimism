@@ -43,7 +43,6 @@ fuzz:
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzParseL1InfoDepositTxDataBadLength ./rollup/derive
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzRejectCreateBlockBadTimestamp ./rollup/driver
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzDecodeDepositTxDataToL1Info ./rollup/driver
-	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzL1InfoInteropRoundTrip ./rollup/derive
 
 generate-mocks:
 	go generate ./...
