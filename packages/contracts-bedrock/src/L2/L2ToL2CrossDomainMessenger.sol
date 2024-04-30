@@ -3,7 +3,6 @@ pragma solidity 0.8.25;
 
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
@@ -32,13 +31,16 @@ error MessageTargetL2ToL2CrossDomainMessenger();
 /// @notice Thrown when attempting to relay a message that has already been relayed.
 error MessageAlreadyRelayed();
 
+/// @notice Thrown when a reentrant call is detected.
+error ReentrantCall();
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
 /// @title L2ToL2CrossDomainMessenger
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
-contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, ReentrancyGuard {
+contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     /// @notice Storage slot for `entered` value.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.entered")) - 1)
     bytes32 internal constant ENTERED_SLOT = 0xf53fc38c5e461bdcbbeb47887fecf014abd399293109cd50f65e5f9078cfd025;
@@ -81,32 +83,31 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
     /// @param messageHash Hash of the message that failed to be relayed.
     event FailedRelayedMessage(bytes32 indexed messageHash);
 
+    /// @notice Enforces that a function cannot be re-entered.
+    modifier nonReentrant() {
+        if (entered()) revert ReentrantCall();
+        _setEnteredValueTrue();
+        _;
+        _setEnteredValueFalse();
+    }
+
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
     ///         Used to differentiate between 0 and nil in transient storage.
-    modifier notEntered() {
-        assembly {
-            if eq(tload(ENTERED_SLOT), 0) {
-                mstore(0x00, 0xbca35af6) // 0xbca35af6 is the 4-byte selector of "NotEntered()"
-                revert(0x1C, 0x04)
-            }
-        }
+    modifier onlyEntered() {
+        if (!entered()) revert NotEntered();
         _;
     }
 
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
-    /// @return _sender Address of the sender of the current cross domain message.
-    function crossDomainMessageSender() external view notEntered returns (address _sender) {
-        assembly {
-            _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
-        }
+    /// @return Address of the sender of the current cross domain message.
+    function crossDomainMessageSender() external view onlyEntered returns (address) {
+        return _crossDomainMessageSender();
     }
 
     /// @notice Retrieves the source of the current cross domain message. If not entered, reverts.
-    /// @return _source Chain ID of the source of the current cross domain message.
-    function crossDomainMessageSource() external view notEntered returns (uint256 _source) {
-        assembly {
-            _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
-        }
+    /// @return Chain ID of the source of the current cross domain message.
+    function crossDomainMessageSource() external view onlyEntered returns (uint256) {
+        return _crossDomainMessageSource();
     }
 
     /// @notice Sends a message to some target address on a destination chain. Note that if the call always reverts,
@@ -166,8 +167,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
 
         _storeMessageMetadata(_source, _sender);
 
-        _setEnteredTrue();
-
         successfulMessages[messageHash] = true;
 
         bool success = _callWithAllGas(_target, _message);
@@ -179,7 +178,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
             emit FailedRelayedMessage(messageHash);
         }
 
-        _setEnteredFalse();
+        _storeMessageMetadata(0, address(0));
     }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two bytes of the message
@@ -189,6 +188,46 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
         return Encoding.encodeVersionedNonce(msgNonce, messageVersion);
     }
 
+    /// @notice Retrieves whether the contract is currently entered or not.
+    /// @return True if the contract is entered, and false otherwise.
+    function entered() public view returns (bool) {
+        uint256 value;
+        assembly {
+            value := tload(ENTERED_SLOT)
+        }
+        return value != 0;
+    }
+
+    /// @notice Retrieves the sender of the current cross domain message.
+    /// @return _sender Address of the sender of the current cross domain message.
+    function _crossDomainMessageSender() internal view returns (address _sender) {
+        assembly {
+            _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
+        }
+    }
+
+    /// @notice Retrieves the source of the current cross domain message.
+    /// @return _source Chain ID of the source of the current cross domain message.
+    function _crossDomainMessageSource() internal view returns (uint256 _source) {
+        assembly {
+            _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
+        }
+    }
+
+    /// @notice Sets the entered value in transient storage to true.
+    function _setEnteredValueTrue() internal {
+        assembly {
+            tstore(ENTERED_SLOT, 1)
+        }
+    }
+
+    /// @notice Sets the entered value in transient storage to false.
+    function _setEnteredValueFalse() internal {
+        assembly {
+            tstore(ENTERED_SLOT, 0)
+        }
+    }
+
     /// @notice Stores message data such as sender and source in transient storage.
     /// @param _source Chain ID of the source chain.
     /// @param _sender Address of the sender of the message.
@@ -196,20 +235,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Ree
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
-        }
-    }
-
-    /// @notice Sets the entered value in transient storage to true.
-    function _setEnteredTrue() internal {
-        assembly {
-            tstore(ENTERED_SLOT, 1)
-        }
-    }
-
-    /// @notice Sets the entered value in transient storage to false.
-    function _setEnteredFalse() internal {
-        assembly {
-            tstore(ENTERED_SLOT, 0)
         }
     }
 

@@ -18,7 +18,8 @@ import {
     MessageDestinationNotRelayChain,
     MessageTargetCrossL2Inbox,
     MessageTargetL2ToL2CrossDomainMessenger,
-    MessageAlreadyRelayed
+    MessageAlreadyRelayed,
+    ReentrantCall
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
@@ -42,23 +43,9 @@ contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2Cross
         }
     }
 
-    /// @dev Sets the entered slot in transient storage to 1.
-    function setEnteredTrue() external {
-        _setEnteredTrue();
-    }
-
-    /// @dev Returns whether the contract is entered.
-    /// @return False if the entered slot is set to 0, and true otherwise.
-    function isEntered() external view returns (bool) {
-        uint256 enteredValue;
-        assembly {
-            enteredValue := tload(ENTERED_SLOT)
-        }
-        if (enteredValue == 0) {
-            return false;
-        } else {
-            return true;
-        }
+    /// @dev Sets the entered slot value in transient storage to 1.
+    function setEnteredValueTrue() external {
+        _setEnteredValueTrue();
     }
 }
 
@@ -228,35 +215,107 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         );
 
         // Check that entered slot is cleared after the function call
-        assertEq(
-            L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-                .isEntered(),
-            false
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
+
+        // Check that metadata is cleared after the function call. We need to set the `entered` slot to non-zero value
+        // to prevent NotEntered revert when calling the crossDomainMessageSender and crossDomainMessageSource functions
+        L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            .setEnteredValueTrue();
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), 0);
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), address(0));
+    }
+
+    /// @dev Mock target function that checks the source and sender of the message in transient storage.
+    /// @param _source Source chain ID of the message.
+    /// @param _sender Sender of the message.
+    function mockTarget(uint256 _source, address _sender) external payable {
+        // Ensure that the contract is entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
+
+        // Ensure that the sender is correct
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
+
+        // Ensure that the source is correct
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
+    }
+
+    /// @dev Tests that the `relayMessage` function succeeds and stores the correct metadata in transient storage.
+    function testFuzz_relayMessage_metadataStore_succeeds(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        uint256 _value
+    )
+        external
+    {
+        // Since the target is this contract, we want to ensure the payment doesn't lead to overflow, since this
+        // contract has a non-zero balance. Thus, we set this contract's balance to zero and we hoax afterwards.
+        vm.deal(address(this), 0);
+
+        // Mock the CrossL2Inbox origin to return the L2ToL2CrossDomainMessenger contract
+        vm.mockCall({
+            callee: Predeploys.CROSS_L2_INBOX,
+            data: abi.encodeWithSelector(CrossL2Inbox.origin.selector),
+            returnData: abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+        });
+
+        // Set the target and message for the reentrant call
+        address target = address(this);
+        bytes memory message = abi.encodeWithSelector(this.mockTarget.selector, _source, _sender);
+
+        // Look for correct emitted event
+        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        emit L2ToL2CrossDomainMessenger.RelayedMessage(
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, target, message))
         );
 
-        // We want to check that the crossDomainMessageSender and crossDomainMessageSource updated correctly, but
-        // first we have to set the `entered` slot to non-zero value to prevent NotEntered revert
+        // Ensure the target contract is called with the correct parameters
+        vm.expectCall({ callee: target, msgValue: _value, data: message });
+
+        // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
+        hoax(Predeploys.CROSS_L2_INBOX, _value);
+
+        // Call the relayMessage function
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
+            _destination: block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
+            _source: _source,
+            _nonce: _nonce,
+            _sender: _sender,
+            _target: target,
+            _message: message
+        });
+
+        // Check that successfulMessages mapping updates the message hash correctly
+        assertEq(
+            l2ToL2CrossDomainMessenger.successfulMessages(
+                keccak256(abi.encode(block.chainid, _source, _nonce, _sender, target, message))
+            ),
+            true
+        );
+
+        // Check that entered slot is cleared after the function call
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
+
+        // Check that metadata is cleared after the function call. We need to set the `entered` slot to non-zero value
+        // to prevent NotEntered revert when calling the crossDomainMessageSender and crossDomainMessageSource functions
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-            .setEnteredTrue();
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
+            .setEnteredValueTrue();
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), 0);
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), address(0));
     }
 
     /// @dev Mock reentrant function that calls the `relayMessage` function.
     /// @param _source Source chain ID of the message.
+    /// @param _nonce Nonce of the message.
     /// @param _sender Sender of the message.
-    function mockReentrant(uint256 _source, uint256 _nonce, address _sender) external payable {
+    function mockTargetReentrant(uint256 _source, uint256 _nonce, address _sender) external payable {
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check
         vm.prank(Predeploys.CROSS_L2_INBOX);
 
         // Ensure that the contract is entered
-        assertEq(
-            L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-                .isEntered(),
-            true
-        );
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
 
-        vm.expectRevert("ReentrancyGuard: reentrant call");
+        vm.expectRevert(ReentrantCall.selector);
 
         l2ToL2CrossDomainMessenger.relayMessage({
             _destination: block.chainid,
@@ -295,7 +354,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Set the target and message for the reentrant call
         address target = address(this);
-        bytes memory message = abi.encodeWithSelector(this.mockReentrant.selector, _source2, _nonce, _sender2);
+        bytes memory message = abi.encodeWithSelector(this.mockTargetReentrant.selector, _source2, _nonce, _sender2);
 
         // Look for correct emitted event
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
@@ -320,24 +379,14 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
 
         // Check that entered slot is cleared after the function call
-        assertEq(
-            L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-                .isEntered(),
-            false
-        );
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
-        // We want to check that the crossDomainMessageSender and crossDomainMessageSource update correctly, but
-        // first we have to set the `entered` slot to non-zero value to prevent NotEntered revert
+        // Check that metadata is cleared after the function call. We need to set the `entered` slot to non-zero value
+        // to prevent NotEntered revert when calling the crossDomainMessageSender and crossDomainMessageSource functions
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-            .setEnteredTrue();
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender1);
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source1);
-        assertEq(
-            l2ToL2CrossDomainMessenger.successfulMessages(
-                keccak256(abi.encode(block.chainid, _source1, _nonce, _sender1, target, message))
-            ),
-            false
-        );
+            .setEnteredValueTrue();
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), 0);
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), address(0));
     }
 
     /// @dev Tests that the `relayMessage` function reverts when the caller is not the CrossL2Inbox contract.
@@ -632,13 +681,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     function testFuzz_crossDomainMessageSender_succeeds(address _sender) external {
         // Set `entered` to non-zero value to prevent NotEntered revert
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-            .setEnteredTrue();
+            .setEnteredValueTrue();
         // Ensure that the contract is now entered
-        assertEq(
-            L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-                .isEntered(),
-            true
-        );
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
         // Set cross domain message sender in the transient storage
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
             .setCrossDomainMessageSender(_sender);
@@ -649,11 +694,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev Tests that the `crossDomainMessageSender` function reverts when not entered.
     function test_crossDomainMessageSender_notEntered_reverts() external {
         // Ensure that the contract is not entered
-        assertEq(
-            L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-                .isEntered(),
-            false
-        );
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
         // Expect a revert with the NotEntered selector
         vm.expectRevert(NotEntered.selector);
@@ -666,13 +707,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     function testFuzz_crossDomainMessageSource_succeeds(uint256 _source) external {
         // Set `entered` to non-zero value to prevent NotEntered revert
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-            .setEnteredTrue();
+            .setEnteredValueTrue();
         // Ensure that the contract is now entered
-        assertEq(
-            L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-                .isEntered(),
-            true
-        );
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
         // Set cross domain message source in the transient storage
         L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
             .setCrossDomainMessageSource(_source);
@@ -683,11 +720,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     /// @dev Tests that the `crossDomainMessageSource` function reverts when not entered.
     function test_crossDomainMessageSource_notEntered_reverts() external {
         // Ensure that the contract is not entered
-        assertEq(
-            L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-                .isEntered(),
-            false
-        );
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
         // Expect a revert with the NotEntered selector
         vm.expectRevert(NotEntered.selector);
