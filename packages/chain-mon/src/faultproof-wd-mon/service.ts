@@ -14,7 +14,7 @@ import {
 } from '@eth-optimism/sdk'
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { Provider } from '@ethersproject/abstract-provider'
-import { Contract, ethers } from 'ethers'
+import { ethers } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../../package.json'
@@ -46,8 +46,16 @@ type State = {
   highestUncheckedBlockNumber: number
   faultProofWindow: number
   forgeryDetected: boolean
-  invalidProposalWithdrawals: Array<Contract> //Withdrawals against invalid proposals.
-  invalidProofWithdrawals: Array<Contract> //Withdrawals against invalid proof.
+  invalidProposalWithdrawals: Array<{
+    withdrawalHash: string
+    senderAddress: string
+    disputeGame: ethers.Contract
+  }>
+  invalidProofWithdrawals: Array<{
+    withdrawalHash: string
+    senderAddress: string
+    disputeGame: ethers.Contract
+  }>
 }
 
 enum GameStatus {
@@ -229,26 +237,25 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
       this.state.invalidProofWithdrawals.length
     )
 
-    for (const disputeGame of this.state.invalidProposalWithdrawals) {
+    for (
+      let i = this.state.invalidProposalWithdrawals.length - 1;
+      i >= 0;
+      i--
+    ) {
+      const disputeGameData = this.state.invalidProposalWithdrawals[i]
+      const disputeGame = disputeGameData.disputeGame
       const disputeGameAddress = disputeGame.address
       const isGameBlacklisted =
         this.state.portal.dispudeGameBlacklist(disputeGameAddress)
+
       if (isGameBlacklisted) {
         if (isGameBlacklisted) {
-          const index =
-            this.state.invalidProposalWithdrawals.indexOf(disputeGame)
-          if (index !== -1) {
-            this.state.invalidProposalWithdrawals.splice(index, 1)
-          }
+          this.state.invalidProposalWithdrawals.splice(i, 1)
         }
       } else {
         const status = disputeGame.status()
         if (status === GameStatus.CHALLENGER_WINS) {
-          const index =
-            this.state.invalidProposalWithdrawals.indexOf(disputeGame)
-          if (index !== -1) {
-            this.state.invalidProposalWithdrawals.splice(index, 1)
-          }
+          this.state.invalidProposalWithdrawals.splice(i, 1)
         } else if (status === GameStatus.DEFENDER_WINS) {
           this.state.forgeryDetected = true
           this.metrics.isDetectingForgeries.set(
@@ -337,50 +344,55 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
     for (const event of events) {
       // Could consider using multicall here but this is efficient enough for now.
       const hash = event.args.withdrawalHash
+      const disputeGamesData = await this.getWithdrawalDisputeGames(event)
+      for (const disputeGameData of disputeGamesData) {
+        const disputeGame = disputeGameData.disputeGame
+        const rootClaim = await disputeGame.rootClaim()
+        const l2BlockNumber = await disputeGame.l2BlockNumber()
+        const isValidRoot = await this.isValidOutputRoot(
+          rootClaim,
+          l2BlockNumber
+        )
+        if (isValidRoot) {
+          // Check if the withdrawal exists on L2.
+          const exists = await this.state.messenger.sentMessages(hash)
+          // Hopefully the withdrawal exists!
+          if (exists) {
+            // Unlike below we don't grab the timestamp here because it adds an unnecessary request.
+            this.logger.info(`valid withdrawal`, {
+              withdrawalHash: event.args.withdrawalHash,
+            })
 
-      const disputeGame = await this.getDisputeGameFromEvent(event)
-      const rootClaim = await disputeGame.rootClaim()
-      const l2BlockNumber = await disputeGame.l2BlockNumber()
-      const isValidRoot = await this.isValidOutputRoot(rootClaim, l2BlockNumber)
-      if (isValidRoot) {
-        // Check if the withdrawal exists on L2.
-        const exists = await this.state.messenger.sentMessages(hash)
-        // Hopefully the withdrawal exists!
-        if (exists) {
-          // Unlike below we don't grab the timestamp here because it adds an unnecessary request.
-          this.logger.info(`valid withdrawal`, {
-            withdrawalHash: event.args.withdrawalHash,
-          })
+            // Bump the withdrawals metric so we can keep track.
+            this.metrics.withdrawalsValidated.inc()
+          } else {
+            this.state.invalidProofWithdrawals.push(disputeGameData)
+            // Grab and format the timestamp so it's clear how much time is left.
+            const block = await event.getBlock()
+            const ts = `${dateformat(
+              new Date(block.timestamp * 1000),
+              'mmmm dS, yyyy, h:MM:ss TT',
+              true
+            )} UTC`
 
-          // Bump the withdrawals metric so we can keep track.
-          this.metrics.withdrawalsValidated.inc()
+            // Uh oh!
+            this.logger.error(`withdrawalHash not seen on L2`, {
+              withdrawalHash: event.args.withdrawalHash,
+              provenAt: ts,
+            })
+
+            // Change to forgery state.
+            this.state.forgeryDetected = true
+            this.metrics.isDetectingForgeries.set(
+              Number(this.state.forgeryDetected)
+            )
+          }
         } else {
-          this.state.invalidProofWithdrawals.push(disputeGame)
-          // Grab and format the timestamp so it's clear how much time is left.
-          const block = await event.getBlock()
-          const ts = `${dateformat(
-            new Date(block.timestamp * 1000),
-            'mmmm dS, yyyy, h:MM:ss TT',
-            true
-          )} UTC`
-
-          // Uh oh!
-          this.logger.error(`withdrawalHash not seen on L2`, {
+          this.state.invalidProposalWithdrawals.push(disputeGameData)
+          this.logger.info(`invalid proposal`, {
             withdrawalHash: event.args.withdrawalHash,
-            provenAt: ts,
           })
-
-          // Change to forgery state.
-          this.state.forgeryDetected = true
-          this.metrics.isDetectingForgeries.set(
-            Number(this.state.forgeryDetected)
-          )
         }
-      } else {
-        this.state.invalidProposalWithdrawals.push(disputeGame)
-        this.logger.info(`invalid proposal`, {
-          withdrawalHash: event.args.withdrawalHash,
-        })
       }
     }
 
@@ -388,29 +400,58 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
     this.state.highestUncheckedBlockNumber = toBlockNumber
   }
 
-  async getDisputeGameFromEvent(event: ethers.Event): Promise<ethers.Contract> {
-    const disputeGameAddress = await this.getDisputeGameAddress(event)
-    const disputeGame = await this.getDisputeGame(disputeGameAddress)
-    return disputeGame
-  }
-
-  async getDisputeGameAddress(event: ethers.Event): Promise<string> {
-    // Get the transaction informations from the event
-    const transactionHash = event.transactionHash
-    const tx = await this.options.l1RpcProvider.getTransaction(transactionHash)
-    const sender = tx.from
+  /**
+   * Retrieves the dispute games data associated with a withdrawal hash associated in an event.
+   *
+   * @param event The event containing the withdrawal hash.
+   * @returns An array of objects containing the withdrawal hash, sender address, and dispute game address.
+   */
+  async getWithdrawalDisputeGames(event: ethers.Event): Promise<
+    Array<{
+      withdrawalHash: string
+      senderAddress: string
+      disputeGame: ethers.Contract
+    }>
+  > {
     const withdrawalHash = event.args.withdrawalHash
+    const disputeGameMap: Array<{
+      withdrawalHash: string
+      senderAddress: string
+      disputeGame: ethers.Contract
+    }> = []
 
-    // Get the dispute game relative to this withdrawal from the portal
-    const provenWithdrawals = await this.state.portal.provenWithdrawals(
-      withdrawalHash,
-      sender
+    const numProofSubmitter = await this.state.portal.numProofSubmitters(
+      withdrawalHash
     )
-    const disputeGameProxyAddress = provenWithdrawals['disputeGameProxy']
-    return disputeGameProxyAddress
+
+    // iterate for numProofSubmitter
+    const proofSubmitterAddresses = await Promise.all(
+      Array.from({ length: numProofSubmitter.toNumber() }, (_, i) =>
+        this.state.portal.proofSubmitters(withdrawalHash, i)
+      )
+    )
+
+    // Iterate for proofSubmitterAddresses and query provenWithdrawals to get the disputeGameProxy for each proofSubmitter
+    await Promise.all(
+      proofSubmitterAddresses.map(async (proofSubmitter) => {
+        const provenWithdrawals_ = await this.state.portal.provenWithdrawals(
+          withdrawalHash,
+          proofSubmitter
+        )
+        const disputeGame_ = await this.getDisputeGameFromAddress(
+          provenWithdrawals_['disputeGameProxy']
+        )
+        disputeGameMap.push({
+          withdrawalHash,
+          senderAddress: proofSubmitter,
+          disputeGame: disputeGame_,
+        })
+      })
+    )
+    return disputeGameMap
   }
 
-  async getDisputeGame(
+  async getDisputeGameFromAddress(
     disputeGameProxyAddress: string
   ): Promise<ethers.Contract> {
     const FaultDisputeGame = getOEContract('FaultDisputeGame', this.l2ChainId, {
