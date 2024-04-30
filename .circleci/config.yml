@@ -1986,7 +1986,7 @@ workflows:
               ignore: /.*/
           docker_name: op-dispute-mon
           docker_tags: <<pipeline.git.revision>>
-          requires: ['op-stack-go-docker-build-release']
+          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
@@ -2016,7 +2016,7 @@ workflows:
               ignore: /.*/
           docker_name: da-server
           docker_tags: <<pipeline.git.revision>>
-          requires: ['op-stack-go-docker-build-release']
+          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
@@ -2245,7 +2245,6 @@ workflows:
           name: op-dispute-mon-docker-publish
           docker_name: op-dispute-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
           publish: true
           context:

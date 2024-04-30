@@ -49,6 +49,10 @@ variable "OP_CHALLENGER_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_DISPUTE_MON_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable OP_HEARTBEAT_VERSION {
   default = "${GIT_VERSION}"
 }
@@ -119,14 +123,14 @@ target "op-challenger" {
 }
 
 target "op-dispute-mon" {
-  dockerfile = "Dockerfile"
-  context = "./op-dispute-mon"
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
   args = {
-    OP_STACK_GO_BUILDER = "op-stack-go"
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_DISPUTE_MON_VERSION = "${OP_DISPUTE_MON_VERSION}"
   }
-  contexts = {
-    op-stack-go: "target:op-stack-go"
-  }
+  target = "op-dispute-mon-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-dispute-mon:${tag}"]
 }
@@ -158,14 +162,13 @@ target "op-heartbeat" {
 }
 
 target "da-server" {
-  dockerfile = "Dockerfile"
-  context = "./op-plasma"
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
   args = {
-    OP_STACK_GO_BUILDER = "op-stack-go"
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
   }
-  contexts = {
-    op-stack-go: "target:op-stack-go"
-  }
+  target = "da-server-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/da-server:${tag}"]
 }
