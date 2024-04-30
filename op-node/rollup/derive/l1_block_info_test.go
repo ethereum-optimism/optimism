@@ -162,4 +162,49 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
 	})
+	t.Run("interop", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			EcotoneTime:  &zero,
+		}
+		depTx, err := L1InfoInteropDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoInteropLen(uint8(len(InteropDependencySet))), len(depTx.Data))
+	})
+	t.Run("invalid dependency set size, not matching", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			EcotoneTime:  &zero,
+		}
+		depTx, err := L1InfoInteropDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
+		require.NoError(t, err)
+		depTx.Data[164] = 0
+		_, err = L1BlockInteropInfoFromBytes(&rollupCfg, info.Time(), depTx.Data)
+		assert.Error(t, err)
+	})
+	t.Run("invalid dependency set size, too large", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			EcotoneTime:  &zero,
+		}
+		depTx, err := L1InfoInteropDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
+		require.NoError(t, err)
+		// insert another byte after dependency set size to make dependency set size greater than uint8
+		// this will make the dependency set size invalid because unmarshalBinaryInterop reads only one byte at index 165
+		depTx.Data = append(depTx.Data[:165+1], depTx.Data[165:]...)
+		depTx.Data[165] = 10
+		_, err = L1BlockInteropInfoFromBytes(&rollupCfg, info.Time(), depTx.Data)
+		assert.Error(t, err)
+	})
 }
