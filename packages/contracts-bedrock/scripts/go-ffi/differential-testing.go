@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"os"
@@ -10,6 +11,10 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -360,6 +365,69 @@ func DiffTestUtils() {
 		packed, err := cannonMemoryProofArgs.Pack(&output)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(packed[32:]))
+	case "encodeSetL1BlockValuesInterop":
+		// Parse input arguments
+		number, err := strconv.ParseUint(args[1], 10, 64)
+		checkErr(err, "Error decoding number")
+		time, err := strconv.ParseUint(args[2], 10, 64)
+		checkErr(err, "Error decoding time")
+		baseFee, ok := new(big.Int).SetString(args[3], 10)
+		checkOk(ok)
+		hash := common.HexToHash(args[4])
+		seqNumber, err := strconv.ParseUint(args[5], 10, 64)
+		checkErr(err, "Error decoding sequence number")
+		batcherAddr := common.HexToAddress(args[6])
+		blobBaseFee, ok := new(big.Int).SetString(args[7], 10)
+		checkOk(ok)
+		baseFeeScalar, err := strconv.ParseUint(args[8], 10, 32)
+		checkErr(err, "Error decoding baseFeeScalar")
+		blobBaseFeeScalar, err := strconv.ParseUint(args[9], 10, 32)
+		checkErr(err, "Error decoding blobBaseFeeScalar")
+		dependencySetSize, ok := new(big.Int).SetString(args[10], 10)
+		checkOk(ok)
+		derive.InteropDependencySet = []*big.Int{}
+		for i := 0; i < int(dependencySetSize.Uint64()); i++ {
+			dependency, ok := new(big.Int).SetString(args[11+i], 10)
+			checkOk(ok)
+			derive.InteropDependencySet = append(derive.InteropDependencySet, dependency)
+		}
+
+		// Create rollup config
+		zero := uint64(0)
+		rollupCfg := rollup.Config{
+			RegolithTime: &zero,
+			EcotoneTime:  &zero,
+			InteropTime:  &zero,
+		}
+
+		// Create L1 config
+		scalar := [32]byte{}
+		scalar[0] = 1
+		binary.BigEndian.PutUint32(scalar[24:28], uint32(blobBaseFeeScalar))
+		binary.BigEndian.PutUint32(scalar[28:32], uint32(baseFeeScalar))
+		l1Cfg := eth.SystemConfig{
+			BatcherAddr: batcherAddr,
+			Scalar:      scalar,
+		}
+
+		// Create L1 block info
+		info := testutils.MockBlockInfo{
+			InfoNum:         number,
+			InfoTime:        time,
+			InfoHash:        hash,
+			InfoBaseFee:     baseFee,
+			InfoBlobBaseFee: blobBaseFee,
+		}
+
+		// Get L1 info deposit transaction
+		out, err := derive.L1InfoInteropDeposit(&rollupCfg, l1Cfg, seqNumber, &info, 1)
+		checkErr(err, "Error producing L1InfoDeposit")
+
+		// Pack transaction data
+		packed, err := bytesArgs.Pack(&out.Data)
+		checkErr(err, "Error encoding output")
+
+		fmt.Print(hexutil.Encode(packed))
 	default:
 		panic(fmt.Errorf("Unknown command: %s", args[0]))
 	}
