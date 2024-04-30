@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/kms v1.12.1
 	github.com/BurntSushi/toml v1.3.2
 	github.com/ethereum-optimism/optimism v1.6.2-0.20240222202618-f707883038d5
-	github.com/ethereum/go-ethereum v1.13.14
+	github.com/ethereum/go-ethereum v1.13.15
 	github.com/gorilla/mux v1.8.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.0
@@ -45,7 +45,6 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
 	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240418160534-4156733e7232 // indirect
 	github.com/ethereum/c-kzg-4844 v0.4.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/flosch/pongo2/v4 v4.0.2 // indirect
@@ -130,6 +129,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.13.14 => github.com/ethereum-optimism/op-geth v1.101312.0-synctest.0.0.20240430164737-040566d9b6db
+replace github.com/ethereum/go-ethereum v1.13.14 => github.com/ethereum-optimism/op-geth v1.101312.0-synctest.0.0.20240430181912-768a3beb63ce
 
 replace github.com/ethereum-optimism/optimism => ../.
