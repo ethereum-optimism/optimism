@@ -5,7 +5,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "_sender",
+        "name": "",
         "type": "address"
       }
     ],
@@ -18,8 +18,21 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "_source",
+        "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "entered",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -211,6 +224,16 @@
   {
     "inputs": [],
     "name": "MessageTargetL2ToL2CrossDomainMessenger",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotEntered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrantCall",
     "type": "error"
   },
   {
