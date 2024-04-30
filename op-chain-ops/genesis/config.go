@@ -267,6 +267,7 @@ type DeployConfig struct {
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 
+	// The following values apply to a given superchain.
 	// DeploySecurityCouncil is a flag that indicates if a security council should be deployed
 	DeploySecurityCouncil bool `json:"deploySecurityCouncil"`
 	// The interval, in seconds, during which a security council owner must have demonstrated liveness
@@ -434,7 +435,7 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.DeploySecurityCouncil {
 		if d.LivenessModuleInterval == 0 {
-			log.Warn("LivenessModuleInterval is 0")
+			log.Error("LivenessModuleInterval is 0")
 		}
 		if d.LivenessModuleThresholdPercentage == 0 || d.LivenessModuleThresholdPercentage > 100 {
 			return fmt.Errorf("LivenessModuleThresholdPercentage (%d) is not a valid percentage", d.LivenessModuleThresholdPercentage)
