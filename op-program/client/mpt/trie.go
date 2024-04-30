@@ -116,11 +116,11 @@ func (n noResetHasher) Reset() {}
 // if any values are less than 32 bytes and fit into branch-node slots that way.
 func WriteTrie(values []hexutil.Bytes) (common.Hash, []hexutil.Bytes) {
 	var out []hexutil.Bytes
-	st := noResetHasher{trie.NewStackTrie(
-		trie.NewStackTrieOptions().WithWriter(
-			func(path []byte, hash common.Hash, blob []byte) {
-				out = append(out, common.CopyBytes(blob)) // the stack hasher may mutate the blob bytes, so copy them.
-			}))}
+	st := noResetHasher{
+		trie.NewStackTrie(func(path []byte, hash common.Hash, blob []byte) {
+			out = append(out, common.CopyBytes(blob)) // the stack hasher may mutate the blob bytes, so copy them.
+		}),
+	}
 	root := types.DeriveSha(rawList(values), st)
 	return root, out
 }
