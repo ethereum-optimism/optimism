@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/mattn/go-isatty"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // How to run:
@@ -68,7 +71,7 @@ func main() {
 	migratedRecords := MustAncientLength(newDB)
 	log.Info("Ancient Migration Initial Status", "migrated", migratedRecords, "total", toMigrateRecords)
 
-	if err = freezeRange(oldDB, newDB, migratedRecords, *batchSize); err != nil {
+	if err = parMigrateRange(oldDB, newDB, migratedRecords, *batchSize); err != nil {
 		log.Crit("Failed to freeze range", "err", err)
 	}
 
@@ -94,7 +97,7 @@ func openCeloDb(path string, cache int, handles int, readonly bool) (ethdb.Datab
 	return ldb, nil
 }
 
-func freezeRange(oldDb ethdb.Database, newDb ethdb.Database, number, count uint64) error {
+func seqMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, number, count uint64) error {
 	_, err := newDb.ModifyAncients(func(op ethdb.AncientWriteOp) error {
 		hashes, err := oldDb.AncientRange(rawdb.ChainFreezerHashTable, number, count, 0)
 		if err != nil {
@@ -155,6 +158,152 @@ func freezeRange(oldDb ethdb.Database, newDb ethdb.Database, number, count uint6
 	return err
 }
 
+type RLPBlockRange struct {
+	start    uint64
+	hashes   [][]byte
+	headers  [][]byte
+	bodies   [][]byte
+	receipts [][]byte
+	tds      [][]byte
+}
+
+// parMigrateRange migrates ancient data from the old database to the new database in parallel
+func parMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, number, count uint64) error {
+	g, ctx := errgroup.WithContext(context.Background())
+	readChan := make(chan RLPBlockRange, 10)
+	transformChan := make(chan RLPBlockRange, 10)
+
+	g.Go(func() error { return readBlocks(ctx, oldDb, number, number+3*count, count, readChan) })
+	g.Go(func() error { return transformBlocks(ctx, readChan, transformChan) })
+	g.Go(func() error { return writeAncients(ctx, newDb, transformChan) })
+
+	return g.Wait()
+}
+
+func readBlocks(ctx context.Context, oldDb ethdb.Database, startBlock, endBlock, batchSize uint64, out chan<- RLPBlockRange) error {
+	defer close(out)
+	// Read blocks and send them to the out channel
+	// This could be reading from a database, a file, etc.
+	for i := startBlock; i < endBlock; i += batchSize {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			var block RLPBlockRange
+			var err error
+
+			count := min(batchSize, endBlock-i+1)
+			log.Info("Reading blocks", "start", i, "end", i+count-1, "count", count)
+			block.start = i
+			block.hashes, err = oldDb.AncientRange(rawdb.ChainFreezerHashTable, i, count, 0)
+			if err != nil {
+				log.Error("can't read hashes from old freezer", "err", err)
+				return err
+			}
+
+			block.headers, err = oldDb.AncientRange(rawdb.ChainFreezerHeaderTable, i, count, 0)
+			if err != nil {
+				log.Error("can't read headers from old freezer", "err", err)
+				return err
+			}
+
+			block.bodies, err = oldDb.AncientRange(rawdb.ChainFreezerBodiesTable, i, count, 0)
+			if err != nil {
+				log.Error("can't read bodies from old freezer", "err", err)
+				return err
+			}
+
+			block.receipts, err = oldDb.AncientRange(rawdb.ChainFreezerReceiptTable, i, count, 0)
+			if err != nil {
+				log.Error("can't read receipts from old freezer", "err", err)
+				return err
+			}
+
+			block.tds, err = oldDb.AncientRange(rawdb.ChainFreezerDifficultyTable, i, count, 0)
+			if err != nil {
+				log.Error("can't read tds from old freezer", "err", err)
+				return err
+			}
+
+			out <- block
+		}
+	}
+	return nil
+}
+
+func transformBlocks(ctx context.Context, in <-chan RLPBlockRange, out chan<- RLPBlockRange) error {
+	// Transform blocks from the in channel and send them to the out channel
+	defer close(out)
+	for block := range in {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			// Transform headers
+			for i, header := range block.headers {
+				newHeader, err := transformHeader(header)
+				if err != nil {
+					log.Error("Failed to transform header", "err", err)
+					return err
+				}
+				block.headers[i] = newHeader
+			}
+			// Transform bodies
+			for i, body := range block.bodies {
+				newBody, err := transformBlockBody(body)
+				if err != nil {
+					log.Error("Failed to transform body", "err", err)
+					return err
+				}
+				block.bodies[i] = newBody
+			}
+			out <- block
+		}
+	}
+	return nil
+}
+
+func writeAncients(ctx context.Context, newDb ethdb.Database, in <-chan RLPBlockRange) error {
+	// Write blocks from the in channel to the newDb
+	for block := range in {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			_, err := newDb.ModifyAncients(func(aWriter ethdb.AncientWriteOp) error {
+				for i := range block.hashes {
+					if err := aWriter.AppendRaw(rawdb.ChainFreezerHashTable, block.start+uint64(i), block.hashes[i]); err != nil {
+						log.Error("can't write hash to Freezer", "err", err)
+						return err
+					}
+					if err := aWriter.AppendRaw(rawdb.ChainFreezerHeaderTable, block.start+uint64(i), block.headers[i]); err != nil {
+						log.Error("can't write header to Freezer", "err", err)
+						return err
+					}
+					if err := aWriter.AppendRaw(rawdb.ChainFreezerBodiesTable, block.start+uint64(i), block.bodies[i]); err != nil {
+						log.Error("can't write body to Freezer", "err", err)
+						return err
+					}
+					if err := aWriter.AppendRaw(rawdb.ChainFreezerReceiptTable, block.start+uint64(i), block.receipts[i]); err != nil {
+						log.Error("can't write receipts to Freezer", "err", err)
+						return err
+					}
+					if err := aWriter.AppendRaw(rawdb.ChainFreezerDifficultyTable, block.start+uint64(i), block.tds[i]); err != nil {
+						log.Error("can't write td to Freezer", "err", err)
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				log.Error("Failed to write ancients", "err", err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // transformHeader migrates the header from the old format to the new format (works with []byte input output)
 func transformHeader(oldHeader []byte) ([]byte, error) {
 	// TODO: implement the transformation (remove only validator bls Signature)
@@ -163,8 +312,6 @@ func transformHeader(oldHeader []byte) ([]byte, error) {
 
 // transformBlockBody migrates the block body from the old format to the new format (works with []byte input output)
 func transformBlockBody(oldBodyData []byte) ([]byte, error) {
-	// TODO: implement the transformation (remove epochSnarkData and randomness data from the body)
-
 	// decode body into celo-blockchain Body structure
 	// remove epochSnarkData and randomness data
 	celoBody := new(CeloBody)
