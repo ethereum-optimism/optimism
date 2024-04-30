@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -12,12 +11,9 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 var (
@@ -84,7 +80,7 @@ func appMain(ctx *cli.Context) error {
 	}
 	log.Info("Loaded Celo L1 DB", "db", ldb)
 
-	// printStats(ldb)
+	printStats(ldb)
 
 	findFirstCorruptedHeader(ldb)
 
@@ -94,12 +90,13 @@ func appMain(ctx *cli.Context) error {
 	// tryHeader(ldb, 4960000)    // churrito block
 	// tryHeader(ldb, 4960000)    // donut block
 	// tryHeader(ldb, 9472000)    // espresso block
+	// tryHeader(ldb, 1)          // espresso block
 
 	return nil
 }
 
 func tryHeader(ldb ethdb.Database, number uint64) {
-	header, err := ReadCeloCanonicalHeader(ldb, number)
+	header, err := celo1.ReadCeloCanonicalHeader(ldb, number)
 	if err != nil {
 		log.Error("failed to load header", "number", number, "error", err)
 	} else {
@@ -145,7 +142,7 @@ func printStats(ldb ethdb.Database) {
 
 func canLoadHeader(ldb ethdb.Database, number uint64) bool {
 	// log.Trace("Checking if header can be loaded", "number", number)
-	_, err := ReadCeloCanonicalHeader(ldb, number)
+	_, err := celo1.ReadCeloCanonicalHeader(ldb, number)
 	if err != nil {
 		log.Debug("failed to load header", "number", number, "error", err)
 	}
@@ -197,76 +194,4 @@ func printLastBlocks(ldb ethdb.Database, x uint64) {
 		log.Info("Block", "number", header.Number, "hash", header.Hash())
 		hash = header.ParentHash
 	}
-}
-
-// ReadHeaderRLP retrieves a block header in its raw RLP database encoding. (copied from rawdb)
-func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
-	var data []byte
-	db.ReadAncients(func(reader ethdb.AncientReaderOp) error {
-		// First try to look up the data in ancient database. Extra hash
-		// comparison is necessary since ancient database only maintains
-		// the canonical data.
-		data, _ = reader.Ancient(rawdb.ChainFreezerHeaderTable, number)
-		if len(data) != 0 {
-			return nil
-		}
-		// If not, try reading from leveldb
-		data, _ = db.Get(headerKey(number, hash))
-		return nil
-	})
-	return data
-}
-
-var (
-	headerPrefix = []byte("h") // headerPrefix + num (uint64 big endian) + hash -> header
-)
-
-// encodeBlockNumber encodes a block number as big endian uint64
-func encodeBlockNumber(number uint64) []byte {
-	enc := make([]byte, 8)
-	binary.BigEndian.PutUint64(enc, number)
-	return enc
-}
-
-// headerKey = headerPrefix + num (uint64 big endian) + hash
-func headerKey(number uint64, hash common.Hash) []byte {
-	return append(append(headerPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
-}
-
-func ReadCeloHeader(db ethdb.Reader, hash common.Hash, number uint64) (*celo1.Header, error) {
-	data := ReadHeaderRLP(db, hash, number)
-	if len(data) == 0 {
-		return nil, errors.New("header not found")
-	}
-
-	header := new(celo1.Header)
-	if err := rlp.DecodeBytes(data, header); err != nil {
-		return nil, err
-	}
-	return header, nil
-}
-
-// ReadHeader retrieves the block header corresponding to the hash. (copied from rawdb)
-func ReadHeader(db ethdb.Reader, hash common.Hash, number uint64) (*types.Header, error) {
-	data := ReadHeaderRLP(db, hash, number)
-	if len(data) == 0 {
-		return nil, errors.New("header not found")
-	}
-	header := new(types.Header)
-	if err := rlp.DecodeBytes(data, header); err != nil {
-		return nil, err
-	}
-	return header, nil
-}
-
-// ReadCanonicalHeader retrieves the cannoical block header at the given number.
-func ReadCanonicalHeader(db ethdb.Reader, number uint64) (*types.Header, error) {
-	hash := rawdb.ReadCanonicalHash(db, number)
-	return ReadHeader(db, hash, number)
-}
-
-// ReadCanonicalHeader retrieves the cannoical block header at the given number.
-func ReadCeloCanonicalHeader(db ethdb.Reader, number uint64) (*celo1.Header, error) {
-	hash := rawdb.ReadCanonicalHash(db, number)
-	return ReadCeloHeader(db, hash, number)
 }
