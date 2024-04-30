@@ -261,6 +261,7 @@ contract Deploy is Deployer {
     }
 
     function runWithStateDump() public {
+        vm.chainId(cfg.l1ChainID());
         _run();
         vm.dumpState(Config.stateDumpPath(""));
     }
