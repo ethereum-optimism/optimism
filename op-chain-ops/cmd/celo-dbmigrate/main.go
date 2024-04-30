@@ -123,15 +123,22 @@ func freezeRange(oldDb ethdb.Database, newDb ethdb.Database, number, count uint6
 		for i := 0; i < len(hashes); i++ {
 			log.Debug("Migrating ancient data", "number", number+uint64(i))
 
-			// TODO: perform encoding migration here
+			newHeader, err := transformHeader(headers[i])
+			if err != nil {
+				return fmt.Errorf("can't transform header: %v", err)
+			}
+			newBody, err := transformBlockBody(bodies[i])
+			if err != nil {
+				return fmt.Errorf("can't transform body: %v", err)
+			}
 
 			if err := op.AppendRaw(rawdb.ChainFreezerHashTable, number+uint64(i), hashes[i]); err != nil {
 				return fmt.Errorf("can't write hash to Freezer: %v", err)
 			}
-			if err := op.AppendRaw(rawdb.ChainFreezerHeaderTable, number+uint64(i), headers[i]); err != nil {
+			if err := op.AppendRaw(rawdb.ChainFreezerHeaderTable, number+uint64(i), newHeader); err != nil {
 				return fmt.Errorf("can't write header to Freezer: %v", err)
 			}
-			if err := op.AppendRaw(rawdb.ChainFreezerBodiesTable, number+uint64(i), bodies[i]); err != nil {
+			if err := op.AppendRaw(rawdb.ChainFreezerBodiesTable, number+uint64(i), newBody); err != nil {
 				return fmt.Errorf("can't write body to Freezer: %v", err)
 			}
 			if err := op.AppendRaw(rawdb.ChainFreezerReceiptTable, number+uint64(i), receipts[i]); err != nil {
@@ -147,6 +154,19 @@ func freezeRange(oldDb ethdb.Database, newDb ethdb.Database, number, count uint6
 	return err
 }
 
+// transformHeader migrates the header from the old format to the new format (works with []byte input output)
+func transformHeader(oldHeader []byte) ([]byte, error) {
+	// TODO: implement the transformation (remove only validator bls Signature)
+	return oldHeader, nil
+}
+
+// transformBlockBody migrates the block body from the old format to the new format (works with []byte input output)
+func transformBlockBody(oldBody []byte) ([]byte, error) {
+	// TODO: implement the transformation (remove epochSnarkData and randomness data from the body)
+	return oldBody, nil
+}
+
+// MustAncientLength returns the number of items in the ancients database
 func MustAncientLength(db ethdb.Database) uint64 {
 	byteSize, err := db.AncientSize(rawdb.ChainFreezerHashTable)
 	if err != nil {
@@ -157,7 +177,6 @@ func MustAncientLength(db ethdb.Database) uint64 {
 
 // finds number of items in the ancients database
 func findAncientsSize(ldb ethdb.Database, high uint64) uint64 {
-	// note: AncientSize returns a byte size, not number of items. Maybe for a well known size we can compute the number of items
 	// runs a binary search using Ancient.HasAncient to find the first hash it can't find
 	low := uint64(0)
 	for low < high {
@@ -169,4 +188,5 @@ func findAncientsSize(ldb ethdb.Database, high uint64) uint64 {
 		}
 	}
 	return low
+
 }
