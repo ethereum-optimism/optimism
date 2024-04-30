@@ -324,18 +324,29 @@ jobs:
             export GIT_DATE="$(git show -s --format='%ct')"
             export PLATFORMS="<<parameters.platforms>>"
 
-            # Set the version to the git tag for this op component. Set version to "untagged" if no git tag is found
-            export GIT_VERSION=$(tags=$$(git tag --points-at $(GIT_COMMIT) | grep "^<<parameters.docker_name>>/" | sed "s/<<parameters.docker_name>>\///" | sort -V); \
-              preferred_tag=$$(echo "$$tags" | grep -v -- "-rc" | tail -n 1); \
-              if [ -z "$$preferred_tag" ]; then \
-                  if [ -z "$$tags" ]; then \
-                      echo "untagged"; \
-                  else \
-                      echo "$$tags" | tail -n 1; \
-                  fi \
-              else \
-                  echo "$$preferred_tag"; \
-              fi)
+            echo "Checking git tags pointing at $GIT_COMMIT:"
+            tags_at_commit=$(git tag --points-at $GIT_COMMIT)
+            echo "Tags at commit:\n$tags_at_commit"
+
+            filtered_tags=$(echo "$tags_at_commit" | grep "^<<parameters.docker_name>>/" || true)
+            echo "Filtered tags:\n$filtered_tags"
+
+            if [ -z "$filtered_tags" ]; then
+              export GIT_VERSION="untagged"
+            else
+              sorted_tags=$(echo "$filtered_tags" | sed "s/<<parameters.docker_name>>\///" | sort -V)
+              echo "Sorted tags:\n$sorted_tags"
+
+              # prefer full release tag over "-rc" release candidate tag if both exist
+              full_release_tag=$(echo "$sorted_tags" | grep -v -- "-rc" || true)
+              if [ -z "$full_release_tag" ]; then
+                export GIT_VERSION=$(echo "$sorted_tags" | tail -n 1)
+              else
+                export GIT_VERSION=$(echo "$full_release_tag")
+              fi
+            fi
+
+            echo "Setting GIT_VERSION=$GIT_VERSION"
 
             # Create, start (bootstrap) and use a *named* docker builder
             # This allows us to cross-build multi-platform,
