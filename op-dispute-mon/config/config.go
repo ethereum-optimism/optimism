@@ -37,6 +37,7 @@ type Config struct {
 	RollupRpc       string           // The rollup node RPC URL.
 	MonitorInterval time.Duration    // Frequency to check for new games to monitor.
 	GameWindow      time.Duration    // Maximum window to look for games to monitor.
+	IgnoredGames    []common.Address // Games to exclude from monitoring
 
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig

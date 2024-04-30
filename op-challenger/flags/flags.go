@@ -2,11 +2,13 @@ package flags
 
 import (
 	"fmt"
+	"net/url"
 	"runtime"
 	"slices"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -71,10 +73,10 @@ var (
 		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
 		Value:   uint(runtime.NumCPU()),
 	}
-	L2RpcFlag = &cli.StringFlag{
-		Name:    "l2-rpc",
+	L2EthRpcFlag = &cli.StringFlag{
+		Name:    "l2-eth-rpc",
 		Usage:   "L2 Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)  (cannon/asterisc trace type only)",
-		EnvVars: prefixEnvVars("L2_RPC"),
+		EnvVars: prefixEnvVars("L2_ETH_RPC"),
 	}
 	MaxPendingTransactionsFlag = &cli.Uint64Flag{
 		Name:    "max-pending-tx",
@@ -126,9 +128,15 @@ var (
 		Usage:   "Path to absolute prestate to use when generating trace data (cannon trace type only)",
 		EnvVars: prefixEnvVars("CANNON_PRESTATE"),
 	}
+	CannonPreStatesURLFlag = &cli.StringFlag{
+		Name: "cannon-prestates-url",
+		Usage: "Base URL to absolute prestates to use when generating trace data. " +
+			"Prestates in this directory should be name as <commitment>.json (cannon trace type only)",
+		EnvVars: prefixEnvVars("CANNON_PRESTATES_URL"),
+	}
 	CannonL2Flag = &cli.StringFlag{
 		Name:    "cannon-l2",
-		Usage:   fmt.Sprintf("Deprecated: Use %v instead", L2RpcFlag.Name),
+		Usage:   fmt.Sprintf("Deprecated: Use %v instead", L2EthRpcFlag.Name),
 		EnvVars: prefixEnvVars("CANNON_L2"),
 	}
 	CannonSnapshotFreqFlag = &cli.UintFlag{
@@ -176,6 +184,12 @@ var (
 		Usage:   "Path to absolute prestate to use when generating trace data (asterisc trace type only)",
 		EnvVars: prefixEnvVars("ASTERISC_PRESTATE"),
 	}
+	AsteriscPreStatesURLFlag = &cli.StringFlag{
+		Name: "asterisc-prestates-url",
+		Usage: "Base URL to absolute prestates to use when generating trace data. " +
+			"Prestates in this directory should be name as <commitment>.json (asterisc trace type only)",
+		EnvVars: prefixEnvVars("ASTERISC_PRESTATES_URL"),
+	}
 	AsteriscSnapshotFreqFlag = &cli.UintFlag{
 		Name:    "asterisc-snapshot-freq",
 		Usage:   "Frequency of asterisc snapshots to generate in VM steps (asterisc trace type only)",
@@ -221,7 +235,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	TraceTypeFlag,
 	MaxConcurrencyFlag,
-	L2RpcFlag,
+	L2EthRpcFlag,
 	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
 	AdditionalBondClaimants,
@@ -232,6 +246,7 @@ var optionalFlags = []cli.Flag{
 	CannonBinFlag,
 	CannonServerFlag,
 	CannonPreStateFlag,
+	CannonPreStatesURLFlag,
 	CannonL2Flag,
 	CannonSnapshotFreqFlag,
 	CannonInfoFreqFlag,
@@ -241,6 +256,7 @@ var optionalFlags = []cli.Flag{
 	AsteriscBinFlag,
 	AsteriscServerFlag,
 	AsteriscPreStateFlag,
+	AsteriscPreStatesURLFlag,
 	AsteriscSnapshotFreqFlag,
 	AsteriscInfoFreqFlag,
 	GameWindowFlag,
@@ -277,12 +293,12 @@ func CheckCannonFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(CannonServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
 	}
-	if !ctx.IsSet(CannonPreStateFlag.Name) {
-		return fmt.Errorf("flag %s is required", CannonPreStateFlag.Name)
+	if !ctx.IsSet(CannonPreStateFlag.Name) && !ctx.IsSet(CannonPreStatesURLFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", CannonPreStatesURLFlag.Name, CannonPreStateFlag.Name)
 	}
-	// CannonL2Flag is checked because it is an alias with L2RpcFlag
-	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2RpcFlag.Name) {
-		return fmt.Errorf("flag %s is required", L2RpcFlag.Name)
+	// CannonL2Flag is checked because it is an alias with L2EthRpcFlag
+	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2EthRpcFlag.Name) {
+		return fmt.Errorf("flag %s is required", L2EthRpcFlag.Name)
 	}
 	return nil
 }
@@ -304,12 +320,12 @@ func CheckAsteriscFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(AsteriscServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", AsteriscServerFlag.Name)
 	}
-	if !ctx.IsSet(AsteriscPreStateFlag.Name) {
-		return fmt.Errorf("flag %s is required", AsteriscPreStateFlag.Name)
+	if !ctx.IsSet(AsteriscPreStateFlag.Name) && !ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", AsteriscPreStatesURLFlag.Name, AsteriscPreStateFlag.Name)
 	}
-	// CannonL2Flag is checked because it is an alias with L2RpcFlag
-	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2RpcFlag.Name) {
-		return fmt.Errorf("flag %s is required", L2RpcFlag.Name)
+	// CannonL2Flag is checked because it is an alias with L2EthRpcFlag
+	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2EthRpcFlag.Name) {
+		return fmt.Errorf("flag %s is required", L2EthRpcFlag.Name)
 	}
 	return nil
 }
@@ -352,22 +368,23 @@ func parseTraceTypes(ctx *cli.Context) ([]config.TraceType, error) {
 	return traceTypes, nil
 }
 
-func getL2Rpc(ctx *cli.Context) (string, error) {
-	if ctx.IsSet(CannonL2Flag.Name) && ctx.IsSet(L2RpcFlag.Name) {
-		return "", fmt.Errorf("flag %v and %v must not be both set", CannonL2Flag.Name, L2RpcFlag.Name)
+func getL2Rpc(ctx *cli.Context, logger log.Logger) (string, error) {
+	if ctx.IsSet(CannonL2Flag.Name) && ctx.IsSet(L2EthRpcFlag.Name) {
+		return "", fmt.Errorf("flag %v and %v must not be both set", CannonL2Flag.Name, L2EthRpcFlag.Name)
 	}
 	l2Rpc := ""
 	if ctx.IsSet(CannonL2Flag.Name) {
+		logger.Warn(fmt.Sprintf("flag %v is deprecated, please use %v", CannonL2Flag.Name, L2EthRpcFlag.Name))
 		l2Rpc = ctx.String(CannonL2Flag.Name)
 	}
-	if ctx.IsSet(L2RpcFlag.Name) {
-		l2Rpc = ctx.String(L2RpcFlag.Name)
+	if ctx.IsSet(L2EthRpcFlag.Name) {
+		l2Rpc = ctx.String(L2EthRpcFlag.Name)
 	}
 	return l2Rpc, nil
 }
 
 // NewConfigFromCLI parses the Config from the provided flags or environment variables.
-func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
+func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, error) {
 	traceTypes, err := parseTraceTypes(ctx)
 	if err != nil {
 		return nil, err
@@ -408,45 +425,63 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 			claimants = append(claimants, claimant)
 		}
 	}
-	l2Rpc, err := getL2Rpc(ctx)
+	var cannonPrestatesURL *url.URL
+	if ctx.IsSet(CannonPreStatesURLFlag.Name) {
+		parsed, err := url.Parse(ctx.String(CannonPreStatesURLFlag.Name))
+		if err != nil {
+			return nil, fmt.Errorf("invalid cannon pre states url (%v): %w", ctx.String(CannonPreStatesURLFlag.Name), err)
+		}
+		cannonPrestatesURL = parsed
+	}
+	var asteriscPreStatesURL *url.URL
+	if ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
+		parsed, err := url.Parse(ctx.String(AsteriscPreStatesURLFlag.Name))
+		if err != nil {
+			return nil, fmt.Errorf("invalid asterisc pre states url (%v): %w", ctx.String(AsteriscPreStatesURLFlag.Name), err)
+		}
+		asteriscPreStatesURL = parsed
+	}
+	l2Rpc, err := getL2Rpc(ctx, logger)
 	if err != nil {
 		return nil, err
 	}
 	return &config.Config{
 		// Required Flags
-		L1EthRpc:                 ctx.String(L1EthRpcFlag.Name),
-		L1Beacon:                 ctx.String(L1BeaconFlag.Name),
-		TraceTypes:               traceTypes,
-		GameFactoryAddress:       gameFactoryAddress,
-		GameAllowlist:            allowedGames,
-		GameWindow:               ctx.Duration(GameWindowFlag.Name),
-		MaxConcurrency:           maxConcurrency,
-		L2Rpc:                    l2Rpc,
-		MaxPendingTx:             ctx.Uint64(MaxPendingTransactionsFlag.Name),
-		PollInterval:             ctx.Duration(HTTPPollInterval.Name),
-		AdditionalBondClaimants:  claimants,
-		RollupRpc:                ctx.String(RollupRpcFlag.Name),
-		CannonNetwork:            ctx.String(CannonNetworkFlag.Name),
-		CannonRollupConfigPath:   ctx.String(CannonRollupConfigFlag.Name),
-		CannonL2GenesisPath:      ctx.String(CannonL2GenesisFlag.Name),
-		CannonBin:                ctx.String(CannonBinFlag.Name),
-		CannonServer:             ctx.String(CannonServerFlag.Name),
-		CannonAbsolutePreState:   ctx.String(CannonPreStateFlag.Name),
-		Datadir:                  ctx.String(DatadirFlag.Name),
-		CannonSnapshotFreq:       ctx.Uint(CannonSnapshotFreqFlag.Name),
-		CannonInfoFreq:           ctx.Uint(CannonInfoFreqFlag.Name),
-		AsteriscNetwork:          ctx.String(AsteriscNetworkFlag.Name),
-		AsteriscRollupConfigPath: ctx.String(AsteriscRollupConfigFlag.Name),
-		AsteriscL2GenesisPath:    ctx.String(AsteriscL2GenesisFlag.Name),
-		AsteriscBin:              ctx.String(AsteriscBinFlag.Name),
-		AsteriscServer:           ctx.String(AsteriscServerFlag.Name),
-		AsteriscAbsolutePreState: ctx.String(AsteriscPreStateFlag.Name),
-		AsteriscSnapshotFreq:     ctx.Uint(AsteriscSnapshotFreqFlag.Name),
-		AsteriscInfoFreq:         ctx.Uint(AsteriscInfoFreqFlag.Name),
-		TxMgrConfig:              txMgrConfig,
-		MetricsConfig:            metricsConfig,
-		PprofConfig:              pprofConfig,
-		SelectiveClaimResolution: ctx.Bool(SelectiveClaimResolutionFlag.Name),
-		AllowInvalidPrestate:     ctx.Bool(UnsafeAllowInvalidPrestate.Name),
+		L1EthRpc:                        ctx.String(L1EthRpcFlag.Name),
+		L1Beacon:                        ctx.String(L1BeaconFlag.Name),
+		TraceTypes:                      traceTypes,
+		GameFactoryAddress:              gameFactoryAddress,
+		GameAllowlist:                   allowedGames,
+		GameWindow:                      ctx.Duration(GameWindowFlag.Name),
+		MaxConcurrency:                  maxConcurrency,
+		L2Rpc:                           l2Rpc,
+		MaxPendingTx:                    ctx.Uint64(MaxPendingTransactionsFlag.Name),
+		PollInterval:                    ctx.Duration(HTTPPollInterval.Name),
+		AdditionalBondClaimants:         claimants,
+		RollupRpc:                       ctx.String(RollupRpcFlag.Name),
+		CannonNetwork:                   ctx.String(CannonNetworkFlag.Name),
+		CannonRollupConfigPath:          ctx.String(CannonRollupConfigFlag.Name),
+		CannonL2GenesisPath:             ctx.String(CannonL2GenesisFlag.Name),
+		CannonBin:                       ctx.String(CannonBinFlag.Name),
+		CannonServer:                    ctx.String(CannonServerFlag.Name),
+		CannonAbsolutePreState:          ctx.String(CannonPreStateFlag.Name),
+		CannonAbsolutePreStateBaseURL:   cannonPrestatesURL,
+		Datadir:                         ctx.String(DatadirFlag.Name),
+		CannonSnapshotFreq:              ctx.Uint(CannonSnapshotFreqFlag.Name),
+		CannonInfoFreq:                  ctx.Uint(CannonInfoFreqFlag.Name),
+		AsteriscNetwork:                 ctx.String(AsteriscNetworkFlag.Name),
+		AsteriscRollupConfigPath:        ctx.String(AsteriscRollupConfigFlag.Name),
+		AsteriscL2GenesisPath:           ctx.String(AsteriscL2GenesisFlag.Name),
+		AsteriscBin:                     ctx.String(AsteriscBinFlag.Name),
+		AsteriscServer:                  ctx.String(AsteriscServerFlag.Name),
+		AsteriscAbsolutePreState:        ctx.String(AsteriscPreStateFlag.Name),
+		AsteriscAbsolutePreStateBaseURL: asteriscPreStatesURL,
+		AsteriscSnapshotFreq:            ctx.Uint(AsteriscSnapshotFreqFlag.Name),
+		AsteriscInfoFreq:                ctx.Uint(AsteriscInfoFreqFlag.Name),
+		TxMgrConfig:                     txMgrConfig,
+		MetricsConfig:                   metricsConfig,
+		PprofConfig:                     pprofConfig,
+		SelectiveClaimResolution:        ctx.Bool(SelectiveClaimResolutionFlag.Name),
+		AllowInvalidPrestate:            ctx.Bool(UnsafeAllowInvalidPrestate.Name),
 	}, nil
 }

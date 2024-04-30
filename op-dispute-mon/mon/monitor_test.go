@@ -182,7 +182,7 @@ type mockForecast struct {
 	calls int
 }
 
-func (m *mockForecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData) {
+func (m *mockForecast) Forecast(_ context.Context, _ []*monTypes.EnrichedGameData, _ int) {
 	m.calls++
 }
 
@@ -195,23 +195,24 @@ func (m *mockBonds) CheckBonds(_ []*monTypes.EnrichedGameData) {
 }
 
 type mockExtractor struct {
-	fetchErr   error
-	calls      int
-	maxSuccess int
-	games      []*monTypes.EnrichedGameData
+	fetchErr     error
+	calls        int
+	maxSuccess   int
+	games        []*monTypes.EnrichedGameData
+	ignoredCount int
 }
 
 func (m *mockExtractor) Extract(
 	_ context.Context,
 	_ common.Hash,
 	_ uint64,
-) ([]*monTypes.EnrichedGameData, error) {
+) ([]*monTypes.EnrichedGameData, int, error) {
 	m.calls++
 	if m.fetchErr != nil {
-		return nil, m.fetchErr
+		return nil, 0, m.fetchErr
 	}
 	if m.calls > m.maxSuccess && m.maxSuccess != 0 {
-		return nil, mockErr
+		return nil, 0, mockErr
 	}
-	return m.games, nil
+	return m.games, m.ignoredCount, nil
 }

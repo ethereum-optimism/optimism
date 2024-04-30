@@ -40,16 +40,16 @@ func (g *OutputCannonGameHelper) StartChallenger(
 	name string,
 	options ...challenger.Option,
 ) *challenger.Helper {
-	rollupEndpoint := g.system.RollupEndpoint(l2Node)
-	l2Endpoint := g.system.NodeEndpoint(l2Node)
+	rollupEndpoint := g.System.RollupEndpoint(l2Node)
+	l2Endpoint := g.System.NodeEndpoint(l2Node)
 	opts := []challenger.Option{
-		challenger.WithCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), rollupEndpoint, l2Endpoint),
-		challenger.WithFactoryAddress(g.factoryAddr),
-		challenger.WithGameAddress(g.addr),
+		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis(), rollupEndpoint, l2Endpoint),
+		challenger.WithFactoryAddress(g.FactoryAddr),
+		challenger.WithGameAddress(g.Addr),
 	}
 	opts = append(opts, options...)
-	c := challenger.NewChallenger(g.t, ctx, g.system, name, opts...)
-	g.t.Cleanup(func() {
+	c := challenger.NewChallenger(g.T, ctx, g.System, name, opts...)
+	g.T.Cleanup(func() {
 		_ = c.Close()
 	})
 	return c
@@ -58,30 +58,25 @@ func (g *OutputCannonGameHelper) StartChallenger(
 func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node string, options ...challenger.Option) *OutputHonestHelper {
 	opts := g.defaultChallengerOptions(l2Node)
 	opts = append(opts, options...)
-	cfg := challenger.NewChallengerConfig(g.t, g.system, opts...)
+	cfg := challenger.NewChallengerConfig(g.T, g.System, opts...)
 
-	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "HonestHelper", "game", g.addr)
-	l2Client := g.system.NodeClient(l2Node)
-	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
+	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
+	l2Client := g.System.NodeClient(l2Node)
+	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
+	contract, err := contracts.NewFaultDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, g.Addr, caller)
+	g.Require.NoError(err)
 
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
-	g.require.NoError(err, "Failed to load block range")
+	g.Require.NoError(err, "Failed to load block range")
 	dir := filepath.Join(cfg.Datadir, "honest")
 	splitDepth := g.SplitDepth(ctx)
-	rollupClient := g.system.RollupClient(l2Node)
+	rollupClient := g.System.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
-	l1Head := g.getL1Head(ctx)
+	l1Head := g.GetL1Head(ctx)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
 		logger, metrics.NoopMetrics, cfg, l2Client, prestateProvider, rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
-	g.require.NoError(err, "Failed to create output cannon trace accessor")
-	return &OutputHonestHelper{
-		t:            g.t,
-		require:      g.require,
-		game:         &g.OutputGameHelper,
-		contract:     contract,
-		correctTrace: accessor,
-	}
+	g.Require.NoError(err, "Failed to create output cannon trace accessor")
+	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, contract, accessor)
 }
 
 type PreimageLoadCheck func(types.TraceProvider, uint64) error
@@ -94,7 +89,7 @@ func (g *OutputCannonGameHelper) CreateStepLargePreimageLoadCheck(ctx context.Co
 		// Get the preimage data
 		execDepth := g.ExecDepth(ctx)
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
-		g.require.NoError(err)
+		g.Require.NoError(err)
 
 		// Wait until the challenge period has started by checking until the challenge
 		// period start time is not zero by calling the ChallengePeriodStartTime method
@@ -104,11 +99,11 @@ func (g *OutputCannonGameHelper) CreateStepLargePreimageLoadCheck(ctx context.Co
 		challengePeriodEnd := challengePeriodStart + challengePeriod
 
 		// Time travel past the challenge period.
-		g.system.AdvanceTime(time.Duration(challengePeriod) * time.Second)
-		g.require.NoError(wait.ForBlockWithTimestamp(ctx, g.system.NodeClient("l1"), challengePeriodEnd))
+		g.System.AdvanceTime(time.Duration(challengePeriod) * time.Second)
+		g.Require.NoError(wait.ForBlockWithTimestamp(ctx, g.System.NodeClient("l1"), challengePeriodEnd))
 
 		// Assert that the preimage was indeed loaded by an honest challenger
-		g.waitForPreimageInOracle(ctx, preimageData)
+		g.WaitForPreimageInOracle(ctx, preimageData)
 		return nil
 	}
 }
@@ -117,8 +112,8 @@ func (g *OutputCannonGameHelper) CreateStepPreimageLoadCheck(ctx context.Context
 	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
 		execDepth := g.ExecDepth(ctx)
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
-		g.require.NoError(err)
-		g.waitForPreimageInOracle(ctx, preimageData)
+		g.Require.NoError(err)
+		g.WaitForPreimageInOracle(ctx, preimageData)
 		return nil
 	}
 }
@@ -133,49 +128,49 @@ func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, ou
 	// Identifying the first state transition that loads a global preimage
 	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
 	targetTraceIndex, err := provider.FindStep(ctx, 0, preimage)
-	g.require.NoError(err)
+	g.Require.NoError(err)
 
 	splitDepth := g.SplitDepth(ctx)
 	execDepth := g.ExecDepth(ctx)
-	g.require.NotEqual(outputRootClaim.position.TraceIndex(execDepth).Uint64(), targetTraceIndex, "cannot move to defend a terminal trace index")
-	g.require.EqualValues(splitDepth+1, outputRootClaim.Depth(), "supplied claim must be the root of an execution game")
-	g.require.EqualValues(execDepth%2, 1, "execution game depth must be odd") // since we're challenging the execution root claim
+	g.Require.NotEqual(outputRootClaim.Position.TraceIndex(execDepth).Uint64(), targetTraceIndex, "cannot move to defend a terminal trace index")
+	g.Require.EqualValues(splitDepth+1, outputRootClaim.Depth(), "supplied claim must be the root of an execution game")
+	g.Require.EqualValues(execDepth%2, 1, "execution game depth must be odd") // since we're challenging the execution root claim
 
 	if preloadPreimage {
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
-		g.require.NoError(err)
-		g.uploadPreimage(ctx, preimageData, challengerKey)
-		g.waitForPreimageInOracle(ctx, preimageData)
+		g.Require.NoError(err)
+		g.UploadPreimage(ctx, preimageData, challengerKey)
+		g.WaitForPreimageInOracle(ctx, preimageData)
 	}
 
 	// Descending the execution game tree to reach the step that loads the preimage
 	bisectTraceIndex := func(claim *ClaimHelper) *ClaimHelper {
-		execClaimPosition, err := claim.position.RelativeToAncestorAtDepth(splitDepth + 1)
-		g.require.NoError(err)
+		execClaimPosition, err := claim.Position.RelativeToAncestorAtDepth(splitDepth + 1)
+		g.Require.NoError(err)
 
 		claimTraceIndex := execClaimPosition.TraceIndex(execDepth).Uint64()
-		g.t.Logf("Bisecting: Into targetTraceIndex %v: claimIndex=%v at depth=%v. claimPosition=%v execClaimPosition=%v claimTraceIndex=%v",
-			targetTraceIndex, claim.index, claim.Depth(), claim.position, execClaimPosition, claimTraceIndex)
+		g.T.Logf("Bisecting: Into targetTraceIndex %v: claimIndex=%v at depth=%v. claimPosition=%v execClaimPosition=%v claimTraceIndex=%v",
+			targetTraceIndex, claim.Index, claim.Depth(), claim.Position, execClaimPosition, claimTraceIndex)
 
 		// We always want to position ourselves such that the challenger generates proofs for the targetTraceIndex as prestate
 		if execClaimPosition.Depth() == execDepth-1 {
 			if execClaimPosition.TraceIndex(execDepth).Uint64() == targetTraceIndex {
 				newPosition := execClaimPosition.Attack()
 				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				g.t.Logf("Bisecting: Attack correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+				g.Require.NoError(err)
+				g.T.Logf("Bisecting: Attack correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 				return claim.Attack(ctx, correct)
 			} else if execClaimPosition.TraceIndex(execDepth).Uint64() > targetTraceIndex {
-				g.t.Logf("Bisecting: Attack incorrectly for step")
+				g.T.Logf("Bisecting: Attack incorrectly for step")
 				return claim.Attack(ctx, common.Hash{0xdd})
 			} else if execClaimPosition.TraceIndex(execDepth).Uint64()+1 == targetTraceIndex {
-				g.t.Logf("Bisecting: Defend incorrectly for step")
+				g.T.Logf("Bisecting: Defend incorrectly for step")
 				return claim.Defend(ctx, common.Hash{0xcc})
 			} else {
 				newPosition := execClaimPosition.Defend()
 				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				g.t.Logf("Bisecting: Defend correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+				g.Require.NoError(err)
+				g.T.Logf("Bisecting: Defend correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 				return claim.Defend(ctx, correct)
 			}
 		}
@@ -185,23 +180,23 @@ func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, ou
 		if execClaimPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex && claim.Depth() != splitDepth+1 {
 			newPosition := execClaimPosition.Defend()
 			if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
-				g.t.Logf("Bisecting: Defend correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+				g.T.Logf("Bisecting: Defend correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
+				g.Require.NoError(err)
 				return claim.Defend(ctx, correct)
 			} else {
-				g.t.Logf("Bisecting: Defend incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+				g.T.Logf("Bisecting: Defend incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 				return claim.Defend(ctx, common.Hash{0xaa})
 			}
 		} else {
 			newPosition := execClaimPosition.Attack()
 			if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
-				g.t.Logf("Bisecting: Attack correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+				g.T.Logf("Bisecting: Attack correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
+				g.Require.NoError(err)
 				return claim.Attack(ctx, correct)
 			} else {
-				g.t.Logf("Bisecting: Attack incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+				g.T.Logf("Bisecting: Attack incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 				return claim.Attack(ctx, common.Hash{0xbb})
 			}
 		}
@@ -213,7 +208,7 @@ func (g *OutputCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, ou
 	leafClaim := g.DefendClaim(ctx, mover, bisectTraceIndex, WithoutWaitingForStep())
 
 	// Validate that the preimage was loaded correctly
-	g.require.NoError(preimageCheck(provider, targetTraceIndex))
+	g.Require.NoError(preimageCheck(provider, targetTraceIndex))
 
 	// Now the preimage is available wait for the step call to succeed.
 	leafClaim.WaitForCountered(ctx)
@@ -229,45 +224,45 @@ func (g *OutputCannonGameHelper) VerifyPreimage(ctx context.Context, outputRootC
 	found := false
 	for offset := uint32(0); ; offset += 4 {
 		preimageOpt := utils.PreimageLoad(preimageKey, offset)
-		g.t.Logf("Searching for step with key %x and offset %v", preimageKey.PreimageKey(), offset)
+		g.T.Logf("Searching for step with key %x and offset %v", preimageKey.PreimageKey(), offset)
 		targetTraceIndex, err := provider.FindStep(ctx, start, preimageOpt)
 		if errors.Is(err, io.EOF) {
 			// Did not find any more reads
-			g.require.True(found, "Should have found at least one preimage read")
-			g.t.Logf("Searching for step with key %x and offset %v did not find another read", preimageKey.PreimageKey(), offset)
+			g.Require.True(found, "Should have found at least one preimage read")
+			g.T.Logf("Searching for step with key %x and offset %v did not find another read", preimageKey.PreimageKey(), offset)
 			return
 		}
-		g.require.NoError(err, "Failed to find step that loads requested preimage")
+		g.Require.NoError(err, "Failed to find step that loads requested preimage")
 		start = targetTraceIndex
 		found = true
 
-		g.t.Logf("Target trace index: %v", targetTraceIndex)
+		g.T.Logf("Target trace index: %v", targetTraceIndex)
 		pos := types.NewPosition(execDepth, new(big.Int).SetUint64(targetTraceIndex))
-		g.require.Equal(targetTraceIndex, pos.TraceIndex(execDepth).Uint64())
+		g.Require.Equal(targetTraceIndex, pos.TraceIndex(execDepth).Uint64())
 
 		prestate, proof, oracleData, err := provider.GetStepData(ctx, pos)
-		g.require.NoError(err, "Failed to get step data")
-		g.require.NotNil(oracleData, "Should have had required preimage oracle data")
-		g.require.Equal(common.Hash(preimageKey.PreimageKey()).Bytes(), oracleData.OracleKey, "Must have correct preimage key")
+		g.Require.NoError(err, "Failed to get step data")
+		g.Require.NotNil(oracleData, "Should have had required preimage oracle data")
+		g.Require.Equal(common.Hash(preimageKey.PreimageKey()).Bytes(), oracleData.OracleKey, "Must have correct preimage key")
 
-		tx, err := g.game.AddLocalData(g.opts,
+		tx, err := g.Game.AddLocalData(g.Opts,
 			oracleData.GetIdent(),
-			big.NewInt(outputRootClaim.index),
+			big.NewInt(outputRootClaim.Index),
 			new(big.Int).SetUint64(uint64(oracleData.OracleOffset)))
-		g.require.NoError(err)
-		_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
-		g.require.NoError(err)
+		g.Require.NoError(err)
+		_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
+		g.Require.NoError(err)
 
 		expectedPostState, err := provider.Get(ctx, pos)
-		g.require.NoError(err, "Failed to get expected post state")
+		g.Require.NoError(err, "Failed to get expected post state")
 
 		callOpts := &bind.CallOpts{Context: ctx}
-		vmAddr, err := g.game.Vm(callOpts)
-		g.require.NoError(err, "Failed to get VM address")
+		vmAddr, err := g.Game.Vm(callOpts)
+		g.Require.NoError(err, "Failed to get VM address")
 
 		abi, err := bindings.MIPSMetaData.GetAbi()
-		g.require.NoError(err, "Failed to load MIPS ABI")
-		caller := batching.NewMultiCaller(g.client.Client(), batching.DefaultBatchSize)
+		g.Require.NoError(err, "Failed to load MIPS ABI")
+		caller := batching.NewMultiCaller(g.Client.Client(), batching.DefaultBatchSize)
 		result, err := caller.SingleCall(ctx, rpcblock.Latest, &batching.ContractCall{
 			Abi:    abi,
 			Addr:   vmAddr,
@@ -275,41 +270,42 @@ func (g *OutputCannonGameHelper) VerifyPreimage(ctx context.Context, outputRootC
 			Args: []interface{}{
 				prestate, proof, localContext,
 			},
-			From: g.addr,
+			From: g.Addr,
 		})
-		g.require.NoError(err, "Failed to call step")
+		g.Require.NoError(err, "Failed to call step")
 		actualPostState := result.GetBytes32(0)
-		g.require.Equal(expectedPostState, common.Hash(actualPostState))
+		g.Require.Equal(expectedPostState, common.Hash(actualPostState))
 	}
 }
 
 func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) (*cannon.CannonTraceProviderForTest, common.Hash) {
 	splitDepth := g.SplitDepth(ctx)
-	g.require.EqualValues(outputRootClaim.Depth(), splitDepth+1, "outputRootClaim must be the root of an execution game")
+	g.Require.EqualValues(outputRootClaim.Depth(), splitDepth+1, "outputRootClaim must be the root of an execution game")
 
-	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "CannonTraceProvider", "game", g.addr)
+	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "CannonTraceProvider", "game", g.Addr)
 	opt := g.defaultChallengerOptions(l2Node)
 	opt = append(opt, options...)
-	cfg := challenger.NewChallengerConfig(g.t, g.system, opt...)
+	cfg := challenger.NewChallengerConfig(g.T, g.System, opt...)
 
-	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	l2Client := g.system.NodeClient(l2Node)
-	contract := contracts.NewFaultDisputeGameContract(contractMetrics.NoopContractMetrics, g.addr, caller)
+	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
+	l2Client := g.System.NodeClient(l2Node)
+	contract, err := contracts.NewFaultDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, g.Addr, caller)
+	g.Require.NoError(err)
 
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
-	g.require.NoError(err, "Failed to load block range")
-	rollupClient := g.system.RollupClient(l2Node)
+	g.Require.NoError(err, "Failed to load block range")
+	rollupClient := g.System.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
-	l1Head := g.getL1Head(ctx)
+	l1Head := g.GetL1Head(ctx)
 	outputProvider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
 
 	var localContext common.Hash
 	selector := split.NewSplitProviderSelector(outputProvider, splitDepth, func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
 		agreed, disputed, err := outputs.FetchProposals(ctx, outputProvider, pre, post)
-		g.require.NoError(err)
-		g.t.Logf("Using trace between blocks %v and %v\n", agreed.L2BlockNumber, disputed.L2BlockNumber)
+		g.Require.NoError(err)
+		g.T.Logf("Using trace between blocks %v and %v\n", agreed.L2BlockNumber, disputed.L2BlockNumber)
 		localInputs, err := utils.FetchLocalInputsFromProposals(ctx, l1Head.Hash, l2Client, agreed, disputed)
-		g.require.NoError(err, "Failed to fetch local inputs")
+		g.Require.NoError(err, "Failed to fetch local inputs")
 		localContext = outputs.CreateLocalContext(pre, post)
 		dir := filepath.Join(cfg.Datadir, "cannon-trace")
 		subdir := filepath.Join(dir, localContext.Hex())
@@ -317,19 +313,19 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	})
 
 	claims, err := contract.GetAllClaims(ctx, rpcblock.Latest)
-	g.require.NoError(err)
+	g.Require.NoError(err)
 	game := types.NewGameState(claims, g.MaxDepth(ctx))
 
-	provider, err := selector(ctx, game, game.Claims()[outputRootClaim.parentIndex], outputRootClaim.position)
-	g.require.NoError(err)
+	provider, err := selector(ctx, game, game.Claims()[outputRootClaim.ParentIndex], outputRootClaim.Position)
+	g.Require.NoError(err)
 	translatingProvider := provider.(*trace.TranslatingProvider)
 	return translatingProvider.Original().(*cannon.CannonTraceProviderForTest), localContext
 }
 
 func (g *OutputCannonGameHelper) defaultChallengerOptions(l2Node string) []challenger.Option {
 	return []challenger.Option{
-		challenger.WithCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), g.system.RollupEndpoint(l2Node), g.system.NodeEndpoint(l2Node)),
-		challenger.WithFactoryAddress(g.factoryAddr),
-		challenger.WithGameAddress(g.addr),
+		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis(), g.System.RollupEndpoint(l2Node), g.System.NodeEndpoint(l2Node)),
+		challenger.WithFactoryAddress(g.FactoryAddr),
+		challenger.WithGameAddress(g.Addr),
 	}
 }

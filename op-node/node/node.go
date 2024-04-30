@@ -56,7 +56,7 @@ type OpNode struct {
 	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
 	server    *rpcServer            // RPC server hosting the rollup-node API
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
-	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
+	p2pSigner p2p.Signer            // p2p gossip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
 

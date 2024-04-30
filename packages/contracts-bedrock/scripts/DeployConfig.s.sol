@@ -185,6 +185,11 @@ contract DeployConfig is Script {
         useFaultProofs = _useFaultProofs;
     }
 
+    /// @notice Allow the `fundDevAccounts` config to be overridden.
+    function setFundDevAccounts(bool _fundDevAccounts) public {
+        fundDevAccounts = _fundDevAccounts;
+    }
+
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;

@@ -323,8 +323,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             // Reasonable approximation for a max depth of 8.
             uint256 expected = 0.08 ether;
             for (uint64 j = 0; j < i; j++) {
-                expected = expected * 217456;
-                expected = expected / 100000;
+                expected = expected * 22876;
+                expected = expected / 10000;
             }
 
             assertApproxEqAbs(bond, expected, 0.01 ether);

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -33,6 +35,8 @@ func ListGames(ctx *cli.Context) error {
 		return err
 	}
 
+	gameWindow := ctx.Duration(flags.GameWindowFlag.Name)
+
 	l1Client, err := dial.DialEthClientWithTimeout(ctx.Context, dial.DefaultDialTimeout, logger, rpcUrl)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1: %w", err)
@@ -45,7 +49,7 @@ func ListGames(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to retrieve current head block: %w", err)
 	}
-	return listGames(ctx.Context, caller, contract, head.Hash())
+	return listGames(ctx.Context, caller, contract, head.Hash(), gameWindow)
 }
 
 type gameInfo struct {
@@ -57,16 +61,21 @@ type gameInfo struct {
 	err        error
 }
 
-func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contracts.DisputeGameFactoryContract, block common.Hash) error {
-	games, err := factory.GetAllGames(ctx, block)
+func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contracts.DisputeGameFactoryContract, block common.Hash, gameWindow time.Duration) error {
+	earliestTimestamp := clock.MinCheckedTimestamp(clock.SystemClock, gameWindow)
+	games, err := factory.GetGamesAtOrAfter(ctx, block, earliestTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve games: %w", err)
 	}
+	slices.Reverse(games)
 
 	infos := make([]*gameInfo, len(games))
 	var wg sync.WaitGroup
 	for idx, game := range games {
-		gameContract := contracts.NewFaultDisputeGameContract(metrics.NoopContractMetrics, game.Proxy, caller)
+		gameContract, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, game.Proxy, caller)
+		if err != nil {
+			return fmt.Errorf("failed to create dispute game contract: %w", err)
+		}
 		info := gameInfo{GameMetadata: game}
 		infos[idx] = &info
 		gameProxy := game.Proxy
@@ -92,13 +101,13 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 	wg.Wait()
 	lineFormat := "%3v %-42v %4v %-21v %14v %-66v %6v %-14v\n"
 	fmt.Printf(lineFormat, "Idx", "Game", "Type", "Created (Local)", "L2 Block", "Output Root", "Claims", "Status")
-	for idx, game := range infos {
+	for _, game := range infos {
 		if game.err != nil {
-			return err
+			return game.err
 		}
 		created := time.Unix(int64(game.Timestamp), 0).Format(time.DateTime)
 		fmt.Printf(lineFormat,
-			idx, game.Proxy, game.GameType, created, game.l2BlockNum, game.rootClaim, game.claimCount, game.status)
+			game.Index, game.Proxy, game.GameType, created, game.l2BlockNum, game.rootClaim, game.claimCount, game.status)
 	}
 	return nil
 }
@@ -107,6 +116,7 @@ func listGamesFlags() []cli.Flag {
 	cliFlags := []cli.Flag{
 		flags.L1EthRpcFlag,
 		flags.FactoryAddressFlag,
+		flags.GameWindowFlag,
 	}
 	cliFlags = append(cliFlags, oplog.CLIFlags("OP_CHALLENGER")...)
 	return cliFlags

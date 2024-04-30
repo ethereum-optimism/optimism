@@ -4,52 +4,51 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"errors"
 	"io"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 )
 
-type S3Store struct {
-	bucket string
-	client *s3.Client
+type S3Config struct {
+	Bucket          string
+	Endpoint        string
+	AccessKeyID     string
+	AccessKeySecret string
 }
 
-func NewS3Store(ctx context.Context, bucket string) (*S3Store, error) {
-	sdkConfig, err := config.LoadDefaultConfig(ctx)
+type S3Store struct {
+	cfg    S3Config
+	client *minio.Client
+}
+
+func NewS3Store(cfg S3Config) (*S3Store, error) {
+	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.AccessKeySecret, ""),
+		Secure: true,
+	})
 	if err != nil {
 		return nil, err
 	}
 	return &S3Store{
-		bucket: bucket,
-		client: s3.NewFromConfig(sdkConfig),
+		cfg:    cfg,
+		client: client,
 	}, nil
 }
 
 func (s *S3Store) Get(ctx context.Context, key []byte) ([]byte, error) {
-	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(hex.EncodeToString(key)),
-	})
+	result, err := s.client.GetObject(ctx, s.cfg.Bucket, hex.EncodeToString(key), minio.GetObjectOptions{})
 	if err != nil {
-		var apiError smithy.APIError
-		if errors.As(err, &apiError) {
-			switch apiError.(type) {
-			case *types.NotFound:
-				return nil, plasma.ErrNotFound
-			}
+		errResponse := minio.ToErrorResponse(err)
+		if errResponse.Code == "NoSuchKey" {
+			return nil, plasma.ErrNotFound
 		}
 		return nil, err
 	}
-	defer result.Body.Close()
-
-	data, err := io.ReadAll(result.Body)
+	defer result.Close()
+	data, err := io.ReadAll(result)
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +57,7 @@ func (s *S3Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 }
 
 func (s *S3Store) Put(ctx context.Context, key []byte, value []byte) error {
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(hex.EncodeToString(key)),
-		Body:   bytes.NewReader(value),
-	})
+	_, err := s.client.PutObject(ctx, s.cfg.Bucket, hex.EncodeToString(key), bytes.NewReader(value), int64(len(value)), minio.PutObjectOptions{})
+
 	return err
 }

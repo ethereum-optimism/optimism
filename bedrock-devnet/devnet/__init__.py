@@ -160,7 +160,7 @@ def devnet_l2_allocs(paths):
     fqn = 'scripts/L2Genesis.s.sol:L2Genesis'
     # Use foundry pre-funded account #1 for the deployer
     run_command([
-        'forge', 'script', '--chain-id', '901', fqn, "--sig", "runWithAllUpgrades()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        'forge', 'script', fqn, "--sig", "runWithAllUpgrades()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     ], env={
       'CONTRACT_ADDRESSES_PATH': paths.l1_deployments_path,
     }, cwd=paths.contracts_bedrock_dir)

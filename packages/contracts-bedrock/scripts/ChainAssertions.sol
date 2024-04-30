@@ -92,7 +92,7 @@ library ChainAssertions {
             require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger);
             require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge);
             require(config.l1StandardBridge() == _contracts.L1StandardBridge);
-            require(config.l2OutputOracle() == _contracts.L2OutputOracle);
+            require(config.disputeGameFactory() == _contracts.DisputeGameFactory);
             require(config.optimismPortal() == _contracts.OptimismPortal);
             require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory);
         } else {
@@ -115,7 +115,7 @@ library ChainAssertions {
             require(config.l1CrossDomainMessenger() == address(0));
             require(config.l1ERC721Bridge() == address(0));
             require(config.l1StandardBridge() == address(0));
-            require(config.l2OutputOracle() == address(0));
+            require(config.disputeGameFactory() == address(0));
             require(config.optimismPortal() == address(0));
             require(config.optimismMintableERC20Factory() == address(0));
         }
@@ -352,6 +352,9 @@ library ChainAssertions {
             require(address(portal.superchainConfig()) == address(0));
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
         }
+        // This slot is the custom gas token _balance and this check ensures
+        // that it stays unset for forwards compatibility with custom gas token.
+        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0));
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly

@@ -48,11 +48,14 @@ func ListClaims(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract := contracts.NewFaultDisputeGameContract(metrics.NoopContractMetrics, gameAddr, caller)
+	contract, err := contracts.NewFaultDisputeGameContract(ctx.Context, metrics.NoopContractMetrics, gameAddr, caller)
+	if err != nil {
+		return err
+	}
 	return listClaims(ctx.Context, contract)
 }
 
-func listClaims(ctx context.Context, game *contracts.FaultDisputeGameContract) error {
+func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract) error {
 	maxDepth, err := game.GetMaxGameDepth(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve max depth: %w", err)
@@ -79,18 +82,27 @@ func listClaims(ctx context.Context, game *contracts.FaultDisputeGameContract) e
 	// The - 1 here accounts for the fact that the split depth is included in the top game.
 	bottomDepth := maxDepth - splitDepth - 1
 
+	resolved, err := game.IsResolved(ctx, rpcblock.Latest, claims...)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve claim resolution: %w", err)
+	}
+
 	gameState := types.NewGameState(claims, maxDepth)
-	lineFormat := "%3v %-7v %6v %5v %14v %-66v %-42v %-42v\n"
-	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Countered By")
+	lineFormat := "%3v %-7v %6v %5v %14v %-66v %-42v %-44v\n"
+	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Resolution")
 	for i, claim := range claims {
 		pos := claim.Position
 		parent := strconv.Itoa(claim.ParentContractIndex)
 		if claim.IsRoot() {
 			parent = ""
 		}
-		countered := claim.CounteredBy.Hex()
-		if claim.CounteredBy == (common.Address{}) {
+		var countered string
+		if !resolved[i] {
 			countered = "-"
+		} else if claim.CounteredBy != (common.Address{}) {
+			countered = "❌ " + claim.CounteredBy.Hex()
+		} else {
+			countered = "✅"
 		}
 		move := "Attack"
 		if gameState.DefendsParent(claim) {
@@ -100,7 +112,7 @@ func listClaims(ctx context.Context, game *contracts.FaultDisputeGameContract) e
 		if claim.Depth() <= splitDepth {
 			traceIdx = claim.TraceIndex(splitDepth)
 		} else {
-			relativePos, err := claim.Position.RelativeToAncestorAtDepth(splitDepth)
+			relativePos, err := claim.Position.RelativeToAncestorAtDepth(splitDepth + 1)
 			if err != nil {
 				fmt.Printf("Error calculating relative position for claim %v: %v", claim.ContractIndex, err)
 				traceIdx = big.NewInt(-1)

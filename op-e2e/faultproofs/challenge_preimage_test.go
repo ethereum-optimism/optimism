@@ -15,7 +15,7 @@ import (
 func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, _ := startFaultDisputeSystem(t)
+	sys, _ := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -34,7 +34,7 @@ func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, _ := startFaultDisputeSystem(t)
+	sys, _ := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	disputeGameFactory.StartChallenger(ctx, "Challenger",
@@ -52,7 +52,7 @@ func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
 func TestChallengeLargePreimages_ChallengeLast(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, _ := startFaultDisputeSystem(t)
+	sys, _ := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	disputeGameFactory.StartChallenger(ctx, "Challenger",

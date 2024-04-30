@@ -34,19 +34,22 @@ type CannonTraceProvider struct {
 	gameDepth      types.Depth
 	preimageLoader *utils.PreimageLoader
 
+	types.PrestateProvider
+
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, prestateProvider types.PrestateProvider, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		logger:         logger,
-		dir:            dir,
-		prestate:       cfg.CannonAbsolutePreState,
-		generator:      NewExecutor(logger, m, cfg, localInputs),
-		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		logger:           logger,
+		dir:              dir,
+		prestate:         cfg.CannonAbsolutePreState,
+		generator:        NewExecutor(logger, m, cfg, localInputs),
+		gameDepth:        gameDepth,
+		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		PrestateProvider: prestateProvider,
 	}
 }
 
@@ -89,26 +92,6 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 		return nil, nil, nil, fmt.Errorf("failed to load preimage: %w", err)
 	}
 	return value, data, oracleData, nil
-}
-
-func (p *CannonTraceProvider) absolutePreState() ([]byte, error) {
-	state, err := parseState(p.prestate)
-	if err != nil {
-		return nil, fmt.Errorf("cannot load absolute pre-state: %w", err)
-	}
-	return state.EncodeWitness(), nil
-}
-
-func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
-	state, err := p.absolutePreState()
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
-	}
-	hash, err := mipsevm.StateWitness(state).StateHash()
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("cannot hash absolute pre-state: %w", err)
-	}
-	return hash, nil
 }
 
 // loadProof will attempt to load or generate the proof data at the specified index

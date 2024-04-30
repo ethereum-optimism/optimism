@@ -65,11 +65,20 @@ const (
 	SecondHalfNotExpiredUnresolved
 )
 
+type HonestActorData struct {
+	PendingClaimCount int
+	ValidClaimCount   int
+	InvalidClaimCount int
+	PendingBonds      *big.Int
+	LostBonds         *big.Int
+	WonBonds          *big.Int
+}
+
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
-	RecordUnexpectedClaimResolution(address common.Address, count int)
+	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
 
 	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)
 
@@ -84,6 +93,8 @@ type Metricer interface {
 	RecordOutputFetchTime(timestamp float64)
 
 	RecordGameAgreement(status GameAgreementStatus, count int)
+
+	RecordIgnoredGames(count int)
 
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
 
@@ -106,7 +117,8 @@ type Metrics struct {
 
 	claims prometheus.GaugeVec
 
-	unexpectedClaimResolutions prometheus.GaugeVec
+	honestActorClaims prometheus.GaugeVec
+	honestActorBonds  prometheus.GaugeVec
 
 	withdrawalRequests prometheus.GaugeVec
 
@@ -120,6 +132,7 @@ type Metrics struct {
 	claimResolutionDelayMax prometheus.Gauge
 
 	gamesAgreement prometheus.GaugeVec
+	ignoredGames   prometheus.Gauge
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -165,12 +178,21 @@ func NewMetrics() *Metrics {
 			Name:      "claim_resolution_delay_max",
 			Help:      "Maximum claim resolution delay in seconds",
 		}),
-		unexpectedClaimResolutions: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		honestActorClaims: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
-			Name:      "unexpected_claim_resolutions",
-			Help:      "Total number of unexpected claim resolutions against an honest actor",
+			Name:      "honest_actor_claims",
+			Help:      "Total number of claims from an honest actor",
 		}, []string{
 			"honest_actor_address",
+			"state",
+		}),
+		honestActorBonds: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "honest_actor_bonds",
+			Help:      "Sum of bonds posted, won and lost by an honest actor",
+		}, []string{
+			"honest_actor_address",
+			"state",
 		}),
 		resolutionStatus: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -214,6 +236,11 @@ func NewMetrics() *Metrics {
 			"completion",
 			"result_correctness",
 			"root_agreement",
+		}),
+		ignoredGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "ignored_games",
+			Help:      "Number of games present in the game window but ignored via config",
 		}),
 		requiredCollateral: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -262,8 +289,14 @@ func (m *Metrics) RecordUp() {
 	m.up.Set(1)
 }
 
-func (m *Metrics) RecordUnexpectedClaimResolution(address common.Address, count int) {
-	m.unexpectedClaimResolutions.WithLabelValues(address.Hex()).Set(float64(count))
+func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorData) {
+	m.honestActorClaims.WithLabelValues(address.Hex(), "pending").Set(float64(stats.PendingClaimCount))
+	m.honestActorClaims.WithLabelValues(address.Hex(), "invalid").Set(float64(stats.InvalidClaimCount))
+	m.honestActorClaims.WithLabelValues(address.Hex(), "valid").Set(float64(stats.ValidClaimCount))
+
+	m.honestActorBonds.WithLabelValues(address.Hex(), "pending").Set(weiToEther(stats.PendingBonds))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "lost").Set(weiToEther(stats.LostBonds))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.WonBonds))
 }
 
 func (m *Metrics) RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int) {
@@ -350,6 +383,10 @@ func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {
 	m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(count))
 }
 
+func (m *Metrics) RecordIgnoredGames(count int) {
+	m.ignoredGames.Set(float64(count))
+}
+
 func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
 	balance := "sufficient"
 	if required.Cmp(available) > 0 {
@@ -400,6 +437,7 @@ func labelValuesFor(status GameAgreementStatus) []string {
 		return asStrings("agree_challenger_wins", !inProgress, !correct, agree)
 	case DisagreeChallengerWins:
 		return asStrings("disagree_challenger_wins", !inProgress, correct, !agree)
+
 	default:
 		panic(fmt.Errorf("unknown game agreement status: %v", status))
 	}

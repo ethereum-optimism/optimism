@@ -165,6 +165,7 @@ contract L2GenesisTest is Test {
 
     /// @notice Tests the number of accounts in the genesis setup
     function _test_allocs_size(string memory _path) internal {
+        genesis.cfg().setFundDevAccounts(false);
         genesis.runWithOptions(OutputMode.LOCAL_LATEST, _dummyL1Deps());
         genesis.writeGenesisAllocs(_path);
 
