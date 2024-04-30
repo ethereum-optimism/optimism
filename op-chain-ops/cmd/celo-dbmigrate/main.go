@@ -12,6 +12,14 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
+// How to run:
+// 		go run main.go -oldDB /path/to/oldDB -newDB /path/to/newDB [-resetDB] [-batchSize 1000]
+//
+// This script will migrate ancient data from the old database to the new database
+// The new database will be reset if the -resetDB flag is provided
+// The number of ancient records to migrate in one batch can be set using the -batchSize flag
+// The default batch size is 1000
+
 const (
 	dbCache         = 1024 // size of the cache in MB
 	dbHandles       = 60   // number of handles
