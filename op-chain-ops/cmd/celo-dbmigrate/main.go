@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/celo1"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -71,7 +76,7 @@ func main() {
 	migratedRecords := MustAncientLength(newDB)
 	log.Info("Ancient Migration Initial Status", "migrated", migratedRecords, "total", toMigrateRecords)
 
-	if err = parMigrateRange(oldDB, newDB, migratedRecords, *batchSize); err != nil {
+	if err = parMigrateRange(oldDB, newDB, migratedRecords, toMigrateRecords, *batchSize); err != nil {
 		log.Crit("Failed to freeze range", "err", err)
 	}
 
@@ -97,6 +102,7 @@ func openCeloDb(path string, cache int, handles int, readonly bool) (ethdb.Datab
 	return ldb, nil
 }
 
+// seqMigrateRange migrates ancient data from the old database to the new database sequentially
 func seqMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, number, count uint64) error {
 	_, err := newDb.ModifyAncients(func(op ethdb.AncientWriteOp) error {
 		hashes, err := oldDb.AncientRange(rawdb.ChainFreezerHashTable, number, count, 0)
@@ -168,12 +174,12 @@ type RLPBlockRange struct {
 }
 
 // parMigrateRange migrates ancient data from the old database to the new database in parallel
-func parMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, number, count uint64) error {
+func parMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, start, end, step uint64) error {
 	g, ctx := errgroup.WithContext(context.Background())
 	readChan := make(chan RLPBlockRange, 10)
 	transformChan := make(chan RLPBlockRange, 10)
 
-	g.Go(func() error { return readBlocks(ctx, oldDb, number, number+3*count, count, readChan) })
+	g.Go(func() error { return readBlocks(ctx, oldDb, start, end, step, readChan) })
 	g.Go(func() error { return transformBlocks(ctx, readChan, transformChan) })
 	g.Go(func() error { return writeAncients(ctx, newDb, transformChan) })
 
@@ -246,6 +252,13 @@ func transformBlocks(ctx context.Context, in <-chan RLPBlockRange, out chan<- RL
 					log.Error("Failed to transform header", "err", err)
 					return err
 				}
+
+				// Check that hashing the new header gives the same hash as the saved hash
+				newHash := crypto.Keccak256Hash(newHeader)
+				if !bytes.Equal(block.hashes[i], newHash.Bytes()) {
+					log.Error("Hash mismatch", "block", block.start+uint64(i), "oldHash", common.BytesToHash(block.hashes[i]), "newHash", newHash)
+					return fmt.Errorf("hash mismatch at block %d", block.start+uint64(i))
+				}
 				block.headers[i] = newHeader
 			}
 			// Transform bodies
@@ -306,8 +319,7 @@ func writeAncients(ctx context.Context, newDb ethdb.Database, in <-chan RLPBlock
 
 // transformHeader migrates the header from the old format to the new format (works with []byte input output)
 func transformHeader(oldHeader []byte) ([]byte, error) {
-	// TODO: implement the transformation (remove only validator bls Signature)
-	return oldHeader, nil
+	return celo1.RemoveIstanbulAggregatedSeal(oldHeader)
 }
 
 // transformBlockBody migrates the block body from the old format to the new format (works with []byte input output)
