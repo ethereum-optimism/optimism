@@ -99,6 +99,18 @@ var (
 			return nil
 		},
 	}
+	CompressionAlgoFlag = &cli.StringFlag{
+		Name:    "compression-algo",
+		Usage:   "The compression algorithm to use. Valid options: zlib, brotli ",
+		EnvVars: prefixEnvVars("COMPRESSION_ALGO"),
+		Value:   "zlib",
+	}
+	CompressLevelFlag = &cli.IntFlag{
+		Name:    "compress-level",
+		Usage:   "The compression level to use. E.g. 1-11 for brotli, 0-9 for zlib",
+		EnvVars: prefixEnvVars("COMPRESS_LEVEL"),
+		Value:   9, // default to best zlib compression level
+	}
 	StoppedFlag = &cli.BoolFlag{
 		Name:    "stopped",
 		Usage:   "Initialize the batcher in a stopped state. The batcher can be started using the admin_startBatcher RPC",

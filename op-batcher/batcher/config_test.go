@@ -36,6 +36,8 @@ func validBatcherConfig() batcher.CLIConfig {
 		PprofConfig:            oppprof.DefaultCLIConfig(),
 		// The compressor config is not checked in config.Check()
 		RPC: rpc.DefaultCLIConfig(),
+		CompressionAlgo: "brotli",
+		CompressLevel: 9,
 	}
 }
 

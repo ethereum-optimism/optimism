@@ -2,9 +2,14 @@ package derive
 
 import (
 	"bytes"
-	"compress/zlib"
+	//"compress/zlib"
 	"fmt"
 	"io"
+
+	// "strconv"
+	// "strings"
+
+	"github.com/andybalholm/brotli"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -147,8 +152,35 @@ func (ch *Channel) Reader() io.Reader {
 // Warning: the batch reader can read every batch-type.
 // The caller of the batch-reader should filter the results.
 func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
+	// Read the first byte to determine the compression type
+	// compressionType := make([]byte, 1)
+	// if _, err := r.Read(compressionType); err != nil {
+	// 	return nil, err
+	// }
+
+	// check if the compression type is 0111 1000 (0x78)
+	// if no, initialize zlib reader, else initialize brotli reader
+		reader := func(r io.Reader) (io.Reader, error) {
+			return brotli.NewReader(r), nil
+		}
+
+	// fmt.Println("Compression type")
+	// fmt.Println(strconv.FormatInt(int64(compressionType[0]), 2))
+	// fmt.Println(compressionType[0] & 0x0F)
+	// if compressionType[0] & 0x0F == 8 {
+	// 	fmt.Println("Using zlib reader")
+	// 	reader = func(r io.Reader) (io.Reader, error) {
+	// 		return zlib.NewReader(r)
+	// 	}
+	// } else {
+	// 	fmt.Println("Using brotli reader")
+	// 	reader = func(r io.Reader) (io.Reader, error) {
+	// 		return brotli.NewReader(r), nil
+	// 	}
+	// }
+
 	// Setup decompressor stage + RLP reader
-	zr, err := zlib.NewReader(r)
+	zr, err := reader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +189,7 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	return func() (*BatchData, error) {
 		var batchData BatchData
 		if err = rlpReader.Decode(&batchData); err != nil {
+			fmt.Println("DECODE ERROR")
 			return nil, err
 		}
 		return &batchData, nil

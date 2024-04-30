@@ -557,7 +557,7 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 // This test fails in multiple places if the subtraction of
 // [derive.FrameV0OverHeadSize] in [MaxDataSize] is omitted, which has been the
 // case before it got fixed it #9887.
-func TestChannelBuilder_FullShadowCompressor_zlib(t *testing.T) {
+func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	require := require.New(t)
 	cfg := ChannelConfig{
 		MaxFrameSize:    752,
