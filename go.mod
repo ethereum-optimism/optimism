@@ -33,7 +33,7 @@ require (
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/libp2p/go-libp2p v0.32.0
 	github.com/libp2p/go-libp2p-mplex v0.9.0
-	github.com/libp2p/go-libp2p-pubsub v0.10.1
+	github.com/libp2p/go-libp2p-pubsub v0.10.0
 	github.com/libp2p/go-libp2p-testing v0.12.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/minio/minio-go/v7 v7.0.70
@@ -176,6 +176,7 @@ require (
 	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/naoina/go-stringutil v0.1.0 // indirect
 	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416 // indirect
+	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/onsi/ginkgo/v2 v2.15.0 // indirect
 	github.com/opencontainers/runtime-spec v1.1.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect

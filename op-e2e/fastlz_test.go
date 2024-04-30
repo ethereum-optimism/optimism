@@ -10,13 +10,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient/simulated"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -46,31 +43,6 @@ func (sg *testStateGetter) GetState(addr common.Address, slot common.Hash) commo
 		panic("unknown slot")
 	}
 	return buf
-}
-
-func FuzzFastLZ(f *testing.F) {
-	l2Allocs := config.L2Allocs(genesis.L2AllocsFjord)
-	backend := simulated.NewBackend(l2Allocs.Accounts)
-	defer backend.Close()
-
-	gpoCaller, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, backend.Client())
-	require.NoError(f, err)
-
-	isFjord, err := gpoCaller.IsFjord(&bind.CallOpts{})
-	require.NoError(f, err)
-	require.True(f, isFjord)
-
-	f.Fuzz(func(t *testing.T, fuzzedData []byte) {
-		gpoValue, err := gpoCaller.GetL1GasUsed(&bind.CallOpts{}, fuzzedData)
-		require.NoError(t, err)
-
-		gpoWithoutPadding := gpoValue.Div(gpoValue, big.NewInt(16))
-		gpoWithoutPadding.Sub(gpoWithoutPadding, big.NewInt(68))
-
-		gethValue := types.FlzCompressLen(fuzzedData)
-
-		require.Equal(t, uint64(gethValue), gpoWithoutPadding.Uint64())
-	})
 }
 
 func FuzzFjordCostFunction(f *testing.F) {
@@ -154,23 +126,24 @@ func FuzzFjordCostFunction(f *testing.F) {
 			return
 		}
 
-		gpoValue, err := gpoCaller.GetL1Fee(&bind.CallOpts{}, fuzzedData)
+		l1FeeSolidity, err := gpoCaller.GetL1Fee(&bind.CallOpts{}, fuzzedData)
 		require.NoError(t, err)
 
 		// remove the adjustment
-		gpoValue.Mul(gpoValue, big.NewInt(1e12))
-		gpoValue.Div(gpoValue, feeScaled)
+		l1FeeSolidity.Mul(l1FeeSolidity, big.NewInt(1e12))
+		l1FeeSolidity.Div(l1FeeSolidity, feeScaled)
 
 		totat := new(big.Int).Mul(big.NewInt(68), big.NewInt(836_500))
-		gpoValue.Sub(gpoValue, totat)
+		l1FeeSolidity.Sub(l1FeeSolidity, totat)
 
-		gpoValue.Mul(gpoValue, feeScaled)
-		gpoValue.Div(gpoValue, big.NewInt(1e12))
+		l1FeeSolidity.Mul(l1FeeSolidity, feeScaled)
+		l1FeeSolidity.Div(l1FeeSolidity, big.NewInt(1e12))
 
 		costData := types.NewRollupCostData(fuzzedData)
 
-		gethValue := costFunc(costData, zeroTime)
+		l1FeeGeth := costFunc(costData, zeroTime)
 
-		require.Equal(t, gethValue.Uint64(), gpoValue.Uint64(), fmt.Sprintf("fuzzedData: %x", common.Bytes2Hex(fuzzedData)))
+		require.Equal(t, l1FeeGeth.Uint64(), l1FeeSolidity.Uint64(), fmt.Sprintf("fuzzedData: %x", common.Bytes2Hex(fuzzedData)))
 	})
+
 }

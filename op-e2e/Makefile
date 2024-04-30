@@ -66,5 +66,4 @@ clean:
 .PHONY: clean
 
 fuzz:
-	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLZ ./
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./

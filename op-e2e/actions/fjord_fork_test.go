@@ -23,12 +23,9 @@ import (
 )
 
 var (
-	fjordGasPriceOracleCodeHash = common.HexToHash("0x17563a1e2f4faeee2c47abda44d74d8c91438c26f2f1ba774ef4e3c41cc45f3b")
+	fjordGasPriceOracleCodeHash = common.HexToHash("0x58e192326ee67ed52b7add91e4640024cbd1b21528a0ff1e1d21b7ca54e3ee62")
 	// https://basescan.org/tx/0x8debb2fe54200183fb8baa3c6dbd8e6ec2e4f7a4add87416cd60336b8326d16a
 	txHex = "02f875822105819b8405709fb884057d460082e97f94273ca93a52b817294830ed7572aa591ccfa647fd80881249c58b0021fb3fc080a05bb08ccfd68f83392e446dac64d88a2d28e7072c06502dfabc4a77e77b5c7913a05878d53dd4ebba4f6367e572d524dffcabeec3abb1d8725ee3ac5dc32e1852e3"
-
-	costFastlzCoef int64 = 836_500
-	costIntercept  int64 = -42_585_600
 )
 
 func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
@@ -112,9 +109,9 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 
 	l1GasUsed, err := gasPriceOracle.GetL1GasUsed(&bind.CallOpts{}, txData)
 	require.NoError(t, err)
+	require.Equal(gt, uint64(1_888), l1GasUsed.Uint64())
 
 	fastLzSize := types.FlzCompressLen(txData)
-	require.Equal(gt, l1GasUsed.Uint64(), uint64(fastLzSize+68)*16)
 
 	// Check that GetL1Fee takes into account fast LZ
 	used, err := gasPriceOracle.GetL1Fee(&bind.CallOpts{}, txData)
@@ -137,13 +134,13 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 // l1BaseFeeScaled = l1BaseFeeScalar * l1BaseFee * 16
 // l1BlobFeeScaled = l1BlobFeeScalar * l1BlobBaseFee
 // l1FeeScaled = l1BaseFeeScaled + l1BlobFeeScaled
-// ((intercept + fastlzCoef*max(fastlzLength, 71)) * l1FeeScaled) / 1e6
+// ((intercept + fastlzCoef*max(fastlzLength, 100)) * l1FeeScaled) / 1e6
 func fjordL1Cost(
 	t require.TestingT,
 	gasPriceOracle *bindings.GasPriceOracleCaller,
 	fastLzLength int64,
 ) *big.Int {
-	fastLzLength = max(fastLzLength, 71)
+	fastLzLength = max(fastLzLength, types.MinTransactionSize.Int64())
 
 	baseFeeScalar, err := gasPriceOracle.BaseFeeScalar(nil)
 	require.NoError(t, err)
@@ -158,8 +155,8 @@ func fjordL1Cost(
 	feeScaled = new(big.Int).Mul(feeScaled, l1BaseFee)
 	feeScaled = new(big.Int).Add(feeScaled, new(big.Int).Mul(new(big.Int).SetUint64(uint64(blobBaseFeeScalar)), blobBaseFee))
 
-	cost := new(big.Int).Mul(new(big.Int).SetInt64(costFastlzCoef), new(big.Int).SetInt64(fastLzLength+68))
-	cost = new(big.Int).Add(cost, new(big.Int).SetInt64(costIntercept))
+	cost := new(big.Int).Mul(types.L1CostFastlzCoef, new(big.Int).SetInt64(fastLzLength+68))
+	cost = new(big.Int).Add(cost, types.L1CostIntercept)
 	require.True(t, cost.Sign() >= 0)
 
 	cost = new(big.Int).Mul(cost, feeScaled)
