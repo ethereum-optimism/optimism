@@ -187,8 +187,9 @@ contract Setup {
 
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = deploy.cfg().finalSystemOwner();
-        vm.prank(governanceToken.owner());
+        vm.startPrank(governanceToken.owner());
         governanceToken.transferOwnership(finalSystemOwner);
+        vm.stopPrank();
 
         // L2 predeploys
         labelPredeploy(Predeploys.L2_STANDARD_BRIDGE);

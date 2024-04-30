@@ -137,8 +137,8 @@ contract L2Genesis is Deployer {
 
     /// @notice Build the L2 genesis.
     function runWithOptions(OutputMode _mode, L1Dependencies memory _l1Dependencies) public {
-        vm.chainId(cfg.l2ChainID());
         vm.startPrank(deployer);
+        vm.chainId(cfg.l2ChainID());
 
         dealEthToPrecompiles();
         setPredeployProxies();
