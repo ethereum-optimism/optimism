@@ -200,7 +200,7 @@
   {
     "inputs": [
       {
-        "internalType": "ClaimHash",
+        "internalType": "Hash",
         "name": "",
         "type": "bytes32"
       }

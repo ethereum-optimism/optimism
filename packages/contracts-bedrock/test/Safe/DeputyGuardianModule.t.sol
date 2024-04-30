@@ -9,7 +9,7 @@ import "test/safe-tools/SafeTestTools.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
 
-import { GameType } from "src/libraries/DisputeTypes.sol";
+import { GameType } from "src/dispute/lib/Types.sol";
 
 contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;

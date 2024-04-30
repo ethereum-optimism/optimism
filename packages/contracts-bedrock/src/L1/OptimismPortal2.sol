@@ -16,7 +16,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 import "src/libraries/PortalErrors.sol";
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @custom:proxied
 /// @title OptimismPortal2

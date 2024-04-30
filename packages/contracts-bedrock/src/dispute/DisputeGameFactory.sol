@@ -8,10 +8,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 
-import { LibGameId } from "src/dispute/lib/LibGameId.sol";
-
-import "src/libraries/DisputeTypes.sol";
-import "src/libraries/DisputeErrors.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 /// @title DisputeGameFactory
 /// @notice A factory contract for creating `IDisputeGame` contracts. All created dispute games are stored in both a
@@ -23,8 +21,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     using LibClone for address;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.6.0
-    string public constant version = "0.6.0";
+    /// @custom:semver 0.6.1
+    string public constant version = "0.6.1";
 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;

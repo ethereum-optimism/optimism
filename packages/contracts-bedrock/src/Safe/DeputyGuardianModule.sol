@@ -10,7 +10,7 @@ import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Unauthorized } from "src/libraries/PortalErrors.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title DeputyGuardianModule
 /// @notice This module is intended to be enabled on the Security Council Safe, which will own the Guardian role in the
@@ -43,8 +43,8 @@ contract DeputyGuardianModule is ISemver {
     address internal immutable DEPUTY_GUARDIAN;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(Safe _safe, SuperchainConfig _superchainConfig, address _deputyGuardian) {
