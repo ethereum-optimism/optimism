@@ -113,6 +113,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @param to             Address that the withdrawal transaction is directed to.
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
 
+    /// @notice Emitted when a withdrawal transaction is proven. Exists as a separate event to allow for backwards
+    ///         compatibility for tooling that observes the `WithdrawalProven` event.
+    /// @param withdrawalHash Hash of the withdrawal transaction.
+    /// @param proofSubmitter Address of the proof submitter.
+    event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+
     /// @notice Emitted when a withdrawal transaction is finalized.
     /// @param withdrawalHash Hash of the withdrawal transaction.
     /// @param success        Whether the withdrawal transaction was successful.
@@ -305,6 +311,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Emit a `WithdrawalProven` event.
         emit WithdrawalProven(withdrawalHash, _tx.sender, _tx.target);
+        // Emit a `WithdrawalProvenExtension1` event.
+        emit WithdrawalProvenExtension1(withdrawalHash, msg.sender);
 
         // Add the proof submitter to the list of proof submitters for this withdrawal hash.
         proofSubmitters[withdrawalHash].push(msg.sender);
