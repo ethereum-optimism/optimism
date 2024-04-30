@@ -155,7 +155,7 @@ contract L2Genesis is Deployer {
         if (_mode == OutputMode.OUTPUT_ALL) {
             writeGenesisAllocs(Config.stateDumpPath("-delta"));
         }
-        vm.endPrank();
+        vm.stopPrank();
 
         activateEcotone();
         if (_mode == OutputMode.OUTPUT_ALL || _mode == OutputMode.DEFAULT_LATEST) {
