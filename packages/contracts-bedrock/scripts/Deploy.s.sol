@@ -860,7 +860,14 @@ contract Deploy is Deployer {
             _innerCallData: abi.encodeCall(DisputeGameFactory.initialize, (msg.sender))
         });
 
-        string memory version = DisputeGameFactory(disputeGameFactoryProxy).version();
+        DisputeGameFactory dgf = DisputeGameFactory(disputeGameFactoryProxy);
+        uint256 initBond = 0.08 ether;
+        dgf.setInitBond(GameTypes.CANNON, initBond);
+        dgf.setInitBond(GameTypes.PERMISSIONED_CANNON, initBond);
+        dgf.setInitBond(GameTypes.ASTERISC, initBond);
+        dgf.setInitBond(GameTypes.ALPHABET, initBond);
+
+        string memory version = dgf.version();
         console.log("DisputeGameFactory version: %s", version);
 
         ChainAssertions.checkDisputeGameFactory({ _contracts: _proxiesUnstrict(), _expectedOwner: msg.sender });
