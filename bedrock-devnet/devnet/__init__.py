@@ -142,9 +142,8 @@ def devnet_l1_allocs(paths):
     init_devnet_l1_deploy_config(paths)
 
     fqn = 'scripts/Deploy.s.sol:Deploy'
-    # Use foundry pre-funded account #1 for the deployer
     run_command([
-        'forge', 'script', fqn, "--sig", "runWithStateDump()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        'forge', 'script', fqn, "--sig", "runWithStateDump()"
     ], env={
       'DEPLOYMENT_OUTFILE': paths.l1_deployments_path,
       'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
