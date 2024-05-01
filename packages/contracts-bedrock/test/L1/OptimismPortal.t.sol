@@ -488,11 +488,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     function test_depositERC20Transaction_balanceOverflow_reverts() external {
-        vm.mockCall(
-            address(systemConfig),
-            abi.encodeWithSignature("gasPayingToken()"),
-            abi.encode(address(42), 18)
-        );
+        vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(42), 18));
 
         // The balance slot
         vm.store(address(optimismPortal), bytes32(uint256(61)), bytes32(type(uint256).max));
