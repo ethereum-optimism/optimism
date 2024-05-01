@@ -177,7 +177,7 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		// remove the first byte by reading it
 		_, err := r.Read(make([]byte, 1))
 		if err != nil {
-			return nil ,err
+			return nil, err
 		}
 		reader = func(r io.Reader) (io.Reader, error) {
 			return brotli.NewReader(r), nil
