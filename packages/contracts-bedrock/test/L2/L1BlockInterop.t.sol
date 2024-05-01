@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { L1BlockInterop, DependencySetSizeMismatch, NotDepositor } from "src/L2/L1BlockInterop.sol";
 
-contract L1BlockInterop_Test is Test {
+contract L1BlockInteropTest is Test {
     L1BlockInterop l1Block;
     address depositor;
 
@@ -16,52 +16,52 @@ contract L1BlockInterop_Test is Test {
 
     /// @dev Tests that setL1BlockValuesInterop updates the values appropriately.
     function testFuzz_setL1BlockValuesInterop_succeeds(
-        uint32 baseFeeScalar,
-        uint32 blobBaseFeeScalar,
-        uint64 sequenceNumber,
-        uint64 timestamp,
-        uint64 number,
-        uint256 baseFee,
-        uint256 blobBaseFee,
-        bytes32 hash,
-        bytes32 batcherHash,
-        uint256[] calldata dependencySet
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash,
+        uint256[] calldata _dependencySet
     )
         external
     {
-        vm.assume(dependencySet.length <= type(uint8).max);
-        vm.assume(uint160(uint256(batcherHash)) == uint256(batcherHash));
+        vm.assume(_dependencySet.length <= type(uint8).max);
+        vm.assume(uint160(uint256(_batcherHash)) == uint256(_batcherHash));
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
-            _baseFeeScalar: baseFeeScalar,
-            _blobBaseFeeScalar: blobBaseFeeScalar,
-            _sequenceNumber: sequenceNumber,
-            _timestamp: timestamp,
-            _number: number,
-            _baseFee: baseFee,
-            _blobBaseFee: blobBaseFee,
-            _hash: hash,
-            _batcherHash: batcherHash,
-            _dependencySet: dependencySet
+            _baseFeeScalar: _baseFeeScalar,
+            _blobBaseFeeScalar: _blobBaseFeeScalar,
+            _sequenceNumber: _sequenceNumber,
+            _timestamp: _timestamp,
+            _number: _number,
+            _baseFee: _baseFee,
+            _blobBaseFee: _blobBaseFee,
+            _hash: _hash,
+            _batcherHash: _batcherHash,
+            _dependencySet: _dependencySet
         });
 
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "Function call failed");
 
-        assertEq(l1Block.baseFeeScalar(), baseFeeScalar);
-        assertEq(l1Block.blobBaseFeeScalar(), blobBaseFeeScalar);
-        assertEq(l1Block.sequenceNumber(), sequenceNumber);
-        assertEq(l1Block.timestamp(), timestamp);
-        assertEq(l1Block.number(), number);
-        assertEq(l1Block.basefee(), baseFee);
-        assertEq(l1Block.blobBaseFee(), blobBaseFee);
-        assertEq(l1Block.hash(), hash);
-        assertEq(l1Block.batcherHash(), batcherHash);
-        assertEq(l1Block.dependencySetSize(), dependencySet.length);
-        for (uint256 i = 0; i < dependencySet.length; i++) {
-            assertEq(l1Block.dependencySet(i), dependencySet[i]);
-            assertTrue(l1Block.isInDependencySet(dependencySet[i]));
+        assertEq(l1Block.baseFeeScalar(), _baseFeeScalar);
+        assertEq(l1Block.blobBaseFeeScalar(), _blobBaseFeeScalar);
+        assertEq(l1Block.sequenceNumber(), _sequenceNumber);
+        assertEq(l1Block.timestamp(), _timestamp);
+        assertEq(l1Block.number(), _number);
+        assertEq(l1Block.basefee(), _baseFee);
+        assertEq(l1Block.blobBaseFee(), _blobBaseFee);
+        assertEq(l1Block.hash(), _hash);
+        assertEq(l1Block.batcherHash(), _batcherHash);
+        assertEq(l1Block.dependencySetSize(), _dependencySet.length);
+        for (uint256 i = 0; i < _dependencySet.length; i++) {
+            assertEq(l1Block.dependencySet(i), _dependencySet[i]);
+            assertTrue(l1Block.isInDependencySet(_dependencySet[i]));
         }
 
         // ensure we didn't accidentally pollute the 128 bits of the sequencenum+scalars slot that
@@ -118,41 +118,16 @@ contract L1BlockInterop_Test is Test {
         assertEq(bytes4(data), NotDepositor.selector);
     }
 
-    /// @dev Tests that `setL1BlockValuesInterop` succeeds if _dependencySetSize is the same as
-    ///      the length of _dependencySet. (happy path)
-    function testFuzz_setL1BlockValuesInterop_dependencySetSizeMatch_succeeds(uint256[] calldata dependencySet)
-        external
-    {
-        vm.assume(dependencySet.length <= type(uint8).max);
-
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
-            _baseFeeScalar: type(uint32).max,
-            _blobBaseFeeScalar: type(uint32).max,
-            _sequenceNumber: type(uint64).max,
-            _timestamp: type(uint64).max,
-            _number: type(uint64).max,
-            _baseFee: type(uint256).max,
-            _blobBaseFee: type(uint256).max,
-            _hash: bytes32(type(uint256).max),
-            _batcherHash: bytes32(0),
-            _dependencySet: dependencySet
-        });
-
-        vm.prank(depositor);
-        (bool success,) = address(l1Block).call(functionCallDataPacked);
-        assertTrue(success, "function call failed");
-    }
-
     /// @dev Tests that `setL1BlockValuesInterop` reverts if _dependencySetSize is not the same as
     ///      the length of _dependencySet. (bad path)
     function testFuzz_setL1BlockValuesInterop_dependencySetSizeMatch_reverts(
-        uint8 notDependencySetSize,
-        uint256[] calldata dependencySet
+        uint8 _notDependencySetSize,
+        uint256[] calldata _dependencySet
     )
         external
     {
-        vm.assume(dependencySet.length <= type(uint8).max);
-        vm.assume(notDependencySetSize != dependencySet.length);
+        vm.assume(_dependencySet.length <= type(uint8).max);
+        vm.assume(_notDependencySetSize != _dependencySet.length);
 
         bytes memory functionCallDataPacked = abi.encodePacked(
             bytes4(keccak256("setL1BlockValuesInterop()")),
@@ -165,8 +140,8 @@ contract L1BlockInterop_Test is Test {
             type(uint256).max,
             bytes32(type(uint256).max),
             bytes32(type(uint256).max),
-            notDependencySetSize,
-            dependencySet
+            _notDependencySetSize,
+            _dependencySet
         );
 
         vm.prank(depositor);
@@ -179,43 +154,43 @@ contract L1BlockInterop_Test is Test {
     /// @dev Tests that an arbitrary dependency set can be set and that ìsInDependencySet returns
     ///      the expected results.
     function testFuzz_isInDependencySet_succeeds(
-        uint32 baseFeeScalar,
-        uint32 blobBaseFeeScalar,
-        uint64 sequenceNumber,
-        uint64 timestamp,
-        uint64 number,
-        uint256 baseFee,
-        uint256 blobBaseFee,
-        bytes32 hash,
-        bytes32 batcherHash,
-        uint256[] calldata dependencySet
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash,
+        uint256[] calldata _dependencySet
     )
         external
     {
-        vm.assume(dependencySet.length <= type(uint8).max);
-        vm.assume(uint160(uint256(batcherHash)) == uint256(batcherHash));
+        vm.assume(_dependencySet.length <= type(uint8).max);
+        vm.assume(uint160(uint256(_batcherHash)) == uint256(_batcherHash));
 
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop({
-            _baseFeeScalar: baseFeeScalar,
-            _blobBaseFeeScalar: blobBaseFeeScalar,
-            _sequenceNumber: sequenceNumber,
-            _timestamp: timestamp,
-            _number: number,
-            _baseFee: baseFee,
-            _blobBaseFee: blobBaseFee,
-            _hash: hash,
-            _batcherHash: batcherHash,
-            _dependencySet: dependencySet
+            _baseFeeScalar: _baseFeeScalar,
+            _blobBaseFeeScalar: _blobBaseFeeScalar,
+            _sequenceNumber: _sequenceNumber,
+            _timestamp: _timestamp,
+            _number: _number,
+            _baseFee: _baseFee,
+            _blobBaseFee: _blobBaseFee,
+            _hash: _hash,
+            _batcherHash: _batcherHash,
+            _dependencySet: _dependencySet
         });
 
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "Function call failed");
 
-        assertEq(l1Block.dependencySetSize(), dependencySet.length);
+        assertEq(l1Block.dependencySetSize(), _dependencySet.length);
 
-        for (uint256 i = 0; i < dependencySet.length; i++) {
-            assertTrue(l1Block.isInDependencySet(dependencySet[i]));
+        for (uint256 i = 0; i < _dependencySet.length; i++) {
+            assertTrue(l1Block.isInDependencySet(_dependencySet[i]));
         }
     }
 
@@ -225,8 +200,8 @@ contract L1BlockInterop_Test is Test {
     }
 
     /// @dev Tests that `isInDependencySet` reverts when the input chain ID is not in the dependency set
-    function testFuzz_isInDependencySet_reverts(uint256 chainId) external {
-        vm.assume(chainId != 1);
+    function testFuzz_isInDependencySet_reverts(uint256 _chainId) external {
+        vm.assume(_chainId != 1);
 
         uint256[] memory dependencySet = new uint256[](1);
         dependencySet[0] = 1;
@@ -248,12 +223,12 @@ contract L1BlockInterop_Test is Test {
         (bool success,) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "Function call failed");
 
-        assertFalse(l1Block.isInDependencySet(chainId));
+        assertFalse(l1Block.isInDependencySet(_chainId));
     }
 
     /// @dev Tests that `isInDependencySet` returns false when the dependency set is empty
-    function testFuzz_isInDependencySet_dependencySetEmpty_succeeds(uint256 chainId) external view {
+    function testFuzz_isInDependencySet_dependencySetEmpty_succeeds(uint256 _chainId) external view {
         assertTrue(l1Block.dependencySetSize() == 0);
-        assertFalse(l1Block.isInDependencySet(chainId));
+        assertFalse(l1Block.isInDependencySet(_chainId));
     }
 }
