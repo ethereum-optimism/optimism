@@ -21,7 +21,9 @@ contract L1Block is ISemver, IGasToken {
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
 
     /// @notice Address of the special depositor account.
-    address public constant DEPOSITOR_ACCOUNT = Constants.DEPOSITOR_ACCOUNT;
+    function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
+        addr_ = Constants.DEPOSITOR_ACCOUNT;
+    }
 
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
@@ -110,7 +112,7 @@ contract L1Block is ISemver, IGasToken {
     )
         external
     {
-        require(msg.sender == DEPOSITOR_ACCOUNT, "L1Block: only the depositor account can set L1 block values");
+        require(msg.sender == DEPOSITOR_ACCOUNT(), "L1Block: only the depositor account can set L1 block values");
 
         number = _number;
         timestamp = _timestamp;
@@ -135,9 +137,10 @@ contract L1Block is ISemver, IGasToken {
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
     function setL1BlockValuesEcotone() external {
+        address depositor = DEPOSITOR_ACCOUNT();
         assembly {
             // Revert if the caller is not the depositor account.
-            if xor(caller(), DEPOSITOR_ACCOUNT) {
+            if xor(caller(), depositor) {
                 mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
@@ -156,7 +159,7 @@ contract L1Block is ISemver, IGasToken {
     ///         depositor account. This function is not called on every L2 block but instead
     ///         only called by specially crafted L1 deposit transactions.
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
-        if (msg.sender != DEPOSITOR_ACCOUNT) revert NotDepositor();
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
         GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
 
