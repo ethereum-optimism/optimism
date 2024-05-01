@@ -433,7 +433,11 @@ contract Deploy is Deployer {
         bytes memory initData = abi.encodeWithSelector(
             Safe.setup.selector, signers, 1, address(0), hex"", address(0), address(0), 0, address(0)
         );
-        address safe = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp));
+        address safe = address(
+            safeProxyFactory.createProxyWithNonce(
+                address(safeSingleton), initData, uint256(keccak256(abi.encode(_name)))
+            )
+        );
 
         save(_name, address(safe));
         console.log(
