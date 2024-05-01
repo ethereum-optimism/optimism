@@ -71,7 +71,7 @@ type CLIConfig struct {
 	CompressionAlgo string
 
 	// Levels of compression to use. E.g. 1-11 for brotli, 0-9 for zlib
-	CompressLevel   int
+	CompressLevel int
 
 	// If Stopped is true, the batcher starts stopped and won't start batching right away.
 	// Batching needs to be started via an admin RPC.
@@ -180,7 +180,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
 		Compressor:                   ctx.String(flags.CompressorFlag.Name),
-		CompressionAlgo: 			ctx.String(flags.CompressionAlgoFlag.Name),
+		CompressionAlgo:              ctx.String(flags.CompressionAlgoFlag.Name),
 		CompressLevel:                ctx.Int(flags.CompressLevelFlag.Name),
 		Stopped:                      ctx.Bool(flags.StoppedFlag.Name),
 		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),

@@ -16,12 +16,12 @@ import (
 )
 
 const (
-	ZLIB  string = "zlib"
+	ZLIB   string = "zlib"
 	BROTLI string = "brotli"
 )
 
 type CompressorInteface interface {
-	Write([] byte) (int, error)
+	Write([]byte) (int, error)
 	Flush() error
 	Close() error
 	Reset(io.Writer)
@@ -66,12 +66,12 @@ func (co *SpanChannelOut) setRandomID() error {
 
 func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo string, compressLevel int) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
-		id:         ChannelID{},
-		frame:      0,
-		spanBatch:  NewSpanBatch(genesisTimestamp, chainID),
-		rlp:        [2]*bytes.Buffer{{}, {}},
-		compressed: &bytes.Buffer{},
-		target:     targetOutputSize,
+		id:              ChannelID{},
+		frame:           0,
+		spanBatch:       NewSpanBatch(genesisTimestamp, chainID),
+		rlp:             [2]*bytes.Buffer{{}, {}},
+		compressed:      &bytes.Buffer{},
+		target:          targetOutputSize,
 		compressionAlgo: compressionAlgo,
 	}
 	var err error

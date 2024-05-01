@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 
-	"strconv"
 	"strings"
 
 	"github.com/andybalholm/brotli"
@@ -153,10 +152,10 @@ func (ch *Channel) Reader() io.Reader {
 // The caller of the batch-reader should filter the results.
 func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	// Buffer to store the data for reuse
-    var buffer strings.Builder
-    if _, err := io.Copy(&buffer, r); err != nil {
-        return nil, err
-    }
+	var buffer strings.Builder
+	if _, err := io.Copy(&buffer, r); err != nil {
+		return nil, err
+	}
 
 	tmpReader := strings.NewReader(buffer.String())
 	// Read the first byte to be used to determine the compression type
@@ -165,22 +164,16 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		return nil, err
 	}
 
-	fmt.Println("Compression type")
-	fmt.Println(strconv.FormatInt(int64(compressionType[0]), 2))
-	fmt.Println(compressionType[0])
-
 	// Reset the reader with the original data
 	r = strings.NewReader(buffer.String())
 	var reader func(io.Reader) (io.Reader, error)
 	// If the last 4 bits is 8, then it is a zlib reader
-	if compressionType[0] & 0x0F == 8 {
-		fmt.Println("Using zlib reader")
+	if compressionType[0]&0x0F == 8 {
 		reader = func(r io.Reader) (io.Reader, error) {
 			return zlib.NewReader(r)
 		}
-	// If the bits equal to 2, then it is a brotli reader
-	} else if compressionType[0] & 0x0F == 2 {
-		fmt.Println("Using brotli reader")
+		// If the bits equal to 2, then it is a brotli reader
+	} else if compressionType[0]&0x0F == 2 {
 		// remove the first byte by reading it
 		r.Read(make([]byte, 1))
 		reader = func(r io.Reader) (io.Reader, error) {
@@ -198,10 +191,6 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	return func() (*BatchData, error) {
 		var batchData BatchData
 		if err = rlpReader.Decode(&batchData); err != nil {
-			if err != io.EOF {
-				fmt.Println("DECODE ERROR")
-				fmt.Println(err)
-			}
 			return nil, err
 		}
 		return &batchData, nil
