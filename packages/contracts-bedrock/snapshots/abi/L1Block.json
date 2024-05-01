@@ -5,11 +5,11 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "addr_",
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {

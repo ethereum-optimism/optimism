@@ -68,10 +68,6 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(prevBaseFee, 1 gwei);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, uint64(block.number));
-        (address token, uint8 decimals) = optimismPortal.gasPayingToken();
-        (address expectedToken, uint8 expectedDecimals) = systemConfig.gasPayingToken();
-        assertEq(token, expectedToken);
-        assertEq(decimals, expectedDecimals);
     }
 
     /// @dev Tests that `pause` successfully pauses
@@ -180,7 +176,7 @@ contract OptimismPortal_Test is CommonTest {
         uint256 prevBalance = address(optimismPortal).balance;
 
         // Ensure that no custom gas token is set
-        (address gasPayingToken,) = optimismPortal.gasPayingToken();
+        (address gasPayingToken,) = systemConfig.gasPayingToken();
         assertEq(gasPayingToken, Constants.ETHER);
 
         bytes memory opaqueData = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
@@ -448,23 +444,6 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(optimismPortal.isOutputFinalized(nextOutputIndex + 1), false);
     }
 
-    /// @dev Tests that gasPayingToken returns the correct values for ETH.
-    function test_gasPayingToken_ether_succeeds() external view {
-        (address token, uint8 decimals) = optimismPortal.gasPayingToken();
-        assertEq(token, Constants.ETHER);
-        assertEq(decimals, 18);
-    }
-
-    /// @dev Tests that gasPayingToken returns the correct values for non-ETH tokens.
-    function test_gasPayingToken_nonEther_succeeds() external {
-        vm.mockCall(
-            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
-        );
-        (address token, uint8 decimals) = optimismPortal.gasPayingToken();
-        assertEq(token, address(1));
-        assertEq(decimals, 2);
-    }
-
     /// @dev Tests that the gas paying token can be set.
     function testFuzz_setGasPayingToken_succeeds(
         address _token,
@@ -501,7 +480,7 @@ contract OptimismPortal_Test is CommonTest {
     /// @dev Tests that `depositERC20Transaction` reverts when the gas paying token is ether.
     function test_depositERC20Transaction_noCustomGasToken_reverts() external {
         // Check that the gas paying token is set to ether
-        (address token,) = optimismPortal.gasPayingToken();
+        (address token,) = systemConfig.gasPayingToken();
         assertEq(token, Constants.ETHER);
 
         vm.expectRevert(OnlyCustomGasToken.selector);
@@ -511,7 +490,7 @@ contract OptimismPortal_Test is CommonTest {
     /// @dev Tests that `balance()` returns the correct balance when the gas paying token is ether.
     function testFuzz_balance_ether_succeeds(uint256 _amount) external {
         // Check that the gas paying token is set to ether
-        (address token,) = optimismPortal.gasPayingToken();
+        (address token,) = systemConfig.gasPayingToken();
         assertEq(token, Constants.ETHER);
 
         // Increase the balance of the gas paying token
