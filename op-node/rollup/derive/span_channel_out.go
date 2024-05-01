@@ -20,7 +20,7 @@ const (
 	BROTLI string = "brotli"
 )
 
-type CompressorInteface interface {
+type CompressorInterface interface {
 	Write([]byte) (int, error)
 	Flush() error
 	Close() error
@@ -42,7 +42,7 @@ type SpanChannelOut struct {
 	// compressed contains compressed data for making output frames
 	compressed *bytes.Buffer
 	// the compressor for the channel
-	compressor CompressorInteface
+	compressor CompressorInterface
 	// the compression algo used
 	compressionAlgo string
 	// target is the target size of the compressed data
@@ -103,10 +103,9 @@ func (co *SpanChannelOut) Reset() error {
 	co.rlp[0].Reset()
 	co.rlp[1].Reset()
 	co.lastCompressedRLPSize = 0
+	co.compressed.Reset()
 	if co.compressionAlgo == BROTLI {
-		co.compressed = bytes.NewBuffer([]byte{0b0010})
-	} else {
-		co.compressed.Reset()
+		co.compressed.WriteByte(0b0010)
 	}
 	co.compressor.Reset(co.compressed)
 	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
@@ -218,10 +217,9 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 // compress compresses the active RLP buffer and checks if the compressed data is over the target size.
 // it resets all the compression buffers because Span Batches aren't meant to be compressed incrementally.
 func (co *SpanChannelOut) compress() error {
+	co.compressed.Reset()
 	if co.compressionAlgo == BROTLI {
-		co.compressed = bytes.NewBuffer([]byte{0b0010})
-	} else {
-		co.compressed.Reset()
+		co.compressed.WriteByte(0b0010)
 	}
 	co.compressor.Reset(co.compressed)
 	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {
