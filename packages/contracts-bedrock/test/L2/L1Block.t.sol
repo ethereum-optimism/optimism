@@ -60,6 +60,21 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _l1FeeScalar: type(uint256).max
         });
     }
+
+    /// @dev Tests that `setL1BlockValues` reverts if sender address is not the depositor
+    function test_updatesValues_notDepositor_reverts() external {
+        vm.expectRevert("L1Block: only the depositor account can set L1 block values");
+        l1Block.setL1BlockValues({
+            _number: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _basefee: type(uint256).max,
+            _hash: keccak256(abi.encode(1)),
+            _sequenceNumber: type(uint64).max,
+            _batcherHash: bytes32(type(uint256).max),
+            _l1FeeOverhead: type(uint256).max,
+            _l1FeeScalar: type(uint256).max
+        });
+    }
 }
 
 contract L1BlockEcotone_Test is L1BlockTest {
@@ -127,8 +142,8 @@ contract L1BlockEcotone_Test is L1BlockTest {
         assertTrue(success, "function call failed");
     }
 
-    /// @dev Tests that `setL1BlockValuesEcotone` fails if sender address is not the depositor
-    function test_setL1BlockValuesEcotone_notDepositor_fails() external {
+    /// @dev Tests that `setL1BlockValuesEcotone` reverts if sender address is not the depositor
+    function test_setL1BlockValuesEcotone_notDepositor_reverts() external {
         bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
             type(uint32).max,
             type(uint32).max,
