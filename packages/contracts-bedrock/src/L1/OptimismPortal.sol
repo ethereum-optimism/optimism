@@ -556,6 +556,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
+        // This value must be large enough to cover the cost of calling `L1Block.setGasPayingToken`.
         useGas(80000);
 
         // Emit the special deposit transaction directly that sets the gas paying
