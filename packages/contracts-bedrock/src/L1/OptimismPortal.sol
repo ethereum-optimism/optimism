@@ -446,6 +446,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         (address token,) = gasPayingToken();
         if (token == Constants.ETHER) revert OnlyCustomGasToken();
 
+        // Gives overflow protection for L2 account balances.
+        _balance += _mint;
+
         // Get the balance of the portal before the transfer.
         uint256 startBalance = IERC20(token).balanceOf(address(this));
 
@@ -456,9 +459,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         if (IERC20(token).balanceOf(address(this)) != startBalance + _mint) {
             revert TransferFailed();
         }
-
-        // Gives overflow protection for L2 account balances.
-        _balance += _mint;
 
         _depositTransaction({
             _to: _to,
