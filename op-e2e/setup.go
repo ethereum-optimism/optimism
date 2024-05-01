@@ -645,7 +645,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	// TODO: refactor testing to allow use of in-process rpc connections instead
 	// of only websockets (which are required for external eth client tests).
 	for name, nodeCfg := range cfg.Nodes {
-		configureL1(nodeCfg, sys.EthInstances["l1"])
+		configureL1(nodeCfg, sys.EthInstances["l1"], sys.L1BeaconEndpoint())
 		configureL2(nodeCfg, sys.EthInstances[name], cfg.JWTSecret)
 		if sys.RollupConfig.EcotoneTime != nil {
 			nodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{BeaconAddr: sys.L1BeaconAPIAddr}
@@ -959,7 +959,7 @@ func selectEndpoint(node EthInstance) string {
 	return node.WSEndpoint()
 }
 
-func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance) {
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance, beaconEndpoint string) {
 	l1EndpointConfig := selectEndpoint(l1Node)
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
@@ -969,6 +969,9 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance) {
 		BatchSize:        20,
 		HttpPollInterval: time.Millisecond * 100,
 		MaxConcurrency:   10,
+	}
+	rollupNodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{
+		BeaconAddr: beaconEndpoint,
 	}
 }
 
