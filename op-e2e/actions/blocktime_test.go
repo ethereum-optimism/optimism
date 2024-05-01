@@ -161,6 +161,10 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp.DeployConfig.L2BlockTime = 2
 	dp.DeployConfig.SequencerWindowSize = 4
 	dp.DeployConfig.MaxSequencerDrift = 32
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
+	// TODO(client-pod#831): The Ecotone (and Fjord) activation blocks don't include user txs,
+	// so disabling these forks for now.
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
@@ -169,6 +173,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()
+
 	aliceNonce := uint64(0) // manual nonce, avoid pending-tx nonce management, that causes flakes
 	aliceTx := func() {
 		tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
@@ -211,8 +216,8 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	miner.ActL1EndBlock(t)
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
-	makeL2BlockWithAliceTx()
-	makeL2BlockWithAliceTx()
+	makeL2BlockWithAliceTx() // 1
+	makeL2BlockWithAliceTx() // 2
 
 	for i := 0; i < 7; i++ {
 		batcher.ActSubmitAll(t)
@@ -223,7 +228,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		sequencer.ActL2PipelineFull(t)
 		makeL2BlockWithAliceTx()
 		makeL2BlockWithAliceTx()
-	}
+	} // 14 + 2 = 16
 
 	n, err := cl.NonceAt(t.Ctx(), dp.Addresses.Alice, nil)
 	require.NoError(t, err)

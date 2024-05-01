@@ -103,7 +103,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			header.ParentBeaconRoot = &root
 
 			// Copied from op-program/client/l2/engineapi/block_processor.go
-			// TODO(client-pod#)
+			// TODO(client-pod#826)
 			// Unfortunately this is not part of any Geth environment setup,
 			// we just have to apply it, like how the Geth block-builder worker does.
 			context := core.NewEVMBlockContext(header, s.l1Chain, nil, s.l1Chain.Config(), statedb)
