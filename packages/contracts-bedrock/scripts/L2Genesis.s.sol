@@ -110,7 +110,6 @@ contract L2Genesis is Deployer {
     }
 
     function artifactDependencies() internal view returns (L1Dependencies memory l1Dependencies_) {
-        console.log("retrieving L1 deployments from artifacts");
         return L1Dependencies({
             l1CrossDomainMessengerProxy: mustGetAddress("L1CrossDomainMessengerProxy"),
             l1StandardBridgeProxy: mustGetAddress("L1StandardBridgeProxy"),
@@ -209,10 +208,10 @@ contract L2Genesis is Deployer {
     ///      sets the deployed bytecode at their expected predeploy address.
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
     function setPredeployImplementations(L1Dependencies memory _l1Dependencies) internal {
-        console.log("Setting predeploy implementations, with L1 contract dependencies:");
-        console.log("- l1CrossDomainMessengerProxy: %s", _l1Dependencies.l1CrossDomainMessengerProxy);
-        console.log("- l1StandardBridgeProxy: %s", _l1Dependencies.l1StandardBridgeProxy);
-        console.log("- l1ERC721BridgeProxy: %s", _l1Dependencies.l1ERC721BridgeProxy);
+        console.log("Setting predeploy implementations with L1 contract dependencies:");
+        console.log("- L1CrossDomainMessengerProxy: %s", _l1Dependencies.l1CrossDomainMessengerProxy);
+        console.log("- L1StandardBridgeProxy: %s", _l1Dependencies.l1StandardBridgeProxy);
+        console.log("- L1ERC721BridgeProxy: %s", _l1Dependencies.l1ERC721BridgeProxy);
         setLegacyMessagePasser(); // 0
         // 01: legacy, not used in OP-Stack
         setDeployerWhitelist(); // 2
@@ -497,9 +496,8 @@ contract L2Genesis is Deployer {
         require(Preinstalls.BeaconBlockRoots.code.length > 0, "L2Genesis: must have beacon-block-roots contract");
         console.log("Activating ecotone in GasPriceOracle contract");
 
-        vm.startPrank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+        vm.prank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
         GasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setEcotone();
-        vm.stopPrank();
     }
 
     /// @notice Sets the bytecode in state
