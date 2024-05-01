@@ -175,7 +175,10 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		// If the bits equal to 2, then it is a brotli reader
 	} else if compressionType[0]&0x0F == 2 {
 		// remove the first byte by reading it
-		r.Read(make([]byte, 1))
+		_, err := r.Read(make([]byte, 1))
+		if err != nil {
+			return nil ,err
+		}
 		reader = func(r io.Reader) (io.Reader, error) {
 			return brotli.NewReader(r), nil
 		}
