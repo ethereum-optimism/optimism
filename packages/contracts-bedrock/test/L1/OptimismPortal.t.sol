@@ -487,6 +487,28 @@ contract OptimismPortal_Test is CommonTest {
         optimismPortal.depositERC20Transaction(address(0), 0, 0, 0, false, "");
     }
 
+    function test_depositERC20Transaction_balanceOverflow_reverts() external {
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeWithSignature("gasPayingToken()"),
+            abi.encode(address(42), 18)
+        );
+
+        // The balance slot
+        vm.store(address(optimismPortal), bytes32(uint256(61)), bytes32(type(uint256).max));
+        assertEq(optimismPortal.balance(), type(uint256).max);
+
+        vm.expectRevert(stdError.arithmeticError);
+        optimismPortal.depositERC20Transaction({
+            _to: address(0),
+            _mint: 1,
+            _value: 1,
+            _gasLimit: 10_000,
+            _isCreation: false,
+            _data: ""
+        });
+    }
+
     /// @dev Tests that `balance()` returns the correct balance when the gas paying token is ether.
     function testFuzz_balance_ether_succeeds(uint256 _amount) external {
         // Check that the gas paying token is set to ether
