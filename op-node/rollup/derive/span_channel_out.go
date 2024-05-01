@@ -20,7 +20,7 @@ const (
 	BROTLI string = "brotli"
 )
 
-type CompressorInterace interface {
+type CompressorInteface interface {
 	Write([] byte) (int, error)
 	Flush() error
 	Close() error
@@ -42,7 +42,9 @@ type SpanChannelOut struct {
 	// compressed contains compressed data for making output frames
 	compressed *bytes.Buffer
 	// the compressor for the channel
-	compressor CompressorInterace
+	compressor CompressorInteface
+	// the compression algo used
+	compressionAlgo string
 	// target is the target size of the compressed data
 	target uint64
 	// closed indicates if the channel is closed
@@ -70,6 +72,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		rlp:        [2]*bytes.Buffer{{}, {}},
 		compressed: &bytes.Buffer{},
 		target:     targetOutputSize,
+		compressionAlgo: compressionAlgo,
 	}
 	var err error
 	if err = c.setRandomID(); err != nil {
@@ -81,6 +84,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 			return nil, err
 		}
 	} else if compressionAlgo == BROTLI {
+		c.compressed = bytes.NewBuffer([]byte{0b0010})
 		c.compressor = brotli.NewWriterLevel(
 			c.compressed,
 			compressLevel,
@@ -99,7 +103,11 @@ func (co *SpanChannelOut) Reset() error {
 	co.rlp[0].Reset()
 	co.rlp[1].Reset()
 	co.lastCompressedRLPSize = 0
-	co.compressed.Reset()
+	if co.compressionAlgo == BROTLI {
+		co.compressed = bytes.NewBuffer([]byte{0b0010})
+	} else {
+		co.compressed.Reset()
+	}
 	co.compressor.Reset(co.compressed)
 	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
 	// setting the new randomID is the only part of the reset that can fail
@@ -210,7 +218,11 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 // compress compresses the active RLP buffer and checks if the compressed data is over the target size.
 // it resets all the compression buffers because Span Batches aren't meant to be compressed incrementally.
 func (co *SpanChannelOut) compress() error {
-	co.compressed.Reset()
+	if co.compressionAlgo == BROTLI {
+		co.compressed = bytes.NewBuffer([]byte{0b0010})
+	} else {
+		co.compressed.Reset()
+	}
 	co.compressor.Reset(co.compressed)
 	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {
 		return err

@@ -2,12 +2,12 @@ package derive
 
 import (
 	"bytes"
-	//"compress/zlib"
+	"compress/zlib"
 	"fmt"
 	"io"
 
-	// "strconv"
-	// "strings"
+	"strconv"
+	"strings"
 
 	"github.com/andybalholm/brotli"
 
@@ -152,32 +152,41 @@ func (ch *Channel) Reader() io.Reader {
 // Warning: the batch reader can read every batch-type.
 // The caller of the batch-reader should filter the results.
 func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
-	// Read the first byte to determine the compression type
-	// compressionType := make([]byte, 1)
-	// if _, err := r.Read(compressionType); err != nil {
-	// 	return nil, err
-	// }
+	// Buffer to store the data for reuse
+    var buffer strings.Builder
+    if _, err := io.Copy(&buffer, r); err != nil {
+        return nil, err
+    }
 
-	// check if the compression type is 0111 1000 (0x78)
-	// if no, initialize zlib reader, else initialize brotli reader
-		reader := func(r io.Reader) (io.Reader, error) {
+	tmpReader := strings.NewReader(buffer.String())
+	// Read the first byte to be used to determine the compression type
+	compressionType := make([]byte, 1)
+	if _, err := tmpReader.Read(compressionType); err != nil {
+		return nil, err
+	}
+
+	fmt.Println("Compression type")
+	fmt.Println(strconv.FormatInt(int64(compressionType[0]), 2))
+	fmt.Println(compressionType[0])
+
+	// Reset the reader with the original data
+	r = strings.NewReader(buffer.String())
+	var reader func(io.Reader) (io.Reader, error)
+	// If the last 4 bits is 8, then it is a zlib reader
+	if compressionType[0] & 0x0F == 8 {
+		fmt.Println("Using zlib reader")
+		reader = func(r io.Reader) (io.Reader, error) {
+			return zlib.NewReader(r)
+		}
+	// If the bits equal to 2, then it is a brotli reader
+	} else if compressionType[0] & 0x0F == 2 {
+		fmt.Println("Using brotli reader")
+		// remove the first byte by reading it
+		r.Read(make([]byte, 1))
+		reader = func(r io.Reader) (io.Reader, error) {
 			return brotli.NewReader(r), nil
 		}
-
-	// fmt.Println("Compression type")
-	// fmt.Println(strconv.FormatInt(int64(compressionType[0]), 2))
-	// fmt.Println(compressionType[0] & 0x0F)
-	// if compressionType[0] & 0x0F == 8 {
-	// 	fmt.Println("Using zlib reader")
-	// 	reader = func(r io.Reader) (io.Reader, error) {
-	// 		return zlib.NewReader(r)
-	// 	}
-	// } else {
-	// 	fmt.Println("Using brotli reader")
-	// 	reader = func(r io.Reader) (io.Reader, error) {
-	// 		return brotli.NewReader(r), nil
-	// 	}
-	// }
+	}
 
 	// Setup decompressor stage + RLP reader
 	zr, err := reader(r)
@@ -189,7 +198,10 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	return func() (*BatchData, error) {
 		var batchData BatchData
 		if err = rlpReader.Decode(&batchData); err != nil {
-			fmt.Println("DECODE ERROR")
+			if err != io.EOF {
+				fmt.Println("DECODE ERROR")
+				fmt.Println(err)
+			}
 			return nil, err
 		}
 		return &batchData, nil
