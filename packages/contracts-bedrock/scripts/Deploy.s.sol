@@ -428,11 +428,8 @@ contract Deploy is Deployer {
 
         save(_name, address(safe));
         console.log(
-            string.concat(
-                "New safe:",
-                _name,
-                "deployed at %s\n    Note that this safe is owned by the deployer key"
-            ), address(safe)
+            string.concat("New safe:", _name, "deployed at %s\n    Note that this safe is owned by the deployer key"),
+            address(safe)
         );
         addr_ = safe;
     }
