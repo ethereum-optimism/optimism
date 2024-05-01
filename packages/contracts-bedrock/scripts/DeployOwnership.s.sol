@@ -34,28 +34,28 @@ contract DeployOwnership is Deploy {
         console.log("Ownership contracts completed");
     }
 
-    function deployFoundationSafe() public returns (address safe_) {
-        deploySafe("FoundationSafe");
+    function deployAndConfigureFoundationSafe() public returns (address addr_) {
+        addr_ = deploySafe("FoundationSafe");
     }
 
     /// @notice Deploy a LivenessGuard for use on the Security Council Safe.
     ///         Note this function does not have the broadcast modifier.
-    function deployLivenessGuard() public returns (address guard_) {
+    function deployLivenessGuard() public returns (address addr_) {
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
-        guard_ = address(new LivenessGuard(councilSafe));
+        addr_ = address(new LivenessGuard(councilSafe));
 
-        save("LivenessGuard", address(guard_));
-        console.log("New LivenessGuard deployed at %s", address(guard_));
+        save("LivenessGuard", address(addr_));
+        console.log("New LivenessGuard deployed at %s", address(addr_));
     }
 
     /// @notice Deploy a LivenessModule for use on the Security Council Safe
     ///         Note this function does not have the broadcast modifier.
-    function deployLivenessModule() public returns (address module_) {
+    function deployLivenessModule() public returns (address addr_) {
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
         address fallbackOwner = mustGetAddress("SystemOwnerSafe");
         address guard = mustGetAddress("LivenessGuard");
 
-        module_ = address(
+        addr_ = address(
             new LivenessModule({
                 _safe: councilSafe,
                 _livenessGuard: LivenessGuard(guard),
@@ -66,12 +66,12 @@ contract DeployOwnership is Deploy {
             })
         );
 
-        save("LivenessModule", address(module_));
-        console.log("New LivenessModule deployed at %s", address(module_));
+        save("LivenessModule", address(addr_));
+        console.log("New LivenessModule deployed at %s", address(addr_));
     }
 
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
-    function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
+    function deployAndConfigueSecurityCouncilSafe() public returns (address addr_) {
         Safe safe = Safe(payable(deploySafe("SecurityCouncilSafe")));
 
         address guard = deployLivenessGuard();
