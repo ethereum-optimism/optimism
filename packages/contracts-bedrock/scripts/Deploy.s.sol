@@ -273,7 +273,7 @@ contract Deploy is Deployer {
     /// @notice Internal function containing the deploy logic.
     function _run() internal {
         console.log("start of L1 Deploy!");
-        deploySafe();
+        deploySafe("SystemOwnerSafe");
         console.log("deployed Safe!");
         setupSuperchain();
         console.log("set up superchain!");
@@ -414,7 +414,7 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy the Safe
-    function deploySafe() public broadcast returns (address addr_) {
+    function deploySafe(string memory _name) public broadcast returns (address addr_) {
         console.log("Deploying Safe");
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
@@ -426,8 +426,11 @@ contract Deploy is Deployer {
         );
         address safe = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp));
 
-        save("SystemOwnerSafe", address(safe));
-        console.log("New SystemOwnerSafe deployed at %s", address(safe));
+        save(_name, address(safe));
+        console.log(
+            string.concat("New safe: ", _name, " deployed at %s\n    Note that this safe is owned by the deployer key"),
+            address(safe)
+        );
         addr_ = safe;
     }
 
@@ -960,7 +963,7 @@ contract Deploy is Deployer {
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
                         l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
-                        l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
+                        disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy")
                     })
@@ -1032,7 +1035,7 @@ contract Deploy is Deployer {
         ChainAssertions.checkL1ERC721Bridge({ _contracts: _proxies(), _isProxy: true });
     }
 
-    /// @notice Ininitialize the OptimismMintableERC20Factory
+    /// @notice Initialize the OptimismMintableERC20Factory
     function initializeOptimismMintableERC20Factory() public broadcast {
         console.log("Upgrading and initializing OptimismMintableERC20Factory proxy");
         address optimismMintableERC20FactoryProxy = mustGetAddress("OptimismMintableERC20FactoryProxy");

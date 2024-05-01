@@ -692,6 +692,25 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "withdrawalHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proofSubmitter",
+        "type": "address"
+      }
+    ],
+    "name": "WithdrawalProvenExtension1",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "BadTarget",
     "type": "error"

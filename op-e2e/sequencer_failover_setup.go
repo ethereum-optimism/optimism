@@ -58,7 +58,7 @@ func (c *conductor) RPCEndpoint() string {
 	return fmt.Sprintf("http://%s:%d", localhost, c.rpcPort)
 }
 
-func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
+func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor, func()) {
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -128,7 +128,12 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	require.True(t, healthy(t, ctx, c2))
 	require.True(t, healthy(t, ctx, c3))
 
-	return sys, conductors
+	return sys, conductors, func() {
+		sys.Close()
+		for _, c := range conductors {
+			_ = c.service.Stop(ctx)
+		}
+	}
 }
 
 func setupHAInfra(t *testing.T, ctx context.Context) (*System, map[string]*conductor, error) {
