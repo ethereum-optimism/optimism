@@ -1847,7 +1847,7 @@ workflows:
           name: op-challenger-docker-build
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          # op-challenger is not part of the devnet, we don't save it.
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-dispute-mon-docker-build
           docker_name: op-dispute-mon
@@ -1880,6 +1880,7 @@ workflows:
             - op-batcher-docker-build
             - op-proposer-docker-build
             - op-node-docker-build
+            - op-challenger-docker-build
             - da-server-docker-build
             - cannon-prestate
       - docker-build:
