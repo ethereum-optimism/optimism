@@ -91,9 +91,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Spacer for backwards compatibility.
     bytes32 private spacer_60_0_32;
 
-    /// @notice The total amount of gas paying asset in the L2. Incremented on deposits and
-    ///         decremented on withdrawals. Mey be larger than the amount of gas paying asset
-    ///         for L2s that use ether to buy gas.
+    /// @notice Represents the amount of native asset minted in L2. This may not
+    ///         be 100% accurate due to the ability to send ether to the contract
+    ///         without triggering a deposit transaction. It also is used to prevent
+    ///         overflows for L2 account balances when custom gas tokens are used.
+    ///         It is not safe to trust `ERC20.balanceOf` as it may lie.
     uint256 internal _balance;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
@@ -123,8 +125,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.7.0-beta+custom-gas-token
-    string public constant version = "2.7.0-beta+custom-gas-token";
+    /// @custom:semver 2.7.0
+    string public constant version = "2.7.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
@@ -156,7 +158,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         __ResourceMetering_init();
     }
 
-    /// @notice Getter for the balance.
+    /// @notice Getter for the balance of the contract.
     function balance() public view returns (uint256) {
         (address token,) = gasPayingToken();
         if (token == Constants.ETHER) {
@@ -207,7 +209,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Returns the gas paying token and its decimals.
-    function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
+    function gasPayingToken() internal view returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = systemConfig.gasPayingToken();
     }
 
@@ -553,13 +555,13 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
-        // Set L2 deposit gas as used without paying burning gas. Ensures that desposits cannot use too much L2 gas.
+        // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
         useGas(80000);
 
         // Emit the special deposit transaction directly that sets the gas paying
         // token in the L1Block predeploy contract.
         emit TransactionDeposited(
-            0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
+            Constants.DEPOSITOR_ACCOUNT,
             Predeploys.L1_BLOCK_ATTRIBUTES,
             DEPOSIT_VERSION,
             abi.encodePacked(

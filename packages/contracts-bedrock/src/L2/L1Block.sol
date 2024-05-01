@@ -21,7 +21,7 @@ contract L1Block is ISemver, IGasToken {
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
 
     /// @notice Address of the special depositor account.
-    address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
+    address public constant DEPOSITOR_ACCOUNT = Constants.DEPOSITOR_ACCOUNT;
 
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;

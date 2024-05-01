@@ -114,8 +114,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0-beta+custom-gas-token
-    string public constant version = "2.1.0-beta+custom-gas-token";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
