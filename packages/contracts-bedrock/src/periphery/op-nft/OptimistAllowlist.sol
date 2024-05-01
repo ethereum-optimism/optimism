@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
 import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
+import { OptimistAllowlistAttestationResolver } from "src/periphery/jomo/OptimistAllowlistAttestationResolver.sol";
 
 /// @title  OptimistAllowlist
 /// @notice Source of truth for whether an address is able to mint an Optimist NFT.
@@ -16,6 +17,9 @@ contract OptimistAllowlist is ISemver {
 
     /// @notice Attestation key used by Coinbase to issue attestations for Quest participants.
     bytes32 public constant COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY = bytes32("coinbase.quest-eligible");
+
+    /// @notice Attestation key used by VerificationsResolver to issue attestations for participants.
+    bytes32 public constant VERIFICATIONS_RESOLVER_ATTESTATION_KEY = bytes32("optimist.hackathon-participants");
 
     /// @notice Address of the AttestationStation contract.
     AttestationStation public immutable ATTESTATION_STATION;
@@ -30,24 +34,31 @@ contract OptimistAllowlist is ISemver {
     ///         attestations.
     address public immutable OPTIMIST_INVITER;
 
+    /// @notice Address of OptimistAllowlistAttestationResolver contract that indexes EAS allowlist attestations
+    ///         attestations.
+    OptimistAllowlistAttestationResolver public immutable EAS_OPTIMIST_ALLOWLIST_ATTESTATION_RESOLVER;
+
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @param _attestationStation    Address of the AttestationStation contract.
     /// @param _allowlistAttestor     Address of the allowlist attestor.
     /// @param _coinbaseQuestAttestor Address of the Coinbase Quest attestor.
     /// @param _optimistInviter       Address of the OptimistInviter contract.
+    /// @param _easOptimistAllowlistAttestationResolver       Address of the EAS attestation resolver.
     constructor(
         AttestationStation _attestationStation,
         address _allowlistAttestor,
         address _coinbaseQuestAttestor,
-        address _optimistInviter
+        address _optimistInviter,
+        OptimistAllowlistAttestationResolver _easOptimistAllowlistAttestationResolver
     ) {
         ATTESTATION_STATION = _attestationStation;
         ALLOWLIST_ATTESTOR = _allowlistAttestor;
         COINBASE_QUEST_ATTESTOR = _coinbaseQuestAttestor;
         OPTIMIST_INVITER = _optimistInviter;
+        EAS_OPTIMIST_ALLOWLIST_ATTESTATION_RESOLVER = _easOptimistAllowlistAttestationResolver;
     }
 
     /// @notice Checks whether a given address is allowed to mint the Optimist NFT yet. Since the
@@ -62,7 +73,14 @@ contract OptimistAllowlist is ISemver {
     /// @return allowed_ Whether or not the address is allowed to mint yet.
     function isAllowedToMint(address _claimer) public view returns (bool allowed_) {
         allowed_ = _hasAttestationFromAllowlistAttestor(_claimer) || _hasAttestationFromCoinbaseQuestAttestor(_claimer)
-            || _hasAttestationFromOptimistInviter(_claimer);
+            || _hasAttestationFromOptimistInviter(_claimer) || _hasEasOptimistAllowlistAttestation(_claimer);
+    }
+
+    /// @notice Check whether an address has valid eas-optimist-allowlist attestation
+    /// @param _claimer Address to check.
+    /// @return valid_ Whether or not the address has a valid attestation.
+    function _hasEasOptimistAllowlistAttestation(address _claimer) internal view returns (bool valid_) {
+        valid_ = EAS_OPTIMIST_ALLOWLIST_ATTESTATION_RESOLVER.hasAttestation(_claimer);
     }
 
     /// @notice Checks whether an address has a valid 'optimist.can-mint' attestation from the
