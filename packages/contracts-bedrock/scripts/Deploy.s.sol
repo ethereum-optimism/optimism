@@ -46,8 +46,6 @@ import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "scripts/Chains.sol";
 import { Config } from "scripts/Config.sol";
-import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
-import { LivenessModule } from "src/Safe/LivenessModule.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
@@ -282,7 +280,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Internal function containing the deploy logic.
-    function _run() internal {
+    function _run() internal virtual {
         console.log("start of L1 Deploy!");
         deploySafe("SystemOwnerSafe");
         console.log("deployed Safe!");
@@ -432,8 +430,9 @@ contract Deploy is Deployer {
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
 
-        bytes memory initData =
-            abi.encodeCall(Safe.setup, (signers, 1, address(0), hex"", address(0), address(0), 0, payable(address(0))));
+        bytes memory initData = abi.encodeWithSelector(
+            Safe.setup.selector, signers, 1, address(0), hex"", address(0), address(0), 0, address(0)
+        );
         address safe = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp));
 
         save(_name, address(safe));
@@ -442,101 +441,6 @@ contract Deploy is Deployer {
             address(safe)
         );
         addr_ = safe;
-    }
-
-    /// @notice Deploy a LivenessGuard for use on the Security Council Safe.
-    ///         Note this function does not have the broadcast modifier.
-    function deployLivenessGuard() public returns (address guard_) {
-        Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
-        guard_ = address(new LivenessGuard(councilSafe));
-
-        save("LivenessGuard", address(guard_));
-        console.log("New LivenessGuard deployed at %s", address(guard_));
-    }
-
-    /// @notice Deploy a LivenessModule for use on the Security Council Safe
-    ///         Note this function does not have the broadcast modifier.
-    function deployLivenessModule() public returns (address module_) {
-        Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
-        address fallbackOwner = mustGetAddress("SystemOwnerSafe");
-        address guard = mustGetAddress("LivenessGuard");
-
-        module_ = address(
-            new LivenessModule({
-                _safe: councilSafe,
-                _livenessGuard: LivenessGuard(guard),
-                _livenessInterval: cfg.livenessModuleInterval(),
-                _thresholdPercentage: cfg.livenessModuleThresholdPercentage(),
-                _minOwners: cfg.livenessModuleMinOwners(),
-                _fallbackOwner: fallbackOwner
-            })
-        );
-
-        save("LivenessModule", address(module_));
-        console.log("New LivenessModule deployed at %s", address(module_));
-    }
-
-    /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
-    function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
-        console.log("Deploying Security Council Safe");
-        (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
-
-        address[] memory initialSigners = new address[](1);
-        initialSigners[0] = msg.sender;
-
-        bytes memory initData = abi.encodeCall(
-            Safe.setup, (initialSigners, 1, address(0), hex"", address(0), address(0), 0, payable(address(0)))
-        );
-        Safe safe = Safe(
-            payable(
-                address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp + 1))
-            )
-        );
-
-        save("SecurityCouncilSafe", address(safe));
-        console.log("New SecurityCouncilSafe deployed at %s", address(safe));
-
-        address guard = deployLivenessGuard();
-        _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
-        console.log("LivenessGuard setup on SecurityCouncilSafe");
-
-        address[] memory securityCouncilOwners = cfg.securityCouncilOwners();
-        for (uint256 i = 0; i < securityCouncilOwners.length; i++) {
-            _callViaSafe({
-                _safe: safe,
-                _target: address(safe),
-                _data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (securityCouncilOwners[i], 1))
-            });
-        }
-
-        // Now that the owners have been added, we can set the threshold to the desired value.
-        uint256 newThreshold = cfg.securityCouncilThreshold();
-        _callViaSafe({
-            _safe: safe,
-            _target: address(safe),
-            _data: abi.encodeCall(OwnerManager.changeThreshold, (newThreshold))
-        });
-
-        // Now that the owners have been added and the threshold increased we can deploy the liveness module (otherwise
-        // constructor checks will fail).
-        address module = deployLivenessModule();
-
-        // Unfortunately, a threshold of owners is required to actually enable the module, so we're unable to do that
-        // here, and will settle for logging a warning below.
-        addr_ = address(safe);
-        console.log("New SecurityCouncilSafe deployed at %s", address(safe));
-        console.log(
-            string.concat(
-                "\x1b[1;33mWARNING: The SecurityCouncilSafe is deployed with the LivenessGuard enabled.\n",
-                "  The final setup will require a threshold of signers to\n",
-                "    1. call enableModule() to enable the LivenessModule deployed at ",
-                vm.toString(module),
-                "\n",
-                "    2. call `removeOwner() to remove the deployer with address ",
-                vm.toString(msg.sender),
-                " which is still an owner. The threshold should not be changed.\x1b[0m"
-            )
-        );
     }
 
     /// @notice Deploy the AddressManager
