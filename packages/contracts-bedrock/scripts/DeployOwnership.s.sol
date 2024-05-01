@@ -28,28 +28,14 @@ contract DeployOwnership is Deploy {
     /// @notice Internal function containing the deploy logic.
     function _run() internal override {
         console.log("start of Ownership Deployment");
-        deployFoundationSafe();
-        console.log("deployed System Owner Safe!");
-        deploySecurityCouncilSafe();
+        deployAndConfigureFoundationSafe();
+        deployAndConfigueSecurityCouncilSafe();
         console.log("deployed Security Council Safe!");
         console.log("Ownership contracts completed");
     }
 
-    /// @notice Deploy the SystemOwnerSafe
-    function deployFoundationSafe() public broadcast returns (address addr_) {
-        console.log("Deploying System Owner Safe");
-        (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
-
-        address[] memory signers = new address[](1);
-        signers[0] = msg.sender;
-
-        bytes memory initData =
-            abi.encodeCall(Safe.setup, (signers, 1, address(0), hex"", address(0), address(0), 0, payable(address(0))));
-        address safe = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp));
-
-        save("SystemOwnerSafe", address(safe));
-        console.log("New SystemOwnerSafe deployed at %s", address(safe));
-        addr_ = safe;
+    function deployFoundationSafe() public returns (address safe_) {
+        deploySafe("FoundationSafe");
     }
 
     /// @notice Deploy a LivenessGuard for use on the Security Council Safe.
@@ -86,23 +72,7 @@ contract DeployOwnership is Deploy {
 
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
     function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
-        console.log("Deploying Security Council Safe");
-        (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
-
-        address[] memory initialSigners = new address[](1);
-        initialSigners[0] = msg.sender;
-
-        bytes memory initData = abi.encodeCall(
-            Safe.setup, (initialSigners, 1, address(0), hex"", address(0), address(0), 0, payable(address(0)))
-        );
-        Safe safe = Safe(
-            payable(
-                address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp + 1))
-            )
-        );
-
-        save("SecurityCouncilSafe", address(safe));
-        console.log("New SecurityCouncilSafe deployed at %s", address(safe));
+        Safe safe = Safe(payable(deploySafe("SecurityCouncilSafe")));
 
         address guard = deployLivenessGuard();
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
