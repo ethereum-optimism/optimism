@@ -65,7 +65,7 @@
   },
   "src/L2/L1Block.sol": {
     "initCodeHash": "0x42d17698899f06e6cf38823bea3dbaff32ba32ebcb2974f928f93d005a3ea91b",
-    "sourceCodeHash": "0xdcf5b0e1334c900a84d820ed2f359c5ccf52ccdf3a078f8fb884f7f940fb29c1"
+    "sourceCodeHash": "0x723fb55d63110783697aa8e9bba017c267b9e0a24639ec684d3147e47b68ae28"
   },
   "src/L2/L1BlockInterop.sol": {
     "initCodeHash": "0xddac768887de4053c8e8b92bc9bc621c9bb31df90018be4308dd4e21b1b1085f",
