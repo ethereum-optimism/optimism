@@ -50,7 +50,7 @@ contract L1Block is ISemver {
     uint256 public blobBaseFee;
 
     /// @custom:semver 1.3.0
-    function version() public virtual pure returns (string memory) {
+    function version() public pure virtual returns (string memory) {
         return "1.3.0";
     }
 
