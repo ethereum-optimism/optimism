@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { VmSafe } from "forge-std/Vm.sol";
-// import { Script } from "forge-std/Script.sol";
-
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
@@ -21,6 +18,18 @@ import { LivenessModule } from "src/Safe/LivenessModule.sol";
 
 import { Deploy } from "./Deploy.s.sol";
 
+struct SafeConfig {
+    uint256 threshold;
+    address[] owners;
+}
+
+struct SecurityCouncilConfig {
+    SafeConfig safeConfig;
+    uint256 thresholdPercentage;
+    uint256 minOwners;
+    address fallbackOwner;
+}
+
 /// @title Deploy
 /// @notice Script used to deploy and configure the Safe contracts which are used to manage the Superchain,
 ///         as the ProxyAdminOwner and other roles in the system.
@@ -34,8 +43,32 @@ contract DeployOwnership is Deploy {
         console.log("Ownership contracts completed");
     }
 
+    /// @notice Returns a SafeConfig with similar to that of the Foundation Safe on Mainnet.
+    function _getExampleFoundationConfig() internal returns (SafeConfig memory safeConfig_) {
+        address[] memory exampleFoundationOwners = new address[](7);
+        for (uint256 i; i < exampleFoundationOwners.length; i++) {
+            exampleFoundationOwners[i] = makeAddr(string(abi.encode(i)));
+        }
+        safeConfig_ = SafeConfig({ threshold: 5, owners: exampleFoundationOwners });
+    }
+
+    /// @notice Deploys a Safe with a configuration similar to that of the Foundation Safe on Mainnet.
     function deployAndConfigureFoundationSafe() public returns (address addr_) {
-        addr_ = deploySafe("FoundationSafe");
+        address safe = deploySafe("FoundationSafe");
+        SafeConfig memory exampleFoundationConfig = _getExampleFoundationConfig();
+        for (uint256 i; i < exampleFoundationConfig.owners.length; i++) {
+            _callViaSafe({
+                _safe: Safe(payable(safe)),
+                _target: safe,
+                _data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (exampleFoundationConfig.owners[i], 1))
+            });
+        }
+        _callViaSafe({
+            _safe: Safe(payable(safe)),
+            _target: safe,
+            _data: abi.encodeCall(OwnerManager.removeOwner, (address(0x1), msg.sender, exampleFoundationConfig.threshold))
+        });
+        addr_ = safe;
     }
 
     /// @notice Deploy a LivenessGuard for use on the Security Council Safe.
@@ -52,16 +85,16 @@ contract DeployOwnership is Deploy {
     ///         Note this function does not have the broadcast modifier.
     function deployLivenessModule() public returns (address addr_) {
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
-        address fallbackOwner = mustGetAddress("SystemOwnerSafe");
+        address fallbackOwner = mustGetAddress("FoundationSafe");
         address guard = mustGetAddress("LivenessGuard");
 
         addr_ = address(
             new LivenessModule({
                 _safe: councilSafe,
                 _livenessGuard: LivenessGuard(guard),
-                _livenessInterval: cfg.livenessModuleInterval(),
-                _thresholdPercentage: cfg.livenessModuleThresholdPercentage(),
-                _minOwners: cfg.livenessModuleMinOwners(),
+                _livenessInterval: 1,
+                _thresholdPercentage: 1,
+                _minOwners: 1,
                 _fallbackOwner: fallbackOwner
             })
         );
@@ -75,10 +108,12 @@ contract DeployOwnership is Deploy {
         Safe safe = Safe(payable(deploySafe("SecurityCouncilSafe")));
 
         address guard = deployLivenessGuard();
+
+        vm.startBroadcast();
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
         console.log("LivenessGuard setup on SecurityCouncilSafe");
 
-        address[] memory securityCouncilOwners = cfg.securityCouncilOwners();
+        address[] memory securityCouncilOwners = new address[](0);
         for (uint256 i = 0; i < securityCouncilOwners.length; i++) {
             _callViaSafe({
                 _safe: safe,
@@ -88,7 +123,7 @@ contract DeployOwnership is Deploy {
         }
 
         // Now that the owners have been added, we can set the threshold to the desired value.
-        uint256 newThreshold = cfg.securityCouncilThreshold();
+        uint256 newThreshold = 1;
         _callViaSafe({
             _safe: safe,
             _target: address(safe),
@@ -115,5 +150,6 @@ contract DeployOwnership is Deploy {
                 " which is still an owner. The threshold should not be changed.\x1b[0m"
             )
         );
+        vm.stopBroadcast();
     }
 }
