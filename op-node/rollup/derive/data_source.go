@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/eigenda"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
-	"github.com/ethereum-optimism/optimism/op-service/eigenda"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -63,10 +63,7 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher,
 
 	var daClient eigenda.IEigenDA
 	if daCfg != nil {
-		daClient = &eigenda.EigenDA{
-			Log:    log,
-			Config: *daCfg,
-		}
+		daClient = eigenda.NewEigenDAClient(log, *daCfg)
 	}
 
 	return &DataSourceFactory{

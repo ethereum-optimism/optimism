@@ -3,7 +3,6 @@ package derive
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/ethereum-optimism/optimism/op-service/eigenda"
+	"github.com/ethereum-optimism/optimism/eigenda"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/proto/gen/op_service/v1"
 )
@@ -133,14 +132,8 @@ func DataFromEVMTransactions(dsCfg DataSourceConfig, batcherAddr common.Address,
 				log.Info("requesting data from EigenDA", "quorum id", frameRef.QuorumIds[0], "confirmation block number", frameRef.ReferenceBlockNumber)
 				data, err := daClient.RetrieveBlob(context.Background(), frameRef.BatchHeaderHash, frameRef.BlobIndex)
 				if err != nil {
-					retrieveReqJSON, _ := json.Marshal(struct {
-						BatchHeaderHash string
-						BlobIndex       uint32
-					}{
-						BatchHeaderHash: base64.StdEncoding.EncodeToString(frameRef.BatchHeaderHash),
-						BlobIndex:       frameRef.BlobIndex,
-					})
-					log.Warn("could not retrieve data from EigenDA", "request", string(retrieveReqJSON), "err", err)
+					batchHeaderHash := base64.StdEncoding.EncodeToString(frameRef.BatchHeaderHash)
+					log.Warn("could not retrieve data from EigenDA", "batchHeaderHash", batchHeaderHash, "blobIndex", frameRef.BlobIndex, "err", err)
 					return nil
 				}
 				log.Info("Successfully retrieved data from EigenDA", "quorum id", frameRef.QuorumIds[0], "confirmation block number", frameRef.ReferenceBlockNumber)

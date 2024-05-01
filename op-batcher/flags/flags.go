@@ -8,10 +8,10 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/eigenda"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/eigenda"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -141,6 +141,12 @@ var (
 			"finalize (via more block confirmations). This should help avoid duplicate batcher txs.",
 		Value:   false,
 		EnvVars: prefixEnvVars("WAIT_NODE_SYNC"),
+	}
+	PrefixDerivationEnabledFlag = &cli.BoolFlag{
+		Name:    "da-prefix-derivation-enabled",
+		Usage:   "Enable prefix derivation",
+		Value:   false,
+		EnvVars: prefixEnvVars("DA_PREFIX_DERIVATION_ENABLED"),
 	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag

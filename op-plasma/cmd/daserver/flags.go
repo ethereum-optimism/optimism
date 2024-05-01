@@ -5,6 +5,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/eigenda"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -59,6 +60,7 @@ var optionalFlags = []cli.Flag{
 
 func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, eigenda.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 
@@ -68,20 +70,33 @@ var Flags []cli.Flag
 type CLIConfig struct {
 	FileStoreDirPath string
 	S3Bucket         string
+	EigenDAConfig    eigenda.Config
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		FileStoreDirPath: ctx.String(FileStorePathFlagName),
 		S3Bucket:         ctx.String(S3BucketFlagName),
+		EigenDAConfig:    eigenda.ReadConfig(ctx),
 	}
 }
 
 func (c CLIConfig) Check() error {
-	if !c.S3Enabled() && !c.FileStoreEnabled() {
+	enabledStores := 0
+	if c.S3Enabled() {
+		enabledStores += 1
+	}
+	if c.FileStoreEnabled() {
+		enabledStores += 1
+	}
+	if c.EigenDAEnabled() {
+		c.EigenDAConfig.Check()
+		enabledStores += 1
+	}
+	if enabledStores == 0 {
 		return fmt.Errorf("at least one storage backend must be enabled")
 	}
-	if c.S3Enabled() && c.FileStoreEnabled() {
+	if enabledStores > 1 {
 		return fmt.Errorf("only one storage backend can be enabled")
 	}
 	return nil
@@ -93,6 +108,10 @@ func (c CLIConfig) S3Enabled() bool {
 
 func (c CLIConfig) FileStoreEnabled() bool {
 	return c.FileStoreDirPath != ""
+}
+
+func (c CLIConfig) EigenDAEnabled() bool {
+	return c.EigenDAConfig.RPC != ""
 }
 
 func CheckRequired(ctx *cli.Context) error {

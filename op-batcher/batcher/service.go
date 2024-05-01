@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/eigenda"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -21,7 +22,6 @@ import (
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/eigenda"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -127,9 +127,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	// init before driver
 	if err := bs.initPlasmaDA(cfg); err != nil {
 		return fmt.Errorf("failed to init plasma DA: %w", err)
-	}
-	if err := bs.initDA(cfg); err != nil {
-		return fmt.Errorf("failed to init DA: %w", err)
 	}
 	bs.PrefixDerivationEnabled = cfg.PrefixDerivationEnabled
 	bs.initDriver()
@@ -300,30 +297,16 @@ func (bs *BatcherService) initMetricsServer(cfg *CLIConfig) error {
 
 func (bs *BatcherService) initDriver() {
 	bs.driver = NewBatchSubmitter(DriverSetup{
-		Log:                     bs.Log,
-		Metr:                    bs.Metrics,
-		RollupConfig:            bs.RollupConfig,
-		Config:                  bs.BatcherConfig,
-		Txmgr:                   bs.TxManager,
-		L1Client:                bs.L1Client,
-		EndpointProvider:        bs.EndpointProvider,
-		ChannelConfig:           bs.ChannelConfig,
-		PlasmaDA:                bs.PlasmaDA,
-		DA:                      bs.DA,
-		PrefixDerivationEnabled: bs.PrefixDerivationEnabled,
+		Log:              bs.Log,
+		Metr:             bs.Metrics,
+		RollupConfig:     bs.RollupConfig,
+		Config:           bs.BatcherConfig,
+		Txmgr:            bs.TxManager,
+		L1Client:         bs.L1Client,
+		EndpointProvider: bs.EndpointProvider,
+		ChannelConfig:    bs.ChannelConfig,
+		PlasmaDA:         bs.PlasmaDA,
 	})
-}
-
-func (bs *BatcherService) initDA(cfg *CLIConfig) error {
-	bs.DA = &eigenda.EigenDA{
-		Config: eigenda.Config{
-			RPC:                      cfg.DAConfig.RPC,
-			StatusQueryTimeout:       cfg.DAConfig.StatusQueryTimeout,
-			StatusQueryRetryInterval: cfg.DAConfig.StatusQueryRetryInterval,
-		},
-		Log: bs.Log,
-	}
-	return nil
 }
 
 func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {

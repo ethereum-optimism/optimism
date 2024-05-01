@@ -5,6 +5,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/eigenda"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
@@ -27,7 +28,7 @@ func StartDAServer(cliCtx *cli.Context) error {
 
 	l.Info("Initializing Plasma DA server...")
 
-	var store plasma.KVStore
+	var store plasma.PlasmaStore
 
 	if cfg.FileStoreEnabled() {
 		l.Info("Using file storage", "path", cfg.FileStoreDirPath)
@@ -39,6 +40,19 @@ func StartDAServer(cliCtx *cli.Context) error {
 			return fmt.Errorf("failed to create S3 store: %w", err)
 		}
 		store = s3
+	} else if cfg.EigenDAEnabled() {
+		l.Info("Using EigenDA storage", "RPC", cfg.EigenDAConfig.RPC)
+		eigenda, err := NewEigenDAStore(
+			cliCtx.Context,
+			eigenda.NewEigenDAClient(
+				l,
+				cfg.EigenDAConfig,
+			),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create EigenDA store: %w", err)
+		}
+		store = eigenda
 	}
 
 	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store, l)
