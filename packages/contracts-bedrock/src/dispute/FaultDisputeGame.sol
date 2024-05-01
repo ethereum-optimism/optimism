@@ -13,10 +13,9 @@ import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistr
 import { Clone } from "@solady/utils/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { LibClock } from "src/dispute/lib/LibUDT.sol";
 
-import "src/libraries/DisputeTypes.sol";
-import "src/libraries/DisputeErrors.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
@@ -62,8 +61,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.18.0
-    string public constant version = "0.18.0";
+    /// @custom:semver 0.18.1
+    string public constant version = "0.18.1";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -84,7 +83,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     mapping(address => uint256) public credit;
 
     /// @notice A mapping to allow for constant-time lookups of existing claims.
-    mapping(ClaimHash => bool) public claims;
+    mapping(Hash => bool) public claims;
 
     /// @notice A mapping of subgames rooted at a claim index to other claim indices in the subgame.
     mapping(uint256 => uint256[]) public subgames;
@@ -365,7 +364,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
         //            claims at the same position may dispute the same challengeIndex. However, they must have different
         //            values.
-        ClaimHash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
+        Hash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
         if (claims[claimHash]) revert ClaimAlreadyExists();
         claims[claimHash] = true;
 

@@ -8,10 +8,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 
-import { LibGameId } from "src/dispute/lib/LibGameId.sol";
-
-import "src/libraries/DisputeTypes.sol";
-import "src/libraries/DisputeErrors.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 /// @title DisputeGameFactory
 /// @notice A factory contract for creating `IDisputeGame` contracts. All created dispute games are stored in both a
@@ -23,8 +21,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     using LibClone for address;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.6.0
-    string public constant version = "0.6.0";
+    /// @custom:semver 0.7.0
+    string public constant version = "0.7.0";
 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;
@@ -68,7 +66,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         returns (IDisputeGame proxy_, Timestamp timestamp_)
     {
         Hash uuid = getGameUUID(_gameType, _rootClaim, _extraData);
-        (, timestamp_, proxy_) = _disputeGames[uuid].unpack();
+        (, Timestamp timestamp, address proxy) = _disputeGames[uuid].unpack();
+        (proxy_, timestamp_) = (IDisputeGame(proxy), timestamp);
     }
 
     /// @inheritdoc IDisputeGameFactory
@@ -77,7 +76,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         view
         returns (GameType gameType_, Timestamp timestamp_, IDisputeGame proxy_)
     {
-        (gameType_, timestamp_, proxy_) = _disputeGameList[_index].unpack();
+        (GameType gameType, Timestamp timestamp, address proxy) = _disputeGameList[_index].unpack();
+        (gameType_, timestamp_, proxy_) = (gameType, timestamp, IDisputeGame(proxy));
     }
 
     /// @inheritdoc IDisputeGameFactory
@@ -123,7 +123,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         if (GameId.unwrap(_disputeGames[uuid]) != bytes32(0)) revert GameAlreadyExists(uuid);
 
         // Pack the game ID.
-        GameId id = LibGameId.pack(_gameType, Timestamp.wrap(uint64(block.timestamp)), proxy_);
+        GameId id = LibGameId.pack(_gameType, Timestamp.wrap(uint64(block.timestamp)), address(proxy_));
 
         // Store the dispute game id in the mapping & emit the `DisputeGameCreated` event.
         _disputeGames[uuid] = id;
@@ -167,7 +167,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
         // Perform a reverse linear search for the `_n` most recent games of type `_gameType`.
         for (uint256 i = _start; i >= 0 && i <= _start;) {
             GameId id = _disputeGameList[i];
-            (GameType gameType, Timestamp timestamp, IDisputeGame proxy) = id.unpack();
+            (GameType gameType, Timestamp timestamp, address proxy) = id.unpack();
 
             if (gameType.raw() == _gameType.raw()) {
                 // Increase the size of the `games_` array by 1.
@@ -177,8 +177,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
                     mstore(games_, add(mload(games_), 0x01))
                 }
 
-                bytes memory extraData = proxy.extraData();
-                Claim rootClaim = proxy.rootClaim();
+                bytes memory extraData = IDisputeGame(proxy).extraData();
+                Claim rootClaim = IDisputeGame(proxy).rootClaim();
                 games_[games_.length - 1] = GameSearchResult({
                     index: i,
                     metadata: id,

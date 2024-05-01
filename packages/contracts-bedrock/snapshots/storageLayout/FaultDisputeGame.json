@@ -46,7 +46,7 @@
     "label": "claims",
     "offset": 0,
     "slot": "3",
-    "type": "mapping(ClaimHash => bool)"
+    "type": "mapping(Hash => bool)"
   },
   {
     "bytes": "32",

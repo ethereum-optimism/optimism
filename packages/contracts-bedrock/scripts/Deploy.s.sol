@@ -47,7 +47,7 @@ import { Config } from "scripts/Config.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
 import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
