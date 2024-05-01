@@ -65,7 +65,10 @@ cp $DEPLOY_SCRIPT $DEPLOY_SCRIPT.bak
 # of the system are deployed, we'd get some reverts on the `mustGetAddress` functions
 awk '{gsub(/mustGetAddress/, "getAddress")}1' $DEPLOY_SCRIPT > temp && mv temp $DEPLOY_SCRIPT
 
+CONTRACT_NAMES=deployments/kontrol.json
+
 DEPLOY_CONFIG_PATH=deploy-config/hardhat.json \
+DEPLOYMENT_OUTFILE="$CONTRACT_NAMES" \
   forge script -vvv test/kontrol/deployment/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
 echo "Created state diff json"
 
@@ -78,7 +81,6 @@ python3 $JSON_SCRIPTS/clean_json.py snapshots/state-diff/$STATEDIFF
 jq . snapshots/state-diff/$STATEDIFF > temp && mv temp snapshots/state-diff/$STATEDIFF # Prettify json
 echo "Cleaned state diff json"
 
-CONTRACT_NAMES=deployments/hardhat/.deploy
 python3 $JSON_SCRIPTS/reverse_key_values.py $CONTRACT_NAMES ${CONTRACT_NAMES}Reversed
 CONTRACT_NAMES=${CONTRACT_NAMES}Reversed
 
