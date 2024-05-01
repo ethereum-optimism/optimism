@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Vm } from "forge-std/Vm.sol";
+import { Vm, VmSafe } from "forge-std/Vm.sol";
 
 /// @title Config
 /// @notice Contains all env var based config. Add any new env var parsing to this file
@@ -20,8 +20,12 @@ library Config {
 
     /// @notice Returns the path on the local filesystem where the deploy config is
     function deployConfigPath() internal view returns (string memory _env) {
-        _env = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
-        require(bytes(_env).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
+        if (vm.isContext(VmSafe.ForgeContext.Test)) {
+            _env = string.concat(vm.projectRoot(), "/deploy-config/hardhat.json");
+        } else {
+            _env = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
+            require(bytes(_env).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
+        }
     }
 
     /// @notice Returns the chainid from the EVM context or the value of the CHAIN_ID env var as
