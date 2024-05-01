@@ -65,7 +65,8 @@ cp $DEPLOY_SCRIPT $DEPLOY_SCRIPT.bak
 # of the system are deployed, we'd get some reverts on the `mustGetAddress` functions
 awk '{gsub(/mustGetAddress/, "getAddress")}1' $DEPLOY_SCRIPT > temp && mv temp $DEPLOY_SCRIPT
 
-forge script -vvv test/kontrol/deployment/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
+DEPLOY_CONFIG_PATH=deploy-config/hardhat.json \
+  forge script -vvv test/kontrol/deployment/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
 echo "Created state diff json"
 
 # Clean and store the state diff json in snapshots/state-diff/Kontrol-Deploy.json
