@@ -100,6 +100,7 @@ contract L2StandardBridge is StandardBridge, ISemver {
         virtual
         onlyEOA
     {
+        require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
@@ -127,6 +128,7 @@ contract L2StandardBridge is StandardBridge, ISemver {
         payable
         virtual
     {
+        require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
     }
 
@@ -151,6 +153,7 @@ contract L2StandardBridge is StandardBridge, ISemver {
         payable
         virtual
     {
+        require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         if (_l1Token == address(0) && _l2Token == Predeploys.LEGACY_ERC20_ETH) {
             finalizeBridgeETH(_from, _to, _amount, _extraData);
         } else {

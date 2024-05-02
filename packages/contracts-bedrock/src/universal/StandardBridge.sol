@@ -355,6 +355,8 @@ abstract contract StandardBridge is Initializable {
     )
         internal
     {
+        require(msg.value == 0, "StandardBridge: cannot send value");
+
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),
