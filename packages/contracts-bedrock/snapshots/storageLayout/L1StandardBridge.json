@@ -61,12 +61,5 @@
     "offset": 0,
     "slot": "50",
     "type": "contract SuperchainConfig"
-  },
-  {
-    "bytes": "20",
-    "label": "systemConfig",
-    "offset": 0,
-    "slot": "51",
-    "type": "contract SystemConfig"
   }
 ]
