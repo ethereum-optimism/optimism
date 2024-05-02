@@ -472,6 +472,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that the gas paying token cannot be set by a non-system config.
     function test_setGasPayingToken_notSystemConfig_fails(address _caller) external {
+        vm.assume(_caller != address(systemConfig));
         vm.prank(_caller);
         vm.expectRevert(Unauthorized.selector);
         optimismPortal.setGasPayingToken({ _token: address(0), _decimals: 0, _name: "", _symbol: "" });
