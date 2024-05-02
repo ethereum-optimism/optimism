@@ -123,6 +123,9 @@ func unclaimedCreditsForGame(ctx context.Context, game contracts.FaultDisputeGam
 	players := make(map[common.Address]bool)
 	for _, claim := range claims {
 		players[claim.Claimant] = true
+		if claim.CounteredBy != (common.Address{}) {
+			players[claim.CounteredBy] = true
+		}
 	}
 	playerList := maps.Keys(players)
 	credits, err := game.GetCredits(ctx, rpcblock.Latest, playerList...)
