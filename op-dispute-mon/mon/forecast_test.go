@@ -284,9 +284,8 @@ func zeroGameAgreement() map[metrics.GameAgreementStatus]int {
 }
 
 type mockForecastMetrics struct {
-	gameAgreement           map[metrics.GameAgreementStatus]int
-	ignoredGames            int
-	claimResolutionDelayMax float64
+	gameAgreement map[metrics.GameAgreementStatus]int
+	ignoredGames  int
 }
 
 func (m *mockForecastMetrics) RecordGameAgreement(status metrics.GameAgreementStatus, count int) {
@@ -295,10 +294,6 @@ func (m *mockForecastMetrics) RecordGameAgreement(status metrics.GameAgreementSt
 
 func (m *mockForecastMetrics) RecordIgnoredGames(count int) {
 	m.ignoredGames = count
-}
-
-func (m *mockForecastMetrics) RecordClaimResolutionDelayMax(delay float64) {
-	m.claimResolutionDelayMax = delay
 }
 
 func createDeepClaimList() []monTypes.EnrichedClaim {
