@@ -2,12 +2,14 @@
 pragma solidity ^0.8.15;
 
 import {Test} from "forge-std/Test.sol";
-import {Upgrades, Options} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import "src/EAS/IEAS.sol";
-import {SchemaRegistry} from "src/EAS/SchemaRegistry.sol";
+import {ISchemaRegistry} from "src/EAS/ISchemaRegistry.sol";
 import {EAS} from "src/EAS/EAS.sol";
-import {OptimistAllowlistAttestationResolver} from "../src/OptimistAllowlistAttestationResolver.sol";
+import {OptimistAllowlistAttestationResolver} from "src/periphery/jomo/OptimistAllowlistAttestationResolver.sol";
+import {AttestationStation} from "src/periphery/op-nft/AttestationStation.sol";
+import {OptimistAllowlist} from "src/periphery/op-nft/OptimistAllowlist.sol";
 import {Optimist} from "src/periphery/op-nft/Optimist.sol";
+import {Proxy} from "src/universal/Proxy.sol";
 
 contract OptimistAllowlistAttestationResolverTest is Test {
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
@@ -20,12 +22,11 @@ contract OptimistAllowlistAttestationResolverTest is Test {
     OptimistAllowlistAttestationResolver optimistAllowlistAttestationResolver;
     Optimist optimistNFT;
     EAS eas;
-    SchemaRegistry registry;
+    ISchemaRegistry registry;
     AttestationStation attestationStation;
     OptimistAllowlist optimistAllowlist;
 
-    address resolverProxy;
-    address optimistProxy;
+    Proxy resolverProxy;
     address admin = makeAddr("owner");
     address alice = address(10086);
     address bob = address(10090);
@@ -54,20 +55,26 @@ contract OptimistAllowlistAttestationResolverTest is Test {
         return uint256(uint160(address(_owner)));
     }
 
-    function _initializeContracts() internal {
-        attestationStation = new AttestationStation();
-        registry = new SchemaRegistry();
-        eas = new EAS(registry);
-        resolverProxy = Upgrades.deployTransparentProxy(
-            "OptimistAllowlistAttestationResolver.sol:OptimistAllowlistAttestationResolver",
-            admin,
-            abi.encodeCall(OptimistAllowlistAttestationResolver.initialize, (admin, eas))
-        );
-        optimistAllowlistAttestationResolver = OptimistAllowlistAttestationResolver(payable(resolverProxy));
+    function _initializeOptimistAllowlistAttestationResolver() internal {
+        resolverProxy = new Proxy(admin);
+        OptimistAllowlistAttestationResolver resolverImpl = new OptimistAllowlistAttestationResolver();
+        vm.prank(admin);
+        resolverProxy.upgradeToAndCall(address(resolverImpl), abi.encodeCall(OptimistAllowlistAttestationResolver.initialize, (admin, eas)));
+        optimistAllowlistAttestationResolver = OptimistAllowlistAttestationResolver(payable(address(resolverProxy)));
         vm.prank(admin);
         optimistAllowlistAttestationResolver.grantRole(ALLOWLIST_ROLE, allowlist_role);
         vm.prank(allowlist_role);
+
         optimistAllowlistAttestationResolver.addAttesterToAttesterAllowlist(attester);
+    }
+
+    function _initializeContracts() internal {
+        attestationStation = new AttestationStation();
+        eas = new EAS();
+        registry = eas.getSchemaRegistry();
+
+        _initializeOptimistAllowlistAttestationResolver();
+
         optimistAllowlist = new OptimistAllowlist({
             _attestationStation: attestationStation ,
             _allowlistAttestor: fish_allowlistAttestor,
@@ -75,21 +82,12 @@ contract OptimistAllowlistAttestationResolverTest is Test {
             _optimistInviter: eve_inviteGranter,
             _easOptimistAllowlistAttestationResolver: optimistAllowlistAttestationResolver
         });
-        Options memory options;
-        options.constructorData = abi.encode(
+        optimistNFT = new Optimist(
             name, symbol,
             carol_baseURIAttestor,
             attestationStation,
             optimistAllowlist
         );
-        optimistProxy = Upgrades.deployTransparentProxy(
-            "Optimist.sol:Optimist",
-            admin,
-            "",
-            options
-        );
-        optimistNFT = Optimist(optimistProxy);
-
     }
 
     function testMintFailedBeforeAttestation() external {

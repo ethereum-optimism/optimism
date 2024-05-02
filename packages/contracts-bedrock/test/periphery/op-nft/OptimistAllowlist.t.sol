@@ -1,11 +1,12 @@
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+//spdx-license-identifier: mit
+pragma solidity ^0.8.15;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
 import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
 import { OptimistAllowlist } from "src/periphery/op-nft/OptimistAllowlist.sol";
 import { OptimistInviter } from "src/periphery/op-nft/OptimistInviter.sol";
+import { OptimistAllowlistAttestationResolver } from "src/periphery/jomo/OptimistAllowlistAttestationResolver.sol";
 import { OptimistInviterHelper } from "test/mocks/OptimistInviterHelper.sol";
 import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
 
@@ -25,11 +26,13 @@ contract OptimistAllowlist_Initializer is Test {
 
     // Helps with EIP-712 signature generation
     OptimistInviterHelper optimistInviterHelper;
+    OptimistAllowlistAttestationResolver optimistAllowlistAttestationResolver;
 
     function setUp() public {
         alice_allowlistAttestor = makeAddr("alice_allowlistAttestor");
         sally_coinbaseQuestAttestor = makeAddr("sally_coinbaseQuestAttestor");
         ted = makeAddr("ted");
+        optimistAllowlistAttestationResolver = OptimistAllowlistAttestationResolver(payable(makeAddr("optimistAllowlistAttestationResolver")));
 
         bobPrivateKey = 0xB0B0B0B0;
         bob = vm.addr(bobPrivateKey);
@@ -112,7 +115,7 @@ contract OptimistAllowlist_Initializer is Test {
         optimistInviter.initialize("OptimistInviter");
 
         optimistAllowlist = new OptimistAllowlist(
-            attestationStation, alice_allowlistAttestor, sally_coinbaseQuestAttestor, address(optimistInviter)
+            attestationStation, alice_allowlistAttestor, sally_coinbaseQuestAttestor, address(optimistInviter), optimistAllowlistAttestationResolver
         );
 
         optimistInviterHelper = new OptimistInviterHelper(optimistInviter, "OptimistInviter");

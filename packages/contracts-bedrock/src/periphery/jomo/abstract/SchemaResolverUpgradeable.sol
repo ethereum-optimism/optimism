@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.15;
 
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {ISchemaResolver} from "eas-contracts/resolver/ISchemaResolver.sol";
-import {ISemver} from "eas-contracts/ISemver.sol";
+import {ISchemaResolver} from "src/EAS/resolver/ISchemaResolver.sol";
+import {ISemver} from "src/universal/ISemver.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IEAS} from "src/EAS/IEAS.sol";
 import "src/EAS/Common.sol";

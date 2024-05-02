@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.19;
 
 import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
 import { ISemver } from "src/universal/ISemver.sol";

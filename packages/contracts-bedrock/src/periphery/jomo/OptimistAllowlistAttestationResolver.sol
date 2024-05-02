@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.15;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
@@ -52,7 +52,7 @@ contract OptimistAllowlistAttestationResolver is
         __ReentrancyGuard_init();
         __AllowlistResolver_init();
 
-        require(_grantRole(ADMIN_ROLE, admin));
+        _grantRole(ADMIN_ROLE, admin);
         _setRoleAdmin(PAUSE_ROLE, ADMIN_ROLE);
         _setRoleAdmin(ALLOWLIST_ROLE, ADMIN_ROLE);
     }
@@ -76,8 +76,8 @@ contract OptimistAllowlistAttestationResolver is
     override(SchemaResolverUpgradeable, AllowlistResolverUpgradeable)
     returns (bool)
     {
-        require(AllowlistResolverUpgradeable.onAttest(attestationInput, value), "OptimistAttestationResolver: attester is not allowed");
-        require(attestationUidByRecipient[attestationInput.recipient] == bytes32(0), "OptimistAttestationResolver: recipient already has an attestation");
+        require(AllowlistResolverUpgradeable.onAttest(attestationInput, value), "OptimistAllowlistAttestationResolver: attester is not allowed");
+        require(attestationUidByRecipient[attestationInput.recipient] == bytes32(0), "OptimistAllowlistAttestationResolver: recipient already has an attestation");
         attestationUidByRecipient[attestationInput.recipient] = attestationInput.uid;
         emit AttestationCreated(attestationInput.recipient);
         return true;
@@ -88,8 +88,8 @@ contract OptimistAllowlistAttestationResolver is
         Attestation calldata attestationInput,
         uint256 value
     ) internal whenNotPaused override(SchemaResolverUpgradeable, AllowlistResolverUpgradeable) returns (bool) {
-        require(AllowlistResolverUpgradeable.onRevoke(attestationInput, value), "OptimistAttestationResolver: attester is not allowed");
-        require(attestationUidByRecipient[attestationInput.recipient] != bytes32(0), "OptimistAttestationResolver: recipient does not have an attestation");
+        require(AllowlistResolverUpgradeable.onRevoke(attestationInput, value), "OptimistAllowlistAttestationResolver: attester is not allowed");
+        require(attestationUidByRecipient[attestationInput.recipient] != bytes32(0), "OptimistAllowlistAttestationResolver: recipient does not have an attestation");
         attestationUidByRecipient[attestationInput.recipient] = bytes32(0);
         emit AttestationRevoked(attestationInput.recipient);
         return true;

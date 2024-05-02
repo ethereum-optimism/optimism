@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+//spdx-license-identifier: mit
+pragma solidity ^0.8.15;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";

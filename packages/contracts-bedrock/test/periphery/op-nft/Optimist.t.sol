@@ -7,6 +7,7 @@ import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol"
 import { Optimist } from "src/periphery/op-nft/Optimist.sol";
 import { OptimistAllowlist } from "src/periphery/op-nft/OptimistAllowlist.sol";
 import { OptimistInviter } from "src/periphery/op-nft/OptimistInviter.sol";
+import { OptimistAllowlistAttestationResolver } from "src/periphery/jomo/OptimistAllowlistAttestationResolver.sol";
 import { OptimistInviterHelper } from "test/mocks/OptimistInviterHelper.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -44,6 +45,7 @@ contract Optimist_Initializer is Test {
     Optimist optimist;
     OptimistAllowlist optimistAllowlist;
     OptimistInviter optimistInviter;
+    OptimistAllowlistAttestationResolver optimistAllowlistAttestationResolver;
 
     // Helps with EIP-712 signature generation
     OptimistInviterHelper optimistInviterHelper;
@@ -163,6 +165,7 @@ contract Optimist_Initializer is Test {
         alice_allowlistAttestor = makeAddr("alice_allowlistAttestor");
         eve_inviteGranter = makeAddr("eve_inviteGranter");
         ted_coinbaseAttestor = makeAddr("ted_coinbaseAttestor");
+        optimistAllowlistAttestationResolver = OptimistAllowlistAttestationResolver(payable(makeAddr("optimistAllowlistAttestationResolver")));
         bob = makeAddr("bob");
         sally = makeAddr("sally");
         _initializeContracts();
@@ -185,7 +188,8 @@ contract Optimist_Initializer is Test {
             _attestationStation: attestationStation,
             _allowlistAttestor: alice_allowlistAttestor,
             _coinbaseQuestAttestor: ted_coinbaseAttestor,
-            _optimistInviter: address(optimistInviter)
+            _optimistInviter: address(optimistInviter),
+            _easOptimistAllowlistAttestationResolver: optimistAllowlistAttestationResolver
         });
 
         optimist = new Optimist({
