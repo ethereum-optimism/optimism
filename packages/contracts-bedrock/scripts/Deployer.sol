@@ -5,6 +5,8 @@ import { Script } from "forge-std/Script.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { Config } from "scripts/Config.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
+import { Executables } from "scripts/Executables.sol";
+import { console } from "forge-std/console.sol";
 
 /// @title Deployer
 /// @author tynes
@@ -16,6 +18,8 @@ abstract contract Deployer is Script, Artifacts {
     /// @notice Sets up the artifacts contract.
     function setUp() public virtual override {
         Artifacts.setUp();
+
+        console.log("Commit hash: %s", Executables.gitCommitHash());
 
         vm.etch(address(cfg), vm.getDeployedCode("DeployConfig.s.sol:DeployConfig"));
         vm.label(address(cfg), "DeployConfig");
