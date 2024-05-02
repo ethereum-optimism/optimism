@@ -428,6 +428,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Entrypoint to depositing an ERC20 token as a custom gas token.
+    ///         This function depends on a well formed ERC20 token. There are only
+    ///         so many checks that can be done on chain for this so it is assumed
+    ///         that chain operators will deploy chains with well formed ERC20 tokens.
     /// @param _to         Target address on L2.
     /// @param _mint       Units of ERC20 token to deposit into L2.
     /// @param _value      Units of ERC20 token to send on L2 to the recipient.
