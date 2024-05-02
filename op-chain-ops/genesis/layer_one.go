@@ -107,6 +107,9 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 	memDB.CreateAccount(predeploys.EIP4788ContractAddr)
 	memDB.SetNonce(predeploys.EIP4788ContractAddr, 1)
 	memDB.SetCode(predeploys.EIP4788ContractAddr, predeploys.EIP4788ContractCode)
+	// Also record the virtual deployer address
+	memDB.CreateAccount(predeploys.EIP4788ContractDeployer)
+	memDB.SetNonce(predeploys.EIP4788ContractDeployer, 1)
 
 	return memDB.Genesis(), nil
 }
