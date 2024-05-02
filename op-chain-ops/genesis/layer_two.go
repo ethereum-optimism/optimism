@@ -70,7 +70,7 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 	return genspec, nil
 }
 
-func HasAnyDevAccounts(allocs core.GenesisAlloc) (bool, error) {
+func HasAnyDevAccounts(allocs types.GenesisAlloc) (bool, error) {
 	wallet, err := hdwallet.NewFromMnemonic(testMnemonic)
 	if err != nil {
 		return false, fmt.Errorf("failed to create wallet: %w", err)
