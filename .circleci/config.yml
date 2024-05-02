@@ -1305,6 +1305,8 @@ jobs:
           command: |
             # Specify like this to avoid a forced rebuild of the contracts + devnet L1
             PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+            echo "Waiting for 10 seconds to give the devnet time to settle in..."
+            sleep 10
       - run:
           name: Test the stack
           command: make devnet-test
