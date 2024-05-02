@@ -68,7 +68,7 @@ func (c *ClaimMonitor) checkUpdateHonestActorStats(proxy common.Address, claim *
 		if claim.CounteredBy != (common.Address{}) {
 			honest[actor].InvalidClaimCount++
 			honest[actor].LostBonds = new(big.Int).Add(honest[actor].LostBonds, claim.Bond)
-			c.logger.Error("Claim resolved against honest actor", "game", proxy, "honestActor", actor, "counteredBy", claim.CounteredBy, "claimContractIndex", claim.ContractIndex, "boundAmount", claim.Bond)
+			c.logger.Error("Claim resolved against honest actor", "game", proxy, "honestActor", actor, "counteredBy", claim.CounteredBy, "claimContractIndex", claim.ContractIndex, "bondAmount", claim.Bond)
 		} else {
 			honest[actor].ValidClaimCount++
 			// Note that we don't count refunded bonds as won
