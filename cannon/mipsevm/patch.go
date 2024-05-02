@@ -46,7 +46,7 @@ func LoadELF(f *elf.File) (*State, error) {
 			return nil, fmt.Errorf("program %d out of 32-bit mem range: %x - %x (size: %x)", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
 		if prog.Vaddr+prog.Memsz >= HEAP_START {
-			return nil, fmt.Errorf("program %d overlaps with heap: %x - %x (size: %x). The heap start offset msut be reconfigured", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
+			return nil, fmt.Errorf("program %d overlaps with heap: %x - %x (size: %x). The heap start offset must be reconfigured", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
 		if err := s.Memory.SetMemoryRange(uint32(prog.Vaddr), r); err != nil {
 			return nil, fmt.Errorf("failed to read program segment %d: %w", i, err)
