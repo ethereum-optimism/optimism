@@ -30,31 +30,33 @@ struct SecurityCouncilConfig {
 
 /// @title Deploy
 /// @notice Script used to deploy and configure the Safe contracts which are used to manage the Superchain,
-///         as the ProxyAdminOwner and other roles in the system.
+///         as the ProxyAdminOwner and other roles in the system. Note that this script is not executable in a
+///         production environment as some steps depend on having a quorum of signers available. This script is meant to
+///         be used as an example to guide the setup and configuration of the Safe contracts.
 contract DeployOwnership is Deploy {
     /// @notice Internal function containing the deploy logic.
     function _run() internal override {
         console.log("start of Ownership Deployment");
         deployAndConfigureFoundationSafe();
-        deployAndConfigueSecurityCouncilSafe();
-        console.log("deployed Security Council Safe!");
+        deployAndConfigureSecurityCouncilSafe();
+
         console.log("Ownership contracts completed");
     }
 
-    /// @notice Returns a SafeConfig with similar to that of the Foundation Safe on Mainnet.
+    /// @notice Returns a SafeConfig similar to that of the Foundation Safe on Mainnet.
     function _getExampleFoundationConfig() internal returns (SafeConfig memory safeConfig_) {
         address[] memory exampleFoundationOwners = new address[](7);
         for (uint256 i; i < exampleFoundationOwners.length; i++) {
-            exampleFoundationOwners[i] = makeAddr(string(abi.encode(i)));
+            exampleFoundationOwners[i] = makeAddr(string.concat("fnd-", vm.toString(i)));
         }
         safeConfig_ = SafeConfig({ threshold: 5, owners: exampleFoundationOwners });
     }
 
-    /// @notice Returns a SafeConfig with similar to that of the Security Council Safe on Mainnet.
+    /// @notice Returns a SafeConfig similar to that of the Security Council Safe on Mainnet.
     function _getExampleCouncilConfig() internal returns (SecurityCouncilConfig memory councilConfig_) {
         address[] memory exampleCouncilOwners = new address[](13);
         for (uint256 i; i < exampleCouncilOwners.length; i++) {
-            exampleCouncilOwners[i] = makeAddr(string(abi.encode(i)));
+            exampleCouncilOwners[i] = makeAddr(string.concat("sc-", vm.toString(i)));
         }
         SafeConfig memory safeConfig = SafeConfig({ threshold: 10, owners: exampleCouncilOwners });
         councilConfig_ = SecurityCouncilConfig({
@@ -68,8 +70,9 @@ contract DeployOwnership is Deploy {
 
     /// @notice Deploys a Safe with a configuration similar to that of the Foundation Safe on Mainnet.
     function deployAndConfigureFoundationSafe() public returns (address addr_) {
-        address safe = deploySafe("FoundationSafe");
-        vm.startBroadcast();
+        address safe = deploySafe("FoundationSafe"); // This function has a `broadcast` modifier
+
+        vm.startBroadcast(msg.sender);
         SafeConfig memory exampleFoundationConfig = _getExampleFoundationConfig();
         for (uint256 i; i < exampleFoundationConfig.owners.length; i++) {
             _callViaSafe({
@@ -87,6 +90,7 @@ contract DeployOwnership is Deploy {
         });
         addr_ = safe;
         vm.stopBroadcast();
+        console.log("Deployed and configured the Foundation Safe!");
     }
 
     /// @notice Deploy a LivenessGuard for use on the Security Council Safe.
@@ -122,7 +126,7 @@ contract DeployOwnership is Deploy {
     }
 
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
-    function deployAndConfigueSecurityCouncilSafe() public returns (address addr_) {
+    function deployAndConfigureSecurityCouncilSafe() public returns (address addr_) {
         Safe safe = Safe(payable(deploySafe("SecurityCouncilSafe")));
 
         address guard = deployLivenessGuard();
@@ -160,5 +164,6 @@ contract DeployOwnership is Deploy {
         vm.startBroadcast(address(safe));
         safe.enableModule(livenessModule);
         addr_ = address(safe);
+        console.log("Deployed and configured the Security Council Safe!");
     }
 }
