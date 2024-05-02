@@ -439,6 +439,8 @@ contract Deploy is Deployer {
 
         address[] memory expandedOwners = new address[](_owners.length + 1);
         if (_keepDeployer) {
+            // By always adding msg.sender first we know that the previousOwner will be SENTINEL_OWNERS, which makes it
+            // easier to call removeOwner later.
             expandedOwners[0] = msg.sender;
             for (uint256 i = 0; i < _owners.length; i++) {
                 expandedOwners[i + 1] = _owners[i];

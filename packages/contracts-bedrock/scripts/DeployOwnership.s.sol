@@ -31,7 +31,7 @@ struct SecurityCouncilConfig {
 }
 
 // The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
-address SENTINEL_OWNERS = address(0x1);
+address constant SENTINEL_OWNERS = address(0x1);
 
 /// @title Deploy
 /// @notice Script used to deploy and configure the Safe contracts which are used to manage the Superchain,
@@ -137,13 +137,15 @@ contract DeployOwnership is Deploy {
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
         console.log("LivenessGuard setup on SecurityCouncilSafe");
 
-        // Remove the deployer address which was used to setup the Security Council Safe thus far
+        // Remove the deployer address (msg.sender) which was used to setup the Security Council Safe thus far
         // this call is also used to update the threshold.
+        // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
+        // will be SENTINEL_OWNERS.
         _callViaSafe({
             _safe: safe,
             _target: address(safe),
             _data: abi.encodeCall(
-                OwnerManager.removeOwner, (address(0x1), msg.sender, exampleCouncilConfig.safeConfig.threshold)
+                OwnerManager.removeOwner, (SENTINEL_OWNERS, msg.sender, exampleCouncilConfig.safeConfig.threshold)
             )
         });
 
