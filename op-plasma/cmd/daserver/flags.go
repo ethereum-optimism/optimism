@@ -18,6 +18,8 @@ const (
 	S3AccessKeyIDFlagName     = "s3.access-key-id"
 	S3AccessKeySecretFlagName = "s3.access-key-secret"
 	FileStorePathFlagName     = "file.path"
+	GCSBucketFlagName         = "gcs.bucket"
+	GCSObjectPrefixFlagName   = "gcs.object-prefix"
 )
 
 const EnvVarPrefix = "OP_PLASMA_DA_SERVER"
@@ -67,6 +69,18 @@ var (
 		Value:   "",
 		EnvVars: prefixEnvVars("S3_ACCESS_KEY_SECRET"),
 	}
+	GCSBucketFlag = &cli.StringFlag{
+		Name:    GCSBucketFlagName,
+		Usage:   "gcs bucket",
+		Value:   "",
+		EnvVars: prefixEnvVars("GCS_BUCKET"),
+	}
+	GCSObjectPrefixFlag = &cli.StringFlag{
+		Name:    GCSObjectPrefixFlagName,
+		Usage:   "gcs object prefix",
+		Value:   "",
+		EnvVars: prefixEnvVars("GCS_OBJECT_PREFIX"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -80,6 +94,8 @@ var optionalFlags = []cli.Flag{
 	S3EndpointFlag,
 	S3AccessKeyIDFlag,
 	S3AccessKeySecretFlag,
+	GCSBucketFlag,
+	GCSObjectPrefixFlag,
 }
 
 func init() {
@@ -91,11 +107,15 @@ func init() {
 var Flags []cli.Flag
 
 type CLIConfig struct {
-	FileStoreDirPath  string
+	FileStoreDirPath string
+
 	S3Bucket          string
 	S3Endpoint        string
 	S3AccessKeyID     string
 	S3AccessKeySecret string
+
+	GCSBucket       string
+	GCSObjectPrefix string
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
@@ -105,18 +125,23 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		S3Endpoint:        ctx.String(S3EndpointFlagName),
 		S3AccessKeyID:     ctx.String(S3AccessKeyIDFlagName),
 		S3AccessKeySecret: ctx.String(S3AccessKeySecretFlagName),
+		GCSBucket:         ctx.String(GCSBucketFlagName),
+		GCSObjectPrefix:   ctx.String(GCSObjectPrefixFlagName),
 	}
 }
 
 func (c CLIConfig) Check() error {
-	if !c.S3Enabled() && !c.FileStoreEnabled() {
+	if !c.S3Enabled() && !c.FileStoreEnabled() && !c.GCSEnabled() {
 		return errors.New("at least one storage backend must be enabled")
 	}
-	if c.S3Enabled() && c.FileStoreEnabled() {
+	if c.S3Enabled() && c.FileStoreEnabled() && c.GCSEnabled() {
 		return errors.New("only one storage backend can be enabled")
 	}
 	if c.S3Enabled() && (c.S3Bucket == "" || c.S3Endpoint == "" || c.S3AccessKeyID == "" || c.S3AccessKeySecret == "") {
 		return errors.New("all S3 flags must be set")
+	}
+	if c.GCSEnabled() && (c.GCSBucket == "" || c.GCSObjectPrefix == "") {
+		return errors.New("all GCS flags must be set")
 	}
 	return nil
 }
@@ -136,6 +161,17 @@ func (c CLIConfig) S3Config() S3Config {
 
 func (c CLIConfig) FileStoreEnabled() bool {
 	return c.FileStoreDirPath != ""
+}
+
+func (c CLIConfig) GCSEnabled() bool {
+	return !(c.GCSBucket == "" && c.GCSObjectPrefix == "")
+}
+
+func (c CLIConfig) GCSConfig() GCSConfig {
+	return GCSConfig{
+		Bucket:       c.GCSBucket,
+		ObjectPrefix: c.GCSObjectPrefix,
+	}
 }
 
 func CheckRequired(ctx *cli.Context) error {

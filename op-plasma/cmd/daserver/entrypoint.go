@@ -39,6 +39,13 @@ func StartDAServer(cliCtx *cli.Context) error {
 			return fmt.Errorf("failed to create S3 store: %w", err)
 		}
 		store = s3
+	} else if cfg.GCSEnabled() {
+		l.Info("Using GCS storage", "bucket", cfg.GCSConfig().Bucket, "object-prefix", cfg.GCSConfig().ObjectPrefix)
+		gcs, err := NewGCSStore(cfg.GCSConfig())
+		if err != nil {
+			return fmt.Errorf("failed to create GCS store: %w", err)
+		}
+		store = gcs
 	}
 
 	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store, l)
