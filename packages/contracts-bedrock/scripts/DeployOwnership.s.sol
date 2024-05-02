@@ -15,11 +15,13 @@ import { LivenessModule } from "src/Safe/LivenessModule.sol";
 
 import { Deploy } from "./Deploy.s.sol";
 
+/// @notice Configuration for a Safe
 struct SafeConfig {
     uint256 threshold;
     address[] owners;
 }
 
+/// @notice Configuration for the Security Council Safe.
 struct SecurityCouncilConfig {
     SafeConfig safeConfig;
     uint256 livenessInterval;
@@ -27,6 +29,9 @@ struct SecurityCouncilConfig {
     uint256 minOwners;
     address fallbackOwner;
 }
+
+// The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
+address SENTINEL_OWNERS = address(0x1);
 
 /// @title Deploy
 /// @notice Script used to deploy and configure the Safe contracts which are used to manage the Superchain,
@@ -70,26 +75,13 @@ contract DeployOwnership is Deploy {
 
     /// @notice Deploys a Safe with a configuration similar to that of the Foundation Safe on Mainnet.
     function deployAndConfigureFoundationSafe() public returns (address addr_) {
-        address safe = deploySafe("FoundationSafe"); // This function has a `broadcast` modifier
-
-        vm.startBroadcast(msg.sender);
         SafeConfig memory exampleFoundationConfig = _getExampleFoundationConfig();
-        for (uint256 i; i < exampleFoundationConfig.owners.length; i++) {
-            _callViaSafe({
-                _safe: Safe(payable(safe)),
-                _target: safe,
-                _data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (exampleFoundationConfig.owners[i], 1))
-            });
-        }
-        _callViaSafe({
-            _safe: Safe(payable(safe)),
-            _target: safe,
-            _data: abi.encodeCall(
-                OwnerManager.removeOwner, (exampleFoundationConfig.owners[0], msg.sender, exampleFoundationConfig.threshold)
-            )
+        addr_ = deploySafe({
+            _name: "FoundationSafe",
+            _owners: exampleFoundationConfig.owners,
+            _threshold: exampleFoundationConfig.threshold,
+            _keepDeployer: false
         });
-        addr_ = safe;
-        vm.stopBroadcast();
         console.log("Deployed and configured the Foundation Safe!");
     }
 
@@ -127,31 +119,31 @@ contract DeployOwnership is Deploy {
 
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
     function deployAndConfigureSecurityCouncilSafe() public returns (address addr_) {
-        Safe safe = Safe(payable(deploySafe("SecurityCouncilSafe")));
-
-        address guard = deployLivenessGuard();
+        // Deploy the safe with the extra deployer key, and keep the threshold at 1 to allow for further setup.
+        SecurityCouncilConfig memory exampleCouncilConfig = _getExampleCouncilConfig();
+        Safe safe = Safe(
+            payable(
+                deploySafe({
+                    _name: "SecurityCouncilSafe",
+                    _owners: exampleCouncilConfig.safeConfig.owners,
+                    _threshold: 1,
+                    _keepDeployer: true
+                })
+            )
+        );
 
         vm.startBroadcast();
+        address guard = deployLivenessGuard();
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
         console.log("LivenessGuard setup on SecurityCouncilSafe");
 
-        SecurityCouncilConfig memory exampleCouncilConfig = _getExampleCouncilConfig();
-        // Add the owners, keeping the threshold at 1 for now.
-        for (uint256 i = 0; i < exampleCouncilConfig.safeConfig.owners.length; i++) {
-            _callViaSafe({
-                _safe: safe,
-                _target: address(safe),
-                _data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (exampleCouncilConfig.safeConfig.owners[i], 1))
-            });
-        }
         // Remove the deployer address which was used to setup the Security Council Safe thus far
         // this call is also used to update the threshold.
         _callViaSafe({
             _safe: safe,
             _target: address(safe),
             _data: abi.encodeCall(
-                OwnerManager.removeOwner,
-                (exampleCouncilConfig.safeConfig.owners[0], msg.sender, exampleCouncilConfig.safeConfig.threshold)
+                OwnerManager.removeOwner, (address(0x1), msg.sender, exampleCouncilConfig.safeConfig.threshold)
             )
         });
 

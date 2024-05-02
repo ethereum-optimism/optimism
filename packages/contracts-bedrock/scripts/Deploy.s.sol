@@ -421,27 +421,41 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the Safe
     function deploySafe(string memory _name) public broadcast returns (address addr_) {
-        console.log("Deploying Safe");
+        address[] memory owners = new address[](0);
+        addr_ = deploySafe(_name, owners, 1, true);
+    }
+
+    function deploySafe(
+        string memory _name,
+        address[] memory _owners,
+        uint256 _threshold,
+        bool _keepDeployer
+    )
+        public
+        returns (address addr_)
+    {
+        console.log("Deploying safe: %s ", _name);
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
-        address[] memory signers = new address[](1);
-        signers[0] = msg.sender;
-
-        bytes memory initData = abi.encodeWithSelector(
-            Safe.setup.selector, signers, 1, address(0), hex"", address(0), address(0), 0, address(0)
+        address[] memory expandedOwners = new address[](_owners.length + 1);
+        expandedOwners[0] = msg.sender;
+        for (uint256 i = 0; i < _owners.length; i++) {
+            expandedOwners[i + 1] = _owners[i];
+        }
+        if (_keepDeployer) {
+            _owners = expandedOwners;
+        }
+        bytes memory initData = abi.encodeCall(
+            Safe.setup, (_owners, _threshold, address(0), hex"", address(0), address(0), 0, payable(address(0)))
         );
-        address safe = address(
+        addr_ = address(
             safeProxyFactory.createProxyWithNonce(
                 address(safeSingleton), initData, uint256(keccak256(abi.encode(_name)))
             )
         );
 
-        save(_name, address(safe));
-        console.log(
-            string.concat("New safe: ", _name, " deployed at %s\n    Note that this safe is owned by the deployer key"),
-            address(safe)
-        );
-        addr_ = safe;
+        save(_name, addr_);
+        console.log("New safe: %s deployed at %s\n    Note that this safe is owned by the deployer key", _name, addr_);
     }
 
     /// @notice Deploy the AddressManager
