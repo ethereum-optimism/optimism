@@ -148,13 +148,10 @@ abstract contract ResourceMetering is Initializable {
     }
 
     /// @notice Adds an amount of L2 gas consumed to the prev bought gas params. This is meant to be used
-    ///         when L2 system transactions are generated from L1. This function is overflow safe due to
-    ///         the constraint of the max resource limit being much larger than `type(uint64).max`.
-    ///         By skipping enforcement of the new sum being smaller than the max resource limit,
-    ///         no frontrunning grief is possible.
+    ///         when L2 system transactions are generated from L1.
     /// @param _amount Amount of the L2 gas resource requested.
-    function useGas(uint64 _amount) internal {
-        params.prevBoughtGas += _amount;
+    function useGas(uint32 _amount) internal {
+        params.prevBoughtGas += uint64(_amount);
     }
 
     /// @notice Virtual function that returns the resource config.

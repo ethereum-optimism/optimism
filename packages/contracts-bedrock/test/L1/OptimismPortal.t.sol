@@ -262,7 +262,6 @@ contract OptimismPortal_Test is CommonTest {
     function test_depositTransaction_largeData_reverts() external {
         uint256 size = 120_001;
 
-        // Call minimumGasLimit(0) before vm.expectRevert to ensure vm.expectRevert is for depositERC20Transaction
         uint64 gasLimit = optimismPortal.minimumGasLimit(uint64(size));
         vm.expectRevert(LargeCalldata.selector);
         optimismPortal.depositTransaction({
@@ -472,7 +471,8 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     /// @dev Tests that the gas paying token cannot be set by a non-system config.
-    function test_setGasPayingToken_notSystemConfig_fails() external {
+    function test_setGasPayingToken_notSystemConfig_fails(address _caller) external {
+        vm.prank(_caller);
         vm.expectRevert(Unauthorized.selector);
         optimismPortal.setGasPayingToken({ _token: address(0), _decimals: 0, _name: "", _symbol: "" });
     }
@@ -1323,8 +1323,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     function test_depositERC20Transaction_notEnoughAmount_reverts() external {
         // Mock the gas paying token to be the ERC20 token
         vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
-        vm.expectRevert();
-
+        vm.expectRevert(stdError.arithmeticError);
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(0), 1, 0, 0, false, "");
     }
@@ -1383,9 +1382,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
         // Mock the gas paying token to be the ERC20 token
         vm.mockCall(address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(token), 18));
 
-        // Call minimumGasLimit(0) before vm.expectRevert to ensure vm.expectRevert is for depositERC20Transaction
         uint64 gasLimit = optimismPortal.minimumGasLimit(120_001);
-
         vm.expectRevert(LargeCalldata.selector);
         // Deposit the token into the portal
         optimismPortal.depositERC20Transaction(address(0), 0, 0, gasLimit, false, data);
@@ -1423,12 +1420,12 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
 
         assertEq(optimismPortal.balance(), _defaultTx.value);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(optimismPortal));
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
         vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit(address(optimismPortal));
         emit WithdrawalFinalized(_withdrawalHash, true);
 
         vm.expectCall(_defaultTx.target, 0, _defaultTx.data);

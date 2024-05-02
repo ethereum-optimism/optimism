@@ -195,7 +195,7 @@ contract L1StandardBridge_Receive_TestFail is Bridge_Initializer {
     function testFuzz_receive_customGasToken_reverts(uint256 _value) external {
         vm.prank(alice, alice);
         vm.mockCall(
-            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
+            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(18))
         );
         vm.deal(alice, _value);
         (bool success, bytes memory data) = address(l1StandardBridge).call{ value: _value }(hex"");

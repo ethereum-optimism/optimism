@@ -625,7 +625,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     function test_sendMessage_customGasToken_noValue_succeeds() external {
         // Mock the gasPayingToken function to return a custom gas token
         vm.mockCall(
-            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2))
+            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(18))
         );
 
         // deposit transaction on the optimism portal should be called
@@ -712,7 +712,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         );
 
         // the message hash is in the successfulMessages mapping
-        assert(l1CrossDomainMessenger.successfulMessages(hash));
+        assertTrue(l1CrossDomainMessenger.successfulMessages(hash));
         // it is not in the received messages mapping
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
     }
