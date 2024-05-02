@@ -1376,10 +1376,10 @@ func testFees(t *testing.T, cfg SystemConfig) {
 		// The tx fastlz size is 102, but the GPO calculation adds extra 68 bytes for the signature
 		// --- Fjord cost function: ---
 		// linear regression: -42.5856 + 102 * 0.8365 = 42
-		// As this value is below the min txn size of 71, we use 71 for calculating the cost
+		// As this value is below the min txn size , we use he minimum for calculating the cost
 		// --- GPO: ---
 		// linear regression: -42.5856 + 170 * 0.8365 = 99
-		// For GPO the linear regression output is above 71 due to the signature, so we use that instead
+		// For GPO the linear regression output is above the minimum size due to the signature, so we use that instead
 		// There isn't an easy way to remove the overhead due to clamping. The below is a simple reimplementation
 		// of the solidity calculation.
 

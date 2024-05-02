@@ -28,7 +28,7 @@ const (
 
 var ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
 
-// InputError distinguishes a user-input error from regular rpc errors,
+// InputError distinguishes an user-input error from regular rpc errors,
 // to help the (Engine) API user divert from accidental input mistakes.
 type InputError struct {
 	Inner error

@@ -67,3 +67,6 @@ clean:
 
 fuzz:
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLzGethSolidity ./
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLzCgo ./
+
