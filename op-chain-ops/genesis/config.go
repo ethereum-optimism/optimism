@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/holiman/uint256"
 	"golang.org/x/exp/maps"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -759,65 +759,8 @@ func NewL1Deployments(path string) (*L1Deployments, error) {
 	return &deployments, nil
 }
 
-// NewStateDump will read a Dump JSON file from disk
-func NewStateDump(path string) (*gstate.Dump, error) {
-	file, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("dump at %s not found: %w", path, err)
-	}
-
-	var fdump ForgeDump
-	if err := json.Unmarshal(file, &fdump); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal dump: %w", err)
-	}
-	dump := (gstate.Dump)(fdump)
-	return &dump, nil
-}
-
-// ForgeDump is a simple alias for state.Dump that can read "nonce" as a hex string.
-// It appears as if updates to foundry have changed the serialization of the state dump.
-type ForgeDump gstate.Dump
-
-func (d *ForgeDump) UnmarshalJSON(b []byte) error {
-	type forgeDumpAccount struct {
-		Balance     string                 `json:"balance"`
-		Nonce       hexutil.Uint64         `json:"nonce"`
-		Root        hexutil.Bytes          `json:"root"`
-		CodeHash    hexutil.Bytes          `json:"codeHash"`
-		Code        hexutil.Bytes          `json:"code,omitempty"`
-		Storage     map[common.Hash]string `json:"storage,omitempty"`
-		Address     *common.Address        `json:"address,omitempty"`
-		AddressHash hexutil.Bytes          `json:"key,omitempty"`
-	}
-	type forgeDump struct {
-		Root     string                              `json:"root"`
-		Accounts map[common.Address]forgeDumpAccount `json:"accounts"`
-	}
-	var dump forgeDump
-	if err := json.Unmarshal(b, &dump); err != nil {
-		return err
-	}
-
-	d.Root = dump.Root
-	d.Accounts = make(map[string]gstate.DumpAccount)
-	for addr, acc := range dump.Accounts {
-		acc := acc
-		d.Accounts[addr.String()] = gstate.DumpAccount{
-			Balance:     acc.Balance,
-			Nonce:       (uint64)(acc.Nonce),
-			Root:        acc.Root,
-			CodeHash:    acc.CodeHash,
-			Code:        acc.Code,
-			Storage:     acc.Storage,
-			Address:     acc.Address,
-			AddressHash: acc.AddressHash,
-		}
-	}
-	return nil
-}
-
 type ForgeAllocs struct {
-	Accounts types.GenesisAlloc `json:"accounts"`
+	Accounts types.GenesisAlloc
 }
 
 func (d *ForgeAllocs) Copy() *ForgeAllocs {
@@ -829,25 +772,22 @@ func (d *ForgeAllocs) Copy() *ForgeAllocs {
 func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
 	// forge, since integrating Alloy, likes to hex-encode everything.
 	type forgeAllocAccount struct {
-		Balance hexutil.Big                 `json:"balance"`
+		Balance hexutil.U256                `json:"balance"`
 		Nonce   hexutil.Uint64              `json:"nonce"`
 		Code    hexutil.Bytes               `json:"code,omitempty"`
 		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
 	}
-	type forgeAllocs struct {
-		Accounts map[common.Address]forgeAllocAccount `json:"accounts"`
-	}
-	var allocs forgeAllocs
+	var allocs map[common.Address]forgeAllocAccount
 	if err := json.Unmarshal(b, &allocs); err != nil {
 		return err
 	}
-	d.Accounts = make(types.GenesisAlloc, len(allocs.Accounts))
-	for addr, acc := range allocs.Accounts {
+	d.Accounts = make(types.GenesisAlloc, len(allocs))
+	for addr, acc := range allocs {
 		acc := acc
 		d.Accounts[addr] = types.Account{
 			Code:       acc.Code,
 			Storage:    acc.Storage,
-			Balance:    acc.Balance.ToInt(),
+			Balance:    (*uint256.Int)(&acc.Balance).ToBig(),
 			Nonce:      (uint64)(acc.Nonce),
 			PrivateKey: nil,
 		}

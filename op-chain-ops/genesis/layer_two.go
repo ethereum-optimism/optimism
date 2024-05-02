@@ -41,9 +41,9 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 	if err != nil {
 		return nil, err
 	}
-	genspec.Alloc = dump.Accounts
+	genspec.Alloc = dump.Copy().Accounts
 	// ensure the dev accounts are not funded unintentionally
-	if hasDevAccounts, err := HasAnyDevAccounts(dump.Accounts); err != nil {
+	if hasDevAccounts, err := HasAnyDevAccounts(genspec.Alloc); err != nil {
 		return nil, fmt.Errorf("failed to check dev accounts: %w", err)
 	} else if hasDevAccounts != config.FundDevAccounts {
 		return nil, fmt.Errorf("deploy config mismatch with allocs. Deploy config fundDevAccounts: %v, actual allocs: %v", config.FundDevAccounts, hasDevAccounts)
