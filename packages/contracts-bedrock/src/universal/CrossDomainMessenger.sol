@@ -362,7 +362,7 @@ abstract contract CrossDomainMessenger is
         + RELAY_GAS_CHECK_BUFFER;
     }
 
-    /// @notice Returns the address of the custom gas token and the token's decimals.
+    /// @notice Returns the address of the gas token and the token's decimals.
     function gasPayingToken() internal view virtual returns (address, uint8);
 
     /// @notice Returns whether the chain uses a custom gas token or not.

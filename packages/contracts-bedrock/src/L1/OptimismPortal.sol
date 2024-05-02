@@ -44,6 +44,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
+    /// @notice The L2 gas limit for system deposit transactions that are initiated from L1.
+    uint32 internal constant SYSTEM_DEPOSIT_GAS_LIMIT = 80_000;
+
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
     ///         If the of this variable is the default L2 sender address, then we are NOT inside of
     ///         a call to finalizeWithdrawalTransaction.
@@ -557,7 +560,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
         // This value must be large enough to cover the cost of calling `L1Block.setGasPayingToken`.
-        useGas(80000);
+        useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
 
         // Emit the special deposit transaction directly that sets the gas paying
         // token in the L1Block predeploy contract.
@@ -566,10 +569,10 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             Predeploys.L1_BLOCK_ATTRIBUTES,
             DEPOSIT_VERSION,
             abi.encodePacked(
-                uint256(0), // mint
-                uint256(0), // value
-                uint64(80000), // gasLimit
-                false, // isCreation,
+                uint256(0),                       // mint
+                uint256(0),                       // value
+                uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
+                false,                            // isCreation,
                 abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
             )
         );

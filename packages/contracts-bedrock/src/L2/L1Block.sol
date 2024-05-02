@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { Storage } from "src/libraries/Storage.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 
 /// @custom:proxied

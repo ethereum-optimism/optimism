@@ -20,8 +20,6 @@ import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;

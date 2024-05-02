@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { Setup } from "test/setup/Setup.sol";
 import { Events } from "test/setup/Events.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import "scripts/DeployConfig.s.sol";
 
 /// @title CommonTest
@@ -130,6 +131,7 @@ contract CommonTest is Test, Setup, Events {
         if (!(alice == address(0) && bob == address(0))) {
             revert("CommonTest: Cannot enable custom gas token after deployment. Consider overriding `setUp`.");
         }
+        require(_token != Constants.ETHER);
 
         customGasToken = _token;
     }
