@@ -147,9 +147,7 @@ def devnet_l1_allocs(paths):
         'forge', 'script', '--chain-id', '900', fqn, "--sig", "runWithStateDump()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     ], env={}, cwd=paths.contracts_bedrock_dir)
 
-    forge_dump = read_json(paths.forge_l1_dump_path)
-    write_json(paths.allocs_l1_path, { "accounts": forge_dump })
-    os.remove(paths.forge_l1_dump_path)
+    shutil.move(src=paths.forge_l1_dump_path, dst=paths.allocs_l1_path)
 
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
 
@@ -168,10 +166,8 @@ def devnet_l2_allocs(paths):
     # move the forge-dumps into place as .devnet allocs.
     for suffix in ["-delta", ""]:
         input_path = pjoin(paths.contracts_bedrock_dir, f"state-dump-901{suffix}.json")
-        forge_dump = read_json(input_path)
         output_path = pjoin(paths.devnet_dir, f'allocs-l2{suffix}.json')
-        write_json(output_path, { "accounts": forge_dump })
-        os.remove(input_path)
+        shutil.move(src=input_path, dst=output_path)
         log.info("Generated L2 allocs: "+output_path)
 
 
