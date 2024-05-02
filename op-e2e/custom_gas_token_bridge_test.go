@@ -146,7 +146,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 	addresses.L1StandardBridge, err = systemConfig.L1StandardBridge(&bind.CallOpts{})
 	require.NoError(t, err)
-	addresses.L2OutputOracle, err = systemConfig.L2OutputOracle(&bind.CallOpts{})
+	addresses.DisputeGameFactory, err = systemConfig.DisputeGameFactory(&bind.CallOpts{})
 	require.NoError(t, err)
 	addresses.OptimismPortal, err = systemConfig.OptimismPortal(&bind.CallOpts{})
 	require.NoError(t, err)
