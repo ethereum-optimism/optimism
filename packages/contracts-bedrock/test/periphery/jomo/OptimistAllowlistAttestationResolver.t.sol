@@ -3,8 +3,8 @@ pragma solidity ^0.8.15;
 
 import {Test} from "forge-std/Test.sol";
 import "src/EAS/IEAS.sol";
-import {ISchemaRegistry} from "src/EAS/ISchemaRegistry.sol";
-import {EAS} from "src/EAS/EAS.sol";
+import { MockSchemaRegistry } from "test/mocks/MockSchemaRegistry.sol";
+import { MockEAS } from "test/mocks/MockEAS.sol";
 import {OptimistAllowlistAttestationResolver} from "src/periphery/jomo/OptimistAllowlistAttestationResolver.sol";
 import {AttestationStation} from "src/periphery/op-nft/AttestationStation.sol";
 import {OptimistAllowlist} from "src/periphery/op-nft/OptimistAllowlist.sol";
@@ -21,8 +21,8 @@ contract OptimistAllowlistAttestationResolverTest is Test {
 
     OptimistAllowlistAttestationResolver optimistAllowlistAttestationResolver;
     Optimist optimistNFT;
-    EAS eas;
-    ISchemaRegistry registry;
+    MockEAS eas;
+    MockSchemaRegistry registry;
     AttestationStation attestationStation;
     OptimistAllowlist optimistAllowlist;
 
@@ -70,8 +70,8 @@ contract OptimistAllowlistAttestationResolverTest is Test {
 
     function _initializeContracts() internal {
         attestationStation = new AttestationStation();
-        eas = new EAS();
-        registry = eas.getSchemaRegistry();
+        registry = new MockSchemaRegistry();
+        eas = new MockEAS(registry);
 
         _initializeOptimistAllowlistAttestationResolver();
 
