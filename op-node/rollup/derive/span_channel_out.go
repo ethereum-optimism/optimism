@@ -16,8 +16,7 @@ import (
 )
 
 const (
-	ZLIB   string = "zlib"
-	BROTLI string = "brotli"
+	ChannelVersionBrotli byte = 0x01
 )
 
 type CompressorInterface interface {
@@ -44,7 +43,7 @@ type SpanChannelOut struct {
 	// the compressor for the channel
 	compressor CompressorInterface
 	// the compression algo used
-	compressionAlgo string
+	compressionAlgo CompressionAlgo
 	// target is the target size of the compressed data
 	target uint64
 	// closed indicates if the channel is closed
@@ -64,7 +63,7 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo string, compressLevel int) (*SpanChannelOut, error) {
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:              ChannelID{},
 		frame:           0,
@@ -79,16 +78,16 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		return nil, err
 	}
 
-	if compressionAlgo == ZLIB {
-		if c.compressor, err = zlib.NewWriterLevel(c.compressed, compressLevel); err != nil {
+	if compressionAlgo == Zlib {
+		if c.compressor, err = zlib.NewWriterLevel(c.compressed, zlib.BestCompression); err != nil {
 			return nil, err
 		}
-	} else if compressionAlgo == BROTLI {
+	} else if compressionAlgo == Brotli {
 		// setting the version bit of 1
-		c.compressed = bytes.NewBuffer([]byte{0b0001})
+		c.compressed = bytes.NewBuffer([]byte{ChannelVersionBrotli})
 		c.compressor = brotli.NewWriterLevel(
 			c.compressed,
-			compressLevel,
+			10,
 		)
 	} else {
 		return nil, fmt.Errorf("unsupported compression algorithm: %s", compressionAlgo)
@@ -105,8 +104,8 @@ func (co *SpanChannelOut) Reset() error {
 	co.rlp[1].Reset()
 	co.lastCompressedRLPSize = 0
 	co.compressed.Reset()
-	if co.compressionAlgo == BROTLI {
-		co.compressed.WriteByte(0b0001)
+	if co.compressionAlgo == Brotli {
+		co.compressed.WriteByte(ChannelVersionBrotli)
 	}
 	co.compressor.Reset(co.compressed)
 	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
@@ -219,9 +218,9 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 // it resets all the compression buffers because Span Batches aren't meant to be compressed incrementally.
 func (co *SpanChannelOut) compress() error {
 	co.compressed.Reset()
-	if co.compressionAlgo == BROTLI {
+	if co.compressionAlgo == Brotli {
 		// reset but still need the version bit of 1
-		co.compressed.WriteByte(0b0001)
+		co.compressed.WriteByte(ChannelVersionBrotli)
 	}
 	co.compressor.Reset(co.compressed)
 	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {

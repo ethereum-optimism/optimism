@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
@@ -99,30 +100,14 @@ var (
 			return nil
 		},
 	}
-	CompressionAlgoFlag = &cli.StringFlag{
+	CompressionAlgoFlag = &cli.GenericFlag{
 		Name:    "compression-algo",
-		Usage:   "The compression algorithm to use. Valid options: zlib, brotli ",
-		EnvVars: prefixEnvVars("COMPRESSION_ALGO"),
-		Value:   "zlib",
-		Action: func(c *cli.Context, algo string) error {
-			if algo != "zlib" && algo != "brotli" {
-				return fmt.Errorf("unsupported compression algorithm: %s", algo)
-			}
-			return nil
-		},
-	}
-	CompressLevelFlag = &cli.IntFlag{
-		Name:    "compress-level",
-		Usage:   "The compression level to use. E.g. 1-11 for brotli, 0-9 for zlib",
-		EnvVars: prefixEnvVars("COMPRESS_LEVEL"),
-		Value:   9, // default to best zlib compression level
-		Action: func(c *cli.Context, lvl int) error {
-			algo := c.String("compression-algo")
-			if (algo == "zlib" && (lvl < 0 || lvl > 9)) || (algo == "brotli" && (lvl < 1 || lvl > 11)) {
-				return fmt.Errorf("invalid compression level %d for algorithm %s", lvl, algo)
-			}
-			return nil
-		},
+		Usage:   "The compression algorithm to use. Valid options: " + openum.EnumString(derive.CompressionAlgoTypes),
+		EnvVars: prefixEnvVars("COMPRESSION_ALGO_TYPE"),
+		Value: func() *derive.CompressionAlgo {
+			out := derive.Zlib
+			return &out
+		}(),
 	}
 	StoppedFlag = &cli.BoolFlag{
 		Name:    "stopped",

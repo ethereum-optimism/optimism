@@ -845,9 +845,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		BatchType:            batchType,
 		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
 		// Add the compression stuff
-		//CompressionAlgo: "zlib",
-		CompressionAlgo: "brotli",
-		CompressLevel:   9, // use brotli 9 for faster e2e tests
+		//CompressionAlgo: derive.Zlib,
+		CompressionAlgo: derive.Brotli10,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

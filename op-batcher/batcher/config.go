@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -67,11 +68,8 @@ type CLIConfig struct {
 	// Type of compressor to use. Must be one of [compressor.KindKeys].
 	Compressor string
 
-	// Type of compression algorithm to use. Must be one of [zlib, brotli]
-	CompressionAlgo string
-
-	// Levels of compression to use. E.g. 1-11 for brotli, 0-9 for zlib
-	CompressLevel int
+	// Type of compression algorithm to use. Must be one of [zlib, brotli, brotli[9-11]]
+	CompressionAlgo derive.CompressionAlgo
 
 	// If Stopped is true, the batcher starts stopped and won't start batching right away.
 	// Batching needs to be started via an admin RPC.
@@ -130,11 +128,8 @@ func (c *CLIConfig) Check() error {
 	if c.Compressor == compressor.RatioKind && (c.ApproxComprRatio <= 0 || c.ApproxComprRatio > 1) {
 		return fmt.Errorf("invalid ApproxComprRatio %v for ratio compressor", c.ApproxComprRatio)
 	}
-	if c.CompressionAlgo == "" {
-		return errors.New("must set compression algo")
-	}
-	if (c.CompressionAlgo == "zlib" && (c.CompressLevel < 0 || c.CompressLevel > 9)) || (c.CompressionAlgo == "brotli" && (c.CompressLevel < 1 || c.CompressLevel > 11)) {
-		return fmt.Errorf("invalid compression level %v for %v", c.CompressLevel, c.CompressionAlgo)
+	if !derive.ValidCompressionAlgoType(c.CompressionAlgo) {
+		return fmt.Errorf("invalid compression algo %v", c.CompressionAlgo)
 	}
 	if c.BatchType > 1 {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)
@@ -180,8 +175,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
 		Compressor:                   ctx.String(flags.CompressorFlag.Name),
-		CompressionAlgo:              ctx.String(flags.CompressionAlgoFlag.Name),
-		CompressLevel:                ctx.Int(flags.CompressLevelFlag.Name),
+		CompressionAlgo:              derive.CompressionAlgo(ctx.String(flags.CompressionAlgoFlag.Name)),
 		Stopped:                      ctx.Bool(flags.StoppedFlag.Name),
 		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
 		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),

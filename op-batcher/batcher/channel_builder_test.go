@@ -393,7 +393,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = 1000
-	channelConfig.InitNoneCompressor("brotli", 10)
+	channelConfig.InitNoneCompressor(derive.Brotli10)
 
 	// Construct the channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -432,12 +432,11 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
 	testCases := []struct {
 		testName        string
-		algo            string
-		compressLevel   int
+		algo            derive.CompressionAlgo
 		targetNumFrames int
 	}{
-		{testName: "Span Batch output frames with zlib", algo: "zlib", compressLevel: 9, targetNumFrames: 5},
-		{testName: "Span Batch output frames with brotli", algo: "brotli", compressLevel: 10, targetNumFrames: 1}, // to fill faster
+		{testName: "Span Batch output frames with zlib", algo: derive.Zlib, targetNumFrames: 5},
+		{testName: "Span Batch output frames with brotli", algo: derive.Brotli10, targetNumFrames: 1}, // to fill faster
 	}
 
 	for _, tc := range testCases {
@@ -446,7 +445,7 @@ func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
 			channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
 			channelConfig.TargetNumFrames = tc.targetNumFrames
 			channelConfig.BatchType = derive.SpanBatchType
-			channelConfig.InitRatioCompressor(1, tc.algo, tc.compressLevel)
+			channelConfig.InitRatioCompressor(1, tc.algo)
 
 			// Construct the channel builder
 			cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -504,7 +503,7 @@ func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 	t.Parallel()
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.MaxRLPBytesPerChannel * 2
-	channelConfig.InitNoneCompressor("brotli", 10)
+	channelConfig.InitNoneCompressor(derive.Brotli10)
 	channelConfig.BatchType = batchType
 
 	// Construct the channel builder
@@ -522,7 +521,7 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = math.MaxUint16 + 1
-	channelConfig.InitRatioCompressor(.1, "brotli", 10)
+	channelConfig.InitRatioCompressor(.1, derive.Brotli10)
 	channelConfig.BatchType = batchType
 
 	rng := rand.New(rand.NewSource(123))
@@ -566,18 +565,16 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	}
 
 	testCases := []struct {
-		testName        string
-		algo            string
-		compressLevel   int
-		targetNumFrames int
+		testName string
+		algo     derive.CompressionAlgo
 	}{
-		{testName: "Full shadow compressor with zlib", algo: "zlib", compressLevel: 9},
-		{testName: "Full shadow compressor with brotli", algo: "brotli", compressLevel: 10},
+		{testName: "Full shadow compressor with zlib", algo: derive.Zlib},
+		{testName: "Full shadow compressor with brotli", algo: derive.Brotli10},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			cfg.InitShadowCompressor(tc.algo, tc.compressLevel)
+			cfg.InitShadowCompressor(tc.algo)
 
 			cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 			require.NoError(err)
@@ -611,7 +608,7 @@ func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
 	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
 	channelConfig.TargetNumFrames = 2
 	// Configure the Input Threshold params so we observe a full channel
-	channelConfig.InitRatioCompressor(1, "brotli", 10)
+	channelConfig.InitRatioCompressor(1, derive.Brotli10)
 
 	// Construct the channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -734,7 +731,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = tnf
 	cfg.BatchType = batchType
-	cfg.InitShadowCompressor("brotli", 10)
+	cfg.InitShadowCompressor(derive.Brotli10)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err)
 
@@ -816,7 +813,7 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = 16
 	cfg.BatchType = batchType
-	cfg.InitRatioCompressor(1.0, "brotli", 10)
+	cfg.InitRatioCompressor(1.0, derive.Brotli10)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err, "NewChannelBuilder")
 

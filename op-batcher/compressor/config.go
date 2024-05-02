@@ -17,8 +17,11 @@ type Config struct {
 	// will default to RatioKind.
 	Kind string
 
-	CompressionAlgo string
-	CompressLevel   int
+	// Type of compression algorithm to use. Must be one of [zlib, brotli]
+	CompressionAlgo derive.CompressionAlgo
+
+	// Levels of compression to use. E.g. 1-11 for brotli, 0-9 for zlib
+	CompressLevel int
 }
 
 func (c Config) NewCompressor() (derive.Compressor, error) {
