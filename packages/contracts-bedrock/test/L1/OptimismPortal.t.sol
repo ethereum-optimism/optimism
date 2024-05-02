@@ -541,7 +541,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
             target: bob,
             value: 100,
             gasLimit: 100_000,
-            data: hex"aa"
+            data: hex""
         });
         // Get withdrawal proof data we can use for testing.
         (_stateRoot, _storageRoot, _outputRoot, _withdrawalHash, _withdrawalProof) =
