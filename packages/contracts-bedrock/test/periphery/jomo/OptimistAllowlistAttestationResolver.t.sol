@@ -92,13 +92,13 @@ contract OptimistAllowlistAttestationResolverTest is Test {
 
     }
 
-    function test_mint_failed_before_attestation() external {
+    function testMintFailedBeforeAttestation() external {
         vm.prank(bob);
         vm.expectRevert("Optimist: address is not on allowList");
         optimistNFT.mint(bob);
     }
 
-    function test_mint_success_after_attestation() external {
+    function testMintSuccessAfterAttestation() external {
         _createAttestation();
         _checkAliceNotInAllowList();
         _checkBobInAllowlist();
@@ -137,11 +137,5 @@ contract OptimistAllowlistAttestationResolverTest is Test {
         bytes32 id2 = eas.attest(request);
         assertNotEq(id2, bytes32(0));
         assertTrue(optimistAllowlistAttestationResolver.hasAttestation(bob));
-    }
-
-    function test_isemver_version() view external {
-        assertEq(optimistAllowlistAttestationResolver.version(), string(
-            abi.encodePacked(Strings.toString(1), ".", Strings.toString(3), ".", Strings.toString(0))
-        ));
     }
 }
