@@ -105,10 +105,6 @@ contract L2Genesis is Deployer {
         super.setUp();
     }
 
-    function name() public pure override returns (string memory) {
-        return "L2Genesis";
-    }
-
     function artifactDependencies() internal view returns (L1Dependencies memory l1Dependencies_) {
         return L1Dependencies({
             l1CrossDomainMessengerProxy: mustGetAddress("L1CrossDomainMessengerProxy"),

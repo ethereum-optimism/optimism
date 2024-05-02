@@ -116,20 +116,20 @@ contract Deploy is Deployer {
         vm.startStateDiffRecording();
         _;
         VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
-        console.log("Writing %d state diff account accesses to snapshots/state-diff/%s.json", accesses.length, name());
+        console.log(
+            "Writing %d state diff account accesses to snapshots/state-diff/%s.json",
+            accesses.length,
+            vm.toString(block.chainid)
+        );
         string memory json = LibStateDiff.encodeAccountAccesses(accesses);
-        string memory statediffPath = string.concat(vm.projectRoot(), "/snapshots/state-diff/", name(), ".json");
+        string memory statediffPath =
+            string.concat(vm.projectRoot(), "/snapshots/state-diff/", vm.toString(block.chainid), ".json");
         vm.writeJson({ json: json, path: statediffPath });
     }
 
     ////////////////////////////////////////////////////////////////
     //                        Accessors                           //
     ////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc Deployer
-    function name() public pure override returns (string memory name_) {
-        name_ = "Deploy";
-    }
 
     /// @notice The create2 salt used for deployment of the contract implementations.
     ///         Using this helps to reduce config across networks as the implementation
@@ -261,6 +261,7 @@ contract Deploy is Deployer {
     }
 
     function runWithStateDump() public {
+        vm.chainId(cfg.l1ChainID());
         _run();
         vm.dumpState(Config.stateDumpPath(""));
     }

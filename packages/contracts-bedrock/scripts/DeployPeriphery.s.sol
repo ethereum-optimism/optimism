@@ -26,11 +26,6 @@ import { Config } from "scripts/Config.sol";
 contract DeployPeriphery is Script, Artifacts {
     PeripheryDeployConfig cfg;
 
-    /// @notice The name of the script, used to ensure the right deploy artifacts are used.
-    function name() public pure returns (string memory name_) {
-        name_ = "DeployPeriphery";
-    }
-
     /// @notice Sets up the deployment script.
     function setUp() public override {
         Artifacts.setUp();
