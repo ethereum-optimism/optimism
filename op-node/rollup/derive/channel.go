@@ -1,17 +1,22 @@
 package derive
 
 import (
+	"bufio"
 	"bytes"
 	"compress/zlib"
 	"fmt"
 	"io"
 
-	"strings"
-
 	"github.com/andybalholm/brotli"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
+)
+
+const (
+	ZlibCM8           = 8
+	ZlibCM15          = 15
+	BrotliVersionByte = 0x01
 )
 
 // A Channel is a set of batches that are split into at least one, but possibly multiple frames.
@@ -151,41 +156,35 @@ func (ch *Channel) Reader() io.Reader {
 // Warning: the batch reader can read every batch-type.
 // The caller of the batch-reader should filter the results.
 func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
-	// Buffer to store the data for reuse
-	var buffer strings.Builder
-	if _, err := io.Copy(&buffer, r); err != nil {
+	// use buffered reader so can peek the first byte
+	bufReader := bufio.NewReader(r)
+	compressionType, err := bufReader.Peek(1)
+	if err != nil {
 		return nil, err
 	}
 
-	tmpReader := strings.NewReader(buffer.String())
-	// Read the first byte to be used to determine the compression type
-	compressionType := make([]byte, 1)
-	if _, err := tmpReader.Read(compressionType); err != nil {
-		return nil, err
-	}
-
-	// Reset the reader with the original data
-	r = strings.NewReader(buffer.String())
 	var reader func(io.Reader) (io.Reader, error)
-	// If the last 4 bits is 8, then it is a zlib reader
-	if compressionType[0]&0x0F == 8 {
+	// For zlib, the last 4 bits must be either 8 or 15 (both are reserved value)
+	if compressionType[0]&0x0F == ZlibCM8 || compressionType[0]&0x0F == ZlibCM15 {
 		reader = func(r io.Reader) (io.Reader, error) {
 			return zlib.NewReader(r)
 		}
 		// If the bits equal to 1, then it is a brotli reader
-	} else if compressionType[0]&0x0F == 1 {
-		// remove the first byte by reading it
-		_, err := r.Read(make([]byte, 1))
+	} else if compressionType[0] == BrotliVersionByte {
+		// discard the first byte
+		_, err := bufReader.Discard(1)
 		if err != nil {
 			return nil, err
 		}
 		reader = func(r io.Reader) (io.Reader, error) {
 			return brotli.NewReader(r), nil
 		}
+	} else {
+		return nil, fmt.Errorf("cannot distinguish the compression algo used given type byte %v", compressionType[0])
 	}
 
 	// Setup decompressor stage + RLP reader
-	zr, err := reader(r)
+	zr, err := reader(bufReader)
 	if err != nil {
 		return nil, err
 	}
