@@ -59,10 +59,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot that the L1StandardBridge address is stored at.
     bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
 
-    /// @notice Storage slot that the L2OutputOracle address is stored at.
-    /// @custom:deprecated
-    bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
-
     /// @notice Storage slot that the OptimismPortal address is stored at.
     bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
 
