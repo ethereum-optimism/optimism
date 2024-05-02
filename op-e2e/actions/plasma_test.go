@@ -77,7 +77,7 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 
 	daMgr := plasma.NewPlasmaDAWithStorage(log, plasmaCfg, storage, &plasma.NoopMetrics{})
 
-	sequencer := NewL2Sequencer(t, log, l1F, nil, daMgr, engCl, sd.RollupCfg, 0)
+	sequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), daMgr, engCl, sd.RollupCfg, 0)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
 
@@ -135,7 +135,7 @@ func (a *L2PlasmaDA) NewVerifier(t Testing) *L2Verifier {
 
 	daMgr := plasma.NewPlasmaDAWithStorage(a.log, a.plasmaCfg, a.storage, &plasma.NoopMetrics{})
 
-	verifier := NewL2Verifier(t, a.log, l1F, nil, daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled)
+	verifier := NewL2Verifier(t, a.log, l1F, a.miner.BlobStore(), daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled)
 
 	return verifier
 }
