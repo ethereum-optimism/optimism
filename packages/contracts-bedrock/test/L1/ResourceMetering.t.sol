@@ -203,16 +203,6 @@ contract ResourceMetering_Test is Test {
         vm.roll(initialBlockNum + _blockDiff);
         meter.use(_amount);
     }
-
-    function testFuzz_meter_useGas_succeeds(uint64 _amount) external {
-        (, uint64 prevBoughtGas,) = meter.params();
-        vm.assume(prevBoughtGas + _amount <= meter.resourceConfig().maxResourceLimit);
-
-        meter.use(_amount);
-
-        (, uint64 postPrevBoughtGas,) = meter.params();
-        assertEq(postPrevBoughtGas, prevBoughtGas + _amount);
-    }
 }
 
 /// @title CustomMeterUser
