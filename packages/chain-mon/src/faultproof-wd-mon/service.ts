@@ -249,11 +249,9 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
         this.state.portal.dispudeGameBlacklist(disputeGameAddress)
 
       if (isGameBlacklisted) {
-        if (isGameBlacklisted) {
-          this.state.invalidProposalWithdrawals.splice(i, 1)
-        }
+        this.state.invalidProposalWithdrawals.splice(i, 1)
       } else {
-        const status = disputeGame.status()
+        const status = await disputeGame.status()
         if (status === GameStatus.CHALLENGER_WINS) {
           this.state.invalidProposalWithdrawals.splice(i, 1)
         } else if (status === GameStatus.DEFENDER_WINS) {
@@ -339,9 +337,21 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
       // Sleep for a little to give intermittent errors a chance to recover.
       return sleep(this.options.sleepTimeMs)
     }
-
     // Go over all the events and check if the withdrawal hash actually exists on L2.
     for (const event of events) {
+      // If this loop throws for whatever reason then the same event may be dropped into
+      // invalidProposalWithdrawals or invalidProofWithdrawals more than once. This can lead to
+      // inflated metrics. However, it's worth noting that inflated metrics are preferred over not
+      // incrementing the metrics at all. Documenting this behavior for future reference.
+
+      // Grab and format the timestamp for logging purposes.
+      const block = await event.getBlock()
+      const ts = `${dateformat(
+        new Date(block.timestamp * 1000),
+        'mmmm dS, yyyy, h:MM:ss TT',
+        true
+      )} UTC`
+
       // Could consider using multicall here but this is efficient enough for now.
       const hash = event.args.withdrawalHash
       const disputeGamesData = await this.getWithdrawalDisputeGames(event)
@@ -367,13 +377,6 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
             this.metrics.withdrawalsValidated.inc()
           } else {
             this.state.invalidProofWithdrawals.push(disputeGameData)
-            // Grab and format the timestamp so it's clear how much time is left.
-            const block = await event.getBlock()
-            const ts = `${dateformat(
-              new Date(block.timestamp * 1000),
-              'mmmm dS, yyyy, h:MM:ss TT',
-              true
-            )} UTC`
 
             // Uh oh!
             this.logger.error(`withdrawalHash not seen on L2`, {
@@ -391,6 +394,7 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
           this.state.invalidProposalWithdrawals.push(disputeGameData)
           this.logger.info(`invalid proposal`, {
             withdrawalHash: event.args.withdrawalHash,
+            provenAt: ts,
           })
         }
       }
@@ -432,6 +436,7 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
     )
 
     // Iterate for proofSubmitterAddresses and query provenWithdrawals to get the disputeGameProxy for each proofSubmitter
+    // Note: In the future, if rate limiting becomes an issue, consider breaking up this loop into smaller chunks.
     await Promise.all(
       proofSubmitterAddresses.map(async (proofSubmitter) => {
         const provenWithdrawals_ = await this.state.portal.provenWithdrawals(
@@ -451,9 +456,16 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
     return disputeGameMap
   }
 
+  /**
+   * Retrieves the FaultDisputeGame contract instance given the dispute game proxy address.
+   *
+   * @param disputeGameProxyAddress The address of the dispute game proxy contract.
+   * @returns The FaultDisputeGame contract instance.
+   */
   async getDisputeGameFromAddress(
     disputeGameProxyAddress: string
   ): Promise<ethers.Contract> {
+    // Create the FaultDisputeGame contract instance using the provided dispute game proxy address.
     const FaultDisputeGame = getOEContract('FaultDisputeGame', this.l2ChainId, {
       signerOrProvider: this.options.l1RpcProvider,
       address: disputeGameProxyAddress,
@@ -463,17 +475,36 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
   }
 
   /**
-   * Checks whether a given root claim is valid. Uses the L2 node that the SDK is connected to
-   * when verifying the claim. Assumes that the connected L2 node is honest.
+   * A private cache to store the validity of output roots.
+   * The cache is implemented as a Map, where the key is a combination of the output root and the L2 block number,
+   * and the value is a boolean indicating if the output root is valid.
+   */
+  private outputRootCache: Map<string, boolean> = new Map<string, boolean>()
+
+  /**
+   * The maximum size of the output root cache.
+   * Once the cache reaches this size, the oldest entries will be automatically evicted to make room for new entries.
+   */
+  private MAX_CACHE_SIZE = 100
+
+  /**
+   * Checks if the provided output root is valid for the given L2 block number.
+   * Caches the result to improve performance.
    *
-   * @param outputRoot Output root to verify.
-   * @param l2BlockNumber L2 block number the root is for.
-   * @returns Whether or not the root is valid.
+   * @param outputRoot The output root to validate.
+   * @param l2BlockNumber The L2 block number.
+   * @returns A promise that resolves to a boolean indicating if the output root is valid.
    */
   public async isValidOutputRoot(
     outputRoot: string,
     l2BlockNumber: number
   ): Promise<boolean> {
+    const cacheKey = `${outputRoot}-${l2BlockNumber}`
+    const cachedValue = this.outputRootCache.get(cacheKey)
+    if (cachedValue !== undefined) {
+      return cachedValue
+    }
+
     try {
       // Make sure this is a JSON RPC provider.
       const provider = toJsonRpcProvider(this.options.l2RpcProvider)
@@ -505,6 +536,12 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
 
       // If the output matches the proposal then we're good.
       const valid = output === outputRoot
+      this.outputRootCache.set(cacheKey, valid)
+
+      if (this.outputRootCache.size > this.MAX_CACHE_SIZE) {
+        const oldestKey = this.outputRootCache.keys().next().value
+        this.outputRootCache.delete(oldestKey)
+      }
       return valid
     } catch (err) {
       // Assume the game is invalid but don't add it to the cache just in case we had a temp error.
