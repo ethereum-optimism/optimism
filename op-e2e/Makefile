@@ -6,7 +6,7 @@ ifdef JUNIT_FILE
 	go_test_flags = -timeout=60m -parallel=8
 else
 	go_test = go test
-	go_test_flags = # -v
+	go_test_flags = -v
 endif
 
 test: pre-test test-ws
