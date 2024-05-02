@@ -31,6 +31,8 @@ struct SecurityCouncilConfig {
     uint256 thresholdPercentage;
     uint256 minOwners;
     address fallbackOwner;
+    address deputyGuardian;
+    SuperchainConfig superchainConfig;
 }
 
 // The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
@@ -74,7 +76,9 @@ contract DeployOwnership is Deploy {
             livenessInterval: 24 weeks,
             thresholdPercentage: 75,
             minOwners: 8,
-            fallbackOwner: mustGetAddress("FoundationSafe")
+            fallbackOwner: mustGetAddress("FoundationSafe"),
+            deputyGuardian: makeAddr("DeputyGuardian"),
+            superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
         });
     }
 
@@ -125,13 +129,13 @@ contract DeployOwnership is Deploy {
     /// @notice Deploy a DeputyGuardianModule for use on the Security Council Safe.
     ///         Note this function does not have the broadcast modifier.
     function deployDeputyGuardianModule() public returns (address addr_) {
+        SecurityCouncilConfig memory councilConfig = _getExampleCouncilConfig();
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
-        SuperchainConfig superchainConfig = SuperchainConfig(makeAddr("SuperchainConfig"));
         addr_ = address(
             new DeputyGuardianModule({
                 _safe: councilSafe,
-                _superchainConfig: superchainConfig,
-                _deputyGuardian: mustGetAddress("FoundationSafe")
+                _superchainConfig: councilConfig.superchainConfig,
+                _deputyGuardian: councilConfig.deputyGuardian
             })
         );
 
