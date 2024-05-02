@@ -12,8 +12,10 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 var (
@@ -82,7 +84,9 @@ func appMain(ctx *cli.Context) error {
 
 	printStats(ldb)
 
-	findFirstCorruptedHeader(ldb)
+	// findFirstCorruptedHeader(ldb)
+
+	migrateHeaders(ldb, ldb, 1, 2)
 
 	// tryHeader(ldb, 19814000-1) //just before gingerbread activation (alfajores)
 	// tryHeader(ldb, 19814000)   // just after gingerbread activation (alfajores)
@@ -93,6 +97,35 @@ func appMain(ctx *cli.Context) error {
 	// tryHeader(ldb, 1)          // espresso block
 
 	return nil
+}
+
+func migrateHeaders(oldDb, newDb ethdb.Database, start, end uint64) {
+	// Grab the hash of the tip of the legacy chain.
+	hash := rawdb.ReadHeadHeaderHash(oldDb)
+	lastBlockNumber := *rawdb.ReadHeaderNumber(oldDb, hash)
+	log.Info("Starting from HEAD of the chain", "number", lastBlockNumber)
+
+	// migrate headers from 1 to lastBlockNumber
+	for i := start; i <= end; i++ {
+		hash := rawdb.ReadCanonicalHash(oldDb, i)
+		data := celo1.ReadHeaderRLP(oldDb, hash, i) // skips hash comparison
+		if len(data) == 0 {
+			log.Error("failed to load header", "number", i)
+		}
+		transformedData, err := celo1.RemoveIstanbulAggregatedSeal(data)
+		if err != nil {
+			log.Error("failed to remove istanbul aggregated seal", "number", i, "error", err)
+		}
+
+		// Write celo2Header to celo2 db
+		celo2Header := new(types.Header)
+		err = rlp.DecodeBytes(transformedData, &celo2Header)
+		if err != nil {
+			log.Error("failed to decode header", "number", i, "error", err)
+		}
+		// rawdb.WriteHeader(newDB, celo2Header)
+		log.Info("Wrote header", "number", i, "hash", celo2Header.Hash(), "header", celo2Header)
+	}
 }
 
 func tryHeader(ldb ethdb.Database, number uint64) {

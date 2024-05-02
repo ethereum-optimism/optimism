@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -36,8 +37,9 @@ type IstanbulExtra struct {
 	ParentAggregatedSeal IstanbulAggregatedSeal
 }
 
+// RemoveIstanbulAggregatedSeal removes the aggregated seal from the header
 func RemoveIstanbulAggregatedSeal(header []byte) ([]byte, error) {
-	newHeader := new(Header)
+	newHeader := new(types.Header) // TODO double check on decoding type
 	err := rlp.DecodeBytes(header, newHeader)
 	if err != nil {
 		return nil, err
