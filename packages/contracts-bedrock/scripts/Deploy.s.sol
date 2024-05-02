@@ -8,9 +8,6 @@ import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 import { Safe } from "safe-contracts/Safe.sol";
-import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
-import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
