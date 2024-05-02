@@ -84,7 +84,8 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 			return nil, err
 		}
 	} else if compressionAlgo == BROTLI {
-		c.compressed = bytes.NewBuffer([]byte{0b0010})
+		// setting the version bit of 1
+		c.compressed = bytes.NewBuffer([]byte{0b0001})
 		c.compressor = brotli.NewWriterLevel(
 			c.compressed,
 			compressLevel,
@@ -105,7 +106,7 @@ func (co *SpanChannelOut) Reset() error {
 	co.lastCompressedRLPSize = 0
 	co.compressed.Reset()
 	if co.compressionAlgo == BROTLI {
-		co.compressed.WriteByte(0b0010)
+		co.compressed.WriteByte(0b0001)
 	}
 	co.compressor.Reset(co.compressed)
 	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
@@ -219,7 +220,8 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 func (co *SpanChannelOut) compress() error {
 	co.compressed.Reset()
 	if co.compressionAlgo == BROTLI {
-		co.compressed.WriteByte(0b0010)
+		// reset but still need the version bit of 1
+		co.compressed.WriteByte(0b0001)
 	}
 	co.compressor.Reset(co.compressed)
 	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {

@@ -106,7 +106,7 @@ var (
 		Value:   "zlib",
 		Action: func(c *cli.Context, algo string) error {
 	        if algo != "zlib" && algo != "brotli" {
-	            return fmt.Errorf("unsupported compression algorithm: %s", s)
+	            return fmt.Errorf("unsupported compression algorithm: %s", algo)
 	        }
 	        return nil
 	    },
