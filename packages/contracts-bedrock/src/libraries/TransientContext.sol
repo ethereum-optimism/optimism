@@ -11,7 +11,7 @@ library TransientContext {
     /// @notice Gets the call depth.
     /// @return callDepth_ Current call depth.
     function callDepth() internal view returns (uint256 callDepth_) {
-        assembly {
+        assembly ("memory-safe") {
             callDepth_ := tload(CALL_DEPTH_SLOT)
         }
     }
@@ -20,7 +20,7 @@ library TransientContext {
     /// @param _slot Slot to get.
     /// @return value_ Transient value.
     function get(bytes32 _slot) internal view returns (uint256 value_) {
-        assembly {
+        assembly ("memory-safe") {
             mstore(0, tload(CALL_DEPTH_SLOT))
             mstore(32, _slot)
             value_ := tload(keccak256(0, 64))
@@ -31,7 +31,7 @@ library TransientContext {
     /// @param _slot    Slot to set.
     /// @param _value   Value to set.
     function set(bytes32 _slot, uint256 _value) internal {
-        assembly {
+        assembly ("memory-safe") {
             mstore(0, tload(CALL_DEPTH_SLOT))
             mstore(32, _slot)
             tstore(keccak256(0, 64), _value)
@@ -42,7 +42,7 @@ library TransientContext {
     ///         This function can overflow. However, this is ok because there's still
     ///         only one value stored per slot.
     function increment() internal {
-        assembly {
+        assembly ("memory-safe") {
             tstore(CALL_DEPTH_SLOT, add(tload(CALL_DEPTH_SLOT), 1))
         }
     }
@@ -51,7 +51,7 @@ library TransientContext {
     ///         This function can underflow. However, this is ok because there's still
     ///         only one value stored per slot.
     function decrement() internal {
-        assembly {
+        assembly ("memory-safe") {
             tstore(CALL_DEPTH_SLOT, sub(tload(CALL_DEPTH_SLOT), 1))
         }
     }
