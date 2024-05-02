@@ -33,8 +33,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
                         l1StandardBridge: address(0),
                         disputeGameFactory: address(0),
                         optimismPortal: address(0),
-                        optimismMintableERC20Factory: address(0),
-                        gasPayingToken: Constants.ETHER
+                        optimismMintableERC20Factory: address(0)
                     })
                 )
             )

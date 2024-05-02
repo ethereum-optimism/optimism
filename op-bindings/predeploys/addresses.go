@@ -8,7 +8,7 @@ import "github.com/ethereum/go-ethereum/common"
 const (
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
-	WETH                          = "0x4200000000000000000000000000000000000006"
+	WETH9                         = "0x4200000000000000000000000000000000000006"
 	L2CrossDomainMessenger        = "0x4200000000000000000000000000000000000007"
 	L2StandardBridge              = "0x4200000000000000000000000000000000000010"
 	SequencerFeeVault             = "0x4200000000000000000000000000000000000011"
@@ -41,7 +41,7 @@ const (
 var (
 	L2ToL1MessagePasserAddr           = common.HexToAddress(L2ToL1MessagePasser)
 	DeployerWhitelistAddr             = common.HexToAddress(DeployerWhitelist)
-	WETHAddr                          = common.HexToAddress(WETH)
+	WETH9Addr                         = common.HexToAddress(WETH9)
 	L2CrossDomainMessengerAddr        = common.HexToAddress(L2CrossDomainMessenger)
 	L2StandardBridgeAddr              = common.HexToAddress(L2StandardBridge)
 	SequencerFeeVaultAddr             = common.HexToAddress(SequencerFeeVault)
@@ -77,7 +77,7 @@ var (
 func init() {
 	Predeploys["L2ToL1MessagePasser"] = &Predeploy{Address: L2ToL1MessagePasserAddr}
 	Predeploys["DeployerWhitelist"] = &Predeploy{Address: DeployerWhitelistAddr}
-	Predeploys["WETH"] = &Predeploy{Address: WETHAddr, ProxyDisabled: true}
+	Predeploys["WETH9"] = &Predeploy{Address: WETH9Addr, ProxyDisabled: true}
 	Predeploys["L2CrossDomainMessenger"] = &Predeploy{Address: L2CrossDomainMessengerAddr}
 	Predeploys["L2StandardBridge"] = &Predeploy{Address: L2StandardBridgeAddr}
 	Predeploys["SequencerFeeVault"] = &Predeploy{Address: SequencerFeeVaultAddr}

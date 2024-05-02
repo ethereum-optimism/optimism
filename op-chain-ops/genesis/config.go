@@ -247,10 +247,7 @@ type DeployConfig struct {
 	// UseFaultProofs is a flag that indicates if the system is using fault
 	// proofs instead of the older output oracle mechanism.
 	UseFaultProofs bool `json:"useFaultProofs"`
-	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
-	UseCustomGasToken bool `json:"useCustomGasToken"`
-	// CustomGasTokenAddress is the address of the ERC20 token to be used to pay for gas on L2.
-	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
+
 	// UsePlasma is a flag that indicates if the system is using op-plasma
 	UsePlasma bool `json:"usePlasma"`
 	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
@@ -428,12 +425,6 @@ func (d *DeployConfig) Check() error {
 		if d.DAResolveWindow == 0 {
 			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
 		}
-	}
-	if d.UseCustomGasToken {
-		if d.CustomGasTokenAddress == (common.Address{}) {
-			return fmt.Errorf("%w: CustomGasTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
-		}
-		log.Info("Using custom gas token", "address", d.CustomGasTokenAddress)
 	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {

@@ -18,7 +18,7 @@ contract PredeploysTest is CommonTest {
             || _addr == Predeploys.L2_STANDARD_BRIDGE || _addr == Predeploys.L2_ERC721_BRIDGE
             || _addr == Predeploys.SEQUENCER_FEE_WALLET || _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
             || _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == Predeploys.L1_BLOCK_ATTRIBUTES
-            || _addr == Predeploys.GAS_PRICE_ORACLE || _addr == Predeploys.DEPLOYER_WHITELIST || _addr == Predeploys.WETH
+            || _addr == Predeploys.GAS_PRICE_ORACLE || _addr == Predeploys.DEPLOYER_WHITELIST || _addr == Predeploys.WETH9
             || _addr == Predeploys.L1_BLOCK_NUMBER || _addr == Predeploys.LEGACY_MESSAGE_PASSER
             || _addr == Predeploys.PROXY_ADMIN || _addr == Predeploys.BASE_FEE_VAULT || _addr == Predeploys.L1_FEE_VAULT
             || _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.SCHEMA_REGISTRY || _addr == Predeploys.EAS;
@@ -26,7 +26,7 @@ contract PredeploysTest is CommonTest {
 
     /// @dev Returns true if the address is not proxied.
     function _notProxied(address _addr) internal pure returns (bool) {
-        return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH;
+        return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH9;
     }
 
     /// @dev Returns true if the account is not meant to be in the L2 genesis anymore.

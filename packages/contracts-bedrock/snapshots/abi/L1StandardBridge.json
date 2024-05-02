@@ -425,11 +425,6 @@
         "internalType": "contract SuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
-      },
-      {
-        "internalType": "contract SystemConfig",
-        "name": "_systemConfig",
-        "type": "address"
       }
     ],
     "name": "initialize",
@@ -495,19 +490,6 @@
     "outputs": [
       {
         "internalType": "contract SuperchainConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "systemConfig",
-    "outputs": [
-      {
-        "internalType": "contract SystemConfig",
         "name": "",
         "type": "address"
       }

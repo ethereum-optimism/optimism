@@ -4,10 +4,6 @@
     "type": "fallback"
   },
   {
-    "stateMutability": "payable",
-    "type": "receive"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -100,7 +96,7 @@
     "outputs": [
       {
         "internalType": "string",
-        "name": "name_",
+        "name": "",
         "type": "string"
       }
     ],
@@ -113,7 +109,7 @@
     "outputs": [
       {
         "internalType": "string",
-        "name": "symbol_",
+        "name": "",
         "type": "string"
       }
     ],

@@ -6,8 +6,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -71,37 +70,22 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.2.0
-    string public constant version = "2.2.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
 
-    /// @notice Address of the SystemConfig contract.
-    SystemConfig public systemConfig;
-
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {
-        initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _superchainConfig: SuperchainConfig(address(0)),
-            _systemConfig: SystemConfig(address(0))
-        });
+        initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializer.
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
     /// @param _superchainConfig Contract for the SuperchainConfig on this network.
-    function initialize(
-        CrossDomainMessenger _messenger,
-        SuperchainConfig _superchainConfig,
-        SystemConfig _systemConfig
-    )
-        public
-        initializer
-    {
+    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig) public initializer {
         superchainConfig = _superchainConfig;
-        systemConfig = _systemConfig;
         __StandardBridge_init({
             _messenger: _messenger,
             _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
@@ -116,11 +100,6 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
         _initiateETHDeposit(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
-    }
-
-    /// @inheritdoc StandardBridge
-    function gasPayingToken() internal view override returns (address addr_, uint8 decimals_) {
-        (addr_, decimals_) = systemConfig.gasPayingToken();
     }
 
     /// @custom:legacy
