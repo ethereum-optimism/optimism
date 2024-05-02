@@ -88,8 +88,6 @@ type Metricer interface {
 
 	RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int)
 
-	RecordClaimResolutionDelayMax(delay float64)
-
 	RecordOutputFetchTime(timestamp float64)
 
 	RecordGameAgreement(status GameAgreementStatus, count int)
@@ -128,8 +126,6 @@ type Metrics struct {
 	credits prometheus.GaugeVec
 
 	lastOutputFetch prometheus.Gauge
-
-	claimResolutionDelayMax prometheus.Gauge
 
 	gamesAgreement prometheus.GaugeVec
 	ignoredGames   prometheus.Gauge
@@ -172,11 +168,6 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "last_output_fetch",
 			Help:      "Timestamp of the last output fetch",
-		}),
-		claimResolutionDelayMax: factory.NewGauge(prometheus.GaugeOpts{
-			Namespace: Namespace,
-			Name:      "claim_resolution_delay_max",
-			Help:      "Maximum claim resolution delay in seconds",
 		}),
 		honestActorClaims: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -365,10 +356,6 @@ func (m *Metrics) RecordWithdrawalRequests(delayedWeth common.Address, matches b
 		credits = "divergent"
 	}
 	m.withdrawalRequests.WithLabelValues(delayedWeth.Hex(), credits).Set(float64(count))
-}
-
-func (m *Metrics) RecordClaimResolutionDelayMax(delay float64) {
-	m.claimResolutionDelayMax.Set(delay)
 }
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {

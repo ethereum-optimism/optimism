@@ -21,7 +21,6 @@ type MonitorWithdrawals func(games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
 type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, error)
-type RecordClaimResolutionDelayMax func([]*types.EnrichedGameData)
 
 type gameMonitor struct {
 	logger log.Logger
@@ -34,7 +33,6 @@ type gameMonitor struct {
 	gameWindow      time.Duration
 	monitorInterval time.Duration
 
-	delays           RecordClaimResolutionDelayMax
 	forecast         Forecast
 	bonds            Bonds
 	resolutions      Resolutions
@@ -51,7 +49,6 @@ func newGameMonitor(
 	cl clock.Clock,
 	monitorInterval time.Duration,
 	gameWindow time.Duration,
-	delays RecordClaimResolutionDelayMax,
 	forecast Forecast,
 	bonds Bonds,
 	resolutions Resolutions,
@@ -68,7 +65,6 @@ func newGameMonitor(
 		done:             make(chan struct{}),
 		monitorInterval:  monitorInterval,
 		gameWindow:       gameWindow,
-		delays:           delays,
 		forecast:         forecast,
 		bonds:            bonds,
 		resolutions:      resolutions,
@@ -96,7 +92,6 @@ func (m *gameMonitor) monitorGames() error {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	m.resolutions(enrichedGames)
-	m.delays(enrichedGames)
 	m.forecast(m.ctx, enrichedGames, ignored)
 	m.bonds(enrichedGames)
 	m.claims(enrichedGames)
