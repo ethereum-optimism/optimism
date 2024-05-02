@@ -71,19 +71,6 @@
   },
   {
     "inputs": [],
-    "name": "L2_OUTPUT_ORACLE_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT",
     "outputs": [
       {
