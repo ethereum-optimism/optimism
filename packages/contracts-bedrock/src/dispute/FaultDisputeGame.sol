@@ -61,8 +61,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.18.1
-    string public constant version = "0.18.1";
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;

@@ -29,8 +29,8 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 0.2.0
-    string public constant version = "0.2.0";
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
