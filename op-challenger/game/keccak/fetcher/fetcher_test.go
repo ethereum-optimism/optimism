@@ -64,6 +64,27 @@ func TestFetchLeaves_NoBlocks(t *testing.T) {
 	require.Empty(t, leaves)
 }
 
+func TestFetchLeaves_ErrorOnUnavailableInputBlocks(t *testing.T) {
+	fetcher, oracle, _ := setupFetcherTest(t)
+	mockErr := fmt.Errorf("oops")
+	oracle.inputDataBlocksError = &mockErr
+
+	leaves, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	require.ErrorContains(t, err, "failed to retrieve leaf block nums")
+	require.Empty(t, leaves)
+}
+
+func TestFetchLeaves_ErrorOnUnavailableL1Block(t *testing.T) {
+	blockNum := uint64(7)
+	fetcher, oracle, _ := setupFetcherTest(t)
+	oracle.leafBlocks = []uint64{blockNum}
+
+	// No txs means stubL1Source will return an error when we try to fetch the block
+	leaves, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	require.ErrorContains(t, err, fmt.Sprintf("failed getting tx for block %v", blockNum))
+	require.Empty(t, leaves)
+}
+
 func TestFetchLeaves_SingleTxSingleLog(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -336,6 +357,8 @@ type stubOracle struct {
 	leafBlocks     []uint64
 	nextProposalId byte
 	proposals      map[byte]*proposalConfig
+	// Add some fields to allow for mocking of a few responses
+	inputDataBlocksError *error
 }
 
 func (o *stubOracle) Addr() common.Address {
@@ -343,6 +366,9 @@ func (o *stubOracle) Addr() common.Address {
 }
 
 func (o *stubOracle) GetInputDataBlocks(_ context.Context, _ rpcblock.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
+	if o.inputDataBlocksError != nil {
+		return nil, *o.inputDataBlocksError
+	}
 	return o.leafBlocks, nil
 }
 
