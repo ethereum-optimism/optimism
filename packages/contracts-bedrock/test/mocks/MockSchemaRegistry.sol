@@ -25,9 +25,7 @@ contract MockSchemaRegistry is ISchemaRegistry {
         });
 
         bytes32 uid = _getUID(schemaRecord);
-        if (_registry[uid].uid != EMPTY_UID) {
-            revert AlreadyExists();
-        }
+        require(_registry[uid].uid == EMPTY_UID, "AlreadyExists");
 
         schemaRecord.uid = uid;
         _registry[uid] = schemaRecord;
