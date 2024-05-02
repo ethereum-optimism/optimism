@@ -438,13 +438,14 @@ contract Deploy is Deployer {
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
         address[] memory expandedOwners = new address[](_owners.length + 1);
-        expandedOwners[0] = msg.sender;
-        for (uint256 i = 0; i < _owners.length; i++) {
-            expandedOwners[i + 1] = _owners[i];
-        }
         if (_keepDeployer) {
+            expandedOwners[0] = msg.sender;
+            for (uint256 i = 0; i < _owners.length; i++) {
+                expandedOwners[i + 1] = _owners[i];
+            }
             _owners = expandedOwners;
         }
+
         bytes memory initData = abi.encodeCall(
             Safe.setup, (_owners, _threshold, address(0), hex"", address(0), address(0), 0, payable(address(0)))
         );
