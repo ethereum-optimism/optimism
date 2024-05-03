@@ -32,7 +32,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant superchainConfigProxyAddress = 0xDEb1E9a6Be7Baf84208BB6E10aC9F9bbE1D70809;
     address internal constant systemConfigAddress = 0xB20f22D5eA3D6568d2e2AED04487b4DC15141C00;
     address internal constant systemConfigProxyAddress = 0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4;
-    address internal constant systemOwnerSafeAddress = 0x2601573C28B77dea6C8B73385c25024A28a00C3F;
+    address internal constant systemOwnerSafeAddress = 0x7d039be7F9b5190147621b02e82B250e1D748e02;
 
     function recreateDeployment() public {
         bytes32 slot;
@@ -73,7 +73,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
         value = hex"000000000000000000000000bb2180ebd78ce97360503434ed37fcf4a1df61c3";
         vm.store(proxyAdminAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
-        value = hex"0000000000000000000000002601573c28b77dea6c8b73385c25024a28a00c3f";
+        value = hex"0000000000000000000000007d039be7f9b5190147621b02e82b250e1d748e02";
         vm.store(proxyAdminAddress, slot, value);
         vm.etch(superchainConfigProxyAddress, superchainConfigProxyCode);
         slot = hex"b53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103";
