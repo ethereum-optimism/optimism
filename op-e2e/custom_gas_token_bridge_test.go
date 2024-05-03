@@ -235,7 +235,7 @@ func TestSetCustomGasToken(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 
 	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
 	log := testlog.Logger(t, log.LevelInfo)
