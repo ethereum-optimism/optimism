@@ -34,6 +34,22 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 		require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfNotExpiredUnresolved])
 	})
 
+	t.Run("ZeroRecordsClaims", func(t *testing.T) {
+		monitor, _, cMetrics := newTestClaimMonitor(t)
+		var games []*types.EnrichedGameData
+		monitor.CheckClaims(games)
+		// Check we zero'd out any categories that didn't have games in them (otherwise they retain their previous value)
+		require.Contains(t, cMetrics.calls, metrics.FirstHalfExpiredResolved)
+		require.Contains(t, cMetrics.calls, metrics.FirstHalfExpiredUnresolved)
+		require.Contains(t, cMetrics.calls, metrics.FirstHalfNotExpiredResolved)
+		require.Contains(t, cMetrics.calls, metrics.FirstHalfNotExpiredUnresolved)
+
+		require.Contains(t, cMetrics.calls, metrics.SecondHalfExpiredResolved)
+		require.Contains(t, cMetrics.calls, metrics.SecondHalfExpiredUnresolved)
+		require.Contains(t, cMetrics.calls, metrics.SecondHalfNotExpiredResolved)
+		require.Contains(t, cMetrics.calls, metrics.SecondHalfNotExpiredUnresolved)
+	})
+
 	t.Run("RecordsUnexpectedClaimResolution", func(t *testing.T) {
 		monitor, cl, cMetrics := newTestClaimMonitor(t)
 		games := makeMultipleTestGames(uint64(cl.Now().Unix()))
