@@ -1242,7 +1242,7 @@ jobs:
       - run:
           name: Install eth2-testnet-genesis
           command: |
-            go install -v github.com/protolambda/eth2-testnet-genesis@v0.10.0
+            go install -v github.com/protolambda/eth2-testnet-genesis@$(jq -r .eth2_testnet_genesis < versions.json)
       - run:
           name: foundryup
           command: |
