@@ -147,13 +147,6 @@ func ReorgFlipFlop(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	minerCl := miner.L1Client(t, sd.RollupCfg)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 	checkVerifEngine := func() {
-		// TODO: geth preserves L2 chain with origin A1 after flip-flopping to B?
-		// ref, err := verifEngClient.L2BlockRefByLabel(t.Ctx(), eth.Unsafe)
-		// require.NoError(t, err)
-		// t.Logf("l2 unsafe head %s with origin %s", ref, ref.L1Origin)
-		// require.NotEqual(t, verifier.L2Unsafe().Hash, ref.ParentHash, "TODO off by one, engine syncs A0 after reorging back from B, while rollup node only inserts up to A0 (excl.)")
-		// require.Equal(t, verifier.L2Unsafe(), ref, "verifier safe head of engine matches rollup client")
-
 		ref, err := verifEngClient.L2BlockRefByLabel(t.Ctx(), eth.Safe)
 		require.NoError(t, err)
 		require.Equal(t, verifier.L2Safe(), ref, "verifier safe head of engine matches rollup client")
