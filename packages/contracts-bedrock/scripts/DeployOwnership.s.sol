@@ -6,12 +6,15 @@ import { stdJson } from "forge-std/StdJson.sol";
 
 import { Safe } from "safe-contracts/Safe.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
+import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 import { Deployer } from "scripts/Deployer.sol";
 
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 import { LivenessModule } from "src/Safe/LivenessModule.sol";
+import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 import { Deploy } from "./Deploy.s.sol";
 
@@ -28,6 +31,8 @@ struct SecurityCouncilConfig {
     uint256 thresholdPercentage;
     uint256 minOwners;
     address fallbackOwner;
+    address deputyGuardian;
+    SuperchainConfig superchainConfig;
 }
 
 // The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
@@ -42,6 +47,8 @@ contract DeployOwnership is Deploy {
     /// @notice Internal function containing the deploy logic.
     function _run() internal override {
         console.log("start of Ownership Deployment");
+        // The SuperchainConfig is needed as a constructor argument to the Deputy Guardian Module
+        deploySuperchainConfig();
         deployAndConfigureFoundationSafe();
         deployAndConfigureSecurityCouncilSafe();
 
@@ -69,7 +76,9 @@ contract DeployOwnership is Deploy {
             livenessInterval: 24 weeks,
             thresholdPercentage: 75,
             minOwners: 8,
-            fallbackOwner: mustGetAddress("FoundationSafe")
+            fallbackOwner: mustGetAddress("FoundationSafe"),
+            deputyGuardian: makeAddr("DeputyGuardian"),
+            superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
         });
     }
 
@@ -117,6 +126,23 @@ contract DeployOwnership is Deploy {
         console.log("New LivenessModule deployed at %s", address(addr_));
     }
 
+    /// @notice Deploy a DeputyGuardianModule for use on the Security Council Safe.
+    ///         Note this function does not have the broadcast modifier.
+    function deployDeputyGuardianModule() public returns (address addr_) {
+        SecurityCouncilConfig memory councilConfig = _getExampleCouncilConfig();
+        Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
+        addr_ = address(
+            new DeputyGuardianModule({
+                _safe: councilSafe,
+                _superchainConfig: councilConfig.superchainConfig,
+                _deputyGuardian: councilConfig.deputyGuardian
+            })
+        );
+
+        save("DeputyGuardianModule", addr_);
+        console.log("New DeputyGuardianModule deployed at %s", addr_);
+    }
+
     /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
     function deployAndConfigureSecurityCouncilSafe() public returns (address addr_) {
         // Deploy the safe with the extra deployer key, and keep the threshold at 1 to allow for further setup.
@@ -132,7 +158,17 @@ contract DeployOwnership is Deploy {
             )
         );
 
-        vm.startBroadcast();
+        vm.startBroadcast(msg.sender);
+        // Deploy and add the Deputy Guardian Module.
+        address deputyGuardianModule = deployDeputyGuardianModule();
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(ModuleManager.enableModule, (deputyGuardianModule))
+        });
+        console.log("DeputyGuardianModule enabled on SecurityCouncilSafe");
+
+        // Deploy and add the Liveness Guard.
         address guard = deployLivenessGuard();
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
         console.log("LivenessGuard setup on SecurityCouncilSafe");
@@ -149,6 +185,7 @@ contract DeployOwnership is Deploy {
             )
         });
 
+        // Deploy and add the Liveness Module.
         address livenessModule = deployLivenessModule();
         vm.stopBroadcast();
 
@@ -157,6 +194,7 @@ contract DeployOwnership is Deploy {
         // call it's own 'enableModule' method.
         vm.startBroadcast(address(safe));
         safe.enableModule(livenessModule);
+        vm.stopBroadcast();
         addr_ = address(safe);
         console.log("Deployed and configured the Security Council Safe!");
     }
