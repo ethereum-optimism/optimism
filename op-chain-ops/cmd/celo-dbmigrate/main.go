@@ -23,10 +23,11 @@ import (
 )
 
 // How to run:
-// 		go run main.go -oldDB /path/to/oldDB -newDB /path/to/newDB [-batchSize 1000]
+// 		go run main.go -oldDB /path/to/oldDB -newDB /path/to/newDB [-resetDB] [-batchSize 1000] [-verbosity 3]
 //
 // This script will migrate block data from the old database to the new database
 // The new database will be reset if the -resetDB flag is provided
+// You can set the log level using the -verbosity flag
 // The number of ancient records to migrate in one batch can be set using the -batchSize flag
 // The default batch size is 1000
 
@@ -37,14 +38,15 @@ const (
 )
 
 func main() {
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd())))))
-
 	oldDBPath := flag.String("oldDB", "", "Path to the old database")
 	newDBPath := flag.String("newDB", "", "Path to the new database")
 	resetDB := flag.Bool("resetDB", false, "Use to reset the new database before migrating data (recommended)")
 	batchSize := flag.Uint64("batchSize", 1000, "Number of records to migrate in one batch")
+	verbosity := flag.Uint64("verbosity", 3, "Log level (0:crit, 1:err, 2:warn, 3:info, 4:debug, 5:trace)")
 
 	flag.Parse()
+
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*verbosity), log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd())))))
 
 	if *oldDBPath == "" || *newDBPath == "" {
 		log.Info("Please provide both oldDB and newDB flags")
@@ -57,16 +59,6 @@ func main() {
 			log.Crit("Failed to remove new database", "err", err)
 		}
 	}
-	// if err := os.MkdirAll(filepath.Join(*newDBPath, "geth"), 0755); err != nil {
-	// 	log.Crit("Failed to make new datadir", "err", err)
-	// }
-
-	// Copy the old database to the new database
-	// cmd := exec.Command("cp", "-r", filepath.Join(*oldDBPath, "celo", "chaindata"), filepath.Join(*newDBPath, "geth"))
-	// err := cmd.Run()
-	// if err != nil {
-	// 	log.Crit("Failed to copy old database to new database", "err", err)
-	// }
 
 	// Open the existing database in read-only mode
 	oldDB, err := openDB(filepath.Join(*oldDBPath, "celo"), dbCache, dbHandles, true)
@@ -74,17 +66,11 @@ func main() {
 		log.Crit("Failed to open old database", "err", err)
 	}
 
-	// Create a new database
+	// Open the new database
 	newDB, err := openDB(filepath.Join(*newDBPath, "geth"), dbCache, dbHandles, false)
 	if err != nil {
 		log.Crit("Failed to create new database", "err", err)
 	}
-
-	// Ancients is append only, so we need to remove and recreate it to transform the data
-	// newAncientPath := filepath.Join(*newDBPath, "geth", "chaindata", "ancient")
-	// if err := os.RemoveAll(newAncientPath); err != nil {
-	// 	log.Crit("Failed to remove copied ancient database", "err", err)
-	// }
 
 	// Close the databases
 	defer oldDB.Close()
@@ -100,35 +86,8 @@ func main() {
 
 	log.Info("Ancient Migration End Status", "migrated", MustAncientLength(newDB), "total", numAncients)
 
-	// Move the ancient directory up one level, delete everything else and move it back
-
-	// Move the ancient directory up one level
-	cmd := exec.Command("rsync", "-av", filepath.Join(*newDBPath, "geth", "chaindata", "ancient"), filepath.Join(*newDBPath, "geth"))
-	err = cmd.Run()
-	if err != nil {
-		log.Crit("Failed to move ancient directory up one level", "err", err)
-	}
-	// Delete everything in chaindata directory
-	err = os.RemoveAll(filepath.Join(*newDBPath, "geth", "chaindata", "ancient"))
-	if err != nil {
-		log.Crit("Failed to clean chaindata directory", "err", err)
-	}
-	// Copy the old database to the new database, excluding the ancient folder
-	cmd = exec.Command("rsync", "-av", filepath.Join(*oldDBPath, "celo", "chaindata"), filepath.Join(*newDBPath, "geth"), "--exclude", "ancient")
-	err = cmd.Run()
-	if err != nil {
-		log.Crit("Failed to copy old database to new database", "err", err)
-	}
-	// Move the ancient directory back into the chaindata directory
-	cmd = exec.Command("rsync", "-av", filepath.Join(*newDBPath, "geth", "ancient"), filepath.Join(*newDBPath, "geth", "chaindata"))
-	err = cmd.Run()
-	if err != nil {
-		log.Crit("Failed to move ancient directory up one level", "err", err)
-	}
-	// Delete the extra ancient directory
-	err = os.RemoveAll(filepath.Join(*newDBPath, "geth", "ancient"))
-	if err != nil {
-		log.Crit("Failed to remove extra ancient directory", "err", err)
+	if err = copyAllDataExceptAncients(*oldDBPath, *newDBPath); err != nil {
+		log.Crit("Failed to copy all data except ancients", "err", err)
 	}
 
 	numBlocks := GetLastBlockNumber(oldDB) + 1
@@ -139,12 +98,42 @@ func main() {
 		log.Crit("Failed to migrate range", "err", err)
 	}
 
-	// TODO do we still need to do this now that we've copied everything over?
-	rawdb.WriteHeadHeaderHash(newDB, rawdb.ReadHeadHeaderHash(oldDB))
-
 	log.Info("Migration End Status", "migrated", GetLastBlockNumber(newDB)+1, "total", numBlocks)
 
 	log.Info("Migration complete")
+}
+
+// copyAllDataExceptAncients copies all data from the old database to the new database except the ancient data which has already been migrated
+func copyAllDataExceptAncients(oldDBPath, newDBPath string) error {
+	// Move the ancient directory up one level, delete everything else, copy over the old data and move the ancient directory back
+
+	log.Info("Copying over all data except ancients")
+
+	// Move the ancient directory up one level
+	cmd := exec.Command("rsync", "-av", filepath.Join(newDBPath, "geth", "chaindata", "ancient"), filepath.Join(newDBPath, "geth"))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Failed to move ancient directory up one level: %v", err)
+	}
+	// Delete everything in chaindata directory that was created when the database was opened
+	if err := os.RemoveAll(filepath.Join(newDBPath, "geth", "chaindata")); err != nil {
+		return fmt.Errorf("Failed to clean chaindata directory: %v", err)
+	}
+	// Copy everything in the old database to the new database, excluding the ancient directory
+	cmd = exec.Command("rsync", "-av", filepath.Join(oldDBPath, "celo", "chaindata"), filepath.Join(newDBPath, "geth"), "--exclude", "ancient")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Failed to copy old database to new database: %v", err)
+	}
+	// Move the ancient directory back down into the chaindata directory
+	cmd = exec.Command("rsync", "-av", filepath.Join(newDBPath, "geth", "ancient"), filepath.Join(newDBPath, "geth", "chaindata"))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Failed to move ancient directory back down: %v", err)
+	}
+	// Delete the extra ancient directory that was up one level
+	if err := os.RemoveAll(filepath.Join(newDBPath, "geth", "ancient")); err != nil {
+		return fmt.Errorf("Failed to remove extra ancient directory copy: %v", err)
+	}
+
+	return nil
 }
 
 // Opens a database
@@ -361,12 +350,10 @@ func readAncientBlockRange(db ethdb.Database, start, count uint64) (*RLPBlockRan
 
 func readBlockRange(db ethdb.Database, start, count uint64) (*RLPBlockRange, error) {
 	blockRange := RLPBlockRange{
-		start:    start,
-		hashes:   make([][]byte, count),
-		headers:  make([][]byte, count),
-		bodies:   make([][]byte, count),
-		receipts: make([][]byte, count),
-		tds:      make([][]byte, count),
+		start:   start,
+		hashes:  make([][]byte, count),
+		headers: make([][]byte, count),
+		bodies:  make([][]byte, count),
 	}
 	var err error
 
@@ -387,14 +374,6 @@ func readBlockRange(db ethdb.Database, start, count uint64) (*RLPBlockRange, err
 		blockRange.bodies[i-start], err = db.Get(celo1.BlockBodyKey(i, hash))
 		if err != nil {
 			return nil, fmt.Errorf("Failed to load body, number: %d, err: %v", i, err)
-		}
-		blockRange.receipts[i-start], err = db.Get(celo1.BlockReceiptsKey(i, hash))
-		if err != nil {
-			return nil, fmt.Errorf("Failed to load receipts, number: %d, err: %v", i, err)
-		}
-		blockRange.tds[i-start], err = db.Get(celo1.HeaderTDKey(i, hash))
-		if err != nil {
-			return nil, fmt.Errorf("Failed to load td, number: %d, err: %v", i, err)
 		}
 	}
 
@@ -462,23 +441,12 @@ func writeBlockRange(db ethdb.Database, blockRange *RLPBlockRange) error {
 
 		log.Debug("Writing data", "number", blockNumber)
 
-		if err := db.Put(celo1.HeaderHashKey(blockNumber), hashBytes); err != nil {
-			return fmt.Errorf("can't write hash to new database: %v", err)
-		}
 		if err := db.Put(celo1.HeaderKey(blockNumber, hash), blockRange.headers[i]); err != nil {
 			return fmt.Errorf("can't write header to new database: %v", err)
 		}
 		if err := db.Put(celo1.BlockBodyKey(blockNumber, hash), blockRange.bodies[i]); err != nil {
 			return fmt.Errorf("can't write body to new database: %v", err)
 		}
-		if err := db.Put(celo1.BlockReceiptsKey(blockNumber, hash), blockRange.receipts[i]); err != nil {
-			return fmt.Errorf("can't write receipts to new database: %v", err)
-		}
-		if err := db.Put(celo1.HeaderTDKey(blockNumber, hash), blockRange.tds[i]); err != nil {
-			return fmt.Errorf("can't write td to new database: %v", err)
-		}
-		// TODO there are other misc things like this that need to be written
-		rawdb.WriteHeaderNumber(db, hash, blockNumber)
 	}
 
 	return nil
@@ -498,7 +466,7 @@ func transformBlockBody(oldBodyData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("Failed to RLP decode body: %v", err)
 	}
 
-	// TODO(Alec) is this doing everything its supposed to
+	// TODO is this doing everything its supposed to
 
 	// Alternatively, decode into op-geth types.Body structure
 	// body := new(types.Body)
