@@ -50,15 +50,15 @@ func WithSequencerWindowSize(size uint64) faultDisputeConfigOpts {
 func StartFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_e2e.System, *ethclient.Client) {
 	cfg := op_e2e.DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
-	for _, opt := range opts {
-		opt(&cfg)
-	}
 	cfg.Nodes["sequencer"].SafeDBPath = t.TempDir()
 	cfg.DeployConfig.SequencerWindowSize = 4
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2
 	cfg.SupportL1TimeTravel = true
 	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 1
 	cfg.NonFinalizedProposals = true // Submit output proposals asap
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	return sys, sys.Clients["l1"]
