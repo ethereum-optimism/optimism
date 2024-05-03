@@ -62,6 +62,9 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 	// sanity check that all predeploys are present
 	for i := 0; i < 2048; i++ {
 		addr := common.BigToAddress(new(big.Int).Or(l2PredeployNamespace.Big(), big.NewInt(int64(i))))
+		if !config.GovernanceEnabled() && addr == predeploys.GovernanceTokenAddr {
+			continue
+		}
 		if len(genspec.Alloc[addr].Code) == 0 {
 			return nil, fmt.Errorf("predeploy %x is missing from L2 genesis allocs", addr)
 		}
