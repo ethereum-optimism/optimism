@@ -60,7 +60,7 @@ contract OptimistInviter is ISemver, EIP712Upgradeable {
     ///         claimInvite. Currently set to 60 seconds.
     ///
     ///        Prevents an attacker from front-running a commitment by taking the signature in the
-    ///        claimInvite call and quickly committing and claiming it before the claimer's
+    ///        claimInvite call and quickly committing and claiming it before the the claimer's
     ///        transaction succeeds. With this, frontrunning a commitment requires that an attacker
     ///        be able to prevent the honest claimer's claimInvite transaction from being included
     ///        for this long.
