@@ -54,15 +54,3 @@ type BidirectionalClaim struct {
 	Claim    *faultTypes.Claim
 	Children []*BidirectionalClaim
 }
-
-type ForecastBatch struct {
-	AgreeDefenderAhead      int
-	DisagreeDefenderAhead   int
-	AgreeChallengerAhead    int
-	DisagreeChallengerAhead int
-
-	AgreeDefenderWins      int
-	DisagreeDefenderWins   int
-	AgreeChallengerWins    int
-	DisagreeChallengerWins int
-}

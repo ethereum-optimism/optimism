@@ -11,7 +11,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -113,9 +112,9 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 
-			var dump *state.Dump
+			var dump *genesis.ForgeAllocs
 			if l1Allocs := ctx.String("l1-allocs"); l1Allocs != "" {
-				dump, err = genesis.NewStateDump(l1Allocs)
+				dump, err = genesis.LoadForgeAllocs(l1Allocs)
 				if err != nil {
 					return err
 				}

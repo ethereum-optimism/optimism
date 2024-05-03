@@ -20,3 +20,5 @@ error Unauthorized();
 error CallPaused();
 /// @notice Error for special gas estimation.
 error GasEstimation();
+/// @notice Error for when a method is being reentered.
+error NonReentrant();

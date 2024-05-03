@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/resolution"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	disputeTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -90,7 +90,7 @@ func enrichClaims(claims []types.Claim) []disputeTypes.EnrichedClaim {
 
 func gameResult(game types.Game) (gameTypes.GameStatus, *disputeTypes.BidirectionalTree, types.Game) {
 	tree := transform.CreateBidirectionalTree(enrichClaims(game.Claims()))
-	result := resolution.Resolve(tree)
+	result := mon.Resolve(tree)
 	resolvedClaims := make([]types.Claim, 0, len(tree.Claims))
 	for _, claim := range tree.Claims {
 		resolvedClaims = append(resolvedClaims, *claim.Claim)

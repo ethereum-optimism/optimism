@@ -17,7 +17,7 @@ contract TransientContextTest is Test {
     /// @notice Tests that `callDepth()` outputs the corrects call depth.
     /// @param _callDepth Call depth to test.
     function testFuzz_callDepth_succeeds(uint256 _callDepth) public {
-        assembly {
+        assembly ("memory-safe") {
             tstore(sload(callDepthSlot.slot), _callDepth)
         }
         assertEq(TransientContext.callDepth(), _callDepth);
@@ -27,7 +27,7 @@ contract TransientContextTest is Test {
     /// @param _startingCallDepth Starting call depth.
     function testFuzz_increment_succeeds(uint256 _startingCallDepth) public {
         vm.assume(_startingCallDepth < type(uint256).max);
-        assembly {
+        assembly ("memory-safe") {
             tstore(sload(callDepthSlot.slot), _startingCallDepth)
         }
         assertEq(TransientContext.callDepth(), _startingCallDepth);
@@ -40,7 +40,7 @@ contract TransientContextTest is Test {
     /// @param _startingCallDepth Starting call depth.
     function testFuzz_decrement_succeeds(uint256 _startingCallDepth) public {
         vm.assume(_startingCallDepth > 0);
-        assembly {
+        assembly ("memory-safe") {
             tstore(sload(callDepthSlot.slot), _startingCallDepth)
         }
         assertEq(TransientContext.callDepth(), _startingCallDepth);
@@ -56,7 +56,7 @@ contract TransientContextTest is Test {
         assertEq(TransientContext.get(_slot), 0);
 
         bytes32 tSlot = keccak256(abi.encodePacked(TransientContext.callDepth(), _slot));
-        assembly {
+        assembly ("memory-safe") {
             tstore(tSlot, _value)
         }
 
@@ -70,7 +70,7 @@ contract TransientContextTest is Test {
         TransientContext.set(_slot, _value);
         bytes32 tSlot = keccak256(abi.encodePacked(TransientContext.callDepth(), _slot));
         uint256 tValue;
-        assembly {
+        assembly ("memory-safe") {
             tValue := tload(tSlot)
         }
         assertEq(tValue, _value);
@@ -145,7 +145,7 @@ contract TransientReentrancyAwareTest is TransientContextTest, TransientReentran
     /// @param _value     Value to test.
     function testFuzz_reentrantAware_succeeds(uint256 _callDepth, bytes32 _slot, uint256 _value) public {
         vm.assume(_callDepth < type(uint256).max);
-        assembly {
+        assembly ("memory-safe") {
             tstore(sload(callDepthSlot.slot), _callDepth)
         }
         assertEq(TransientContext.callDepth(), _callDepth);
@@ -173,7 +173,7 @@ contract TransientReentrancyAwareTest is TransientContextTest, TransientReentran
         public
     {
         vm.assume(_callDepth < type(uint256).max - 1);
-        assembly {
+        assembly ("memory-safe") {
             tstore(sload(callDepthSlot.slot), _callDepth)
         }
         assertEq(TransientContext.callDepth(), _callDepth);

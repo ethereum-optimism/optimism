@@ -29,11 +29,11 @@ func (*NoopMetricsImpl) RecordClaims(_ ClaimStatus, _ int) {}
 
 func (*NoopMetricsImpl) RecordWithdrawalRequests(_ common.Address, _ bool, _ int) {}
 
-func (*NoopMetricsImpl) RecordClaimResolutionDelayMax(_ float64) {}
-
 func (*NoopMetricsImpl) RecordOutputFetchTime(_ float64) {}
 
 func (*NoopMetricsImpl) RecordGameAgreement(_ GameAgreementStatus, _ int) {}
+
+func (*NoopMetricsImpl) RecordLatestInvalidProposal(_ uint64) {}
 
 func (*NoopMetricsImpl) RecordIgnoredGames(_ int) {}
 

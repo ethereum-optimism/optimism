@@ -47,9 +47,9 @@ func (db *MemoryStateDB) Genesis() *core.Genesis {
 	return db.genesis
 }
 
-// GetAccount is a getter for a core.GenesisAccount found in
+// GetAccount is a getter for a types.Account found in
 // the core.Genesis
-func (db *MemoryStateDB) GetAccount(addr common.Address) *core.GenesisAccount {
+func (db *MemoryStateDB) GetAccount(addr common.Address) *types.Account {
 	db.rw.RLock()
 	defer db.rw.RUnlock()
 
@@ -71,7 +71,7 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 
 func (db *MemoryStateDB) createAccount(addr common.Address) {
 	if _, ok := db.genesis.Alloc[addr]; !ok {
-		db.genesis.Alloc[addr] = core.GenesisAccount{
+		db.genesis.Alloc[addr] = types.Account{
 			Code:    []byte{},
 			Storage: make(map[common.Hash]common.Hash),
 			Balance: big.NewInt(0),

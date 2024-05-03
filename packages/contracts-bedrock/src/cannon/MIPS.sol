@@ -43,8 +43,8 @@ contract MIPS is ISemver {
     uint32 public constant BRK_START = 0x40000000;
 
     /// @notice The semantic version of the MIPS contract.
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;

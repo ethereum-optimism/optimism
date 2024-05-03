@@ -29,6 +29,9 @@ parameters:
   kontrol_dispatch:
     type: boolean
     default: false
+  sdk_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -247,6 +250,7 @@ jobs:
             - ".devnet-plasma/allocs-l2-delta.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
+      - notify-failures-on-develop
 
   docker-build:
     environment:
@@ -728,6 +732,7 @@ jobs:
             VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
             VITE_E2E_RPC_URL_L1: http://localhost:8545
             VITE_E2E_RPC_URL_L2: http://localhost:9545
+      - notify-failures-on-develop
 
   todo-issues:
     machine:
@@ -1654,10 +1659,6 @@ workflows:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
-      - sdk-next-tests:
-          name: sdk-next-tests
-          requires:
-            - pnpm-monorepo
       - indexer-tests:
           name: indexer-tests<< matrix.fpac >>
           matrix:
@@ -2211,6 +2212,26 @@ workflows:
            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - kontrol-tests:
+          context:
+            - slack
+
+  develop-sdk-next-tests:
+    when:
+      and:
+        - or:
+          - equal: [ "develop", <<pipeline.git.branch>> ]
+          - equal: [ true, <<pipeline.parameters.sdk_dispatch>> ]
+        - not:
+           equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
+    jobs:
+      - pnpm-monorepo:
+          name: pnpm-monorepo
+          context:
+            - slack
+      - sdk-next-tests:
+          name: sdk-next-tests
+          requires:
+            - pnpm-monorepo
           context:
             - slack
 

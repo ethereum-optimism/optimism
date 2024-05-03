@@ -236,8 +236,8 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 		{},
 		mockRootClaim,
 		{},
-		{},
-		{},
+		{}, // Expected latest invalid proposal (will have timestamp 7)
+		mockRootClaim,
 	}
 	games := make([]*monTypes.EnrichedGameData, 9)
 	for i := range games {
@@ -245,6 +245,9 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 			Status:    gameStatus[i],
 			Claims:    claims[i],
 			RootClaim: rootClaims[i],
+			GameMetadata: types.GameMetadata{
+				Timestamp: uint64(i),
+			},
 		}
 	}
 	forecast.Forecast(context.Background(), games, 3)
@@ -255,10 +258,12 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 	expectedMetrics[metrics.DisagreeChallengerAhead] = 1
 	expectedMetrics[metrics.AgreeDefenderAhead] = 1
 	expectedMetrics[metrics.DisagreeDefenderAhead] = 1
+	expectedMetrics[metrics.AgreeChallengerWins] = 1
 	expectedMetrics[metrics.DisagreeDefenderWins] = 2
-	expectedMetrics[metrics.DisagreeChallengerWins] = 3
+	expectedMetrics[metrics.DisagreeChallengerWins] = 2
 	require.Equal(t, expectedMetrics, m.gameAgreement)
 	require.Equal(t, 3, m.ignoredGames)
+	require.EqualValues(t, 7, m.latestInvalidProposal)
 }
 
 func setupForecastTest(t *testing.T) (*forecast, *mockForecastMetrics, *stubOutputValidator, *testlog.CapturingHandler) {
@@ -284,21 +289,21 @@ func zeroGameAgreement() map[metrics.GameAgreementStatus]int {
 }
 
 type mockForecastMetrics struct {
-	gameAgreement           map[metrics.GameAgreementStatus]int
-	ignoredGames            int
-	claimResolutionDelayMax float64
+	gameAgreement         map[metrics.GameAgreementStatus]int
+	ignoredGames          int
+	latestInvalidProposal uint64
 }
 
 func (m *mockForecastMetrics) RecordGameAgreement(status metrics.GameAgreementStatus, count int) {
 	m.gameAgreement[status] = count
 }
 
-func (m *mockForecastMetrics) RecordIgnoredGames(count int) {
-	m.ignoredGames = count
+func (m *mockForecastMetrics) RecordLatestInvalidProposal(timestamp uint64) {
+	m.latestInvalidProposal = timestamp
 }
 
-func (m *mockForecastMetrics) RecordClaimResolutionDelayMax(delay float64) {
-	m.claimResolutionDelayMax = delay
+func (m *mockForecastMetrics) RecordIgnoredGames(count int) {
+	m.ignoredGames = count
 }
 
 func createDeepClaimList() []monTypes.EnrichedClaim {

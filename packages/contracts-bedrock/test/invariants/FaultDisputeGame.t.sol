@@ -6,8 +6,8 @@ import { StdUtils } from "forge-std/StdUtils.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { FaultDisputeGame_Init } from "test/dispute/FaultDisputeGame.t.sol";
 
-import "src/libraries/DisputeTypes.sol";
-import "src/libraries/DisputeErrors.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
