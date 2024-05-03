@@ -88,7 +88,7 @@ contract DeployOwnership is Deploy {
                 fallbackOwner: mustGetAddress("FoundationSafe")
             }),
             deputyGuardianModuleConfig: DeputyGuardianModuleConfig({
-                deputyGuardian: makeAddr("DeputyGuardian"),
+                deputyGuardian: mustGetAddress("FoundationSafe"),
                 superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
             })
         });
