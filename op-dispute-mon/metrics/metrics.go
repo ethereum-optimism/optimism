@@ -65,6 +65,19 @@ const (
 	SecondHalfNotExpiredUnresolved
 )
 
+func ZeroClaimStatuses() map[ClaimStatus]int {
+	return map[ClaimStatus]int{
+		FirstHalfExpiredResolved:       0,
+		FirstHalfExpiredUnresolved:     0,
+		FirstHalfNotExpiredResolved:    0,
+		FirstHalfNotExpiredUnresolved:  0,
+		SecondHalfExpiredResolved:      0,
+		SecondHalfExpiredUnresolved:    0,
+		SecondHalfNotExpiredResolved:   0,
+		SecondHalfNotExpiredUnresolved: 0,
+	}
+}
+
 type HonestActorData struct {
 	PendingClaimCount int
 	ValidClaimCount   int
