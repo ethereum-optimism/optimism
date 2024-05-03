@@ -15,7 +15,6 @@ manage_dependency() {
     "slither")
       script_prefix="slither"
       ;;
-    # Add more dependencies as needed
     *)
       echo "Unknown dependency: $dependency"
       exit 1

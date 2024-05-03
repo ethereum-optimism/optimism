@@ -41,7 +41,8 @@
     "install:slither": "pip3 install slither-analyzer==$(jq -r .slither < versions.json)",
     "print:slither": "slither --version",
     "check:slither": "[[ $(pnpm -s print:slither) = $(jq -r .slither < versions.json) ]] && echo '✓ slither versions match' || (echo '✗ slither version mismatch. Run `pnpm upgrade:slither` to upgrade.' && exit 1)",
-    "upgrade:slither": "jq '.slither = $v' --arg v $(pnpm -s print:slither) <<<$(cat versions.json) > versions.json"
+    "upgrade:slither": "jq '.slither = $v' --arg v $(pnpm -s print:slither) <<<$(cat versions.json) > versions.json",
+    "manage": "bash ./ops/scripts/manage-dependencies.sh"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.23.10",
