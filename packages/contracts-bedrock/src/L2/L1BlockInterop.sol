@@ -37,9 +37,10 @@ contract L1BlockInterop is L1Block {
     ///  10. _dependencySetSize  Size of the interop dependency set.
     ///  11. _dependencySet      Array of chain IDs for the interop dependency set.
     function setL1BlockValuesInterop() external {
+        address depositor = DEPOSITOR_ACCOUNT();
         assembly {
             // Revert if the caller is not the depositor account.
-            if xor(caller(), DEPOSITOR_ACCOUNT) {
+            if xor(caller(), depositor) {
                 mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
