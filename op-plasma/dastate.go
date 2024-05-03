@@ -172,7 +172,7 @@ func (s *State) GetResolvedInput(key []byte) ([]byte, error) {
 // it returns an error to signal that a derivation pipeline reset is required.
 func (s *State) ExpireChallenges(bn uint64) (uint64, error) {
 	var err error
-	for s.activeComms.Len() > 0 && s.activeComms[0].expiresAt <= bn && s.activeComms[0].blockNumber > s.finalized {
+	for s.activeComms.Len() > 0 && s.activeComms[0].expiresAt <= bn && s.activeComms[0].blockNumber >= s.finalized {
 		// move from the active to the expired queue
 		c := heap.Pop(&s.activeComms).(*Commitment)
 		heap.Push(&s.expiredComms, c)
