@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { Setup } from "test/setup/Setup.sol";
 import { Events } from "test/setup/Events.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import "scripts/DeployConfig.s.sol";
 
 /// @title CommonTest
@@ -19,6 +20,7 @@ contract CommonTest is Test, Setup, Events {
 
     bool usePlasmaOverride;
     bool useFaultProofs;
+    address customGasToken;
 
     function setUp() public virtual override {
         alice = makeAddr("alice");
@@ -28,12 +30,15 @@ contract CommonTest is Test, Setup, Events {
 
         Setup.setUp();
 
-        // Override the plasma config after the deploy script initialized the config
+        // Override the config after the deploy script initialized the config
         if (usePlasmaOverride) {
             deploy.cfg().setUsePlasma(true);
         }
         if (useFaultProofs) {
             deploy.cfg().setUseFaultProofs(true);
+        }
+        if (customGasToken != address(0)) {
+            deploy.cfg().setUseCustomGasToken(customGasToken);
         }
 
         vm.etch(address(ffi), vm.getDeployedCode("FFIInterface.sol:FFIInterface"));
@@ -118,5 +123,16 @@ contract CommonTest is Test, Setup, Events {
         }
 
         usePlasmaOverride = true;
+    }
+
+    function enableCustomGasToken(address _token) public {
+        // Check if the system has already been deployed, based off of the heuristic that alice and bob have not been
+        // set by the `setUp` function yet.
+        if (!(alice == address(0) && bob == address(0))) {
+            revert("CommonTest: Cannot enable custom gas token after deployment. Consider overriding `setUp`.");
+        }
+        require(_token != Constants.ETHER);
+
+        customGasToken = _token;
     }
 }
