@@ -12,26 +12,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
+const (
+	// a really large target output size to ensure that the compressors are never full
+	targetOutput_huge = uint64(100_000_000_000)
+	// this target size was determiend by the devnet sepolia batcher's configuration
+	targetOuput_real = uint64(780120)
+)
 
+var (
 	// compressors used in the benchmark
 	rc, _ = compressor.NewRatioCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000_000,
+		TargetOutputSize: targetOutput_huge,
 		ApproxComprRatio: 0.4,
 	})
 	sc, _ = compressor.NewShadowCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000_000,
+		TargetOutputSize: targetOutput_huge,
 	})
 	nc, _ = compressor.NewNonCompressor(compressor.Config{
-		TargetOutputSize: 100_000_000_000,
+		TargetOutputSize: targetOutput_huge,
+	})
+	realsc, _ = compressor.NewShadowCompressor(compressor.Config{
+		TargetOutputSize: targetOuput_real,
 	})
 
-	compressors = map[string]derive.Compressor{
-		"NonCompressor":    nc,
-		"RatioCompressor":  rc,
-		"ShadowCompressor": sc,
+	// compressors used in the benchmark mapped by their name
+	// they come paired with a target output size so span batches can use the target size directly
+	compressors = map[string]compressorAndTarget{
+		"NonCompressor":        {nc, targetOutput_huge},
+		"RatioCompressor":      {rc, targetOutput_huge},
+		"ShadowCompressor":     {sc, targetOutput_huge},
+		"RealShadowCompressor": {realsc, targetOuput_real},
 	}
-
 	// batch types used in the benchmark
 	batchTypes = []uint{
 		derive.SpanBatchType,
@@ -40,6 +51,23 @@ var (
 		//derive.SingularBatchType,
 	}
 )
+
+type compressorAndTarget struct {
+	compressor   derive.Compressor
+	targetOutput uint64
+}
+
+// channelOutByType returns a channel out of the given type as a helper for the benchmarks
+func channelOutByType(batchType uint, compKey string) (derive.ChannelOut, error) {
+	chainID := big.NewInt(333)
+	if batchType == derive.SingularBatchType {
+		return derive.NewSingularChannelOut(compressors[compKey].compressor)
+	}
+	if batchType == derive.SpanBatchType {
+		return derive.NewSpanChannelOut(0, chainID, compressors[compKey].targetOutput)
+	}
+	return nil, fmt.Errorf("unsupported batch type: %d", batchType)
+}
 
 // a test case for the benchmark controls the number of batches and transactions per batch,
 // as well as the batch type and compressor used
@@ -106,21 +134,67 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
-				compressors[tc.compKey].Reset()
-				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
-				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatchBuilder)
+				compressors[tc.compKey].compressor.Reset()
+				cout, _ := channelOutByType(tc.BatchType, tc.compKey)
 				// add all but the final batch to the channel out
 				for i := 0; i < tc.BatchCount-1; i++ {
-					_, err := cout.AddSingularBatch(batches[i], 0)
+					err := cout.AddSingularBatch(batches[i], 0)
 					require.NoError(b, err)
 				}
 				// measure the time to add the final batch
 				b.StartTimer()
 				// add the final batch to the channel out
-				_, err := cout.AddSingularBatch(batches[tc.BatchCount-1], 0)
+				err := cout.AddSingularBatch(batches[tc.BatchCount-1], 0)
 				require.NoError(b, err)
 			}
 		})
+	}
+}
+
+// BenchmarkIncremental fills a channel out incrementally with batches
+// each increment is counted as its own benchmark
+// Hint: use -benchtime=1x to run the benchmarks for a single iteration
+// it is not currently designed to use b.N
+func BenchmarkIncremental(b *testing.B) {
+	chainID := big.NewInt(333)
+	rng := rand.New(rand.NewSource(0x543331))
+	// use the real compressor for this benchmark
+	// use batchCount as the number of batches to add in each benchmark iteration
+	// and use txPerBatch as the number of transactions per batch
+	tcs := []BatchingBenchmarkTC{
+		{derive.SpanBatchType, 5, 1, "RealBlindCompressor"},
+		//{derive.SingularBatchType, 100, 1, "RealShadowCompressor"},
+	}
+	for _, tc := range tcs {
+		cout, err := channelOutByType(tc.BatchType, tc.compKey)
+		if err != nil {
+			b.Fatal(err)
+		}
+		done := false
+		for base := 0; !done; base += tc.BatchCount {
+			rangeName := fmt.Sprintf("Incremental %s: %d-%d", tc.String(), base, base+tc.BatchCount)
+			b.Run(rangeName, func(b *testing.B) {
+				b.StopTimer()
+				// prepare the batches
+				t := time.Now()
+				batches := make([]*derive.SingularBatch, tc.BatchCount)
+				for i := 0; i < tc.BatchCount; i++ {
+					t := t.Add(time.Second)
+					batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
+					// set the timestamp to increase with each batch
+					// to leverage optimizations in the Batch Linked List
+					batches[i].Timestamp = uint64(t.Unix())
+				}
+				b.StartTimer()
+				for i := 0; i < tc.BatchCount; i++ {
+					err := cout.AddSingularBatch(batches[i], 0)
+					if err != nil {
+						done = true
+						return
+					}
+				}
+			})
+		}
 	}
 }
 
@@ -169,13 +243,12 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
-				compressors[tc.compKey].Reset()
-				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
-				cout, _ := derive.NewChannelOut(tc.BatchType, compressors[tc.compKey], spanBatchBuilder)
+				compressors[tc.compKey].compressor.Reset()
+				cout, _ := channelOutByType(tc.BatchType, tc.compKey)
 				b.StartTimer()
 				// add all batches to the channel out
 				for i := 0; i < tc.BatchCount; i++ {
-					_, err := cout.AddSingularBatch(batches[i], 0)
+					err := cout.AddSingularBatch(batches[i], 0)
 					require.NoError(b, err)
 				}
 			}
@@ -219,12 +292,13 @@ func BenchmarkGetRawSpanBatch(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
-				spanBatchBuilder := derive.NewSpanBatchBuilder(0, chainID)
+				spanBatch := derive.NewSpanBatch(uint64(0), chainID)
 				for i := 0; i < tc.BatchCount; i++ {
-					spanBatchBuilder.AppendSingularBatch(batches[i], 0)
+					err := spanBatch.AppendSingularBatch(batches[i], 0)
+					require.NoError(b, err)
 				}
 				b.StartTimer()
-				_, err := spanBatchBuilder.GetRawSpanBatch()
+				_, err := spanBatch.ToRawSpanBatch()
 				require.NoError(b, err)
 			}
 		})

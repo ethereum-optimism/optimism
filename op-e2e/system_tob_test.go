@@ -10,8 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
+	legacybindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -19,6 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/fuzzerutils"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -59,9 +60,9 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	ethPrivKey := cfg.Secrets.SysCfgOwner
 
 	// Bind to the SystemConfig & GasPriceOracle contracts
-	sysconfig, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
+	sysconfig, err := legacybindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
 	require.Nil(t, err)
-	gpoContract, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, l2Seq)
+	gpoContract, err := legacybindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, l2Seq)
 	require.Nil(t, err)
 
 	// Obtain our signer.
@@ -419,7 +420,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			l2Verif := sys.Clients["verifier"]
 			require.NoError(t, err)
 
-			systemConfig, err := bindings.NewSystemConfigCaller(cfg.L1Deployments.SystemConfigProxy, l1Client)
+			systemConfig, err := legacybindings.NewSystemConfigCaller(cfg.L1Deployments.SystemConfigProxy, l1Client)
 			require.NoError(t, err)
 			unsafeBlockSigner, err := systemConfig.UnsafeBlockSigner(nil)
 			require.NoError(t, err)

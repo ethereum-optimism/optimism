@@ -66,7 +66,7 @@ func buildSpanBatches(t *testing.T, parent *eth.L2BlockRef, singularBatches []*S
 	var spanBatches []Batch
 	idx := 0
 	for _, count := range blockCounts {
-		span := NewSpanBatch(singularBatches[idx : idx+count])
+		span := initializedSpanBatch(singularBatches[idx:idx+count], uint64(0), chainId)
 		spanBatches = append(spanBatches, span)
 		idx += count
 	}
@@ -767,7 +767,7 @@ func TestBatchQueueOverlappingSpanBatch(t *testing.T) {
 	var inputBatches []Batch
 	batchSize := 3
 	for i := 0; i < len(expectedOutputBatches)-batchSize; i++ {
-		inputBatches = append(inputBatches, NewSpanBatch(expectedOutputBatches[i:i+batchSize]))
+		inputBatches = append(inputBatches, initializedSpanBatch(expectedOutputBatches[i:i+batchSize], uint64(0), chainId))
 	}
 	inputBatches = append(inputBatches, nil)
 	// inputBatches:
@@ -872,12 +872,12 @@ func TestBatchQueueComplex(t *testing.T) {
 	inputErrors := []error{nil, nil, nil, nil, nil, nil, io.EOF}
 	// batches will be returned by fakeBatchQueueInput
 	inputBatches := []Batch{
-		NewSpanBatch(expectedOutputBatches[0:2]), // [6, 8] - no overlap
-		expectedOutputBatches[2],                 // [10] - no overlap
-		NewSpanBatch(expectedOutputBatches[1:4]), // [8, 10, 12] - overlapped blocks: 8 or 8, 10
-		expectedOutputBatches[4],                 // [14] - no overlap
-		NewSpanBatch(expectedOutputBatches[4:6]), // [14, 16] - overlapped blocks: nothing or 14
-		NewSpanBatch(expectedOutputBatches[6:9]), // [18, 20, 22] - no overlap
+		initializedSpanBatch(expectedOutputBatches[0:2], uint64(0), chainId), // [6, 8] - no overlap
+		expectedOutputBatches[2], // [10] - no overlap
+		initializedSpanBatch(expectedOutputBatches[1:4], uint64(0), chainId), // [8, 10, 12] - overlapped blocks: 8 or 8, 10
+		expectedOutputBatches[4], // [14] - no overlap
+		initializedSpanBatch(expectedOutputBatches[4:6], uint64(0), chainId), // [14, 16] - overlapped blocks: nothing or 14
+		initializedSpanBatch(expectedOutputBatches[6:9], uint64(0), chainId), // [18, 20, 22] - no overlap
 	}
 
 	// Shuffle the order of input batches
@@ -979,7 +979,7 @@ func TestBatchQueueResetSpan(t *testing.T) {
 	}
 
 	input := &fakeBatchQueueInput{
-		batches: []Batch{NewSpanBatch(singularBatches)},
+		batches: []Batch{initializedSpanBatch(singularBatches, uint64(0), chainId)},
 		errors:  []error{nil},
 		origin:  l1[2],
 	}

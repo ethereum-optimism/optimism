@@ -31,6 +31,7 @@ func AtomicEncode(path string, val any) error {
 	if err != nil {
 		return err
 	}
+	defer atomicFile.Close()
 	if err = json.NewEncoder(atomicFile).Encode(val); err != nil {
 		return err
 	}

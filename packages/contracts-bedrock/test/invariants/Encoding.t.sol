@@ -70,7 +70,7 @@ contract Encoding_Invariant is StdInvariant, InvariantTest {
     ///
     ///                   Asserts that a raw versioned nonce can be encoded / decoded
     ///                   to reach the same raw value.
-    function invariant_round_trip_encoding_AToB() external {
+    function invariant_round_trip_encoding_AToB() external view {
         // ASSERTION: The round trip encoding done in testRoundTripAToB(...)
         assertEq(actor.failedRoundtripAToB(), false);
     }
@@ -79,7 +79,7 @@ contract Encoding_Invariant is StdInvariant, InvariantTest {
     ///
     ///                   Asserts that an encoded versioned nonce can always be decoded /
     ///                   re-encoded to reach the same encoded value.
-    function invariant_round_trip_encoding_BToA() external {
+    function invariant_round_trip_encoding_BToA() external view {
         // ASSERTION: The round trip encoding done in testRoundTripBToA should never
         // fail.
         assertEq(actor.failedRoundtripBToA(), false);

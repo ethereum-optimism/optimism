@@ -35,14 +35,13 @@ func (b *BondEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller 
 			recipients[claim.Claimant] = true
 		}
 	}
-
 	recipientAddrs := maps.Keys(recipients)
 	credits, err := caller.GetCredits(ctx, block, recipientAddrs...)
 	if err != nil {
 		return err
 	}
-	if len(credits) != len(recipientAddrs) {
-		return fmt.Errorf("%w, requested %v values but got %v", ErrIncorrectCreditCount, len(recipientAddrs), len(credits))
+	if len(credits) != len(recipients) {
+		return fmt.Errorf("%w, requested %v values but got %v", ErrIncorrectCreditCount, len(recipients), len(credits))
 	}
 	game.Credits = make(map[common.Address]*big.Int)
 	for i, credit := range credits {

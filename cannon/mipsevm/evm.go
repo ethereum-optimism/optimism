@@ -2,8 +2,10 @@ package mipsevm
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -15,19 +17,37 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
-// LoadContracts loads the Cannon contracts, from op-bindings package
+// LoadContracts loads the Cannon contracts, from the contracts package.
 func LoadContracts() (*Contracts, error) {
-	var mips, oracle Contract
-	mips.DeployedBytecode.Object = hexutil.MustDecode(bindings.MIPSDeployedBin)
-	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.PreimageOracleDeployedBin)
+	mips, err := loadContract("../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
+	}
+
+	oracle, err := loadContract("../../packages/contracts-bedrock/forge-artifacts/PreimageOracle.sol/PreimageOracle.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Oracle contract: %w", err)
+	}
+
 	return &Contracts{
-		MIPS:   &mips,
-		Oracle: &oracle,
+		MIPS:   mips,
+		Oracle: oracle,
 	}, nil
+}
+
+func loadContract(path string) (*Contract, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("artifact at %s not found: %w", path, err)
+	}
+
+	contract := Contract{}
+	if err := json.Unmarshal(file, &contract); err != nil {
+		return nil, err
+	}
+	return &contract, nil
 }
 
 type Contract struct {
@@ -35,8 +55,10 @@ type Contract struct {
 		Object    hexutil.Bytes `json:"object"`
 		SourceMap string        `json:"sourceMap"`
 	} `json:"deployedBytecode"`
-
-	// ignore abi,bytecode,etc.
+	Bytecode struct {
+		Object hexutil.Bytes `json:"object"`
+	} `json:"bytecode"`
+	// ignore abi,etc.
 }
 
 type Contracts struct {
@@ -76,9 +98,9 @@ func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	var mipsCtorArgs [32]byte
 	copy(mipsCtorArgs[12:], addrs.Oracle[:])
-	mipsDeploy := append(hexutil.MustDecode(bindings.MIPSMetaData.Bin), mipsCtorArgs[:]...)
+	mipsDeploy := append(hexutil.MustDecode(contracts.MIPS.Bytecode.Object.String()), mipsCtorArgs[:]...)
 	startingGas := uint64(30_000_000)
-	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, big.NewInt(0))
+	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, common.U2560)
 	if err != nil {
 		panic(fmt.Errorf("failed to deploy MIPS contract: %w. took %d gas", err, startingGas-leftOverGas))
 	}

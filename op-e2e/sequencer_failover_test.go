@@ -8,13 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // [Category: Initial Setup]
 // In this test, we test that we can successfully setup a working cluster.
 func TestSequencerFailover_SetupCluster(t *testing.T) {
-	sys, conductors := setupSequencerFailoverTest(t)
-	defer sys.Close()
+	_, conductors, cleanup := setupSequencerFailoverTest(t)
+	defer cleanup()
 
 	require.Equal(t, 3, len(conductors), "Expected 3 conductors")
 	for _, con := range conductors {
@@ -26,8 +27,8 @@ func TestSequencerFailover_SetupCluster(t *testing.T) {
 // In this test, we test all rpcs exposed by conductor.
 func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	ctx := context.Background()
-	sys, conductors := setupSequencerFailoverTest(t)
-	defer sys.Close()
+	sys, conductors, cleanup := setupSequencerFailoverTest(t)
+	defer cleanup()
 
 	// SequencerHealthy, Leader, AddServerAsVoter are used in setup already.
 
@@ -95,14 +96,21 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	// Test AddServerAsNonvoter, do not start a new sequencer just for this purpose, use Sequencer3's rpc to start conductor.
 	// This is fine as this mainly tests conductor's ability to add itself into the raft consensus cluster as a nonvoter.
 	t.Log("Testing AddServerAsNonvoter")
-	nonvoter := setupConductor(
-		t, VerifierName, t.TempDir(),
-		sys.RollupEndpoint(Sequencer3Name),
-		sys.NodeEndpoint(Sequencer3Name),
-		findAvailablePort(t),
-		false,
-		*sys.RollupConfig,
-	)
+	nonvoter, err := retry.Do[*conductor](ctx, maxSetupRetries, retryStrategy, func() (*conductor, error) {
+		return setupConductor(
+			t, VerifierName, t.TempDir(),
+			sys.RollupEndpoint(Sequencer3Name),
+			sys.NodeEndpoint(Sequencer3Name),
+			findAvailablePort(t),
+			false,
+			*sys.RollupConfig,
+		)
+	})
+	require.NoError(t, err)
+	defer func() {
+		err = nonvoter.service.Stop(ctx)
+		require.NoError(t, err)
+	}()
 
 	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint())
 	require.NoError(t, err, "Expected leader to add non-voter")
@@ -140,8 +148,8 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 // [Category: Sequencer Failover]
 // Test that the sequencer can successfully failover to a new sequencer once the active sequencer goes down.
 func TestSequencerFailover_ActiveSequencerDown(t *testing.T) {
-	sys, conductors := setupSequencerFailoverTest(t)
-	defer sys.Close()
+	sys, conductors, cleanup := setupSequencerFailoverTest(t)
+	defer cleanup()
 
 	ctx := context.Background()
 	leaderId, leader := findLeader(t, conductors)

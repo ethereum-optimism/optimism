@@ -6,7 +6,7 @@
   "private": true,
   "engines": {
     "node": ">=16",
-    "pnpm": ">=8"
+    "pnpm": ">=9"
   },
   "scripts": {
     "clean": "pnpm recursive run clean; rm -rf node_modules packages/*/node_modules && echo 'Finished cleaning. Run `pnpm install && pnpm build` from root of repo to rebuild the repo.'",
@@ -69,13 +69,14 @@
     "husky": "^9.0.10",
     "lint-staged": "15.2.0",
     "mocha": "^10.2.0",
-    "nx": "18.1.2",
+    "nx": "18.2.2",
+    "nx-cloud": "latest",
     "nyc": "^15.1.0",
     "prettier": "^2.8.0",
     "rimraf": "^5.0.5",
     "ts-mocha": "^10.0.0",
-    "typescript": "^5.3.3",
-    "nx-cloud": "latest"
+    "typescript": "^5.4.5",
+    "wait-on": "^7.2.0"
   },
   "dependencies": {
     "@changesets/cli": "^2.27.1"

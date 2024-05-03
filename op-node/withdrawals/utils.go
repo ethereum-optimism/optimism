@@ -14,9 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 )
 
 var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"))

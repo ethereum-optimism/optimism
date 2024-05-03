@@ -169,7 +169,8 @@ func TestSinglePeerSync(t *testing.T) {
 	defer cl.Close()
 
 	// request to start syncing between 10 and 20
-	require.NoError(t, cl.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(20)))
+	_, err = cl.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(20))
+	require.NoError(t, err)
 
 	// and wait for the sync results to come in (in reverse order)
 	for i := uint64(19); i > 10; i-- {
@@ -255,7 +256,8 @@ func TestMultiPeerSync(t *testing.T) {
 	defer clC.Close()
 
 	// request to start syncing between 10 and 90
-	require.NoError(t, clA.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(90)))
+	_, err = clA.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(90))
+	require.NoError(t, err)
 
 	// With such large range to request we are going to hit the rate-limits of B and C,
 	// but that means we'll balance the work between the peers.
@@ -270,13 +272,18 @@ func TestMultiPeerSync(t *testing.T) {
 	// now see if B can sync a range, and fill the gap with a re-request
 	bl25, _ := payloads.getPayload(25) // temporarily remove it from the available payloads. This will create a gap
 	payloads.deletePayload(25)
-	require.NoError(t, clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(30)))
+	rangeReqId, err := clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(30))
+
+	require.NoError(t, err)
+	require.True(t, clB.activeRangeRequests.get(rangeReqId), "expecting range request to be active")
+
 	for i := uint64(29); i > 25; i-- {
 		p := <-recvB
 		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.ExecutionPayload.BlockHash, p.ExecutionPayload.BlockHash, "expecting the correct payload")
 	}
+
 	// Wait for the request for block 25 to be made
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFunc()
@@ -291,12 +298,12 @@ func TestMultiPeerSync(t *testing.T) {
 			t.Fatal("Did not request block 25 in a reasonable time")
 		}
 	}
+
 	// the request for 25 should fail. See:
 	// server: WARN  peer requested unknown block by number   num=25
 	// client: WARN  failed p2p sync request    num=25 err="peer failed to serve request with code 1"
 	require.Zero(t, len(recvB), "there is a gap, should not see other payloads yet")
-	// Add back the block
-	payloads.addPayload(bl25)
+
 	// race-condition fix: the request for 25 is expected to error, but is marked as complete in the peer-loop.
 	// But the re-request checks the status in the main loop, and it may thus look like it's still in-flight,
 	// and thus not run the new request.
@@ -306,13 +313,18 @@ func TestMultiPeerSync(t *testing.T) {
 	for {
 		isInFlight, err := clB.isInFlight(ctx, 25)
 		require.NoError(t, err)
+		time.Sleep(time.Second)
 		if !isInFlight {
 			break
 		}
-		time.Sleep(time.Second)
 	}
+	require.False(t, clB.activeRangeRequests.get(rangeReqId), "expecting range request to be cancelled")
+
+	// Add back the block
+	payloads.addPayload(bl25)
 	// And request a range again, 25 is there now, and 21-24 should follow quickly (some may already have been fetched and wait in quarantine)
-	require.NoError(t, clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(26)))
+	_, err = clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(26))
+	require.NoError(t, err)
 	for i := uint64(25); i > 20; i-- {
 		p := <-recvB
 		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))

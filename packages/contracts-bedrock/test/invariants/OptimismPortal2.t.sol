@@ -15,7 +15,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Types } from "src/libraries/Types.sol";
 
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
@@ -127,8 +127,8 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
         // Warp beyond the finalization period for the dispute game and resolve it.
-        vm.warp(block.timestamp + game.gameDuration().raw() + 1 seconds);
-        game.resolveClaim(0);
+        vm.warp(block.timestamp + (game.maxClockDuration().raw() * 2) + 1 seconds);
+        game.resolveClaim(0, 0);
         game.resolve();
 
         // Fund the portal so that we can withdraw ETH.
@@ -157,7 +157,7 @@ contract OptimismPortal2_Deposit_Invariant is CommonTest {
     ///
     ///                   All deposits, barring creation transactions and transactions
     ///                   sent to `address(0)`, should always succeed.
-    function invariant_deposit_completes() external {
+    function invariant_deposit_completes() external view {
         assertEq(actor.failedToComplete(), false);
     }
 }

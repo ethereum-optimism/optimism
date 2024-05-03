@@ -132,6 +132,19 @@ target "op-heartbeat" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-heartbeat:${tag}"]
 }
 
+target "da-server" {
+  dockerfile = "Dockerfile"
+  context = "./op-plasma"
+  args = {
+    OP_STACK_GO_BUILDER = "op-stack-go"
+  }
+  contexts = {
+    op-stack-go: "target:op-stack-go"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/da-server:${tag}"]
+}
+
 target "op-program" {
   dockerfile = "Dockerfile"
   context = "./op-program"

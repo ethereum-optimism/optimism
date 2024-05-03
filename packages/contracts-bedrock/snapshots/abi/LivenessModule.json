@@ -22,6 +22,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "uint256",
+        "name": "_thresholdPercentage",
+        "type": "uint256"
+      },
+      {
         "internalType": "address",
         "name": "_fallbackOwner",
         "type": "address"
@@ -70,7 +75,7 @@
         "type": "uint256"
       }
     ],
-    "name": "get75PercentThreshold",
+    "name": "getRequiredThreshold",
     "outputs": [
       {
         "internalType": "uint256",
@@ -78,7 +83,7 @@
         "type": "uint256"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -153,6 +158,19 @@
   },
   {
     "inputs": [],
+    "name": "thresholdPercentage",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "thresholdPercentage_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "version",
     "outputs": [
       {
@@ -163,5 +181,24 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "OwnershipTransferredToFallback",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "RemovedOwner",
+    "type": "event"
   }
 ]

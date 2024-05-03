@@ -10,9 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/holiman/uint256"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
@@ -20,11 +19,14 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var HundredETH = big.NewInt(0).Mul(big.NewInt(100), big.NewInt(params.Ether))
@@ -335,7 +337,7 @@ func StoragePatch(patch io.Reader, address common.Address) HeadFn {
 
 func SetBalance(addr common.Address, amount *big.Int) HeadFn {
 	return func(_ *types.Header, headState *state.StateDB) error {
-		headState.SetBalance(addr, amount)
+		headState.SetBalance(addr, uint256.MustFromBig(amount))
 		return nil
 	}
 }

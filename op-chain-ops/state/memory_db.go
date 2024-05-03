@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -45,9 +47,9 @@ func (db *MemoryStateDB) Genesis() *core.Genesis {
 	return db.genesis
 }
 
-// GetAccount is a getter for a core.GenesisAccount found in
+// GetAccount is a getter for a types.Account found in
 // the core.Genesis
-func (db *MemoryStateDB) GetAccount(addr common.Address) *core.GenesisAccount {
+func (db *MemoryStateDB) GetAccount(addr common.Address) *types.Account {
 	db.rw.RLock()
 	defer db.rw.RUnlock()
 
@@ -69,7 +71,7 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 
 func (db *MemoryStateDB) createAccount(addr common.Address) {
 	if _, ok := db.genesis.Alloc[addr]; !ok {
-		db.genesis.Alloc[addr] = core.GenesisAccount{
+		db.genesis.Alloc[addr] = types.Account{
 			Code:    []byte{},
 			Storage: make(map[common.Hash]common.Hash),
 			Balance: big.NewInt(0),
@@ -78,7 +80,7 @@ func (db *MemoryStateDB) createAccount(addr common.Address) {
 	}
 }
 
-func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {
+func (db *MemoryStateDB) SubBalance(addr common.Address, amount *uint256.Int) {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
@@ -89,11 +91,11 @@ func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {
 	if account.Balance.Sign() == 0 {
 		return
 	}
-	account.Balance = new(big.Int).Sub(account.Balance, amount)
+	account.Balance.Sub(account.Balance, amount.ToBig())
 	db.genesis.Alloc[addr] = account
 }
 
-func (db *MemoryStateDB) AddBalance(addr common.Address, amount *big.Int) {
+func (db *MemoryStateDB) AddBalance(addr common.Address, amount *uint256.Int) {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
@@ -101,19 +103,19 @@ func (db *MemoryStateDB) AddBalance(addr common.Address, amount *big.Int) {
 	if !ok {
 		panic(fmt.Sprintf("%s not in state", addr))
 	}
-	account.Balance = new(big.Int).Add(account.Balance, amount)
+	account.Balance.Add(account.Balance, amount.ToBig())
 	db.genesis.Alloc[addr] = account
 }
 
-func (db *MemoryStateDB) GetBalance(addr common.Address) *big.Int {
+func (db *MemoryStateDB) GetBalance(addr common.Address) *uint256.Int {
 	db.rw.RLock()
 	defer db.rw.RUnlock()
 
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {
-		return common.Big0
+		return common.U2560
 	}
-	return account.Balance
+	return uint256.MustFromBig(account.Balance)
 }
 
 func (db *MemoryStateDB) GetNonce(addr common.Address) uint64 {

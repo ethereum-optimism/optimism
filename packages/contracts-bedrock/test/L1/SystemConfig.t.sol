@@ -44,7 +44,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     }
 
     /// @dev Tests that constructor sets the correct values.
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() external view {
         SystemConfig impl = SystemConfig(systemConfigImpl);
         assertEq(impl.owner(), address(0xdEaD));
         assertEq(impl.overhead(), 0);
@@ -65,13 +65,13 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
         assertEq(address(impl.l1ERC721Bridge()), address(0));
         assertEq(address(impl.l1StandardBridge()), address(0));
-        assertEq(address(impl.l2OutputOracle()), address(0));
+        assertEq(address(impl.disputeGameFactory()), address(0));
         assertEq(address(impl.optimismPortal()), address(0));
         assertEq(address(impl.optimismMintableERC20Factory()), address(0));
     }
 
     /// @dev Tests that initailization sets the correct values.
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
         assertEq(systemConfig.overhead(), overhead);
         assertEq(systemConfig.scalar(), scalar);
@@ -95,7 +95,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(systemConfig.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
         assertEq(address(systemConfig.l1ERC721Bridge()), address(l1ERC721Bridge));
         assertEq(address(systemConfig.l1StandardBridge()), address(l1StandardBridge));
-        assertEq(address(systemConfig.l2OutputOracle()), address(l2OutputOracle));
+        assertEq(address(systemConfig.disputeGameFactory()), address(disputeGameFactory));
         assertEq(address(systemConfig.optimismPortal()), address(optimismPortal));
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
     }
@@ -126,7 +126,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                l2OutputOracle: address(0),
+                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             })
@@ -155,7 +155,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                l2OutputOracle: address(0),
+                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             })
@@ -185,7 +185,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                l2OutputOracle: address(0),
+                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             })

@@ -8,6 +8,8 @@
     "package.json",
     "src/abi/IGnosisSafe.0.8.19.json",
     "src/abi/OptimismPortal.json",
-    "src/**/*"
+    "src/**/*",
+    "contrib/**/*",
+    "internal/**/*"
   ]
 }

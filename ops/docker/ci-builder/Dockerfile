@@ -28,14 +28,13 @@ COPY ./versions.json ./versions.json
 COPY ./ops/scripts/install-foundry.sh ./install-foundry.sh
 
 RUN curl -L https://foundry.paradigm.xyz | bash
-RUN source $HOME/.profile && \
-    ./install-foundry.sh && \
-    cargo install svm-rs
+RUN source $HOME/.profile && ./install-foundry.sh
 
 RUN strip /root/.foundry/bin/forge && \
   strip /root/.foundry/bin/cast && \
   strip /root/.foundry/bin/anvil && \
-  strip /root/.cargo/bin/svm
+  strip /root/.cargo/bin/svm && \
+  strip /root/.cargo/bin/just
 
 FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
@@ -55,16 +54,18 @@ COPY ./versions.json ./versions.json
 RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(jq -r .abigen < versions.json)
 RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(jq -r .geth < versions.json)
 
-RUN go install gotest.tools/gotestsum@latest
+RUN go install gotest.tools/gotestsum@v1.11.0
 RUN go install github.com/vektra/mockery/v2@v2.28.1
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
+RUN go install github.com/mikefarah/yq/v4@v4.43.1
 
 # Strip binaries to reduce size
 RUN strip /go/bin/gotestsum && \
   strip /go/bin/mockery && \
   strip /go/bin/golangci-lint && \
   strip /go/bin/abigen && \
-  strip /go/bin/geth
+  strip /go/bin/geth && \
+  strip /go/bin/yq
 
 FROM --platform=linux/amd64 debian:bullseye-slim as base-builder
 
@@ -82,12 +83,14 @@ COPY --from=go-build /go/bin/mockery /go/bin/mockery
 COPY --from=go-build /go/bin/golangci-lint /go/bin/golangci-lint
 COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
 COPY --from=go-build /go/bin/geth /usr/local/bin/geth
+COPY --from=go-build /go/bin/yq /go/bin/yq
 
 # copy tools
 COPY --from=rust-build /root/.foundry/bin/forge /usr/local/bin/forge
 COPY --from=rust-build /root/.foundry/bin/cast /usr/local/bin/cast
 COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
 COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
+COPY --from=rust-build /root/.cargo/bin/just /usr/local/bin/just
 
 COPY .nvmrc .nvmrc
 COPY ./versions.json ./versions.json
@@ -96,7 +99,7 @@ ENV NODE_MAJOR=20
 
 RUN /bin/sh -c set -eux; \
   apt-get update; \
-  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential ca-certificates jq gnupg binutils-mips-linux-gnu python3 python3-pip; \
+  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential ca-certificates jq gnupg binutils-mips-linux-gnu python3 python3-pip python3-setuptools; \
   mkdir -p /etc/apt/keyrings; \
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \

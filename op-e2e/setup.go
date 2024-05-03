@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	geth_eth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -464,14 +465,14 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l1Genesis.Alloc[addr]; ok {
-			l1Genesis.Alloc[addr] = core.GenesisAccount{
+			l1Genesis.Alloc[addr] = types.Account{
 				Code:    existing.Code,
 				Storage: existing.Storage,
 				Balance: amount,
 				Nonce:   existing.Nonce,
 			}
 		} else {
-			l1Genesis.Alloc[addr] = core.GenesisAccount{
+			l1Genesis.Alloc[addr] = types.Account{
 				Balance: amount,
 				Nonce:   0,
 			}
@@ -479,21 +480,28 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
+	var allocsMode genesis.L2AllocsMode
+	allocsMode = genesis.L2AllocsDelta
+	if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
+		allocsMode = genesis.L2AllocsEcotone
+	}
+	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
+	l2Allocs := config.L2Allocs(allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
 	if err != nil {
 		return nil, err
 	}
 	sys.L2GenesisCfg = l2Genesis
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l2Genesis.Alloc[addr]; ok {
-			l2Genesis.Alloc[addr] = core.GenesisAccount{
+			l2Genesis.Alloc[addr] = types.Account{
 				Code:    existing.Code,
 				Storage: existing.Storage,
 				Balance: amount,
 				Nonce:   existing.Nonce,
 			}
 		} else {
-			l2Genesis.Alloc[addr] = core.GenesisAccount{
+			l2Genesis.Alloc[addr] = types.Account{
 				Balance: amount,
 				Nonce:   0,
 			}

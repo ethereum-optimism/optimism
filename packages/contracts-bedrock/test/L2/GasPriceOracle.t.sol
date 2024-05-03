@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { OutputMode } from "scripts/L2Genesis.s.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
@@ -37,7 +38,10 @@ contract GasPriceOracle_Test is CommonTest {
 contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
+        // The gasPriceOracle tests rely on an L2 genesis that is not past Ecotone.
+        l2OutputMode = OutputMode.LOCAL_DELTA;
         super.setUp();
+        assertEq(gasPriceOracle.isEcotone(), false);
 
         vm.prank(depositor);
         l1Block.setL1BlockValues({
@@ -53,7 +57,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
     }
 
     /// @dev Tests that `l1BaseFee` is set correctly.
-    function test_l1BaseFee_succeeds() external {
+    function test_l1BaseFee_succeeds() external view {
         assertEq(gasPriceOracle.l1BaseFee(), baseFee);
     }
 
@@ -72,17 +76,17 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
     }
 
     /// @dev Tests that `scalar` is set correctly.
-    function test_scalar_succeeds() external {
+    function test_scalar_succeeds() external view {
         assertEq(gasPriceOracle.scalar(), l1FeeScalar);
     }
 
     /// @dev Tests that `overhead` is set correctly.
-    function test_overhead_succeeds() external {
+    function test_overhead_succeeds() external view {
         assertEq(gasPriceOracle.overhead(), l1FeeOverhead);
     }
 
     /// @dev Tests that `decimals` is set correctly.
-    function test_decimals_succeeds() external {
+    function test_decimals_succeeds() external view {
         assertEq(gasPriceOracle.decimals(), 6);
         assertEq(gasPriceOracle.DECIMALS(), 6);
     }
@@ -109,7 +113,9 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
 contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
+        l2OutputMode = OutputMode.LOCAL_LATEST; // activate ecotone
         super.setUp();
+        assertEq(gasPriceOracle.isEcotone(), true);
 
         bytes memory calldataPacked = Encoding.encodeSetL1BlockValuesEcotone(
             baseFeeScalar, blobBaseFeeScalar, sequenceNumber, timestamp, number, baseFee, blobBaseFee, hash, batcherHash
@@ -119,9 +125,6 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(calldataPacked);
         require(success, "Function call failed");
-
-        vm.prank(depositor);
-        gasPriceOracle.setEcotone();
     }
 
     /// @dev Tests that `setEcotone` is only callable by the depositor.
@@ -157,33 +160,33 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
     }
 
     /// @dev Tests that `l1BaseFee` is set correctly.
-    function test_l1BaseFee_succeeds() external {
+    function test_l1BaseFee_succeeds() external view {
         assertEq(gasPriceOracle.l1BaseFee(), baseFee);
     }
 
     /// @dev Tests that `blobBaseFee` is set correctly.
-    function test_blobBaseFee_succeeds() external {
+    function test_blobBaseFee_succeeds() external view {
         assertEq(gasPriceOracle.blobBaseFee(), blobBaseFee);
     }
 
     /// @dev Tests that `baseFeeScalar` is set correctly.
-    function test_baseFeeScalar_succeeds() external {
+    function test_baseFeeScalar_succeeds() external view {
         assertEq(gasPriceOracle.baseFeeScalar(), baseFeeScalar);
     }
 
     /// @dev Tests that `blobBaseFeeScalar` is set correctly.
-    function test_blobBaseFeeScalar_succeeds() external {
+    function test_blobBaseFeeScalar_succeeds() external view {
         assertEq(gasPriceOracle.blobBaseFeeScalar(), blobBaseFeeScalar);
     }
 
     /// @dev Tests that `decimals` is set correctly.
-    function test_decimals_succeeds() external {
+    function test_decimals_succeeds() external view {
         assertEq(gasPriceOracle.decimals(), 6);
         assertEq(gasPriceOracle.DECIMALS(), 6);
     }
 
     /// @dev Tests that `getL1GasUsed` and `getL1Fee` return expected values
-    function test_getL1Fee_succeeds() external {
+    function test_getL1Fee_succeeds() external view {
         bytes memory data = hex"0000010203"; // 2 zero bytes, 3 non-zero bytes
         // (2*4) + (3*16) + (68*16) == 1144
         uint256 gas = gasPriceOracle.getL1GasUsed(data);

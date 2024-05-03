@@ -18,6 +18,7 @@ contract CommonTest is Test, Setup, Events {
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
     bool usePlasmaOverride;
+    bool useFaultProofs;
 
     function setUp() public virtual override {
         alice = makeAddr("alice");
@@ -30,6 +31,9 @@ contract CommonTest is Test, Setup, Events {
         // Override the plasma config after the deploy script initialized the config
         if (usePlasmaOverride) {
             deploy.cfg().setUsePlasma(true);
+        }
+        if (useFaultProofs) {
+            deploy.cfg().setUseFaultProofs(true);
         }
 
         vm.etch(address(ffi), vm.getDeployedCode("FFIInterface.sol:FFIInterface"));
@@ -103,13 +107,7 @@ contract CommonTest is Test, Setup, Events {
             revert("CommonTest: Cannot enable fault proofs after deployment. Consider overriding `setUp`.");
         }
 
-        // Set `useFaultProofs` to `true` in the deploy config so that the deploy script deploys the Fault Proof system.
-        // This directly overrides the deploy config's `useFaultProofs` value, if the test requires it.
-        vm.store(
-            address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))),
-            USE_FAULT_PROOFS_SLOT,
-            bytes32(uint256(1))
-        );
+        useFaultProofs = true;
     }
 
     function enablePlasma() public {

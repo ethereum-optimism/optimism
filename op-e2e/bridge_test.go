@@ -48,7 +48,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 
 	// Get some WETH
 	opts.Value = big.NewInt(params.Ether)
-	tx, err = WETH9.Fallback(opts, []byte{})
+	tx, err = WETH9.Deposit(opts)
 	require.NoError(t, err)
 	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err)

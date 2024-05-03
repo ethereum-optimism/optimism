@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "src/libraries/DisputeTypes.sol";
-import "src/libraries/DisputeErrors.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 import { Test } from "forge-std/Test.sol";
 import { FaultDisputeGame_Init, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
@@ -22,15 +22,18 @@ contract AnchorStateRegistry_Init is FaultDisputeGame_Init {
 
 contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_Init {
     /// @dev Tests that initialization is successful.
-    function test_initialize_succeeds() public {
+    function test_initialize_succeeds() public view {
         (Hash cannonRoot, uint256 cannonL2BlockNumber) = anchorStateRegistry.anchors(GameTypes.CANNON);
         (Hash permissionedCannonRoot, uint256 permissionedCannonL2BlockNumber) =
             anchorStateRegistry.anchors(GameTypes.PERMISSIONED_CANNON);
+        (Hash asteriscRoot, uint256 asteriscL2BlockNumber) = anchorStateRegistry.anchors(GameTypes.ASTERISC);
         (Hash alphabetRoot, uint256 alphabetL2BlockNumber) = anchorStateRegistry.anchors(GameTypes.ALPHABET);
         assertEq(cannonRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
         assertEq(cannonL2BlockNumber, 0);
         assertEq(permissionedCannonRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
         assertEq(permissionedCannonL2BlockNumber, 0);
+        assertEq(asteriscRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
+        assertEq(asteriscL2BlockNumber, 0);
         assertEq(alphabetRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
         assertEq(alphabetL2BlockNumber, 0);
     }

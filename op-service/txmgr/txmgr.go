@@ -323,7 +323,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 // data.
 func MakeSidecar(blobs []*eth.Blob) (*types.BlobTxSidecar, []common.Hash, error) {
 	sidecar := &types.BlobTxSidecar{}
-	blobHashes := []common.Hash{}
+	blobHashes := make([]common.Hash, 0, len(blobs))
 	for i, blob := range blobs {
 		rawBlob := *blob.KZGBlob()
 		sidecar.Blobs = append(sidecar.Blobs, rawBlob)

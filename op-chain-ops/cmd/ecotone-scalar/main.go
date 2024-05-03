@@ -1,12 +1,13 @@
 package main
 
 import (
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"math"
 	"math/big"
 	"os"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 func main() {
@@ -26,15 +27,15 @@ func main() {
 		os.Exit(2)
 	}
 
-	var n [32]byte
-	n[0] = 1 // version
-	binary.BigEndian.PutUint32(n[32-4:], uint32(scalar))
-	binary.BigEndian.PutUint32(n[32-8:], uint32(blobScalar))
-	i := new(big.Int).SetBytes(n[:])
+	encoded := eth.EncodeScalar(eth.EcostoneScalars{
+		BlobBaseFeeScalar: uint32(blobScalar),
+		BaseFeeScalar:     uint32(scalar),
+	})
+	i := new(big.Int).SetBytes(encoded[:])
 
 	fmt.Println("# base fee scalar     :", scalar)
 	fmt.Println("# blob base fee scalar:", blobScalar)
-	fmt.Printf("# v1 hex encoding  : 0x%x\n", n[:])
+	fmt.Printf("# v1 hex encoding  : 0x%x\n", encoded[:])
 	fmt.Println("# uint value for the 'scalar' parameter in SystemConfigProxy.setGasConfig():")
 	fmt.Println(i)
 }

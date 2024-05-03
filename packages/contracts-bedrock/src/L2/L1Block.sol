@@ -49,8 +49,10 @@ contract L1Block is ISemver {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.3.0
+    function version() public pure virtual returns (string memory) {
+        return "1.3.0";
+    }
 
     /// @custom:legacy
     /// @notice Updates the L1 block values.
@@ -105,7 +107,6 @@ contract L1Block is ISemver {
                 mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
                 revert(0x1C, 0x04) // returns the stored 4-byte selector from above
             }
-            let data := calldataload(4)
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
             sstore(sequenceNumber.slot, shr(128, calldataload(4)))
             // number (uint64) and timestamp (uint64)

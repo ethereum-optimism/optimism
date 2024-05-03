@@ -19,6 +19,20 @@ import (
 
 const Namespace = "op_dispute_mon"
 
+type CreditExpectation uint8
+
+const (
+	// Max Duration reached
+	CreditBelowMaxDuration CreditExpectation = iota
+	CreditEqualMaxDuration
+	CreditAboveMaxDuration
+
+	// Max Duration not reached
+	CreditBelowNonMaxDuration
+	CreditEqualNonMaxDuration
+	CreditAboveNonMaxDuration
+)
+
 type GameAgreementStatus uint8
 
 const (
@@ -35,15 +49,65 @@ const (
 	DisagreeChallengerWins
 )
 
+type ClaimStatus uint8
+
+const (
+	// Claims where the game is in the first half
+	FirstHalfExpiredResolved ClaimStatus = iota
+	FirstHalfExpiredUnresolved
+	FirstHalfNotExpiredResolved
+	FirstHalfNotExpiredUnresolved
+
+	// Claims where the game is in the second half
+	SecondHalfExpiredResolved
+	SecondHalfExpiredUnresolved
+	SecondHalfNotExpiredResolved
+	SecondHalfNotExpiredUnresolved
+)
+
+func ZeroClaimStatuses() map[ClaimStatus]int {
+	return map[ClaimStatus]int{
+		FirstHalfExpiredResolved:       0,
+		FirstHalfExpiredUnresolved:     0,
+		FirstHalfNotExpiredResolved:    0,
+		FirstHalfNotExpiredUnresolved:  0,
+		SecondHalfExpiredResolved:      0,
+		SecondHalfExpiredUnresolved:    0,
+		SecondHalfNotExpiredResolved:   0,
+		SecondHalfNotExpiredUnresolved: 0,
+	}
+}
+
+type HonestActorData struct {
+	PendingClaimCount int
+	ValidClaimCount   int
+	InvalidClaimCount int
+	PendingBonds      *big.Int
+	LostBonds         *big.Int
+	WonBonds          *big.Int
+}
+
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
-	RecordClaimResolutionDelayMax(delay float64)
+	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
+
+	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)
+
+	RecordCredit(expectation CreditExpectation, count int)
+
+	RecordClaims(status ClaimStatus, count int)
+
+	RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int)
 
 	RecordOutputFetchTime(timestamp float64)
 
 	RecordGameAgreement(status GameAgreementStatus, count int)
+
+	RecordLatestInvalidProposal(timestamp uint64)
+
+	RecordIgnoredGames(count int)
 
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
 
@@ -62,14 +126,25 @@ type Metrics struct {
 	*opmetrics.CacheMetrics
 	*contractMetrics.ContractMetrics
 
+	resolutionStatus prometheus.GaugeVec
+
+	claims prometheus.GaugeVec
+
+	honestActorClaims prometheus.GaugeVec
+	honestActorBonds  prometheus.GaugeVec
+
+	withdrawalRequests prometheus.GaugeVec
+
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
+	credits prometheus.GaugeVec
+
 	lastOutputFetch prometheus.Gauge
 
-	claimResolutionDelayMax prometheus.Gauge
-
-	gamesAgreement prometheus.GaugeVec
+	gamesAgreement        prometheus.GaugeVec
+	latestInvalidProposal prometheus.Gauge
+	ignoredGames          prometheus.Gauge
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -110,10 +185,54 @@ func NewMetrics() *Metrics {
 			Name:      "last_output_fetch",
 			Help:      "Timestamp of the last output fetch",
 		}),
-		claimResolutionDelayMax: factory.NewGauge(prometheus.GaugeOpts{
+		honestActorClaims: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
-			Name:      "claim_resolution_delay_max",
-			Help:      "Maximum claim resolution delay in seconds",
+			Name:      "honest_actor_claims",
+			Help:      "Total number of claims from an honest actor",
+		}, []string{
+			"honest_actor_address",
+			"state",
+		}),
+		honestActorBonds: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "honest_actor_bonds",
+			Help:      "Sum of bonds posted, won and lost by an honest actor",
+		}, []string{
+			"honest_actor_address",
+			"state",
+		}),
+		resolutionStatus: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "resolution_status",
+			Help:      "Number of games categorised by whether the game is complete and whether the maximum duration has been reached",
+		}, []string{
+			"completion",
+			"max_duration",
+		}),
+		credits: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "credits",
+			Help:      "Cumulative credits",
+		}, []string{
+			"credit",
+			"max_duration",
+		}),
+		claims: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "claims",
+			Help:      "Claims broken down by whether they were resolved, whether the clock expired, and the game time period",
+		}, []string{
+			"resolved",
+			"clock",
+			"game_time_period",
+		}),
+		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "withdrawal_requests",
+			Help:      "Number of withdrawal requests categorised by the source DelayedWETH contract and whether the withdrawal request amount matches or diverges from its fault dispute game credits",
+		}, []string{
+			"delayedWETH",
+			"credits",
 		}),
 		gamesAgreement: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -124,6 +243,16 @@ func NewMetrics() *Metrics {
 			"completion",
 			"result_correctness",
 			"root_agreement",
+		}),
+		latestInvalidProposal: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "latest_invalid_proposal",
+			Help:      "Timestamp of the most recent game with an invalid root claim in unix seconds",
+		}),
+		ignoredGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "ignored_games",
+			Help:      "Number of games present in the game window but ignored via config",
 		}),
 		requiredCollateral: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -172,8 +301,82 @@ func (m *Metrics) RecordUp() {
 	m.up.Set(1)
 }
 
-func (m *Metrics) RecordClaimResolutionDelayMax(delay float64) {
-	m.claimResolutionDelayMax.Set(delay)
+func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorData) {
+	m.honestActorClaims.WithLabelValues(address.Hex(), "pending").Set(float64(stats.PendingClaimCount))
+	m.honestActorClaims.WithLabelValues(address.Hex(), "invalid").Set(float64(stats.InvalidClaimCount))
+	m.honestActorClaims.WithLabelValues(address.Hex(), "valid").Set(float64(stats.ValidClaimCount))
+
+	m.honestActorBonds.WithLabelValues(address.Hex(), "pending").Set(weiToEther(stats.PendingBonds))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "lost").Set(weiToEther(stats.LostBonds))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.WonBonds))
+}
+
+func (m *Metrics) RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int) {
+	completion := "complete"
+	if !complete {
+		completion = "in_progress"
+	}
+	maxDuration := "reached"
+	if !maxDurationReached {
+		maxDuration = "not_reached"
+	}
+	m.resolutionStatus.WithLabelValues(completion, maxDuration).Set(float64(count))
+}
+
+func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {
+	asLabels := func(expectation CreditExpectation) []string {
+		switch expectation {
+		case CreditBelowMaxDuration:
+			return []string{"below", "max_duration"}
+		case CreditEqualMaxDuration:
+			return []string{"expected", "max_duration"}
+		case CreditAboveMaxDuration:
+			return []string{"above", "max_duration"}
+		case CreditBelowNonMaxDuration:
+			return []string{"below", "non_max_duration"}
+		case CreditEqualNonMaxDuration:
+			return []string{"expected", "non_max_duration"}
+		case CreditAboveNonMaxDuration:
+			return []string{"above", "non_max_duration"}
+		default:
+			panic(fmt.Errorf("unknown credit expectation: %v", expectation))
+		}
+	}
+	m.credits.WithLabelValues(asLabels(expectation)...).Set(float64(count))
+}
+
+func (m *Metrics) RecordClaims(status ClaimStatus, count int) {
+	asLabels := func(status ClaimStatus) []string {
+		switch status {
+		case FirstHalfExpiredResolved:
+			return []string{"resolved", "expired", "first_half"}
+		case FirstHalfExpiredUnresolved:
+			return []string{"unresolved", "expired", "first_half"}
+		case FirstHalfNotExpiredResolved:
+			return []string{"resolved", "not_expired", "first_half"}
+		case FirstHalfNotExpiredUnresolved:
+			return []string{"unresolved", "not_expired", "first_half"}
+		case SecondHalfExpiredResolved:
+			return []string{"resolved", "expired", "second_half"}
+		case SecondHalfExpiredUnresolved:
+			return []string{"unresolved", "expired", "second_half"}
+		case SecondHalfNotExpiredResolved:
+			return []string{"resolved", "not_expired", "second_half"}
+		case SecondHalfNotExpiredUnresolved:
+			return []string{"unresolved", "not_expired", "second_half"}
+		default:
+			panic(fmt.Errorf("unknown claim status: %v", status))
+		}
+	}
+	m.claims.WithLabelValues(asLabels(status)...).Set(float64(count))
+}
+
+func (m *Metrics) RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int) {
+	credits := "matching"
+	if !matches {
+		credits = "divergent"
+	}
+	m.withdrawalRequests.WithLabelValues(delayedWeth.Hex(), credits).Set(float64(count))
 }
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
@@ -186,6 +389,14 @@ func (m *Metrics) RecordOutputFetchTime(timestamp float64) {
 
 func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {
 	m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(count))
+}
+
+func (m *Metrics) RecordLatestInvalidProposal(timestamp uint64) {
+	m.latestInvalidProposal.Set(float64(timestamp))
+}
+
+func (m *Metrics) RecordIgnoredGames(count int) {
+	m.ignoredGames.Set(float64(count))
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
@@ -238,6 +449,7 @@ func labelValuesFor(status GameAgreementStatus) []string {
 		return asStrings("agree_challenger_wins", !inProgress, !correct, agree)
 	case DisagreeChallengerWins:
 		return asStrings("disagree_challenger_wins", !inProgress, correct, !agree)
+
 	default:
 		panic(fmt.Errorf("unknown game agreement status: %v", status))
 	}
