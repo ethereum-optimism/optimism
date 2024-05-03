@@ -119,7 +119,7 @@ func (c *ClaimMonitor) checkGameClaims(
 			if clockExpired {
 				// SAFETY: accumulatedTime must be larger than or equal to maxChessTime since clockExpired
 				overflow := accumulatedTime - maxChessTime
-				if overflow >= 10 * time.Minute {
+				if overflow >= 10*time.Minute {
 					c.logger.Error("Claim unresolved 10 minutes after clock expiration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex)
 				} else {
 					c.logger.Warn("Claim unresolved after clock expiration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex)
