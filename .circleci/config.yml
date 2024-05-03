@@ -435,8 +435,50 @@ jobs:
                       --signer-logging-level="INFO"\
                       --attestor-key-id="//cloudkms.googleapis.com/v1/projects/$ATTESTOR_PROJECT_NAME/locations/global/keyRings/$ATTESTOR_NAME-key-ring/cryptoKeys/$ATTESTOR_NAME-key/cryptoKeyVersions/1"
 
+  # Verify newly published images (built on AMD machine) will run on ARM
+  check-cross-platform:
+    docker:
+      - image: cimg/base:current
+    resource_class: arm.medium
+    parameters:
+      registry:
+        description: Docker registry
+        type: string
+        default: "us-docker.pkg.dev"
+      repo:
+        description: Docker repo
+        type: string
+        default: "oplabs-tools-artifacts/images"
+      op_component:
+        description: "Name of op-stack component (e.g. op-node)"
+        type: string
+        default: ""
+      docker_tag:
+        description: "Tag of docker image"
+        type: string
+        default: "<<pipeline.git.revision>>"
+    steps:
+      - setup_remote_docker
+      - run:
+          name: "Verify Image Platform"
+          command: |
+            image_name="<<parameters.registry>>/<<parameters.repo>>/<<parameters.op_component>>:<<parameters.docker_tag>>"
+            echo "Retrieving Docker image manifest: $image_name"
+            MANIFEST=$(docker manifest inspect $image_name)
 
-
+            echo "Verifying 'linux/arm64' is supported..."
+            SUPPORTED_PLATFORM=$(echo "$MANIFEST" | jq -r '.manifests[] | select(.platform.architecture == "arm64" and .platform.os == "linux")')
+            echo $SUPPORT_PLATFORM
+            if [ -z "$SUPPORTED_PLATFORM" ]; then
+              echo "Platform 'linux/arm64' not supported by this image"
+              exit 1
+            fi
+      - run:
+          name: "Pull and run docker image"
+          command: |
+            image_name="<<parameters.registry>>/<<parameters.repo>>/<<parameters.op_component>>:<<parameters.docker_tag>>"
+            docker pull $image_name || exit 1
+            docker run $image_name <<parameters.op_component>> --version || exit 1
 
   contracts-bedrock-coverage:
     docker:
@@ -1931,6 +1973,11 @@ workflows:
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-heartbeat-cross-platform
+          op_component: op-heartbeat
+          requires:
+            - op-heartbeat-release
       - docker-build:
           name: op-node-docker-release
           filters:
@@ -1946,6 +1993,11 @@ workflows:
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-node-cross-platform
+          op_component: op-node
+          requires:
+            - op-node-docker-release
       - docker-build:
           name: op-batcher-docker-release
           filters:
@@ -1961,6 +2013,11 @@ workflows:
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-batcher-cross-platform
+          op_component: op-batcher
+          requires:
+            - op-batcher-docker-release
       - docker-build:
           name: op-proposer-docker-release
           filters:
@@ -1976,6 +2033,11 @@ workflows:
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-proposer-cross-platform
+          op_component: op-proposer
+          requires:
+            - op-proposer-docker-release
       - docker-build:
           name: op-challenger-docker-release
           filters:
@@ -1991,6 +2053,11 @@ workflows:
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-challenger-cross-platform
+          op_component: op-challenger
+          requires:
+            - op-challenger-docker-release
       - docker-build:
           name: op-dispute-mon-docker-release
           filters:
@@ -2006,6 +2073,11 @@ workflows:
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-dispute-mon-cross-platform
+          op_component: op-dispute-mon
+          requires:
+            - op-dispute-mon-docker-release
       - docker-build:
           name: op-conductor-docker-release
           filters:
@@ -2021,6 +2093,11 @@ workflows:
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-conductor-cross-platform
+          op_component: op-conductor
+          requires:
+            - op-conductor-docker-release
       - docker-build:
           name: da-server-docker-release
           filters:
@@ -2036,6 +2113,11 @@ workflows:
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: da-server-cross-platform
+          op_component: da-server
+          requires:
+            - da-server-docker-release
       - docker-build:
           name: op-ufm-docker-release
           filters:
