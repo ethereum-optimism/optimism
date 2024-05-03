@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	ZlibCM8           = 8
-	ZlibCM15          = 15
-	BrotliVersionByte = 0x01
+	ZlibCM8  = 8
+	ZlibCM15 = 15
 )
 
 // A Channel is a set of batches that are split into at least one, but possibly multiple frames.
@@ -163,6 +162,8 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		return nil, err
 	}
 
+	fmt.Println(compressionType[0])
+
 	var reader func(io.Reader) (io.Reader, error)
 	// For zlib, the last 4 bits must be either 8 or 15 (both are reserved value)
 	if compressionType[0]&0x0F == ZlibCM8 || compressionType[0]&0x0F == ZlibCM15 {
@@ -170,10 +171,11 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 			return zlib.NewReader(r)
 		}
 		// If the bits equal to 1, then it is a brotli reader
-	} else if compressionType[0] == BrotliVersionByte {
+	} else if compressionType[0] == ChannelVersionBrotli {
 		// discard the first byte
 		_, err := bufReader.Discard(1)
 		if err != nil {
+			fmt.Println("CHECK HERE")
 			return nil, err
 		}
 		reader = func(r io.Reader) (io.Reader, error) {
@@ -186,6 +188,7 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	// Setup decompressor stage + RLP reader
 	zr, err := reader(bufReader)
 	if err != nil {
+		fmt.Println("FAILED READER")
 		return nil, err
 	}
 	rlpReader := rlp.NewStream(zr, MaxRLPBytesPerChannel)
@@ -193,6 +196,7 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	return func() (*BatchData, error) {
 		var batchData BatchData
 		if err = rlpReader.Decode(&batchData); err != nil {
+			fmt.Println("DECODE ERROR")
 			return nil, err
 		}
 		return &batchData, nil

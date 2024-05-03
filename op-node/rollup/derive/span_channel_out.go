@@ -2,29 +2,17 @@ package derive
 
 import (
 	"bytes"
-	"compress/zlib"
+
 	"crypto/rand"
 	"fmt"
 	"io"
 	"math/big"
 
-	"github.com/andybalholm/brotli"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
-
-const (
-	ChannelVersionBrotli byte = 0x01
-)
-
-type CompressorInterface interface {
-	Write([]byte) (int, error)
-	Flush() error
-	Close() error
-	Reset(io.Writer)
-}
 
 type SpanChannelOut struct {
 	id ChannelID
@@ -38,12 +26,8 @@ type SpanChannelOut struct {
 	// lastCompressedRLPSize tracks the *uncompressed* size of the last RLP buffer that was compressed
 	// it is used to measure the growth of the RLP buffer when adding a new batch to optimize compression
 	lastCompressedRLPSize int
-	// compressed contains compressed data for making output frames
-	compressed *bytes.Buffer
 	// the compressor for the channel
-	compressor CompressorInterface
-	// the compression algo used
-	compressionAlgo CompressionAlgo
+	compressor *SpanChannelCompressor
 	// target is the target size of the compressed data
 	target uint64
 	// closed indicates if the channel is closed
@@ -65,32 +49,19 @@ func (co *SpanChannelOut) setRandomID() error {
 
 func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
-		id:              ChannelID{},
-		frame:           0,
-		spanBatch:       NewSpanBatch(genesisTimestamp, chainID),
-		rlp:             [2]*bytes.Buffer{{}, {}},
-		compressed:      &bytes.Buffer{},
-		target:          targetOutputSize,
-		compressionAlgo: compressionAlgo,
+		id:        ChannelID{},
+		frame:     0,
+		spanBatch: NewSpanBatch(genesisTimestamp, chainID),
+		rlp:       [2]*bytes.Buffer{{}, {}},
+		target:    targetOutputSize,
 	}
 	var err error
 	if err = c.setRandomID(); err != nil {
 		return nil, err
 	}
 
-	if compressionAlgo == Zlib {
-		if c.compressor, err = zlib.NewWriterLevel(c.compressed, zlib.BestCompression); err != nil {
-			return nil, err
-		}
-	} else if compressionAlgo == Brotli {
-		// setting the version bit of 1
-		c.compressed = bytes.NewBuffer([]byte{ChannelVersionBrotli})
-		c.compressor = brotli.NewWriterLevel(
-			c.compressed,
-			10,
-		)
-	} else {
-		return nil, fmt.Errorf("unsupported compression algorithm: %s", compressionAlgo)
+	if c.compressor, err = NewSpanChannelCompressor(compressionAlgo); err != nil {
+		return nil, err
 	}
 
 	return c, nil
@@ -103,11 +74,7 @@ func (co *SpanChannelOut) Reset() error {
 	co.rlp[0].Reset()
 	co.rlp[1].Reset()
 	co.lastCompressedRLPSize = 0
-	co.compressed.Reset()
-	if co.compressionAlgo == Brotli {
-		co.compressed.WriteByte(ChannelVersionBrotli)
-	}
-	co.compressor.Reset(co.compressed)
+	co.compressor.Reset()
 	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
 	// setting the new randomID is the only part of the reset that can fail
 	return co.setRandomID()
@@ -184,7 +151,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	// if the compressed data *plus* the new rlp data is under the target size, return early
 	// this optimizes out cases where the compressor will obviously come in under the target size
 	rlpGrowth := co.activeRLP().Len() - co.lastCompressedRLPSize
-	if uint64(co.compressed.Len()+rlpGrowth) < co.target {
+	if uint64(co.compressor.GetCompressedLen()+rlpGrowth) < co.target {
 		return nil
 	}
 
@@ -217,12 +184,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 // compress compresses the active RLP buffer and checks if the compressed data is over the target size.
 // it resets all the compression buffers because Span Batches aren't meant to be compressed incrementally.
 func (co *SpanChannelOut) compress() error {
-	co.compressed.Reset()
-	if co.compressionAlgo == Brotli {
-		// reset but still need the version bit of 1
-		co.compressed.WriteByte(ChannelVersionBrotli)
-	}
-	co.compressor.Reset(co.compressed)
+	co.compressor.Reset()
 	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {
 		return err
 	}
@@ -242,7 +204,7 @@ func (co *SpanChannelOut) InputBytes() int {
 // Span Channel Out does not provide early output, so this will always be 0 until the channel is closed or full
 func (co *SpanChannelOut) ReadyBytes() int {
 	if co.closed || co.FullErr() != nil {
-		return co.compressed.Len()
+		return co.compressor.GetCompressedLen()
 	}
 	return 0
 }
@@ -260,7 +222,7 @@ func (co *SpanChannelOut) checkFull() {
 	if co.full != nil {
 		return
 	}
-	if uint64(co.compressed.Len()) >= co.target {
+	if uint64(co.compressor.GetCompressedLen()) >= co.target {
 		co.full = ErrCompressorFull
 	}
 }
@@ -299,7 +261,7 @@ func (co *SpanChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, 
 
 	f := createEmptyFrame(co.id, co.frame, co.ReadyBytes(), co.closed, maxSize)
 
-	if _, err := io.ReadFull(co.compressed, f.Data); err != nil {
+	if _, err := io.ReadFull(co.compressor.GetCompressed(), f.Data); err != nil {
 		return 0, err
 	}
 
