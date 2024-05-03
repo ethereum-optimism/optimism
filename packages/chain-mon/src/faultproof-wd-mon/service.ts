@@ -246,7 +246,7 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
       const disputeGame = disputeGameData.disputeGame
       const disputeGameAddress = disputeGame.address
       const isGameBlacklisted =
-        this.state.portal.dispudeGameBlacklist(disputeGameAddress)
+        this.state.portal.disputeGameBlacklist(disputeGameAddress)
 
       if (isGameBlacklisted) {
         this.state.invalidProposalWithdrawals.splice(i, 1)
