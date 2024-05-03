@@ -31,7 +31,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
                         l1CrossDomainMessenger: address(0),
                         l1ERC721Bridge: address(0),
                         l1StandardBridge: address(0),
-                        l2OutputOracle: address(0),
+                        disputeGameFactory: address(0),
                         optimismPortal: address(0),
                         optimismMintableERC20Factory: address(0)
                     })
@@ -64,7 +64,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
 
     /// @custom:invariant The gas limit of the `SystemConfig` contract can never be lower
     ///                   than the hard-coded lower bound.
-    function invariant_gasLimitLowerBound() external {
+    function invariant_gasLimitLowerBound() external view {
         assertTrue(config.gasLimit() >= config.minimumGasLimit());
     }
 }

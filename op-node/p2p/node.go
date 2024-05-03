@@ -176,7 +176,8 @@ func (n *NodeP2P) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef)
 	if !n.AltSyncEnabled() {
 		return fmt.Errorf("cannot request range %s - %s, req-resp sync is not enabled", start, end)
 	}
-	return n.syncCl.RequestL2Range(ctx, start, end)
+	_, err := n.syncCl.RequestL2Range(ctx, start, end)
+	return err
 }
 
 func (n *NodeP2P) Host() host.Host {

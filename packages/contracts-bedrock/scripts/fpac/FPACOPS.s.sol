@@ -6,7 +6,7 @@ import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { AnchorStateRegistry, IAnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 import "scripts/Deploy.s.sol";
 
 /// @notice Deploys the Fault Proof Alpha Chad contracts.
@@ -151,7 +151,7 @@ contract FPACOPS is Deploy, StdAssertions {
     }
 
     /// @notice Checks that the deployed system is configured correctly.
-    function postDeployAssertions(address _proxyAdmin, address _systemOwnerSafe) internal {
+    function postDeployAssertions(address _proxyAdmin, address _systemOwnerSafe) internal view {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal2 = mustGetAddress("OptimismPortal2");
 
@@ -177,21 +177,6 @@ contract FPACOPS is Deploy, StdAssertions {
         MIPS mips = MIPS(mustGetAddress("Mips"));
         assertEq(address(mips.oracle()), address(oracle));
 
-        // Check the FaultDisputeGame configuration.
-        FaultDisputeGame gameImpl = FaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
-        assertEq(gameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
-        assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
-        assertEq(gameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
-        assertEq(gameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
-
-        // Check the security override yoke configuration.
-        PermissionedDisputeGame soyGameImpl =
-            PermissionedDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON))));
-        assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
-        assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
-        assertEq(soyGameImpl.gameDuration().raw(), cfg.faultGameMaxDuration());
-        assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
-
         // Check the AnchorStateRegistry configuration.
         AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
         (Hash root1, uint256 l2BlockNumber1) = asr.anchors(GameTypes.CANNON);
@@ -200,6 +185,31 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(root2.raw(), cfg.faultGameGenesisOutputRoot());
         assertEq(l2BlockNumber1, cfg.faultGameGenesisBlock());
         assertEq(l2BlockNumber2, cfg.faultGameGenesisBlock());
+
+        // Check the FaultDisputeGame configuration.
+        FaultDisputeGame gameImpl = FaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
+        assertEq(gameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
+        assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
+        assertEq(gameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
+        assertEq(gameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
+        assertEq(gameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
+        assertEq(address(gameImpl.weth()), wethProxyAddr);
+        assertEq(address(gameImpl.anchorStateRegistry()), address(asr));
+        assertEq(address(gameImpl.vm()), address(mips));
+
+        // Check the security override yoke configuration.
+        PermissionedDisputeGame soyGameImpl =
+            PermissionedDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON))));
+        assertEq(soyGameImpl.proposer(), cfg.l2OutputOracleProposer());
+        assertEq(soyGameImpl.challenger(), cfg.l2OutputOracleChallenger());
+        assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
+        assertEq(soyGameImpl.splitDepth(), cfg.faultGameSplitDepth());
+        assertEq(soyGameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
+        assertEq(soyGameImpl.maxClockDuration().raw(), cfg.faultGameMaxClockDuration());
+        assertEq(soyGameImpl.absolutePrestate().raw(), bytes32(cfg.faultGameAbsolutePrestate()));
+        assertEq(address(soyGameImpl.weth()), wethProxyAddr);
+        assertEq(address(soyGameImpl.anchorStateRegistry()), address(asr));
+        assertEq(address(soyGameImpl.vm()), address(mips));
     }
 
     /// @notice Prints a review of the fault proof configuration section of the deploy config.
@@ -209,13 +219,14 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("    1. Absolute Prestate: %x", cfg.faultGameAbsolutePrestate());
         console.log("    2. Max Depth: %d", cfg.faultGameMaxDepth());
         console.log("    3. Output / Execution split Depth: %d", cfg.faultGameSplitDepth());
-        console.log("    4. Game Duration (seconds): %d", cfg.faultGameMaxDuration());
-        console.log("    5. L2 Genesis block number: %d", cfg.faultGameGenesisBlock());
-        console.log("    6. L2 Genesis output root: %x", uint256(cfg.faultGameGenesisOutputRoot()));
-        console.log("    7. Proof Maturity Delay (seconds): ", cfg.proofMaturityDelaySeconds());
-        console.log("    8. Dispute Game Finality Delay (seconds): ", cfg.disputeGameFinalityDelaySeconds());
-        console.log("    9. Respected Game Type: ", cfg.respectedGameType());
-        console.log("   10. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
-        console.log("   11. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
+        console.log("    4. Clock Extension (seconds): %d", cfg.faultGameClockExtension());
+        console.log("    5. Max Clock Duration (seconds): %d", cfg.faultGameMaxClockDuration());
+        console.log("    6. L2 Genesis block number: %d", cfg.faultGameGenesisBlock());
+        console.log("    7. L2 Genesis output root: %x", uint256(cfg.faultGameGenesisOutputRoot()));
+        console.log("    8. Proof Maturity Delay (seconds): ", cfg.proofMaturityDelaySeconds());
+        console.log("    9. Dispute Game Finality Delay (seconds): ", cfg.disputeGameFinalityDelaySeconds());
+        console.log("   10. Respected Game Type: ", cfg.respectedGameType());
+        console.log("   11. Preimage Oracle Min Proposal Size (bytes): ", cfg.preimageOracleMinProposalSize());
+        console.log("   12. Preimage Oracle Challenge Period (seconds): ", cfg.preimageOracleChallengePeriod());
     }
 }

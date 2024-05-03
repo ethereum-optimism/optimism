@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
@@ -17,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -48,6 +48,18 @@ var (
 	ErrUnsupportedKeyType   = errors.New("unsupported preimage key type")
 )
 
+// preimageOracleLeaf matches the contract representation of a large preimage leaf
+type preimageOracleLeaf struct {
+	Input           []byte
+	Index           *big.Int
+	StateCommitment [32]byte
+}
+
+// libKeccakStateMatrix matches the contract representation of a keccak state matrix
+type libKeccakStateMatrix struct {
+	State [25]uint64
+}
+
 // PreimageOracleContract is a binding that works with contracts implementing the IPreimageOracle interface
 type PreimageOracleContract struct {
 	addr        common.Address
@@ -62,26 +74,23 @@ type PreimageOracleContract struct {
 	minBondSizeLPP atomic.Uint64
 }
 
-// toPreimageOracleLeaf converts a Leaf to the contract [bindings.PreimageOracleLeaf] type.
-func toPreimageOracleLeaf(l keccakTypes.Leaf) bindings.PreimageOracleLeaf {
-	return bindings.PreimageOracleLeaf{
+// toPreimageOracleLeaf converts a Leaf to the contract format.
+func toPreimageOracleLeaf(l keccakTypes.Leaf) preimageOracleLeaf {
+	return preimageOracleLeaf{
 		Input:           l.Input[:],
 		Index:           new(big.Int).SetUint64(l.Index),
 		StateCommitment: l.StateCommitment,
 	}
 }
 
-func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller) (*PreimageOracleContract, error) {
-	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load preimage oracle ABI: %w", err)
-	}
+func NewPreimageOracleContract(addr common.Address, caller *batching.MultiCaller) *PreimageOracleContract {
+	oracleAbi := snapshots.LoadPreimageOracleABI()
 
 	return &PreimageOracleContract{
 		addr:        addr,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(oracleAbi, addr),
-	}, nil
+	}
 }
 
 func (c *PreimageOracleContract) Addr() common.Address {
@@ -192,8 +201,8 @@ func (c *PreimageOracleContract) Squeeze(
 	return call.ToTxCandidate()
 }
 
-func abiEncodeSnapshot(packedState keccakTypes.StateSnapshot) bindings.LibKeccakStateMatrix {
-	return bindings.LibKeccakStateMatrix{State: packedState}
+func abiEncodeSnapshot(packedState keccakTypes.StateSnapshot) libKeccakStateMatrix {
+	return libKeccakStateMatrix{State: packedState}
 }
 
 func (c *PreimageOracleContract) GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {

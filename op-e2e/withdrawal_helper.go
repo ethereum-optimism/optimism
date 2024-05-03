@@ -7,14 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
+	legacybindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -197,14 +198,14 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		require.Nil(t, err)
 		require.NotNil(t, game, "withdrawal should be proven")
 
-		proxy, err := bindings.NewFaultDisputeGame(game.DisputeGameProxy, l1Client)
+		proxy, err := legacybindings.NewFaultDisputeGame(game.DisputeGameProxy, l1Client)
 		require.Nil(t, err)
 
-		expiry, err := proxy.GameDuration(&bind.CallOpts{})
+		expiry, err := proxy.MaxClockDuration(&bind.CallOpts{})
 		require.Nil(t, err)
 
 		time.Sleep(time.Duration(expiry) * time.Second)
-		resolveClaimTx, err := proxy.ResolveClaim(opts, common.Big0)
+		resolveClaimTx, err := proxy.ResolveClaim(opts, common.Big0, common.Big0)
 		require.Nil(t, err)
 
 		resolveClaimReceipt, err = wait.ForReceiptOK(ctx, l1Client, resolveClaimTx.Hash())

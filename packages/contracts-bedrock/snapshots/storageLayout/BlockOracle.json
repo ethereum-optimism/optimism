@@ -1,9 +1,0 @@
-[
-  {
-    "bytes": "32",
-    "label": "blocks",
-    "offset": 0,
-    "slot": "0",
-    "type": "mapping(uint256 => struct BlockOracle.BlockInfo)"
-  }
-]

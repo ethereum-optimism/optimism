@@ -75,7 +75,7 @@ func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 	return n.dr.SequencerActive(ctx)
 }
 
-// PostUnsafePayload is a special API that allow posting an unsafe payload to the L2 derivation pipeline.
+// PostUnsafePayload is a special API that allows posting an unsafe payload to the L2 derivation pipeline.
 // It should only be used by op-conductor for sequencer failover scenarios.
 // TODO(ethereum-optimism/optimism#9064): op-conductor Dencun changes.
 func (n *adminAPI) PostUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {

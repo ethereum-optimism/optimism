@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/stretchr/testify/require"
 
@@ -86,8 +87,8 @@ type SetupData struct {
 // These allocations override existing allocations per account,
 // i.e. the allocations are merged with AllocParams having priority.
 type AllocParams struct {
-	L1Alloc          core.GenesisAlloc
-	L2Alloc          core.GenesisAlloc
+	L1Alloc          types.GenesisAlloc
+	L2Alloc          types.GenesisAlloc
 	PrefundTestUsers bool
 }
 
@@ -111,7 +112,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	require.NoError(t, err, "failed to create l1 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
-			l1Genesis.Alloc[addr] = core.GenesisAccount{
+			l1Genesis.Alloc[addr] = types.Account{
 				Balance: Ether(1e12),
 			}
 		}
@@ -122,11 +123,17 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l1Block)
+	var allocsMode genesis.L2AllocsMode
+	allocsMode = genesis.L2AllocsDelta
+	if ecotoneTime := deployConf.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
+		allocsMode = genesis.L2AllocsEcotone
+	}
+	l2Allocs := config.L2Allocs(allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block)
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
-			l2Genesis.Alloc[addr] = core.GenesisAccount{
+			l2Genesis.Alloc[addr] = types.Account{
 				Balance: Ether(1e12),
 			}
 		}
@@ -188,7 +195,7 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 	return eth.SystemConfig{
 		BatcherAddr: deployConfig.BatchSenderAddress,
 		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleOverhead))),
-		Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleScalar))),
+		Scalar:      eth.Bytes32(deployConfig.FeeScalar()),
 		GasLimit:    uint64(deployConfig.L2GenesisBlockGasLimit),
 	}
 }

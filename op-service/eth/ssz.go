@@ -319,6 +319,9 @@ func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32
 		if withdrawalsOffset < transactionsOffset {
 			return ErrBadWithdrawalsOffset
 		}
+		if withdrawalsOffset > scope {
+			return fmt.Errorf("withdrawals offset is too large: %d", withdrawalsOffset)
+		}
 	}
 
 	if version == BlockV3 {
@@ -345,10 +348,6 @@ func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32
 	payload.Transactions = txs
 
 	if version.HasWithdrawals() {
-		if withdrawalsOffset > scope {
-			return fmt.Errorf("withdrawals offset is too large: %d", withdrawalsOffset)
-		}
-
 		withdrawals, err := unmarshalWithdrawals(buf[withdrawalsOffset:])
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal withdrawals list: %w", err)

@@ -45,7 +45,7 @@ contract AddressAliasHelper_AddressAliasing_Invariant is StdInvariant, Invariant
     ///                   Asserts that an address that has been aliased with
     ///                   `applyL1ToL2Alias` can always be unaliased with
     ///                   `undoL1ToL2Alias`.
-    function invariant_round_trip_aliasing() external {
+    function invariant_round_trip_aliasing() external view {
         // ASSERTION: The round trip aliasing done in testRoundTrip(...) should never fail.
         assertEq(actor.failedRoundtrip(), false);
     }

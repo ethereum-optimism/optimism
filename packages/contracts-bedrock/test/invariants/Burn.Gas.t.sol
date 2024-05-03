@@ -63,7 +63,7 @@ contract Burn_BurnGas_Invariant is StdInvariant, InvariantTest {
     ///
     ///                   Asserts that when `Burn.gas(uint256)` is called, it always burns
     ///                   at least the amount of gas passed to the function.
-    function invariant_burn_gas() external {
+    function invariant_burn_gas() external view {
         // ASSERTION: The amount burned should always match the amount passed exactly
         assertEq(actor.failedGasBurn(), false);
     }

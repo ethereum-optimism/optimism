@@ -35,6 +35,8 @@ export enum L2ChainID {
   BASE_MAINNET = 8453,
   ZORA_GOERLI = 999,
   ZORA_MAINNET = 7777777,
+  MODE_SEPOLIA = 919,
+  MODE_MAINNET = 34443,
 }
 
 /**
@@ -53,6 +55,7 @@ export interface OEL1Contracts {
   // FPAC
   OptimismPortal2?: Contract
   DisputeGameFactory?: Contract
+  FaultDisputeGame?: Contract
 }
 
 /**

@@ -22,11 +22,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	rip7212Precompile = common.HexToAddress("0x0000000000000000000000000000000000000100")
+	invalid7212Data   = []byte{0x00}
+	// This is a valid hash, r, s, x, y params for RIP-7212 taken from:
+	// https://gist.github.com/ulerdogan/8f1714895e23a54147fc529ea30517eb
+	valid7212Data = common.FromHex("4cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4da73bd4903f0ce3b639bbbf6e8e80d16931ff4bcf5993d58468e8fb19086e8cac36dbcd03009df8c59286b162af3bd7fcc0450c9aa81be5d10d312af6c66b1d604aebd3099c618202fcfe16ae7770b0c49ab5eadf74b754204a3bb6060e44eff37618b065f9832de4ca6ca971a7a1adc826d0f7c00181a5fb2ddf79ae00b4e10e")
+)
+
 // TestMissingGasLimit tests that op-geth cannot build a block without gas limit while optimism is active in the chain config.
 func TestMissingGasLimit(t *testing.T) {
 	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.FundDevAccounts = false
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	opGeth, err := NewOpGeth(t, ctx, &cfg)
@@ -72,17 +79,19 @@ func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 func TestInvalidDepositInFCU(t *testing.T) {
 	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.FundDevAccounts = false
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	opGeth, err := NewOpGeth(t, ctx, &cfg)
 	require.NoError(t, err)
 	defer opGeth.Close()
 
-	// Create a deposit from alice that will always fail (not enough funds)
-	fromAddr := cfg.Secrets.Addresses().Alice
+	// Create a deposit from a new account that will always fail (not enough funds)
+	fromKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	fromAddr := crypto.PubkeyToAddress(fromKey.PublicKey)
 	balance, err := opGeth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
+	t.Logf("alice balance: %d, %s", balance, fromAddr)
 	require.Equal(t, 0, balance.Cmp(common.Big0))
 
 	badDepositTx := types.NewTx(&types.DepositTx{
@@ -98,7 +107,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	_, err = opGeth.AddL2Block(ctx, badDepositTx)
 	require.NoError(t, err)
 
-	// Deposit tx was included, but Alice still shouldn't have any ETH
+	// Deposit tx was included, but our account still shouldn't have any ETH
 	balance, err = opGeth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 	require.Equal(t, 0, balance.Cmp(common.Big0))
@@ -1011,6 +1020,111 @@ func TestEcotone(t *testing.T) {
 			receipt, err := opGeth.L2Client.TransactionReceipt(ctx, tstoreTxn.Hash())
 			require.NoError(t, err)
 			assert.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+		})
+	}
+}
+
+func TestPreFjord(t *testing.T) {
+	futureTimestamp := hexutil.Uint64(4)
+
+	tests := []struct {
+		name      string
+		fjordTime *hexutil.Uint64
+	}{
+		{name: "FjordNotScheduled"},
+		{name: "FjordNotYetActive", fjordTime: &futureTimestamp},
+	}
+	for _, test := range tests {
+		test := test
+
+		t.Run(fmt.Sprintf("RIP7212_%s", test.name), func(t *testing.T) {
+			InitParallel(t)
+			cfg := DefaultSystemConfig(t)
+			s := hexutil.Uint64(0)
+			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &s
+			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &s
+			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &s
+			cfg.DeployConfig.L2GenesisFjordTimeOffset = test.fjordTime
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			opGeth, err := NewOpGeth(t, ctx, &cfg)
+			require.NoError(t, err)
+			defer opGeth.Close()
+
+			// valid request pre-fjord returns empty response
+			response, err := opGeth.L2Client.CallContract(ctx, ethereum.CallMsg{
+				To:   &rip7212Precompile,
+				Data: valid7212Data,
+			}, nil)
+
+			require.NoError(t, err)
+			require.Equal(t, []byte{}, response, "should return empty response pre-fjord for valid signature")
+
+			// invalid request returns returns empty response
+			response, err = opGeth.L2Client.CallContract(ctx, ethereum.CallMsg{
+				To:   &rip7212Precompile,
+				Data: invalid7212Data,
+			}, nil)
+
+			require.NoError(t, err)
+			require.Equal(t, []byte{}, response, "should return empty response for invalid signature")
+		})
+	}
+}
+
+func TestFjord(t *testing.T) {
+	tests := []struct {
+		name          string
+		fjordTime     hexutil.Uint64
+		activateFjord func(ctx context.Context, opGeth *OpGeth)
+	}{
+		{name: "ActivateAtGenesis", fjordTime: 0, activateFjord: func(ctx context.Context, opGeth *OpGeth) {}},
+		{name: "ActivateAfterGenesis", fjordTime: 2, activateFjord: func(ctx context.Context, opGeth *OpGeth) {
+			//	Adding this block advances us to the fork time.
+			_, err := opGeth.AddL2Block(ctx)
+			require.NoError(t, err)
+		}},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("RIP7212_%s", test.name), func(t *testing.T) {
+			InitParallel(t)
+			cfg := DefaultSystemConfig(t)
+			s := hexutil.Uint64(0)
+			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &s
+			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &s
+			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &s
+			cfg.DeployConfig.L2GenesisFjordTimeOffset = &test.fjordTime
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			opGeth, err := NewOpGeth(t, ctx, &cfg)
+			require.NoError(t, err)
+			defer opGeth.Close()
+
+			test.activateFjord(ctx, opGeth)
+
+			// valid request returns one
+			response, err := opGeth.L2Client.CallContract(ctx, ethereum.CallMsg{
+				To:   &rip7212Precompile,
+				Data: valid7212Data,
+			}, nil)
+
+			require.NoError(t, err)
+			require.Equal(t, common.LeftPadBytes([]byte{1}, 32), response, "should return 1 for valid signature")
+
+			// invalid request returns empty response, this is how the spec denotes an error.
+			response, err = opGeth.L2Client.CallContract(ctx, ethereum.CallMsg{
+				To:   &rip7212Precompile,
+				Data: invalid7212Data,
+			}, nil)
+
+			require.NoError(t, err)
+			require.Equal(t, []byte{}, response, "should return empty response for invalid signature")
 		})
 	}
 }

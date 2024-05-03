@@ -128,6 +128,7 @@ func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 	termColorHandler := func(w io.Writer) slog.Handler {
 		return log.NewTerminalHandler(w, color)
 	}
+	logfmtHandler := func(w io.Writer) slog.Handler { return log.LogfmtHandlerWithLevel(w, log.LevelTrace) }
 	switch ft {
 	case FormatJSON:
 		return log.JSONHandler
@@ -135,12 +136,12 @@ func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 		if term.IsTerminal(int(os.Stdout.Fd())) {
 			return termColorHandler
 		} else {
-			return log.LogfmtHandler
+			return logfmtHandler
 		}
 	case FormatTerminal:
 		return termColorHandler
 	case FormatLogFmt:
-		return log.LogfmtHandler
+		return logfmtHandler
 	default:
 		panic(fmt.Errorf("failed to create slog.Handler factory for format-type=%q and color=%v", ft, color))
 	}

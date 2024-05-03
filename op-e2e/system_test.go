@@ -7,11 +7,10 @@ import (
 	"math/big"
 	"os"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,12 +27,12 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
-	gethutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -267,10 +266,10 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	require.Nil(t, err, "Waiting for blob tx on L1")
 	// end sending blob-containing txns on l1
 	l2Client := sys.Clients["sequencer"]
-	finalizedBlock, err := gethutils.WaitForL1OriginOnL2(sys.RollupConfig, blockContainsBlob.BlockNumber.Uint64(), l2Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	finalizedBlock, err := geth.WaitForL1OriginOnL2(sys.RollupConfig, blockContainsBlob.BlockNumber.Uint64(), l2Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L1 origin of blob tx on L2")
 	finalizationTimeout := 30 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
-	_, err = gethutils.WaitForBlockToBeSafe(finalizedBlock.Header().Number, l2Client, finalizationTimeout)
+	_, err = geth.WaitForBlockToBeSafe(finalizedBlock.Header().Number, l2Client, finalizationTimeout)
 	require.Nil(t, err, "Waiting for safety of L2 block")
 }
 
@@ -1004,10 +1003,10 @@ func TestL1InfoContract(t *testing.T) {
 			BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
 		}
 		if sys.RollupConfig.IsEcotone(b.Time()) && !sys.RollupConfig.IsEcotoneActivationBlock(b.Time()) {
-			blobBaseFeeScalar, baseFeeScalar, err := sys.RollupConfig.Genesis.SystemConfig.EcotoneScalars()
+			scalars, err := sys.RollupConfig.Genesis.SystemConfig.EcotoneScalars()
 			require.NoError(t, err)
-			l1blocks[h].BlobBaseFeeScalar = blobBaseFeeScalar
-			l1blocks[h].BaseFeeScalar = baseFeeScalar
+			l1blocks[h].BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
+			l1blocks[h].BaseFeeScalar = scalars.BaseFeeScalar
 			if excess := b.ExcessBlobGas(); excess != nil {
 				l1blocks[h].BlobBaseFee = eip4844.CalcBlobFee(*excess)
 			} else {
@@ -1222,6 +1221,10 @@ func testFees(t *testing.T, cfg SystemConfig) {
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
 	l1 := sys.Clients["l1"]
+
+	// Wait for first block after genesis. The genesis block has zero L1Block values and will throw off the GPO checks
+	_, err = geth.WaitForBlock(big.NewInt(1), l2Verif, time.Minute)
+	require.NoError(t, err)
 
 	config := sys.L2Genesis().Config
 

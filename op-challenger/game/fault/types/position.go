@@ -82,9 +82,13 @@ func (p Position) lshIndex(amount Depth) *big.Int {
 
 // TraceIndex calculates the what the index of the claim value would be inside the trace.
 // It is equivalent to going right until the final depth has been reached.
+// Note: this method will panic if maxDepth < p.depth
 func (p Position) TraceIndex(maxDepth Depth) *big.Int {
 	// When we go right, we do a shift left and set the bottom bit to be 1.
 	// To do this in a single step, do all the shifts at once & or in all 1s for the bottom bits.
+	if maxDepth < p.depth {
+		panic(fmt.Sprintf("maxDepth(%d) < p.depth(%d)", maxDepth, p.depth))
+	}
 	rd := maxDepth - p.depth
 	rhs := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(rd)), big.NewInt(1))
 	ti := new(big.Int).Or(p.lshIndex(rd), rhs)
@@ -146,9 +150,5 @@ func bigMSB(x *big.Int) Depth {
 	if x.Cmp(big.NewInt(0)) == 0 {
 		return 0
 	}
-	out := Depth(0)
-	for ; x.Cmp(big.NewInt(0)) != 0; out++ {
-		x = new(big.Int).Rsh(x, 1)
-	}
-	return out - 1
+	return Depth(x.BitLen() - 1)
 }

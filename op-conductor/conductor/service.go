@@ -176,6 +176,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		c.cfg.HealthCheck.UnsafeInterval,
 		c.cfg.HealthCheck.SafeInterval,
 		c.cfg.HealthCheck.MinPeerCount,
+		c.cfg.HealthCheck.SafeEnabled,
 		&c.cfg.RollupCfg,
 		node,
 		p2p,

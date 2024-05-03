@@ -1,10 +1,12 @@
 package extract
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -30,13 +32,17 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 			game: types.GameMetadata{GameType: faultTypes.CannonGameType, Proxy: fdgAddr},
 		},
 		{
+			name: "validAsteriscGameType",
+			game: types.GameMetadata{GameType: faultTypes.AsteriscGameType, Proxy: fdgAddr},
+		},
+		{
 			name: "validAlphabetGameType",
 			game: types.GameMetadata{GameType: faultTypes.AlphabetGameType, Proxy: fdgAddr},
 		},
 		{
 			name:        "InvalidGameType",
-			game:        types.GameMetadata{GameType: 2, Proxy: fdgAddr},
-			expectedErr: fmt.Errorf("unsupported game type: 2"),
+			game:        types.GameMetadata{GameType: 3, Proxy: fdgAddr},
+			expectedErr: fmt.Errorf("unsupported game type: 3"),
 		},
 	}
 
@@ -45,13 +51,13 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			caller, metrics := setupMetadataLoaderTest(t)
 			creator := NewGameCallerCreator(metrics, caller)
-			_, err := creator.CreateContract(test.game)
+			_, err := creator.CreateContract(context.Background(), test.game)
 			require.Equal(t, test.expectedErr, err)
 			if test.expectedErr == nil {
 				require.Equal(t, 1, metrics.cacheAddCalls)
 				require.Equal(t, 1, metrics.cacheGetCalls)
 			}
-			_, err = creator.CreateContract(test.game)
+			_, err = creator.CreateContract(context.Background(), test.game)
 			require.Equal(t, test.expectedErr, err)
 			if test.expectedErr == nil {
 				require.Equal(t, 1, metrics.cacheAddCalls)
@@ -66,6 +72,7 @@ func setupMetadataLoaderTest(t *testing.T) (*batching.MultiCaller, *mockCacheMet
 	require.NoError(t, err)
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
+	stubRpc.SetResponse(fdgAddr, "version", rpcblock.Latest, nil, []interface{}{"0.18.0"})
 	return caller, &mockCacheMetrics{}
 }
 

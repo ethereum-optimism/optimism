@@ -76,8 +76,12 @@ func (f *FakeBeacon) Start(addr string) error {
 			return
 		}
 		bundle, err := f.LoadBlobsBundle(slot)
-		if err != nil {
-			f.log.Error("failed to load blobs bundle", "slot", slot)
+		if errors.Is(err, ethereum.NotFound) {
+			f.log.Error("failed to load blobs bundle - not found", "slot", slot, "err", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		} else if err != nil {
+			f.log.Error("failed to load blobs bundle", "slot", slot, "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

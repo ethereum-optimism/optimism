@@ -14,10 +14,10 @@ import {
 } from '@ethersproject/abstract-provider'
 import { predeploys } from '@eth-optimism/contracts'
 import { hexStringEquals } from '@eth-optimism/core-utils'
-import l1StandardBridgeArtifact from '@eth-optimism/contracts-bedrock/forge-artifacts/L1StandardBridge.sol/L1StandardBridge.json'
-import l2StandardBridgeArtifact from '@eth-optimism/contracts-bedrock/forge-artifacts/L2StandardBridge.sol/L2StandardBridge.json'
-import optimismMintableERC20 from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismMintableERC20.sol/OptimismMintableERC20.json'
 
+import l1StandardBridgeArtifact from '../forge-artifacts/L1StandardBridge.json'
+import l2StandardBridgeArtifact from '../forge-artifacts/L2StandardBridge.json'
+import optimismMintableERC20 from '../forge-artifacts/OptimismMintableERC20.json'
 import { CrossChainMessenger } from '../cross-chain-messenger'
 import {
   IBridgeAdapter,

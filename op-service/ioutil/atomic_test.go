@@ -46,6 +46,30 @@ func TestAtomicWriter_MultipleClose(t *testing.T) {
 	require.ErrorIs(t, f.Close(), os.ErrClosed)
 }
 
+func TestAtomicWriter_AbortBeforeClose(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.txt")
+	f, err := NewAtomicWriterCompressed(target, 0755)
+	require.NoError(t, err)
+
+	require.NoError(t, f.Abort())
+	_, err = os.Stat(target)
+	require.ErrorIs(t, err, os.ErrNotExist, "should not create target file when aborted")
+	require.ErrorIs(t, f.Close(), os.ErrClosed)
+}
+
+func TestAtomicWriter_AbortAfterClose(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.txt")
+	f, err := NewAtomicWriterCompressed(target, 0755)
+	require.NoError(t, err)
+
+	require.NoError(t, f.Close())
+	_, err = os.Stat(target)
+	require.NoError(t, err)
+	require.ErrorIs(t, f.Abort(), os.ErrClosed)
+}
+
 func TestAtomicWriter_ApplyGzip(t *testing.T) {
 	tests := []struct {
 		name       string

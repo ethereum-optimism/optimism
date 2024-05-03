@@ -26,12 +26,12 @@ contract SequencerFeeVault_Test is CommonTest {
     }
 
     /// @dev Tests that the minimum withdrawal amount is correct.
-    function test_minWithdrawalAmount_succeeds() external {
+    function test_minWithdrawalAmount_succeeds() external view {
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
     }
 
     /// @dev Tests that the l1 fee wallet is correct.
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() external view {
         assertEq(sequencerFeeVault.l1FeeWallet(), recipient);
     }
 

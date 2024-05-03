@@ -63,7 +63,7 @@ contract Burn_BurnEth_Invariant is StdInvariant, InvariantTest {
     ///
     ///                   Asserts that when `Burn.eth(uint256)` is called, it always
     ///                   burns the exact amount of ETH passed to the function.
-    function invariant_burn_eth() external {
+    function invariant_burn_eth() external view {
         // ASSERTION: The amount burned should always match the amount passed exactly
         assertEq(actor.failedEthBurn(), false);
     }

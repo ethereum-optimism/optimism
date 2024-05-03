@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	PollerInterval = 1 * time.Second
+	DefaultPollerInterval = 1 * time.Second
 )
 
 type OnConsensusBroken func()
@@ -40,6 +40,7 @@ type ConsensusPoller struct {
 	maxUpdateThreshold time.Duration
 	maxBlockLag        uint64
 	maxBlockRange      uint64
+	interval           time.Duration
 }
 
 type backendState struct {
@@ -125,7 +126,7 @@ func (ah *PollerAsyncHandler) Init() {
 	for _, be := range ah.cp.backendGroup.Backends {
 		go func(be *Backend) {
 			for {
-				timer := time.NewTimer(PollerInterval)
+				timer := time.NewTimer(ah.cp.interval)
 				ah.cp.UpdateBackend(ah.ctx, be)
 
 				select {
@@ -141,7 +142,7 @@ func (ah *PollerAsyncHandler) Init() {
 	// create the group consensus poller
 	go func() {
 		for {
-			timer := time.NewTimer(PollerInterval)
+			timer := time.NewTimer(ah.cp.interval)
 			ah.cp.UpdateBackendGroupConsensus(ah.ctx)
 
 			select {
@@ -215,6 +216,12 @@ func WithMinPeerCount(minPeerCount uint64) ConsensusOpt {
 	}
 }
 
+func WithPollerInterval(interval time.Duration) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.interval = interval
+	}
+}
+
 func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -230,6 +237,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 		maxUpdateThreshold: 30 * time.Second,
 		maxBlockLag:        8, // 8*12 seconds = 96 seconds ~ 1.6 minutes
 		minPeerCount:       3,
+		interval:           DefaultPollerInterval,
 	}
 
 	for _, opt := range opts {

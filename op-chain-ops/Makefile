@@ -7,6 +7,9 @@ ecotone-scalar:
 receipt-reference-builder:
 	go build -o ./bin/receipt-reference-builder ./cmd/receipt-reference-builder/*.go
 
+op-upgrade:
+	go build -o ./bin/op-upgrade ./cmd/op-upgrade/main.go
+
 test:
 	go test ./...
 

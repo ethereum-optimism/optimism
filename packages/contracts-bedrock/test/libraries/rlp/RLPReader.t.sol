@@ -6,15 +6,15 @@ import { Test } from "forge-std/Test.sol";
 import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
 
 contract RLPReader_readBytes_Test is Test {
-    function test_readBytes_bytestring00_succeeds() external {
+    function test_readBytes_bytestring00_succeeds() external pure {
         assertEq(RLPReader.readBytes(hex"00"), hex"00");
     }
 
-    function test_readBytes_bytestring01_succeeds() external {
+    function test_readBytes_bytestring01_succeeds() external pure {
         assertEq(RLPReader.readBytes(hex"01"), hex"01");
     }
 
-    function test_readBytes_bytestring7f_succeeds() external {
+    function test_readBytes_bytestring7f_succeeds() external pure {
         assertEq(RLPReader.readBytes(hex"7f"), hex"7f");
     }
 
@@ -45,12 +45,12 @@ contract RLPReader_readBytes_Test is Test {
 }
 
 contract RLPReader_readList_Test is Test {
-    function test_readList_empty_succeeds() external {
+    function test_readList_empty_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(hex"c0");
         assertEq(list.length, 0);
     }
 
-    function test_readList_multiList_succeeds() external {
+    function test_readList_multiList_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(hex"c6827a77c10401");
         assertEq(list.length, 3);
 
@@ -59,7 +59,7 @@ contract RLPReader_readList_Test is Test {
         assertEq(RLPReader.readRawBytes(list[2]), hex"01");
     }
 
-    function test_readList_shortListMax1_succeeds() external {
+    function test_readList_shortListMax1_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(
             hex"f784617364668471776572847a78637684617364668471776572847a78637684617364668471776572847a78637684617364668471776572"
         );
@@ -78,7 +78,7 @@ contract RLPReader_readList_Test is Test {
         assertEq(RLPReader.readRawBytes(list[10]), hex"8471776572");
     }
 
-    function test_readList_longList1_succeeds() external {
+    function test_readList_longList1_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(
             hex"f840cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376"
         );
@@ -90,7 +90,7 @@ contract RLPReader_readList_Test is Test {
         assertEq(RLPReader.readRawBytes(list[3]), hex"cf84617364668471776572847a786376");
     }
 
-    function test_readList_longList2_succeeds() external {
+    function test_readList_longList2_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(
             hex"f90200cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376cf84617364668471776572847a786376"
         );
@@ -106,14 +106,14 @@ contract RLPReader_readList_Test is Test {
         RLPReader.readList(hex"e1454545454545454545454545454545454545454545454545454545454545454545");
     }
 
-    function test_readList_listOfLists_succeeds() external {
+    function test_readList_listOfLists_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(hex"c4c2c0c0c0");
         assertEq(list.length, 2);
         assertEq(RLPReader.readRawBytes(list[0]), hex"c2c0c0");
         assertEq(RLPReader.readRawBytes(list[1]), hex"c0");
     }
 
-    function test_readList_listOfLists2_succeeds() external {
+    function test_readList_listOfLists2_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(hex"c7c0c1c0c3c0c1c0");
         assertEq(list.length, 3);
 
@@ -122,7 +122,7 @@ contract RLPReader_readList_Test is Test {
         assertEq(RLPReader.readRawBytes(list[2]), hex"c3c0c1c0");
     }
 
-    function test_readList_dictTest1_succeeds() external {
+    function test_readList_dictTest1_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(
             hex"ecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
         );

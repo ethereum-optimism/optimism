@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title IAnchorStateRegistry
 /// @notice Describes a contract that stores the anchor state for each game type.
