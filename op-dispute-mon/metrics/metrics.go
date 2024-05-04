@@ -19,6 +19,22 @@ import (
 
 const Namespace = "op_dispute_mon"
 
+type ResolutionStatus uint8
+
+const (
+	// In progress
+	CompleteMaxDuration ResolutionStatus = iota
+	CompleteBeforeMaxDuration
+
+	// Resolvable
+	ResolvableMaxDuration
+	ResolvableBeforeMaxDuration
+
+	// Not resolvable
+	InProgressMaxDuration
+	InProgressBeforeMaxDuration
+)
+
 type CreditExpectation uint8
 
 const (
@@ -93,7 +109,7 @@ type Metricer interface {
 
 	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
 
-	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)
+	RecordGameResolutionStatus(status ResolutionStatus, count int)
 
 	RecordCredit(expectation CreditExpectation, count int)
 
@@ -311,16 +327,26 @@ func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestA
 	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.WonBonds))
 }
 
-func (m *Metrics) RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int) {
-	completion := "complete"
-	if !complete {
-		completion = "in_progress"
+func (m *Metrics) RecordGameResolutionStatus(status ResolutionStatus, count int) {
+	asLabels := func(status ResolutionStatus) []string {
+		switch status {
+		case CompleteMaxDuration:
+			return []string{"complete", "max_duration"}
+		case CompleteBeforeMaxDuration:
+			return []string{"complete", "before_max_duration"}
+		case ResolvableMaxDuration:
+			return []string{"resolvable", "max_duration"}
+		case ResolvableBeforeMaxDuration:
+			return []string{"resolvable", "before_max_duration"}
+		case InProgressMaxDuration:
+			return []string{"in_progress", "max_duration"}
+		case InProgressBeforeMaxDuration:
+			return []string{"in_progress", "before_max_duration"}
+		default:
+			panic(fmt.Errorf("unknown resolution status: %v", status))
+		}
 	}
-	maxDuration := "reached"
-	if !maxDurationReached {
-		maxDuration = "not_reached"
-	}
-	m.resolutionStatus.WithLabelValues(completion, maxDuration).Set(float64(count))
+	m.resolutionStatus.WithLabelValues(asLabels(status)...).Set(float64(count))
 }
 
 func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {

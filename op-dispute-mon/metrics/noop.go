@@ -21,7 +21,7 @@ func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
 
 func (*NoopMetricsImpl) RecordHonestActorClaims(_ common.Address, _ *HonestActorData) {}
 
-func (*NoopMetricsImpl) RecordGameResolutionStatus(_ bool, _ bool, _ int) {}
+func (*NoopMetricsImpl) RecordGameResolutionStatus(_ ResolutionStatus, _ int) {}
 
 func (*NoopMetricsImpl) RecordCredit(_ CreditExpectation, _ int) {}
 
