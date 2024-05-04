@@ -18,6 +18,7 @@ op-program: \
 op-program-host:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-program ./host/cmd/main.go
 
+# Version must ALWAYS be set same value (v0.0.0) to ensure exact build is reproducible
 op-program-client:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-program-client ./client/cmd/main.go
 
