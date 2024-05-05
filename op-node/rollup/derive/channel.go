@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"github.com/andybalholm/brotli"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -162,6 +161,9 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		return nil, err
 	}
 
+	fmt.Println("buf reader size start")
+	fmt.Println(bufReader.Size())
+
 	fmt.Println(compressionType[0])
 
 	var reader func(io.Reader) (io.Reader, error)
@@ -175,7 +177,6 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		// discard the first byte
 		_, err := bufReader.Discard(1)
 		if err != nil {
-			fmt.Println("CHECK HERE")
 			return nil, err
 		}
 		reader = func(r io.Reader) (io.Reader, error) {
@@ -185,10 +186,12 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		return nil, fmt.Errorf("cannot distinguish the compression algo used given type byte %v", compressionType[0])
 	}
 
+	fmt.Println("buf reader size")
+	fmt.Println(bufReader.Size())
 	// Setup decompressor stage + RLP reader
 	zr, err := reader(bufReader)
+	// zr, err := zlib.NewReader(r)
 	if err != nil {
-		fmt.Println("FAILED READER")
 		return nil, err
 	}
 	rlpReader := rlp.NewStream(zr, MaxRLPBytesPerChannel)
@@ -196,7 +199,8 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	return func() (*BatchData, error) {
 		var batchData BatchData
 		if err = rlpReader.Decode(&batchData); err != nil {
-			fmt.Println("DECODE ERROR")
+			fmt.Println(batchData)
+			fmt.Println("error decoding batch data")
 			return nil, err
 		}
 		return &batchData, nil

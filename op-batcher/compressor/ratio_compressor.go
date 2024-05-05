@@ -3,16 +3,84 @@ package compressor
 import (
 	"bytes"
 	"compress/zlib"
+	"fmt"
+	"io"
 
+	"github.com/andybalholm/brotli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
+
+type CompressorWriter interface {
+	Write([]byte) (int, error)
+	Flush() error
+	Close() error
+	Reset(io.Writer)
+}
+
+type AlgoCompressor struct {
+	compressed *bytes.Buffer
+	writer     CompressorWriter
+	algo       derive.CompressionAlgo
+}
+
+func NewAlgoCompressor(algo derive.CompressionAlgo) (*AlgoCompressor, error) {
+	var writer CompressorWriter
+	var err error
+	compressed := &bytes.Buffer{}
+	if algo == derive.Zlib {
+		writer, err = zlib.NewWriterLevel(compressed, zlib.BestCompression)
+	} else if algo.IsBrotli() {
+		compressed.WriteByte(derive.ChannelVersionBrotli)
+		writer = brotli.NewWriterLevel(compressed, derive.GetBrotliLevel(algo))
+	} else {
+		return nil, fmt.Errorf("unsupported compression algorithm: %s", algo)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &AlgoCompressor{
+		writer:     writer,
+		compressed: compressed,
+		algo:       algo,
+	}, nil
+}
+
+func (ac *AlgoCompressor) Write(data []byte) (int, error) {
+	return ac.writer.Write(data)
+}
+
+func (ac *AlgoCompressor) Flush() error {
+	return ac.writer.Flush()
+}
+
+func (ac *AlgoCompressor) Close() error {
+	return ac.writer.Close()
+}
+
+func (ac *AlgoCompressor) Reset() {
+	ac.compressed.Reset()
+	if ac.algo.IsBrotli() {
+		// always add channal version for brotli
+		ac.compressed.WriteByte(derive.ChannelVersionBrotli)
+	}
+	ac.writer.Reset(ac.compressed)
+}
+
+func (ac *AlgoCompressor) Len() int {
+	return ac.compressed.Len()
+}
+
+func (ac *AlgoCompressor) Read(p []byte) (int, error) {
+	return ac.compressed.Read(p)
+}
 
 type RatioCompressor struct {
 	config Config
 
 	inputBytes int
-	buf        bytes.Buffer
-	compress   *zlib.Writer
+	compressor *AlgoCompressor
 }
 
 // NewRatioCompressor creates a new derive.Compressor implementation that uses the target
@@ -25,11 +93,11 @@ func NewRatioCompressor(config Config) (derive.Compressor, error) {
 		config: config,
 	}
 
-	compress, err := zlib.NewWriterLevel(&c.buf, zlib.BestCompression)
+	compressor, err := NewAlgoCompressor(config.CompressionAlgo)
 	if err != nil {
 		return nil, err
 	}
-	c.compress = compress
+	c.compressor = compressor
 
 	return c, nil
 }
@@ -39,29 +107,28 @@ func (t *RatioCompressor) Write(p []byte) (int, error) {
 		return 0, err
 	}
 	t.inputBytes += len(p)
-	return t.compress.Write(p)
+	return t.compressor.Write(p)
 }
 
 func (t *RatioCompressor) Close() error {
-	return t.compress.Close()
+	return t.compressor.Close()
 }
 
 func (t *RatioCompressor) Read(p []byte) (int, error) {
-	return t.buf.Read(p)
+	return t.compressor.Read(p)
 }
 
 func (t *RatioCompressor) Reset() {
-	t.buf.Reset()
-	t.compress.Reset(&t.buf)
+	t.compressor.Reset()
 	t.inputBytes = 0
 }
 
 func (t *RatioCompressor) Len() int {
-	return t.buf.Len()
+	return t.compressor.Len()
 }
 
 func (t *RatioCompressor) Flush() error {
-	return t.compress.Flush()
+	return t.compressor.Flush()
 }
 
 func (t *RatioCompressor) FullErr() error {

@@ -5,12 +5,13 @@ import (
 	"math"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
 	"github.com/stretchr/testify/require"
 )
 
-func defaultTestChannelConfig() ChannelConfig {
+func defaultTestChannelConfig(algo derive.CompressionAlgo) ChannelConfig {
 	c := ChannelConfig{
 		SeqWindowSize:      15,
 		ChannelTimeout:     40,
@@ -19,27 +20,30 @@ func defaultTestChannelConfig() ChannelConfig {
 		MaxFrameSize:       120_000,
 		TargetNumFrames:    1,
 		BatchType:          derive.SingularBatchType,
+		CompressorConfig: compressor.Config{
+			CompressionAlgo: algo,
+		},
 	}
-	c.InitRatioCompressor(0.4, derive.Brotli10)
+	c.InitRatioCompressor(0.4, algo)
 	return c
 }
 
 func TestChannelConfig_Check(t *testing.T) {
 	type test struct {
-		input     func() ChannelConfig
+		input     func(algo derive.CompressionAlgo) ChannelConfig
 		assertion func(error)
 	}
 
 	tests := []test{
 		{
-			input: defaultTestChannelConfig,
+			input: func(algo derive.CompressionAlgo) ChannelConfig { return defaultTestChannelConfig(algo) },
 			assertion: func(output error) {
 				require.NoError(t, output)
 			},
 		},
 		{
-			input: func() ChannelConfig {
-				cfg := defaultTestChannelConfig()
+			input: func(algo derive.CompressionAlgo) ChannelConfig {
+				cfg := defaultTestChannelConfig(algo)
 				cfg.ChannelTimeout = 0
 				cfg.SubSafetyMargin = 1
 				return cfg
@@ -53,8 +57,8 @@ func TestChannelConfig_Check(t *testing.T) {
 		expectedErr := fmt.Sprintf("max frame size %d is less than the minimum 23", i)
 		i := i // need to udpate Go version...
 		tests = append(tests, test{
-			input: func() ChannelConfig {
-				cfg := defaultTestChannelConfig()
+			input: func(algo derive.CompressionAlgo) ChannelConfig {
+				cfg := defaultTestChannelConfig(algo)
 				cfg.MaxFrameSize = uint64(i)
 				return cfg
 			},
@@ -66,8 +70,10 @@ func TestChannelConfig_Check(t *testing.T) {
 
 	// Run the table tests
 	for _, test := range tests {
-		cfg := test.input()
-		test.assertion(cfg.Check())
+		for _, algo := range derive.CompressionAlgoTypes {
+			cfg := test.input(algo)
+			test.assertion(cfg.Check())
+		}
 	}
 }
 
@@ -76,9 +82,12 @@ func TestChannelConfig_Check(t *testing.T) {
 // the ChannelTimeout is less than the SubSafetyMargin.
 func FuzzChannelConfig_CheckTimeout(f *testing.F) {
 	for i := range [10]int{} {
-		f.Add(uint64(i+1), uint64(i))
+		for _, algo := range derive.CompressionAlgoTypes {
+			f.Add(uint64(i+1), uint64(i), algo.String())
+		}
+
 	}
-	f.Fuzz(func(t *testing.T, channelTimeout uint64, subSafetyMargin uint64) {
+	f.Fuzz(func(t *testing.T, channelTimeout uint64, subSafetyMargin uint64, algo string) {
 		// We only test where [ChannelTimeout] is less than the [SubSafetyMargin]
 		// So we cannot have [ChannelTimeout] be [math.MaxUint64]
 		if channelTimeout == math.MaxUint64 {
@@ -88,7 +97,7 @@ func FuzzChannelConfig_CheckTimeout(f *testing.F) {
 			subSafetyMargin = channelTimeout + 1
 		}
 
-		channelConfig := defaultTestChannelConfig()
+		channelConfig := defaultTestChannelConfig(derive.CompressionAlgo(algo))
 		channelConfig.ChannelTimeout = channelTimeout
 		channelConfig.SubSafetyMargin = subSafetyMargin
 		require.ErrorIs(t, channelConfig.Check(), ErrInvalidChannelTimeout)

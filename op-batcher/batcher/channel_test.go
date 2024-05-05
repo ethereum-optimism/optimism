@@ -4,6 +4,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -22,13 +23,39 @@ func zeroFrameTxID(fn uint16) txID {
 	return txID{frameID{frameNumber: fn}}
 }
 
+func TestChannel(t *testing.T) {
+	tests := []struct {
+		name string
+		f    func(t *testing.T, algo derive.CompressionAlgo)
+	}{
+		{"ChannelTimeout", ChannelTimeout},
+		{"ChannelManager_NextTxData", ChannelManager_NextTxData},
+		{"Channel_NextTxData_singleFrameTx", Channel_NextTxData_singleFrameTx},
+		{"Channel_NextTxData_multiFrameTx", Channel_NextTxData_multiFrameTx},
+		{"ChannelTxConfirmed", ChannelTxConfirmed},
+		{"ChannelTxFailed", ChannelTxFailed},
+	}
+
+	for _, test := range tests {
+		test := test
+		for _, algo := range derive.CompressionAlgoTypes {
+			t.Run(test.name+"_"+algo.String(), func(t *testing.T) {
+				test.f(t, algo)
+			})
+		}
+	}
+}
+
 // TestChannelTimeout tests that the channel manager
 // correctly identifies when a pending channel is timed out.
-func TestChannelTimeout(t *testing.T) {
+func ChannelTimeout(t *testing.T, algo derive.CompressionAlgo) {
 	// Create a new channel manager with a ChannelTimeout
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		ChannelTimeout: 100,
+		CompressorConfig: compressor.Config{
+			CompressionAlgo: algo,
+		},
 	}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
@@ -69,9 +96,11 @@ func TestChannelTimeout(t *testing.T) {
 }
 
 // TestChannelManager_NextTxData tests the nextTxData function.
-func TestChannelManager_NextTxData(t *testing.T) {
+func ChannelManager_NextTxData(t *testing.T, algo derive.CompressionAlgo) {
 	log := testlog.Logger(t, log.LevelCrit)
-	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{}, &rollup.Config{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
+		CompressionAlgo: algo,
+	}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
 	// Nil pending channel should return EOF
@@ -111,13 +140,16 @@ func TestChannelManager_NextTxData(t *testing.T) {
 	require.Equal(t, expectedTxData, channel.pendingTransactions[expectedChannelID])
 }
 
-func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
+func Channel_NextTxData_singleFrameTx(t *testing.T, algo derive.CompressionAlgo) {
 	require := require.New(t)
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
 	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
 		MultiFrameTxs:   false,
 		TargetNumFrames: n,
+		CompressorConfig: compressor.Config{
+			CompressionAlgo: algo,
+		},
 	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
 	chID := ch.ID()
@@ -149,13 +181,16 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 	require.False(ch.HasTxData())
 }
 
-func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
+func Channel_NextTxData_multiFrameTx(t *testing.T, algo derive.CompressionAlgo) {
 	require := require.New(t)
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
 	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
 		MultiFrameTxs:   true,
 		TargetNumFrames: n,
+		CompressorConfig: compressor.Config{
+			CompressionAlgo: algo,
+		},
 	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
 	chID := ch.ID()
@@ -194,7 +229,7 @@ func makeMockFrameDatas(id derive.ChannelID, n int) []frameData {
 }
 
 // TestChannelTxConfirmed checks the [ChannelManager.TxConfirmed] function.
-func TestChannelTxConfirmed(t *testing.T) {
+func ChannelTxConfirmed(t *testing.T, algo derive.CompressionAlgo) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
@@ -202,6 +237,9 @@ func TestChannelTxConfirmed(t *testing.T) {
 		// channels on confirmation. This would result in [TxConfirmed]
 		// clearing confirmed transactions, and resetting the pendingChannels map
 		ChannelTimeout: 10,
+		CompressorConfig: compressor.Config{
+			CompressionAlgo: algo,
+		},
 	}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
@@ -248,10 +286,12 @@ func TestChannelTxConfirmed(t *testing.T) {
 }
 
 // TestChannelTxFailed checks the [ChannelManager.TxFailed] function.
-func TestChannelTxFailed(t *testing.T) {
+func ChannelTxFailed(t *testing.T, algo derive.CompressionAlgo) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LevelCrit)
-	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{}, &rollup.Config{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
+		CompressionAlgo: algo,
+	}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,18 +59,21 @@ func TestChannelConfig_InputThreshold(t *testing.T) {
 
 	// Validate each test case
 	for i, tt := range tests {
-		t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
-			comp, err := compressor.NewRatioCompressor(compressor.Config{
-				TargetOutputSize: tt.targetOutputSize,
-				ApproxComprRatio: tt.approxComprRatio,
+		for _, algo := range derive.CompressionAlgoTypes {
+			t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
+				comp, err := compressor.NewRatioCompressor(compressor.Config{
+					TargetOutputSize: tt.targetOutputSize,
+					ApproxComprRatio: tt.approxComprRatio,
+					CompressionAlgo:  algo,
+				})
+				require.NoError(t, err)
+				got := comp.(*compressor.RatioCompressor).InputThreshold()
+				if tt.assertion != nil {
+					tt.assertion(got)
+				} else {
+					require.Equal(t, tt.expInputThreshold, got)
+				}
 			})
-			require.NoError(t, err)
-			got := comp.(*compressor.RatioCompressor).InputThreshold()
-			if tt.assertion != nil {
-				tt.assertion(got)
-			} else {
-				require.Equal(t, tt.expInputThreshold, got)
-			}
-		})
+		}
 	}
 }

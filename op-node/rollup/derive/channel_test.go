@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+
+	//"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -99,3 +101,98 @@ func TestFrameValidity(t *testing.T) {
 		t.Run(tc.name, tc.Run)
 	}
 }
+
+// func TestBatchReader(t *testing.T) {
+// 	// Get batch data
+// 	rng := rand.New(rand.NewSource(0x543331))
+// 	singularBatch := RandomSingularBatch(rng, 5000, big.NewInt(333))
+// 	batchDataInput := NewBatchData(singularBatch)
+
+// 	encodedBatch := &bytes.Buffer{}
+// 	// Get the encoded data of the batch data
+// 	batchDataInput.encodeTyped(encodedBatch)
+
+// 	fmt.Println(encodedBatch.Bytes()[:10])
+
+// 	var testCases = []struct {
+// 		name string
+// 		algo func(buf *bytes.Buffer) ()
+// 	}{{
+// 		name: "zlib",
+// 		algo: func(buf *bytes.Buffer) {
+// 			writer := zlib.NewWriter(buf)
+// 			writer.Write(encodedBatch.Bytes())
+// 		},
+// 	},
+// 	// }, {
+// 	// 	name: "brotli10",
+// 	// 	algo: func(buf *bytes.Buffer) {
+// 	// 		buf.WriteByte(ChannelVersionBrotli)
+// 	// 		writer := brotli.NewWriterLevel(buf, 10)
+// 	// 		writer.Write(encodedBatch.Bytes())
+// 	// 	},
+// 	// }, {
+// 	// 	name: "zstd",
+// 	// 	algo: func(buf *bytes.Buffer) {
+// 	// 		writer := zstd.NewWriter(buf)
+// 	// 		writer.Write(encodedBatch.Bytes())
+// 	// 	},
+// 	//}}
+// 	}
+
+// 	for _, tc := range testCases {
+// 		compressed := bytes.NewBuffer([]byte{})
+// 		tc := tc
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			tc.algo(compressed)
+// 			fmt.Println("compressed len")
+// 			fmt.Println(compressed.Len())
+// 			fmt.Println(compressed.Bytes()[:10])
+
+// 			//r, err := zlib.NewReader(bytes.NewReader(compressed.Bytes()))
+
+// 			enc, err := batchDataInput.MarshalBinary()
+// 			buf := &bytes.Buffer{}
+// 			writer := zlib.NewWriter(buf)
+// 			writer.Write(enc)
+// 			require.NoError(t, err)
+
+// 			reader, err := zlib.NewReader(buf)
+// 			require.NoError(t, err)
+
+// 			rlpReader := rlp.NewStream(reader, MaxRLPBytesPerChannel)
+
+// 			// require.NoError(t, err)
+// 			var dec BatchData
+// 			// err = dec.UnmarshalBinary(encoded)
+// 			err = rlpReader.Decode(&dec)
+// 			// require.NoError(t, err)
+// 			//require.Equal(t, batchDataInput, &dec)
+
+// 			// read from r the compressed data then rlp decode this
+// 			// uncompressed, err := io.ReadAll(r)
+// 			// require.NoError(t, err)
+// 			// fmt.Println("uncompressed len")
+// 			// fmt.Println(len(uncompressed))
+
+// 			// var batchData BatchData
+// 			// rlp.Decode(bytes.NewReader(uncompressed), &batchData)
+
+// 			// require.Equal(t, batchDataInput, batchData)
+
+// 			// reader, err := BatchReader(bytes.NewReader(compressed.Bytes()))
+// 			// if tc.name == "zstd" {
+// 			// 	require.NotNil(t, err)
+// 			// 	return
+// 			// }
+// 			// require.Nil(t, err)
+
+// 			// // read the batch data
+// 			// batchData, err := reader()
+// 			// require.Nil(t, err)
+// 			// require.NotNil(t, batchData)
+// 			// require.Equal(t, batchDataInput, batchData)
+// 		})
+// 	}
+
+// }
