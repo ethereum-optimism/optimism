@@ -92,7 +92,7 @@ func TestFillBlobPointers(t *testing.T) {
 	calldata := eth.Data{}
 
 	for i := 0; i < 100; i++ {
-		// create a random length input data array w/ len = [0-10)
+		// create a random length input data array w/ len = [0-10]
 		dataLen := rng.Intn(10)
 		data := make([]blobOrCalldata, dataLen)
 
