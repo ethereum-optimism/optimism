@@ -39,7 +39,7 @@ func (a *Artifact) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (a *Artifact) MarshalJSON() ([]byte, error) {
+func (a Artifact) MarshalJSON() ([]byte, error) {
 	artifact := artifactMarshaling{
 		ABI:              a.abi,
 		StorageLayout:    a.StorageLayout,
