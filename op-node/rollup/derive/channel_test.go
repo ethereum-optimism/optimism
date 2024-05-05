@@ -119,7 +119,7 @@ func TestBatchReader(t *testing.T) {
 
 	var testCases = []struct {
 		name string
-		algo func(buf *bytes.Buffer) ()
+		algo func(buf *bytes.Buffer)
 	}{{
 		name: "zlib",
 		algo: func(buf *bytes.Buffer) {
@@ -127,20 +127,20 @@ func TestBatchReader(t *testing.T) {
 			writer.Write(encodedBatch.Bytes())
 		},
 	},
-	{
-		name: "brotli10",
-		algo: func(buf *bytes.Buffer) {
-			buf.WriteByte(ChannelVersionBrotli)
-			writer := brotli.NewWriterLevel(buf, 10)
-			writer.Write(encodedBatch.Bytes())
-		},
-	}, {
-		name: "zstd",
-		algo: func(buf *bytes.Buffer) {
-			writer := zstd.NewWriter(buf)
-			writer.Write(encodedBatch.Bytes())
-		},
-	}}
+		{
+			name: "brotli10",
+			algo: func(buf *bytes.Buffer) {
+				buf.WriteByte(ChannelVersionBrotli)
+				writer := brotli.NewWriterLevel(buf, 10)
+				writer.Write(encodedBatch.Bytes())
+			},
+		}, {
+			name: "zstd",
+			algo: func(buf *bytes.Buffer) {
+				writer := zstd.NewWriter(buf)
+				writer.Write(encodedBatch.Bytes())
+			},
+		}}
 
 	for _, tc := range testCases {
 		compressed := bytes.NewBuffer([]byte{})
