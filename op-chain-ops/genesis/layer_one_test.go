@@ -1,11 +1,12 @@
 package genesis
 
 import (
+	"math/big"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"testing"
 )
 
 // TestFundDevAccounts ensures that the developer accounts are
