@@ -42,19 +42,19 @@ func TestSpanChannelCompressor(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			scc, err := NewSpanChannelCompressor(tc.algo)
+			scc, err := NewChannelCompressor(tc.algo)
 			if tc.name == "zstd" {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tc.expectedCompressedSize, scc.GetCompressedLen())
+			require.Equal(t, tc.expectedCompressedSize, scc.Len())
 
 			scc.Write(randomBytes(10000000))
-			require.Greater(t, scc.GetCompressedLen(), tc.expectedCompressedSize)
+			require.Greater(t, scc.Len(), tc.expectedCompressedSize)
 
 			scc.Reset()
-			require.Equal(t, tc.expectedCompressedSize, scc.GetCompressedLen())
+			require.Equal(t, tc.expectedCompressedSize, scc.Len())
 		})
 	}
 }

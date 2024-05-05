@@ -27,7 +27,7 @@ type SpanChannelOut struct {
 	// it is used to measure the growth of the RLP buffer when adding a new batch to optimize compression
 	lastCompressedRLPSize int
 	// the compressor for the channel
-	compressor *SpanChannelCompressor
+	compressor *ChannelCompressor
 	// target is the target size of the compressed data
 	target uint64
 	// closed indicates if the channel is closed
@@ -60,7 +60,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		return nil, err
 	}
 
-	if c.compressor, err = NewSpanChannelCompressor(compressionAlgo); err != nil {
+	if c.compressor, err = NewChannelCompressor(compressionAlgo); err != nil {
 		return nil, err
 	}
 
@@ -151,7 +151,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	// if the compressed data *plus* the new rlp data is under the target size, return early
 	// this optimizes out cases where the compressor will obviously come in under the target size
 	rlpGrowth := co.activeRLP().Len() - co.lastCompressedRLPSize
-	if uint64(co.compressor.GetCompressedLen()+rlpGrowth) < co.target {
+	if uint64(co.compressor.Len()+rlpGrowth) < co.target {
 		return nil
 	}
 
@@ -204,7 +204,7 @@ func (co *SpanChannelOut) InputBytes() int {
 // Span Channel Out does not provide early output, so this will always be 0 until the channel is closed or full
 func (co *SpanChannelOut) ReadyBytes() int {
 	if co.closed || co.FullErr() != nil {
-		return co.compressor.GetCompressedLen()
+		return co.compressor.Len()
 	}
 	return 0
 }
@@ -222,7 +222,7 @@ func (co *SpanChannelOut) checkFull() {
 	if co.full != nil {
 		return
 	}
-	if uint64(co.compressor.GetCompressedLen()) >= co.target {
+	if uint64(co.compressor.Len()) >= co.target {
 		co.full = ErrCompressorFull
 	}
 }

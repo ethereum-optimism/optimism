@@ -113,7 +113,7 @@ func TestOutputFrameNoEmptyLastFrame(t *testing.T) {
 
 			// depending on the channel type, determine the size of the written data
 			if span, ok := cout.(*SpanChannelOut); ok {
-				written = uint64(span.compressor.GetCompressedLen())
+				written = uint64(span.compressor.Len())
 			} else if singular, ok := cout.(*SingularChannelOut); ok {
 				written = uint64(singular.compress.Len())
 			}
@@ -244,7 +244,7 @@ func TestSpanChannelOutCompressionOnlyOneBatch(t *testing.T) {
 
 	err := cout.AddSingularBatch(singularBatches[0], 0)
 	// confirm compression was not skipped
-	require.Greater(t, cout.compressor.GetCompressedLen(), 0)
+	require.Greater(t, cout.compressor.Len(), 0)
 	require.NoError(t, err)
 
 	// confirm the channel is full
@@ -263,14 +263,14 @@ func TestSpanChannelOutCompressionUndo(t *testing.T) {
 	err := cout.AddSingularBatch(singularBatches[0], 0)
 	require.NoError(t, err)
 	// confirm that the first compression was skipped
-	require.Equal(t, 1, cout.compressor.GetCompressedLen()) // 1 because of brotli channel version
+	require.Equal(t, 1, cout.compressor.Len()) // 1 because of brotli channel version
 	// record the RLP length to confirm it doesn't change when adding a rejected batch
 	rlp1 := cout.activeRLP().Len()
 
 	err = cout.AddSingularBatch(singularBatches[1], 0)
 	require.ErrorIs(t, err, ErrCompressorFull)
 	// confirm that the second compression was not skipped
-	require.Greater(t, cout.compressor.GetCompressedLen(), 0)
+	require.Greater(t, cout.compressor.Len(), 0)
 
 	// confirm that the second rlp is tht same size as the first (because the second batch was not added)
 	require.Equal(t, rlp1, cout.activeRLP().Len())
@@ -285,7 +285,7 @@ func TestSpanChannelOutClose(t *testing.T) {
 	err := cout.AddSingularBatch(singularBatches[0], 0)
 	require.NoError(t, err)
 	// confirm no compression has happened yet
-	require.Equal(t, 1, cout.compressor.GetCompressedLen()) // 1 because of brotli channel version
+	require.Equal(t, 1, cout.compressor.Len()) // 1 because of brotli channel version
 
 	// confirm the RLP length is less than the target
 	rlpLen := cout.activeRLP().Len()
@@ -295,6 +295,6 @@ func TestSpanChannelOutClose(t *testing.T) {
 	require.NoError(t, cout.Close())
 
 	// confirm that the only batch was compressed, and that the RLP did not change
-	require.Greater(t, cout.compressor.GetCompressedLen(), 0)
+	require.Greater(t, cout.compressor.Len(), 0)
 	require.Equal(t, rlpLen, cout.activeRLP().Len())
 }

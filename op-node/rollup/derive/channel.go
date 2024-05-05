@@ -161,11 +161,6 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		return nil, err
 	}
 
-	fmt.Println("buf reader size start")
-	fmt.Println(bufReader.Size())
-
-	fmt.Println(compressionType[0])
-
 	var reader func(io.Reader) (io.Reader, error)
 	// For zlib, the last 4 bits must be either 8 or 15 (both are reserved value)
 	if compressionType[0]&0x0F == ZlibCM8 || compressionType[0]&0x0F == ZlibCM15 {
@@ -186,11 +181,8 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		return nil, fmt.Errorf("cannot distinguish the compression algo used given type byte %v", compressionType[0])
 	}
 
-	fmt.Println("buf reader size")
-	fmt.Println(bufReader.Size())
 	// Setup decompressor stage + RLP reader
 	zr, err := reader(bufReader)
-	// zr, err := zlib.NewReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -199,8 +191,6 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	return func() (*BatchData, error) {
 		var batchData BatchData
 		if err = rlpReader.Decode(&batchData); err != nil {
-			fmt.Println(batchData)
-			fmt.Println("error decoding batch data")
 			return nil, err
 		}
 		return &batchData, nil

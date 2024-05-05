@@ -18,8 +18,8 @@ const (
 type ShadowCompressor struct {
 	config Config
 
-	compressor       *AlgoCompressor
-	shadowCompressor *AlgoCompressor
+	compressor       *derive.ChannelCompressor
+	shadowCompressor *derive.ChannelCompressor
 
 	fullErr error
 
@@ -39,11 +39,11 @@ func NewShadowCompressor(config Config) (derive.Compressor, error) {
 	}
 
 	var err error
-	c.compressor, err = NewAlgoCompressor(config.CompressionAlgo)
+	c.compressor, err = derive.NewChannelCompressor(config.CompressionAlgo)
 	if err != nil {
 		return nil, err
 	}
-	c.shadowCompressor, err = NewAlgoCompressor(config.CompressionAlgo)
+	c.shadowCompressor, err = derive.NewChannelCompressor(config.CompressionAlgo)
 	if err != nil {
 		return nil, err
 	}

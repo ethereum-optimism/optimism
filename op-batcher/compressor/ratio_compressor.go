@@ -1,86 +1,14 @@
 package compressor
 
 import (
-	"bytes"
-	"compress/zlib"
-	"fmt"
-	"io"
-
-	"github.com/andybalholm/brotli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
-
-type CompressorWriter interface {
-	Write([]byte) (int, error)
-	Flush() error
-	Close() error
-	Reset(io.Writer)
-}
-
-type AlgoCompressor struct {
-	compressed *bytes.Buffer
-	writer     CompressorWriter
-	algo       derive.CompressionAlgo
-}
-
-func NewAlgoCompressor(algo derive.CompressionAlgo) (*AlgoCompressor, error) {
-	var writer CompressorWriter
-	var err error
-	compressed := &bytes.Buffer{}
-	if algo == derive.Zlib {
-		writer, err = zlib.NewWriterLevel(compressed, zlib.BestCompression)
-	} else if algo.IsBrotli() {
-		compressed.WriteByte(derive.ChannelVersionBrotli)
-		writer = brotli.NewWriterLevel(compressed, derive.GetBrotliLevel(algo))
-	} else {
-		return nil, fmt.Errorf("unsupported compression algorithm: %s", algo)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &AlgoCompressor{
-		writer:     writer,
-		compressed: compressed,
-		algo:       algo,
-	}, nil
-}
-
-func (ac *AlgoCompressor) Write(data []byte) (int, error) {
-	return ac.writer.Write(data)
-}
-
-func (ac *AlgoCompressor) Flush() error {
-	return ac.writer.Flush()
-}
-
-func (ac *AlgoCompressor) Close() error {
-	return ac.writer.Close()
-}
-
-func (ac *AlgoCompressor) Reset() {
-	ac.compressed.Reset()
-	if ac.algo.IsBrotli() {
-		// always add channal version for brotli
-		ac.compressed.WriteByte(derive.ChannelVersionBrotli)
-	}
-	ac.writer.Reset(ac.compressed)
-}
-
-func (ac *AlgoCompressor) Len() int {
-	return ac.compressed.Len()
-}
-
-func (ac *AlgoCompressor) Read(p []byte) (int, error) {
-	return ac.compressed.Read(p)
-}
 
 type RatioCompressor struct {
 	config Config
 
 	inputBytes int
-	compressor *AlgoCompressor
+	compressor *derive.ChannelCompressor
 }
 
 // NewRatioCompressor creates a new derive.Compressor implementation that uses the target
@@ -93,7 +21,7 @@ func NewRatioCompressor(config Config) (derive.Compressor, error) {
 		config: config,
 	}
 
-	compressor, err := NewAlgoCompressor(config.CompressionAlgo)
+	compressor, err := derive.NewChannelCompressor(config.CompressionAlgo)
 	if err != nil {
 		return nil, err
 	}

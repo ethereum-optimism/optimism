@@ -20,13 +20,13 @@ type CompressorWriter interface {
 	Reset(io.Writer)
 }
 
-type SpanChannelCompressor struct {
+type ChannelCompressor struct {
 	writer          CompressorWriter
 	compressionAlgo CompressionAlgo
 	compressed      *bytes.Buffer
 }
 
-func NewSpanChannelCompressor(algo CompressionAlgo) (*SpanChannelCompressor, error) {
+func NewChannelCompressor(algo CompressionAlgo) (*ChannelCompressor, error) {
 	var writer CompressorWriter
 	var err error
 	compressed := &bytes.Buffer{}
@@ -43,7 +43,7 @@ func NewSpanChannelCompressor(algo CompressionAlgo) (*SpanChannelCompressor, err
 		return nil, err
 	}
 
-	return &SpanChannelCompressor{
+	return &ChannelCompressor{
 		writer:          writer,
 		compressionAlgo: algo,
 		compressed:      compressed,
@@ -51,31 +51,35 @@ func NewSpanChannelCompressor(algo CompressionAlgo) (*SpanChannelCompressor, err
 
 }
 
-func (scc *SpanChannelCompressor) Write(data []byte) (int, error) {
-	return scc.writer.Write(data)
+func (cc *ChannelCompressor) Write(data []byte) (int, error) {
+	return cc.writer.Write(data)
 }
 
-func (scc *SpanChannelCompressor) Flush() error {
-	return scc.writer.Flush()
+func (cc *ChannelCompressor) Flush() error {
+	return cc.writer.Flush()
 }
 
-func (scc *SpanChannelCompressor) Close() error {
-	return scc.writer.Close()
+func (cc *ChannelCompressor) Close() error {
+	return cc.writer.Close()
 }
 
-func (scc *SpanChannelCompressor) Reset() {
-	scc.compressed.Reset()
-	if scc.compressionAlgo.IsBrotli() {
+func (cc *ChannelCompressor) Reset() {
+	cc.compressed.Reset()
+	if cc.compressionAlgo.IsBrotli() {
 		// always add channal version for brotli
-		scc.compressed.WriteByte(ChannelVersionBrotli)
+		cc.compressed.WriteByte(ChannelVersionBrotli)
 	}
-	scc.writer.Reset(scc.compressed)
+	cc.writer.Reset(cc.compressed)
 }
 
-func (scc *SpanChannelCompressor) GetCompressedLen() int {
-	return scc.compressed.Len()
+func (cc *ChannelCompressor) Len() int {
+	return cc.compressed.Len()
 }
 
-func (scc *SpanChannelCompressor) GetCompressed() *bytes.Buffer {
-	return scc.compressed
+func (cc *ChannelCompressor) GetCompressed() *bytes.Buffer {
+	return cc.compressed
+}
+
+func (cc *ChannelCompressor) Read(p []byte) (int, error) {
+	return cc.compressed.Read(p)
 }
