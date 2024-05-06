@@ -60,7 +60,7 @@ type ExecutionProxyAPI interface {
 // NodeProxyAPI defines the methods proxied to the node rpc backend
 // This should include all methods that are called by op-batcher or op-proposer
 type NodeProxyAPI interface {
-	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+	OutputAtBlock(ctx context.Context, blockNumString string) (*eth.OutputResponse, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	RollupConfig(ctx context.Context) (*rollup.Config, error)
 }
