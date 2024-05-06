@@ -60,45 +60,113 @@ func main() {
 		}
 	}
 
-	// Open the databases
-	oldDB, err := openDB(filepath.Join(*oldDBPath, "celo"), dbCache, dbHandles, false)
-	if err != nil {
-		log.Crit("Failed to open old database", "err", err)
-	}
-	newDB, err := openDB(filepath.Join(*newDBPath, "geth"), dbCache, dbHandles, false)
-	if err != nil {
-		log.Crit("Failed to open new database", "err", err)
+	// Script Steps:
+	// 1. Copy everything but ancients over to new datadir
+	// 2. Open up Ancients(freezer)DBs OLD and NEW
+	// 3. Trasnfer and transform ancients from OLD to NEW
+	// 4. Close DBs
+	// 5. Cleanup directories (one directory with new datadir + new ancients)
+	// 6. Open up a new database
+	// 7. Transform block bodies and headers in place in the new database
+
+	// Script Steps:
+	// 1. Create empty new db directory. (chaindata)
+	// 2. Open up Ancients(freezer)DBs OLD and NEW. New opens in `newdb/chaindata/ancients`. Old open from `oldDb/chaindata/ancients` Old opens readonly
+	// 3. Trasnfer and transform ancients from OLD to NEW
+	// 4. Close DBs
+	// status:
+	//   oldDb - same as before (everything read only)
+	//   newDb - chainddata with ancients directory, the rest is empty
+	// 5. Copy everything else from oldDb to newDb (don't copy ancients)
+	// 6. Open up a new database
+	// 7. Transform block bodies and headers in place in the new database
+
+	if err := createEmptyNewDb(*newDBPath); err != nil {
+
 	}
 
-	numAncients := MustAncientLength(oldDB)
-	numAncientsMigrated := MustAncientLength(newDB)
-	log.Info("Ancient Migration Initial Status", "migrated", numAncientsMigrated, "total", numAncients)
+	if err := migrateAncientsDb(*oldDBPath, *newDBPath); err != nil {
 
-	if err = parMigrateRange(oldDB, newDB, numAncientsMigrated, numAncients, *batchSize, readAncientBlockRange, writeAncientBlockRange); err != nil {
+	}
+
+	if err := migrateNonAncientsDb(*oldDBPath, *newDBPath); err != nil {
+
+	}
+
+
+
+
+	// Copy everything from the old database to the new database
+	if err := os.MkdirAll(filepath.Join(*newDBPath, "geth"), 0755); err != nil {
+		log.Crit("Failed to create new geth db directory", "err", err)
+	}
+	// TODO not copy ancient
+	cmd := exec.Command("cp", "-a", "-R", filepath.Join(*oldDBPath, "celo", "chaindata"), filepath.Join(*newDBPath, "geth"))
+	if err := cmd.Run(); err != nil {
+		log.Crit("Failed to copy old database to new database", "err", err)
+	}
+
+	chaindataPath := filepath.Join(*newDBPath, "geth", "chaindata")
+	ancientPath := filepath.Join(chaindataPath, "ancient")
+	oldFreezer, err := rawdb.NewChainFreezer(ancientPath, "", true)
+	if err != nil {
+		log.Crit("Failed to open old freezer", "err", err)
+	}
+	ancientPathTmp := filepath.Join(chaindataPath, "ancient_new")
+	newFreezer, err := rawdb.NewChainFreezer(ancientPathTmp, "", false)
+	if err != nil {
+		log.Crit("Failed to open new freezer", "err", err)
+	}
+
+	numAncientsOld, err := oldFreezer.Ancients()
+	if err != nil {
+		log.Crit("Failed to get number of ancients in old freezer", "err", err)
+	}
+	numAncientsNew, err := newFreezer.Ancients()
+	if err != nil {
+		log.Crit("Failed to get number of ancients in new freezer", "err", err)
+	}
+
+	log.Info("Ancient Migration Initial Status", "migrated", numAncientsNew, "total", numAncientsOld)
+
+	if err = parMigrateAncientRange(oldFreezer, newFreezer, numAncientsNew, numAncientsOld, *batchSize, readAncientBlockRange, writeAncientBlockRange); err != nil {
 		log.Crit("Failed to migrate ancient range", "err", err)
 	}
 
-	log.Info("Ancient Migration End Status", "migrated", MustAncientLength(newDB), "total", numAncients)
-
-	numBlocks := GetLastBlockNumber(oldDB) + 1
-	numBlocksMigrated := GetLastBlockNumber(newDB) + 1
-	log.Info("Non-Ancient Migration Initial Status", "migrated", numBlocksMigrated, "total", numBlocks)
-
-	// Close the databases
-	oldDB.Close()
-	newDB.Close()
-
-	if err = copyAllDataExceptAncients(*oldDBPath, *newDBPath); err != nil {
-		log.Crit("Failed to copy all data except ancients", "err", err)
+	numAncientsOld, err = oldFreezer.Ancients()
+	if err != nil {
+		log.Crit("Failed to get number of ancients in old freezer", "err", err)
+	}
+	numAncientsNew, err = newFreezer.Ancients()
+	if err != nil {
+		log.Crit("Failed to get number of ancients in new freezer", "err", err)
 	}
 
-	// Reopen the databases
-	newDB, err = openDB(filepath.Join(*newDBPath, "geth"), dbCache, dbHandles, false)
+	log.Info("Ancient Migration End Status", "migrated", numAncientsNew, "total", numAncientsOld)
+
+	oldFreezer.Close()
+	newFreezer.Close()
+
+	// Remove old ancient directory and rename new ancient directory
+	if err := os.RemoveAll(ancientPath); err != nil {
+		log.Crit("Failed to remove old ancient directory", "err", err)
+	}
+	if err := os.Rename(ancientPathTmp, ancientPath); err != nil {
+		log.Crit("Failed to rename new ancient directory", "err", err)
+	}
+
+	// Reopen the new database
+	newDB, err := openDB(chaindataPath, ancientPath, dbCache, dbHandles, false)
 	if err != nil {
 		log.Crit("Failed to open new database", "err", err)
 	}
 
 	defer newDB.Close()
+
+	numBlocks := GetLastBlockNumber(newDB) + 1
+	// numBlocksMigrated := GetLastBlockNumber(newDB) + 1
+	numBlocksMigrated := MustAncientLength(newDB)
+	log.Info("Non-Ancient Migration Initial Status", "migrated", numBlocksMigrated, "total", numBlocks)
 
 	if err := parMigrateRange(newDB, newDB, numBlocksMigrated, numBlocks, *batchSize, readBlockRange, writeBlockRange); err != nil {
 		log.Crit("Failed to migrate range", "err", err)
@@ -108,6 +176,9 @@ func main() {
 
 	log.Info("Migration complete")
 }
+
+func createEmptyNewDb(newDBPath string) error {
+
 
 // copyAllDataExceptAncients copies all data from the old database to the new database except the ancient data which has already been migrated
 func copyAllDataExceptAncients(oldDBPath, newDBPath string) error {
@@ -143,9 +214,7 @@ func copyAllDataExceptAncients(oldDBPath, newDBPath string) error {
 }
 
 // Opens a database
-func openDB(path string, cache int, handles int, readonly bool) (ethdb.Database, error) {
-	chaindataPath := filepath.Join(path, "chaindata")
-	ancientPath := filepath.Join(chaindataPath, "ancient")
+func openDB(chaindataPath, ancientPath string, cache int, handles int, readonly bool) (ethdb.Database, error) {
 	ldb, err := rawdb.Open(rawdb.OpenOptions{
 		Type:              "leveldb",
 		Directory:         chaindataPath,
@@ -251,6 +320,21 @@ func seqMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, start, count ui
 }
 
 // parMigrateRange migrates ancient data from the old database to the new database in parallel
+func parMigrateAncientRange(oldFreezer, newFreezer *rawdb.Freezer, start, end, step uint64, reader func(*rawdb.Freezer, uint64, uint64) (*RLPBlockRange, error), writer func(*rawdb.Freezer, *RLPBlockRange) error) error {
+	g, ctx := errgroup.WithContext(context.Background())
+	readChan := make(chan RLPBlockRange, 10)
+	transformChan := make(chan RLPBlockRange, 10)
+
+	log.Info("Migrating data", "start", start, "end", end, "step", step)
+
+	g.Go(func() error { return readAncientBlocks(ctx, oldFreezer, start, end, step, readChan, reader) })
+	g.Go(func() error { return transformBlocks(ctx, readChan, transformChan) })
+	g.Go(func() error { return writeAncientBlocks(ctx, newFreezer, transformChan, writer) })
+
+	return g.Wait()
+}
+
+// parMigrateRange migrates ancient data from the old database to the new database in parallel
 func parMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, start, end, step uint64, reader func(ethdb.Database, uint64, uint64) (*RLPBlockRange, error), writer func(ethdb.Database, *RLPBlockRange) error) error {
 	g, ctx := errgroup.WithContext(context.Background())
 	readChan := make(chan RLPBlockRange, 10)
@@ -263,6 +347,26 @@ func parMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, start, end, ste
 	g.Go(func() error { return writeBlocks(ctx, newDb, transformChan, writer) })
 
 	return g.Wait()
+}
+
+func readAncientBlocks(ctx context.Context, oldFreezer *rawdb.Freezer, startBlock, endBlock, batchSize uint64, out chan<- RLPBlockRange, readBlockRange func(*rawdb.Freezer, uint64, uint64) (*RLPBlockRange, error)) error {
+	defer close(out)
+	// Read blocks and send them to the out channel
+	// This could be reading from a database, a file, etc.
+	for i := startBlock; i < endBlock; i += batchSize {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			count := min(batchSize, endBlock-i+1)
+			blockRange, err := readAncientBlockRange(oldFreezer, i, count)
+			if err != nil {
+				return fmt.Errorf("Failed to read block range: %v", err)
+			}
+			out <- *blockRange
+		}
+	}
+	return nil
 }
 
 func readBlocks(ctx context.Context, oldDb ethdb.Database, startBlock, endBlock, batchSize uint64, out chan<- RLPBlockRange, readBlockRange func(ethdb.Database, uint64, uint64) (*RLPBlockRange, error)) error {
@@ -303,6 +407,22 @@ func transformBlocks(ctx context.Context, in <-chan RLPBlockRange, out chan<- RL
 	return nil
 }
 
+func writeAncientBlocks(ctx context.Context, newFreezer *rawdb.Freezer, in <-chan RLPBlockRange, writeBlockRange func(*rawdb.Freezer, *RLPBlockRange) error) error {
+	// Write blocks from the in channel to the newDb
+	for blockRange := range in {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			err := writeAncientBlockRange(newFreezer, &blockRange)
+			if err != nil {
+				return fmt.Errorf("Failed to write block range: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
 func writeBlocks(ctx context.Context, newDb ethdb.Database, in <-chan RLPBlockRange, writeBlockRange func(ethdb.Database, *RLPBlockRange) error) error {
 	// Write blocks from the in channel to the newDb
 	for blockRange := range in {
@@ -319,7 +439,7 @@ func writeBlocks(ctx context.Context, newDb ethdb.Database, in <-chan RLPBlockRa
 	return nil
 }
 
-func readAncientBlockRange(db ethdb.Database, start, count uint64) (*RLPBlockRange, error) {
+func readAncientBlockRange(freezer *rawdb.Freezer, start, count uint64) (*RLPBlockRange, error) {
 	blockRange := RLPBlockRange{
 		start:    start,
 		hashes:   make([][]byte, count),
@@ -332,23 +452,23 @@ func readAncientBlockRange(db ethdb.Database, start, count uint64) (*RLPBlockRan
 
 	log.Debug("Reading ancient blocks", "start", start, "end", start+count-1, "count", count)
 
-	blockRange.hashes, err = db.AncientRange(rawdb.ChainFreezerHashTable, start, count, 0)
+	blockRange.hashes, err = freezer.AncientRange(rawdb.ChainFreezerHashTable, start, count, 0)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read hashes from old freezer: %v", err)
 	}
-	blockRange.headers, err = db.AncientRange(rawdb.ChainFreezerHeaderTable, start, count, 0)
+	blockRange.headers, err = freezer.AncientRange(rawdb.ChainFreezerHeaderTable, start, count, 0)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read headers from old freezer: %v", err)
 	}
-	blockRange.bodies, err = db.AncientRange(rawdb.ChainFreezerBodiesTable, start, count, 0)
+	blockRange.bodies, err = freezer.AncientRange(rawdb.ChainFreezerBodiesTable, start, count, 0)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read bodies from old freezer: %v", err)
 	}
-	blockRange.receipts, err = db.AncientRange(rawdb.ChainFreezerReceiptTable, start, count, 0)
+	blockRange.receipts, err = freezer.AncientRange(rawdb.ChainFreezerReceiptTable, start, count, 0)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read receipts from old freezer: %v", err)
 	}
-	blockRange.tds, err = db.AncientRange(rawdb.ChainFreezerDifficultyTable, start, count, 0)
+	blockRange.tds, err = freezer.AncientRange(rawdb.ChainFreezerDifficultyTable, start, count, 0)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read tds from old freezer: %v", err)
 	}
@@ -416,8 +536,8 @@ func transformBlockRange(blockRange *RLPBlockRange) error {
 	return nil
 }
 
-func writeAncientBlockRange(db ethdb.Database, blockRange *RLPBlockRange) error {
-	_, err := db.ModifyAncients(func(aWriter ethdb.AncientWriteOp) error {
+func writeAncientBlockRange(freezer *rawdb.Freezer, blockRange *RLPBlockRange) error {
+	_, err := freezer.ModifyAncients(func(aWriter ethdb.AncientWriteOp) error {
 		for i := range blockRange.hashes {
 			blockNumber := blockRange.start + uint64(i)
 			if err := aWriter.AppendRaw(rawdb.ChainFreezerHashTable, blockNumber, blockRange.hashes[i]); err != nil {
@@ -499,12 +619,20 @@ type CeloBody struct {
 
 // MustAncientLength returns the number of items in the ancients database
 func MustAncientLength(db ethdb.Database) uint64 {
-	byteSize, err := db.AncientSize(rawdb.ChainFreezerHashTable)
+	byteSize, err := db.AncientSize(rawdb.ChainFreezerHashTable) // TODO why not just use .Ancients()?
 	if err != nil {
 		log.Crit("Failed to get ancient size", "error", err)
 	}
 	return byteSize / ancientHashSize
 }
+
+// func MustAncientLength(freezer rawdb.Freezer) uint64 {
+// 	// byteSize, err := freezer.AncientSize(rawdb.ChainFreezerHashTable)
+// 	// if err != nil {
+// 	// 	log.Crit("Failed to get ancient size", "error", err)
+// 	// }
+// 	// return byteSize / ancientHashSize
+// }
 
 // GetLastBlockNumber returns the number of the last block in the database
 func GetLastBlockNumber(db ethdb.Database) uint64 {
