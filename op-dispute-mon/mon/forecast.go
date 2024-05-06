@@ -24,7 +24,22 @@ type OutputValidator interface {
 
 type ForecastMetrics interface {
 	RecordGameAgreement(status metrics.GameAgreementStatus, count int)
+	RecordLatestInvalidProposal(timestamp uint64)
 	RecordIgnoredGames(count int)
+}
+
+type forecastBatch struct {
+	AgreeDefenderAhead      int
+	DisagreeDefenderAhead   int
+	AgreeChallengerAhead    int
+	DisagreeChallengerAhead int
+
+	AgreeDefenderWins      int
+	DisagreeDefenderWins   int
+	AgreeChallengerWins    int
+	DisagreeChallengerWins int
+
+	LatestInvalidProposal uint64
 }
 
 type forecast struct {
@@ -42,7 +57,7 @@ func newForecast(logger log.Logger, metrics ForecastMetrics, validator OutputVal
 }
 
 func (f *forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData, ignoredCount int) {
-	batch := monTypes.ForecastBatch{}
+	batch := forecastBatch{}
 	for _, game := range games {
 		if err := f.forecastGame(ctx, game, &batch); err != nil {
 			f.logger.Error("Failed to forecast game", "err", err)
@@ -51,7 +66,7 @@ func (f *forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameD
 	f.recordBatch(batch, ignoredCount)
 }
 
-func (f *forecast) recordBatch(batch monTypes.ForecastBatch, ignoredCount int) {
+func (f *forecast) recordBatch(batch forecastBatch, ignoredCount int) {
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderWins, batch.AgreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderWins, batch.DisagreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.AgreeChallengerWins, batch.AgreeChallengerWins)
@@ -62,10 +77,12 @@ func (f *forecast) recordBatch(batch monTypes.ForecastBatch, ignoredCount int) {
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderAhead, batch.AgreeDefenderAhead)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderAhead, batch.DisagreeDefenderAhead)
 
+	f.metrics.RecordLatestInvalidProposal(batch.LatestInvalidProposal)
+
 	f.metrics.RecordIgnoredGames(ignoredCount)
 }
 
-func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *monTypes.ForecastBatch) error {
+func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *forecastBatch) error {
 	// Check the root agreement.
 	agreement, expected, err := f.validator.CheckRootAgreement(ctx, game.L1HeadNum, game.L2BlockNumber, game.RootClaim)
 	if err != nil {
@@ -75,6 +92,9 @@ func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGame
 	expectedResult := types.GameStatusDefenderWon
 	if !agreement {
 		expectedResult = types.GameStatusChallengerWon
+		if metrics.LatestInvalidProposal < game.Timestamp {
+			metrics.LatestInvalidProposal = game.Timestamp
+		}
 	}
 
 	if game.Status != types.GameStatusInProgress {

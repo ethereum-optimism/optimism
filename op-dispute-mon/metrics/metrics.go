@@ -65,6 +65,19 @@ const (
 	SecondHalfNotExpiredUnresolved
 )
 
+func ZeroClaimStatuses() map[ClaimStatus]int {
+	return map[ClaimStatus]int{
+		FirstHalfExpiredResolved:       0,
+		FirstHalfExpiredUnresolved:     0,
+		FirstHalfNotExpiredResolved:    0,
+		FirstHalfNotExpiredUnresolved:  0,
+		SecondHalfExpiredResolved:      0,
+		SecondHalfExpiredUnresolved:    0,
+		SecondHalfNotExpiredResolved:   0,
+		SecondHalfNotExpiredUnresolved: 0,
+	}
+}
+
 type HonestActorData struct {
 	PendingClaimCount int
 	ValidClaimCount   int
@@ -91,6 +104,8 @@ type Metricer interface {
 	RecordOutputFetchTime(timestamp float64)
 
 	RecordGameAgreement(status GameAgreementStatus, count int)
+
+	RecordLatestInvalidProposal(timestamp uint64)
 
 	RecordIgnoredGames(count int)
 
@@ -127,8 +142,9 @@ type Metrics struct {
 
 	lastOutputFetch prometheus.Gauge
 
-	gamesAgreement prometheus.GaugeVec
-	ignoredGames   prometheus.Gauge
+	gamesAgreement        prometheus.GaugeVec
+	latestInvalidProposal prometheus.Gauge
+	ignoredGames          prometheus.Gauge
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -227,6 +243,11 @@ func NewMetrics() *Metrics {
 			"completion",
 			"result_correctness",
 			"root_agreement",
+		}),
+		latestInvalidProposal: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "latest_invalid_proposal",
+			Help:      "Timestamp of the most recent game with an invalid root claim in unix seconds",
 		}),
 		ignoredGames: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -368,6 +389,10 @@ func (m *Metrics) RecordOutputFetchTime(timestamp float64) {
 
 func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {
 	m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(count))
+}
+
+func (m *Metrics) RecordLatestInvalidProposal(timestamp uint64) {
+	m.latestInvalidProposal.Set(float64(timestamp))
 }
 
 func (m *Metrics) RecordIgnoredGames(count int) {

@@ -35,7 +35,7 @@ func NewClaimMonitor(logger log.Logger, clock RClock, honestActors []common.Addr
 }
 
 func (c *ClaimMonitor) CheckClaims(games []*types.EnrichedGameData) {
-	claimStatus := make(map[metrics.ClaimStatus]int)
+	claimStatus := metrics.ZeroClaimStatuses()
 	honest := make(map[common.Address]*metrics.HonestActorData)
 	for actor := range c.honestActors {
 		honest[actor] = &metrics.HonestActorData{

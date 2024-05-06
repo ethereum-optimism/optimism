@@ -26,10 +26,4 @@ abstract contract Deployer is Script, Artifacts {
         vm.allowCheatcodes(address(cfg));
         cfg.read(Config.deployConfigPath());
     }
-
-    /// @notice Returns the name of the deployment script. Children contracts
-    ///         must implement this to ensure that the deploy artifacts can be found.
-    ///         This should be the same as the name of the script and is used as the file
-    ///         name inside of the `broadcast` directory when looking up deployment artifacts.
-    function name() public pure virtual returns (string memory);
 }

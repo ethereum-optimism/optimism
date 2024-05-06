@@ -52,7 +52,6 @@ line_length=120
 multiline_func_header='all'
 bracket_spacing=true
 wrap_comments=true
-ignore = ['src/vendor/WETH9.sol']
 
 ################################################################
 #                         PROFILE: CI                          #

@@ -41,9 +41,9 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 	if err != nil {
 		return nil, err
 	}
-	genspec.Alloc = dump.Accounts
+	genspec.Alloc = dump.Copy().Accounts
 	// ensure the dev accounts are not funded unintentionally
-	if hasDevAccounts, err := HasAnyDevAccounts(dump.Accounts); err != nil {
+	if hasDevAccounts, err := HasAnyDevAccounts(genspec.Alloc); err != nil {
 		return nil, fmt.Errorf("failed to check dev accounts: %w", err)
 	} else if hasDevAccounts != config.FundDevAccounts {
 		return nil, fmt.Errorf("deploy config mismatch with allocs. Deploy config fundDevAccounts: %v, actual allocs: %v", config.FundDevAccounts, hasDevAccounts)
@@ -62,6 +62,9 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 	// sanity check that all predeploys are present
 	for i := 0; i < 2048; i++ {
 		addr := common.BigToAddress(new(big.Int).Or(l2PredeployNamespace.Big(), big.NewInt(int64(i))))
+		if !config.GovernanceEnabled() && addr == predeploys.GovernanceTokenAddr {
+			continue
+		}
 		if len(genspec.Alloc[addr].Code) == 0 {
 			return nil, fmt.Errorf("predeploy %x is missing from L2 genesis allocs", addr)
 		}
@@ -70,7 +73,7 @@ func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types
 	return genspec, nil
 }
 
-func HasAnyDevAccounts(allocs core.GenesisAlloc) (bool, error) {
+func HasAnyDevAccounts(allocs types.GenesisAlloc) (bool, error) {
 	wallet, err := hdwallet.NewFromMnemonic(testMnemonic)
 	if err != nil {
 		return false, fmt.Errorf("failed to create wallet: %w", err)

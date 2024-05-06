@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -50,50 +49,30 @@ func init() {
 // all of the state required for an Optimism network to function.
 // It is expected that the dump contains all of the required state to bootstrap
 // the L1 chain.
-func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployments *L1Deployments) (*core.Genesis, error) {
+func BuildL1DeveloperGenesis(config *DeployConfig, dump *ForgeAllocs, l1Deployments *L1Deployments) (*core.Genesis, error) {
 	log.Info("Building developer L1 genesis block")
 	genesis, err := NewL1Genesis(config)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create L1 developer genesis: %w", err)
 	}
 
+	if genesis.Alloc != nil && len(genesis.Alloc) != 0 {
+		panic("Did not expect NewL1Genesis to generate non-empty state") // sanity check for dev purposes.
+	}
+	// copy, for safety when the dump is reused (like in e2e testing)
+	genesis.Alloc = dump.Copy().Accounts
 	memDB := state.NewMemoryStateDB(genesis)
 	FundDevAccounts(memDB)
 	SetPrecompileBalances(memDB)
 
-	if dump != nil {
-		for addrstr, account := range dump.Accounts {
-			if !common.IsHexAddress(addrstr) {
-				// Changes in https://github.com/ethereum/go-ethereum/pull/28504
-				// add accounts to the Dump with "pre(<AddressHash>)" as key
-				// if the address itself is nil.
-				// So depending on how `dump` was created, this might be a
-				// pre-image key, which we skip.
-				continue
-			}
-			address := common.HexToAddress(addrstr)
-			name := "<unknown>"
-			if l1Deployments != nil {
-				if n := l1Deployments.GetName(address); n != "" {
-					name = n
-				}
-			}
-			log.Info("Setting account", "name", name, "address", address.Hex())
-			memDB.CreateAccount(address)
-			memDB.SetNonce(address, account.Nonce)
-
-			balance := &uint256.Int{}
-			if err := balance.UnmarshalText([]byte(account.Balance)); err != nil {
-				return nil, fmt.Errorf("failed to parse balance for %s: %w", address, err)
-			}
-			memDB.AddBalance(address, balance)
-			memDB.SetCode(address, account.Code)
-			for key, value := range account.Storage {
-				log.Info("Setting storage", "name", name, "key", key.Hex(), "value", value)
-				memDB.SetState(address, key, common.HexToHash(value))
-			}
+	l1Deployments.ForEach(func(name string, addr common.Address) {
+		acc := memDB.GetAccount(addr)
+		if acc != nil {
+			log.Info("Included L1 deployment", "name", name, "address", addr, "balance", acc.Balance, "storage", len(acc.Storage), "nonce", acc.Nonce)
+		} else {
+			log.Info("Excluded L1 deployment", "name", name, "address", addr)
 		}
-	}
+	})
 
 	return memDB.Genesis(), nil
 }
