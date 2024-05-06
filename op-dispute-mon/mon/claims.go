@@ -94,7 +94,7 @@ func (c *ClaimMonitor) checkGameClaims(
 
 		// Check if the clock has expired
 		if firstHalf && claim.Resolved {
-			c.logger.Error("Claim resolved in the first half of the game duration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex, "id", claim.ID())
+			c.logger.Error("Claim resolved in the first half of the game duration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex, "id", claim.ID(), "clock", duration)
 		}
 
 		maxChessTime := time.Duration(game.MaxClockDuration) * time.Second
