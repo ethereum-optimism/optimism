@@ -60,21 +60,15 @@ func main() {
 		}
 	}
 
-	// Open the existing database in read-only mode
-	oldDB, err := openDB(filepath.Join(*oldDBPath, "celo"), dbCache, dbHandles, true)
+	// Open the databases
+	oldDB, err := openDB(filepath.Join(*oldDBPath, "celo"), dbCache, dbHandles, false)
 	if err != nil {
 		log.Crit("Failed to open old database", "err", err)
 	}
-
-	// Open the new database
 	newDB, err := openDB(filepath.Join(*newDBPath, "geth"), dbCache, dbHandles, false)
 	if err != nil {
-		log.Crit("Failed to create new database", "err", err)
+		log.Crit("Failed to open new database", "err", err)
 	}
-
-	// Close the databases
-	defer oldDB.Close()
-	defer newDB.Close()
 
 	numAncients := MustAncientLength(oldDB)
 	numAncientsMigrated := MustAncientLength(newDB)
@@ -86,13 +80,30 @@ func main() {
 
 	log.Info("Ancient Migration End Status", "migrated", MustAncientLength(newDB), "total", numAncients)
 
+	numBlocks := GetLastBlockNumber(oldDB) + 1
+	numBlocksMigrated := GetLastBlockNumber(newDB) + 1
+	log.Info("Non-Ancient Migration Initial Status", "migrated", numBlocksMigrated, "total", numBlocks)
+
+	// Close the databases
+	oldDB.Close()
+	newDB.Close()
+
 	if err = copyAllDataExceptAncients(*oldDBPath, *newDBPath); err != nil {
 		log.Crit("Failed to copy all data except ancients", "err", err)
 	}
 
-	numBlocks := GetLastBlockNumber(oldDB) + 1
-	numBlocksMigrated := GetLastBlockNumber(newDB) + 1
-	log.Info("Migration Initial Status", "migrated", numBlocksMigrated, "total", numBlocks)
+	// Reopen the databases
+	oldDB, err = openDB(filepath.Join(*oldDBPath, "celo"), dbCache, dbHandles, false)
+	if err != nil {
+		log.Crit("Failed to open old database", "err", err)
+	}
+	newDB, err = openDB(filepath.Join(*newDBPath, "geth"), dbCache, dbHandles, false)
+	if err != nil {
+		log.Crit("Failed to open new database", "err", err)
+	}
+
+	defer oldDB.Close()
+	defer newDB.Close()
 
 	if err := parMigrateRange(oldDB, newDB, numBlocksMigrated, numBlocks, *batchSize, readBlockRange, writeBlockRange); err != nil {
 		log.Crit("Failed to migrate range", "err", err)
@@ -249,6 +260,8 @@ func parMigrateRange(oldDb ethdb.Database, newDb ethdb.Database, start, end, ste
 	g, ctx := errgroup.WithContext(context.Background())
 	readChan := make(chan RLPBlockRange, 10)
 	transformChan := make(chan RLPBlockRange, 10)
+
+	log.Info("Migrating data", "start", start, "end", end, "step", step)
 
 	g.Go(func() error { return readBlocks(ctx, oldDb, start, end, step, readChan, reader) })
 	g.Go(func() error { return transformBlocks(ctx, readChan, transformChan) })
