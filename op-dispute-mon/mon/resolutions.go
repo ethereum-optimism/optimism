@@ -43,7 +43,6 @@ func (r *ResolutionMonitor) CheckResolutions(games []*types.EnrichedGameData) {
 				statusMetrics[metrics.CompleteBeforeMaxDuration]++
 			}
 		} else if resolvable {
-			if !maxDurationReached && game.MaxClockDuration <  {
 			if maxDurationReached {
 				statusMetrics[metrics.ResolvableMaxDuration]++
 			} else {
