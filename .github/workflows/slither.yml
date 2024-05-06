@@ -28,7 +28,10 @@ jobs:
 
       - name: Run Slither
         id: slither
-        run: slither packages/contracts-bedrock --sarif results.sarif
+        run: |
+          slither packages/contracts-bedrock \
+          --sarif results.sarif \
+          --config-file packages/contracts-bedrock/slither.config.json
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
