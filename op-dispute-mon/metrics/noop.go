@@ -19,6 +19,10 @@ func (*NoopMetricsImpl) RecordUp()           {}
 func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
 
+func (*NoopMetricsImpl) RecordInvalidClaims(_ int)              {}
+func (*NoopMetricsImpl) RecordValidClaims(_ int)                {}
+func (*NoopMetricsImpl) RecordHonestActorValidClaimCount(_ int) {}
+
 func (*NoopMetricsImpl) RecordHonestActorClaims(_ common.Address, _ *HonestActorData) {}
 
 func (*NoopMetricsImpl) RecordGameResolutionStatus(_ bool, _ bool, _ int) {}

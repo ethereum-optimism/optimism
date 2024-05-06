@@ -42,6 +42,7 @@ type Service struct {
 	game         *extract.GameCallerCreator
 	resolutions  *ResolutionMonitor
 	claims       *ClaimMonitor
+	counter      *ClaimCounter
 	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
 	validator    *outputValidator
@@ -97,6 +98,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 
 	s.initForecast(cfg)
 	s.initBonds()
+	s.initClaimCounter(cfg)
 
 	s.initMonitor(ctx, cfg) // Monitor must be initialized last
 
@@ -143,6 +145,10 @@ func (s *Service) initExtractor(cfg *config.Config) {
 
 func (s *Service) initForecast(cfg *config.Config) {
 	s.forecast = newForecast(s.logger, s.metrics, s.validator)
+}
+
+func (s *Service) initClaimCounter(cfg *config.Config) {
+	s.counter = NewClaimCounter(s.logger, s.cl, cfg.HonestActors, s.validator, s.metrics)
 }
 
 func (s *Service) initBonds() {
@@ -227,6 +233,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.bonds.CheckBonds,
 		s.resolutions.CheckResolutions,
 		s.claims.CheckClaims,
+		s.counter.Count,
 		s.withdrawals.CheckWithdrawals,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,

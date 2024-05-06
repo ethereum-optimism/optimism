@@ -123,6 +123,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 	bonds := &mockBonds{}
 	resolutions := &mockResolutionMonitor{}
 	claims := &mockClaimMonitor{}
+	count := &mockClaimCounter{}
 	withdrawals := &mockWithdrawalMonitor{}
 	monitor := newGameMonitor(
 		context.Background(),
@@ -134,12 +135,21 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 		bonds.CheckBonds,
 		resolutions.CheckResolutions,
 		claims.CheckClaims,
+		count.Count,
 		withdrawals.CheckWithdrawals,
 		extractor.Extract,
 		fetchBlockNum,
 		fetchBlockHash,
 	)
 	return monitor, extractor, forecast, bonds, withdrawals, resolutions, claims
+}
+
+type mockClaimCounter struct {
+	calls int
+}
+
+func (m *mockClaimCounter) Count(_ context.Context, _ []*monTypes.EnrichedGameData) {
+	m.calls++
 }
 
 type mockResolutionMonitor struct {

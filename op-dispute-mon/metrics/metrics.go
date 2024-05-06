@@ -91,6 +91,10 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	RecordInvalidClaims(count int)
+	RecordValidClaims(count int)
+	RecordHonestActorValidClaimCount(count int)
+
 	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
 
 	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)
@@ -125,6 +129,10 @@ type Metrics struct {
 
 	*opmetrics.CacheMetrics
 	*contractMetrics.ContractMetrics
+
+	invalidClaims          prometheus.Gauge
+	validClaims            prometheus.Gauge
+	honestActorValidClaims prometheus.Gauge
 
 	resolutionStatus prometheus.GaugeVec
 
@@ -179,6 +187,21 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "up",
 			Help:      "1 if the op-challenger has finished starting up",
+		}),
+		invalidClaims: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "invalid_claims",
+			Help:      "Total number of invalid claims",
+		}),
+		validClaims: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "valid_claims",
+			Help:      "Total number of valid claims",
+		}),
+		honestActorValidClaims: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "honest_actor_valid_claims",
+			Help:      "Total number of valid claims from an honest actor",
 		}),
 		lastOutputFetch: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -299,6 +322,18 @@ func (m *Metrics) RecordInfo(version string) {
 func (m *Metrics) RecordUp() {
 	prometheus.MustRegister()
 	m.up.Set(1)
+}
+
+func (m *Metrics) RecordInvalidClaims(count int) {
+	m.invalidClaims.Set(float64(count))
+}
+
+func (m *Metrics) RecordValidClaims(count int) {
+	m.validClaims.Set(float64(count))
+}
+
+func (m *Metrics) RecordHonestActorValidClaimCount(count int) {
+	m.honestActorValidClaims.Set(float64(count))
 }
 
 func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorData) {

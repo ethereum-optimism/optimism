@@ -21,6 +21,7 @@ type MonitorWithdrawals func(games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
 type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, error)
+type CountClaims func(ctx context.Context, games []*types.EnrichedGameData)
 
 type gameMonitor struct {
 	logger log.Logger
@@ -37,6 +38,7 @@ type gameMonitor struct {
 	bonds            Bonds
 	resolutions      Resolutions
 	claims           MonitorClaims
+	count            CountClaims
 	withdrawals      MonitorWithdrawals
 	extract          Extract
 	fetchBlockHash   BlockHashFetcher
@@ -53,6 +55,7 @@ func newGameMonitor(
 	bonds Bonds,
 	resolutions Resolutions,
 	claims MonitorClaims,
+	count CountClaims,
 	withdrawals MonitorWithdrawals,
 	extract Extract,
 	fetchBlockNumber BlockNumberFetcher,
@@ -69,6 +72,7 @@ func newGameMonitor(
 		bonds:            bonds,
 		resolutions:      resolutions,
 		claims:           claims,
+		count:            count,
 		withdrawals:      withdrawals,
 		extract:          extract,
 		fetchBlockNumber: fetchBlockNumber,
@@ -93,6 +97,7 @@ func (m *gameMonitor) monitorGames() error {
 	}
 	m.resolutions(enrichedGames)
 	m.forecast(m.ctx, enrichedGames, ignored)
+	m.count(m.ctx, enrichedGames)
 	m.bonds(enrichedGames)
 	m.claims(enrichedGames)
 	m.withdrawals(enrichedGames)

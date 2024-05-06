@@ -141,7 +141,8 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 					Claimant:    common.Address{0x01},
 					CounteredBy: common.Address{0x03},
 					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(2),
+						Bond:     big.NewInt(2),
+						Position: faultTypes.NewPosition(1, big.NewInt(0)),
 					},
 				},
 				Resolved: true,
@@ -151,7 +152,8 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 					Claimant:    common.Address{0x04},
 					CounteredBy: common.Address{0x02},
 					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(3),
+						Bond:     big.NewInt(3),
+						Position: faultTypes.NewPosition(1, big.NewInt(1)),
 					},
 				},
 				Resolved: true,
@@ -162,7 +164,8 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 					CounteredBy: common.Address{0x02},
 					Clock:       faultTypes.NewClock(time.Duration(0), frozen),
 					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(4),
+						Bond:     big.NewInt(4),
+						Position: faultTypes.NewPosition(2, big.NewInt(0)),
 					},
 				},
 			},
@@ -170,7 +173,8 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 				Claim: faultTypes.Claim{
 					Claimant: common.Address{0x01},
 					ClaimData: faultTypes.ClaimData{
-						Bond: big.NewInt(5),
+						Bond:     big.NewInt(5),
+						Position: faultTypes.NewPosition(2, big.NewInt(1)),
 					},
 				},
 			},
