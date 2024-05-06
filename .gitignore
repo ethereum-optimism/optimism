@@ -26,6 +26,9 @@ packages/contracts-bedrock/deployments/anvil
 # jetbrains
 .idea/
 
+# Vscode
+.vscode
+
 .secrets
 .env
 .env*
