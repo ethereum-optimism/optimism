@@ -192,7 +192,7 @@ contract L2Genesis is Deployer {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (Predeploys.isSupportedPredeploy(addr)) {
+            if (Predeploys.isSupportedPredeploy(addr, cfg.useInterop())) {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 console.log("Setting proxy %s implementation: %s", addr, implementation);
                 EIP1967Helper.setImplementation(addr, implementation);
@@ -231,6 +231,10 @@ contract L2Genesis is Deployer {
         setSchemaRegistry(); // 20
         setEAS(); // 21
         setGovernanceToken(); // 42: OP (not behind a proxy)
+        if (cfg.useInterop()) {
+            setCrossL2Inbox(); // 22
+            setL2ToL2CrossDomainMessenger(); // 23
+        }
     }
 
     function setProxyAdmin() public {
@@ -439,6 +443,18 @@ contract L2Genesis is Deployer {
         /// Reset so its not included state dump
         vm.etch(address(eas), "");
         vm.resetNonce(address(eas));
+    }
+
+    /// @notice This predeploy is following the saftey invariant #2.
+    ///         This contract has no initializer.
+    function setCrossL2Inbox() internal {
+        _setImplementationCode(Predeploys.CROSS_L2_INBOX);
+    }
+
+    /// @notice This predeploy is following the saftey invariant #2.
+    ///         This contract has no initializer.
+    function setL2ToL2CrossDomainMessenger() internal {
+        _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 
     /// @notice Sets all the preinstalls.
