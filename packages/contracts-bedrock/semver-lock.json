@@ -36,8 +36,8 @@
     "sourceCodeHash": "0x3d0e9dc8ed75b6f2e59444e9204341b18d343af02d6e37ecd9f759da2c8c118b"
   },
   "src/L1/OptimismPortal2.sol": {
-    "initCodeHash": "0xea32d79e8297956d4f9a4c7985bb53ff8bb3735e5b307d4e118fea71f503a38e",
-    "sourceCodeHash": "0x209d7e9ffa97a54c060f5d30e5d88684a50a7b4610336cf03880bfbc80ca669e"
+    "initCodeHash": "0x6bc8659932ab7eed221880a1d606704a0446d80cf4826f13623fc6cc57053751",
+    "sourceCodeHash": "0x411ad7aea4d36d7a89ecb2f0dc2c6c200e5fb022b528b3beb1e1b37c557bc7dc"
   },
   "src/L1/ProtocolVersions.sol": {
     "initCodeHash": "0x72cd467e8bcf019c02675d72ab762e088bcc9cc0f1a4e9f587fa4589f7fdd1b8",
@@ -100,8 +100,8 @@
     "sourceCodeHash": "0xa304b4b556162323d69662b4dd9a1d073d55ec661494465489bb67f1e465e7b3"
   },
   "src/Safe/DeputyGuardianModule.sol": {
-    "initCodeHash": "0x533a9dfab7fa1f7f5e8796f0ad78b4a16f93cd8ff3cddcce946691944f6416c0",
-    "sourceCodeHash": "0x82c7ea737cefeb2fda38a75c7165cbad9c902a0f22a13dd46f56050223e308ce"
+    "initCodeHash": "0x433eb7488e613a51c7ff05a76bbecf47f5beac8b8614f5c50001f99e39ae7ed2",
+    "sourceCodeHash": "0x2919835fc15c166a027b2ff1cf801c847f139948baf2df0db3d02ac3017c09d9"
   },
   "src/Safe/LivenessGuard.sol": {
     "initCodeHash": "0x16ec47f0888391638814047a1735dbac849b48e256b2e20182bbb3186d950a3c",
