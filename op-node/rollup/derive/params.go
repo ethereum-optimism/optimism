@@ -29,11 +29,6 @@ const DerivationVersion1 = plasma.TxDataVersion1
 // MaxRLPBytesPerChannel because single batch cannot be larger than channel size.
 const MaxSpanBatchSize = MaxRLPBytesPerChannel
 
-// MaxChannelBankSize is the amount of memory space, in number of bytes,
-// till the bank is pruned by removing channels,
-// starting with the oldest channel.
-const MaxChannelBankSize = 100_000_000
-
 // MaxRLPBytesPerChannel is the maximum amount of bytes that will be read from
 // a channel. This limit is set when decoding the RLP.
 const MaxRLPBytesPerChannel = 10_000_000
