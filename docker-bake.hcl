@@ -53,19 +53,19 @@ variable "OP_DISPUTE_MON_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable OP_HEARTBEAT_VERSION {
+variable "OP_HEARTBEAT_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable OP_PROGRAM_VERSION {
+variable "OP_PROGRAM_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable CANNON_VERSION {
+variable "CANNON_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable OP_CONDUCTOR_VERSION {
+variable "OP_CONDUCTOR_VERSION" {
   default = "${GIT_VERSION}"
 }
 
