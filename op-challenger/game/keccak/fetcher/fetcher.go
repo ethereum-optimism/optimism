@@ -52,7 +52,7 @@ func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, o
 			if err != nil {
 				return nil, err
 			}
-			if inputData != nil {
+			if len(inputData) > 0 {
 				foundRelevantTx = true
 				inputs = append(inputs, inputData...)
 			}

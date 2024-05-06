@@ -1,7 +1,6 @@
 package fetcher
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
@@ -67,7 +66,7 @@ func TestFetchLeaves_NoBlocks(t *testing.T) {
 func TestFetchLeaves_ErrorOnUnavailableInputBlocks(t *testing.T) {
 	fetcher, oracle, _ := setupFetcherTest(t)
 	mockErr := fmt.Errorf("oops")
-	oracle.inputDataBlocksError = &mockErr
+	oracle.inputDataBlocksError = mockErr
 
 	leaves, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.ErrorContains(t, err, "failed to retrieve leaf block nums")
@@ -357,8 +356,8 @@ type stubOracle struct {
 	leafBlocks     []uint64
 	nextProposalId byte
 	proposals      map[byte]*proposalConfig
-	// Add some fields to allow for mocking of a few responses
-	inputDataBlocksError *error
+	// Add a field to allow for mocking of errors
+	inputDataBlocksError error
 }
 
 func (o *stubOracle) Addr() common.Address {
@@ -367,7 +366,7 @@ func (o *stubOracle) Addr() common.Address {
 
 func (o *stubOracle) GetInputDataBlocks(_ context.Context, _ rpcblock.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
 	if o.inputDataBlocksError != nil {
-		return nil, *o.inputDataBlocksError
+		return nil, o.inputDataBlocksError
 	}
 	return o.leafBlocks, nil
 }
@@ -449,10 +448,7 @@ func (s *stubL1Source) TransactionReceipt(_ context.Context, txHash common.Hash)
 		return nil, errors.New("not found")
 	}
 
-	logs, ok := s.logs[txHash]
-	if !ok {
-		logs = make([]*types.Log, 0)
-	}
+	logs := s.logs[txHash]
 	return &types.Receipt{Status: rcptStatus, Logs: logs}, nil
 }
 
@@ -474,10 +470,7 @@ func (s *stubL1Source) tx(blockNum uint64, key *ecdsa.PrivateKey, txMod TxModifi
 	tx := types.MustSignNewTx(key, types.LatestSignerForChainID(inner.ChainID), inner)
 
 	// Track tx internally
-	txSet, exists := s.txs[blockNum]
-	if !exists {
-		txSet = types.Transactions{}
-	}
+	txSet := s.txs[blockNum]
 	txSet = append(txSet, tx)
 	s.txs[blockNum] = txSet
 
@@ -487,7 +480,7 @@ func (s *stubL1Source) tx(blockNum uint64, key *ecdsa.PrivateKey, txMod TxModifi
 func (s *stubL1Source) logForProposal(tx *types.Transaction, proposal *proposalConfig) *types.Log {
 	// Concat the claimant address and the proposal id
 	// These will be split back into address and id in fetcher.extractRelevantLeavesFromTx
-	data := bytes.Join([][]byte{proposal.claimantAddr[:], {proposal.id}}, []byte{})
+	data := append(proposal.claimantAddr[:], proposal.id)
 
 	txLog := &types.Log{
 		Address: oracleAddr,
@@ -504,10 +497,7 @@ func (s *stubL1Source) logForProposal(tx *types.Transaction, proposal *proposalC
 	}
 
 	// Track tx log
-	logSet, exists := s.logs[tx.Hash()]
-	if !exists {
-		logSet = []*types.Log{}
-	}
+	logSet := s.logs[tx.Hash()]
 	logSet = append(logSet, txLog)
 	s.logs[tx.Hash()] = logSet
 
