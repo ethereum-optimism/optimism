@@ -90,9 +90,9 @@ func TestFetchLeaves_SingleTxSingleLog(t *testing.T) {
 		txSender   *ecdsa.PrivateKey
 		txModifier TxModifier
 	}{
-		{"from claimant address", claimantKey, ValidTx},
-		{"from other address", otherKey, WithToAddr(otherAddr)},
-		{"contract creation", otherKey, WithoutToAddr()},
+		{"from EOA claimant address", claimantKey, ValidTx},
+		{"from contract call", otherKey, WithToAddr(otherAddr)},
+		{"from contract creation", otherKey, WithoutToAddr()},
 	}
 
 	for _, tc := range cases {
@@ -101,9 +101,9 @@ func TestFetchLeaves_SingleTxSingleLog(t *testing.T) {
 			blockNum := uint64(7)
 			oracle.leafBlocks = []uint64{blockNum}
 
-			proposal := oracle.createValidProposal(input1)
-			tx := l1Source.tx(blockNum, tc.txSender, tc.txModifier)
-			l1Source.logForProposal(tx, proposal)
+			proposal := oracle.createProposal(input1)
+			tx := l1Source.createTx(blockNum, tc.txSender, tc.txModifier)
+			l1Source.createLog(tx, proposal)
 
 			inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 			require.NoError(t, err)
@@ -117,11 +117,11 @@ func TestFetchLeaves_SingleTxMultipleLogs(t *testing.T) {
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
 
-	proposal1 := oracle.createValidProposal(input1)
-	proposal2 := oracle.createValidProposal(input2)
-	tx := l1Source.tx(blockNum, otherKey, WithToAddr(otherAddr))
-	l1Source.logForProposal(tx, proposal1)
-	l1Source.logForProposal(tx, proposal2)
+	proposal1 := oracle.createProposal(input1)
+	proposal2 := oracle.createProposal(input2)
+	tx := l1Source.createTx(blockNum, otherKey, WithToAddr(otherAddr))
+	l1Source.createLog(tx, proposal1)
+	l1Source.createLog(tx, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -134,18 +134,18 @@ func TestFetchLeaves_MultipleBlocksAndLeaves(t *testing.T) {
 	block2 := uint64(15)
 	oracle.leafBlocks = []uint64{block1, block2}
 
-	proposal1 := oracle.createValidProposal(input1)
-	proposal2 := oracle.createValidProposal(input2)
-	proposal3 := oracle.createValidProposal(input3)
-	proposal4 := oracle.createValidProposal(input4)
-	block1Tx := l1Source.tx(block1, claimantKey, ValidTx)
-	block2TxA := l1Source.tx(block2, claimantKey, ValidTx)
-	l1Source.tx(block2, claimantKey, ValidTx) // Add tx with no logs
-	block2TxB := l1Source.tx(block2, otherKey, WithoutToAddr())
-	l1Source.logForProposal(block1Tx, proposal1)
-	l1Source.logForProposal(block2TxA, proposal2)
-	l1Source.logForProposal(block2TxB, proposal3)
-	l1Source.logForProposal(block2TxB, proposal4)
+	proposal1 := oracle.createProposal(input1)
+	proposal2 := oracle.createProposal(input2)
+	proposal3 := oracle.createProposal(input3)
+	proposal4 := oracle.createProposal(input4)
+	block1Tx := l1Source.createTx(block1, claimantKey, ValidTx)
+	block2TxA := l1Source.createTx(block2, claimantKey, ValidTx)
+	l1Source.createTx(block2, claimantKey, ValidTx) // Add tx with no logs
+	block2TxB := l1Source.createTx(block2, otherKey, WithoutToAddr())
+	l1Source.createLog(block1Tx, proposal1)
+	l1Source.createLog(block2TxA, proposal2)
+	l1Source.createLog(block2TxB, proposal3)
+	l1Source.createLog(block2TxB, proposal4)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -158,14 +158,14 @@ func TestFetchLeaves_SkipLogFromWrongContract(t *testing.T) {
 	oracle.leafBlocks = []uint64{blockNum}
 
 	// Emit log from an irrelevant contract address
-	proposal1 := oracle.createValidProposal(input2)
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	log1 := l1Source.logForProposal(tx1, proposal1)
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	log1 := l1Source.createLog(tx1, proposal1)
 	log1.Address = otherAddr
 	// Valid tx
-	proposal2 := oracle.createValidProposal(input1)
-	tx2 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx2, proposal2)
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -178,14 +178,14 @@ func TestFetchLeaves_SkipProposalWithWrongUUID(t *testing.T) {
 	oracle.leafBlocks = []uint64{blockNum}
 
 	// Valid tx but with a different UUID
-	proposal1 := oracle.createValidProposal(input2)
+	proposal1 := oracle.createProposal(input2)
 	proposal1.uuid = big.NewInt(874927294)
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx1, proposal1)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	// Valid tx
-	proposal2 := oracle.createValidProposal(input1)
-	tx2 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx2, proposal2)
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -198,14 +198,14 @@ func TestFetchLeaves_SkipProposalWithWrongClaimant(t *testing.T) {
 	oracle.leafBlocks = []uint64{blockNum}
 
 	// Valid tx but with a different claimant
-	proposal1 := oracle.createValidProposal(input2)
+	proposal1 := oracle.createProposal(input2)
 	proposal1.claimantAddr = otherAddr
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx1, proposal1)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	// Valid tx
-	proposal2 := oracle.createValidProposal(input1)
-	tx2 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx2, proposal2)
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -218,14 +218,14 @@ func TestFetchLeaves_SkipInvalidProposal(t *testing.T) {
 	oracle.leafBlocks = []uint64{blockNum}
 
 	// Set up proposal decoding to fail
-	proposal1 := oracle.createValidProposal(input2)
+	proposal1 := oracle.createProposal(input2)
 	proposal1.valid = false
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx1, proposal1)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	// Valid tx
-	proposal2 := oracle.createValidProposal(input1)
-	tx2 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx2, proposal2)
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -239,14 +239,14 @@ func TestFetchLeaves_SkipProposalWithInsufficientData(t *testing.T) {
 
 	// Log contains insufficient data
 	// It should hold a 20 byte address followed by the proposal payload
-	proposal1 := oracle.createValidProposal(input2)
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	log1 := l1Source.logForProposal(tx1, proposal1)
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	log1 := l1Source.createLog(tx1, proposal1)
 	log1.Data = proposal1.claimantAddr[:19]
 	// Valid tx
-	proposal2 := oracle.createValidProposal(input1)
-	tx2 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx2, proposal2)
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -259,14 +259,14 @@ func TestFetchLeaves_SkipProposalMissingCallData(t *testing.T) {
 	oracle.leafBlocks = []uint64{blockNum}
 
 	// Truncate call data from log so that is only contains an address
-	proposal1 := oracle.createValidProposal(input2)
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	log1 := l1Source.logForProposal(tx1, proposal1)
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	log1 := l1Source.createLog(tx1, proposal1)
 	log1.Data = log1.Data[0:20]
 	// Valid tx
-	proposal2 := oracle.createValidProposal(input1)
-	tx2 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx2, proposal2)
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -279,14 +279,14 @@ func TestFetchLeaves_SkipTxWithReceiptStatusFail(t *testing.T) {
 	oracle.leafBlocks = []uint64{blockNum}
 
 	// Valid proposal, but tx reverted
-	proposal1 := oracle.createValidProposal(input2)
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx1, proposal1)
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	l1Source.rcptStatus[tx1.Hash()] = types.ReceiptStatusFailed
 	// Valid tx
-	proposal2 := oracle.createValidProposal(input1)
-	tx2 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx2, proposal2)
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -299,13 +299,13 @@ func TestFetchLeaves_ErrorsOnMissingReceipt(t *testing.T) {
 	oracle.leafBlocks = []uint64{blockNum}
 
 	// Valid tx
-	proposal1 := oracle.createValidProposal(input1)
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx1, proposal1)
+	proposal1 := oracle.createProposal(input1)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	// Valid proposal, but tx receipt is missing
-	proposal2 := oracle.createValidProposal(input2)
-	tx2 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx2, proposal2)
+	proposal2 := oracle.createProposal(input2)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
 	l1Source.rcptStatus[tx2.Hash()] = MissingReceiptStatus
 
 	input, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
@@ -319,12 +319,12 @@ func TestFetchLeaves_ErrorsWhenNoValidLeavesInBlock(t *testing.T) {
 	oracle.leafBlocks = []uint64{blockNum}
 
 	// Irrelevant tx - reverted
-	proposal1 := oracle.createValidProposal(input2)
-	tx1 := l1Source.tx(blockNum, claimantKey, ValidTx)
-	l1Source.logForProposal(tx1, proposal1)
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	l1Source.rcptStatus[tx1.Hash()] = types.ReceiptStatusFailed
 	// Irrelevant tx - no logs are emitted
-	l1Source.tx(blockNum, claimantKey, ValidTx)
+	l1Source.createTx(blockNum, claimantKey, ValidTx)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.ErrorIs(t, err, ErrNoLeavesFound)
@@ -402,7 +402,7 @@ func WithoutToAddr() TxModifier {
 	}
 }
 
-func (o *stubOracle) createValidProposal(input keccakTypes.InputData) *proposalConfig {
+func (o *stubOracle) createProposal(input keccakTypes.InputData) *proposalConfig {
 	id := o.nextProposalId
 	o.nextProposalId++
 
@@ -452,7 +452,7 @@ func (s *stubL1Source) TransactionReceipt(_ context.Context, txHash common.Hash)
 	return &types.Receipt{Status: rcptStatus, Logs: logs}, nil
 }
 
-func (s *stubL1Source) tx(blockNum uint64, key *ecdsa.PrivateKey, txMod TxModifier) *types.Transaction {
+func (s *stubL1Source) createTx(blockNum uint64, key *ecdsa.PrivateKey, txMod TxModifier) *types.Transaction {
 	txId := s.nextTxId
 	s.nextTxId++
 
@@ -477,7 +477,7 @@ func (s *stubL1Source) tx(blockNum uint64, key *ecdsa.PrivateKey, txMod TxModifi
 	return tx
 }
 
-func (s *stubL1Source) logForProposal(tx *types.Transaction, proposal *proposalConfig) *types.Log {
+func (s *stubL1Source) createLog(tx *types.Transaction, proposal *proposalConfig) *types.Log {
 	// Concat the claimant address and the proposal id
 	// These will be split back into address and id in fetcher.extractRelevantLeavesFromTx
 	data := append(proposal.claimantAddr[:], proposal.id)

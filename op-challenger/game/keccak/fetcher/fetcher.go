@@ -103,7 +103,7 @@ func (f *InputFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle O
 			return nil, err
 		}
 		if uuid.Cmp(ident.UUID) != 0 {
-			f.log.Trace("Skip tx log with incorrect UUID", "tx", tx.Hash(), "logIndex", i, "expected", ident.UUID, "actual", uuid)
+			f.log.Trace("Skip tx log with irrelevant UUID", "tx", tx.Hash(), "logIndex", i, "targetUUID", ident.UUID, "actualUUID", uuid)
 			continue
 		}
 		inputs = append(inputs, inputData)
