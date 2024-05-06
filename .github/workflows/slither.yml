@@ -23,7 +23,7 @@ jobs:
         run: rm packages/contracts-bedrock/package.json
 
       - name: Run Slither
-        uses: crytic/slither-action@v0.3.2
+        uses: crytic/slither-action@v0.4.0
         id: slither
         with:
           target: packages/contracts-bedrock
