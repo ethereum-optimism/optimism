@@ -34,11 +34,3 @@ func TestSetPrecompileBalances(t *testing.T) {
 		require.Equal(t, big.NewInt(1), account.Balance)
 	}
 }
-
-// TestIsEmptyAccount ensures that an empty account can be detected.
-func TestIsEmptyAccount(t *testing.T) {
-	require.True(t, isAccountEmpty(types.Account{}))
-	require.False(t, isAccountEmpty(types.Account{
-		Nonce: 1,
-	}))
-}
