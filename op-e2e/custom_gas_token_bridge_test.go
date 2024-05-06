@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCustomGasTokenLockAndMint(t *testing.T) {
+func TestAgainstCustomGasTokenChain(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
@@ -47,55 +47,57 @@ func TestCustomGasTokenLockAndMint(t *testing.T) {
 	// activate custom gas token feature (devnet does not have this activated at genesis)
 	setCustomGasToken(t, cfg, sys, weth9Address)
 
-	// Set amount of WETH9 to bridge to the recipient on L2
-	amountToBridge := big.NewInt(10)
-	recipient := common.HexToAddress("0xbeefdead")
+	t.Run("Lock and mint", func(t *testing.T) {
+		// Set amount of WETH9 to bridge to the recipient on L2
+		amountToBridge := big.NewInt(10)
+		recipient := common.HexToAddress("0xbeefdead")
 
-	// Get some WETH
-	aliceOpts.Value = big.NewInt(10_000_000)
-	tx, err = weth9.Deposit(aliceOpts)
-	waitForTx(t, tx, err, l1Client)
-	aliceOpts.Value = nil
-	newBalance, err := weth9.BalanceOf(&bind.CallOpts{}, aliceOpts.From)
-	require.NoError(t, err)
-	require.Equal(t, newBalance, big.NewInt(10_000_000))
+		// Get some WETH
+		aliceOpts.Value = big.NewInt(10_000_000)
+		tx, err = weth9.Deposit(aliceOpts)
+		waitForTx(t, tx, err, l1Client)
+		aliceOpts.Value = nil
+		newBalance, err := weth9.BalanceOf(&bind.CallOpts{}, aliceOpts.From)
+		require.NoError(t, err)
+		require.Equal(t, newBalance, big.NewInt(10_000_000))
 
-	// Approve OptimismPortal
-	tx, err = weth9.Approve(aliceOpts, cfg.L1Deployments.OptimismPortalProxy, amountToBridge)
-	waitForTx(t, tx, err, l1Client)
+		// Approve OptimismPortal
+		tx, err = weth9.Approve(aliceOpts, cfg.L1Deployments.OptimismPortalProxy, amountToBridge)
+		waitForTx(t, tx, err, l1Client)
 
-	// Get recipient L2 balance before bridging
-	previousL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
-	require.NoError(t, err)
+		// Get recipient L2 balance before bridging
+		previousL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
+		require.NoError(t, err)
 
-	// Bridge the tokens
-	optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
-	require.NoError(t, err)
-	tx, err = optimismPortal.DepositERC20Transaction(aliceOpts,
-		recipient,
-		amountToBridge,
-		amountToBridge,
-		50_0000, // _gasLimit
-		false,
-		[]byte{},
-	)
-	require.NoError(t, err)
-	receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
-	require.NoError(t, err)
+		// Bridge the tokens
+		optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
+		require.NoError(t, err)
+		tx, err = optimismPortal.DepositERC20Transaction(aliceOpts,
+			recipient,
+			amountToBridge,
+			amountToBridge,
+			50_0000, // _gasLimit
+			false,
+			[]byte{},
+		)
+		require.NoError(t, err)
+		receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+		require.NoError(t, err)
 
-	// compute the deposit transaction hash + poll for it
-	depositEvent, err := receipts.FindLog(receipt.Logs, optimismPortal.ParseTransactionDeposited)
-	require.NoError(t, err, "Should emit deposit event")
-	depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
-	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
-	require.NoError(t, err)
+		// compute the deposit transaction hash + poll for it
+		depositEvent, err := receipts.FindLog(receipt.Logs, optimismPortal.ParseTransactionDeposited)
+		require.NoError(t, err, "Should emit deposit event")
+		depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
+		require.NoError(t, err)
+		_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
+		require.NoError(t, err)
 
-	// check for balance increase on L2
-	newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
-	require.NoError(t, err)
-	l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
-	require.Equal(t, amountToBridge, l2BalanceIncrease)
+		// check for balance increase on L2
+		newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
+		require.NoError(t, err)
+		l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
+		require.Equal(t, amountToBridge, l2BalanceIncrease)
+	})
 }
 
 func callViaSafe(t *testing.T, opts *bind.TransactOpts, client *ethclient.Client, safeAddress common.Address, target common.Address, data []byte) (*types.Transaction, error) {
@@ -227,32 +229,6 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	gpt, err := systemConfig.GasPayingToken(&bind.CallOpts{})
 	require.NoError(t, err)
 	require.Equal(t, cgtAddress, gpt.Addr)
-}
-
-func TestSetCustomGasToken(t *testing.T) {
-	InitParallel(t)
-
-	cfg := DefaultSystemConfig(t)
-
-	sys, err := cfg.Start(t)
-	require.NoError(t, err, "Error starting up system")
-	defer sys.Close()
-
-	log := testlog.Logger(t, log.LevelInfo)
-	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
-
-	l1Client := sys.Clients["l1"]
-	deployerOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Deployer, cfg.L1ChainIDBig())
-	require.NoError(t, err)
-
-	// Deploy WETH, we'll use this as our custom gas token for the purpose of the test
-	wethAddress, tx, _, err := bindings.DeployWETH9(deployerOpts, l1Client)
-	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
-	require.NoError(t, err)
-
-	setCustomGasToken(t, cfg, sys, wethAddress)
-
 }
 
 func waitForTx(t *testing.T, tx *types.Transaction, err error, client *ethclient.Client) {
