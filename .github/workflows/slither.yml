@@ -32,7 +32,7 @@ jobs:
           slither packages/contracts-bedrock \
           --sarif results.sarif \
           --config-file packages/contracts-bedrock/slither.config.json
-          echo "{name}={value}" >> $GITHUB_OUTPUT
+          echo "sarif=results.sarif" >> $GITHUB_OUTPUT
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
