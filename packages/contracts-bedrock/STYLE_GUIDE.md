@@ -136,8 +136,7 @@ we should default to using the Upgradeable version of that contract.
 
 The following guidelines should be followed for all contracts in the `src/` directory:
 
-- All state change should have a corresponding event emitted. This ensures that all state changes are
-  transparent, can be easily monitored, and can be reconstructed from the event logs.
+- All state changing functions should emit a corresponding event. This ensures that all actions are transparent, can be easily monitored, and can be reconstructed from the event logs.
 
 ### Tests
 
