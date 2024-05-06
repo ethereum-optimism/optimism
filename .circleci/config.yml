@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.48.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.49.0
   ci_builder_rust_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
@@ -1149,6 +1149,8 @@ jobs:
               echo 'export EXPECTED_PRESTATE_HASH="0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808"' >> $BASH_ENV
             elif [[ "<<parameters.version>>" == "0.3.0" ]]; then
               echo 'export EXPECTED_PRESTATE_HASH="0x034c8cc69f22c35ae386a97136715dd48aaf97fd190942a111bfa680c2f2f421"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.0.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55"' >> $BASH_ENV
             else
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
@@ -2374,6 +2376,6 @@ workflows:
       - preimage-reproducibility:
           matrix:
             parameters:
-              version: ["0.1.0", "0.2.0", "0.3.0"]
+              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0"]
           context:
             slack
