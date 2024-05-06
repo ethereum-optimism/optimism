@@ -93,19 +93,14 @@ func main() {
 	}
 
 	// Reopen the databases
-	oldDB, err = openDB(filepath.Join(*oldDBPath, "celo"), dbCache, dbHandles, false)
-	if err != nil {
-		log.Crit("Failed to open old database", "err", err)
-	}
 	newDB, err = openDB(filepath.Join(*newDBPath, "geth"), dbCache, dbHandles, false)
 	if err != nil {
 		log.Crit("Failed to open new database", "err", err)
 	}
 
-	defer oldDB.Close()
 	defer newDB.Close()
 
-	if err := parMigrateRange(oldDB, newDB, numBlocksMigrated, numBlocks, *batchSize, readBlockRange, writeBlockRange); err != nil {
+	if err := parMigrateRange(newDB, newDB, numBlocksMigrated, numBlocks, *batchSize, readBlockRange, writeBlockRange); err != nil {
 		log.Crit("Failed to migrate range", "err", err)
 	}
 
