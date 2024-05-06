@@ -24,14 +24,14 @@ jobs:
           version: nightly-f625d0fa7c51e65b4bf1e8f7931cd1c6e2e285e9
 
       - name: Install slither-analyzer
-        run: python -m pip install slither-analyzer==0.10.0
+        run: python -m pip install slither-analyzer==0.10.2
 
       - name: Run Slither
         id: slither
         run: |
           slither packages/contracts-bedrock \
           --sarif results.sarif \
-          --triage-mode packages/contracts-bedrock/slither.db.json \
+          --triage-database packages/contracts-bedrock/slither.db.json \
           --config-file packages/contracts-bedrock/slither.config.json
           echo "sarif=results.sarif" >> $GITHUB_OUTPUT
 
