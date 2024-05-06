@@ -62,11 +62,11 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *ForgeAllocs, l1Deployme
 	SetPrecompileBalances(genesis)
 
 	l1Deployments.ForEach(func(name string, addr common.Address) {
-		acc := genesis.Alloc[addr]
-		if isAccountEmpty(acc) {
-			log.Info("Excluded L1 deployment", "name", name, "address", addr)
-		} else {
+		acc, ok := genesis.Alloc[addr]
+		if ok {
 			log.Info("Included L1 deployment", "name", name, "address", addr, "balance", acc.Balance, "storage", len(acc.Storage), "nonce", acc.Nonce)
+		} else {
+			log.Info("Excluded L1 deployment", "name", name, "address", addr)
 		}
 	})
 
@@ -97,13 +97,4 @@ func SetPrecompileBalances(gen *core.Genesis) {
 		acc.Balance = acc.Balance.Add(acc.Balance, big.NewInt(1))
 		gen.Alloc[addr] = acc
 	}
-}
-
-// isAccountEmpty returns true if the account is considered empty.
-func isAccountEmpty(acc types.Account) bool {
-	isEmptyCode := len(acc.Code) == 0
-	isEmptyStorage := len(acc.Storage) == 0
-	isZeroNonce := acc.Nonce == 0
-	isEmptyBalance := acc.Balance == nil || acc.Balance.Cmp(common.Big0) == 0
-	return isEmptyCode && isEmptyStorage && isZeroNonce && isEmptyBalance
 }
