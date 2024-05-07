@@ -389,7 +389,6 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 
 	// Encode calldata for upgrading SystemConfigProxy to the StorageSetter implementation
-	bindings.ProxyAdminMetaData.GetAbi()
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	require.NoError(t, err)
 	encodedUpgradeCall, err := proxyAdminABI.Pack("upgrade",
