@@ -42,21 +42,21 @@ type forecastBatch struct {
 	LatestInvalidProposal uint64
 }
 
-type forecast struct {
+type Forecast struct {
 	logger    log.Logger
 	metrics   ForecastMetrics
 	validator OutputValidator
 }
 
-func newForecast(logger log.Logger, metrics ForecastMetrics, validator OutputValidator) *forecast {
-	return &forecast{
+func NewForecast(logger log.Logger, metrics ForecastMetrics, validator OutputValidator) *Forecast {
+	return &Forecast{
 		logger:    logger,
 		metrics:   metrics,
 		validator: validator,
 	}
 }
 
-func (f *forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData, ignoredCount int) {
+func (f *Forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData, ignoredCount int) {
 	batch := forecastBatch{}
 	for _, game := range games {
 		if err := f.forecastGame(ctx, game, &batch); err != nil {
@@ -66,7 +66,7 @@ func (f *forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameD
 	f.recordBatch(batch, ignoredCount)
 }
 
-func (f *forecast) recordBatch(batch forecastBatch, ignoredCount int) {
+func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount int) {
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderWins, batch.AgreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderWins, batch.DisagreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.AgreeChallengerWins, batch.AgreeChallengerWins)
@@ -82,7 +82,7 @@ func (f *forecast) recordBatch(batch forecastBatch, ignoredCount int) {
 	f.metrics.RecordIgnoredGames(ignoredCount)
 }
 
-func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *forecastBatch) error {
+func (f *Forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *forecastBatch) error {
 	// Check the root agreement.
 	agreement, expected, err := f.validator.CheckRootAgreement(ctx, game.L1HeadNum, game.L2BlockNumber, game.RootClaim)
 	if err != nil {

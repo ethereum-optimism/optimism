@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Forecast func(ctx context.Context, games []*types.EnrichedGameData, ignoredCount int)
+type ForecastResolution func(ctx context.Context, games []*types.EnrichedGameData, ignoredCount int)
 type Bonds func(games []*types.EnrichedGameData)
 type Resolutions func(games []*types.EnrichedGameData)
 type MonitorClaims func(games []*types.EnrichedGameData)
@@ -33,7 +33,7 @@ type gameMonitor struct {
 	gameWindow      time.Duration
 	monitorInterval time.Duration
 
-	forecast         Forecast
+	forecast         ForecastResolution
 	bonds            Bonds
 	resolutions      Resolutions
 	claims           MonitorClaims
@@ -49,7 +49,7 @@ func newGameMonitor(
 	cl clock.Clock,
 	monitorInterval time.Duration,
 	gameWindow time.Duration,
-	forecast Forecast,
+	forecast ForecastResolution,
 	bonds Bonds,
 	resolutions Resolutions,
 	claims MonitorClaims,

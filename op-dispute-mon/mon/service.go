@@ -37,7 +37,7 @@ type Service struct {
 	cl clock.Clock
 
 	extractor    *extract.Extractor
-	forecast     *forecast
+	forecast     *Forecast
 	bonds        *bonds.Bonds
 	game         *extract.GameCallerCreator
 	resolutions  *ResolutionMonitor
@@ -142,7 +142,7 @@ func (s *Service) initExtractor(cfg *config.Config) {
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
-	s.forecast = newForecast(s.logger, s.metrics, s.validator)
+	s.forecast = NewForecast(s.logger, s.metrics, s.validator)
 }
 
 func (s *Service) initBonds() {
