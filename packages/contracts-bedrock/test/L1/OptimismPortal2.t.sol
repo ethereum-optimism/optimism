@@ -20,6 +20,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 
 import { FaultDisputeGame, IDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import "src/dispute/lib/Types.sol";
@@ -653,6 +654,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Warp and resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
 
         vm.expectEmit(true, true, false, true);
@@ -683,6 +685,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Warp and resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
 
         vm.expectEmit(true, true, false, true);
@@ -737,6 +740,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Warp and resolve the original dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
 
         // Ensure both proofs are registered successfully.
@@ -872,6 +876,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         vm.expectEmit(true, true, true, true);
@@ -898,6 +903,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         vm.expectEmit(true, true, true, true);
@@ -946,6 +952,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         vm.expectRevert("SafeCall: Not enough gas");
@@ -990,6 +997,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         vm.expectCall(address(this), _testTx.data);
@@ -1065,6 +1073,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         // Warp past the finalization period
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
@@ -1091,6 +1100,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         vm.prank(optimismPortal2.guardian());
         optimismPortal2.blacklistDisputeGame(IDisputeGame(address(game)));
@@ -1121,6 +1131,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         // Attempt to finalize the withdrawal directly after the game resolves. This should fail.
         vm.expectRevert("OptimismPortal: output proposal in air-gap");
@@ -1152,6 +1163,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         // Change the respected game type in the portal.
         vm.prank(optimismPortal2.guardian());
@@ -1181,6 +1193,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Resolve the dispute game.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
 
         // Change the respected game type in the portal.
         vm.prank(optimismPortal2.guardian());
@@ -1222,6 +1235,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // air gap dispute game delay has not elapsed.
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(anchorStateRegistry, game);
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
         vm.expectRevert("OptimismPortal: output proposal in air-gap");
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -1231,6 +1245,43 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.warp(block.timestamp + 1 seconds);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
         assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @dev Tests an e2e prove -> finalize path, where every condition has been met except for validation within the
+    ///      anchor state registry.
+    function test_finalizeWithdrawalTransaction_asrValidation_succeeds() external {
+        // Prove the withdrawal transaction.
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProvenExtension1(_withdrawalHash, address(this));
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Warp past the proof maturity delay and game clocks.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
+
+        // Resolve the dispute game, but do not validate the output proposal in the anchor state registry.
+        game.resolveClaim(0, 0);
+        game.resolve();
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // The finalization call should fail, since the output proposal has not been validated in the anchor state
+        // registry.
+        vm.expectRevert("OptimismPortal: dispute game output root has not been validated in anchor state registry");
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertFalse(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    function _forceVerifyGame(AnchorStateRegistry _asr, IDisputeGame _game) internal {
+        // Force the game to be verified. The `verifiedGames` mapping is at slot `2`, and we compute the mapping key
+        // manually.
+        bytes32 mappingSlot = keccak256(abi.encode(_game, uint256(2)));
+        vm.store(address(_asr), mappingSlot, bytes32(uint256(1)));
     }
 }
 

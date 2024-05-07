@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { DisputeGameFactory, IDisputeGame } from "src/dispute/DisputeGameFactory.sol";
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -131,8 +132,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.8.0
-    string public constant version = "3.8.0";
+    /// @custom:semver 3.9.0
+    string public constant version = "3.9.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) {
@@ -508,6 +509,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
         require(!finalizedWithdrawals[_withdrawalHash], "OptimismPortal: withdrawal has already been finalized");
+
+        // The dispute game must have been validated in the anchor state registry.
+        require(
+            FaultDisputeGame(address(disputeGameProxy)).anchorStateRegistry().verifiedGames(disputeGameProxy),
+            "OptimismPortal: dispute game output root has not been validated in anchor state registry"
+        );
     }
 
     /// @notice External getter for the number of proof submitters for a withdrawal hash.

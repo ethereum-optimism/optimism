@@ -9,6 +9,8 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -130,9 +132,17 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         vm.warp(block.timestamp + (game.maxClockDuration().raw() * 2) + 1 seconds);
         game.resolveClaim(0, 0);
         game.resolve();
+        _forceVerifyGame(game.anchorStateRegistry(), game);
 
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(optimismPortal2), 0xFFFFFFFF);
+    }
+
+    function _forceVerifyGame(IAnchorStateRegistry _asr, IDisputeGame _game) internal {
+        // Force the game to be verified. The `verifiedGames` mapping is at slot `2`, and we compute the mapping key
+        // manually.
+        bytes32 mappingSlot = keccak256(abi.encode(_game, uint256(2)));
+        vm.store(address(_asr), mappingSlot, bytes32(uint256(1)));
     }
 }
 
