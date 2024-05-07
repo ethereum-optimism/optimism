@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/receipts"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -28,7 +27,7 @@ func TestCustomGasToken(t *testing.T) {
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2 // 2s finalization period
 
 	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
 	log := testlog.Logger(t, log.LevelInfo)
@@ -120,28 +119,28 @@ func TestCustomGasToken(t *testing.T) {
 			l2Verif := sys.Clients["verifier"]
 			fromAddr := aliceOpts.From
 			ethPrivKey := cfg.Secrets.Alice
+
 			// Start L2 balance for withdrawal
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			startBalanceBeforeWithdrawal, err := l2Seq.BalanceAt(ctx, fromAddr, nil)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			withdrawAmount := big.NewInt(5)
 			tx, receipt := SendWithdrawal(t, cfg, l2Seq, cfg.Secrets.Alice, func(opts *WithdrawalTxOpts) {
 				opts.Value = withdrawAmount
 				opts.VerifyOnClients(l2Verif)
 			})
-			// t.Log(ethPrivKey, startBalanceBeforeWithdrawal, tx, withdrawAmount, receipt, l2Verif)
 			// Verify L2 balance after withdrawal
 			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			endBalanceAfterWithdrawal, err := wait.ForBalanceChange(ctx, l2Seq, fromAddr, startBalanceBeforeWithdrawal)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Take fee into account
 			diff := new(big.Int).Sub(startBalanceBeforeWithdrawal, endBalanceAfterWithdrawal)
@@ -151,33 +150,18 @@ func TestCustomGasToken(t *testing.T) {
 			require.Equal(t, withdrawAmount, diff)
 
 			// Take start balance on L1
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			startBalanceBeforeFinalize, err := l1Client.BalanceAt(ctx, fromAddr, nil)
-			require.Nil(t, err)
+			startBalanceBeforeFinalize, err := weth9.BalanceOf(&bind.CallOpts{}, fromAddr)
+			require.NoError(t, err)
 
-			proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
+			_, _, _, _ = ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
 
 			// Verify balance after withdrawal
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			endBalanceAfterFinalize, err := wait.ForBalanceChange(ctx, l1Client, fromAddr, startBalanceBeforeFinalize)
-			require.Nil(t, err)
-
-			// Ensure that withdrawal - gas fees are added to the L1 balance
-			// Fun fact, the fee is greater than the withdrawal amount
-			// NOTE: The gas fees include *both* the ProveWithdrawalTransaction and FinalizeWithdrawalTransaction transactions.
+			// L1 Fees are paid in ETH, and
+			// withdrawal is of a Custom Gas Token, so we do not subtract l1 fees from expected balance change
+			// as we would if ETH was the gas paying token
+			endBalanceAfterFinalize, err := weth9.BalanceOf(&bind.CallOpts{}, fromAddr)
+			require.NoError(t, err)
 			diff = new(big.Int).Sub(endBalanceAfterFinalize, startBalanceBeforeFinalize)
-			proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
-			finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
-			fees = new(big.Int).Add(proveFee, finalizeFee)
-			if e2eutils.UseFPAC() {
-				resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
-				resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
-				fees = new(big.Int).Add(fees, resolveClaimFee)
-				fees = new(big.Int).Add(fees, resolveFee)
-			}
-			withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
 			require.Equal(t, withdrawAmount, diff)
 		})
 	}
@@ -261,7 +245,7 @@ func TestCustomGasToken(t *testing.T) {
 	checkWETHTokenNameAndSymbol(t, enabled)
 	checkDeposit(t, enabled)
 
-	// activate custom gas token feature (devnet does not have this activated at genesis)
+	// Activate custom gas token feature (devnet does not have this activated at genesis)
 	setCustomGasToken(t, cfg, sys, weth9Address)
 
 	// Now test behaviour given CGT feature is enabled
