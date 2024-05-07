@@ -270,7 +270,7 @@ type DeployConfig struct {
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 
 	// UseInterop is a flag that indicates if the system is using interop
-	UseInterop bool `json:"useInterop"`
+	UseInterop bool `json:"useInterop,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
