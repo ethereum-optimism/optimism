@@ -212,7 +212,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 
 	// Execute the upgrade SystemConfigProxy -> StorageSetter
-	tx, err = callViaSafe(t, safeAdminOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
+	tx, err = callViaSafe(t, safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
 	waitForTx(t, tx, err, l1Client)
 
 	// Bind a StorageSetter to the SystemConfigProxy address
