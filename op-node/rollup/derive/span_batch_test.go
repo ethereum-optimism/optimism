@@ -523,7 +523,7 @@ func TestSpanBatchMaxTxData(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x177288))
 
 	invalidTx := types.NewTx(&types.DynamicFeeTx{
-		Data: testutils.RandomData(rng, MaxSpanBatchSize+1),
+		Data: testutils.RandomData(rng, MaxSpanBatchElementCount+1),
 	})
 
 	txEncoded, err := invalidTx.MarshalBinary()
@@ -586,8 +586,8 @@ func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	rawSpanBatch.blockTxCounts[0] = MaxSpanBatchSize - 1
-	rawSpanBatch.blockTxCounts[1] = MaxSpanBatchSize - 1
+	rawSpanBatch.blockTxCounts[0] = MaxSpanBatchElementCount - 1
+	rawSpanBatch.blockTxCounts[1] = MaxSpanBatchElementCount - 1
 	// we are sure that totalBlockTxCount will overflow on uint64
 
 	var buf bytes.Buffer

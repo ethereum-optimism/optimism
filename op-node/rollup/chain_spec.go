@@ -8,6 +8,18 @@ const (
 	maxChannelBankSizeFjord   = 1_000_000_000
 )
 
+// MaxRLPBytesPerChannel is the maximum amount of bytes that will be read from
+// a channel. This limit is set when decoding the RLP.
+const (
+	maxRLPBytesPerChannelBedrock = 10_000_000
+	maxRLPBytesPerChannelFjord   = 100_000_000
+)
+
+// SafeMaxRLPBytesPerChannel is a limit of RLP Bytes per channel that is valid across every OP Stack chain.
+// The limit on certain chains at certain times may be higher
+// TODO(#10428) Remove this parameter
+const SafeMaxRLPBytesPerChannel = maxRLPBytesPerChannelBedrock
+
 type ChainSpec struct {
 	config *Config
 }
@@ -33,4 +45,13 @@ func (s *ChainSpec) MaxChannelBankSize(t uint64) uint64 {
 // ChannelTimeout returns the channel timeout constant.
 func (s *ChainSpec) ChannelTimeout() uint64 {
 	return s.config.ChannelTimeout
+}
+
+// MaxRLPBytesPerChannel returns the maximum amount of bytes that will be read from
+// a channel at a given timestamp.
+func (s *ChainSpec) MaxRLPBytesPerChannel(t uint64) uint64 {
+	if s.config.IsFjord(t) {
+		return maxRLPBytesPerChannelFjord
+	}
+	return maxRLPBytesPerChannelBedrock
 }

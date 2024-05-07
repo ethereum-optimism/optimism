@@ -96,3 +96,26 @@ func TestMaxChannelBankSize(t *testing.T) {
 		})
 	}
 }
+
+func TestMaxRLPBytesPerChannel(t *testing.T) {
+	c := NewChainSpec(&testConfig)
+	tests := []struct {
+		name        string
+		blockNum    uint64
+		expected    uint64
+		description string
+	}{
+		{"Genesis", 0, uint64(maxRLPBytesPerChannelBedrock), "Before Fjord activation, should use Bedrock RLP bytes limit"},
+		{"FjordTimeMinusOne", 49, uint64(maxRLPBytesPerChannelBedrock), "Just before Fjord, should still use Bedrock RLP bytes limit"},
+		{"FjordTime", 50, uint64(maxRLPBytesPerChannelFjord), "At Fjord activation, should switch to Fjord RLP bytes limit"},
+		{"FjordTimePlusOne", 51, uint64(maxRLPBytesPerChannelFjord), "After Fjord activation, should use Fjord RLP bytes limit"},
+		{"NextForkTime", 60, uint64(maxRLPBytesPerChannelFjord), "Well after Fjord, should continue to use Fjord RLP bytes limit"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := c.MaxRLPBytesPerChannel(tt.blockNum)
+			require.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
