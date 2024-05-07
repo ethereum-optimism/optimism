@@ -11,26 +11,29 @@ jobs:
   slither-analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-      # Workaround to prevent slither-action from trying to install JS deps.
-      # Without this step, it detects the `package.json``, and since there is no
-      # lockfile it defaults `npm install` which fails due to the preinstall
-      # script to enforce pnpm. https://github.com/crytic/slither-action/issues/44#issuecomment-1338183656
-      - name: Remove package.json
-        run: rm packages/contracts-bedrock/package.json
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly-f625d0fa7c51e65b4bf1e8f7931cd1c6e2e285e9
+
+      - name: Install slither-analyzer
+        run: python -m pip install slither-analyzer==0.10.2
 
       - name: Run Slither
-        uses: crytic/slither-action@v0.3.1
         id: slither
-        with:
-          target: packages/contracts-bedrock
-          slither-config: packages/contracts-bedrock/slither.config.json
-          fail-on: config
-          sarif: results.sarif
-          # https://github.com/crytic/slither-action/issues/70#issuecomment-1932948435
-          slither-version: dev-triage-db
-          slither-args: --triage-database packages/contracts-bedrock/slither.db.json
+        run: |
+          slither packages/contracts-bedrock \
+          --sarif results.sarif \
+          --triage-database packages/contracts-bedrock/slither.db.json \
+          --config-file packages/contracts-bedrock/slither.config.json
+          echo "sarif=results.sarif" >> $GITHUB_OUTPUT
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
