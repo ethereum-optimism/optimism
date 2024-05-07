@@ -4,10 +4,14 @@ pragma solidity 0.8.15;
 import { WETH98 } from "src/dispute/weth/WETH98.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @title WETH contract that reads the name and symbol from the L1Block contract.
 ///        Allows for nice rendering of token names for chains using custom gas token.
-contract WETH is WETH98 {
+contract WETH is WETH98, ISemver {
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
     /// @notice Returns the name of the wrapped native asset. Will be "Wrapped Ether"
     ///         if the native asset is Ether.
     function name() external view override returns (string memory name_) {
