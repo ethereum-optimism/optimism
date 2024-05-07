@@ -907,7 +907,17 @@
   },
   {
     "inputs": [],
+    "name": "ContentLengthMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "DuplicateStep",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmptyItem",
     "type": "error"
   },
   {
@@ -928,6 +938,16 @@
   {
     "inputs": [],
     "name": "InvalidClockExtension",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDataRemainder",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidHeader",
     "type": "error"
   },
   {
@@ -981,6 +1001,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "UnexpectedList",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "Claim",
@@ -989,6 +1014,11 @@
       }
     ],
     "name": "UnexpectedRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedString",
     "type": "error"
   },
   {
