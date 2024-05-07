@@ -227,7 +227,7 @@ contract Setup {
     }
 
     function labelPredeploy(address _addr) internal {
-        vm.label(_addr, Predeploys.getName(_addr, deploy.cfg().useInterop()));
+        vm.label(_addr, Predeploys.getName(_addr));
     }
 
     function labelPreinstall(address _addr) internal {

@@ -90,7 +90,7 @@ library Predeploys {
     address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
 
     /// @notice Returns the name of the predeploy at the given address.
-    function getName(address _addr, bool _useInterop) internal pure returns (string memory out_) {
+    function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
         if (_addr == LEGACY_MESSAGE_PASSER) return "LegacyMessagePasser";
         if (_addr == L1_MESSAGE_SENDER) return "L1MessageSender";
