@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/receipts"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -54,57 +55,139 @@ func TestCustomGasToken(t *testing.T) {
 	// Function to prepare and make call to depositERC20Transaction and make
 	// appropruite assertions dependent on whether custom gas tokens have been enabled or not.
 	checkDeposit := func(t *testing.T, enabled bool) {
-		// Set amount of WETH9 to bridge to the recipient on L2
-		amountToBridge := big.NewInt(10)
-		recipient := common.HexToAddress("0xbeefdead")
+		t.Run("deposit", func(t *testing.T) {
+			// Set amount of WETH9 to bridge to the recipient on L2
+			amountToBridge := big.NewInt(10)
+			recipient := common.HexToAddress("0xbeefdead")
 
-		// Approve OptimismPortal
-		tx, err = weth9.Approve(aliceOpts, cfg.L1Deployments.OptimismPortalProxy, amountToBridge)
-		waitForTx(t, tx, err, l1Client)
+			// Approve OptimismPortal
+			tx, err = weth9.Approve(aliceOpts, cfg.L1Deployments.OptimismPortalProxy, amountToBridge)
+			waitForTx(t, tx, err, l1Client)
 
-		// Get recipient L2 balance before bridging
-		previousL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
-		require.NoError(t, err)
-
-		// Bridge the tokens
-		optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
-		require.NoError(t, err)
-		tx, err = optimismPortal.DepositERC20Transaction(aliceOpts,
-			recipient,
-			amountToBridge,
-			amountToBridge,
-			50_0000, // _gasLimit
-			false,
-			[]byte{},
-		)
-		if enabled {
-			require.NoError(t, err)
-			receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+			// Get recipient L2 balance before bridging
+			previousL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
 			require.NoError(t, err)
 
-			// compute the deposit transaction hash + poll for it
-			depositEvent, err := receipts.FindLog(receipt.Logs, optimismPortal.ParseTransactionDeposited)
-			require.NoError(t, err, "Should emit deposit event")
-			depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
+			// Bridge the tokens
+			optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
 			require.NoError(t, err)
-			_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
+			tx, err = optimismPortal.DepositERC20Transaction(aliceOpts,
+				recipient,
+				amountToBridge,
+				amountToBridge,
+				50_0000, // _gasLimit
+				false,
+				[]byte{},
+			)
+			if enabled {
+				require.NoError(t, err)
+				receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+				require.NoError(t, err)
+
+				// compute the deposit transaction hash + poll for it
+				depositEvent, err := receipts.FindLog(receipt.Logs, optimismPortal.ParseTransactionDeposited)
+				require.NoError(t, err, "Should emit deposit event")
+				depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
+				require.NoError(t, err)
+				_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
+				require.NoError(t, err)
+
+				// check for balance increase on L2
+				newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
+				require.NoError(t, err)
+				l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
+				require.Equal(t, amountToBridge, l2BalanceIncrease)
+			} else {
+				require.Error(t, err)
+			}
+		})
+
+	}
+
+	checkL1TokenNameAndSymbol := func(t *testing.T, enabled bool) {
+		t.Run("check token name and symbol on l1", func(t *testing.T) {
+			systemConfig, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
 			require.NoError(t, err)
 
-			// check for balance increase on L2
-			newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
+			token, err := systemConfig.GasPayingToken(&bind.CallOpts{})
 			require.NoError(t, err)
-			l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
-			require.Equal(t, amountToBridge, l2BalanceIncrease)
-		} else {
-			require.Error(t, err)
-		}
+
+			name, err := systemConfig.GasPayingTokenName(&bind.CallOpts{})
+			require.NoError(t, err)
+
+			symbol, err := systemConfig.GasPayingTokenSymbol(&bind.CallOpts{})
+			require.NoError(t, err)
+
+			if enabled {
+				require.Equal(t, weth9Address, token.Addr)
+				require.Equal(t, uint8(0x12), token.Decimals)
+				require.Equal(t, "Wrapped Ether", name)
+				require.Equal(t, "WETH", symbol)
+			} else {
+				require.Equal(t, common.HexToAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"), token.Addr)
+				require.Equal(t, uint8(0x12), token.Decimals)
+				require.Equal(t, "Ether", name)
+				require.Equal(t, "ETH", symbol)
+			}
+		})
+
+	}
+
+	checkL2TokenNameAndSymbol := func(t *testing.T, enabled bool) {
+		t.Run("check token name and symbol on l2", func(t *testing.T) {
+			l1Block, err := bindings.NewL1Block(predeploys.L1BlockAddr, l2Client)
+			require.NoError(t, err)
+
+			token, err := l1Block.GasPayingToken(&bind.CallOpts{})
+			require.NoError(t, err)
+
+			name, err := l1Block.GasPayingTokenName(&bind.CallOpts{})
+			require.NoError(t, err)
+
+			symbol, err := l1Block.GasPayingTokenSymbol(&bind.CallOpts{})
+			require.NoError(t, err)
+
+			if enabled {
+				require.Equal(t, weth9Address, token.Addr)
+				require.Equal(t, uint8(0x12), token.Decimals)
+				require.Equal(t, "Wrapped Ether", name)
+				require.Equal(t, "WETH", symbol)
+			} else {
+				require.Equal(t, common.HexToAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"), token.Addr)
+				require.Equal(t, uint8(0x12), token.Decimals)
+				require.Equal(t, "Ether", name)
+				require.Equal(t, "ETH", symbol)
+			}
+		})
+	}
+
+	checkWETHTokenNameAndSymbol := func(t *testing.T, enabled bool) {
+		t.Run("check token name and symbol in l2 WETH predeploy", func(t *testing.T) {
+			// Check name and symbol in WETH predeploy
+			weth, err := bindings.NewWETH(predeploys.WETHAddr, l2Client)
+			require.NoError(t, err)
+
+			name, err := weth.Name(&bind.CallOpts{})
+			require.NoError(t, err)
+
+			symbol, err := weth.Symbol(&bind.CallOpts{})
+			require.NoError(t, err)
+
+			if enabled {
+				require.Equal(t, "Wrapped Wrapped Ether", name)
+				require.Equal(t, "WWETH", symbol)
+			} else {
+				require.Equal(t, "Wrapped Ether", name)
+				require.Equal(t, "WETH", symbol)
+			}
+		})
 	}
 
 	t.Run("CGT_not_enabled", func(t *testing.T) {
 		enabled := false
-		// checkL1TokenNameAndSymbol(t, enabled)
-		// checkL2TokenNameAndSymbol(t, enabled)
-		// checkWETHTokenNameAndSymbol(t, enabled)
+		checkL1TokenNameAndSymbol(t, enabled)
+		checkL2TokenNameAndSymbol(t, enabled)
+		checkWETHTokenNameAndSymbol(t, enabled)
 		checkDeposit(t, enabled)
 	})
 	t.Run("CGT_enabled", func(t *testing.T) {
@@ -112,9 +195,9 @@ func TestCustomGasToken(t *testing.T) {
 		setCustomGasToken(t, cfg, sys, weth9Address)
 
 		enabled := true
-		// checkL1TokenNameAndSymbol(t, enabled)
-		// checkL2TokenNameAndSymbol(t, enabled)
-		// checkWETHTokenNameAndSymbol(t, enabled)
+		checkL1TokenNameAndSymbol(t, enabled)
+		checkL2TokenNameAndSymbol(t, enabled)
+		checkWETHTokenNameAndSymbol(t, enabled)
 		checkDeposit(t, enabled)
 	})
 
