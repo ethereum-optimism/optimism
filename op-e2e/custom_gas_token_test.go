@@ -435,12 +435,31 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 		resourceConfig,
 		batchInbox,
 		addresses)
-	waitForTx(t, tx, err, l1Client)
+	require.NoError(t, err)
+	receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+	require.NoError(t, err)
 
 	// Read Custom Gas Token and check it has been set properly
 	gpt, err := systemConfig.GasPayingToken(&bind.CallOpts{})
 	require.NoError(t, err)
 	require.Equal(t, cgtAddress, gpt.Addr)
+
+	optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
+	require.NoError(t, err)
+
+	depositEvent, err := receipts.FindLog(receipt.Logs, optimismPortal.ParseTransactionDeposited)
+	require.NoError(t, err, "Should emit deposit event")
+	depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
+
+	require.NoError(t, err)
+	l2Client := sys.Clients["sequencer"]
+	receipt, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
+	require.NoError(t, err)
+
+	l1Block, err := bindings.NewL1Block(predeploys.L1BlockAddr, l2Client)
+	require.NoError(t, err)
+	_, err = receipts.FindLog(receipt.Logs, l1Block.ParseGasPayingTokenSet)
+	require.NoError(t, err)
 }
 
 func waitForTx(t *testing.T, tx *types.Transaction, err error, client *ethclient.Client) {
