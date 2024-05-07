@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/receipts"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -19,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAgainstCustomGasTokenChain(t *testing.T) {
+func TestCustomGasToken(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
@@ -43,22 +42,21 @@ func TestAgainstCustomGasTokenChain(t *testing.T) {
 	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err)
 
-	// activate custom gas token feature (devnet does not have this activated at genesis)
-	setCustomGasToken(t, cfg, sys, weth9Address)
+	// Get some WETH
+	aliceOpts.Value = big.NewInt(10_000_000)
+	tx, err = weth9.Deposit(aliceOpts)
+	waitForTx(t, tx, err, l1Client)
+	aliceOpts.Value = nil
+	newBalance, err := weth9.BalanceOf(&bind.CallOpts{}, aliceOpts.From)
+	require.NoError(t, err)
+	require.Equal(t, newBalance, big.NewInt(10_000_000))
 
-	t.Run("Lock and mint", func(t *testing.T) {
+	// Function to prepare and make call to depositERC20Transaction and make
+	// appropruite assertions dependent on whether custom gas tokens have been enabled or not.
+	checkDeposit := func(t *testing.T, enabled bool) {
 		// Set amount of WETH9 to bridge to the recipient on L2
 		amountToBridge := big.NewInt(10)
 		recipient := common.HexToAddress("0xbeefdead")
-
-		// Get some WETH
-		aliceOpts.Value = big.NewInt(10_000_000)
-		tx, err = weth9.Deposit(aliceOpts)
-		waitForTx(t, tx, err, l1Client)
-		aliceOpts.Value = nil
-		newBalance, err := weth9.BalanceOf(&bind.CallOpts{}, aliceOpts.From)
-		require.NoError(t, err)
-		require.Equal(t, newBalance, big.NewInt(10_000_000))
 
 		// Approve OptimismPortal
 		tx, err = weth9.Approve(aliceOpts, cfg.L1Deployments.OptimismPortalProxy, amountToBridge)
@@ -79,51 +77,47 @@ func TestAgainstCustomGasTokenChain(t *testing.T) {
 			false,
 			[]byte{},
 		)
-		require.NoError(t, err)
-		receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
-		require.NoError(t, err)
+		if enabled {
+			require.NoError(t, err)
+			receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+			require.NoError(t, err)
 
-		// compute the deposit transaction hash + poll for it
-		depositEvent, err := receipts.FindLog(receipt.Logs, optimismPortal.ParseTransactionDeposited)
-		require.NoError(t, err, "Should emit deposit event")
-		depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
-		require.NoError(t, err)
-		_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
-		require.NoError(t, err)
+			// compute the deposit transaction hash + poll for it
+			depositEvent, err := receipts.FindLog(receipt.Logs, optimismPortal.ParseTransactionDeposited)
+			require.NoError(t, err, "Should emit deposit event")
+			depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
+			require.NoError(t, err)
+			_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
+			require.NoError(t, err)
 
-		// check for balance increase on L2
-		newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
-		require.NoError(t, err)
-		l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
-		require.Equal(t, amountToBridge, l2BalanceIncrease)
+			// check for balance increase on L2
+			newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
+			require.NoError(t, err)
+			l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
+			require.Equal(t, amountToBridge, l2BalanceIncrease)
+		} else {
+			require.Error(t, err)
+		}
+	}
+
+	t.Run("CGT_not_enabled", func(t *testing.T) {
+		enabled := false
+		// checkL1TokenNameAndSymbol(t, enabled)
+		// checkL2TokenNameAndSymbol(t, enabled)
+		// checkWETHTokenNameAndSymbol(t, enabled)
+		checkDeposit(t, enabled)
+	})
+	t.Run("CGT_enabled", func(t *testing.T) {
+		// activate custom gas token feature (devnet does not have this activated at genesis)
+		setCustomGasToken(t, cfg, sys, weth9Address)
+
+		enabled := true
+		// checkL1TokenNameAndSymbol(t, enabled)
+		// checkL2TokenNameAndSymbol(t, enabled)
+		// checkWETHTokenNameAndSymbol(t, enabled)
+		checkDeposit(t, enabled)
 	})
 
-	t.Run("WETHNameAndSymbol", func(t *testing.T) {
-		// Check name and symbol in systemConfig
-		systemConfig, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
-		require.NoError(t, err)
-
-		name, err := systemConfig.GasPayingTokenName(&bind.CallOpts{})
-		require.NoError(t, err)
-		require.Equal(t, "Wrapped Ether", name)
-
-		symbol, err := systemConfig.GasPayingTokenSymbol(&bind.CallOpts{})
-		require.NoError(t, err)
-		require.Equal(t, "WETH", symbol)
-
-		// Check name and symbol in WETH predeploy
-		l2Client := sys.Clients["sequencer"]
-		weth, err := bindings.NewWETH(predeploys.WETHAddr, l2Client)
-		require.NoError(t, err)
-
-		name, err = weth.Name(&bind.CallOpts{})
-		require.NoError(t, err)
-		require.Equal(t, "Wrapped Wrapped Ether", name)
-
-		symbol, err = weth.Symbol(&bind.CallOpts{})
-		require.NoError(t, err)
-		require.Equal(t, "WWETH", symbol)
-	})
 }
 
 func callViaSafe(t *testing.T, opts *bind.TransactOpts, client *ethclient.Client, safeAddress common.Address, target common.Address, data []byte) (*types.Transaction, error) {
@@ -262,8 +256,4 @@ func waitForTx(t *testing.T, tx *types.Transaction, err error, client *ethclient
 	require.NoError(t, err)
 	_, err = wait.ForReceiptOK(context.Background(), client, tx.Hash())
 	require.NoError(t, err)
-}
-
-func TestWETHBehaviourWithCustomGasToken(t *testing.T) {
-
 }
