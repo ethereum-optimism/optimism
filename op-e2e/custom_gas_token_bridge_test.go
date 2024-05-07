@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"math/big"
-	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -12,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -183,13 +181,10 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	addresses.OptimismMintableERC20Factory, err = systemConfig.OptimismMintableERC20Factory(&bind.CallOpts{})
 	require.NoError(t, err)
 
-	// minGasLimit, err := systemConfig.MinimumGasLimit(&bind.CallOpts{})
-	require.NoError(t, err)
-
 	// Queue up custom gas token address ready for reinitialization
 	addresses.GasPayingToken = cgtAddress
 
-	// Bind a ProxyAdmin to the ProxyAdmin address (why not ProxyAdminProxy?)
+	// Bind a ProxyAdmin to the ProxyAdmin address
 	proxyAdmin, err := bindings.NewProxyAdmin(cfg.L1Deployments.ProxyAdmin, l1Client)
 	require.NoError(t, err)
 
@@ -206,7 +201,8 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 
 	// Encode calldata for upgrading SystemConfigProxy to the StorageSetter implementation
-	proxyAdminABI, err := abi.JSON(strings.NewReader(bindings.ProxyAdminABI))
+	bindings.ProxyAdminMetaData.GetAbi()
+	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	require.NoError(t, err)
 	encodedUpgradeCall, err := proxyAdminABI.Pack("upgrade",
 		cfg.L1Deployments.SystemConfigProxy, storageSetterAddr)
