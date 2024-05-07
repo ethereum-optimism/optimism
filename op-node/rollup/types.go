@@ -122,6 +122,9 @@ type Config struct {
 
 	// UsePlasma is activated when the chain is in plasma mode.
 	UsePlasma bool `json:"use_plasma"`
+
+	// UseInterop is activated when the chain is in interop mode.
+	UseInterop bool `json:"use_interop"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
