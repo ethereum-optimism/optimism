@@ -118,9 +118,20 @@ func migrateAncientsDb(oldDBPath, newDBPath string, batchSize uint64) (uint64, e
 	}
 
 	log.Info("Migration Started", "process", "ancients migration", "startBlock", numAncientsNew, "endBlock", numAncientsOld, "count", numAncientsOld-numAncientsNew+1)
+	g, ctx := errgroup.WithContext(context.Background())
+	readChan := make(chan RLPBlockRange, 10)
+	transformChan := make(chan RLPBlockRange, 10)
 
-	if err = parMigrateAncientRange(oldFreezer, newFreezer, numAncientsNew, numAncientsOld, batchSize); err != nil {
-		return 0, fmt.Errorf("failed to migrate ancient range: %v", err)
+	log.Info("Migrating data", "start", numAncientsNew, "end", numAncientsOld, "step", batchSize)
+
+	g.Go(func() error {
+		return readAncientBlocks(ctx, oldFreezer, numAncientsNew, numAncientsOld, batchSize, readChan)
+	})
+	g.Go(func() error { return transformBlocks(ctx, readChan, transformChan) })
+	g.Go(func() error { return writeAncientBlocks(ctx, newFreezer, transformChan) })
+
+	if err = g.Wait(); err != nil {
+		return 0, fmt.Errorf("failed to migrate ancients: %v", err)
 	}
 
 	numAncientsNew, err = newFreezer.Ancients()
@@ -215,21 +226,6 @@ type RLPBlockRange struct {
 	bodies   [][]byte
 	receipts [][]byte
 	tds      [][]byte
-}
-
-// parMigrateRange migrates ancient data from the old database to the new database in parallel
-func parMigrateAncientRange(oldFreezer, newFreezer *rawdb.Freezer, start, end, step uint64) error {
-	g, ctx := errgroup.WithContext(context.Background())
-	readChan := make(chan RLPBlockRange, 10)
-	transformChan := make(chan RLPBlockRange, 10)
-
-	log.Info("Migrating data", "start", start, "end", end, "step", step)
-
-	g.Go(func() error { return readAncientBlocks(ctx, oldFreezer, start, end, step, readChan) })
-	g.Go(func() error { return transformBlocks(ctx, readChan, transformChan) })
-	g.Go(func() error { return writeAncientBlocks(ctx, newFreezer, transformChan) })
-
-	return g.Wait()
 }
 
 func readAncientBlocks(ctx context.Context, freezer *rawdb.Freezer, startBlock, endBlock, batchSize uint64, out chan<- RLPBlockRange) error {
