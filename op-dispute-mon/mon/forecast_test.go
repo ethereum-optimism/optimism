@@ -266,13 +266,13 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 	require.EqualValues(t, 7, m.latestInvalidProposal)
 }
 
-func setupForecastTest(t *testing.T) (*forecast, *mockForecastMetrics, *stubOutputValidator, *testlog.CapturingHandler) {
+func setupForecastTest(t *testing.T) (*Forecast, *mockForecastMetrics, *stubOutputValidator, *testlog.CapturingHandler) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	validator := &stubOutputValidator{}
 	m := &mockForecastMetrics{
 		gameAgreement: zeroGameAgreement(),
 	}
-	return newForecast(logger, m, validator), m, validator, capturedLogs
+	return NewForecast(logger, m, validator), m, validator, capturedLogs
 }
 
 func zeroGameAgreement() map[metrics.GameAgreementStatus]int {
