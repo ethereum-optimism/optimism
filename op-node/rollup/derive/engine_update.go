@@ -155,14 +155,14 @@ func confirmPayload(
 	}
 	// begin gossiping as soon as possible
 	// agossip.Clear() will be called later if an non-temporary error is found, or if the payload is successfully inserted
-	agossip.Gossip(envelope)
+	// agossip.Gossip(envelope)
 
 	status, err := eng.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to insert execution payload: %w", err)
 	}
 	if status.Status == eth.ExecutionInvalid || status.Status == eth.ExecutionInvalidBlockHash {
-		agossip.Clear()
+		// agossip.Clear()
 		return nil, BlockInsertPayloadErr, eth.NewPayloadErr(payload, status)
 	}
 	if status.Status != eth.ExecutionValid {
@@ -180,20 +180,22 @@ func confirmPayload(
 			switch inputErr.Code {
 			case eth.InvalidForkchoiceState:
 				// if we succeed to update the forkchoice pre-payload, but fail post-payload, then it is a payload error
-				agossip.Clear()
+				// agossip.Clear()
 				return nil, BlockInsertPayloadErr, fmt.Errorf("post-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap())
 			default:
-				agossip.Clear()
+				// agossip.Clear()
 				return nil, BlockInsertPrestateErr, fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err)
 			}
 		} else {
 			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
 		}
 	}
-	agossip.Clear()
+	// agossip.Clear()
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
+	agossip.Gossip(envelope)
+	agossip.Clear()
 	log.Info("inserted block", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber),
 		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
 		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient,
