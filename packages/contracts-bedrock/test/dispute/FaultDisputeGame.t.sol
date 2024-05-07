@@ -1140,66 +1140,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
     }
 
-    /// @dev Static unit test asserting that the anchor state updates when the game resolves in
-    /// favor of the defender and the anchor state is older than the game state.
-    function test_resolve_validNewerStateUpdatesAnchor_succeeds() public {
-        // Confirm that the anchor state is older than the game state.
-        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assert(l2BlockNumber < gameProxy.l2BlockNumber());
-
-        // Resolve the game.
-        vm.warp(block.timestamp + 3 days + 12 hours);
-        gameProxy.resolveClaim(0, 0);
-        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
-
-        // Confirm that the anchor state is now the same as the game state.
-        (root, l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
-        assertEq(root.raw(), gameProxy.rootClaim().raw());
-    }
-
-    /// @dev Static unit test asserting that the anchor state does not change when the game
-    /// resolves in favor of the defender but the game state is not newer than the anchor state.
-    function test_resolve_validOlderStateSameAnchor_succeeds() public {
-        // Mock the game block to be older than the game state.
-        vm.mockCall(address(gameProxy), abi.encodeWithSelector(gameProxy.l2BlockNumber.selector), abi.encode(0));
-
-        // Confirm that the anchor state is newer than the game state.
-        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assert(l2BlockNumber >= gameProxy.l2BlockNumber());
-
-        // Resolve the game.
-        vm.mockCall(address(gameProxy), abi.encodeWithSelector(gameProxy.l2BlockNumber.selector), abi.encode(0));
-        vm.warp(block.timestamp + 3 days + 12 hours);
-        gameProxy.resolveClaim(0, 0);
-        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
-
-        // Confirm that the anchor state is the same as the initial anchor state.
-        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assertEq(updatedL2BlockNumber, l2BlockNumber);
-        assertEq(updatedRoot.raw(), root.raw());
-    }
-
-    /// @dev Static unit test asserting that the anchor state does not change when the game
-    /// resolves in favor of the challenger, even if the game state is newer than the anchor.
-    function test_resolve_invalidStateSameAnchor_succeeds() public {
-        // Confirm that the anchor state is older than the game state.
-        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assert(l2BlockNumber < gameProxy.l2BlockNumber());
-
-        // Challenge the claim and resolve it.
-        gameProxy.attack{ value: _getRequiredBond(0) }(0, _dummyClaim());
-        vm.warp(block.timestamp + 3 days + 12 hours);
-        gameProxy.resolveClaim(1, 0);
-        gameProxy.resolveClaim(0, 0);
-        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
-
-        // Confirm that the anchor state is the same as the initial anchor state.
-        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assertEq(updatedL2BlockNumber, l2BlockNumber);
-        assertEq(updatedRoot.raw(), root.raw());
-    }
-
     /// @dev Static unit test asserting that credit may not be drained past allowance through reentrancy.
     function test_claimCredit_claimAlreadyResolved_reverts() public {
         ClaimCreditReenter reenter = new ClaimCreditReenter(gameProxy, vm);

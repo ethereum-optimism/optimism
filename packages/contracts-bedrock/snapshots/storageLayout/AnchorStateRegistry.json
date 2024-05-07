@@ -19,5 +19,12 @@
     "offset": 0,
     "slot": "1",
     "type": "mapping(GameType => struct OutputRoot)"
+  },
+  {
+    "bytes": "32",
+    "label": "verifiedGames",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(contract IDisputeGame => bool)"
   }
 ]

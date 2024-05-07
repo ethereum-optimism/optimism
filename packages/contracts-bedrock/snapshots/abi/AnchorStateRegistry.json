@@ -5,6 +5,11 @@
         "internalType": "contract IDisputeGameFactory",
         "name": "_disputeGameFactory",
         "type": "address"
+      },
+      {
+        "internalType": "Duration",
+        "name": "_gameFinalizationDelay",
+        "type": "uint64"
       }
     ],
     "stateMutability": "nonpayable",
@@ -85,8 +90,65 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "tryUpdateAnchorState",
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "verifiedGames",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IFaultDisputeGame",
+        "name": "_disputeGame",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "version",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "messagePasserStorageRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "latestBlockhash",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct Types.OutputRootProof",
+        "name": "_outputRootProof",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_headerRLP",
+        "type": "bytes"
+      }
+    ],
+    "name": "verifyAnchor",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

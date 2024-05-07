@@ -774,8 +774,10 @@ contract Deploy is Deployer {
     /// @notice Deploy the AnchorStateRegistry
     function deployAnchorStateRegistry() public broadcast returns (address addr_) {
         console.log("Deploying AnchorStateRegistry implementation");
-        AnchorStateRegistry anchorStateRegistry =
-            new AnchorStateRegistry{ salt: _implSalt() }(DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy")));
+        AnchorStateRegistry anchorStateRegistry = new AnchorStateRegistry{ salt: _implSalt() }(
+            DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy")),
+            Duration.wrap(uint64(cfg.disputeGameFinalityDelaySeconds()))
+        );
         save("AnchorStateRegistry", address(anchorStateRegistry));
         console.log("AnchorStateRegistry deployed at %s", address(anchorStateRegistry));
 

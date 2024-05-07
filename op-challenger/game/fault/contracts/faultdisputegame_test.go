@@ -430,7 +430,7 @@ func TestGetBlockRange(t *testing.T) {
 			expectedStart := uint64(65)
 			expectedEnd := uint64(102)
 			stubRpc.SetResponse(fdgAddr, methodStartingBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
-			stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
+			stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd), false})
 			start, end, err := contract.GetBlockRange(context.Background())
 			require.NoError(t, err)
 			require.Equal(t, expectedStart, start)
@@ -465,7 +465,7 @@ func TestGetGameMetadata(t *testing.T) {
 			expectedStatus := types.GameStatusChallengerWon
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
-			stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
+			stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber), false})
 			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
 			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
 			if version.version == vers080 {

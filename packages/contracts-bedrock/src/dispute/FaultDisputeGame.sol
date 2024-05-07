@@ -61,8 +61,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -186,7 +186,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
-        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
+        (uint256 l2Number,) = l2BlockNumber();
+        if (l2Number <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
 
         // Set the root claim
         claimData.push(
@@ -448,8 +449,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
+    function l2BlockNumber() public view returns (uint256 l2BlockNumber_, bool isVerified_) {
         l2BlockNumber_ = _getArgUint256(0x54);
+        isVerified_ = ANCHOR_STATE_REGISTRY.verifiedGames(IDisputeGame(address(this)));
     }
 
     /// @inheritdoc IFaultDisputeGame
@@ -480,9 +482,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // Update the status and emit the resolved event, note that we're performing an assignment here.
         emit Resolved(status = status_);
-
-        // Try to update the anchor state, this should not revert.
-        ANCHOR_STATE_REGISTRY.tryUpdateAnchorState();
     }
 
     /// @inheritdoc IFaultDisputeGame

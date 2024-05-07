@@ -426,9 +426,14 @@
         "internalType": "uint256",
         "name": "l2BlockNumber_",
         "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isVerified_",
+        "type": "bool"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
