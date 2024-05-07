@@ -2,6 +2,7 @@ package op_e2e
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -280,20 +281,28 @@ func TestCustomGasToken(t *testing.T) {
 	checkWETHTokenNameAndSymbol(t, enabled) // failing
 }
 
-func callViaSafe(t *testing.T, opts *bind.TransactOpts, client *ethclient.Client, safeAddress common.Address, target common.Address, data []byte) (*types.Transaction, error) {
+func callViaSafe(opts *bind.TransactOpts, client *ethclient.Client, safeAddress common.Address, target common.Address, data []byte) (*types.Transaction, error) {
 	signature := [65]byte{}
 	copy(signature[12:], opts.From[:])
 	signature[64] = uint8(1)
 
 	safe, err := bindings.NewSafe(safeAddress, client)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
 	owners, err := safe.GetOwners(&bind.CallOpts{})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
 	isOwner, err := safe.IsOwner(&bind.CallOpts{}, opts.From)
-	require.NoError(t, err)
-	require.True(t, isOwner, "address %s is not in owners list %s", opts.From, owners)
+	if err != nil {
+		return nil, err
+	}
+	if !isOwner {
+		return nil, fmt.Errorf("address %s is not in owners list %s", opts.From, owners)
+	}
 
 	return safe.ExecTransaction(opts, target, big.NewInt(0), data, 0, big.NewInt(0), big.NewInt(0), big.NewInt(0), common.Address{}, common.Address{}, signature[:])
 }
@@ -366,7 +375,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 
 	// Execute the upgrade SystemConfigProxy -> StorageSetter
-	tx, err = callViaSafe(t, safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
+	tx, err = callViaSafe(safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
 	waitForTx(t, tx, err, l1Client)
 
 	// Bind a StorageSetter to the SystemConfigProxy address
@@ -388,7 +397,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 
 	// Execute SystemConfigProxy -> SystemConfig upgrade
-	tx, err = callViaSafe(t, safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
+	tx, err = callViaSafe(safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
 	waitForTx(t, tx, err, l1Client)
 
 	version, err := systemConfig.Version(&bind.CallOpts{})
