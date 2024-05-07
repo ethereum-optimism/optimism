@@ -47,6 +47,28 @@ func TestCustomGasToken(t *testing.T) {
 	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err)
 
+	// setup expectations using custom gas token
+	type Expectations struct {
+		tokenAddress  common.Address
+		tokenName     string
+		tokenSymbol   string
+		tokenDecimals uint8
+	}
+	disabledExpectations := Expectations{
+		common.HexToAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
+		"Ether",
+		"ETH",
+		uint8(0x12),
+	}
+	enabledExpectations := Expectations{}
+	enabledExpectations.tokenAddress = weth9Address
+	enabledExpectations.tokenName, err = weth9.Name(&bind.CallOpts{})
+	require.NoError(t, err)
+	enabledExpectations.tokenSymbol, err = weth9.Symbol(&bind.CallOpts{})
+	require.NoError(t, err)
+	enabledExpectations.tokenDecimals, err = weth9.Decimals(&bind.CallOpts{})
+	require.NoError(t, err)
+
 	// Get some WETH
 	aliceOpts.Value = big.NewInt(10_000_000)
 	tx, err = weth9.Deposit(aliceOpts)
@@ -204,15 +226,15 @@ func TestCustomGasToken(t *testing.T) {
 		require.NoError(t, err)
 
 		if enabled {
-			require.Equal(t, weth9Address, token.Addr)
-			require.Equal(t, uint8(0x12), token.Decimals)
-			require.Equal(t, "Wrapped Ether", name)
-			require.Equal(t, "WETH", symbol)
+			require.Equal(t, enabledExpectations.tokenAddress, token.Addr)
+			require.Equal(t, enabledExpectations.tokenDecimals, token.Decimals)
+			require.Equal(t, enabledExpectations.tokenName, name)
+			require.Equal(t, enabledExpectations.tokenSymbol, symbol)
 		} else {
-			require.Equal(t, common.HexToAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"), token.Addr)
-			require.Equal(t, uint8(0x12), token.Decimals)
-			require.Equal(t, "Ether", name)
-			require.Equal(t, "ETH", symbol)
+			require.Equal(t, disabledExpectations.tokenAddress, token.Addr)
+			require.Equal(t, disabledExpectations.tokenDecimals, token.Decimals)
+			require.Equal(t, disabledExpectations.tokenName, name)
+			require.Equal(t, disabledExpectations.tokenSymbol, symbol)
 		}
 	}
 
@@ -230,15 +252,15 @@ func TestCustomGasToken(t *testing.T) {
 		require.NoError(t, err)
 
 		if enabled {
-			require.Equal(t, weth9Address, token.Addr)
-			require.Equal(t, uint8(0x12), token.Decimals)
-			require.Equal(t, "Wrapped Ether", name)
-			require.Equal(t, "WETH", symbol)
+			require.Equal(t, enabledExpectations.tokenAddress, token.Addr)
+			require.Equal(t, enabledExpectations.tokenDecimals, token.Decimals)
+			require.Equal(t, enabledExpectations.tokenName, name)
+			require.Equal(t, enabledExpectations.tokenSymbol, symbol)
 		} else {
-			require.Equal(t, common.HexToAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"), token.Addr)
-			require.Equal(t, uint8(0x12), token.Decimals)
-			require.Equal(t, "Ether", name)
-			require.Equal(t, "ETH", symbol)
+			require.Equal(t, disabledExpectations.tokenAddress, token.Addr)
+			require.Equal(t, disabledExpectations.tokenDecimals, token.Decimals)
+			require.Equal(t, disabledExpectations.tokenName, name)
+			require.Equal(t, disabledExpectations.tokenSymbol, symbol)
 		}
 	}
 
@@ -254,11 +276,11 @@ func TestCustomGasToken(t *testing.T) {
 		require.NoError(t, err)
 
 		if enabled {
-			require.Equal(t, "Wrapped Wrapped Ether", name)
-			require.Equal(t, "WWETH", symbol)
+			require.Equal(t, "Wrapped "+enabledExpectations.tokenName, name)
+			require.Equal(t, "W"+enabledExpectations.tokenSymbol, symbol)
 		} else {
-			require.Equal(t, "Wrapped Ether", name)
-			require.Equal(t, "WETH", symbol)
+			require.Equal(t, "Wrapped "+disabledExpectations.tokenName, name)
+			require.Equal(t, "W"+disabledExpectations.tokenSymbol, symbol)
 		}
 	}
 
