@@ -128,8 +128,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.8.0
-    string public constant version = "2.8.0";
+    /// @custom:semver 2.7.0
+    string public constant version = "2.7.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
@@ -546,14 +546,10 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
-        // Compute the opaque data.
-        bytes memory opaqueData = _encodeDepositData({
-            _mint: _mint,
-            _value: _value,
-            _gasLimit: _gasLimit,
-            _isCreation: _isCreation,
-            _data: _data
-        });
+        // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
+        // We use opaque data so that we can update the TransactionDeposited event in the future
+        // without breaking the current interface.
+        bytes memory opaqueData = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
 
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
@@ -569,36 +565,20 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // This value must be large enough to cover the cost of calling `L1Block.setGasPayingToken`.
         useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
 
-        // Compute the opaque data.
-        bytes memory opaqueData = _encodeDepositData({
-            _mint: 0,
-            _value: 0,
-            _gasLimit: uint64(SYSTEM_DEPOSIT_GAS_LIMIT),
-            _isCreation: false,
-            _data: abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
-        });
-
         // Emit the special deposit transaction directly that sets the gas paying
         // token in the L1Block predeploy contract.
         emit TransactionDeposited(
             Constants.DEPOSITOR_ACCOUNT,
             Predeploys.L1_BLOCK_ATTRIBUTES,
             DEPOSIT_VERSION,
-            opaqueData
+            abi.encodePacked(
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
+                false, // isCreation,
+                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+            )
         );
-    }
-
-    // @notice Compute the opaque data that will be emitted as part of the TransactionDeposited event.
-    //         We use opaque data so that we can update the TransactionDeposited event in the future
-    //         without breaking the current interface.
-    function _encodeDepositData(
-        uint256 _mint,
-        uint256 _value,
-        uint64 _gasLimit,
-        bool _isCreation,
-        bytes memory _data
-    ) internal pure returns (bytes memory data_) {
-        data_ = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
     }
 
     /// @notice Determine if a given output is finalized.
