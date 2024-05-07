@@ -57,7 +57,9 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *ForgeAllocs, l1Deployme
 	}
 	// copy, for safety when the dump is reused (like in e2e testing)
 	genesis.Alloc = dump.Copy().Accounts
-	FundDevAccounts(genesis)
+	if config.FundDevAccounts {
+		FundDevAccounts(genesis)
+	}
 	SetPrecompileBalances(genesis)
 
 	l1Deployments.ForEach(func(name string, addr common.Address) {
