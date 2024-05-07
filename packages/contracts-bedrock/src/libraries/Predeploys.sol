@@ -90,7 +90,7 @@ library Predeploys {
     address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
 
     /// @notice Returns the name of the predeploy at the given address.
-    function getName(address _addr) internal pure returns (string memory out_) {
+    function getName(address _addr, bool _useInterop) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
         if (_addr == LEGACY_MESSAGE_PASSER) return "LegacyMessagePasser";
         if (_addr == L1_MESSAGE_SENDER) return "L1MessageSender";
@@ -103,7 +103,7 @@ library Predeploys {
         if (_addr == OPTIMISM_MINTABLE_ERC20_FACTORY) return "OptimismMintableERC20Factory";
         if (_addr == L1_BLOCK_NUMBER) return "L1BlockNumber";
         if (_addr == L2_ERC721_BRIDGE) return "L2ERC721Bridge";
-        if (_addr == L1_BLOCK_ATTRIBUTES) return "L1Block";
+        if (_addr == L1_BLOCK_ATTRIBUTES) return _useInterop ? "L1BlockInterop" : "L1Block";
         if (_addr == L2_TO_L1_MESSAGE_PASSER) return "L2ToL1MessagePasser";
         if (_addr == OPTIMISM_MINTABLE_ERC721_FACTORY) return "OptimismMintableERC721Factory";
         if (_addr == PROXY_ADMIN) return "ProxyAdmin";
