@@ -134,9 +134,12 @@ func callViaSafe(t *testing.T, opts *bind.TransactOpts, client *ethclient.Client
 	safe, err := bindings.NewSafe(safeAddress, client)
 	require.NoError(t, err)
 
+	owners, err := safe.GetOwners(&bind.CallOpts{})
+	require.NoError(t, err)
+
 	isOwner, err := safe.IsOwner(&bind.CallOpts{}, opts.From)
 	require.NoError(t, err)
-	require.True(t, isOwner)
+	require.True(t, isOwner, "address %s is not in owners list %s", opts.From, owners)
 
 	return safe.ExecTransaction(opts, target, big.NewInt(0), data, 0, big.NewInt(0), big.NewInt(0), big.NewInt(0), common.Address{}, common.Address{}, signature[:])
 }
@@ -197,7 +200,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	waitForTx(t, tx, err, l1Client)
 
 	// Set up a signer which controls the Proxy Admin Owner SAFE
-	cliqueSignerOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.CliqueSigner, cfg.L1ChainIDBig())
+	safeOwnerOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Deployer, cfg.L1ChainIDBig())
 	require.NoError(t, err)
 
 	// Encode calldata for upgrading SystemConfigProxy to the StorageSetter implementation
@@ -209,7 +212,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 
 	// Execute the upgrade SystemConfigProxy -> StorageSetter
-	tx, err = callViaSafe(t, cliqueSignerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
+	tx, err = callViaSafe(t, safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
 	waitForTx(t, tx, err, l1Client)
 
 	// Bind a StorageSetter to the SystemConfigProxy address
@@ -231,7 +234,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 
 	// Execute SystemConfigProxy -> SystemConfig upgrade
-	tx, err = callViaSafe(t, cliqueSignerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
+	tx, err = callViaSafe(t, safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
 	waitForTx(t, tx, err, l1Client)
 
 	version, err := systemConfig.Version(&bind.CallOpts{})
