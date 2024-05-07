@@ -45,7 +45,7 @@ error CannotDefendRootClaim();
 /// @notice Thrown when a claim is attempting to be made that already exists.
 error ClaimAlreadyExists();
 
-/// @notice Thrown when a given claim is invalid (0).
+/// @notice Thrown when a given claim is invalid.
 error InvalidClaim();
 
 /// @notice Thrown when an action that requires the game to be `IN_PROGRESS` is invoked when
@@ -103,6 +103,19 @@ error DuplicateStep();
 
 /// @notice Thrown when an anchor root is not found for a given game type.
 error AnchorRootNotFound();
+
+/// @notice Thrown when an output root proof is invalid.
+error InvalidOutputRootProof();
+
+/// @notice Thrown when header RLP is invalid with respect to the block hash in an output root proof.
+error InvalidHeaderRLP();
+
+/// @notice Thrown when there is a match between the block number in the output root proof and the block number
+///         claimed in the dispute game.
+error BlockNumberMatches();
+
+/// @notice Thrown when the L2 block number claim has already been challenged.
+error L2BlockNumberChallenged();
 
 ////////////////////////////////////////////////////////////////
 //              `PermissionedDisputeGame` Errors              //
