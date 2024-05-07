@@ -63,6 +63,9 @@ func (c *ClaimCounter) count(ctx context.Context, game *types.EnrichedGameData) 
 		}
 		if claim.Claim.Depth()%2 != 0 && agreement || claim.Claim.Depth()%2 == 0 && !agreement {
 			invalid += 1
+			if invalid >= 10 {
+				c.logger.Warn("Encountered over 10 disagreed claims", "game", game.Proxy, "depth", claim.Claim.Depth(), "agreement", agreement, "honestActor", c.honestActors[claim.Claimant])
+			}
 			continue
 		}
 		if c.honestActors[claim.Claimant] {
