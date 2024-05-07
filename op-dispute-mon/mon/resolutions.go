@@ -1,11 +1,15 @@
 package mon
 
 import (
+	"time"
+
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+const MaxResolveDelay = time.Minute
 
 type ResolutionMetrics interface {
 	RecordGameResolutionStatus(status metrics.ResolutionStatus, count int)
@@ -30,7 +34,7 @@ func (r *ResolutionMonitor) CheckResolutions(games []*types.EnrichedGameData) {
 	for _, game := range games {
 		complete := game.Status != gameTypes.GameStatusInProgress
 		duration := uint64(r.clock.Now().Unix()) - game.Timestamp
-		maxDurationReached := duration >= game.MaxClockDuration
+		maxDurationReached := duration >= (2 * game.MaxClockDuration)
 		resolvable := true
 		for _, claim := range game.Claims {
 			// If any claim is not resolved, the game is not resolvable
@@ -44,12 +48,18 @@ func (r *ResolutionMonitor) CheckResolutions(games []*types.EnrichedGameData) {
 			}
 		} else if resolvable {
 			if maxDurationReached {
+				// SAFETY: since maxDurationReached is true, this cannot underflow
+				delay := duration - (2 * game.MaxClockDuration)
+				if delay > uint64(MaxResolveDelay.Seconds()) {
+					r.logger.Warn("Resolvable game has taken too long to resolve", "game", game.Proxy, "delay", delay)
+				}
 				statusMetrics[metrics.ResolvableMaxDuration]++
 			} else {
 				statusMetrics[metrics.ResolvableBeforeMaxDuration]++
 			}
 		} else {
 			if maxDurationReached {
+				// Note: we don't need to log here since unresolved claims are logged and metriced in claims.go
 				statusMetrics[metrics.InProgressMaxDuration]++
 			} else {
 				statusMetrics[metrics.InProgressBeforeMaxDuration]++

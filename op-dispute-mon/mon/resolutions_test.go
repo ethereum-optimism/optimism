@@ -60,11 +60,11 @@ func newTestGames(duration uint64) []*types.EnrichedGameData {
 		return game
 	}
 	return []*types.EnrichedGameData{
-		newTestGame(duration, gameTypes.GameStatusInProgress, false),
-		newTestGame(duration*10, gameTypes.GameStatusInProgress, false),
-		newTestGame(duration, gameTypes.GameStatusInProgress, true),
-		newTestGame(duration*10, gameTypes.GameStatusInProgress, true),
-		newTestGame(duration, gameTypes.GameStatusDefenderWon, false),
-		newTestGame(duration*10, gameTypes.GameStatusChallengerWon, false),
+		newTestGame(duration/2, gameTypes.GameStatusInProgress, false),
+		newTestGame(duration*5, gameTypes.GameStatusInProgress, false),
+		newTestGame(duration/2, gameTypes.GameStatusInProgress, true),
+		newTestGame(duration*5, gameTypes.GameStatusInProgress, true),
+		newTestGame(duration/2, gameTypes.GameStatusDefenderWon, false),
+		newTestGame(duration*5, gameTypes.GameStatusChallengerWon, false),
 	}
 }
