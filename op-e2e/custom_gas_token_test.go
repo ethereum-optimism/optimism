@@ -138,78 +138,77 @@ func TestCustomGasToken(t *testing.T) {
 	// Function to prepare and execute withdrawal flow for CGTs
 	// and assert token balance is increased on L1.
 	checkWithdrawal := func(t *testing.T) {
-		t.Run("withdrawal", func(t *testing.T) {
-			l2Seq := l2Client
-			l2Verif := sys.Clients["verifier"]
-			fromAddr := aliceOpts.From
-			ethPrivKey := cfg.Secrets.Alice
 
-			// Start L2 balance for withdrawal
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			startBalanceBeforeWithdrawal, err := l2Seq.BalanceAt(ctx, fromAddr, nil)
-			require.NoError(t, err)
+		l2Seq := l2Client
+		l2Verif := sys.Clients["verifier"]
+		fromAddr := aliceOpts.From
+		ethPrivKey := cfg.Secrets.Alice
 
-			withdrawAmount := big.NewInt(5)
-			tx, receipt := SendWithdrawal(t, cfg, l2Seq, cfg.Secrets.Alice, func(opts *WithdrawalTxOpts) {
-				opts.Value = withdrawAmount
-				opts.VerifyOnClients(l2Verif)
-			})
-			// Verify L2 balance after withdrawal
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
-			require.NoError(t, err)
+		// Start L2 balance for withdrawal
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		startBalanceBeforeWithdrawal, err := l2Seq.BalanceAt(ctx, fromAddr, nil)
+		require.NoError(t, err)
 
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			endBalanceAfterWithdrawal, err := wait.ForBalanceChange(ctx, l2Seq, fromAddr, startBalanceBeforeWithdrawal)
-			require.NoError(t, err)
-
-			// Take fee into account
-			diff := new(big.Int).Sub(startBalanceBeforeWithdrawal, endBalanceAfterWithdrawal)
-			fees := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
-			fees = fees.Add(fees, receipt.L1Fee)
-			diff = diff.Sub(diff, fees)
-			require.Equal(t, withdrawAmount, diff)
-
-			// Take start token balance on L1
-			startTokenBalanceBeforeFinalize, err := weth9.BalanceOf(&bind.CallOpts{}, fromAddr)
-			require.NoError(t, err)
-
-			startETHBalanceBeforeFinalize, err := l1Client.BalanceAt(context.Background(), fromAddr, nil)
-			require.NoError(t, err)
-
-			proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
-
-			// Verify L1 ETH balance change
-			proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
-			finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
-			fees = new(big.Int).Add(proveFee, finalizeFee)
-			if e2eutils.UseFPAC() {
-				resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
-				resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
-				fees = new(big.Int).Add(fees, resolveClaimFee)
-				fees = new(big.Int).Add(fees, resolveFee)
-			}
-
-			// Verify L1ETHBalance after withdrawal
-			// On CGT chains, the only change in ETH balance from a withdrawal
-			// is a decrease to pay for gas
-			endETHBalanceAfterFinalize, err := l1Client.BalanceAt(context.Background(), fromAddr, nil)
-			require.NoError(t, err)
-			diff = new(big.Int).Sub(endETHBalanceAfterFinalize, startETHBalanceBeforeFinalize)
-			require.Equal(t, new(big.Int).Sub(big.NewInt(0), fees), diff)
-
-			// Verify token balance after withdrawal
-			// L1 Fees are paid in ETH, and
-			// withdrawal is of a Custom Gas Token, so we do not subtract l1 fees from expected balance change
-			// as we would if ETH was the gas paying token
-			endTokenBalanceAfterFinalize, err := weth9.BalanceOf(&bind.CallOpts{}, fromAddr)
-			require.NoError(t, err)
-			diff = new(big.Int).Sub(endTokenBalanceAfterFinalize, startTokenBalanceBeforeFinalize)
-			require.Equal(t, withdrawAmount, diff)
+		withdrawAmount := big.NewInt(5)
+		tx, receipt := SendWithdrawal(t, cfg, l2Seq, cfg.Secrets.Alice, func(opts *WithdrawalTxOpts) {
+			opts.Value = withdrawAmount
+			opts.VerifyOnClients(l2Verif)
 		})
+		// Verify L2 balance after withdrawal
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
+		require.NoError(t, err)
+
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		endBalanceAfterWithdrawal, err := wait.ForBalanceChange(ctx, l2Seq, fromAddr, startBalanceBeforeWithdrawal)
+		require.NoError(t, err)
+
+		// Take fee into account
+		diff := new(big.Int).Sub(startBalanceBeforeWithdrawal, endBalanceAfterWithdrawal)
+		fees := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+		fees = fees.Add(fees, receipt.L1Fee)
+		diff = diff.Sub(diff, fees)
+		require.Equal(t, withdrawAmount, diff)
+
+		// Take start token balance on L1
+		startTokenBalanceBeforeFinalize, err := weth9.BalanceOf(&bind.CallOpts{}, fromAddr)
+		require.NoError(t, err)
+
+		startETHBalanceBeforeFinalize, err := l1Client.BalanceAt(context.Background(), fromAddr, nil)
+		require.NoError(t, err)
+
+		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
+
+		// Verify L1 ETH balance change
+		proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
+		finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
+		fees = new(big.Int).Add(proveFee, finalizeFee)
+		if e2eutils.UseFPAC() {
+			resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
+			resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
+			fees = new(big.Int).Add(fees, resolveClaimFee)
+			fees = new(big.Int).Add(fees, resolveFee)
+		}
+
+		// Verify L1ETHBalance after withdrawal
+		// On CGT chains, the only change in ETH balance from a withdrawal
+		// is a decrease to pay for gas
+		endETHBalanceAfterFinalize, err := l1Client.BalanceAt(context.Background(), fromAddr, nil)
+		require.NoError(t, err)
+		diff = new(big.Int).Sub(endETHBalanceAfterFinalize, startETHBalanceBeforeFinalize)
+		require.Equal(t, new(big.Int).Sub(big.NewInt(0), fees), diff)
+
+		// Verify token balance after withdrawal
+		// L1 Fees are paid in ETH, and
+		// withdrawal is of a Custom Gas Token, so we do not subtract l1 fees from expected balance change
+		// as we would if ETH was the gas paying token
+		endTokenBalanceAfterFinalize, err := weth9.BalanceOf(&bind.CallOpts{}, fromAddr)
+		require.NoError(t, err)
+		diff = new(big.Int).Sub(endTokenBalanceAfterFinalize, startTokenBalanceBeforeFinalize)
+		require.Equal(t, withdrawAmount, diff)
 	}
 
 	checkL1TokenNameAndSymbol := func(t *testing.T, enabled bool) {
