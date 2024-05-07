@@ -320,13 +320,13 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.Bl
 				d.log.Error("failed to verify commitment", "block", block.Number, "txIdx", i, "err", err)
 				continue
 			}
-			d.log.Debug("challenge resolved", "block", block, "txIdx", i)
+			d.log.Info("challenge resolved", "block", block, "txIdx", i, "comm", comm.Encode())
 			d.state.SetResolvedChallenge(comm.Encode(), input, log.BlockNumber)
 		case ChallengeActive:
-			d.log.Info("detected new active challenge", "block", block)
+			d.log.Info("detected new active challenge", "block", block, "comm", comm.Encode())
 			d.state.SetActiveChallenge(comm.Encode(), log.BlockNumber, d.cfg.ResolveWindow)
 		default:
-			d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", log.Index, "status", status)
+			d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", log.Index, "status", status, "comm", comm.Encode())
 		}
 	}
 	return nil
