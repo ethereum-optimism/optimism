@@ -77,6 +77,8 @@ contract DeployConfig is Script {
     bool public useCustomGasToken;
     address public customGasTokenAddress;
 
+    bool public useInterop;
+
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data) {
@@ -151,6 +153,8 @@ contract DeployConfig is Script {
 
         useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
         customGasTokenAddress = _readOr(_json, "$.customGasTokenAddress", address(0));
+
+        useInterop = _readOr(_json, "$.useInterop", false);
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
@@ -189,6 +193,11 @@ contract DeployConfig is Script {
     /// @notice Allow the `useFaultProofs` config to be overridden in testing environments
     function setUseFaultProofs(bool _useFaultProofs) public {
         useFaultProofs = _useFaultProofs;
+    }
+
+    /// @notice Allow the `useInterop` config to be overridden in testing environments
+    function setUseInterop(bool _useInterop) public {
+        useInterop = _useInterop;
     }
 
     /// @notice Allow the `fundDevAccounts` config to be overridden.
