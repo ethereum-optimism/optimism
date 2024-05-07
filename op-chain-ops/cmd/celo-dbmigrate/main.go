@@ -188,6 +188,11 @@ func migrateNonAncientsDb(oldDbPath, newDbPath string, lastAncientBlock, batchSi
 				return 0, fmt.Errorf("failed to transform body: block %d - %x: %w", numberHash.Number, numberHash.Hash, err)
 			}
 
+			if yes, newHash := hasSameHash(newHeader, numberHash.Hash[:]); !yes {
+				log.Error("Hash mismatch", "block", numberHash.Number, "oldHash", numberHash.Hash, "newHash", newHash)
+				return 0, fmt.Errorf("hash mismatch at block %d - %x", numberHash.Number, numberHash.Hash)
+			}
+
 			// write header and body
 			batch := newDB.NewBatch()
 			rawdb.WriteBodyRLP(batch, numberHash.Hash, numberHash.Number, newBody)
@@ -304,9 +309,7 @@ func transformBlocks(ctx context.Context, in <-chan RLPBlockRange, out chan<- RL
 					return fmt.Errorf("can't transform body: %v", err)
 				}
 
-				// Check that hashing the new header gives the same hash as the saved hash
-				newHash := crypto.Keccak256Hash(newHeader)
-				if !bytes.Equal(blockRange.hashes[i], newHash.Bytes()) {
+				if yes, newHash := hasSameHash(newHeader, blockRange.hashes[i]); !yes {
 					log.Error("Hash mismatch", "block", blockNumber, "oldHash", common.BytesToHash(blockRange.hashes[i]), "newHash", newHash)
 					return fmt.Errorf("hash mismatch at block %d", blockNumber)
 				}
@@ -318,6 +321,11 @@ func transformBlocks(ctx context.Context, in <-chan RLPBlockRange, out chan<- RL
 		}
 	}
 	return nil
+}
+
+func hasSameHash(newHeader, oldHash []byte) (bool, common.Hash) {
+	newHash := crypto.Keccak256Hash(newHeader)
+	return bytes.Equal(oldHash, newHash.Bytes()), newHash
 }
 
 func writeAncientBlocks(ctx context.Context, freezer *rawdb.Freezer, in <-chan RLPBlockRange) error {
