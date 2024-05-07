@@ -16,8 +16,13 @@ var ErrCommitmentMismatch = errors.New("commitment mismatch")
 // CommitmentType is the commitment type prefix.
 type CommitmentType byte
 
-// KeccakCommitmentType is the default commitment type for the DA storage.
-const Keccak256CommitmentType CommitmentType = 0
+// CommitmentType describes the binary format of the commitment.
+// KeccakCommitmentType is the default commitment type for the centralized DA storage.
+// GenericCommitmentType indicates an opaque bytestring that the op-node never opens.
+const (
+	Keccak256CommitmentType CommitmentType = 0
+	GenericCommitmentType   CommitmentType = 1
+)
 
 // Keccak256Commitment is the default commitment type for op-plasma.
 type Keccak256Commitment []byte
@@ -58,4 +63,32 @@ func DecodeKeccak256(commitment []byte) (Keccak256Commitment, error) {
 		return nil, ErrInvalidCommitment
 	}
 	return c, nil
+}
+
+// GenericCommitment is the default commitment type for op-plasma.
+type GenericCommitment []byte
+
+func NewGenericCommitment(commitment []byte) GenericCommitment {
+	return commitment
+}
+
+// Encode adds a commitment type prefix self describing the commitment.
+func (c GenericCommitment) Encode() []byte {
+	return append([]byte{byte(GenericCommitmentType)}, c...)
+}
+
+// TxData adds an extra version byte to signal it's a commitment.
+func (c GenericCommitment) TxData() []byte {
+	return append([]byte{TxDataVersion1}, c.Encode()...)
+}
+
+// DecodeGenericCommitment validates and casts the commitment into a GenericCommitment.
+func DecodeGenericCommitment(commitment []byte) (GenericCommitment, error) {
+	if len(commitment) == 0 {
+		return nil, ErrInvalidCommitment
+	}
+	if commitment[0] != byte(GenericCommitmentType) {
+		return nil, ErrInvalidCommitment
+	}
+	return commitment[1:], nil
 }
