@@ -10,6 +10,7 @@ volumes:
   safedb_data:
   challenger_data:
   da_data:
+  da_data2:
   op_log:
 
 
@@ -156,7 +157,7 @@ services:
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_BATCH_TYPE: 0
       OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
-      OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
+      OP_BATCHER_PLASMA_DA_SERVER: "http://da-server2:3100"
 
   op-challenger:
     depends_on:
@@ -209,8 +210,26 @@ services:
     volumes:
       - "da_data:/data"
 
+  da-server2:
+    depends_on:
+      - op_stack_go_builder
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
+    build:
+      context: ../
+      dockerfile: ./op-plasma/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+    command: >
+      da-server
+      --file.path=/data
+      --addr=0.0.0.0
+      --port=3100
+      --log.level=debug
+    volumes:
+      - "da_data2:/data"
+
   sentinel:
-    image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/sentinel:1dda8b6ccf9e6f17f1b65a09fd1ed312258b5b49 # TODO(10141): We need a public image for this (sentinel is out of repo)
     volumes:
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
     # private-key is mnemonic index 5 of the test mnemonic.
@@ -221,6 +240,21 @@ services:
       --l1-rpc-ws=ws://l1:8546
       --da-storage-uri=http://da-server:3100
       --private-key=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+      --config=/rollup.json
+      --challenge
+
+  sentinel2:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/sentinel:1dda8b6ccf9e6f17f1b65a09fd1ed312258b5b49 # TODO(10141): We need a public image for this (sentinel is out of repo)
+    volumes:
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+    # private-key is mnemonic index 6 of the test mnemonic.
+    command: >
+      sentinel
+      --datadir=data
+      --l1-rpc-http=http://l1:8545
+      --l1-rpc-ws=ws://l1:8546
+      --da-storage-uri=http://da-server2:3100
+      --private-key=0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
       --config=/rollup.json
 
   artifact-server:

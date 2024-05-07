@@ -30,6 +30,7 @@ log = logging.getLogger()
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_FPAC = os.getenv('DEVNET_FPAC') == "true"
 DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
+DEVNET_PLASMA = True
 
 class Bunch:
     def __init__(self, **kwds):
@@ -288,7 +289,7 @@ def devnet_deploy(paths):
     # Optionally bring up OP Plasma.
     if DEVNET_PLASMA:
         log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
-        run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
+        run_command(['docker', 'compose', 'up', '-d', 'da-server', 'sentinel', 'sentinel2', 'da-server2'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
     # Fin.
     log.info('Devnet ready.')

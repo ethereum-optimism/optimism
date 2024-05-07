@@ -320,7 +320,7 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.Bl
 				d.log.Error("failed to verify commitment", "block", block.Number, "txIdx", i, "err", err)
 				continue
 			}
-			d.log.Debug("challenge resolved", "block", block, "txIdx", i)
+			d.log.Info("challenge resolved", "block", block, "txIdx", i)
 			d.state.SetResolvedChallenge(comm.Encode(), input, log.BlockNumber)
 		case ChallengeActive:
 			d.log.Info("detected new active challenge", "block", block)
