@@ -91,7 +91,7 @@ func resolutionFlags() []cli.Flag {
 
 var ResolutionCommand = &cli.Command{
 	Name:        "resolution",
-	Usage:       "Checks reolution status for the specified dispute game",
+	Usage:       "Checks resolution status for the specified dispute game",
 	Description: "Checks resolution status for the specified dispute game",
 	Action:      CheckResolution,
 	Flags:       resolutionFlags(),
