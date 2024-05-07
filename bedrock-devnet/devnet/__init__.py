@@ -143,7 +143,7 @@ def devnet_l1_allocs(paths):
 
     fqn = 'scripts/Deploy.s.sol:Deploy'
     run_command([
-        'forge', 'script', fqn, "--sig", "runWithStateDump()"
+        'forge', 'script', fqn, "--sig", "runWithStateDump()", "--sender", "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
     ], env={
       'DEPLOYMENT_OUTFILE': paths.l1_deployments_path,
       'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
