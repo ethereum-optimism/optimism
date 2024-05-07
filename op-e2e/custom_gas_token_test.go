@@ -299,8 +299,8 @@ func TestCustomGasToken(t *testing.T) {
 	checkDeposit(t, enabled)
 	checkWithdrawal(t)
 	checkL1TokenNameAndSymbol(t, enabled)
-	checkL2TokenNameAndSymbol(t, enabled)   // failing
-	checkWETHTokenNameAndSymbol(t, enabled) // failing
+	checkL2TokenNameAndSymbol(t, enabled)
+	checkWETHTokenNameAndSymbol(t, enabled)
 }
 
 func callViaSafe(opts *bind.TransactOpts, client *ethclient.Client, safeAddress common.Address, target common.Address, data []byte) (*types.Transaction, error) {
