@@ -95,7 +95,7 @@ contract PredeploysTest is CommonTest {
             }
             bool proxied = _notProxied(addr) == false;
 
-            string memory cname = Predeploys.getName(addr, deploy.cfg().useInterop());
+            string memory cname = Predeploys.getName(addr);
             assertNotEq(cname, "", "must have a name");
 
             bytes memory supposedCode = vm.getDeployedCode(string.concat(cname, ".sol:", cname));

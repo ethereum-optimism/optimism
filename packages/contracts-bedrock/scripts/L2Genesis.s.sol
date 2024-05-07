@@ -424,7 +424,7 @@ contract L2Genesis is Deployer {
     ///         It uses low level create to deploy the contract due to the code
     ///         having immutables and being a different compiler version.
     function setEAS() public {
-        string memory cname = Predeploys.getName(Predeploys.EAS, cfg.useInterop());
+        string memory cname = Predeploys.getName(Predeploys.EAS);
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.EAS);
         bytes memory code = vm.getCode(string.concat(cname, ".sol:", cname));
 
@@ -476,7 +476,7 @@ contract L2Genesis is Deployer {
 
     /// @notice Sets the bytecode in state
     function _setImplementationCode(address _addr) internal returns (address) {
-        string memory cname = Predeploys.getName(_addr, cfg.useInterop());
+        string memory cname = Predeploys.getName(_addr);
         address impl = Predeploys.predeployToCodeNamespace(_addr);
         console.log("Setting %s implementation at: %s", cname, impl);
         vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
