@@ -65,9 +65,13 @@ contract KontrolDeployment is Deploy {
         initializeL1StandardBridge();
         initializeL1ERC721Bridge();
         initializeL1CrossDomainMessenger();
-        initializeOptimismPortal2();
         initializeDisputeGameFactory();
         initializeDelayedWETH();
         initializeAnchorStateRegistry();
+        initializeOptimismPortal2();
+
+        // Set dispute game implementations in DGF
+        setCannonFaultGameImplementation({ _allowUpgrade: false });
+        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
     }
 }

@@ -67,7 +67,6 @@ awk '{gsub(/mustGetAddress/, "getAddress")}1' $DEPLOY_SCRIPT > temp && mv temp $
 
 CONTRACT_NAMES=deployments/kontrol.json
 SCRIPT_SIG="runKontrolDeployment()"
-KONTROL_FP_DEPLOYMENT="${KONTROL_FP_DEPLOYMENT:-false}"
 if [ "$KONTROL_FP_DEPLOYMENT" = true ]; then
   CONTRACT_NAMES=deployments/kontrol-fp.json
   SCRIPT_SIG="runKontrolDeploymentFaultProofs()"
