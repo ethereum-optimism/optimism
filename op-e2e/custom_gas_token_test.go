@@ -240,21 +240,21 @@ func TestCustomGasToken(t *testing.T) {
 
 	// Begin by testing behaviour when CGT feature is not enabled
 	enabled := false
+	checkDeposit(t, enabled)
 	checkL1TokenNameAndSymbol(t, enabled)
 	checkL2TokenNameAndSymbol(t, enabled)
 	checkWETHTokenNameAndSymbol(t, enabled)
-	checkDeposit(t, enabled)
 
 	// Activate custom gas token feature (devnet does not have this activated at genesis)
 	setCustomGasToken(t, cfg, sys, weth9Address)
 
 	// Now test behaviour given CGT feature is enabled
 	enabled = true
-	checkL1TokenNameAndSymbol(t, enabled)
-	// checkL2TokenNameAndSymbol(t, enabled) // failing
-	// checkWETHTokenNameAndSymbol(t, enabled) // failing
 	checkDeposit(t, enabled)
 	checkWithdrawal(t, enabled)
+	checkL1TokenNameAndSymbol(t, enabled)
+	checkL2TokenNameAndSymbol(t, enabled)   // failing
+	checkWETHTokenNameAndSymbol(t, enabled) // failing
 }
 
 func callViaSafe(t *testing.T, opts *bind.TransactOpts, client *ethclient.Client, safeAddress common.Address, target common.Address, data []byte) (*types.Transaction, error) {
