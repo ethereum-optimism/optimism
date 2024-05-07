@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { stdError } from "forge-std/Test.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
@@ -468,6 +469,38 @@ contract OptimismPortal_Test is CommonTest {
 
         vm.prank(address(systemConfig));
         optimismPortal.setGasPayingToken({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
+    }
+
+    /// @notice Ensures that the deposit event is correct for the `setGasPayingToken`
+    ///         code path that manually emits a deposit transaction outside of the
+    ///         `depositTransaction` function. This is a simple differential test.
+    function test_setGasPayingToken_correctEvent_succeeds() external {
+        vm.recordLogs();
+
+        vm.prank(address(systemConfig));
+        optimismPortal.setGasPayingToken({
+            _token: address(0x9999),
+            _decimals: 19,
+            _name: "",
+            _symbol: ""
+        });
+
+        vm.prank(address(Constants.DEPOSITOR_ACCOUNT));
+        optimismPortal.depositTransaction({
+            _to: Predeploys.L1_BLOCK_ATTRIBUTES,
+            _value: 0,
+            _gasLimit: 80_000,
+            _isCreation: false,
+            _data: abi.encodeCall(L1Block.setGasPayingToken, (address(0x9999), 19, bytes32(0), bytes32(0)))
+        });
+
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 2);
+
+        VmSafe.Log memory systemPath = logs[0];
+        VmSafe.Log memory userPath = logs[1];
+
+        assertEq(systemPath.data, userPath.data);
     }
 
     /// @dev Tests that the gas paying token cannot be set by a non-system config.
