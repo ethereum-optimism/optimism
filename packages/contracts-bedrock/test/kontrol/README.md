@@ -68,8 +68,7 @@ First, generate a deployment summary contract from the deploy script in [`Kontro
 ```
 
 > [!NOTE]
-> To make the fault proof summary deployment, run `KONTROL_FP_DEPLOYMENT=true ./test/kontrol/scripts/make-summary-deployment.sh`
-
+> To create a fault proof summary deployment, set `KONTROL_FP_DEPLOYMENT=true` and run the script `./test/kontrol/scripts/make-summary-deployment.sh`.
 The [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) supports the same execution modes as `run-kontrol.sh` below.
 
 [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) contains the minimal deployment sequence required by the proofs.
