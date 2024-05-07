@@ -100,6 +100,11 @@ func (ch *Channel) OpenBlockNumber() uint64 {
 	return ch.openBlock.Number
 }
 
+// HighestBlock returns the last L1 block which affect this channel
+func (ch *Channel) HighestBlock() eth.L1BlockRef {
+	return ch.highestL1InclusionBlock
+}
+
 // Size returns the current size of the channel including frame overhead.
 // Reading from the channel does not reduce the size as reading is done
 // on uncompressed data while this size is over compressed data.
@@ -146,13 +151,13 @@ func (ch *Channel) Reader() io.Reader {
 // The L1Inclusion block is also provided at creation time.
 // Warning: the batch reader can read every batch-type.
 // The caller of the batch-reader should filter the results.
-func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
+func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64) (func() (*BatchData, error), error) {
 	// Setup decompressor stage + RLP reader
 	zr, err := zlib.NewReader(r)
 	if err != nil {
 		return nil, err
 	}
-	rlpReader := rlp.NewStream(zr, MaxRLPBytesPerChannel)
+	rlpReader := rlp.NewStream(zr, maxRLPBytesPerChannel)
 	// Read each batch iteratively
 	return func() (*BatchData, error) {
 		var batchData BatchData

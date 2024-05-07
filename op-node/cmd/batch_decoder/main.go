@@ -161,7 +161,7 @@ func main() {
 					L2GenesisTime: L2GenesisTime,
 					L2BlockTime:   L2BlockTime,
 				}
-				reassemble.Channels(config)
+				reassemble.Channels(config, rollupCfg)
 				return nil
 			},
 		},
