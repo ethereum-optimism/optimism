@@ -27,7 +27,7 @@ type SpanChannelOut struct {
 	// it is used to measure the growth of the RLP buffer when adding a new batch to optimize compression
 	lastCompressedRLPSize int
 	// the compressor for the channel
-	compressor *ChannelCompressor
+	compressor ChannelCompressor
 	// target is the target size of the compressed data
 	target uint64
 	// closed indicates if the channel is closed

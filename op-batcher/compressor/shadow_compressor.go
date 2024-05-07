@@ -18,8 +18,8 @@ const (
 type ShadowCompressor struct {
 	config Config
 
-	compressor       *derive.ChannelCompressor
-	shadowCompressor *derive.ChannelCompressor
+	compressor       derive.ChannelCompressor
+	shadowCompressor derive.ChannelCompressor
 
 	fullErr error
 

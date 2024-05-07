@@ -8,7 +8,7 @@ type RatioCompressor struct {
 	config Config
 
 	inputBytes int
-	compressor *derive.ChannelCompressor
+	compressor derive.ChannelCompressor
 }
 
 // NewRatioCompressor creates a new derive.Compressor implementation that uses the target

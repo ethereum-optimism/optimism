@@ -60,7 +60,7 @@ func TestChannelConfig_InputThreshold(t *testing.T) {
 	// Validate each test case
 	for i, tt := range tests {
 		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
+			t.Run(fmt.Sprintf("test-%d-%s", i, algo.String()), func(t *testing.T) {
 				comp, err := compressor.NewRatioCompressor(compressor.Config{
 					TargetOutputSize: tt.targetOutputSize,
 					ApproxComprRatio: tt.approxComprRatio,
