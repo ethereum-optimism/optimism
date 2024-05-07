@@ -1,26 +1,15 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/celo1"
-
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/mattn/go-isatty"
-
-	"golang.org/x/sync/errgroup"
 )
 
 // How to run:
@@ -33,12 +22,6 @@ import (
 // The default batch size is 1000
 // Use -clear-all to start with a fresh new database
 // Use -clear-nonAncients to keep migrated ancients, but not non-ancients
-
-const (
-	DB_CACHE                = 1024 // size of the cache in MB
-	DB_HANDLES              = 60   // number of handles
-	LAST_MIGRATED_BLOCK_KEY = "celoLastMigratedBlock"
-)
 
 func main() {
 	oldDBPath := flag.String("oldDB", "", "Path to the old database chaindata directory (read-only)")
@@ -94,55 +77,6 @@ func main() {
 	log.Info("Migration Completed", "migratedAncients", numAncientsNew, "migratedNonAncients", numAncientsNonAncients)
 }
 
-func migrateAncientsDb(oldDBPath, newDBPath string, batchSize uint64) (uint64, error) {
-	oldFreezer, err := rawdb.NewChainFreezer(filepath.Join(oldDBPath, "ancient"), "", true)
-	if err != nil {
-		return 0, fmt.Errorf("failed to open old freezer: %v", err)
-	}
-	defer oldFreezer.Close()
-
-	newFreezer, err := rawdb.NewChainFreezer(filepath.Join(newDBPath, "ancient"), "", false)
-	if err != nil {
-		return 0, fmt.Errorf("failed to open new freezer: %v", err)
-	}
-	defer newFreezer.Close()
-
-	numAncientsOld, err := oldFreezer.Ancients()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get number of ancients in old freezer: %v", err)
-	}
-
-	numAncientsNew, err := newFreezer.Ancients()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get number of ancients in new freezer: %v", err)
-	}
-
-	log.Info("Migration Started", "process", "ancients migration", "startBlock", numAncientsNew, "endBlock", numAncientsOld, "count", numAncientsOld-numAncientsNew+1)
-	g, ctx := errgroup.WithContext(context.Background())
-	readChan := make(chan RLPBlockRange, 10)
-	transformChan := make(chan RLPBlockRange, 10)
-
-	log.Info("Migrating data", "start", numAncientsNew, "end", numAncientsOld, "step", batchSize)
-
-	g.Go(func() error {
-		return readAncientBlocks(ctx, oldFreezer, numAncientsNew, numAncientsOld, batchSize, readChan)
-	})
-	g.Go(func() error { return transformBlocks(ctx, readChan, transformChan) })
-	g.Go(func() error { return writeAncientBlocks(ctx, newFreezer, transformChan) })
-
-	if err = g.Wait(); err != nil {
-		return 0, fmt.Errorf("failed to migrate ancients: %v", err)
-	}
-
-	numAncientsNew, err = newFreezer.Ancients()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get number of ancients in new freezer: %v", err)
-	}
-
-	log.Info("Migration End", "process", "ancients migration", "totalBlocks", numAncientsNew)
-	return numAncientsNew, nil
-}
-
 func migrateNonAncientsDb(oldDbPath, newDbPath string, lastAncientBlock, batchSize uint64) (uint64, error) {
 	// First copy files from old database to new database
 	log.Info("Copy files from old database", "process", "db migration")
@@ -161,7 +95,8 @@ func migrateNonAncientsDb(oldDbPath, newDbPath string, lastAncientBlock, batchSi
 	defer newDB.Close()
 
 	// get the last block number
-	lastBlock := GetLastBlockNumber(newDB)
+	hash := rawdb.ReadHeadHeaderHash(newDB)
+	lastBlock := *rawdb.ReadHeaderNumber(newDB, hash)
 	lastMigratedBlock := readLastMigratedBlock(newDB)
 
 	// if migration was interrupted, start from the last migrated block
@@ -196,7 +131,7 @@ func migrateNonAncientsDb(oldDbPath, newDbPath string, lastAncientBlock, batchSi
 			// write header and body
 			batch := newDB.NewBatch()
 			rawdb.WriteBodyRLP(batch, numberHash.Hash, numberHash.Number, newBody)
-			_ = batch.Put(celo1.HeaderKey(numberHash.Number, numberHash.Hash), newHeader)
+			_ = batch.Put(headerKey(numberHash.Number, numberHash.Hash), newHeader)
 			_ = writeLastMigratedBlock(batch, numberHash.Number)
 			if err := batch.Write(); err != nil {
 				return 0, fmt.Errorf("failed to write header and body: block %d - %x: %w", numberHash.Number, numberHash.Hash, err)
@@ -231,176 +166,6 @@ func createEmptyNewDb(newDBPath string) error {
 	return nil
 }
 
-// RLPBlockRange is a range of blocks in RLP format
-type RLPBlockRange struct {
-	start    uint64
-	hashes   [][]byte
-	headers  [][]byte
-	bodies   [][]byte
-	receipts [][]byte
-	tds      [][]byte
-}
-
-func readAncientBlocks(ctx context.Context, freezer *rawdb.Freezer, startBlock, endBlock, batchSize uint64, out chan<- RLPBlockRange) error {
-	defer close(out)
-
-	for i := startBlock; i < endBlock; i += batchSize {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			count := min(batchSize, endBlock-i+1)
-			start := i
-
-			blockRange := RLPBlockRange{
-				start:    start,
-				hashes:   make([][]byte, count),
-				headers:  make([][]byte, count),
-				bodies:   make([][]byte, count),
-				receipts: make([][]byte, count),
-				tds:      make([][]byte, count),
-			}
-			var err error
-
-			blockRange.hashes, err = freezer.AncientRange(rawdb.ChainFreezerHashTable, start, count, 0)
-			if err != nil {
-				return fmt.Errorf("failed to read hashes from old freezer: %v", err)
-			}
-			blockRange.headers, err = freezer.AncientRange(rawdb.ChainFreezerHeaderTable, start, count, 0)
-			if err != nil {
-				return fmt.Errorf("failed to read headers from old freezer: %v", err)
-			}
-			blockRange.bodies, err = freezer.AncientRange(rawdb.ChainFreezerBodiesTable, start, count, 0)
-			if err != nil {
-				return fmt.Errorf("failed to read bodies from old freezer: %v", err)
-			}
-			blockRange.receipts, err = freezer.AncientRange(rawdb.ChainFreezerReceiptTable, start, count, 0)
-			if err != nil {
-				return fmt.Errorf("failed to read receipts from old freezer: %v", err)
-			}
-			blockRange.tds, err = freezer.AncientRange(rawdb.ChainFreezerDifficultyTable, start, count, 0)
-			if err != nil {
-				return fmt.Errorf("failed to read tds from old freezer: %v", err)
-			}
-
-			out <- blockRange
-		}
-	}
-	return nil
-}
-
-func transformBlocks(ctx context.Context, in <-chan RLPBlockRange, out chan<- RLPBlockRange) error {
-	// Transform blocks from the in channel and send them to the out channel
-	defer close(out)
-	for blockRange := range in {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			for i := range blockRange.hashes {
-				blockNumber := blockRange.start + uint64(i)
-
-				newHeader, err := transformHeader(blockRange.headers[i])
-				if err != nil {
-					return fmt.Errorf("can't transform header: %v", err)
-				}
-				newBody, err := transformBlockBody(blockRange.bodies[i])
-				if err != nil {
-					return fmt.Errorf("can't transform body: %v", err)
-				}
-
-				if yes, newHash := hasSameHash(newHeader, blockRange.hashes[i]); !yes {
-					log.Error("Hash mismatch", "block", blockNumber, "oldHash", common.BytesToHash(blockRange.hashes[i]), "newHash", newHash)
-					return fmt.Errorf("hash mismatch at block %d", blockNumber)
-				}
-
-				blockRange.headers[i] = newHeader
-				blockRange.bodies[i] = newBody
-			}
-			out <- blockRange
-		}
-	}
-	return nil
-}
-
-func hasSameHash(newHeader, oldHash []byte) (bool, common.Hash) {
-	newHash := crypto.Keccak256Hash(newHeader)
-	return bytes.Equal(oldHash, newHash.Bytes()), newHash
-}
-
-func writeAncientBlocks(ctx context.Context, freezer *rawdb.Freezer, in <-chan RLPBlockRange) error {
-	// Write blocks from the in channel to the newDb
-	for blockRange := range in {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			_, err := freezer.ModifyAncients(func(aWriter ethdb.AncientWriteOp) error {
-				for i := range blockRange.hashes {
-					blockNumber := blockRange.start + uint64(i)
-					if err := aWriter.AppendRaw(rawdb.ChainFreezerHashTable, blockNumber, blockRange.hashes[i]); err != nil {
-						return fmt.Errorf("can't write hash to Freezer: %v", err)
-					}
-					if err := aWriter.AppendRaw(rawdb.ChainFreezerHeaderTable, blockNumber, blockRange.headers[i]); err != nil {
-						return fmt.Errorf("can't write header to Freezer: %v", err)
-					}
-					if err := aWriter.AppendRaw(rawdb.ChainFreezerBodiesTable, blockNumber, blockRange.bodies[i]); err != nil {
-						return fmt.Errorf("can't write body to Freezer: %v", err)
-					}
-					if err := aWriter.AppendRaw(rawdb.ChainFreezerReceiptTable, blockNumber, blockRange.receipts[i]); err != nil {
-						return fmt.Errorf("can't write receipts to Freezer: %v", err)
-					}
-					if err := aWriter.AppendRaw(rawdb.ChainFreezerDifficultyTable, blockNumber, blockRange.tds[i]); err != nil {
-						return fmt.Errorf("can't write td to Freezer: %v", err)
-					}
-				}
-				return nil
-			})
-			if err != nil {
-				return fmt.Errorf("failed to write block range: %v", err)
-			}
-			log.Info("Wrote ancient blocks", "start", blockRange.start, "end", blockRange.start+uint64(len(blockRange.hashes)-1), "count", len(blockRange.hashes))
-		}
-	}
-	return nil
-}
-
-// transformHeader migrates the header from the old format to the new format (works with []byte input output)
-func transformHeader(oldHeader []byte) ([]byte, error) {
-	return celo1.RemoveIstanbulAggregatedSeal(oldHeader)
-}
-
-// transformBlockBody migrates the block body from the old format to the new format (works with []byte input output)
-func transformBlockBody(oldBodyData []byte) ([]byte, error) {
-	// decode body into celo-blockchain Body structure
-	// remove epochSnarkData and randomness data
-	var celoBody struct {
-		Transactions   rlp.RawValue // TODO use types.Transactions to make sure all tx are deserializable
-		Randomness     rlp.RawValue
-		EpochSnarkData rlp.RawValue
-	}
-	if err := rlp.DecodeBytes(oldBodyData, &celoBody); err != nil {
-		return nil, fmt.Errorf("failed to RLP decode body: %w", err)
-	}
-
-	// TODO create a types.BlockBody structure and encode it back to []byte
-
-	// transform into op-geth types.Body structure
-	// since Body is a slice of types.Transactions, we can just remove the randomness and epochSnarkData and add empty array for UnclesHashes
-	newBodyData, err := rlp.EncodeToBytes([]interface{}{celoBody.Transactions, nil})
-	if err != nil {
-		return nil, fmt.Errorf("failed to RLP encode body: %w", err)
-	}
-
-	return newBodyData, nil
-}
-
-// GetLastBlockNumber returns the number of the last block in the database
-func GetLastBlockNumber(db ethdb.Database) uint64 {
-	hash := rawdb.ReadHeadHeaderHash(db)
-	return *rawdb.ReadHeaderNumber(db, hash)
-}
-
 func cleanupNonAncientDb(dir string) error {
 	files, err := os.ReadDir(dir)
 	if err != nil {
@@ -415,26 +180,4 @@ func cleanupNonAncientDb(dir string) error {
 		}
 	}
 	return nil
-}
-
-// readLastMigratedBlock returns the last migration number.
-func readLastMigratedBlock(db ethdb.KeyValueReader) uint64 {
-	data, err := db.Get([]byte(LAST_MIGRATED_BLOCK_KEY))
-	if err != nil {
-		return 0
-	}
-	number := binary.BigEndian.Uint64(data)
-	return number
-}
-
-// writeLastMigratedBlock stores the last migration number.
-func writeLastMigratedBlock(db ethdb.KeyValueWriter, number uint64) error {
-	enc := make([]byte, 8)
-	binary.BigEndian.PutUint64(enc, number)
-	return db.Put([]byte(LAST_MIGRATED_BLOCK_KEY), enc)
-}
-
-// deleteLastMigratedBlock removes the last migration number.
-func deleteLastMigratedBlock(db ethdb.KeyValueWriter) error {
-	return db.Delete([]byte(LAST_MIGRATED_BLOCK_KEY))
 }
