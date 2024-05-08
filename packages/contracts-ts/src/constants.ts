@@ -9516,13 +9516,13 @@ export const predeploys = {
     proxied: true,
   },
   LegacyERC20ETH: {
-    address: '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
+    address: '0x4200000000000000000000000000000000000006',
     introduced: 'Legacy',
     deprecated: true,
     proxied: false,
   },
   WETH9: {
-    address: '0x4200000000000000000000000000000000000006',
+    address: '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
     introduced: 'Legacy',
     deprecated: false,
     proxied: false,

@@ -1,0 +1,15 @@
+diff --git a/dist/predeploys.js b/dist/predeploys.js
+index 49bc624db99629d1dad273fb882cf559d3a43a33..60ca48439ef53ced07dcab4148400e0df7c98856 100644
+--- a/dist/predeploys.js
++++ b/dist/predeploys.js
+@@ -10,8 +10,8 @@ exports.predeploys = {
+     OVM_SequencerFeeVault: '0x4200000000000000000000000000000000000011',
+     L2StandardTokenFactory: '0x4200000000000000000000000000000000000012',
+     OVM_L1BlockNumber: '0x4200000000000000000000000000000000000013',
+-    OVM_ETH: '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
+-    WETH9: '0x4200000000000000000000000000000000000006',
++    OVM_ETH: '0x4200000000000000000000000000000000000006',
++    WETH9: '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
+ };
+ exports.futurePredeploys = {
+     System0: '0x4200000000000000000000000000000000000042',
