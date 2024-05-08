@@ -13,14 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type ForecastResolution func(ctx context.Context, games []*types.EnrichedGameData, ignoredCount int)
+type ForecastResolution func(ctx context.Context, games []*types.EnrichedGameData, ignoredCount, failedCount int)
 type Bonds func(games []*types.EnrichedGameData)
 type Resolutions func(games []*types.EnrichedGameData)
 type MonitorClaims func(games []*types.EnrichedGameData)
 type MonitorWithdrawals func(games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
-type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, error)
+type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, int, error)
 
 type gameMonitor struct {
 	logger log.Logger
@@ -87,12 +87,12 @@ func (m *gameMonitor) monitorGames() error {
 		return fmt.Errorf("failed to fetch block hash: %w", err)
 	}
 	minGameTimestamp := clock.MinCheckedTimestamp(m.clock, m.gameWindow)
-	enrichedGames, ignored, err := m.extract(m.ctx, blockHash, minGameTimestamp)
+	enrichedGames, ignored, failed, err := m.extract(m.ctx, blockHash, minGameTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	m.resolutions(enrichedGames)
-	m.forecast(m.ctx, enrichedGames, ignored)
+	m.forecast(m.ctx, enrichedGames, ignored, failed)
 	m.bonds(enrichedGames)
 	m.claims(enrichedGames)
 	m.withdrawals(enrichedGames)

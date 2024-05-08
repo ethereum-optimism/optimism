@@ -107,6 +107,8 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	RecordFailedGames(count int)
+
 	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
 
 	RecordGameResolutionStatus(status ResolutionStatus, count int)
@@ -161,6 +163,7 @@ type Metrics struct {
 	gamesAgreement        prometheus.GaugeVec
 	latestInvalidProposal prometheus.Gauge
 	ignoredGames          prometheus.Gauge
+	failedGames           prometheus.Gauge
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -279,6 +282,11 @@ func NewMetrics() *Metrics {
 			// additional DelayedWETH contracts to be used by dispute games
 			"delayedWETH",
 			"balance",
+		}),
+		failedGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "failed_games",
+			Help:      "Number of games present in the game window but failed to be monitored",
 		}),
 		availableCollateral: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -423,6 +431,10 @@ func (m *Metrics) RecordLatestInvalidProposal(timestamp uint64) {
 
 func (m *Metrics) RecordIgnoredGames(count int) {
 	m.ignoredGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordFailedGames(count int) {
+	m.failedGames.Set(float64(count))
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {

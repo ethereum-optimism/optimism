@@ -43,18 +43,19 @@ func NewExtractor(logger log.Logger, creator CreateGameCaller, fetchGames Factor
 	}
 }
 
-func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*monTypes.EnrichedGameData, int, error) {
+func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*monTypes.EnrichedGameData, int, int, error) {
 	games, err := e.fetchGames(ctx, blockHash, minTimestamp)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to load games: %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to load games: %w", err)
 	}
-	enriched, ignored := e.enrichGames(ctx, blockHash, games)
-	return enriched, ignored, nil
+	enriched, ignored, failed := e.enrichGames(ctx, blockHash, games)
+	return enriched, ignored, failed, nil
 }
 
-func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, games []gameTypes.GameMetadata) ([]*monTypes.EnrichedGameData, int) {
+func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, games []gameTypes.GameMetadata) ([]*monTypes.EnrichedGameData, int, int) {
 	var enrichedGames []*monTypes.EnrichedGameData
 	ignored := 0
+	failed := 0
 	for _, game := range games {
 		if e.ignoredGames[game.Proxy] {
 			ignored++
@@ -64,6 +65,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 		caller, err := e.createContract(ctx, game)
 		if err != nil {
 			e.logger.Error("Failed to create game caller", "err", err)
+			failed++
 			continue
 		}
 		l1Head, l2BlockNum, rootClaim, status, duration, err := caller.GetGameMetadata(ctx, rpcblock.ByHash(blockHash))
@@ -95,7 +97,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 		}
 		enrichedGames = append(enrichedGames, enrichedGame)
 	}
-	return enrichedGames, ignored
+	return enrichedGames, ignored, failed
 }
 
 func (e *Extractor) applyEnrichers(ctx context.Context, blockHash common.Hash, caller GameCaller, game *monTypes.EnrichedGameData) error {
