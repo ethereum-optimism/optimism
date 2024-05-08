@@ -8,7 +8,7 @@
   },
   "chains": [
     "arbitrum-one", "boba-eth", "mainnet", "optimism", "bsc", "boba-bnb",
-    "arbitrum-goerli", "chapel", "boba-bnb-testnet", "boba-goerli", "goerli", "optimism-goerli", "sepolia", "boba-sepolia", "arbitrum-sepolia", "optimism-sepolia"
+    "chapel", "boba-bnb-testnet", "sepolia", "boba-sepolia", "arbitrum-sepolia", "optimism-sepolia"
   ],
   "instances": [
     {
@@ -68,33 +68,9 @@
     },
     {
       "abi": "Teleportation",
-      "address": "0x84b22166366a6f7E0cD0c3ce9998f2913Bf17A13",
-      "startBlock": 9484025,
-      "chain": "goerli"
-    },
-    {
-      "abi": "Teleportation",
-      "address": "0xC226F132A686A08018431C913d87693396246024",
-      "startBlock": 17010097,
-      "chain": "optimism-goerli"
-    },
-    {
-      "abi": "Teleportation",
-      "address": "0x7063f59e1Db3e505D844d11A71C78F92D39E5963",
-      "startBlock": 53880808,
-      "chain": "arbitrum-goerli"
-    },
-    {
-      "abi": "Teleportation",
       "address": "0xf4d179d3a083Fa3Eede935FaF4C679D32d514186",
       "startBlock": 295353,
       "chain": "boba-bnb-testnet"
-    },
-    {
-      "abi": "Teleportation",
-      "address": "0xB43EE846Aa266228FeABaD1191D6cB2eD9808894",
-      "startBlock": 40822,
-      "chain": "boba-goerli"
     },
     {
       "abi": "Teleportation",
