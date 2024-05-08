@@ -607,6 +607,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "contract IDisputeGame",
+        "name": "disputeGame",
+        "type": "address"
+      }
+    ],
+    "name": "DisputeGameBlacklisted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint8",
         "name": "version",
@@ -614,6 +627,25 @@
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "GameType",
+        "name": "newGameType",
+        "type": "uint32"
+      },
+      {
+        "indexed": true,
+        "internalType": "Timestamp",
+        "name": "updatedAt",
+        "type": "uint64"
+      }
+    ],
+    "name": "RespectedGameTypeSet",
     "type": "event"
   },
   {

@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import { FeeVault } from "src/universal/FeeVault.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title Events
 /// @dev Contains various events that are tested against. This contract needs to
@@ -15,6 +17,8 @@ contract Events {
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+    event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
+    event RespectedGameTypeSet(GameType indexed newGameType, Timestamp indexed updatedAt);
 
     event SentMessage(address indexed target, address sender, bytes message, uint256 messageNonce, uint256 gasLimit);
     event SentMessageExtension1(address indexed sender, uint256 value);
