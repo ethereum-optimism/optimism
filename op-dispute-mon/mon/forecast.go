@@ -26,6 +26,7 @@ type ForecastMetrics interface {
 	RecordGameAgreement(status metrics.GameAgreementStatus, count int)
 	RecordLatestInvalidProposal(timestamp uint64)
 	RecordIgnoredGames(count int)
+	RecordFailedGames(count int)
 }
 
 type forecastBatch struct {
@@ -56,17 +57,17 @@ func NewForecast(logger log.Logger, metrics ForecastMetrics, validator OutputVal
 	}
 }
 
-func (f *Forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData, ignoredCount int) {
+func (f *Forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData, ignoredCount, failedCount int) {
 	batch := forecastBatch{}
 	for _, game := range games {
 		if err := f.forecastGame(ctx, game, &batch); err != nil {
 			f.logger.Error("Failed to forecast game", "err", err)
 		}
 	}
-	f.recordBatch(batch, ignoredCount)
+	f.recordBatch(batch, ignoredCount, failedCount)
 }
 
-func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount int) {
+func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount int) {
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderWins, batch.AgreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderWins, batch.DisagreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.AgreeChallengerWins, batch.AgreeChallengerWins)
@@ -80,6 +81,7 @@ func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount int) {
 	f.metrics.RecordLatestInvalidProposal(batch.LatestInvalidProposal)
 
 	f.metrics.RecordIgnoredGames(ignoredCount)
+	f.metrics.RecordFailedGames(failedCount)
 }
 
 func (f *Forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *forecastBatch) error {

@@ -27,7 +27,7 @@ func TestExtractor_Extract(t *testing.T) {
 	t.Run("FetchGamesError", func(t *testing.T) {
 		extractor, _, games, _ := setupExtractorTest(t)
 		games.err = errors.New("boom")
-		_, _, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		_, _, _, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.ErrorIs(t, err, games.err)
 		require.Equal(t, 1, games.calls)
 	})
@@ -36,8 +36,9 @@ func TestExtractor_Extract(t *testing.T) {
 		extractor, creator, games, logs := setupExtractorTest(t)
 		games.games = []gameTypes.GameMetadata{{}}
 		creator.err = errors.New("boom")
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
+		require.Equal(t, 1, failed)
 		require.Zero(t, ignored)
 		require.Len(t, enriched, 0)
 		require.Equal(t, 1, games.calls)
@@ -51,9 +52,10 @@ func TestExtractor_Extract(t *testing.T) {
 		extractor, creator, games, logs := setupExtractorTest(t)
 		games.games = []gameTypes.GameMetadata{{}}
 		creator.caller.metadataErr = errors.New("boom")
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 0)
 		require.Equal(t, 1, games.calls)
 		require.Equal(t, 1, creator.calls)
@@ -66,9 +68,10 @@ func TestExtractor_Extract(t *testing.T) {
 		extractor, creator, games, logs := setupExtractorTest(t)
 		games.games = []gameTypes.GameMetadata{{}}
 		creator.caller.claimsErr = errors.New("boom")
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 0)
 		require.Equal(t, 1, games.calls)
 		require.Equal(t, 1, creator.calls)
@@ -80,9 +83,10 @@ func TestExtractor_Extract(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		extractor, creator, games, _ := setupExtractorTest(t)
 		games.games = []gameTypes.GameMetadata{{}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 1)
 		require.Equal(t, 1, games.calls)
 		require.Equal(t, 1, creator.calls)
@@ -94,9 +98,10 @@ func TestExtractor_Extract(t *testing.T) {
 		enricher := &mockEnricher{err: errors.New("whoops")}
 		extractor, _, games, logs := setupExtractorTest(t, enricher)
 		games.games = []gameTypes.GameMetadata{{}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		l := logs.FindLogs(testlog.NewMessageFilter("Failed to enrich game"))
 		require.Len(t, l, 1, "Should have logged error")
 		require.Len(t, enriched, 0, "Should not return games that failed to enrich")
@@ -106,9 +111,10 @@ func TestExtractor_Extract(t *testing.T) {
 		enricher := &mockEnricher{}
 		extractor, _, games, _ := setupExtractorTest(t, enricher)
 		games.games = []gameTypes.GameMetadata{{}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 1)
 		require.Equal(t, 1, enricher.calls)
 	})
@@ -118,9 +124,10 @@ func TestExtractor_Extract(t *testing.T) {
 		enricher2 := &mockEnricher{}
 		extractor, _, games, _ := setupExtractorTest(t, enricher1, enricher2)
 		games.games = []gameTypes.GameMetadata{{}, {}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 2)
 		require.Equal(t, 2, enricher1.calls)
 		require.Equal(t, 2, enricher2.calls)
@@ -131,10 +138,11 @@ func TestExtractor_Extract(t *testing.T) {
 		extractor, _, games, logs := setupExtractorTest(t, enricher1)
 		// Two games, one of which is ignored
 		games.games = []gameTypes.GameMetadata{{Proxy: ignoredGames[0]}, {Proxy: common.Address{0xaa}}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		// Should ignore one and enrich the other
 		require.Equal(t, 1, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 1)
 		require.Equal(t, 1, enricher1.calls)
 		require.Equal(t, enriched[0].Proxy, common.Address{0xaa})

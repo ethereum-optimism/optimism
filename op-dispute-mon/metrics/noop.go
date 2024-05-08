@@ -37,4 +37,6 @@ func (*NoopMetricsImpl) RecordLatestInvalidProposal(_ uint64) {}
 
 func (*NoopMetricsImpl) RecordIgnoredGames(_ int) {}
 
-func (i *NoopMetricsImpl) RecordBondCollateral(_ common.Address, _ *big.Int, _ *big.Int) {}
+func (*NoopMetricsImpl) RecordFailedGames(_ int) {}
+
+func (*NoopMetricsImpl) RecordBondCollateral(_ common.Address, _ *big.Int, _ *big.Int) {}
