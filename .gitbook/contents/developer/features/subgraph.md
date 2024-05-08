@@ -1,55 +1,70 @@
-# Using The Graph
+# Using GoldSky
 
-These subgraphs index the **StandardBridge**, the **LiquidityPool**, the **Boba DAO**, and the **TuringMonster** contracts.
+GoldSky is an easy to use alternative to The Graph for indexing on-chain data.
 
-<figure><img src="../../../assets/requirements.png" alt=""><figcaption></figcaption></figure>
+## Official Subgraphs
 
-The global `graph` is required to deploy to **The Graph**. Make sure that you have various packages installed.
+### 1. Lightbridge
+- [ETH Mainnet](https://api.goldsky.com/api/public/project_clq6jph4q9t2p01uja7p1f0c3/subgraphs/light-bridge-mainnet/v1/gn)
+- [Boba ETH](https://api.goldsky.com/api/public/project_clq6jph4q9t2p01uja7p1f0c3/subgraphs/light-bridge-boba-eth/v1/gn)
+- [BNB Mainnet](https://api.goldsky.com/api/public/project_clq6jph4q9t2p01uja7p1f0c3/subgraphs/light-bridge-bsc/v1/gn)
+- [Boba BNB](https://api.goldsky.com/api/public/project_clq6jph4q9t2p01uja7p1f0c3/subgraphs/light-bridge-boba-bnb/v1/gn)
+- [Arbitrum One](https://api.goldsky.com/api/public/project_clq6jph4q9t2p01uja7p1f0c3/subgraphs/light-bridge-arbitrum-one/v1/gn)
+- [Optimism Mainnet](https://api.goldsky.com/api/public/project_clq6jph4q9t2p01uja7p1f0c3/subgraphs/light-bridge-optimism/v1/gn)
+
+### 2. DAO
+- [Boba ETH](https://api.goldsky.com/api/public/project_clq6jph4q9t2p01uja7p1f0c3/subgraphs/dao-boba-eth/v1/gn)
+
+
+## Deploy your own Subgraphs
+<figure><img src="../../.gitbook/assets/requirements.png" alt=""><figcaption></figcaption></figure>
+
+The `goldsky`-CLI is required to deploy to **GoldSky**. Make sure that you have various packages installed. Please refer to the [official documentation](https://goldsky.com/).
 
 ```bash
-yarn global add @graphprotocol/graph-cli
-yarn global add --dev @graphprotocol/graph-ts
+curl https://goldsky.com | sh
 ```
 
-<figure><img src="../../../assets/building and running (1).png" alt=""><figcaption></figcaption></figure>
+### The Graph
+If you are using **The Graph** right now, you can easily migrate your existing subgraphs over to Goldsky. The [official GoldSky documentation](https://docs.goldsky.com/introduction) is very helpful in that matter.
 
-First, `cd` to either the **L1** or the **L2** folders, depending on where you will be deploying your subgraphs to. There are three subgraphs: Ethereum, Boba, and Goerli. A deploy key or access token is required to deploy subgraphs. Depending on which chain you are indexing, provide either `mainnet` or `sepolia` as a setting to `yarn prepare:`.
 
-### L1 Subgraphs
+<figure><img src="../../.gitbook/assets/building and running (1).png" alt=""><figcaption></figcaption></figure>
 
-(below command untested)
+First you need to login to your GoldSky account:
 
 ```bash
-graph auth --product hosted-service <ACCESS_TOKEN>
-# or, graph auth --studio $DEPLOY_KEY
-cd L1
-yarn install
-yarn prepare:mainnet
-# or, yarn prepare:goerli
-yarn codegen
-yarn build
-graph deploy --product hosted-service BOBANETWORK/boba-l2-subgraph
-# or, graph deploy --studio boba-network-goerli
+goldsky login
+````
+
+Then you can deploy your subgraph in one of the following ways (taken from the official GoldSky docs):
+
+1. **Build and deploy from source**
+```bash
+cd <your-subgraph-directory>
+graph build # Build your subgraph as normal.
+goldsky subgraph deploy my-subgraph/1.0.0
+# Can add --path <build target> to target a specific subgraph build directory
 ```
 
-### L2 Subgraphs
-
-(Below commands tested for deploy to Boba mainnet)
-
+2. **Migrate from The Graph's hosted service**
 ```bash
-graph auth --product hosted-service <ACCESS_TOKEN>
-# or, graph auth --studio $DEPLOY_KEY
-cd L2
-yarn install
-yarn prepare:mainnet
-yarn codegen
-yarn build
-graph deploy --product hosted-service BOBANETWORK/boba-l2-subgraph
+goldsky subgraph deploy your-subgraph-name/your-version --from-url <your-subgraph-query-url>
+```
+
+3. **Migrate from any existing endpoint**
+```bash
+goldsky subgraph deploy your-subgraph-name/your-version --from-ipfs-hash <deployment-hash>
+```
+
+4. **Build and deploy from ABI + contract address**
+```bash
+goldsky subgraph deploy your-subgraph-name/your-version --from-abi <path-to-config-file>
 ```
 
 _NOTE: When you log into https://thegraph.com/hosted-service/dashboard, you may have more than one account. Make sure that you are using the ACCESS\_TOKEN associated with the correct account, otherwise your depoyment will fail. You can cycle through your multiple accounts by clicking on your GitHub user ID or whatever other account is displayed next to your user Avatar._
 
-<figure><img src="../../../assets/example.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../.gitbook/assets/example.png" alt=""><figcaption></figcaption></figure>
 
 Here is some example queries to get you started:
 
@@ -58,11 +73,14 @@ Here is some example queries to get you started:
 
   curl -g -X POST \
     -H "Content-Type: application/json" \
-    -d '{"query":"{ governorProposalCreateds {proposalId values description proposer}}"}' \
-    https://api.thegraph.com/subgraphs/name/bobanetwork/boba-l2-subgraph
+    -d '{"query":"{ proposalQueueds {id eta, transactionHash_}}"}' \
+   https://api.goldsky.com/api/public/project_clq6jph4q9t2p01uja7p1f0c3/subgraphs/dao-boba-eth/v1/gn
 ```
 
-<figure><img src="../../../assets/querying.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../.gitbook/assets/querying.png" alt=""><figcaption></figcaption></figure>
 
-* The Mainnet Graph Node is hosted by **The Graph**. Visit https://thegraph.com/hosted-service/ to deploy your subgraphs. You can experiment here: [bobanetwork/boba-l2-subgraph](https://thegraph.com/hosted-service/subgraph/bobanetwork/boba-l2-subgraph?query=Example%20query).
-* The Sepolia Graph Node is hosted by **GoldSky**. Visit https://goldsky.com to deploy your subgraphs.
+To get the endpoints you can either login on the official [GoldSky dashboard](https://app.goldsky.com/dashboard/subgraphs) or use the following command:
+
+```bash
+goldsky subgraph list
+```

@@ -47,7 +47,7 @@ interface SimpleAccountApiParams {
 
 **Usage**
 
-Note that SimpleAccountAPI either needs the `accountAddress` or the `factoryAddress` to be supplied. If the `factoryAddress` is supplied, also supply a `entryPointWrapperAddress`. Custom reverts are not supported and the sdk would route the call through the entryPointWrapperAddress to compute the account address that will be deployed.
+Note that SimpleAccountAPI either needs the `accountAddress` or the `factoryAddress` to be supplied. If the `factoryAddress` is supplied, also supply a `entryPointWrapperAddress`. To address the lack of support for 'Custom reverts' in v2 of the network, the sdk would route the call through the entryPointWrapperAddress in order to compute the account address that will be deployed.
 
 If `accountAddress` is passed, the account is used as a sender when generating the userOp If `factoryAddress` is passed, the account will be generated on the fly. The userOp will include initCode and the precomputed address of the account and include it in the userOp.
 
@@ -234,7 +234,7 @@ getUserOpReceipt (userOpHash: string, timeout = 30000, interval = 5000): Promise
 
 ***
 
-<figure><img src="../../../.gitbook/assets/high level provider API.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../../../../assets/high level provider API.png" alt=""><figcaption></figcaption></figure>
 
 A simplified mode that doesn't require a different wallet extension. Instead, the current provider's account is used as wallet owner by calling its "Sign Message" operation.
 
@@ -281,7 +281,7 @@ interface ClientConfig {
 
 #### Usage
 
-Since- a) using a remote signer with eth\_sendTransaction is not supported on Boba, transactions would need to be sent from an ethers.wallet (object), for the deterministic deployment of SimpleAccountFactory. This is not a requirement if the SimpleAccountFactory has already been deployed b) wrapProvider uses the low level API internally, custom reverts are not supported and the sdk would use the entryPointWrapperAddress to compute the account address that will be deployed
+Since- a) using a remote signer with eth\_sendTransaction is not supported on Boba, transactions would need to be sent from an ethers.wallet (object), for the deterministic deployment of SimpleAccountFactory. This is not a requirement if the SimpleAccountFactory has already been deployed b) wrapProvider uses the low level API internally, custom reverts were not supported in the v2 of the network and the sdk relies on the entryPointWrapperAddress to compute the account address that will be deployed
 
 wrapProvider must be passed the parameters `entryPointWrapperAddress` and `wallet` on Boba
 

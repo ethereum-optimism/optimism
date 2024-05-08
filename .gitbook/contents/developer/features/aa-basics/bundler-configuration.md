@@ -39,9 +39,9 @@ The complete list of configuration variables that can be customized
   logsChunkSize: ow.optional.number, // the maximum permissble eth_getLogs range supported by the network, defaults to 5000
 ```
 
-Note- EntryPointWrapper is a requirement for the bundler when it is run against Boba Network - beacuse Boba Network does not support custom errors.
+Note- EntryPointWrapper is a requirement for the bundler when it is run against Boba Network - since the sdk also supports v2 of the Boba Network which did not support custom errors.
 
-The EntryPointWrapper routes the following calls whcih the bundler needs in order to operate:
+The EntryPointWrapper routes the following calls, which the bundler needs in order to operate:
 
 * simulateValidation()
 * getSenderAddress() and includes the following helper methods-

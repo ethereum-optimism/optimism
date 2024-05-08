@@ -4,7 +4,7 @@
   "superchainConfigGuardian": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
   "controller": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
 
-  "l1StartingBlockTag": "",
+  "l1StartingBlockTag": "0x945d6244d259e63892abf93e5e6dd3388b79e25ae5ec0502e290a0d0163aa5cf",
 
   "l1ChainID": 1,
   "l1BlockTime": 12,
@@ -20,8 +20,8 @@
   "batchSenderAddress": "0xe1b64045351b0b6e9821f19b39f81bc4711d2230",
 
   "l2OutputOracleSubmissionInterval": 1800,
-  "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": 0,
+  "l2OutputOracleStartingBlockNumber": 1149019,
+  "l2OutputOracleStartingTimestamp": 1713302879,
 
   "l2OutputOracleProposer": "0xbfbab4363034a930687b9320599a69dfbf1d21d0",
   "l2OutputOracleChallenger": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
@@ -62,5 +62,5 @@
   "l2GenesisRegolithTimeOffset": "0x0",
   "l2GenesisCanyonTimeOffset": "0x0",
   "l2GenesisDeltaTimeOffset": "0x0",
-  "l2GenesisEcotoneTimeOffset": "0x0"
+  "l2GenesisEcotoneTimeOffset": "0x1"
 }

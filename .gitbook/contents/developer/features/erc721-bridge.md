@@ -1,6 +1,6 @@
 # ERC721 NFT Bridging
 
-BOBA NFT bridges consists of two bridge contracts. The [L1NFTBridge](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/boba/contracts/contracts/bridges/L1NFTBridge.sol) contract is deployed on L1 and the [L2NFTBridge](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/boba/contracts/contracts/bridges/L2NFTBridge.sol) contract is deployed on L2. It supports **native L1 NFTs** and **native L2 NFTs** to be moved back and forth. **These two contracts have not been audited, exercise caution when using this on mainnet.**
+BOBA NFT bridges consists of two bridge contracts. The [L1NFTBridge](https://github.com/bobanetwork/boba_legacy/blob/develop/packages/boba/contracts/contracts/ERC721Bridges/L1NFTBridge.sol) contract is deployed on L1 and the [L2NFTBridge](https://github.com/bobanetwork/boba_legacy/blob/develop/packages/boba/contracts/contracts/ERC721Bridges/L2NFTBridge.sol) contract is deployed on L2. It supports **native L1 NFTs** and **native L2 NFTs** to be moved back and forth.
 
 * Native L1 NFT: the original NFT contract was deployed on L1
 * Native L2 NFT: the original NFT contract was deployed on L2
@@ -191,7 +191,7 @@ const approveTx = await L1NFT.approve(L1_NFT_BRIDGE_ADDRESS, TOKEN_ID)
 await approveTx.wait()
 ```
 
-Users then call the `depositNFT` or `depositNFTTo` function to deposit NFT to L2. The NFT arrives on L2 after eight L1 blocks.
+Users then call the `depositNFT` or `depositNFTTo` function to deposit NFT to L2. The NFT arrives on L2 after L1 conf blocks.
 
 ```js
 const tx = await L1NFTBrige.depositNFT(
@@ -263,7 +263,7 @@ const approveTx = await L1NFT.approve(L1_NFT_BRIDGE_ADDRESS, TOKEN_ID)
 await approveTx.wait()
 ```
 
-Users then call the `depositNFT` or `depositNFTTo` function to deposit NFT to L2. The NFT arrives on L2 after eight L1 blocks.
+Users then call the `depositNFT` or `depositNFTTo` function to deposit NFT to L2. The NFT arrives on L2 after L1 conf blocks.
 
 ```js
 const tx = await L1NFTBrige.depositNFT(
@@ -403,13 +403,6 @@ await withdrawToTx.wait()
 | L2    | Proxy\_\_L2NFTBridge | 0xA774C3f4572C5BA93F75D802ea7Dc6F93228e5cc |
 
 ### Testnet
-
-#### Goerli
-
-| Layer | Contract Name        | Contract Address                           |
-| ----- | -------------------- | ------------------------------------------ |
-| L1    | Proxy\_\_L1NFTBridge | 0xa2232D3c81EFd46815c1adf48Ed86C5C377cb6e2 |
-| L2    | Proxy\_\_L2NFTBridge | 0xF84979ADeb8D2Dd25f54cF8cBbB05C08eC188e11 |
 
 #### BNB Testnet
 

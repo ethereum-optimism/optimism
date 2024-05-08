@@ -48,6 +48,7 @@ Access the oracles in the smart contracts below:
 
 * Boba-ETH: https://bobascan.com/address/0xB3519a1760F3A16934a890F19E67A98cBF1e0859
 * Boba-BNB: https://bobascan.com/address/0xCF06Ac8C6FFb7b7E313D43e8Fb2E740D5aE82e6E
+* Boba-Sepolia: https://testnet.bobascan.com/address/0x907e7f6bd9653E4188da89E4f2D3EA949dcEc076
 
 #### How to access DIA oracles?
 
@@ -66,4 +67,4 @@ You can find DIA's oracle integration samples in Solidity and Vyper languages by
 
 ### Support
 
-For assistance, connect with the DIA team directly on[ ](https://chat.openai.com/c/d2ca764b-00d6-4de7-8555-0cc30ac416b1)[Discord](https://discord.gg/ZvGjVY5uvs) or [Telegram](https://t.me/diadata\_org). Developers seeking other specialized, production-grade oracle with tailored price feeds and configurations can initiate the request here: [Request a Custom Oracle | DIA Documentation](https://docs.diadata.org/introduction/intro-to-dia-oracles/request-an-oracle)
+For assistance, connect with the DIA team directly on [Discord](https://discord.gg/ZvGjVY5uvs) or [Telegram](https://t.me/diadata\_org). Developers seeking other specialized, production-grade oracle with tailored price feeds and configurations can initiate the request here: [Request a Custom Oracle | DIA Documentation](https://docs.diadata.org/introduction/intro-to-dia-oracles/request-an-oracle)
