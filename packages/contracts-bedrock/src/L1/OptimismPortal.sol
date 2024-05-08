@@ -15,7 +15,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { L1Block } from "src/L2/L1Block.sol";
+import { L1Block, ConfigType } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/PortalErrors.sol";
 
@@ -556,17 +556,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
-    /// @notice Sets the gas paying token for the L2 system. This token is used as the
-    ///         L2 native asset. Only the SystemConfig contract can call this function.
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+    /// @notice Sets static configuration options for the L2 system. Only the SystemConfig contract can call this
+    ///         function.
+    function setConfig(ConfigType _type, bytes memory _value) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
-        // This value must be large enough to cover the cost of calling `L1Block.setGasPayingToken`.
+        // This value must be large enough to cover the cost of calling `L1Block.setConfig`.
         useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
 
-        // Emit the special deposit transaction directly that sets the gas paying
-        // token in the L1Block predeploy contract.
+        // Emit the special deposit transaction directly that sets the config in the L1Block predeploy contract.
         emit TransactionDeposited(
             Constants.DEPOSITOR_ACCOUNT,
             Predeploys.L1_BLOCK_ATTRIBUTES,
@@ -576,7 +575,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 uint256(0), // value
                 uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+                abi.encodeCall(L1Block.setConfig, (_type, _value))
             )
         );
     }

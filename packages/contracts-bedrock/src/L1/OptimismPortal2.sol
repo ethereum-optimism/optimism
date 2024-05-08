@@ -14,6 +14,8 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { L1Block, ConfigType } from "src/L2/L1Block.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 import "src/libraries/PortalErrors.sol";
 import "src/dispute/lib/Types.sol";
@@ -44,6 +46,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
     /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
+
+    /// @notice The L2 gas limit for system deposit transactions that are initiated from L1.
+    uint32 internal constant SYSTEM_DEPOSIT_GAS_LIMIT = 80_000;
 
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
     ///         If the of this variable is the default L2 sender address, then we are NOT inside of
@@ -526,5 +531,29 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
+    }
+
+    /// @notice Sets static configuration options for the L2 system. Only the SystemConfig contract can call this
+    ///         function.
+    function setConfig(ConfigType _type, bytes memory _value) external {
+        if (msg.sender != address(systemConfig)) revert Unauthorized();
+
+        // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
+        // This value must be large enough to cover the cost of calling `L1Block.setConfig`.
+        useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
+
+        // Emit the special deposit transaction directly that sets the config in the L1Block predeploy contract.
+        emit TransactionDeposited(
+            Constants.DEPOSITOR_ACCOUNT,
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            DEPOSIT_VERSION,
+            abi.encodePacked(
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
+                false, // isCreation,
+                abi.encodeCall(L1Block.setConfig, (_type, _value))
+            )
+        );
     }
 }
