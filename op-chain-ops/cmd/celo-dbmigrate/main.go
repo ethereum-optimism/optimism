@@ -13,7 +13,7 @@ import (
 )
 
 // How to run:
-// 		go run main.go -oldDB /path/to/oldDB -newDB /path/to/newDB [-batchSize 1000] [-verbosity 3] [-clear-all] [-clear-nonAncients]
+// 		go run ./op-chain-ops/cmd/celo-dbmigrate -oldDB /path/to/oldDB -newDB /path/to/newDB [-batchSize 1000] [-verbosity 3] [-clear-all] [-clear-nonAncients]
 //
 // This script will migrate block data from the old database to the new database
 // You can set the log level using the -verbosity flag
@@ -68,12 +68,12 @@ func main() {
 		log.Crit("Failed to migrate ancients database", "err", err)
 	}
 
-	var numAncientsNonAncients uint64
-	if numAncientsNonAncients, err = migrateNonAncientsDb(*oldDBPath, *newDBPath, numAncientsNew-1, *batchSize); err != nil {
+	var numNonAncients uint64
+	if numNonAncients, err = migrateNonAncientsDb(*oldDBPath, *newDBPath, numAncientsNew-1, *batchSize); err != nil {
 		log.Crit("Failed to migrate non-ancients database", "err", err)
 	}
 
-	log.Info("Migration Completed", "migratedAncients", numAncientsNew, "migratedNonAncients", numAncientsNonAncients)
+	log.Info("Migration Completed", "migratedAncients", numAncientsNew, "migratedNonAncients", numNonAncients)
 }
 
 func migrateNonAncientsDb(oldDbPath, newDbPath string, lastAncientBlock, batchSize uint64) (uint64, error) {

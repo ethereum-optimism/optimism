@@ -23,7 +23,7 @@ type RLPBlockRange struct {
 }
 
 func migrateAncientsDb(oldDBPath, newDBPath string, batchSize uint64) (uint64, error) {
-	oldFreezer, err := rawdb.NewChainFreezer(filepath.Join(oldDBPath, "ancient"), "", true)
+	oldFreezer, err := rawdb.NewChainFreezer(filepath.Join(oldDBPath, "ancient"), "", false) // TODO can't be readonly because we need the .meta files to be created
 	if err != nil {
 		return 0, fmt.Errorf("failed to open old freezer: %v", err)
 	}
