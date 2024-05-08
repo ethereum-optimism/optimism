@@ -32,7 +32,7 @@
     "sourceCodeHash": "0xf5fcf570721e25459fadbb37e02f9efe349e1c8afcbf1e3b5fdb09c9f612cdc0"
   },
   "src/L1/OptimismPortal.sol": {
-    "initCodeHash": "0xc820f7434345b665a77bc17e8b486ba97b7ff9845d336a51f024a41599c4c155",
+    "initCodeHash": "0xbb8e7b110d3aa0f4807cd790174d6fb6d98c44348c977007ad7a11aa7053f1c5",
     "sourceCodeHash": "0x3d0e9dc8ed75b6f2e59444e9204341b18d343af02d6e37ecd9f759da2c8c118b"
   },
   "src/L1/OptimismPortal2.sol": {
@@ -183,3 +183,4 @@
     "initCodeHash": "0xb656d2aa6aff3e6435e747a0c23236d1b66f1f5c0b45e4b1a10d290a90223c5a",
     "sourceCodeHash": "0xebfc968e6b78d7ea355547d427300739f14d000a11ff35f29d9ded3ddb7882da"
   }
+}
