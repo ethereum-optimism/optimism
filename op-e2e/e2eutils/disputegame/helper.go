@@ -172,6 +172,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	cfg := NewGameCfg(opts...)
 	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "OutputCannonGameHelper")
 	rollupClient := h.System.RollupClient(l2Node)
+	l2Client := h.System.NodeClient(l2Node)
 
 	extraData := h.CreateBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
 
@@ -200,7 +201,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	l1Head := h.GetL1Head(ctx, game)
 
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
-	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputCannonGameHelper{
 		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
@@ -228,6 +229,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	cfg := NewGameCfg(opts...)
 	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "OutputAlphabetGameHelper")
 	rollupClient := h.System.RollupClient(l2Node)
+	l2Client := h.System.NodeClient(l2Node)
 
 	extraData := h.CreateBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
 
@@ -256,7 +258,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	l1Head := h.GetL1Head(ctx, game)
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
 
-	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputAlphabetGameHelper{
 		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),

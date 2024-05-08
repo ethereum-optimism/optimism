@@ -652,6 +652,30 @@ func TestFaultDisputeGame_IsResolved(t *testing.T) {
 	}
 }
 
+func TestFaultDisputeGameContractLatest_IsL2BlockNumberChallenged(t *testing.T) {
+	for _, version := range versions {
+		version := version
+		t.Run(version.version, func(t *testing.T) {
+			_, game := setupFaultDisputeGameTest(t, version)
+			challenged, err := game.IsL2BlockNumberChallenged(context.Background(), rpcblock.Latest)
+			require.NoError(t, err)
+			require.False(t, challenged)
+		})
+	}
+}
+
+func TestFaultDisputeGameContractLatest_ChallengeL2BlockNumberTx(t *testing.T) {
+	for _, version := range versions {
+		version := version
+		t.Run(version.version, func(t *testing.T) {
+			_, game := setupFaultDisputeGameTest(t, version)
+			tx, err := game.ChallengeL2BlockNumberTx(&faultTypes.InvalidL2BlockNumberChallenge{})
+			require.ErrorIs(t, err, ErrChallengeL2BlockNotSupported)
+			require.Equal(t, txmgr.TxCandidate{}, tx)
+		})
+	}
+}
+
 func setupFaultDisputeGameTest(t *testing.T, version contractVersion) (*batchingTest.AbiBasedRpc, FaultDisputeGameContract) {
 	fdgAbi := version.loadAbi()
 

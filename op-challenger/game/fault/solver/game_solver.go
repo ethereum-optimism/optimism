@@ -2,6 +2,7 @@ package solver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -27,6 +28,25 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine if root claim is correct: %w", err)
 	}
+
+	// Challenging the L2 block number will only work if we have the same output root as the claim
+	// Otherwise our output root preimage won't match. We can just proceed and invalidate the output root by disputing claims instead.
+	if agreeWithRootClaim {
+		if challenge, err := s.claimSolver.trace.GetL2BlockNumberChallenge(ctx, game); errors.Is(err, types.ErrL2BlockNumberValid) {
+			// We agree with the L2 block number, proceed to processing claims
+		} else if err != nil {
+			// Failed to check L2 block validity
+			return nil, fmt.Errorf("failed to determine L2 block validity: %w", err)
+		} else {
+			return []types.Action{
+				{
+					Type:                          types.ActionTypeChallengeL2BlockNumber,
+					InvalidL2BlockNumberChallenge: challenge,
+				},
+			}, nil
+		}
+	}
+
 	var actions []types.Action
 	agreedClaims := newHonestClaimTracker()
 	if agreeWithRootClaim {
