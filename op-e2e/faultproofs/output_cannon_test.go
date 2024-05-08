@@ -28,7 +28,7 @@ func TestOutputCannonGame(t *testing.T) {
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 4, common.Hash{0x01})
 	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	game.LogGameData(ctx)
 
@@ -85,7 +85,7 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 	game.LogGameData(ctx)
 
 	claim := game.DisputeLastBlock(ctx)
-	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	game.DefendClaim(ctx, claim, func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 		if parent.IsBottomGameRoot(ctx) {
@@ -123,7 +123,7 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 			game.DisputeLastBlock(ctx)
 			game.LogGameData(ctx)
 
-			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+			game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			splitDepth := game.SplitDepth(ctx)
 			game.WaitForClaimAtDepth(ctx, splitDepth+1)
@@ -158,7 +158,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			outputClaim := game.DisputeLastBlock(ctx)
 			splitDepth := game.SplitDepth(ctx)
 
-			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+			game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			game.DefendClaim(
 				ctx,
@@ -193,7 +193,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	outputRootClaim := game.DisputeLastBlock(ctx)
 	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 
@@ -240,7 +240,7 @@ func TestOutputCannonStepWithLargePreimage(t *testing.T) {
 	outputRootClaim := game.DisputeBlock(ctx, l2BlockNumber)
 	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	// Wait for the honest challenger to dispute the outputRootClaim.
 	// This creates a root of an execution game that we challenge by
@@ -272,7 +272,7 @@ func TestOutputCannonStepWithPreimage(t *testing.T) {
 		outputRootClaim := game.DisputeLastBlock(ctx)
 		game.LogGameData(ctx)
 
-		game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+		game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 		// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
 		// a step at a preimage trace index.
@@ -325,7 +325,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 		outputRootClaim := game.DisputeLastBlock(ctx)
 		game.LogGameData(ctx)
 
-		game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+		game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 		// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
 		// a step at a preimage trace index.
@@ -413,7 +413,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 			game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
 			correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 
-			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+			game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			// Now maliciously play the game and it should be impossible to win
 			game.ChallengeClaim(ctx,
@@ -462,7 +462,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 	game.LogGameData(ctx)
 
 	// Start the honest challenger
-	game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
 	// Start dishonest challenger that posts correct claims
 	for {
@@ -512,7 +512,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 	game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
 	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 	// Start the honest challenger
-	game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
 	claim := game.RootClaim(ctx)
 	// Attack the output root
@@ -563,7 +563,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	// Start the honest challenger
-	game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
 	claim := game.RootClaim(ctx)
 	// Wait for the honest challenger to counter the root
@@ -614,7 +614,7 @@ func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
 	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	// Start the honest challenger
-	game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
 	claim := game.RootClaim(ctx)
 	// Wait for the honest challenger to counter the root
@@ -704,7 +704,7 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 			correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			// Start the honest challenger
-			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+			game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
 			game.DefendClaim(ctx, game.RootClaim(ctx), func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 				if parent.IsBottomGameRoot(ctx) {
@@ -766,7 +766,7 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 			correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			// Start the honest challenger
-			game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+			game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
 			game.DefendClaim(ctx, game.RootClaim(ctx), func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 				if parent.IsBottomGameRoot(ctx) {

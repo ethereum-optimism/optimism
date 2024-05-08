@@ -34,16 +34,9 @@ type OutputCannonGameHelper struct {
 	OutputGameHelper
 }
 
-func (g *OutputCannonGameHelper) StartChallenger(
-	ctx context.Context,
-	l2Node string,
-	name string,
-	options ...challenger.Option,
-) *challenger.Helper {
-	rollupEndpoint := g.System.RollupEndpoint(l2Node)
-	l2Endpoint := g.System.NodeEndpoint(l2Node)
+func (g *OutputCannonGameHelper) StartChallenger(ctx context.Context, name string, options ...challenger.Option) *challenger.Helper {
 	opts := []challenger.Option{
-		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis(), rollupEndpoint, l2Endpoint),
+		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis()),
 		challenger.WithFactoryAddress(g.FactoryAddr),
 		challenger.WithGameAddress(g.Addr),
 	}
@@ -56,9 +49,9 @@ func (g *OutputCannonGameHelper) StartChallenger(
 }
 
 func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node string, options ...challenger.Option) *OutputHonestHelper {
-	opts := g.defaultChallengerOptions(l2Node)
+	opts := g.defaultChallengerOptions()
 	opts = append(opts, options...)
-	cfg := challenger.NewChallengerConfig(g.T, g.System, opts...)
+	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, opts...)
 
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
 	l2Client := g.System.NodeClient(l2Node)
@@ -283,9 +276,9 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	g.Require.EqualValues(outputRootClaim.Depth(), splitDepth+1, "outputRootClaim must be the root of an execution game")
 
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "CannonTraceProvider", "game", g.Addr)
-	opt := g.defaultChallengerOptions(l2Node)
+	opt := g.defaultChallengerOptions()
 	opt = append(opt, options...)
-	cfg := challenger.NewChallengerConfig(g.T, g.System, opt...)
+	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, opt...)
 
 	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
 	l2Client := g.System.NodeClient(l2Node)
@@ -322,9 +315,9 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	return translatingProvider.Original().(*cannon.CannonTraceProviderForTest), localContext
 }
 
-func (g *OutputCannonGameHelper) defaultChallengerOptions(l2Node string) []challenger.Option {
+func (g *OutputCannonGameHelper) defaultChallengerOptions() []challenger.Option {
 	return []challenger.Option{
-		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis(), g.System.RollupEndpoint(l2Node), g.System.NodeEndpoint(l2Node)),
+		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis()),
 		challenger.WithFactoryAddress(g.FactoryAddr),
 		challenger.WithGameAddress(g.Addr),
 	}

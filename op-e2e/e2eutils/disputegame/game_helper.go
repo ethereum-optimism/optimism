@@ -25,7 +25,6 @@ type FaultGameHelper struct {
 	game        *bindings.FaultDisputeGame
 	factoryAddr common.Address
 	addr        common.Address
-	system      DisputeSystem
 }
 
 func (g *FaultGameHelper) Addr() common.Address {
