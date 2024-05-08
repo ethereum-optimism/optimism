@@ -153,7 +153,7 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 }
 
-func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int, durationErr int) {
+func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadataErr, claimsErr, durationErr int) {
 	errorLevelFilter := testlog.NewLevelFilter(log.LevelError)
 	createMessageFilter := testlog.NewAttributesContainsFilter("err", "failed to create contracts")
 	l := logs.FindLogs(errorLevelFilter, createMessageFilter)
@@ -254,12 +254,12 @@ func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ c
 	}, nil
 }
 
-func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
+func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, bool, error) {
 	m.metadataCalls++
 	if m.metadataErr != nil {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, m.metadataErr
+		return common.Hash{}, 0, common.Hash{}, 0, 0, false, m.metadataErr
 	}
-	return common.Hash{0xaa}, 0, mockRootClaim, 0, 0, nil
+	return common.Hash{0xaa}, 0, mockRootClaim, 0, 0, false, nil
 }
 
 func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {

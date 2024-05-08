@@ -475,23 +475,30 @@ func TestGetGameMetadata(t *testing.T) {
 			expectedMaxClockDuration := uint64(456)
 			expectedRootClaim := common.Hash{0x01, 0x02}
 			expectedStatus := types.GameStatusChallengerWon
+			expectedL2BlockNumberChallenged := true
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
 			stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
 			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
 			if version.version == vers080 {
+				expectedL2BlockNumberChallenged = false
 				stubRpc.SetResponse(fdgAddr, methodGameDuration, block, nil, []interface{}{expectedMaxClockDuration * 2})
+			} else if version.version == vers0180 {
+				expectedL2BlockNumberChallenged = false
+				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
 			} else {
 				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
+				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expectedL2BlockNumberChallenged})
 			}
-			l1Head, l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background(), block)
+			l1Head, l2BlockNumber, rootClaim, status, duration, blockNumChallenged, err := contract.GetGameMetadata(context.Background(), block)
 			require.NoError(t, err)
 			require.Equal(t, expectedL1Head, l1Head)
 			require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
 			require.Equal(t, expectedRootClaim, rootClaim)
 			require.Equal(t, expectedStatus, status)
 			require.Equal(t, expectedMaxClockDuration, duration)
+			require.Equal(t, expectedL2BlockNumberChallenged, blockNumChallenged)
 		})
 	}
 }

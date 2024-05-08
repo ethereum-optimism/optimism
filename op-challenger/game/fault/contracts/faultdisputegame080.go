@@ -29,7 +29,7 @@ type FaultDisputeGameContract080 struct {
 }
 
 // GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, and max clock duration.
-func (f *FaultDisputeGameContract080) GetGameMetadata(ctx context.Context, block rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
+func (f *FaultDisputeGameContract080) GetGameMetadata(ctx context.Context, block rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, bool, error) {
 	defer f.metrics.StartContractRequest("GetGameMetadata")()
 	results, err := f.multiCaller.Call(ctx, block,
 		f.contract.Call(methodL1Head),
@@ -38,20 +38,20 @@ func (f *FaultDisputeGameContract080) GetGameMetadata(ctx context.Context, block
 		f.contract.Call(methodStatus),
 		f.contract.Call(methodGameDuration))
 	if err != nil {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
+		return common.Hash{}, 0, common.Hash{}, 0, 0, false, fmt.Errorf("failed to retrieve game metadata: %w", err)
 	}
 	if len(results) != 5 {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("expected 3 results but got %v", len(results))
+		return common.Hash{}, 0, common.Hash{}, 0, 0, false, fmt.Errorf("expected 5 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
 	l2BlockNumber := results[1].GetBigInt(0).Uint64()
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("failed to convert game status: %w", err)
+		return common.Hash{}, 0, common.Hash{}, 0, 0, false, fmt.Errorf("failed to convert game status: %w", err)
 	}
 	duration := results[4].GetUint64(0)
-	return l1Head, l2BlockNumber, rootClaim, status, duration / 2, nil
+	return l1Head, l2BlockNumber, rootClaim, status, duration / 2, false, nil
 }
 
 func (f *FaultDisputeGameContract080) GetMaxClockDuration(ctx context.Context) (time.Duration, error) {

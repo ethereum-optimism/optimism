@@ -34,6 +34,20 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 		require.Nil(t, logs.FindLog(levelFilter, messageFilter))
 	})
 
+	t.Run("BlockNumberChallenged", func(t *testing.T) {
+		forecast, m, logs := setupForecastTest(t)
+		expectedGame := monTypes.EnrichedGameData{BlockNumberChallenged: true, L2BlockNumber: 6}
+		forecast.Forecast([]*monTypes.EnrichedGameData{&expectedGame}, 0, 0)
+		l := logs.FindLog(testlog.NewLevelFilter(log.LevelDebug), testlog.NewMessageFilter("Found game with challenged block number"))
+		require.NotNil(t, l)
+		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
+		require.Equal(t, expectedGame.L2BlockNumber, l.AttrValue("blockNum"))
+
+		expectedMetrics := zeroGameAgreement()
+		expectedMetrics[metrics.AgreeChallengerWins] = 1
+		require.Equal(t, expectedMetrics, m.gameAgreement)
+	})
+
 	t.Run("ChallengerWonGame_Agree", func(t *testing.T) {
 		forecast, m, logs := setupForecastTest(t)
 		expectedGame := monTypes.EnrichedGameData{Status: types.GameStatusChallengerWon, RootClaim: mockRootClaim, AgreeWithClaim: true}
