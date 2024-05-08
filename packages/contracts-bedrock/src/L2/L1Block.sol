@@ -5,6 +5,12 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 
+/// @notice Configuration types for the L1Block contract.
+enum ConfigType {
+    BATCHER_HASH,
+    GAS_PAYING_TOKEN
+}
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1Block
@@ -15,6 +21,9 @@ import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 contract L1Block is ISemver, IGasToken {
     /// @notice Error returns when a non-depositor account tries to set L1 block values.
     error NotDepositor();
+
+    /// @notice Event emitted when the batcher hash is set.
+    event BatcherHashSet(bytes32 indexed hash);
 
     /// @notice Event emitted when the gas paying token is set.
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
@@ -154,14 +163,28 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
-    /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
-    ///         depositor account. This function is not called on every L2 block but instead
-    ///         only called by specially crafted L1 deposit transactions.
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+    /// @notice Sets static configuration options for the L2 system. Can only be called by the special
+    ///         depositor account.
+    function setConfig(ConfigType _type, bytes calldata _value) external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
-        GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
+        // For BATCHER_HASH config type
+        if (_type == ConfigType.BATCHER_HASH) {
+            batcherHash = abi.decode(_value, (bytes32));
 
-        emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
+            emit BatcherHashSet(batcherHash);
+            return;
+        }
+
+        // For GAS_PAYING_TOKEN config type
+        if (_type == ConfigType.GAS_PAYING_TOKEN) {
+            (address token, uint8 decimals, bytes32 name, bytes32 symbol) =
+                abi.decode(_value, (address, uint8, bytes32, bytes32));
+
+            GasPayingToken.set({ _token: token, _decimals: decimals, _name: name, _symbol: symbol });
+
+            emit GasPayingTokenSet({ token: token, decimals: decimals, name: name, symbol: symbol });
+            return;
+        }
     }
 }
