@@ -13,7 +13,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Target contract dependencies
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Proxy } from "src/universal/Proxy.sol";
-import { L1Block } from "src/L2/L1Block.sol";
+import { L1Block, ConfigType } from "src/L2/L1Block.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
 // Target contract
@@ -440,7 +440,10 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     function test_initialize_customGasTokenCall_succeeds() external {
         vm.expectCall(
             address(optimismPortal),
-            abi.encodeCall(optimismPortal.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
+            abi.encodeCall(
+                optimismPortal.setConfig,
+                (ConfigType.GAS_PAYING_TOKEN, abi.encode(address(token), 18, bytes32("Silly"), bytes32("SIL")))
+            )
         );
 
         vm.expectEmit(address(optimismPortal));
@@ -453,7 +456,10 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
                 uint256(0), // value
                 uint64(200_000), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
+                abi.encodeCall(
+                    L1Block.setConfig,
+                    (ConfigType.GAS_PAYING_TOKEN, abi.encode(address(token), 18, bytes32("Silly"), bytes32("SIL")))
+                )
             )
         );
 
