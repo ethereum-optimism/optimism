@@ -161,11 +161,13 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		return nil, err
 	}
 
-	var reader func(io.Reader) (io.Reader, error)
+	var zr io.Reader
 	// For zlib, the last 4 bits must be either 8 or 15 (both are reserved value)
 	if compressionType[0]&0x0F == ZlibCM8 || compressionType[0]&0x0F == ZlibCM15 {
-		reader = func(r io.Reader) (io.Reader, error) {
-			return zlib.NewReader(r)
+		var err error
+		zr, err = zlib.NewReader(bufReader)
+		if err != nil {
+			return nil, err
 		}
 		// If the bits equal to 1, then it is a brotli reader
 	} else if compressionType[0] == ChannelVersionBrotli {
@@ -174,23 +176,17 @@ func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 		if err != nil {
 			return nil, err
 		}
-		reader = func(r io.Reader) (io.Reader, error) {
-			return brotli.NewReader(r), nil
-		}
+		zr = brotli.NewReader(bufReader)
 	} else {
 		return nil, fmt.Errorf("cannot distinguish the compression algo used given type byte %v", compressionType[0])
 	}
 
 	// Setup decompressor stage + RLP reader
-	zr, err := reader(bufReader)
-	if err != nil {
-		return nil, err
-	}
 	rlpReader := rlp.NewStream(zr, MaxRLPBytesPerChannel)
 	// Read each batch iteratively
 	return func() (*BatchData, error) {
 		var batchData BatchData
-		if err = rlpReader.Decode(&batchData); err != nil {
+		if err := rlpReader.Decode(&batchData); err != nil {
 			return nil, err
 		}
 		return &batchData, nil

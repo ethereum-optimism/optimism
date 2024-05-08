@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/zstd"
 	"github.com/andybalholm/brotli"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -114,8 +114,11 @@ func TestBatchReader(t *testing.T) {
 	batchDataInput := NewBatchData(singularBatch)
 
 	encodedBatch := &bytes.Buffer{}
+	buf := &bytes.Buffer{}
 	// Get the encoded data of the batch data
-	batchDataInput.encodeTyped(encodedBatch)
+	batchDataInput.encodeTyped(buf)
+	err := rlp.Encode(encodedBatch, buf.Bytes())
+	require.NoError(t, err)
 
 	var testCases = []struct {
 		name string
@@ -125,6 +128,7 @@ func TestBatchReader(t *testing.T) {
 		algo: func(buf *bytes.Buffer) {
 			writer := zlib.NewWriter(buf)
 			writer.Write(encodedBatch.Bytes())
+			writer.Close()
 		},
 	},
 		{
@@ -133,12 +137,14 @@ func TestBatchReader(t *testing.T) {
 				buf.WriteByte(ChannelVersionBrotli)
 				writer := brotli.NewWriterLevel(buf, 10)
 				writer.Write(encodedBatch.Bytes())
+				writer.Close()
 			},
 		}, {
 			name: "zstd",
 			algo: func(buf *bytes.Buffer) {
 				writer := zstd.NewWriter(buf)
 				writer.Write(encodedBatch.Bytes())
+				writer.Close()
 			},
 		}}
 
