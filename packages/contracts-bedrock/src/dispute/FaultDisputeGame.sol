@@ -336,6 +336,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             revert CannotDefendRootClaim();
         }
 
+        // INVARIANT: No moves against the root claim can be made after it has been challenged with
+        //            `challengeRootL2Block`.`
+        if (l2BlockNumberChallenged && _challengeIndex == 0) revert L2BlockNumberChallenged();
+
         // INVARIANT: A move can never surpass the `MAX_GAME_DEPTH`. The only option to counter a
         //            claim at this depth is to perform a single instruction step on-chain via
         //            the `step` function to prove that the state transition produces an unexpected
@@ -487,6 +491,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     )
         external
     {
+        // INVARIANT: Moves cannot be made unless the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
+
         // The root L2 block claim can only be challenged once.
         if (l2BlockNumberChallenged) revert L2BlockNumberChallenged();
 
