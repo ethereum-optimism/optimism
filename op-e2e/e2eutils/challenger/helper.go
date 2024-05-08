@@ -29,6 +29,7 @@ import (
 
 type EndpointProvider interface {
 	NodeEndpoint(name string) string
+	RollupEndpoint(name string) string
 	L1BeaconEndpoint() string
 }
 
@@ -147,7 +148,7 @@ func WithAlphabet(rollupEndpoint string) Option {
 func NewChallenger(t *testing.T, ctx context.Context, sys EndpointProvider, name string, options ...Option) *Helper {
 	log := testlog.Logger(t, log.LevelDebug).New("role", name)
 	log.Info("Creating challenger")
-	cfg := NewChallengerConfig(t, sys, options...)
+	cfg := NewChallengerConfig(t, sys, "sequencer", options...)
 	chl, err := challenger.Main(ctx, log, cfg)
 	require.NoError(t, err, "must init challenger")
 	require.NoError(t, chl.Start(ctx), "must start challenger")
@@ -161,11 +162,11 @@ func NewChallenger(t *testing.T, ctx context.Context, sys EndpointProvider, name
 	}
 }
 
-func NewChallengerConfig(t *testing.T, sys EndpointProvider, options ...Option) *config.Config {
+func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l1Beacon := sys.L1BeaconEndpoint()
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, t.TempDir())
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName), sys.NodeEndpoint(l2NodeName), t.TempDir())
 	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
 	// before the L2 genesis is known.
 	cfg.AllowInvalidPrestate = true

@@ -58,7 +58,7 @@ func (g *OutputCannonGameHelper) StartChallenger(
 func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node string, options ...challenger.Option) *OutputHonestHelper {
 	opts := g.defaultChallengerOptions(l2Node)
 	opts = append(opts, options...)
-	cfg := challenger.NewChallengerConfig(g.T, g.System, opts...)
+	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, opts...)
 
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
 	l2Client := g.System.NodeClient(l2Node)
@@ -285,7 +285,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "CannonTraceProvider", "game", g.Addr)
 	opt := g.defaultChallengerOptions(l2Node)
 	opt = append(opt, options...)
-	cfg := challenger.NewChallengerConfig(g.T, g.System, opt...)
+	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, opt...)
 
 	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
 	l2Client := g.System.NodeClient(l2Node)
