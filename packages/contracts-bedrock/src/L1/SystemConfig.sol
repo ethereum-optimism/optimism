@@ -9,6 +9,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ConfigType } from "src/L2/L1Block.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -182,8 +183,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         __Ownable_init();
         transferOwnership(_owner);
 
-        // These are set in ascending order of their UpdateTypes.
-        _setBatcherHash(_batcherHash);
         _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
         _setGasLimit(_gasLimit);
 
@@ -198,6 +197,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
+        _setBatcherHash(_batcherHash);
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -294,10 +294,17 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice Internal setter for the gas paying token address, includes validation.
     ///         The token must not already be set and must be non zero and not the ether address
     ///         to set the token address. This prevents the token address from being changed
-    ///         and makes it explicitly opt-in to use custom gas token.
+    ///         and makes it explicitly opt-in to use custom gas token. Additionally,
+    ///         OptimismPortal's address must be non zero, since otherwise the call to set the
+    ///         config for the gas paying token to OptimismPortal will fail.
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
-        if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
+        if (_token != address(0) && optimismPortal() == address(0)) {
+            revert("SystemConfig: cannot set gas paying token without OptimismPortal");
+        }
+
+        if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken() && optimismPortal() != address(0))
+        {
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
             );
@@ -306,12 +313,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
             // Set the gas paying token in storage and in the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
-            OptimismPortal(payable(optimismPortal())).setGasPayingToken({
-                _token: _token,
-                _decimals: GAS_PAYING_TOKEN_DECIMALS,
-                _name: name,
-                _symbol: symbol
-            });
+            OptimismPortal(payable(optimismPortal())).setConfig(
+                ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, GAS_PAYING_TOKEN_DECIMALS, name, symbol)
+            );
         }
     }
 
@@ -336,13 +340,24 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setBatcherHash(_batcherHash);
     }
 
-    /// @notice Internal function for updating the batcher hash.
+    /// @notice Internal function for updating the batcher hash. OptimismPortal's address
+    ///         must be non zero, since otherwise the call to set the config for the batcher
+    ///         hash to OptimismPortal will fail.
     /// @param _batcherHash New batcher hash.
     function _setBatcherHash(bytes32 _batcherHash) internal {
-        batcherHash = _batcherHash;
+        if (_batcherHash != bytes32(0) && optimismPortal() == address(0)) {
+            revert("SystemConfig: cannot set batcher hash without OptimismPortal");
+        }
 
-        bytes memory data = abi.encode(_batcherHash);
-        emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
+        if (optimismPortal() != address(0)) {
+            batcherHash = _batcherHash;
+
+            bytes memory data = abi.encode(_batcherHash);
+
+            OptimismPortal(payable(optimismPortal())).setConfig(ConfigType.BATCHER_HASH, data);
+
+            emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
+        }
     }
 
     /// @notice Updates gas config. Can only be called by the owner.
