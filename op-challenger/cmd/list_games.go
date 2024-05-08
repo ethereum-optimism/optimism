@@ -118,7 +118,7 @@ func listGamesFlags() []cli.Flag {
 		flags.FactoryAddressFlag,
 		flags.GameWindowFlag,
 	}
-	cliFlags = append(cliFlags, oplog.CLIFlags("OP_CHALLENGER")...)
+	cliFlags = append(cliFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
 	return cliFlags
 }
 
