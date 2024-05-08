@@ -420,9 +420,6 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	tx, err = callViaSafe(safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
 	waitForTx(t, tx, err, l1Client)
 
-	version, err := systemConfig.Version(&bind.CallOpts{})
-	require.NoError(t, err)
-	t.Log("version: ", version)
 	// Reinitialise with existing initializer values but with custom gas token set
 	tx, err = systemConfig.Initialize(deployerOpts, owner,
 		overhead,
