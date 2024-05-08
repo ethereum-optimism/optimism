@@ -658,7 +658,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 					// Start a challenger to resolve claims and games once the clock expires
 					factoryHelper := disputegame.NewFactoryHelper(t, ctx, sys)
 					factoryHelper.StartChallenger(ctx, "Challenger",
-						challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.RollupEndpoint("sequencer"), sys.NodeEndpoint("sequencer")),
+						challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg),
 						challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 				}
 				receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())

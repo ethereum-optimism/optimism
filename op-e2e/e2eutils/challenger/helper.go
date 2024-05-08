@@ -96,15 +96,8 @@ func FindMonorepoRoot(t *testing.T) string {
 	return ""
 }
 
-func applyCannonConfig(
-	c *config.Config,
-	t *testing.T,
-	rollupCfg *rollup.Config,
-	l2Genesis *core.Genesis,
-	l2Endpoint string,
-) {
+func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) {
 	require := require.New(t)
-	c.L2Rpc = l2Endpoint
 	root := FindMonorepoRoot(t)
 	c.CannonBin = root + "cannon/bin/cannon"
 	c.CannonServer = root + "op-program/bin/op-program"
@@ -124,24 +117,16 @@ func applyCannonConfig(
 	c.CannonRollupConfigPath = rollupFile
 }
 
-func WithCannon(
-	t *testing.T,
-	rollupCfg *rollup.Config,
-	l2Genesis *core.Genesis,
-	rollupEndpoint string,
-	l2Endpoint string,
-) Option {
+func WithCannon(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
-		c.RollupRpc = rollupEndpoint
-		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
+		applyCannonConfig(c, t, rollupCfg, l2Genesis)
 	}
 }
 
-func WithAlphabet(rollupEndpoint string) Option {
+func WithAlphabet() Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
-		c.RollupRpc = rollupEndpoint
 	}
 }
 

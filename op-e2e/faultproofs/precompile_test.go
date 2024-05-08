@@ -140,7 +140,7 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	l1Beacon := sys.L1BeaconEndpoint()
 	rollupEndpoint := sys.RollupEndpoint("sequencer")
 	l2Endpoint := sys.NodeEndpoint("sequencer")
-	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis(), sys.RollupEndpoint(l2Node), sys.NodeEndpoint(l2Node))
+	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis())
 	dir := t.TempDir()
 	proofsDir := filepath.Join(dir, "cannon-proofs")
 	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, rollupEndpoint, l2Endpoint, dir)
