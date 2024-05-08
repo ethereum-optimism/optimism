@@ -44,8 +44,8 @@ type IstanbulExtra struct {
 
 // transformHeader removes the aggregated seal from the header
 func transformHeader(header []byte) ([]byte, error) {
-	newHeader := types.Header{}
-	err := rlp.DecodeBytes(header, newHeader)
+	newHeader := new(types.Header)
+	err := rlp.DecodeBytes(header, &newHeader)
 	if err != nil {
 		return nil, err
 	}
