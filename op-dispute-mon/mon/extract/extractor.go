@@ -64,7 +64,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 		}
 		caller, err := e.createContract(ctx, game)
 		if err != nil {
-			e.logger.Error("Failed to create game caller", "err", err)
+			e.logger.Error("Failed to create game caller", "game", game.Proxy, "err", err)
 			failed++
 			continue
 		}
