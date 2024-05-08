@@ -16,6 +16,7 @@ var (
 	IstanbulExtraVanity = 32 // Fixed number of extra-data bytes reserved for validator vanity
 )
 
+// IstanbulAggregatedSeal is the aggregated seal for Istanbul blocks
 type IstanbulAggregatedSeal struct {
 	// Bitmap is a bitmap having an active bit for each validator that signed this block
 	Bitmap *big.Int
@@ -25,6 +26,7 @@ type IstanbulAggregatedSeal struct {
 	Round *big.Int
 }
 
+// IstanbulExtra is the extra-data for Istanbul blocks
 type IstanbulExtra struct {
 	// AddedValidators are the validators that have been added in the block
 	AddedValidators []common.Address
@@ -42,7 +44,7 @@ type IstanbulExtra struct {
 
 // transformHeader removes the aggregated seal from the header
 func transformHeader(header []byte) ([]byte, error) {
-	newHeader := new(types.Header) // TODO double check on decoding type
+	newHeader := types.Header{}
 	err := rlp.DecodeBytes(header, newHeader)
 	if err != nil {
 		return nil, err
@@ -80,7 +82,7 @@ func transformBlockBody(oldBodyData []byte) ([]byte, error) {
 	// decode body into celo-blockchain Body structure
 	// remove epochSnarkData and randomness data
 	var celoBody struct {
-		Transactions   rlp.RawValue // TODO use types.Transactions to make sure all tx are deserializable
+		Transactions   types.Transactions
 		Randomness     rlp.RawValue
 		EpochSnarkData rlp.RawValue
 	}
@@ -88,11 +90,12 @@ func transformBlockBody(oldBodyData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to RLP decode body: %w", err)
 	}
 
-	// TODO create a types.BlockBody structure and encode it back to []byte
-
 	// transform into op-geth types.Body structure
-	// since Body is a slice of types.Transactions, we can just remove the randomness and epochSnarkData and add empty array for UnclesHashes
-	newBodyData, err := rlp.EncodeToBytes([]interface{}{celoBody.Transactions, nil})
+	newBody := types.Body{
+		Transactions: celoBody.Transactions,
+		Uncles:       []*types.Header{},
+	}
+	newBodyData, err := rlp.EncodeToBytes(newBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to RLP encode body: %w", err)
 	}
