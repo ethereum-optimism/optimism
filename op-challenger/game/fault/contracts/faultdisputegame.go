@@ -52,7 +52,10 @@ var (
 	methodWETH                = "weth"
 )
 
-var ErrSimulationFailed = errors.New("tx simulation failed")
+var (
+	ErrSimulationFailed             = errors.New("tx simulation failed")
+	ErrChallengeL2BlockNotSupported = errors.New("contract version does not support challenging L2 block number")
+)
 
 type FaultDisputeGameContractLatest struct {
 	metrics     metrics.ContractMetricer
@@ -410,6 +413,14 @@ func (f *FaultDisputeGameContractLatest) vm(ctx context.Context) (*VMContract, e
 	return NewVMContract(vmAddr, f.multiCaller), nil
 }
 
+func (f *FaultDisputeGameContractLatest) IsL2BlockNumberChallenged(ctx context.Context, block rpcblock.Block) (bool, error) {
+	return false, nil
+}
+
+func (f *FaultDisputeGameContractLatest) ChallengeL2BlockNumberTx(challenge *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, ErrChallengeL2BlockNotSupported
+}
+
 func (f *FaultDisputeGameContractLatest) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {
 	call := f.contract.Call(methodAttack, new(big.Int).SetUint64(parentContractIndex), pivot)
 	return call.ToTxCandidate()
@@ -523,6 +534,8 @@ type FaultDisputeGameContract interface {
 	GetClaim(ctx context.Context, idx uint64) (types.Claim, error)
 	GetAllClaims(ctx context.Context, block rpcblock.Block) ([]types.Claim, error)
 	IsResolved(ctx context.Context, block rpcblock.Block, claims ...types.Claim) ([]bool, error)
+	IsL2BlockNumberChallenged(ctx context.Context, block rpcblock.Block) (bool, error)
+	ChallengeL2BlockNumberTx(challenge *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error)
 	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
