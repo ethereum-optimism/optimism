@@ -25,7 +25,7 @@ func NewMockDAClient(log log.Logger) *MockDAClient {
 	}
 }
 
-func (c *MockDAClient) GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error) {
+func (c *MockDAClient) GetInput(ctx context.Context, key CommitmentData) ([]byte, error) {
 	bytes, err := c.store.Get(key.Encode())
 	if err != nil {
 		return nil, ErrNotFound
@@ -33,8 +33,8 @@ func (c *MockDAClient) GetInput(ctx context.Context, key Keccak256Commitment) ([
 	return bytes, nil
 }
 
-func (c *MockDAClient) SetInput(ctx context.Context, data []byte) (Keccak256Commitment, error) {
-	key := Keccak256(data)
+func (c *MockDAClient) SetInput(ctx context.Context, data []byte) (CommitmentData, error) {
+	key := NewGenericCommitment(data)
 	return key, c.store.Put(key.Encode(), data)
 }
 
@@ -49,7 +49,7 @@ type DAErrFaker struct {
 	setInputErr error
 }
 
-func (f *DAErrFaker) GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error) {
+func (f *DAErrFaker) GetInput(ctx context.Context, key CommitmentData) ([]byte, error) {
 	if err := f.getInputErr; err != nil {
 		f.getInputErr = nil
 		return nil, err
@@ -57,7 +57,7 @@ func (f *DAErrFaker) GetInput(ctx context.Context, key Keccak256Commitment) ([]b
 	return f.Client.GetInput(ctx, key)
 }
 
-func (f *DAErrFaker) SetInput(ctx context.Context, data []byte) (Keccak256Commitment, error) {
+func (f *DAErrFaker) SetInput(ctx context.Context, data []byte) (CommitmentData, error) {
 	if err := f.setInputErr; err != nil {
 		f.setInputErr = nil
 		return nil, err
@@ -80,7 +80,7 @@ var ErrNotEnabled = errors.New("plasma not enabled")
 // PlasmaDisabled is a noop plasma DA implementation for stubbing.
 type PlasmaDisabled struct{}
 
-func (d *PlasmaDisabled) GetInput(ctx context.Context, l1 L1Fetcher, commitment Keccak256Commitment, blockId eth.BlockID) (eth.Data, error) {
+func (d *PlasmaDisabled) GetInput(ctx context.Context, l1 L1Fetcher, commitment CommitmentData, blockId eth.BlockID) (eth.Data, error) {
 	return nil, ErrNotEnabled
 }
 

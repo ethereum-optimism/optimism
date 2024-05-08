@@ -70,7 +70,7 @@ func TestDAClient(t *testing.T) {
 	comm, err := client.SetInput(ctx, input)
 	require.NoError(t, err)
 
-	require.Equal(t, comm, Keccak256(input))
+	require.Equal(t, comm, NewKeccak256Commitment(input))
 
 	stored, err := client.GetInput(ctx, comm)
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestDAClient(t *testing.T) {
 	require.ErrorIs(t, err, ErrCommitmentMismatch)
 
 	// test not found error
-	comm = Keccak256(RandomData(rng, 32))
+	comm = NewKeccak256Commitment(RandomData(rng, 32))
 	_, err = client.GetInput(ctx, comm)
 	require.ErrorIs(t, err, ErrNotFound)
 
@@ -97,6 +97,6 @@ func TestDAClient(t *testing.T) {
 	_, err = client.SetInput(ctx, input)
 	require.Error(t, err)
 
-	_, err = client.GetInput(ctx, Keccak256(input))
+	_, err = client.GetInput(ctx, NewKeccak256Commitment(input))
 	require.Error(t, err)
 }

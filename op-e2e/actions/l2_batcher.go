@@ -45,7 +45,7 @@ type L1TxAPI interface {
 }
 
 type PlasmaInputSetter interface {
-	SetInput(ctx context.Context, img []byte) (plasma.Keccak256Commitment, error)
+	SetInput(ctx context.Context, img []byte) (plasma.CommitmentData, error)
 }
 
 type BatcherCfg struct {

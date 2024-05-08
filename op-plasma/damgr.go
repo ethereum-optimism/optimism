@@ -40,8 +40,8 @@ type L1Fetcher interface {
 
 // DAStorage interface for calling the DA storage server.
 type DAStorage interface {
-	GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error)
-	SetInput(ctx context.Context, img []byte) (Keccak256Commitment, error)
+	GetInput(ctx context.Context, key CommitmentData) ([]byte, error)
+	SetInput(ctx context.Context, img []byte) (CommitmentData, error)
 }
 
 // HeadSignalFn is the callback function to accept head-signals without a context.
@@ -165,7 +165,7 @@ func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemC
 
 // GetInput returns the input data for the given commitment bytes. blockNumber is required to lookup
 // the challenge status in the DataAvailabilityChallenge L1 contract.
-func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm Keccak256Commitment, blockId eth.BlockID) (eth.Data, error) {
+func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, blockId eth.BlockID) (eth.Data, error) {
 	// If the challenge head is ahead in the case of a pipeline reset or stall, we might have synced a
 	// challenge event for this commitment. Otherwise we mark the commitment as part of the canonical
 	// chain so potential future challenge events can be selected.
@@ -356,12 +356,12 @@ func (d *DA) fetchChallengeLogs(ctx context.Context, l1 L1Fetcher, block eth.Blo
 }
 
 // decodeChallengeStatus decodes and validates a challenge event from a transaction log, returning the associated commitment bytes.
-func (d *DA) decodeChallengeStatus(log *types.Log) (ChallengeStatus, Keccak256Commitment, error) {
+func (d *DA) decodeChallengeStatus(log *types.Log) (ChallengeStatus, CommitmentData, error) {
 	event, err := DecodeChallengeStatusEvent(log)
 	if err != nil {
 		return 0, nil, err
 	}
-	comm, err := DecodeKeccak256(event.ChallengedCommitment)
+	comm, err := DecodeCommitmentData(event.ChallengedCommitment)
 	if err != nil {
 		return 0, nil, err
 	}
