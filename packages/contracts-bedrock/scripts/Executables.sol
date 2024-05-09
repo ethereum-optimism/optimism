@@ -23,7 +23,7 @@ library Executables {
         string[] memory commands = new string[](3);
         commands[0] = bash;
         commands[1] = "-c";
-        commands[2] = "git rev-parse HEAD";
-        return string(vm.ffi(commands));
+        commands[2] = "cast abi-encode 'f(string)' $(git rev-parse HEAD)";
+        return abi.decode(vm.ffi(commands), (string));
     }
 }

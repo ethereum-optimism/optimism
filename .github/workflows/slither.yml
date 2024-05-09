@@ -11,7 +11,7 @@ jobs:
   slither-analyze:
     runs-on: ubuntu-latest
     container:
-      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.43.0
+      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.49.0
     steps:
       - uses: actions/checkout@v4
 
@@ -23,7 +23,7 @@ jobs:
         run: rm packages/contracts-bedrock/package.json
 
       - name: Run Slither
-        uses: crytic/slither-action@v0.3.2
+        uses: crytic/slither-action@v0.4.0
         id: slither
         with:
           target: packages/contracts-bedrock

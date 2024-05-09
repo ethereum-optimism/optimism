@@ -7,12 +7,15 @@ import (
 	"time"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
-	ErrGameDepthReached = errors.New("game depth reached")
+	ErrGameDepthReached   = errors.New("game depth reached")
+	ErrL2BlockNumberValid = errors.New("l2 block number is valid")
 )
 
 const (
@@ -103,6 +106,10 @@ type TraceAccessor interface {
 	// GetStepData returns the data required to execute the step at the specified position,
 	// evaluated in the context of the specified claim (ref).
 	GetStepData(ctx context.Context, game Game, ref Claim, pos Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
+
+	// GetL2BlockNumberChallenge returns the data required to prove the correct L2 block number of the root claim.
+	// Returns ErrL2BlockNumberValid if the root claim is known to come from the same block as the claimed L2 block.
+	GetL2BlockNumberChallenge(ctx context.Context, game Game) (*InvalidL2BlockNumberChallenge, error)
 }
 
 // PrestateProvider defines an interface to request the absolute prestate.
@@ -124,6 +131,10 @@ type TraceProvider interface {
 	// and any pre-image data that needs to be loaded into the oracle prior to execution (may be nil)
 	// The prestate returned from GetStepData for trace 10 should be the pre-image of the claim from trace 9
 	GetStepData(ctx context.Context, i Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
+
+	// GetL2BlockNumberChallenge returns the data required to prove the correct L2 block number of the root claim.
+	// Returns ErrL2BlockNumberValid if the root claim is known to come from the same block as the claimed L2 block.
+	GetL2BlockNumberChallenge(ctx context.Context) (*InvalidL2BlockNumberChallenge, error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.
@@ -199,5 +210,17 @@ func NewClock(duration time.Duration, timestamp time.Time) Clock {
 	return Clock{
 		Duration:  duration,
 		Timestamp: timestamp,
+	}
+}
+
+type InvalidL2BlockNumberChallenge struct {
+	Output *eth.OutputResponse
+	Header *ethTypes.Header
+}
+
+func NewInvalidL2BlockNumberProof(output *eth.OutputResponse, header *ethTypes.Header) *InvalidL2BlockNumberChallenge {
+	return &InvalidL2BlockNumberChallenge{
+		Output: output,
+		Header: header,
 	}
 }

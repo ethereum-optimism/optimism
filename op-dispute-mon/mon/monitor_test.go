@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -128,6 +129,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 		context.Background(),
 		logger,
 		cl,
+		metrics.NoopMetrics,
 		monitorInterval,
 		10*time.Second,
 		forecast.Forecast,
@@ -170,7 +172,7 @@ type mockForecast struct {
 	calls int
 }
 
-func (m *mockForecast) Forecast(_ context.Context, _ []*monTypes.EnrichedGameData, _ int) {
+func (m *mockForecast) Forecast(_ []*monTypes.EnrichedGameData, _, _ int) {
 	m.calls++
 }
 
@@ -188,19 +190,20 @@ type mockExtractor struct {
 	maxSuccess   int
 	games        []*monTypes.EnrichedGameData
 	ignoredCount int
+	failedCount  int
 }
 
 func (m *mockExtractor) Extract(
 	_ context.Context,
 	_ common.Hash,
 	_ uint64,
-) ([]*monTypes.EnrichedGameData, int, error) {
+) ([]*monTypes.EnrichedGameData, int, int, error) {
 	m.calls++
 	if m.fetchErr != nil {
-		return nil, 0, m.fetchErr
+		return nil, 0, 0, m.fetchErr
 	}
 	if m.calls > m.maxSuccess && m.maxSuccess != 0 {
-		return nil, 0, mockErr
+		return nil, 0, 0, mockErr
 	}
-	return m.games, m.ignoredCount, nil
+	return m.games, m.ignoredCount, m.failedCount, nil
 }

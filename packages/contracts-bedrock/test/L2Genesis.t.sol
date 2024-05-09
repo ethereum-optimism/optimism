@@ -121,13 +121,27 @@ contract L2GenesisTest is Test {
         return abi.decode(vm.ffi(commands), (uint256));
     }
 
-    /// @notice Tests the genesis predeploys setup using a temp file.
-    function test_genesis_predeploys() external {
-        withTempDump(_test_genesis_predeploys);
+    /// @notice Tests the genesis predeploys setup using a temp file for the case where useInterop is false.
+    function test_genesis_predeploys_notUsingInterop() external {
+        string memory path = tmpfile();
+        _test_genesis_predeploys(path, false);
+        deleteFile(path);
+    }
+
+    /// @notice Tests the genesis predeploys setup using a temp file for the case where useInterop is true.
+    function test_genesis_predeploys_usingInterop() external {
+        string memory path = tmpfile();
+        _test_genesis_predeploys(path, true);
+        deleteFile(path);
     }
 
     /// @notice Tests the genesis predeploys setup.
-    function _test_genesis_predeploys(string memory _path) internal {
+    function _test_genesis_predeploys(string memory _path, bool _useInterop) internal {
+        // Set the useInterop value
+        vm.mockCall(
+            address(genesis.cfg()), abi.encodeWithSelector(genesis.cfg().useInterop.selector), abi.encode(_useInterop)
+        );
+
         // Set the predeploy proxies into state
         genesis.setPredeployProxies();
         genesis.writeGenesisAllocs(_path);
@@ -135,8 +149,8 @@ contract L2GenesisTest is Test {
         // 2 predeploys do not have proxies
         assertEq(getCodeCount(_path, "Proxy.sol:Proxy"), Predeploys.PREDEPLOY_COUNT - 2);
 
-        // 17 proxies have the implementation set
-        assertEq(getPredeployCountWithSlotSet(_path, Constants.PROXY_IMPLEMENTATION_ADDRESS), 17);
+        // 19 proxies have the implementation set if useInterop is true and 17 if useInterop is false
+        assertEq(getPredeployCountWithSlotSet(_path, Constants.PROXY_IMPLEMENTATION_ADDRESS), _useInterop ? 19 : 17);
 
         // All proxies except 2 have the proxy 1967 admin slot set to the proxy admin
         assertEq(

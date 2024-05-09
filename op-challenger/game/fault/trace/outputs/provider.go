@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,17 +31,19 @@ type OutputTraceProvider struct {
 	types.PrestateProvider
 	logger         log.Logger
 	rollupProvider OutputRollupClient
+	l2Client       utils.L2HeaderSource
 	prestateBlock  uint64
 	poststateBlock uint64
 	l1Head         eth.BlockID
 	gameDepth      types.Depth
 }
 
-func NewTraceProvider(logger log.Logger, prestateProvider types.PrestateProvider, rollupProvider OutputRollupClient, l1Head eth.BlockID, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
+func NewTraceProvider(logger log.Logger, prestateProvider types.PrestateProvider, rollupProvider OutputRollupClient, l2Client utils.L2HeaderSource, l1Head eth.BlockID, gameDepth types.Depth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
 	return &OutputTraceProvider{
 		PrestateProvider: prestateProvider,
 		logger:           logger,
 		rollupProvider:   rollupProvider,
+		l2Client:         l2Client,
 		prestateBlock:    prestateBlock,
 		poststateBlock:   poststateBlock,
 		l1Head:           l1Head,
@@ -92,6 +96,29 @@ func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (comm
 // GetStepData is not supported in the [OutputTraceProvider].
 func (o *OutputTraceProvider) GetStepData(_ context.Context, _ types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
 	return nil, nil, nil, ErrGetStepData
+}
+
+func (o *OutputTraceProvider) GetL2BlockNumberChallenge(ctx context.Context) (*types.InvalidL2BlockNumberChallenge, error) {
+	outputBlock, err := o.HonestBlockNumber(ctx, types.RootPosition)
+	if err != nil {
+		return nil, err
+	}
+	claimedBlock, err := o.ClaimedBlockNumber(types.RootPosition)
+	if err != nil {
+		return nil, err
+	}
+	if claimedBlock == outputBlock {
+		return nil, types.ErrL2BlockNumberValid
+	}
+	output, err := o.rollupProvider.OutputAtBlock(ctx, outputBlock)
+	if err != nil {
+		return nil, err
+	}
+	header, err := o.l2Client.HeaderByNumber(ctx, new(big.Int).SetUint64(outputBlock))
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve L2 block header %v: %w", outputBlock, err)
+	}
+	return types.NewInvalidL2BlockNumberProof(output, header), nil
 }
 
 func (o *OutputTraceProvider) outputAtBlock(ctx context.Context, block uint64) (common.Hash, error) {

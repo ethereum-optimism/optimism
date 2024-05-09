@@ -160,18 +160,20 @@ export class MultisigMonService extends BaseServiceV2<
         `OP_SERVICE_ACCOUNT_TOKEN=${this.options.onePassServiceToken} op item list --format json --vault="${account.vault}"`,
         (error, stdout, stderr) => {
           if (error) {
-            this.logger.error(`got unexpected error from onepass: ${error}`, {
+            this.logger.error(`got unexpected error from onepass:`, {
               section: 'onePassNonce',
               name: 'getOnePassNonce',
             })
             return
           }
           if (stderr) {
-            this.logger.error(`got unexpected error from onepass`, {
-              section: 'onePassNonce',
-              name: 'getOnePassNonce',
-              stderr,
-            })
+            this.logger.error(
+              `got unexpected error (from the stderr) from onepass`,
+              {
+                section: 'onePassNonce',
+                name: 'getOnePassNonce',
+              }
+            )
             return
           }
           const items = JSON.parse(stdout)

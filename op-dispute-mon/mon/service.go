@@ -37,14 +37,13 @@ type Service struct {
 	cl clock.Clock
 
 	extractor    *extract.Extractor
-	forecast     *forecast
+	forecast     *Forecast
 	bonds        *bonds.Bonds
 	game         *extract.GameCallerCreator
 	resolutions  *ResolutionMonitor
 	claims       *ClaimMonitor
 	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
-	validator    *outputValidator
 
 	l1Client *ethclient.Client
 
@@ -90,7 +89,6 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initResolutionMonitor()
 	s.initWithdrawalMonitor()
 
-	s.initOutputValidator()   // Must be called before initForecast
 	s.initGameCallerCreator() // Must be called before initForecast
 
 	s.initExtractor(cfg)
@@ -118,10 +116,6 @@ func (s *Service) initWithdrawalMonitor() {
 	s.withdrawals = NewWithdrawalMonitor(s.logger, s.metrics)
 }
 
-func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.logger, s.metrics, s.rollupClient)
-}
-
 func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
@@ -132,17 +126,19 @@ func (s *Service) initExtractor(cfg *config.Config) {
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
 		cfg.IgnoredGames,
+		cfg.MaxConcurrency,
 		extract.NewClaimEnricher(),
 		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher
 		extract.NewWithdrawalsEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewAgreementEnricher(s.logger, s.metrics, s.rollupClient),
 	)
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
-	s.forecast = newForecast(s.logger, s.metrics, s.validator)
+	s.forecast = NewForecast(s.logger, s.metrics)
 }
 
 func (s *Service) initBonds() {
@@ -221,6 +217,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		ctx,
 		s.logger,
 		s.cl,
+		s.metrics,
 		cfg.MonitorInterval,
 		cfg.GameWindow,
 		s.forecast.Forecast,

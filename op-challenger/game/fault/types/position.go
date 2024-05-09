@@ -10,6 +10,8 @@ import (
 
 var (
 	ErrPositionDepthTooSmall = errors.New("position depth is too small")
+
+	RootPosition = NewPositionFromGIndex(big.NewInt(1))
 )
 
 // Depth is the depth of a position in a game tree where the root level has

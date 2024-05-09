@@ -25,6 +25,9 @@ type EnrichedGameData struct {
 	MaxClockDuration uint64
 	Claims           []EnrichedClaim
 
+	AgreeWithClaim    bool
+	ExpectedRootClaim common.Hash
+
 	// Recipients maps addresses to true if they are a bond recipient in the game.
 	Recipients map[common.Address]bool
 

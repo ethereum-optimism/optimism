@@ -10,11 +10,13 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
 contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev Receiver address for testing
@@ -225,5 +227,108 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(address(target).balance, value);
         assertEq(l2CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l2CrossDomainMessenger.failedMessages(hash), true);
+    }
+
+    /// @dev Tests that sendMessage succeeds with a custom gas token when the call value is zero.
+    function test_sendMessage_customGasToken_noValue_succeeds() external {
+        // Mock the gasPayingToken function to return a custom gas token
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+
+        bytes memory xDomainCallData =
+            Encoding.encodeCrossDomainMessage(l2CrossDomainMessenger.messageNonce(), alice, recipient, 0, 100, hex"ff");
+        vm.expectCall(
+            address(l2ToL1MessagePasser),
+            abi.encodeWithSelector(
+                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                address(l1CrossDomainMessenger),
+                l2CrossDomainMessenger.baseGas(hex"ff", 100),
+                xDomainCallData
+            )
+        );
+
+        // MessagePassed event
+        vm.expectEmit(true, true, true, true);
+        emit MessagePassed(
+            l2ToL1MessagePasser.messageNonce(),
+            address(l2CrossDomainMessenger),
+            address(l1CrossDomainMessenger),
+            0,
+            l2CrossDomainMessenger.baseGas(hex"ff", 100),
+            xDomainCallData,
+            Hashing.hashWithdrawal(
+                Types.WithdrawalTransaction({
+                    nonce: l2ToL1MessagePasser.messageNonce(),
+                    sender: address(l2CrossDomainMessenger),
+                    target: address(l1CrossDomainMessenger),
+                    value: 0,
+                    gasLimit: l2CrossDomainMessenger.baseGas(hex"ff", 100),
+                    data: xDomainCallData
+                })
+            )
+        );
+
+        vm.prank(alice);
+        l2CrossDomainMessenger.sendMessage(recipient, hex"ff", uint32(100));
+    }
+
+    /// @dev Tests that the sendMessage reverts when call value is non-zero with custom gas token.
+    function test_sendMessage_customGasToken_withValue_reverts() external {
+        // Mock the gasPayingToken function to return a custom gas token
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+
+        vm.expectRevert("CrossDomainMessenger: cannot send value with custom gas token");
+        l2CrossDomainMessenger.sendMessage{ value: 1 }(recipient, hex"ff", uint32(100));
+    }
+
+    /// @dev Tests that the relayMessage succeeds with a custom gas token when the call value is zero.
+    function test_relayMessage_customGasToken_noValue_succeeds() external {
+        // Mock the gasPayingToken function to return a custom gas token
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+
+        address target = address(0xabcd);
+        address sender = address(l1CrossDomainMessenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+
+        vm.expectCall(target, hex"1111");
+
+        vm.prank(caller);
+
+        vm.expectEmit(true, true, true, true);
+
+        bytes32 hash =
+            Hashing.hashCrossDomainMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, 0, 0, hex"1111");
+
+        emit RelayedMessage(hash);
+
+        l2CrossDomainMessenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 1), // nonce
+            sender,
+            target,
+            0, // value
+            0,
+            hex"1111"
+        );
+
+        // the message hash is in the successfulMessages mapping
+        assert(l2CrossDomainMessenger.successfulMessages(hash));
+        // it is not in the received messages mapping
+        assertEq(l2CrossDomainMessenger.failedMessages(hash), false);
+    }
+
+    /// @dev Tests that the relayMessage reverts when call value is non-zero with custom gas token.
+    ///       The L1CrossDomainMessenger `sendMessage` function cannot send value with a custom gas token.
+    function test_relayMessage_customGasToken_withValue_reverts() external virtual {
+        // Mock the gasPayingToken function to return a custom gas token
+        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
+        vm.expectRevert("CrossDomainMessenger: value must be zero unless message is from a system address");
+
+        l2CrossDomainMessenger.relayMessage{ value: 1 }(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            address(0xabcd),
+            address(0xabcd),
+            1, // value
+            0,
+            hex"1111"
+        );
     }
 }

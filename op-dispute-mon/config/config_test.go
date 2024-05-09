@@ -41,3 +41,9 @@ func TestRollupRpcRequired(t *testing.T) {
 	config.RollupRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
+
+func TestMaxConcurrencyRequired(t *testing.T) {
+	config := validConfig()
+	config.MaxConcurrency = 0
+	require.ErrorIs(t, config.Check(), ErrMissingMaxConcurrency)
+}
