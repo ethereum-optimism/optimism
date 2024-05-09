@@ -75,15 +75,6 @@ func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount in
 }
 
 func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *forecastBatch) error {
-	// Games that have their block number challenged must be won
-	// by the challenger since the counter is proven on-chain.
-	if game.BlockNumberChallenged {
-		f.logger.Debug("Found game with challenged block number",
-			"game", game.Proxy, "blockNum", game.L2BlockNumber)
-		metrics.AgreeChallengerWins++
-		return nil
-	}
-
 	// Check the root agreement.
 	agreement := game.AgreeWithClaim
 	expected := game.ExpectedRootClaim
@@ -117,6 +108,15 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 				metrics.DisagreeChallengerWins++
 			}
 		}
+		return nil
+	}
+
+	// Games that have their block number challenged are won
+	// by the challenger since the counter is proven on-chain.
+	if game.BlockNumberChallenged {
+		f.logger.Debug("Found game with challenged block number",
+			"game", game.Proxy, "blockNum", game.L2BlockNumber)
+		metrics.AgreeChallengerAhead++
 		return nil
 	}
 
