@@ -25,7 +25,6 @@ func TestCustomGasToken(t *testing.T) {
 	InitParallel(t, SkipOnFPAC) // Custom Gas Token feature is not yet compatible with FPAC
 
 	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.FinalizationPeriodSeconds = 2 // 2s finalization period
 
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
