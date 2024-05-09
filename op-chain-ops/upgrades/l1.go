@@ -757,9 +757,9 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			L1CrossDomainMessenger:       common.Address(list.L1CrossDomainMessengerProxy),
 			L1ERC721Bridge:               common.Address(list.L1ERC721BridgeProxy),
 			L1StandardBridge:             common.Address(list.L1StandardBridgeProxy),
-			L2OutputOracle:               common.Address(list.L2OutputOracleProxy),
 			OptimismPortal:               common.Address(list.OptimismPortalProxy),
 			OptimismMintableERC20Factory: common.Address(list.OptimismMintableERC20FactoryProxy),
+			GasPayingToken:               common.Address{},
 		},
 	)
 	if err != nil {
