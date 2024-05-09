@@ -41,6 +41,12 @@ func deltaAt(t *uint64) func(*rollup.Config) {
 	}
 }
 
+func fjordAt(t *uint64) func(*rollup.Config) {
+	return func(c *rollup.Config) {
+		c.FjordTime = t
+	}
+}
+
 const defaultBlockTime = 2
 
 func TestValidBatch(t *testing.T) {
@@ -392,6 +398,23 @@ func TestValidBatch(t *testing.T) {
 				},
 			},
 			Expected: BatchDrop,
+		},
+		{ // this is the same test case as above, but with Fjord activated at the L1 origin, so accepted batch
+			Name:       "no sequencer time drift on same epoch with non-empty txs and Fjord",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A3,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &SingularBatch{ // we build l2A4, which has a timestamp of 2*4 = 8 higher than l2A0
+					ParentHash:   l2A4.ParentHash,
+					EpochNum:     rollup.Epoch(l2A4.L1Origin.Number),
+					EpochHash:    l2A4.L1Origin.Hash,
+					Timestamp:    l2A4.Time,
+					Transactions: []hexutil.Bytes{[]byte("sequencer should include this tx")},
+				},
+			},
+			ConfigMod: fjordAt(&l1A.Time),
+			Expected:  BatchAccept,
 		},
 		{
 			Name:       "sequencer time drift on changing epoch with non-empty txs",
