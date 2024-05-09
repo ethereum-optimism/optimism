@@ -77,6 +77,8 @@ import {
   toJsonRpcProvider,
 } from './utils'
 
+import { BigNumberish, BytesLike } from 'ethers';
+
 export class CrossChainMessenger {
   /**
    * Provider connected to the L1 chain.
@@ -1992,6 +1994,8 @@ export class CrossChainMessenger {
       await this.populateTransaction.depositETH(amount, opts)
     )
   }
+  
+
 
   /**
    * Withdraws some ETH back to the L1 chain.
@@ -2131,6 +2135,81 @@ export class CrossChainMessenger {
       )
     )
   }
+
+  //----------------------------------------------------------------------//
+  
+    /**
+     * Deposits some CustomGas-ERC20 tokens into the L2 Native chain. (Version - Testing)
+     * 
+     * // Do not use approve, approveERC20 because it must be retrieved. getBridgeForTokenPair Request to add first 
+     * // Therefore use approval from Token directly to avoid getBridgeForTokenPair For this test function: "depositERC20Transaction" (OptimismPortalProxy)
+     * // Clone: https://github.com/nidz-the-fact/op-stack-bridge-Testing-erc20-to-native
+     * 
+     * // Repo: https://github.com/nidz-the-fact
+     * // Team ThaiChain Foundation (https://www.thaichain.io)
+     *
+     * ---
+     * @title Deposits some CustomGas-ERC20 tokens into the L2 Native chain. (Version - Testing)
+     * @author nidz-the-fact
+     * @notice Version - Testing = Therefore use approval from Token directly to avoid getBridgeForTokenPair For this test function: "depositERC20Transaction" (OptimismPortalProxy)
+     * ---
+     * 
+     * @param l1Token Address of the L1 token.
+     * @param l2Token **Not specified = Get the value is Native L2.**
+     * @param amount Amount to deposit.
+     * @param opts Additional options.
+     * @param opts.signer Optional signer to use to send the transaction.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction response for the deposit transaction.
+     */
+    public async depositERC20Transaction(
+      l1Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        recipient?: AddressLike
+        signer?: Signer
+        l2GasLimit?: NumberLike
+        overrides?: CallOverrides
+      }
+    ): Promise<TransactionResponse> {
+      return (opts?.signer || this.l1Signer).sendTransaction(
+        await this.populateTransaction.depositERC20Transaction(
+          l1Token,
+          amount,
+          opts
+        )
+      )
+    }
+
+   /**
+   * Withdraws some CustomGas-ERC20 tokens back to the L1 Native chain.
+   *
+   * @param l1Token Address of the L1 token.
+   * @param amount Amount to withdraw.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the withdraw transaction.
+   */
+   public async withdrawERC20Transaction(
+    l1Token: AddressLike,
+    amount: NumberLike,
+    opts?: {
+      recipient?: AddressLike
+      signer?: Signer
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse> {
+    return (opts?.signer || this.l2Signer).sendTransaction(
+      await this.populateTransaction.withdrawERC20Transaction(l1Token, amount, opts)
+    )
+  }
+
+  //----------------------------------------------------------------------//
+
 
   /**
    * Object that holds the functions that generate transactions to be signed by the user.
@@ -2453,6 +2532,65 @@ export class CrossChainMessenger {
       )
     },
 
+
+    
+    //------------------------//
+
+    depositERC20Transaction: async (
+      l1Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        recipient?: AddressLike
+        l2GasLimit?: NumberLike
+        overrides?: PayableOverrides
+      },
+      isEstimatingGas: boolean = false
+    ): Promise<TransactionRequest> => {
+      const getOpts = async () => {
+        if (isEstimatingGas) {
+          return opts
+        }
+        const gasEstimation = await this.estimateGas.depositERC20Transaction(l1Token, amount, opts)
+        return {
+          ...opts,
+          overrides: {
+            ...opts?.overrides,
+            gasLimit: gasEstimation.add(gasEstimation.div(2)),
+          },
+        }
+      }
+      return this.bridges.ETH.populateTransaction.deposit(
+        l1Token,
+        predeploys.OVM_ETH,
+        amount,
+        await getOpts()
+      )
+    },
+
+    //------------------------//
+
+    //------------------------//
+
+    withdrawERC20Transaction: async (
+      l1Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        recipient?: AddressLike
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest> => {
+      return this.bridges.ETH.populateTransaction.withdraw(
+        l1Token,
+        predeploys.OVM_ETH,
+        amount,
+        opts
+      )
+    },
+
+    //------------------------//
+
+
+
     /**
      * Generates a transaction for approving some tokens to deposit into the L2 chain.
      *
@@ -2562,6 +2700,11 @@ export class CrossChainMessenger {
       return bridge.populateTransaction.withdraw(l1Token, l2Token, amount, opts)
     },
   }
+
+
+  
+
+
 
   /**
    * Object that holds the functions that estimates the gas required for a given transaction.
@@ -2707,6 +2850,42 @@ export class CrossChainMessenger {
       )
     },
 
+
+    //---------------------------//
+
+    depositERC20Transaction: async (
+      l1Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        recipient?: AddressLike
+        l2GasLimit?: NumberLike
+        overrides?: CallOverrides
+      }
+    ): Promise<BigNumber> => {
+      return this.l1Provider.estimateGas(
+        await this.populateTransaction.depositERC20Transaction(l1Token, amount, opts, true)
+      )
+    },
+
+    //---------------------------//
+
+    //---------------------------//
+
+    withdrawERC20Transaction: async (
+      l1Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        recipient?: AddressLike
+        overrides?: CallOverrides
+      }
+    ): Promise<BigNumber> => {
+      return this.l2Provider.estimateGas(
+        await this.populateTransaction.withdrawERC20Transaction(l1Token, amount, opts)
+      )
+    },
+
+    //---------------------------//
+
     /**
      * Estimates gas required to approve some tokens to deposit into the L2 chain.
      *
@@ -2797,5 +2976,6 @@ export class CrossChainMessenger {
         )
       )
     },
+
   }
 }
