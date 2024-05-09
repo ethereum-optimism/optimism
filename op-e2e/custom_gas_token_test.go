@@ -136,7 +136,6 @@ func TestCustomGasToken(t *testing.T) {
 		ethPrivKey := cfg.Secrets.Alice
 
 		// Start L2 balance for withdrawal
-
 		startBalanceBeforeWithdrawal, err := l2Seq.BalanceAt(context.Background(), fromAddr, nil)
 		require.NoError(t, err)
 
@@ -145,6 +144,7 @@ func TestCustomGasToken(t *testing.T) {
 			opts.Value = withdrawAmount
 			opts.VerifyOnClients(l2Verif)
 		})
+
 		// Verify L2 balance after withdrawal
 		header, err := l2Verif.HeaderByNumber(context.Background(), receipt.BlockNumber)
 		require.NoError(t, err)
@@ -288,6 +288,8 @@ func TestCustomGasToken(t *testing.T) {
 	checkWETHTokenNameAndSymbol(t, enabled)
 }
 
+// callViaSafe will use the Safe smart account at safeAddress to send a transaction to target using the provided data. The transaction signature is constructed from
+// the supplied opts.
 func callViaSafe(opts *bind.TransactOpts, client *ethclient.Client, safeAddress common.Address, target common.Address, data []byte) (*types.Transaction, error) {
 	signature := [65]byte{}
 	copy(signature[12:], opts.From[:])
@@ -314,6 +316,9 @@ func callViaSafe(opts *bind.TransactOpts, client *ethclient.Client, safeAddress 
 	return safe.ExecTransaction(opts, target, big.NewInt(0), data, 0, big.NewInt(0), big.NewInt(0), big.NewInt(0), common.Address{}, common.Address{}, signature[:])
 }
 
+// setCustomGasToeken enables the Custom Gas Token feature on a chain where it wasn't enabled at genesis.
+// It reads existing parameters from the SystemConfig contract, inserts the supplied cgtAddress and reinitializes that contract.
+// To do this it uses the ProxyAdmin and StorageSetter from the supplied cfg.
 func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress common.Address) {
 	l1Client := sys.Clients["l1"]
 	deployerOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Deployer, cfg.L1ChainIDBig())
@@ -443,6 +448,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	require.NoError(t, err)
 }
 
+// waitForTx is a thing wrapper around wait.ForReceiptOK which asserts on there being no errors.
 func waitForTx(t *testing.T, tx *types.Transaction, err error, client *ethclient.Client) {
 	require.NoError(t, err)
 	_, err = wait.ForReceiptOK(context.Background(), client, tx.Hash())
