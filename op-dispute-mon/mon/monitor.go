@@ -98,7 +98,7 @@ func (m *gameMonitor) monitorGames() error {
 	m.claims(enrichedGames)
 	m.withdrawals(enrichedGames)
 	timeTaken := m.clock.Since(start)
-	m.logger.Info("Completed monitoring update", "blockNumber", blockNumber, "blockHash", blockHash, "duration", timeTaken)
+	m.logger.Info("Completed monitoring update", "blockNumber", blockNumber, "blockHash", blockHash, "duration", timeTaken, "games", len(enrichedGames), "ignored", ignored, "failed", failed)
 	return nil
 }
 
