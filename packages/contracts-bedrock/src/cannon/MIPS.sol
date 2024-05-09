@@ -423,7 +423,7 @@ contract MIPS is ISemver {
             // And the remainder in HI
             else if (_func == 0x1a) {
                 if (int32(_rt) == 0) {
-                    revert("division by zero");
+                    revert("MIPS: division by zero");
                 }
                 state.hi = uint32(int32(_rs) % int32(_rt));
                 state.lo = uint32(int32(_rs) / int32(_rt));
@@ -433,7 +433,7 @@ contract MIPS is ISemver {
             // And the remainder in HI
             else if (_func == 0x1b) {
                 if (_rt == 0) {
-                    revert("division by zero");
+                    revert("MIPS: division by zero");
                 }
                 state.hi = _rs % _rt;
                 state.lo = _rs / _rt;

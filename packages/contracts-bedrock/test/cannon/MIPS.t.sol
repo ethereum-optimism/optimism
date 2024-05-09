@@ -898,7 +898,7 @@ contract MIPS_Test is CommonTest {
         state.registers[9] = 5; // t1
         state.registers[10] = 0; // t2
 
-        vm.expectRevert("division by zero");
+        vm.expectRevert("MIPS: division by zero");
         mips.step(encodeState(state), proof, 0);
     }
 
@@ -908,7 +908,7 @@ contract MIPS_Test is CommonTest {
         state.registers[9] = 5; // t1
         state.registers[10] = 0; // t2
 
-        vm.expectRevert("division by zero");
+        vm.expectRevert("MIPS: division by zero");
         mips.step(encodeState(state), proof, 0);
     }
 
