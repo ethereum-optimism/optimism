@@ -12,12 +12,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/receipts"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,10 +27,6 @@ func TestCustomGasToken(t *testing.T) {
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
-
-	log := testlog.Logger(t, log.LevelInfo)
-	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
-
 	l1Client := sys.Clients["l1"]
 	l2Client := sys.Clients["sequencer"]
 
