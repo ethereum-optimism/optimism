@@ -132,6 +132,7 @@ func (s *Service) initExtractor(cfg *config.Config) {
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
 		cfg.IgnoredGames,
+		cfg.MaxConcurrency,
 		extract.NewClaimEnricher(),
 		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher
 		extract.NewWithdrawalsEnricher(),

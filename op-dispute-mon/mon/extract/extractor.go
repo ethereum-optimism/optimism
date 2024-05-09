@@ -31,11 +31,12 @@ type Extractor struct {
 	logger         log.Logger
 	createContract CreateGameCaller
 	fetchGames     FactoryGameFetcher
+	maxConcurrency int
 	enrichers      []Enricher
 	ignoredGames   map[common.Address]bool
 }
 
-func NewExtractor(logger log.Logger, creator CreateGameCaller, fetchGames FactoryGameFetcher, ignoredGames []common.Address, enrichers ...Enricher) *Extractor {
+func NewExtractor(logger log.Logger, creator CreateGameCaller, fetchGames FactoryGameFetcher, ignoredGames []common.Address, maxConcurrency uint, enrichers ...Enricher) *Extractor {
 	ignored := make(map[common.Address]bool)
 	for _, game := range ignoredGames {
 		ignored[game] = true
@@ -44,6 +45,7 @@ func NewExtractor(logger log.Logger, creator CreateGameCaller, fetchGames Factor
 		logger:         logger,
 		createContract: creator,
 		fetchGames:     fetchGames,
+		maxConcurrency: int(maxConcurrency),
 		enrichers:      enrichers,
 		ignoredGames:   ignored,
 	}
@@ -63,12 +65,13 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 	var ignored atomic.Int32
 	var failed atomic.Int32
 
-	concurrencyLimit := 5
 	var wg sync.WaitGroup
-	wg.Add(concurrencyLimit)
-	gameCh := make(chan gameTypes.GameMetadata)
-	enrichedCh := make(chan *monTypes.EnrichedGameData, concurrencyLimit)
-	for i := 0; i < concurrencyLimit; i++ {
+	wg.Add(e.maxConcurrency)
+	gameCh := make(chan gameTypes.GameMetadata, e.maxConcurrency)
+	// Create a channel for enriched games. Must have enough capacity to hold all games.
+	enrichedCh := make(chan *monTypes.EnrichedGameData, len(games))
+	// Spin up multiple goroutines to enrich game data
+	for i := 0; i < e.maxConcurrency; i++ {
 		go func() {
 			defer wg.Done()
 			for {
@@ -98,32 +101,19 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 		}()
 	}
 
-	var resultsWg sync.WaitGroup
-	resultsWg.Add(1)
-	go func() {
-		defer resultsWg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case enrichedGame, ok := <-enrichedCh:
-				if !ok {
-					e.logger.Debug("Result reading complete")
-					return
-				}
-				e.logger.Trace("Enriched game", "game", enrichedGame.Proxy)
-				enrichedGames = append(enrichedGames, enrichedGame)
-			}
-		}
-	}()
+	// Push each game into the channel
 	for _, game := range games {
 		gameCh <- game
 	}
 	close(gameCh)
-
+	// Wait for games to finish being enriched then close enrichedCh since no future results will be published
 	wg.Wait()
 	close(enrichedCh)
-	resultsWg.Wait()
+
+	// Read the results
+	for enrichedGame := range enrichedCh {
+		enrichedGames = append(enrichedGames, enrichedGame)
+	}
 	return enrichedGames, int(ignored.Load()), int(failed.Load())
 }
 

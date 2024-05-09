@@ -179,6 +179,7 @@ func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockG
 		creator.CreateGameCaller,
 		games.FetchGames,
 		ignoredGames,
+		5,
 		enrichers...,
 	)
 	return extractor, creator, games, capturedLogs

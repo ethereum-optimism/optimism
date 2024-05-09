@@ -62,6 +62,12 @@ var (
 		Usage:   "List of game addresses to exclude from monitoring.",
 		EnvVars: prefixEnvVars("IGNORED_GAMES"),
 	}
+	MaxConcurrencyFlag = &cli.UintFlag{
+		Name:    "max-concurrency",
+		Usage:   "Maximum number of threads to use when fetching game data",
+		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
+		Value:   config.DefaultMaxConcurrency,
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -77,6 +83,7 @@ var optionalFlags = []cli.Flag{
 	MonitorIntervalFlag,
 	GameWindowFlag,
 	IgnoredGamesFlag,
+	MaxConcurrencyFlag,
 }
 
 func init() {
@@ -143,6 +150,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),
 		GameWindow:      ctx.Duration(GameWindowFlag.Name),
 		IgnoredGames:    ignoredGames,
+		MaxConcurrency:  ctx.Uint(MaxConcurrencyFlag.Name),
 
 		MetricsConfig: metricsConfig,
 		PprofConfig:   pprofConfig,
