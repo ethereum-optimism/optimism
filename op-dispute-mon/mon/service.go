@@ -222,6 +222,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		ctx,
 		s.logger,
 		s.cl,
+		s.metrics,
 		cfg.MonitorInterval,
 		cfg.GameWindow,
 		s.forecast.Forecast,

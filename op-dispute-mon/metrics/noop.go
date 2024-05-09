@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"math/big"
+	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,6 +16,9 @@ var NoopMetrics Metricer = new(NoopMetricsImpl)
 
 func (*NoopMetricsImpl) RecordInfo(_ string) {}
 func (*NoopMetricsImpl) RecordUp()           {}
+
+func (i *NoopMetricsImpl) RecordMonitorDuration(_ time.Duration) {
+}
 
 func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
