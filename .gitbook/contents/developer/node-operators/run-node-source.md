@@ -59,8 +59,8 @@ make op-node
 ### Clone the Erigon repo
 
 ```bash
-git clone https://github.com/bobanetwork/v3-erigon.git
-cd v3-erigon
+git clone https://github.com/bobanetwork/op-erigon.git
+cd op-erigon
 ```
 
 ### Check out the required release branch
@@ -84,6 +84,20 @@ make erigon
 You can download the database snapshot for the client and network you wish to run.
 
 Always verify snapshots by comparing the sha256sum of the downloaded file to the sha256sum listed on this [page](./snapshot-downloads.md). Check the sha256sum of the downloaded file by running `sha256sum <filename>`in a terminal.
+
+* BOBA Mainnet
+
+  The **erigon** db can be downloaded from the [boba mainnet erigon db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz).
+
+  ```bash
+  curl -o boba-mainnet-erigon-db-1149019.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz
+  ```
+
+  The **geth** db can be downloaded from [boba mainnet geth db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-114909.tgz).
+
+  ```bash
+  curl -o boba-mainnet-geth-db-114909.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-114909.tgz
+  ```
 
 - BOBA Sepolia
 
@@ -130,10 +144,10 @@ openssl rand -hex 32 > jwt.txt
 
 It's usually simpler to begin with `op-erigon` before you start `op-node`. You can start `op-erigon` even if `op-node` isn't running yet, but `op-erigon` won't get any blocks until `op-node` starts.
 
-### Navigate to your v3-erigon directory
+### Navigate to your op-erigon directory
 
 ```bash
-cd v3-erigon
+cd op-erigon
 ```
 
 ### Copy in the JWT secret
@@ -162,7 +176,7 @@ Using the following command to start `op-erigon` in a default configuration. The
 	--authrpc.jwtsecret=./jwt.txt \
 	--chain=boba-sepolia \
 	--http.api=eth,debug,net,engine,web3 \
-	--rollup.sequencerhttp=https://sepolia.boba.network \
+	--rollup.sequencerhttp=https://mainnet.boba.network \
 	--db.size.limit=8TB
 ```
 

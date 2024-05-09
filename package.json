@@ -82,7 +82,8 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "@foundry-rs/hardhat-forge@0.1.17": "patches/@foundry-rs__hardhat-forge@0.1.17.patch"
+      "@foundry-rs/hardhat-forge@0.1.17": "patches/@foundry-rs__hardhat-forge@0.1.17.patch",
+      "@eth-optimism/contracts@0.6.0": "patches/@eth-optimism__contracts@0.6.0.patch"
     }
   }
 }
