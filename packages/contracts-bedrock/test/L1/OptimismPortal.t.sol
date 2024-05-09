@@ -490,7 +490,7 @@ contract OptimismPortal_Test is CommonTest {
         vm.prank(address(systemConfig));
         optimismPortal.setGasPayingToken({ _token: _token, _decimals: 18, _name: name, _symbol: symbol });
 
-        vm.prank(address(Constants.DEPOSITOR_ACCOUNT));
+        vm.prank(Constants.DEPOSITOR_ACCOUNT, Constants.DEPOSITOR_ACCOUNT);
         optimismPortal.depositTransaction({
             _to: Predeploys.L1_BLOCK_ATTRIBUTES,
             _value: 0,
@@ -505,9 +505,12 @@ contract OptimismPortal_Test is CommonTest {
         VmSafe.Log memory systemPath = logs[0];
         VmSafe.Log memory userPath = logs[1];
 
+        assertEq(systemPath.topics.length, 4);
         assertEq(systemPath.topics.length, userPath.topics.length);
-        //assertEq(systemPath.topics[0], userPath.topics[0]);
-        //assertEq(systemPath.topics[1], userPath.topics[1]);
+        assertEq(systemPath.topics[0], userPath.topics[0]);
+        assertEq(systemPath.topics[1], userPath.topics[1]);
+        assertEq(systemPath.topics[2], userPath.topics[2]);
+        assertEq(systemPath.topics[3], userPath.topics[3]);
         assertEq(systemPath.data, userPath.data);
     }
 
