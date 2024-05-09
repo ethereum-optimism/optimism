@@ -509,6 +509,19 @@
   },
   {
     "inputs": [],
+    "name": "l2BlockNumberChallenger",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "l2ChainId",
     "outputs": [
       {

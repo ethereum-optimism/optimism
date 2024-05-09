@@ -69,8 +69,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.1.1
+    string public constant version = "1.1.1";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -89,7 +89,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @notice The challenger of the L2 block number claim. Should always be `address(0)` if `l2BlockNumberChallenged`
     ///         is `false`. Should be the address of the challenger if `l2BlockNumberChallenged` is `true`.
-    address internal l2BlockNumberChallenger;
+    address public l2BlockNumberChallenger;
 
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
