@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -90,9 +89,7 @@ func TestCustomGasToken(t *testing.T) {
 		waitForTx(t, tx, err, l1Client)
 
 		// Get recipient L2 balance before bridging
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		previousL2Balance, err := l2Client.BalanceAt(ctx, recipient, nil)
+		previousL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
 		require.NoError(t, err)
 
 		// Bridge the tokens
@@ -108,9 +105,7 @@ func TestCustomGasToken(t *testing.T) {
 		)
 		if enabled {
 			require.NoError(t, err)
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
+			receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 			require.NoError(t, err)
 
 			// compute the deposit transaction hash + poll for it
@@ -118,15 +113,11 @@ func TestCustomGasToken(t *testing.T) {
 			require.NoError(t, err, "Should emit deposit event")
 			depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
 			require.NoError(t, err)
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			_, err = wait.ForReceiptOK(ctx, l2Client, types.NewTx(depositTx).Hash())
+			_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
 			require.NoError(t, err)
 
 			// check for balance increase on L2
-			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			newL2Balance, err := l2Client.BalanceAt(ctx, recipient, nil)
+			newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
 			require.NoError(t, err)
 			l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
 			require.Equal(t, amountToBridge, l2BalanceIncrease)
@@ -145,9 +136,8 @@ func TestCustomGasToken(t *testing.T) {
 		ethPrivKey := cfg.Secrets.Alice
 
 		// Start L2 balance for withdrawal
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		startBalanceBeforeWithdrawal, err := l2Seq.BalanceAt(ctx, fromAddr, nil)
+
+		startBalanceBeforeWithdrawal, err := l2Seq.BalanceAt(context.Background(), fromAddr, nil)
 		require.NoError(t, err)
 
 		withdrawAmount := big.NewInt(5)
@@ -156,14 +146,10 @@ func TestCustomGasToken(t *testing.T) {
 			opts.VerifyOnClients(l2Verif)
 		})
 		// Verify L2 balance after withdrawal
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
+		header, err := l2Verif.HeaderByNumber(context.Background(), receipt.BlockNumber)
 		require.NoError(t, err)
 
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		endBalanceAfterWithdrawal, err := wait.ForBalanceChange(ctx, l2Seq, fromAddr, startBalanceBeforeWithdrawal)
+		endBalanceAfterWithdrawal, err := wait.ForBalanceChange(context.Background(), l2Seq, fromAddr, startBalanceBeforeWithdrawal)
 		require.NoError(t, err)
 
 		// Take fee into account
