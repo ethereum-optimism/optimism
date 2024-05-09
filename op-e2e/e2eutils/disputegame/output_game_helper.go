@@ -442,6 +442,19 @@ func (g *OutputGameHelper) WaitForInactivity(ctx context.Context, numInactiveBlo
 	}
 }
 
+func (g *OutputGameHelper) WaitForL2BlockNumberChallenged(ctx context.Context) {
+	g.T.Logf("Waiting for game %v to have L2 block number challenged", g.Addr)
+	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
+	contract, err := contracts.NewFaultDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, g.Addr, caller)
+	g.Require.NoError(err)
+	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	err = wait.For(timedCtx, time.Second, func() (bool, error) {
+		return contract.IsL2BlockNumberChallenged(ctx, rpcblock.Latest)
+	})
+	g.Require.NoError(err, "L2 block number was not challenged in time")
+}
+
 // Mover is a function that either attacks or defends the claim at parentClaimIdx
 type Mover func(parent *ClaimHelper) *ClaimHelper
 

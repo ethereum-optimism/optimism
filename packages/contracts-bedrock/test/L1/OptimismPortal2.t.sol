@@ -368,11 +368,14 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     }
 
     /// @dev Tests that the guardian role can blacklist any dispute game.
-    function testFuzz_blacklist_guardian_succeeds(address _addr) external {
-        vm.prank(optimismPortal2.guardian());
-        optimismPortal2.blacklistDisputeGame(IDisputeGame(_addr));
+    function testFuzz_blacklist_guardian_succeeds(IDisputeGame _addr) external {
+        vm.expectEmit(address(optimismPortal2));
+        emit DisputeGameBlacklisted(_addr);
 
-        assertTrue(optimismPortal2.disputeGameBlacklist(IDisputeGame(_addr)));
+        vm.prank(optimismPortal2.guardian());
+        optimismPortal2.blacklistDisputeGame(_addr);
+
+        assertTrue(optimismPortal2.disputeGameBlacklist(_addr));
     }
 
     /// @dev Tests that `setRespectedGameType` reverts when called by a non-guardian.
@@ -386,6 +389,8 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Tests that the guardian role can set the respected game type to anything they want.
     function testFuzz_setRespectedGameType_guardian_succeeds(GameType _ty) external {
+        vm.expectEmit(address(optimismPortal2));
+        emit RespectedGameTypeSet(_ty, Timestamp.wrap(uint64(block.timestamp)));
         vm.prank(optimismPortal2.guardian());
         optimismPortal2.setRespectedGameType(_ty);
 

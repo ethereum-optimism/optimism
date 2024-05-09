@@ -4,16 +4,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/holiman/uint256"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 )
 
 // PrecompileCount represents the number of precompile addresses
@@ -61,43 +57,45 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *ForgeAllocs, l1Deployme
 	}
 	// copy, for safety when the dump is reused (like in e2e testing)
 	genesis.Alloc = dump.Copy().Accounts
-	memDB := state.NewMemoryStateDB(genesis)
-	FundDevAccounts(memDB)
-	SetPrecompileBalances(memDB)
+	if config.FundDevAccounts {
+		FundDevAccounts(genesis)
+	}
+	SetPrecompileBalances(genesis)
 
 	l1Deployments.ForEach(func(name string, addr common.Address) {
-		acc := memDB.GetAccount(addr)
-		if acc != nil {
+		acc, ok := genesis.Alloc[addr]
+		if ok {
 			log.Info("Included L1 deployment", "name", name, "address", addr, "balance", acc.Balance, "storage", len(acc.Storage), "nonce", acc.Nonce)
 		} else {
 			log.Info("Excluded L1 deployment", "name", name, "address", addr)
 		}
 	})
 
-	return memDB.Genesis(), nil
-}
-
-// CreateAccountNotExists creates the account in the `vm.StateDB` if it doesn't exist.
-func CreateAccountNotExists(db vm.StateDB, account common.Address) {
-	if !db.Exist(account) {
-		db.CreateAccount(account)
-	}
+	return genesis, nil
 }
 
 // FundDevAccounts will fund each of the development accounts.
-func FundDevAccounts(db vm.StateDB) {
+func FundDevAccounts(gen *core.Genesis) {
 	for _, account := range DevAccounts {
-		CreateAccountNotExists(db, account)
-		db.AddBalance(account, uint256.MustFromBig(devBalance))
+		acc := gen.Alloc[account]
+		if acc.Balance == nil {
+			acc.Balance = new(big.Int)
+		}
+		acc.Balance = acc.Balance.Add(acc.Balance, devBalance)
+		gen.Alloc[account] = acc
 	}
 }
 
 // SetPrecompileBalances will set a single wei at each precompile address.
 // This is an optimization to make calling them cheaper.
-func SetPrecompileBalances(db vm.StateDB) {
+func SetPrecompileBalances(gen *core.Genesis) {
 	for i := 0; i < PrecompileCount; i++ {
 		addr := common.BytesToAddress([]byte{byte(i)})
-		CreateAccountNotExists(db, addr)
-		db.AddBalance(addr, uint256.NewInt(1))
+		acc := gen.Alloc[addr]
+		if acc.Balance == nil {
+			acc.Balance = new(big.Int)
+		}
+		acc.Balance = acc.Balance.Add(acc.Balance, big.NewInt(1))
+		gen.Alloc[addr] = acc
 	}
 }

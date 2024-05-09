@@ -126,7 +126,7 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "contract IDisputeGame",
         "name": "game",
         "type": "address"
@@ -152,10 +152,16 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "GameType",
         "name": "gameType",
         "type": "uint32"
+      },
+      {
+        "indexed": true,
+        "internalType": "Timestamp",
+        "name": "updatedAt",
+        "type": "uint64"
       }
     ],
     "name": "RespectedGameTypeSet",

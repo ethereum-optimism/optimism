@@ -3,6 +3,6 @@
   "foundry": "63fff3510408b552f11efb8196f48cfe6c1da664",
   "geth": "v1.13.14",
   "nvm": "v20.9.0",
-  "slither": "0.10.0",
+  "slither": "0.10.2",
   "kontrol": "0.1.247"
 }

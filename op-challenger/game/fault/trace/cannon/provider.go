@@ -94,6 +94,10 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	return value, data, oracleData, nil
 }
 
+func (p *CannonTraceProvider) GetL2BlockNumberChallenge(_ context.Context) (*types.InvalidL2BlockNumberChallenge, error) {
+	return nil, types.ErrL2BlockNumberValid
+}
+
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
 func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.ProofData, error) {

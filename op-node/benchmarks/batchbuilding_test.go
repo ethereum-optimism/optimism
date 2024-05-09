@@ -94,7 +94,7 @@ func (t BatchingBenchmarkTC) String() string {
 // Every Compressor in the compressor map is benchmarked for each test case
 // The results of the Benchmark measure *only* the time to add the final batch to the channel out,
 // not the time to send all the batches through the channel out
-// Hint: Raise the derive.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits if adding larger test cases
+// Hint: Raise the rollup.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits if adding larger test cases
 func BenchmarkFinalBatchChannelOut(b *testing.B) {
 	// Targets define the number of batches and transactions per batch to test
 	type target struct{ bs, tpb int }
@@ -203,7 +203,7 @@ func BenchmarkIncremental(b *testing.B) {
 // Every Compressor in the compressor map is benchmarked for each test case
 // The results of the Benchmark measure the time to add the *all batches* to the channel out,
 // not the time to send all the batches through the channel out
-// Hint: Raise the derive.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits
+// Hint: Raise the rollup.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits
 func BenchmarkAllBatchesChannelOut(b *testing.B) {
 	// Targets define the number of batches and transactions per batch to test
 	type target struct{ bs, tpb int }

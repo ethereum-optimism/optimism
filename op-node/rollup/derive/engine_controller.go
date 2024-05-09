@@ -327,8 +327,8 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-		isTransitionBlock := e.rollupCfg.Genesis.L2.Number != 0 && b.Hash == e.rollupCfg.Genesis.L2.Hash
-		if errors.Is(err, ethereum.NotFound) || isTransitionBlock {
+		rollupGenesisIsFinalized := b.Hash == e.rollupCfg.Genesis.L2.Hash
+		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()

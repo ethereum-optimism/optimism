@@ -57,6 +57,18 @@ func TestDoNotMakeMovesWhenGameIsResolvable(t *testing.T) {
 	}
 }
 
+func TestDoNotMakeMovesWhenL2BlockNumberChallenged(t *testing.T) {
+	ctx := context.Background()
+
+	agent, claimLoader, responder := setupTestAgent(t)
+	claimLoader.blockNumChallenged = true
+
+	require.NoError(t, agent.Act(ctx))
+
+	require.Equal(t, 1, responder.callResolveCount, "should check if game is resolvable")
+	require.Equal(t, 1, claimLoader.callCount, "should fetch claims only once for resolveClaim")
+}
+
 func createClaimsWithClaimants(t *testing.T, d types.Depth) []types.Claim {
 	claimBuilder := test.NewClaimBuilder(t, d, alphabet.NewTraceProvider(big.NewInt(0), d))
 	rootClaim := claimBuilder.CreateRootClaim()
@@ -180,9 +192,14 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 }
 
 type stubClaimLoader struct {
-	callCount int
-	maxLoads  int
-	claims    []types.Claim
+	callCount          int
+	maxLoads           int
+	claims             []types.Claim
+	blockNumChallenged bool
+}
+
+func (s *stubClaimLoader) IsL2BlockNumberChallenged(_ context.Context, _ rpcblock.Block) (bool, error) {
+	return s.blockNumChallenged, nil
 }
 
 func (s *stubClaimLoader) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]types.Claim, error) {

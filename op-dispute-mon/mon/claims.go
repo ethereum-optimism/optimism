@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+const MaximumResolutionResponseBuffer = time.Minute
+
 type RClock interface {
 	Now() time.Time
 }
@@ -94,7 +96,7 @@ func (c *ClaimMonitor) checkGameClaims(
 
 		// Check if the clock has expired
 		if firstHalf && claim.Resolved {
-			c.logger.Error("Claim resolved in the first half of the game duration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex)
+			c.logger.Error("Claim resolved in the first half of the game duration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex, "id", claim.ID(), "clock", duration)
 		}
 
 		maxChessTime := time.Duration(game.MaxClockDuration) * time.Second
@@ -117,7 +119,11 @@ func (c *ClaimMonitor) checkGameClaims(
 			}
 		} else {
 			if clockExpired {
-				c.logger.Warn("Claim unresolved after clock expiration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex)
+				// SAFETY: accumulatedTime must be larger than or equal to maxChessTime since clockExpired
+				overflow := accumulatedTime - maxChessTime
+				if overflow >= MaximumResolutionResponseBuffer {
+					c.logger.Warn("Claim unresolved after clock expiration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex, "delay", overflow)
+				}
 				if firstHalf {
 					claimStatus[metrics.FirstHalfExpiredUnresolved]++
 				} else {

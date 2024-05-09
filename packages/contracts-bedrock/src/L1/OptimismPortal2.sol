@@ -124,6 +124,15 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @param success        Whether the withdrawal transaction was successful.
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
+    /// @notice Emitted when a dispute game is blacklisted by the Guardian.
+    /// @param disputeGame Address of the dispute game that was blacklisted.
+    event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
+
+    /// @notice Emitted when the Guardian changes the respected game type in the portal.
+    /// @param newGameType The new respected game type.
+    /// @param updatedAt   The timestamp at which the respected game type was updated.
+    event RespectedGameTypeSet(GameType indexed newGameType, Timestamp indexed updatedAt);
+
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
         if (paused()) revert CallPaused();
@@ -131,8 +140,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.8.0
-    string public constant version = "3.8.0";
+    /// @custom:semver 3.10.0
+    string public constant version = "3.10.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) {
@@ -432,6 +441,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
         if (msg.sender != guardian()) revert Unauthorized();
         disputeGameBlacklist[_disputeGame] = true;
+        emit DisputeGameBlacklisted(_disputeGame);
     }
 
     /// @notice Sets the respected game type. Changing this value can alter the security properties of the system,
@@ -441,6 +451,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         if (msg.sender != guardian()) revert Unauthorized();
         respectedGameType = _gameType;
         respectedGameTypeUpdatedAt = uint64(block.timestamp);
+        emit RespectedGameTypeSet(_gameType, Timestamp.wrap(respectedGameTypeUpdatedAt));
     }
 
     /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be

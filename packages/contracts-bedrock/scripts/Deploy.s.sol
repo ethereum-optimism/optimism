@@ -387,16 +387,6 @@ contract Deploy is Deployer {
     /// @notice Initialize all of the implementations
     function initializeImplementations() public {
         console.log("Initializing implementations");
-        initializeSystemConfig();
-        initializeL1StandardBridge();
-        initializeL1ERC721Bridge();
-        initializeOptimismMintableERC20Factory();
-        initializeL1CrossDomainMessenger();
-        initializeL2OutputOracle();
-        initializeDisputeGameFactory();
-        initializeDelayedWETH();
-        initializeAnchorStateRegistry();
-
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
         // contract.
@@ -406,6 +396,16 @@ contract Deploy is Deployer {
         } else {
             initializeOptimismPortal();
         }
+
+        initializeSystemConfig();
+        initializeL1StandardBridge();
+        initializeL1ERC721Bridge();
+        initializeOptimismMintableERC20Factory();
+        initializeL1CrossDomainMessenger();
+        initializeL2OutputOracle();
+        initializeDisputeGameFactory();
+        initializeDelayedWETH();
+        initializeAnchorStateRegistry();
     }
 
     /// @notice Add Plasma setup to the OP chain
@@ -973,6 +973,11 @@ contract Deploy is Deployer {
 
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
 
+        address customGasTokenAddress = Constants.ETHER;
+        if (cfg.useCustomGasToken()) {
+            customGasTokenAddress = cfg.customGasTokenAddress();
+        }
+
         _upgradeAndCallViaSafe({
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
@@ -993,7 +998,8 @@ contract Deploy is Deployer {
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
                         disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
-                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy")
+                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
+                        gasPayingToken: customGasTokenAddress
                     })
                 )
             )
@@ -1014,6 +1020,7 @@ contract Deploy is Deployer {
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
         Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
@@ -1031,7 +1038,11 @@ contract Deploy is Deployer {
             _implementation: l1StandardBridge,
             _innerCallData: abi.encodeCall(
                 L1StandardBridge.initialize,
-                (L1CrossDomainMessenger(l1CrossDomainMessengerProxy), SuperchainConfig(superchainConfigProxy))
+                (
+                    L1CrossDomainMessenger(l1CrossDomainMessengerProxy),
+                    SuperchainConfig(superchainConfigProxy),
+                    SystemConfig(systemConfigProxy)
+                )
             )
         });
 
@@ -1093,6 +1104,7 @@ contract Deploy is Deployer {
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
@@ -1124,7 +1136,11 @@ contract Deploy is Deployer {
             _implementation: l1CrossDomainMessenger,
             _innerCallData: abi.encodeCall(
                 L1CrossDomainMessenger.initialize,
-                (SuperchainConfig(superchainConfigProxy), OptimismPortal(payable(optimismPortalProxy)))
+                (
+                    SuperchainConfig(superchainConfigProxy),
+                    OptimismPortal(payable(optimismPortalProxy)),
+                    SystemConfig(systemConfigProxy)
+                )
             )
         });
 

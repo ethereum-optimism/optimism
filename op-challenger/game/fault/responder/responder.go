@@ -11,7 +11,6 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -23,6 +22,7 @@ type GameContract interface {
 	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
+	ChallengeL2BlockNumberTx(challenge *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error)
 	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
 }
 
@@ -130,6 +130,8 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 		candidate.Value = bondValue
 	case types.ActionTypeStep:
 		candidate, err = r.contract.StepTx(uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData)
+	case types.ActionTypeChallengeL2BlockNumber:
+		candidate, err = r.contract.ChallengeL2BlockNumberTx(action.InvalidL2BlockNumberChallenge)
 	}
 	if err != nil {
 		return err

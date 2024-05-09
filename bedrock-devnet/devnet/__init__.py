@@ -143,7 +143,10 @@ def devnet_l1_allocs(paths):
 
     fqn = 'scripts/Deploy.s.sol:Deploy'
     run_command([
-        'forge', 'script', fqn, "--sig", "runWithStateDump()"
+        # We need to set the sender here to an account we know the private key of,
+        # because the sender ends up being the owner of the ProxyAdmin SAFE
+        # (which we need to enable the Custom Gas Token feature).
+        'forge', 'script', fqn, "--sig", "runWithStateDump()", "--sender", "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
     ], env={
       'DEPLOYMENT_OUTFILE': paths.l1_deployments_path,
       'DEPLOY_CONFIG_PATH': paths.devnet_config_path,

@@ -40,11 +40,6 @@ func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, o
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve leaf block nums: %w", err)
 	}
-	chainID, err := f.source.ChainID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve L1 chain ID: %w", err)
-	}
-	signer := types.LatestSignerForChainID(chainID)
 	var inputs []keccakTypes.InputData
 	for _, blockNum := range blockNums {
 		foundRelevantTx := false
@@ -53,13 +48,13 @@ func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, o
 			return nil, fmt.Errorf("failed getting tx for block %v: %w", blockNum, err)
 		}
 		for _, tx := range block.Transactions() {
-			inputData, err := f.extractRelevantLeavesFromTx(ctx, oracle, signer, tx, ident)
+			inputData, err := f.extractRelevantLeavesFromTx(ctx, oracle, tx, ident)
 			if err != nil {
 				return nil, err
 			}
-			if inputData != nil {
+			if len(inputData) > 0 {
 				foundRelevantTx = true
-				inputs = append(inputs, *inputData)
+				inputs = append(inputs, inputData...)
 			}
 		}
 		if !foundRelevantTx {
@@ -72,31 +67,7 @@ func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, o
 	return inputs, nil
 }
 
-func (f *InputFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Oracle, signer types.Signer, tx *types.Transaction, ident keccakTypes.LargePreimageIdent) (*keccakTypes.InputData, error) {
-	if tx.To() == nil || *tx.To() != oracle.Addr() {
-		f.log.Trace("Skip tx with incorrect to addr", "tx", tx.Hash(), "expected", oracle.Addr(), "actual", tx.To())
-		return nil, nil
-	}
-	uuid, inputData, err := oracle.DecodeInputData(tx.Data())
-	if errors.Is(err, contracts.ErrInvalidAddLeavesCall) {
-		f.log.Trace("Skip tx with invalid call data", "tx", tx.Hash(), "err", err)
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	if uuid.Cmp(ident.UUID) != 0 {
-		f.log.Trace("Skip tx with incorrect UUID", "tx", tx.Hash(), "expected", ident.UUID, "actual", uuid)
-		return nil, nil
-	}
-	sender, err := signer.Sender(tx)
-	if err != nil {
-		f.log.Trace("Skipping transaction with invalid sender", "tx", tx.Hash(), "err", err)
-		return nil, nil
-	}
-	if sender != ident.Claimant {
-		f.log.Trace("Skipping transaction with incorrect sender", "tx", tx.Hash(), "expected", ident.Claimant, "actual", sender)
-		return nil, nil
-	}
+func (f *InputFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Oracle, tx *types.Transaction, ident keccakTypes.LargePreimageIdent) ([]keccakTypes.InputData, error) {
 	rcpt, err := f.source.TransactionReceipt(ctx, tx.Hash())
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve receipt for tx %v: %w", tx.Hash(), err)
@@ -105,7 +76,40 @@ func (f *InputFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle O
 		f.log.Trace("Skipping transaction with failed receipt status", "tx", tx.Hash(), "status", rcpt.Status)
 		return nil, nil
 	}
-	return &inputData, nil
+
+	// Iterate over the logs from in this receipt, looking for relevant logs emitted from the oracle contract
+	var inputs []keccakTypes.InputData
+	for i, txLog := range rcpt.Logs {
+		if txLog.Address != oracle.Addr() {
+			f.log.Trace("Skip tx log not emitted by the oracle contract", "tx", tx.Hash(), "logIndex", i, "targetContract", oracle.Addr(), "actualContract", txLog.Address)
+			continue
+		}
+		if len(txLog.Data) < 20 {
+			f.log.Trace("Skip tx log with insufficient data (less than 20 bytes)", "tx", tx.Hash(), "logIndex", i, "dataLength", len(txLog.Data))
+			continue
+		}
+		caller := common.Address(txLog.Data[0:20])
+		callData := txLog.Data[20:]
+
+		if caller != ident.Claimant {
+			f.log.Trace("Skip tx log from irrelevant claimant", "tx", tx.Hash(), "logIndex", i, "targetClaimant", ident.Claimant, "actualClaimant", caller)
+			continue
+		}
+		uuid, inputData, err := oracle.DecodeInputData(callData)
+		if errors.Is(err, contracts.ErrInvalidAddLeavesCall) {
+			f.log.Trace("Skip tx log with call data not targeting expected method", "tx", tx.Hash(), "logIndex", i, "err", err)
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+		if uuid.Cmp(ident.UUID) != 0 {
+			f.log.Trace("Skip tx log with irrelevant UUID", "tx", tx.Hash(), "logIndex", i, "targetUUID", ident.UUID, "actualUUID", uuid)
+			continue
+		}
+		inputs = append(inputs, inputData)
+	}
+
+	return inputs, nil
 }
 
 func NewPreimageFetcher(logger log.Logger, source L1Source) *InputFetcher {

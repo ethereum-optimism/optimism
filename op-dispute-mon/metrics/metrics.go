@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
@@ -18,6 +19,22 @@ import (
 )
 
 const Namespace = "op_dispute_mon"
+
+type ResolutionStatus uint8
+
+const (
+	// In progress
+	CompleteMaxDuration ResolutionStatus = iota
+	CompleteBeforeMaxDuration
+
+	// Resolvable
+	ResolvableMaxDuration
+	ResolvableBeforeMaxDuration
+
+	// Not resolvable
+	InProgressMaxDuration
+	InProgressBeforeMaxDuration
+)
 
 type CreditExpectation uint8
 
@@ -91,9 +108,13 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	RecordMonitorDuration(dur time.Duration)
+
+	RecordFailedGames(count int)
+
 	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
 
-	RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int)
+	RecordGameResolutionStatus(status ResolutionStatus, count int)
 
 	RecordCredit(expectation CreditExpectation, count int)
 
@@ -126,6 +147,8 @@ type Metrics struct {
 	*opmetrics.CacheMetrics
 	*contractMetrics.ContractMetrics
 
+	monitorDuration prometheus.Histogram
+
 	resolutionStatus prometheus.GaugeVec
 
 	claims prometheus.GaugeVec
@@ -145,6 +168,7 @@ type Metrics struct {
 	gamesAgreement        prometheus.GaugeVec
 	latestInvalidProposal prometheus.Gauge
 	ignoredGames          prometheus.Gauge
+	failedGames           prometheus.Gauge
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -179,6 +203,12 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "up",
 			Help:      "1 if the op-challenger has finished starting up",
+		}),
+		monitorDuration: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: Namespace,
+			Name:      "monitor_duration_seconds",
+			Help:      "Time taken to complete a cycle of updating metrics for all games",
+			Buckets:   []float64{10, 30, 60, 120, 180, 300, 600},
 		}),
 		lastOutputFetch: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -264,6 +294,11 @@ func NewMetrics() *Metrics {
 			"delayedWETH",
 			"balance",
 		}),
+		failedGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "failed_games",
+			Help:      "Number of games present in the game window but failed to be monitored",
+		}),
 		availableCollateral: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "bond_collateral_available",
@@ -301,6 +336,10 @@ func (m *Metrics) RecordUp() {
 	m.up.Set(1)
 }
 
+func (m *Metrics) RecordMonitorDuration(dur time.Duration) {
+	m.monitorDuration.Observe(dur.Seconds())
+}
+
 func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorData) {
 	m.honestActorClaims.WithLabelValues(address.Hex(), "pending").Set(float64(stats.PendingClaimCount))
 	m.honestActorClaims.WithLabelValues(address.Hex(), "invalid").Set(float64(stats.InvalidClaimCount))
@@ -311,16 +350,26 @@ func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestA
 	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.WonBonds))
 }
 
-func (m *Metrics) RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int) {
-	completion := "complete"
-	if !complete {
-		completion = "in_progress"
+func (m *Metrics) RecordGameResolutionStatus(status ResolutionStatus, count int) {
+	asLabels := func(status ResolutionStatus) []string {
+		switch status {
+		case CompleteMaxDuration:
+			return []string{"complete", "max_duration"}
+		case CompleteBeforeMaxDuration:
+			return []string{"complete", "before_max_duration"}
+		case ResolvableMaxDuration:
+			return []string{"resolvable", "max_duration"}
+		case ResolvableBeforeMaxDuration:
+			return []string{"resolvable", "before_max_duration"}
+		case InProgressMaxDuration:
+			return []string{"in_progress", "max_duration"}
+		case InProgressBeforeMaxDuration:
+			return []string{"in_progress", "before_max_duration"}
+		default:
+			panic(fmt.Errorf("unknown resolution status: %v", status))
+		}
 	}
-	maxDuration := "reached"
-	if !maxDurationReached {
-		maxDuration = "not_reached"
-	}
-	m.resolutionStatus.WithLabelValues(completion, maxDuration).Set(float64(count))
+	m.resolutionStatus.WithLabelValues(asLabels(status)...).Set(float64(count))
 }
 
 func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {
@@ -397,6 +446,10 @@ func (m *Metrics) RecordLatestInvalidProposal(timestamp uint64) {
 
 func (m *Metrics) RecordIgnoredGames(count int) {
 	m.ignoredGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordFailedGames(count int) {
+	m.failedGames.Set(float64(count))
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {

@@ -159,12 +159,16 @@ func NewConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
 	l1BeaconApi string,
+	l2RollupRpc string,
+	l2EthRpc string,
 	datadir string,
 	supportedTraceTypes ...TraceType,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
 		L1Beacon:           l1BeaconApi,
+		RollupRpc:          l2RollupRpc,
+		L2Rpc:              l2EthRpc,
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
 		PollInterval:       DefaultPollInterval,
@@ -200,6 +204,9 @@ func (c Config) Check() error {
 	}
 	if c.RollupRpc == "" {
 		return ErrMissingRollupRpc
+	}
+	if c.L2Rpc == "" {
+		return ErrMissingL2Rpc
 	}
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
@@ -244,9 +251,6 @@ func (c Config) Check() error {
 		if c.CannonAbsolutePreState != "" && c.CannonAbsolutePreStateBaseURL != nil {
 			return ErrCannonAbsolutePreStateAndBaseURL
 		}
-		if c.L2Rpc == "" {
-			return ErrMissingL2Rpc
-		}
 		if c.CannonSnapshotFreq == 0 {
 			return ErrMissingCannonSnapshotFreq
 		}
@@ -284,9 +288,6 @@ func (c Config) Check() error {
 		}
 		if c.AsteriscAbsolutePreState != "" && c.AsteriscAbsolutePreStateBaseURL != nil {
 			return ErrAsteriscAbsolutePreStateAndBaseURL
-		}
-		if c.L2Rpc == "" {
-			return ErrMissingL2Rpc
 		}
 		if c.AsteriscSnapshotFreq == 0 {
 			return ErrMissingAsteriscSnapshotFreq
