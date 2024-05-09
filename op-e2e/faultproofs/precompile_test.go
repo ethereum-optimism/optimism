@@ -138,10 +138,12 @@ func TestPrecompiles(t *testing.T) {
 func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, l2Node string) {
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l1Beacon := sys.L1BeaconEndpoint()
-	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis(), sys.RollupEndpoint(l2Node), sys.NodeEndpoint(l2Node))
+	rollupEndpoint := sys.RollupEndpoint("sequencer")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis())
 	dir := t.TempDir()
 	proofsDir := filepath.Join(dir, "cannon-proofs")
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, dir)
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, rollupEndpoint, l2Endpoint, dir)
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")

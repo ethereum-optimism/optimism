@@ -4,8 +4,8 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
+	"github.com/ethereum-optimism/optimism/indexer/bindings"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,7 +19,7 @@ type LegacyCTCDepositEvent struct {
 }
 
 func LegacyCTCDepositEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]LegacyCTCDepositEvent, error) {
-	ctcAbi, err := legacy_bindings.CanonicalTransactionChainMetaData.GetAbi()
+	ctcAbi, err := bindings.CanonicalTransactionChainMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func LegacyCTCDepositEvents(contractAddress common.Address, db *database.DB, fro
 
 	ctcTxDeposits := make([]LegacyCTCDepositEvent, len(events))
 	for i := range events {
-		txEnqueued := legacy_bindings.CanonicalTransactionChainTransactionEnqueued{Raw: *events[i].RLPLog}
+		txEnqueued := bindings.CanonicalTransactionChainTransactionEnqueued{Raw: *events[i].RLPLog}
 		err = UnpackLog(&txEnqueued, events[i].RLPLog, transactionEnqueuedEventAbi.Name, ctcAbi)
 		if err != nil {
 			return nil, err

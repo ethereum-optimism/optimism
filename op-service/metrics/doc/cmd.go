@@ -46,7 +46,7 @@ func NewSubcommands(m Metrics) cli.Commands {
 				table.SetCenterSeparator("|")
 				table.SetAutoWrapText(false)
 				table.SetHeader([]string{"Metric", "Description", "Labels", "Type"})
-				var data [][]string
+				data := make([][]string, 0, len(supportedMetrics))
 				for _, metric := range supportedMetrics {
 					labels := strings.Join(metric.Labels, ",")
 					data = append(data, []string{metric.Name, metric.Help, labels, metric.Type})

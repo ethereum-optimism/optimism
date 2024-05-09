@@ -185,7 +185,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 
 		// Start honest challenger
 		game.StartChallenger(ctx, "sequencer", "Challenger",
-			challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
+			challenger.WithAlphabet(),
 			challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 			// Ensures the challenger responds to all claims before test timeout
 			challenger.WithPollInterval(time.Millisecond*400),

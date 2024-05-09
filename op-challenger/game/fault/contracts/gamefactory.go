@@ -73,7 +73,7 @@ func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, bl
 	if err != nil {
 		return types.GameMetadata{}, fmt.Errorf("failed to load game %v: %w", idx, err)
 	}
-	return f.decodeGame(result), nil
+	return f.decodeGame(idx, result), nil
 }
 
 func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType uint32) (common.Address, error) {
@@ -118,8 +118,9 @@ func (f *DisputeGameFactoryContract) GetGamesAtOrAfter(ctx context.Context, bloc
 			return nil, fmt.Errorf("failed to fetch games: %w", err)
 		}
 
-		for _, result := range results {
-			game := f.decodeGame(result)
+		for i, result := range results {
+			idx := rangeEnd - uint64(i) - 1
+			game := f.decodeGame(idx, result)
 			if game.Timestamp < earliestTimestamp {
 				return games, nil
 			}
@@ -147,8 +148,8 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 	}
 
 	var games []types.GameMetadata
-	for _, result := range results {
-		games = append(games, f.decodeGame(result))
+	for i, result := range results {
+		games = append(games, f.decodeGame(uint64(i), result))
 	}
 	return games, nil
 }
@@ -189,11 +190,12 @@ func (f *DisputeGameFactoryContract) DecodeDisputeGameCreatedLog(rcpt *ethTypes.
 	return common.Address{}, 0, common.Hash{}, fmt.Errorf("%w: %v", ErrEventNotFound, eventDisputeGameCreated)
 }
 
-func (f *DisputeGameFactoryContract) decodeGame(result *batching.CallResult) types.GameMetadata {
+func (f *DisputeGameFactoryContract) decodeGame(idx uint64, result *batching.CallResult) types.GameMetadata {
 	gameType := result.GetUint32(0)
 	timestamp := result.GetUint64(1)
 	proxy := result.GetAddress(2)
 	return types.GameMetadata{
+		Index:     idx,
 		GameType:  gameType,
 		Timestamp: timestamp,
 		Proxy:     proxy,

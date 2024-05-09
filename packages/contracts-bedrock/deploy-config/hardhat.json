@@ -59,7 +59,7 @@
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 0,
   "useFaultProofs": false,
-  "fundDevAccounts": false,
+  "fundDevAccounts": true,
   "usePlasma": false,
   "daChallengeWindow": 100,
   "daResolveWindow": 100,

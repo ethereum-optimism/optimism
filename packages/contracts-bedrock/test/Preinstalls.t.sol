@@ -22,8 +22,8 @@ contract PreinstallsTest is CommonTest {
         bytes memory encoded = abi.encode(typeHash, nameHash, chainId, Preinstalls.Permit2);
         bytes32 expectedDomainSeparator = keccak256(encoded);
         assertEq(domainSeparator, expectedDomainSeparator, "Domain separator mismatch");
-        assertEq(chainId, uint256(31337));
-        assertEq(domainSeparator, bytes32(0x4d553c58ae79a6c4ba64f0e690a5d1cd2deff8c6b91cf38300e0f2b76f9ee346));
+        assertEq(chainId, uint256(901)); // uses devnet config
+        assertEq(domainSeparator, bytes32(0x48deb34b39fb4b41f5c195008940d5ef510cdd7853eba5807b2fa08dfd586475));
         // Warning the Permit2 domain separator as cached in the DeployPermit2.sol bytecode is incorrect.
     }
 

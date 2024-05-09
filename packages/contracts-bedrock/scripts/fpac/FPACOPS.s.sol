@@ -6,7 +6,7 @@ import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { AnchorStateRegistry, IAnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 import "scripts/Deploy.s.sol";
 
 /// @notice Deploys the Fault Proof Alpha Chad contracts.

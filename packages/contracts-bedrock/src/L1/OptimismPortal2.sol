@@ -16,7 +16,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 import "src/libraries/PortalErrors.sol";
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @custom:proxied
 /// @title OptimismPortal2
@@ -94,6 +94,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Mapping of withdrawal hashes to addresses that have submitted a proof for the withdrawal.
     mapping(bytes32 => address[]) public proofSubmitters;
 
+    /// @custom:spacer _balance (custom gas token)
+    /// @notice Spacer for forwards compatibility.
+    bytes32 private spacer_61_0_32;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -109,10 +113,25 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @param to             Address that the withdrawal transaction is directed to.
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
 
+    /// @notice Emitted when a withdrawal transaction is proven. Exists as a separate event to allow for backwards
+    ///         compatibility for tooling that observes the `WithdrawalProven` event.
+    /// @param withdrawalHash Hash of the withdrawal transaction.
+    /// @param proofSubmitter Address of the proof submitter.
+    event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+
     /// @notice Emitted when a withdrawal transaction is finalized.
     /// @param withdrawalHash Hash of the withdrawal transaction.
     /// @param success        Whether the withdrawal transaction was successful.
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+
+    /// @notice Emitted when a dispute game is blacklisted by the Guardian.
+    /// @param disputeGame Address of the dispute game that was blacklisted.
+    event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
+
+    /// @notice Emitted when the Guardian changes the respected game type in the portal.
+    /// @param newGameType The new respected game type.
+    /// @param updatedAt   The timestamp at which the respected game type was updated.
+    event RespectedGameTypeSet(GameType indexed newGameType, Timestamp indexed updatedAt);
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
@@ -121,8 +140,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.8.0
-    string public constant version = "3.8.0";
+    /// @custom:semver 3.10.0
+    string public constant version = "3.10.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) {
@@ -301,6 +320,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Emit a `WithdrawalProven` event.
         emit WithdrawalProven(withdrawalHash, _tx.sender, _tx.target);
+        // Emit a `WithdrawalProvenExtension1` event.
+        emit WithdrawalProvenExtension1(withdrawalHash, msg.sender);
 
         // Add the proof submitter to the list of proof submitters for this withdrawal hash.
         proofSubmitters[withdrawalHash].push(msg.sender);
@@ -420,6 +441,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
         if (msg.sender != guardian()) revert Unauthorized();
         disputeGameBlacklist[_disputeGame] = true;
+        emit DisputeGameBlacklisted(_disputeGame);
     }
 
     /// @notice Sets the respected game type. Changing this value can alter the security properties of the system,
@@ -429,6 +451,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         if (msg.sender != guardian()) revert Unauthorized();
         respectedGameType = _gameType;
         respectedGameTypeUpdatedAt = uint64(block.timestamp);
+        emit RespectedGameTypeSet(_gameType, Timestamp.wrap(respectedGameTypeUpdatedAt));
     }
 
     /// @notice Checks if a withdrawal can be finalized. This function will revert if the withdrawal cannot be

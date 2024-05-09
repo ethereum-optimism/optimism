@@ -67,15 +67,9 @@ func RegisterGameTypes(
 	selective bool,
 	claimants []common.Address,
 ) (CloseFunc, error) {
-	var closer CloseFunc
-	var l2Client *ethclient.Client
-	if cfg.TraceTypeEnabled(config.TraceTypeCannon) || cfg.TraceTypeEnabled(config.TraceTypePermissioned) || cfg.TraceTypeEnabled(config.TraceTypeAsterisc) {
-		l2, err := ethclient.DialContext(ctx, cfg.L2Rpc)
-		if err != nil {
-			return nil, fmt.Errorf("dial l2 client %v: %w", cfg.L2Rpc, err)
-		}
-		l2Client = l2
-		closer = l2Client.Close
+	l2Client, err := ethclient.DialContext(ctx, cfg.L2Rpc)
+	if err != nil {
+		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.L2Rpc, err)
 	}
 	syncValidator := newSyncStatusValidator(rollupClient)
 
@@ -95,11 +89,11 @@ func RegisterGameTypes(
 		}
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
-		if err := registerAlphabet(registry, oracles, ctx, systemClock, l1Clock, logger, m, syncValidator, rollupClient, txSender, gameFactory, caller, l1HeaderSource, selective, claimants); err != nil {
+		if err := registerAlphabet(registry, oracles, ctx, systemClock, l1Clock, logger, m, syncValidator, rollupClient, l2Client, txSender, gameFactory, caller, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register alphabet game type: %w", err)
 		}
 	}
-	return closer, nil
+	return l2Client.Close, nil
 }
 
 func registerAlphabet(
@@ -112,6 +106,7 @@ func registerAlphabet(
 	m metrics.Metricer,
 	syncValidator SyncValidator,
 	rollupClient RollupClient,
+	l2Client utils.L2HeaderSource,
 	txSender TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
@@ -143,7 +138,7 @@ func registerAlphabet(
 		}
 		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
-			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, rollupClient, l1Head, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -203,12 +198,33 @@ func registerAsterisc(
 	selective bool,
 	claimants []common.Address,
 ) error {
-	asteriscPrestateProvider := asterisc.NewPrestateProvider(cfg.AsteriscAbsolutePreState)
+	var prestateSource PrestateSource
+	if cfg.AsteriscAbsolutePreStateBaseURL != nil {
+		prestateSource = prestates.NewMultiPrestateProvider(cfg.AsteriscAbsolutePreStateBaseURL, filepath.Join(cfg.Datadir, "asterisc-prestates"))
+	} else {
+		prestateSource = prestates.NewSinglePrestateSource(cfg.AsteriscAbsolutePreState)
+	}
+	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
+		prestatePath, err := prestateSource.PrestatePath(prestateHash)
+		if err != nil {
+			return nil, fmt.Errorf("required prestate %v not available: %w", prestateHash, err)
+		}
+		return asterisc.NewPrestateProvider(prestatePath), nil
+	})
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create fault dispute game contracts: %w", err)
 		}
+		requiredPrestatehash, err := contract.GetAbsolutePrestateHash(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load prestate hash for game %v: %w", game.Proxy, err)
+		}
+		asteriscPrestateProvider, err := prestateProviderCache.GetOrCreate(requiredPrestatehash)
+		if err != nil {
+			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
+		}
+
 		oracle, err := contract.GetOracle(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)

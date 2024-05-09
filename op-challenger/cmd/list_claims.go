@@ -82,18 +82,27 @@ func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract) er
 	// The - 1 here accounts for the fact that the split depth is included in the top game.
 	bottomDepth := maxDepth - splitDepth - 1
 
+	resolved, err := game.IsResolved(ctx, rpcblock.Latest, claims...)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve claim resolution: %w", err)
+	}
+
 	gameState := types.NewGameState(claims, maxDepth)
-	lineFormat := "%3v %-7v %6v %5v %14v %-66v %-42v %-42v\n"
-	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Countered By")
+	lineFormat := "%3v %-7v %6v %5v %14v %-66v %-42v %-44v\n"
+	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Resolution")
 	for i, claim := range claims {
 		pos := claim.Position
 		parent := strconv.Itoa(claim.ParentContractIndex)
 		if claim.IsRoot() {
 			parent = ""
 		}
-		countered := claim.CounteredBy.Hex()
-		if claim.CounteredBy == (common.Address{}) {
+		var countered string
+		if !resolved[i] {
 			countered = "-"
+		} else if claim.CounteredBy != (common.Address{}) {
+			countered = "❌ " + claim.CounteredBy.Hex()
+		} else {
+			countered = "✅"
 		}
 		move := "Attack"
 		if gameState.DefendsParent(claim) {
@@ -124,7 +133,7 @@ func listClaimsFlags() []cli.Flag {
 		flags.L1EthRpcFlag,
 		GameAddressFlag,
 	}
-	cliFlags = append(cliFlags, oplog.CLIFlags("OP_CHALLENGER")...)
+	cliFlags = append(cliFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
 	return cliFlags
 }
 

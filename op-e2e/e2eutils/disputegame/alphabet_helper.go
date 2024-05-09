@@ -17,7 +17,7 @@ func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, sys challenger
 	opts := []challenger.Option{
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
-		challenger.WithAlphabet(g.system.RollupEndpoint("sequencer")),
+		challenger.WithAlphabet(),
 	}
 	opts = append(opts, options...)
 	c := challenger.NewChallenger(g.t, ctx, sys, name, opts...)

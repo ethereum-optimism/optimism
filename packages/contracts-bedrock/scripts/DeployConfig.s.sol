@@ -74,6 +74,11 @@ contract DeployConfig is Script {
     uint256 public daBondSize;
     uint256 public daResolverRefundPercentage;
 
+    bool public useCustomGasToken;
+    address public customGasTokenAddress;
+
+    bool public useInterop;
+
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data) {
@@ -145,6 +150,11 @@ contract DeployConfig is Script {
         daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
         daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
+
+        useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
+        customGasTokenAddress = _readOr(_json, "$.customGasTokenAddress", address(0));
+
+        useInterop = _readOr(_json, "$.useInterop", false);
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
@@ -185,6 +195,22 @@ contract DeployConfig is Script {
         useFaultProofs = _useFaultProofs;
     }
 
+    /// @notice Allow the `useInterop` config to be overridden in testing environments
+    function setUseInterop(bool _useInterop) public {
+        useInterop = _useInterop;
+    }
+
+    /// @notice Allow the `fundDevAccounts` config to be overridden.
+    function setFundDevAccounts(bool _fundDevAccounts) public {
+        fundDevAccounts = _fundDevAccounts;
+    }
+
+    /// @notice Allow the `useCustomGasToken` config to be overridden in testing environments
+    function setUseCustomGasToken(address _token) public {
+        useCustomGasToken = true;
+        customGasTokenAddress = _token;
+    }
+
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
@@ -200,5 +226,9 @@ contract DeployConfig is Script {
 
     function _readOr(string memory json, string memory key, uint256 defaultValue) internal view returns (uint256) {
         return vm.keyExists(json, key) ? stdJson.readUint(json, key) : defaultValue;
+    }
+
+    function _readOr(string memory json, string memory key, address defaultValue) internal view returns (address) {
+        return vm.keyExists(json, key) ? stdJson.readAddress(json, key) : defaultValue;
     }
 }

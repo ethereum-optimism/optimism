@@ -6,7 +6,7 @@ import { CommonBase } from "forge-std/Base.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title GameSolver
 /// @notice The `GameSolver` contract is a contract that can produce an array of available

@@ -143,9 +143,9 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	}
 
 	// check the RLP length against the max
-	if co.activeRLP().Len() > MaxRLPBytesPerChannel {
+	if co.activeRLP().Len() > rollup.SafeMaxRLPBytesPerChannel {
 		return fmt.Errorf("could not take %d bytes as replacement of channel of %d bytes, max is %d. err: %w",
-			co.activeRLP().Len(), co.inactiveRLP().Len(), MaxRLPBytesPerChannel, ErrTooManyRLPBytes)
+			co.activeRLP().Len(), co.inactiveRLP().Len(), rollup.SafeMaxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 
 	// if the compressed data *plus* the new rlp data is under the target size, return early

@@ -61,16 +61,19 @@ func TestLoadGame(t *testing.T) {
 	blockHash := common.Hash{0xbb, 0xce}
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
 	game0 := types.GameMetadata{
+		Index:     0,
 		GameType:  0,
 		Timestamp: 1234,
 		Proxy:     common.Address{0xaa},
 	}
 	game1 := types.GameMetadata{
+		Index:     1,
 		GameType:  1,
 		Timestamp: 5678,
 		Proxy:     common.Address{0xbb},
 	}
 	game2 := types.GameMetadata{
+		Index:     2,
 		GameType:  99,
 		Timestamp: 9988,
 		Proxy:     common.Address{0xcc},
@@ -88,16 +91,19 @@ func TestGetAllGames(t *testing.T) {
 	blockHash := common.Hash{0xbb, 0xce}
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
 	game0 := types.GameMetadata{
+		Index:     0,
 		GameType:  0,
 		Timestamp: 1234,
 		Proxy:     common.Address{0xaa},
 	}
 	game1 := types.GameMetadata{
+		Index:     1,
 		GameType:  1,
 		Timestamp: 5678,
 		Proxy:     common.Address{0xbb},
 	}
 	game2 := types.GameMetadata{
+		Index:     2,
 		GameType:  99,
 		Timestamp: 9988,
 		Proxy:     common.Address{0xcc},
@@ -135,6 +141,7 @@ func TestGetAllGamesAtOrAfter(t *testing.T) {
 			var allGames []types.GameMetadata
 			for i := 0; i < test.gameCount; i++ {
 				allGames = append(allGames, types.GameMetadata{
+					Index:     uint64(i),
 					GameType:  uint32(i),
 					Timestamp: uint64(i),
 					Proxy:     common.Address{byte(i)},

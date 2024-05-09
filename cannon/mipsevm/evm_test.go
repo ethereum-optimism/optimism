@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -22,8 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
-	contracts, err := LoadContracts()
+func testContractsSetup(t require.TestingT) (*Artifacts, *Addresses) {
+	artifacts, err := LoadArtifacts()
 	require.NoError(t, err)
 
 	addrs := &Addresses{
@@ -33,7 +33,7 @@ func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 		FeeRecipient: common.Address{0xaa},
 	}
 
-	return contracts, addrs
+	return artifacts, addrs
 }
 
 func MarkdownTracer() vm.EVMLogger {
@@ -45,11 +45,12 @@ type MIPSEVM struct {
 	evmState    *state.StateDB
 	addrs       *Addresses
 	localOracle PreimageOracle
+	artifacts   *Artifacts
 }
 
-func NewMIPSEVM(contracts *Contracts, addrs *Addresses) *MIPSEVM {
-	env, evmState := NewEVMEnv(contracts, addrs)
-	return &MIPSEVM{env, evmState, addrs, nil}
+func NewMIPSEVM(artifacts *Artifacts, addrs *Addresses) *MIPSEVM {
+	env, evmState := NewEVMEnv(artifacts, addrs)
+	return &MIPSEVM{env, evmState, addrs, nil, artifacts}
 }
 
 func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
@@ -70,13 +71,13 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 
 	if stepWitness.HasPreimage() {
 		t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
-		poInput, err := encodePreimageOracleInput(t, stepWitness, LocalContext{}, m.localOracle)
+		poInput, err := encodePreimageOracleInput(t, stepWitness, LocalContext{}, m.localOracle, m.artifacts.Oracle)
 		require.NoError(t, err, "encode preimage oracle input")
 		_, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.Oracle, poInput, startingGas, common.U2560)
 		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
 	}
 
-	input := encodeStepInput(t, stepWitness, LocalContext{})
+	input := encodeStepInput(t, stepWitness, LocalContext{}, m.artifacts.MIPS)
 	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, common.U2560)
 	require.NoError(t, err, "evm should not fail")
 	require.Len(t, ret, 32, "expecting 32-byte state hash")
@@ -95,22 +96,16 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 	return evmPost
 }
 
-func encodeStepInput(t *testing.T, wit *StepWitness, localContext LocalContext) []byte {
-	mipsAbi, err := bindings.MIPSMetaData.GetAbi()
-	require.NoError(t, err)
-
-	input, err := mipsAbi.Pack("step", wit.State, wit.MemProof, localContext)
+func encodeStepInput(t *testing.T, wit *StepWitness, localContext LocalContext, mips *foundry.Artifact) []byte {
+	input, err := mips.ABI.Pack("step", wit.State, wit.MemProof, localContext)
 	require.NoError(t, err)
 	return input
 }
 
-func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext LocalContext, localOracle PreimageOracle) ([]byte, error) {
+func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext LocalContext, localOracle PreimageOracle, oracle *foundry.Artifact) ([]byte, error) {
 	if wit.PreimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
-
-	preimageAbi, err := bindings.PreimageOracleMetaData.GetAbi()
-	require.NoError(t, err, "failed to load pre-image oracle ABI")
 
 	switch preimage.KeyType(wit.PreimageKey[0]) {
 	case preimage.LocalKeyType:
@@ -120,7 +115,7 @@ func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext Loca
 		preimagePart := wit.PreimageValue[8:]
 		var tmp [32]byte
 		copy(tmp[:], preimagePart)
-		input, err := preimageAbi.Pack("loadLocalData",
+		input, err := oracle.ABI.Pack("loadLocalData",
 			new(big.Int).SetBytes(wit.PreimageKey[1:]),
 			localContext,
 			tmp,
@@ -130,7 +125,7 @@ func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext Loca
 		require.NoError(t, err)
 		return input, nil
 	case preimage.Keccak256KeyType:
-		input, err := preimageAbi.Pack(
+		input, err := oracle.ABI.Pack(
 			"loadKeccak256PreimagePart",
 			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
 			wit.PreimageValue[8:])
@@ -143,7 +138,7 @@ func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext Loca
 		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
 		precompile := common.BytesToAddress(preimage[:20])
 		callInput := preimage[20:]
-		input, err := preimageAbi.Pack(
+		input, err := oracle.ABI.Pack(
 			"loadPrecompilePreimagePart",
 			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
 			precompile,
@@ -290,7 +285,7 @@ func TestEVMFault(t *testing.T) {
 				State:    initialState.EncodeWitness(),
 				MemProof: insnProof[:],
 			}
-			input := encodeStepInput(t, stepWitness, LocalContext{})
+			input := encodeStepInput(t, stepWitness, LocalContext{}, contracts.MIPS)
 			startingGas := uint64(30_000_000)
 
 			_, _, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, common.U2560)

@@ -17,7 +17,7 @@ lint-go:
 .PHONY: lint-go
 
 build-ts: submodules
-	if [ -n "$$NVM_DIR" ]; then \
+	if [ -f "$$NVM_DIR/nvm.sh" ]; then \
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
 	pnpm install:ci
@@ -38,7 +38,43 @@ golang-docker:
 			--progress plain \
 			--load \
 			-f docker-bake.hcl \
-			op-node op-batcher op-proposer op-challenger
+			op-node op-batcher op-proposer op-challenger op-dispute-mon
+.PHONY: golang-docker
+
+docker-builder-clean:
+	docker buildx rm buildx-build
+.PHONY: docker-builder-clean
+
+docker-builder:
+	docker buildx create \
+		--driver=docker-container --name=buildx-build --bootstrap --use
+.PHONY: docker-builder
+
+# add --print to dry-run
+cross-op-node:
+	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
+	GIT_COMMIT=$$(git rev-parse HEAD) \
+	GIT_DATE=$$(git show -s --format='%ct') \
+	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
+	PLATFORMS="linux/arm64" \
+	GIT_VERSION=$(shell tags=$$(git tag --points-at $(GITCOMMIT) | grep '^op-node/' | sed 's/op-node\///' | sort -V); \
+             preferred_tag=$$(echo "$$tags" | grep -v -- '-rc' | tail -n 1); \
+             if [ -z "$$preferred_tag" ]; then \
+                 if [ -z "$$tags" ]; then \
+                     echo "untagged"; \
+                 else \
+                     echo "$$tags" | tail -n 1; \
+                 fi \
+             else \
+                 echo $$preferred_tag; \
+             fi) \
+	docker buildx bake \
+			--progress plain \
+			--builder=buildx-build \
+			--load \
+			--no-cache \
+			-f docker-bake.hcl \
+			op-node
 .PHONY: golang-docker
 
 chain-mon-docker:

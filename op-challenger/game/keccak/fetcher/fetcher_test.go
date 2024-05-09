@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
+	"math"
 	"math/big"
 	"testing"
 
@@ -18,11 +20,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// Signal to indicate a receipt should be considered missing
+	MissingReceiptStatus = math.MaxUint64
+)
+
 var (
-	oracleAddr = common.Address{0x99, 0x98}
-	privKey, _ = crypto.GenerateKey()
-	ident      = keccakTypes.LargePreimageIdent{
-		Claimant: crypto.PubkeyToAddress(privKey.PublicKey),
+	oracleAddr     = common.Address{0x99, 0x98}
+	otherAddr      = common.Address{0x12, 0x34}
+	claimantKey, _ = crypto.GenerateKey()
+	otherKey, _    = crypto.GenerateKey()
+	ident          = keccakTypes.LargePreimageIdent{
+		Claimant: crypto.PubkeyToAddress(claimantKey.PublicKey),
 		UUID:     big.NewInt(888),
 	}
 	chainID   = big.NewInt(123)
@@ -54,86 +63,211 @@ func TestFetchLeaves_NoBlocks(t *testing.T) {
 	require.Empty(t, leaves)
 }
 
-func TestFetchLeaves_SingleTx(t *testing.T) {
+func TestFetchLeaves_ErrorOnUnavailableInputBlocks(t *testing.T) {
+	fetcher, oracle, _ := setupFetcherTest(t)
+	mockErr := fmt.Errorf("oops")
+	oracle.inputDataBlocksError = mockErr
+
+	leaves, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	require.ErrorContains(t, err, "failed to retrieve leaf block nums")
+	require.Empty(t, leaves)
+}
+
+func TestFetchLeaves_ErrorOnUnavailableL1Block(t *testing.T) {
+	blockNum := uint64(7)
+	fetcher, oracle, _ := setupFetcherTest(t)
+	oracle.leafBlocks = []uint64{blockNum}
+
+	// No txs means stubL1Source will return an error when we try to fetch the block
+	leaves, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	require.ErrorContains(t, err, fmt.Sprintf("failed getting tx for block %v", blockNum))
+	require.Empty(t, leaves)
+}
+
+func TestFetchLeaves_SingleTxSingleLog(t *testing.T) {
+	cases := []struct {
+		name       string
+		txSender   *ecdsa.PrivateKey
+		txModifier TxModifier
+	}{
+		{"from EOA claimant address", claimantKey, ValidTx},
+		{"from contract call", otherKey, WithToAddr(otherAddr)},
+		{"from contract creation", otherKey, WithoutToAddr()},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fetcher, oracle, l1Source := setupFetcherTest(t)
+			blockNum := uint64(7)
+			oracle.leafBlocks = []uint64{blockNum}
+
+			proposal := oracle.createProposal(input1)
+			tx := l1Source.createTx(blockNum, tc.txSender, tc.txModifier)
+			l1Source.createLog(tx, proposal)
+
+			inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+			require.NoError(t, err)
+			require.Equal(t, []keccakTypes.InputData{input1}, inputs)
+		})
+	}
+}
+
+func TestFetchLeaves_SingleTxMultipleLogs(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
-	l1Source.txs[blockNum] = types.Transactions{oracle.txForInput(ValidTx, input1)}
+
+	proposal1 := oracle.createProposal(input1)
+	proposal2 := oracle.createProposal(input2)
+	tx := l1Source.createTx(blockNum, otherKey, WithToAddr(otherAddr))
+	l1Source.createLog(tx, proposal1)
+	l1Source.createLog(tx, proposal2)
+
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
-	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
+	require.Equal(t, []keccakTypes.InputData{input1, input2}, inputs)
 }
 
 func TestFetchLeaves_MultipleBlocksAndLeaves(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	block1 := uint64(7)
 	block2 := uint64(15)
-	block3 := uint64(20)
-	oracle.leafBlocks = []uint64{block1, block2, block3}
-	l1Source.txs[block1] = types.Transactions{oracle.txForInput(ValidTx, input1)}
-	l1Source.txs[block2] = types.Transactions{oracle.txForInput(ValidTx, input2)}
-	l1Source.txs[block3] = types.Transactions{oracle.txForInput(ValidTx, input3), oracle.txForInput(ValidTx, input4)}
+	oracle.leafBlocks = []uint64{block1, block2}
+
+	proposal1 := oracle.createProposal(input1)
+	proposal2 := oracle.createProposal(input2)
+	proposal3 := oracle.createProposal(input3)
+	proposal4 := oracle.createProposal(input4)
+	block1Tx := l1Source.createTx(block1, claimantKey, ValidTx)
+	block2TxA := l1Source.createTx(block2, claimantKey, ValidTx)
+	l1Source.createTx(block2, claimantKey, ValidTx) // Add tx with no logs
+	block2TxB := l1Source.createTx(block2, otherKey, WithoutToAddr())
+	l1Source.createLog(block1Tx, proposal1)
+	l1Source.createLog(block2TxA, proposal2)
+	l1Source.createLog(block2TxB, proposal3)
+	l1Source.createLog(block2TxB, proposal4)
+
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
 	require.Equal(t, []keccakTypes.InputData{input1, input2, input3, input4}, inputs)
 }
 
-func TestFetchLeaves_SkipTxToWrongContract(t *testing.T) {
+func TestFetchLeaves_SkipLogFromWrongContract(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
-	// Valid tx but to a different contract
-	tx1 := oracle.txForInput(WithToAddr(common.Address{0x88, 0x99, 0x11}), input2)
-	// Valid tx but without a to addr
-	tx2 := oracle.txForInput(WithoutToAddr(), input2)
-	// Valid tx to the correct contract
-	tx3 := oracle.txForInput(ValidTx, input1)
-	l1Source.txs[blockNum] = types.Transactions{tx1, tx2, tx3}
+
+	// Emit log from an irrelevant contract address
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	log1 := l1Source.createLog(tx1, proposal1)
+	log1.Address = otherAddr
+	// Valid tx
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
+
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
 	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
-func TestFetchLeaves_SkipTxWithDifferentUUID(t *testing.T) {
+func TestFetchLeaves_SkipProposalWithWrongUUID(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
+
 	// Valid tx but with a different UUID
-	tx1 := oracle.txForInput(WithUUID(big.NewInt(874927294)), input2)
+	proposal1 := oracle.createProposal(input2)
+	proposal1.uuid = big.NewInt(874927294)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	// Valid tx
-	tx2 := oracle.txForInput(ValidTx, input1)
-	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
+
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
 	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
-func TestFetchLeaves_SkipTxWithInvalidCall(t *testing.T) {
+func TestFetchLeaves_SkipProposalWithWrongClaimant(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
-	// Call to preimage oracle but fails to decode
-	tx1 := oracle.txForInput(WithInvalidData(), input2)
+
+	// Valid tx but with a different claimant
+	proposal1 := oracle.createProposal(input2)
+	proposal1.claimantAddr = otherAddr
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	// Valid tx
-	tx2 := oracle.txForInput(ValidTx, input1)
-	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
+
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
 	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
-func TestFetchLeaves_SkipTxWithInvalidSender(t *testing.T) {
+func TestFetchLeaves_SkipInvalidProposal(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
-	// Call to preimage oracle with different Chain ID
-	tx1 := oracle.txForInput(WithChainID(big.NewInt(992)), input3)
-	// Call to preimage oracle with wrong sender
-	wrongKey, _ := crypto.GenerateKey()
-	tx2 := oracle.txForInput(WithPrivKey(wrongKey), input4)
+
+	// Set up proposal decoding to fail
+	proposal1 := oracle.createProposal(input2)
+	proposal1.valid = false
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	// Valid tx
-	tx3 := oracle.txForInput(ValidTx, input1)
-	l1Source.txs[blockNum] = types.Transactions{tx1, tx2, tx3}
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
+
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	require.NoError(t, err)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
+}
+
+func TestFetchLeaves_SkipProposalWithInsufficientData(t *testing.T) {
+	fetcher, oracle, l1Source := setupFetcherTest(t)
+	blockNum := uint64(7)
+	oracle.leafBlocks = []uint64{blockNum}
+
+	// Log contains insufficient data
+	// It should hold a 20 byte address followed by the proposal payload
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	log1 := l1Source.createLog(tx1, proposal1)
+	log1.Data = proposal1.claimantAddr[:19]
+	// Valid tx
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
+
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	require.NoError(t, err)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
+}
+
+func TestFetchLeaves_SkipProposalMissingCallData(t *testing.T) {
+	fetcher, oracle, l1Source := setupFetcherTest(t)
+	blockNum := uint64(7)
+	oracle.leafBlocks = []uint64{blockNum}
+
+	// Truncate call data from log so that is only contains an address
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	log1 := l1Source.createLog(tx1, proposal1)
+	log1.Data = log1.Data[0:20]
+	// Valid tx
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
+
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
 	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
@@ -143,45 +277,87 @@ func TestFetchLeaves_SkipTxWithReceiptStatusFail(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
-	// Valid call to the preimage oracle but that reverted
-	tx1 := oracle.txForInput(ValidTx, input2)
+
+	// Valid proposal, but tx reverted
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	l1Source.rcptStatus[tx1.Hash()] = types.ReceiptStatusFailed
 	// Valid tx
-	tx2 := oracle.txForInput(ValidTx, input1)
-	l1Source.txs[blockNum] = types.Transactions{tx1, tx2}
+	proposal2 := oracle.createProposal(input1)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
+
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
 	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
+}
+
+func TestFetchLeaves_ErrorsOnMissingReceipt(t *testing.T) {
+	fetcher, oracle, l1Source := setupFetcherTest(t)
+	blockNum := uint64(7)
+	oracle.leafBlocks = []uint64{blockNum}
+
+	// Valid tx
+	proposal1 := oracle.createProposal(input1)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
+	// Valid proposal, but tx receipt is missing
+	proposal2 := oracle.createProposal(input2)
+	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx2, proposal2)
+	l1Source.rcptStatus[tx2.Hash()] = MissingReceiptStatus
+
+	input, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	require.ErrorContains(t, err, fmt.Sprintf("failed to retrieve receipt for tx %v", tx2.Hash()))
+	require.Nil(t, input)
 }
 
 func TestFetchLeaves_ErrorsWhenNoValidLeavesInBlock(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
-	// Irrelevant call
-	tx1 := oracle.txForInput(WithUUID(big.NewInt(492)), input2)
+
+	// Irrelevant tx - reverted
+	proposal1 := oracle.createProposal(input2)
+	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createLog(tx1, proposal1)
 	l1Source.rcptStatus[tx1.Hash()] = types.ReceiptStatusFailed
-	l1Source.txs[blockNum] = types.Transactions{tx1}
-	_, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	// Irrelevant tx - no logs are emitted
+	l1Source.createTx(blockNum, claimantKey, ValidTx)
+
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.ErrorIs(t, err, ErrNoLeavesFound)
+	require.Nil(t, inputs)
 }
 
 func setupFetcherTest(t *testing.T) (*InputFetcher, *stubOracle, *stubL1Source) {
 	oracle := &stubOracle{
-		txInputs: make(map[byte]keccakTypes.InputData),
+		proposals: make(map[byte]*proposalConfig),
 	}
 	l1Source := &stubL1Source{
 		txs:        make(map[uint64]types.Transactions),
 		rcptStatus: make(map[common.Hash]uint64),
+		logs:       make(map[common.Hash][]*types.Log),
 	}
 	fetcher := NewPreimageFetcher(testlog.Logger(t, log.LevelTrace), l1Source)
 	return fetcher, oracle, l1Source
 }
 
+type proposalConfig struct {
+	id           byte
+	claimantAddr common.Address
+	inputData    keccakTypes.InputData
+	uuid         *big.Int
+	valid        bool
+}
+
 type stubOracle struct {
-	nextTxId   byte
-	leafBlocks []uint64
-	txInputs   map[byte]keccakTypes.InputData
+	leafBlocks     []uint64
+	nextProposalId byte
+	proposals      map[byte]*proposalConfig
+	// Add a field to allow for mocking of errors
+	inputDataBlocksError error
 }
 
 func (o *stubOracle) Addr() common.Address {
@@ -189,6 +365,9 @@ func (o *stubOracle) Addr() common.Address {
 }
 
 func (o *stubOracle) GetInputDataBlocks(_ context.Context, _ rpcblock.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
+	if o.inputDataBlocksError != nil {
+		return nil, o.inputDataBlocksError
+	}
 	return o.leafBlocks, nil
 }
 
@@ -196,87 +375,57 @@ func (o *stubOracle) DecodeInputData(data []byte) (*big.Int, keccakTypes.InputDa
 	if len(data) == 0 {
 		return nil, keccakTypes.InputData{}, contracts.ErrInvalidAddLeavesCall
 	}
-	input, ok := o.txInputs[data[0]]
-	if !ok {
+	proposalId := data[0]
+	proposal, ok := o.proposals[proposalId]
+	if !ok || !proposal.valid {
 		return nil, keccakTypes.InputData{}, contracts.ErrInvalidAddLeavesCall
 	}
-	uuid := ident.UUID
-	// WithUUID appends custom UUIDs to the tx data
-	if len(data) > 1 {
-		uuid = new(big.Int).SetBytes(data[1:])
-	}
-	return uuid, input, nil
+
+	return proposal.uuid, proposal.inputData, nil
 }
 
-type TxModifier func(tx *types.DynamicFeeTx) *ecdsa.PrivateKey
+type TxModifier func(tx *types.DynamicFeeTx)
 
-var ValidTx TxModifier = func(_ *types.DynamicFeeTx) *ecdsa.PrivateKey {
-	return privKey
+var ValidTx TxModifier = func(_ *types.DynamicFeeTx) {
+	// no-op
 }
 
 func WithToAddr(addr common.Address) TxModifier {
-	return func(tx *types.DynamicFeeTx) *ecdsa.PrivateKey {
+	return func(tx *types.DynamicFeeTx) {
 		tx.To = &addr
-		return privKey
 	}
 }
 
 func WithoutToAddr() TxModifier {
-	return func(tx *types.DynamicFeeTx) *ecdsa.PrivateKey {
+	return func(tx *types.DynamicFeeTx) {
 		tx.To = nil
-		return privKey
 	}
 }
 
-func WithUUID(uuid *big.Int) TxModifier {
-	return func(tx *types.DynamicFeeTx) *ecdsa.PrivateKey {
-		tx.Data = append(tx.Data, uuid.Bytes()...)
-		return privKey
-	}
-}
+func (o *stubOracle) createProposal(input keccakTypes.InputData) *proposalConfig {
+	id := o.nextProposalId
+	o.nextProposalId++
 
-func WithInvalidData() TxModifier {
-	return func(tx *types.DynamicFeeTx) *ecdsa.PrivateKey {
-		tx.Data = []byte{}
-		return privKey
+	proposal := &proposalConfig{
+		id:           id,
+		claimantAddr: ident.Claimant,
+		inputData:    input,
+		uuid:         ident.UUID,
+		valid:        true,
 	}
-}
+	o.proposals[id] = proposal
 
-func WithChainID(id *big.Int) TxModifier {
-	return func(tx *types.DynamicFeeTx) *ecdsa.PrivateKey {
-		tx.ChainID = id
-		return privKey
-	}
-}
-
-func WithPrivKey(key *ecdsa.PrivateKey) TxModifier {
-	return func(tx *types.DynamicFeeTx) *ecdsa.PrivateKey {
-		return key
-	}
-}
-
-func (o *stubOracle) txForInput(txMod TxModifier, input keccakTypes.InputData) *types.Transaction {
-	id := o.nextTxId
-	o.nextTxId++
-	o.txInputs[id] = input
-	inner := &types.DynamicFeeTx{
-		ChainID:   chainID,
-		Nonce:     1,
-		To:        &oracleAddr,
-		Value:     big.NewInt(0),
-		GasTipCap: big.NewInt(1),
-		GasFeeCap: big.NewInt(2),
-		Gas:       3,
-		Data:      []byte{id},
-	}
-	key := txMod(inner)
-	tx := types.MustSignNewTx(key, types.LatestSignerForChainID(inner.ChainID), inner)
-	return tx
+	return proposal
 }
 
 type stubL1Source struct {
-	txs        map[uint64]types.Transactions
+	nextTxId uint64
+	// Map block number to tx
+	txs map[uint64]types.Transactions
+	// Map txHash to receipt
 	rcptStatus map[common.Hash]uint64
+	// Map txHash to logs
+	logs map[common.Hash][]*types.Log
 }
 
 func (s *stubL1Source) ChainID(_ context.Context) (*big.Int, error) {
@@ -295,6 +444,62 @@ func (s *stubL1Source) TransactionReceipt(_ context.Context, txHash common.Hash)
 	rcptStatus, ok := s.rcptStatus[txHash]
 	if !ok {
 		rcptStatus = types.ReceiptStatusSuccessful
+	} else if rcptStatus == MissingReceiptStatus {
+		return nil, errors.New("not found")
 	}
-	return &types.Receipt{Status: rcptStatus}, nil
+
+	logs := s.logs[txHash]
+	return &types.Receipt{Status: rcptStatus, Logs: logs}, nil
+}
+
+func (s *stubL1Source) createTx(blockNum uint64, key *ecdsa.PrivateKey, txMod TxModifier) *types.Transaction {
+	txId := s.nextTxId
+	s.nextTxId++
+
+	inner := &types.DynamicFeeTx{
+		ChainID:   chainID,
+		Nonce:     txId,
+		To:        &oracleAddr,
+		Value:     big.NewInt(0),
+		GasTipCap: big.NewInt(1),
+		GasFeeCap: big.NewInt(2),
+		Gas:       3,
+		Data:      []byte{},
+	}
+	txMod(inner)
+	tx := types.MustSignNewTx(key, types.LatestSignerForChainID(inner.ChainID), inner)
+
+	// Track tx internally
+	txSet := s.txs[blockNum]
+	txSet = append(txSet, tx)
+	s.txs[blockNum] = txSet
+
+	return tx
+}
+
+func (s *stubL1Source) createLog(tx *types.Transaction, proposal *proposalConfig) *types.Log {
+	// Concat the claimant address and the proposal id
+	// These will be split back into address and id in fetcher.extractRelevantLeavesFromTx
+	data := append(proposal.claimantAddr[:], proposal.id)
+
+	txLog := &types.Log{
+		Address: oracleAddr,
+		Data:    data,
+		Topics:  []common.Hash{},
+
+		// ignored (zeroed):
+		BlockNumber: 0,
+		TxHash:      common.Hash{},
+		TxIndex:     0,
+		BlockHash:   common.Hash{},
+		Index:       0,
+		Removed:     false,
+	}
+
+	// Track tx log
+	logSet := s.logs[tx.Hash()]
+	logSet = append(logSet, txLog)
+	s.logs[tx.Hash()] = logSet
+
+	return txLog
 }

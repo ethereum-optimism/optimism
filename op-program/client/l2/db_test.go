@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie"
-	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -112,7 +112,7 @@ func TestPut(t *testing.T) {
 func TestSupportsStateDBOperations(t *testing.T) {
 	l2Genesis := createGenesis()
 	realDb := rawdb.NewDatabase(memorydb.New())
-	trieDB := trie.NewDatabase(realDb, &trie.Config{HashDB: hashdb.Defaults})
+	trieDB := triedb.NewDatabase(realDb, &triedb.Config{HashDB: hashdb.Defaults})
 	genesisBlock := l2Genesis.MustCommit(realDb, trieDB)
 
 	loader := test.NewKvStateOracle(t, realDb)
@@ -124,7 +124,7 @@ func TestUpdateState(t *testing.T) {
 	oracle := test.NewStubStateOracle(t)
 	db := rawdb.NewDatabase(NewOracleBackedDB(oracle))
 
-	trieDB := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	trieDB := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	genesisBlock := l2Genesis.MustCommit(db, trieDB)
 	assertStateDataAvailable(t, db, l2Genesis, genesisBlock)
 
@@ -160,7 +160,7 @@ func createGenesis() *core.Genesis {
 		Difficulty: common.Big0,
 		ParentHash: common.Hash{},
 		BaseFee:    big.NewInt(7),
-		Alloc: map[common.Address]core.GenesisAccount{
+		Alloc: map[common.Address]types.Account{
 			userAccount: {
 				Balance: big.NewInt(1_000_000_000_000_000_000),
 				Nonce:   10,
