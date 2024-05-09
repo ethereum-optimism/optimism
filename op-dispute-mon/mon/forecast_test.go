@@ -104,21 +104,44 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 func TestForecast_Forecast_EndLogs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("BlockNumberChallenged", func(t *testing.T) {
+	t.Run("BlockNumberChallenged_AgreeWithChallenge", func(t *testing.T) {
 		forecast, m, logs := setupForecastTest(t)
 		expectedGame := monTypes.EnrichedGameData{
 			Status:                types.GameStatusInProgress,
 			BlockNumberChallenged: true,
 			L2BlockNumber:         6,
+			AgreeWithClaim:        false,
 		}
 		forecast.Forecast([]*monTypes.EnrichedGameData{&expectedGame}, 0, 0)
 		l := logs.FindLog(testlog.NewLevelFilter(log.LevelDebug), testlog.NewMessageFilter("Found game with challenged block number"))
 		require.NotNil(t, l)
 		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
 		require.Equal(t, expectedGame.L2BlockNumber, l.AttrValue("blockNum"))
+		require.Equal(t, false, l.AttrValue("agreement"))
 
 		expectedMetrics := zeroGameAgreement()
 		expectedMetrics[metrics.AgreeChallengerAhead] = 1
+		require.Equal(t, expectedMetrics, m.gameAgreement)
+	})
+
+	t.Run("BlockNumberChallenged_DisagreeWithChallenge", func(t *testing.T) {
+		forecast, m, logs := setupForecastTest(t)
+		expectedGame := monTypes.EnrichedGameData{
+			Status:                types.GameStatusInProgress,
+			BlockNumberChallenged: true,
+			L2BlockNumber:         6,
+			AgreeWithClaim:        true,
+		}
+		forecast.Forecast([]*monTypes.EnrichedGameData{&expectedGame}, 0, 0)
+		l := logs.FindLog(testlog.NewLevelFilter(log.LevelDebug), testlog.NewMessageFilter("Found game with challenged block number"))
+		require.NotNil(t, l)
+		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
+		require.Equal(t, expectedGame.L2BlockNumber, l.AttrValue("blockNum"))
+		require.Equal(t, true, l.AttrValue("agreement"))
+
+		expectedMetrics := zeroGameAgreement()
+		expectedMetrics[metrics.DisagreeChallengerAhead] = 1
+		expectedMetrics[metrics.DisagreeL2BlockChallenge] = 1
 		require.Equal(t, expectedMetrics, m.gameAgreement)
 	})
 
@@ -281,14 +304,15 @@ func setupForecastTest(t *testing.T) (*Forecast, *mockForecastMetrics, *testlog.
 
 func zeroGameAgreement() map[metrics.GameAgreementStatus]int {
 	return map[metrics.GameAgreementStatus]int{
-		metrics.AgreeChallengerAhead:    0,
-		metrics.DisagreeChallengerAhead: 0,
-		metrics.AgreeDefenderAhead:      0,
-		metrics.DisagreeDefenderAhead:   0,
-		metrics.AgreeDefenderWins:       0,
-		metrics.DisagreeDefenderWins:    0,
-		metrics.AgreeChallengerWins:     0,
-		metrics.DisagreeChallengerWins:  0,
+		metrics.AgreeChallengerAhead:     0,
+		metrics.DisagreeChallengerAhead:  0,
+		metrics.AgreeDefenderAhead:       0,
+		metrics.DisagreeDefenderAhead:    0,
+		metrics.AgreeDefenderWins:        0,
+		metrics.DisagreeDefenderWins:     0,
+		metrics.AgreeChallengerWins:      0,
+		metrics.DisagreeChallengerWins:   0,
+		metrics.DisagreeL2BlockChallenge: 0,
 	}
 }
 

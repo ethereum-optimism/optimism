@@ -17,8 +17,7 @@ var NoopMetrics Metricer = new(NoopMetricsImpl)
 func (*NoopMetricsImpl) RecordInfo(_ string) {}
 func (*NoopMetricsImpl) RecordUp()           {}
 
-func (i *NoopMetricsImpl) RecordMonitorDuration(_ time.Duration) {
-}
+func (*NoopMetricsImpl) RecordMonitorDuration(_ time.Duration) {}
 
 func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}

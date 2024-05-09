@@ -59,6 +59,9 @@ const (
 	AgreeDefenderAhead
 	DisagreeDefenderAhead
 
+	// L2 Block Number Challenge
+	DisagreeL2BlockChallenge
+
 	// Completed
 	AgreeDefenderWins
 	DisagreeDefenderWins
@@ -492,6 +495,10 @@ func labelValuesFor(status GameAgreementStatus) []string {
 		return asStrings("agree_defender_ahead", inProgress, correct, agree)
 	case DisagreeDefenderAhead:
 		return asStrings("disagree_defender_ahead", inProgress, !correct, !agree)
+
+	// L2 Block Number Challenge
+	case DisagreeL2BlockChallenge:
+		return asStrings("disagree_l2_block_challenge", inProgress, !correct, !agree)
 
 	// Completed
 	case AgreeDefenderWins:

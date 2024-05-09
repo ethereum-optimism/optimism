@@ -32,6 +32,8 @@ type forecastBatch struct {
 	AgreeChallengerWins    int
 	DisagreeChallengerWins int
 
+	DisagreeL2BlockChallenge int
+
 	LatestInvalidProposal uint64
 }
 
@@ -67,6 +69,8 @@ func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount in
 	f.metrics.RecordGameAgreement(metrics.DisagreeChallengerAhead, batch.DisagreeChallengerAhead)
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderAhead, batch.AgreeDefenderAhead)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderAhead, batch.DisagreeDefenderAhead)
+
+	f.metrics.RecordGameAgreement(metrics.DisagreeL2BlockChallenge, batch.DisagreeL2BlockChallenge)
 
 	f.metrics.RecordLatestInvalidProposal(batch.LatestInvalidProposal)
 
@@ -115,8 +119,13 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 	// by the challenger since the counter is proven on-chain.
 	if game.BlockNumberChallenged {
 		f.logger.Debug("Found game with challenged block number",
-			"game", game.Proxy, "blockNum", game.L2BlockNumber)
-		metrics.AgreeChallengerAhead++
+			"game", game.Proxy, "blockNum", game.L2BlockNumber, "agreement", agreement)
+		if !agreement {
+			metrics.AgreeChallengerAhead++
+		} else {
+			metrics.DisagreeChallengerAhead++
+			metrics.DisagreeL2BlockChallenge++
+		}
 		return nil
 	}
 
