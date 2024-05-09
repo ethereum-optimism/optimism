@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
@@ -107,6 +108,8 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	RecordMonitorDuration(dur time.Duration)
+
 	RecordFailedGames(count int)
 
 	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
@@ -143,6 +146,8 @@ type Metrics struct {
 
 	*opmetrics.CacheMetrics
 	*contractMetrics.ContractMetrics
+
+	monitorDuration prometheus.Histogram
 
 	resolutionStatus prometheus.GaugeVec
 
@@ -198,6 +203,12 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "up",
 			Help:      "1 if the op-challenger has finished starting up",
+		}),
+		monitorDuration: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: Namespace,
+			Name:      "monitor_duration_seconds",
+			Help:      "Time taken to complete a cycle of updating metrics for all games",
+			Buckets:   []float64{10, 30, 60, 120, 180, 300, 600},
 		}),
 		lastOutputFetch: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -323,6 +334,10 @@ func (m *Metrics) RecordInfo(version string) {
 func (m *Metrics) RecordUp() {
 	prometheus.MustRegister()
 	m.up.Set(1)
+}
+
+func (m *Metrics) RecordMonitorDuration(dur time.Duration) {
+	m.monitorDuration.Observe(dur.Seconds())
 }
 
 func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorData) {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -128,6 +129,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 		context.Background(),
 		logger,
 		cl,
+		metrics.NoopMetrics,
 		monitorInterval,
 		10*time.Second,
 		forecast.Forecast,
