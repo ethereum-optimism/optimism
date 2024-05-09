@@ -77,6 +77,7 @@ func newGameMonitor(
 }
 
 func (m *gameMonitor) monitorGames() error {
+	start := m.clock.Now()
 	blockNumber, err := m.fetchBlockNumber(m.ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch block number: %w", err)
@@ -96,6 +97,8 @@ func (m *gameMonitor) monitorGames() error {
 	m.bonds(enrichedGames)
 	m.claims(enrichedGames)
 	m.withdrawals(enrichedGames)
+	timeTaken := m.clock.Since(start)
+	m.logger.Info("Completed monitoring update", "blockNumber", blockNumber, "blockHash", blockHash, "duration", timeTaken)
 	return nil
 }
 
