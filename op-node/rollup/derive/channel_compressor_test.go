@@ -19,42 +19,47 @@ func randomBytes(length int) []byte {
 	return b
 }
 
-func TestSpanChannelCompressor(t *testing.T) {
+func TestChannelCompressor_NewReset(t *testing.T) {
 	testCases := []struct {
-		name                   string
-		algo                   CompressionAlgo
-		expectedCompressedSize int
+		name              string
+		algo              CompressionAlgo
+		expectedResetSize int
+		expectErr         bool
 	}{{
-		name:                   "zlib",
-		algo:                   Zlib,
-		expectedCompressedSize: 0,
+		name:              "zlib",
+		algo:              Zlib,
+		expectedResetSize: 0,
 	},
 		{
-			name:                   "brotli10",
-			algo:                   Brotli10,
-			expectedCompressedSize: 1,
+			name:              "brotli10",
+			algo:              Brotli10,
+			expectedResetSize: 1,
 		},
 		{
-			name:                   "zstd",
-			algo:                   CompressionAlgo("zstd"),
-			expectedCompressedSize: 0,
+			name:              "zstd",
+			algo:              CompressionAlgo("zstd"),
+			expectedResetSize: 0,
+			expectErr:         true,
 		}}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			scc, err := NewChannelCompressor(tc.algo)
-			if tc.name == "zstd" {
+			if tc.expectErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tc.expectedCompressedSize, scc.Len())
+			require.Equal(t, tc.expectedResetSize, scc.Len())
 
-			scc.Write(randomBytes(10000000))
-			require.Greater(t, scc.Len(), tc.expectedCompressedSize)
+			_, err = scc.Write(randomBytes(10))
+			require.NoError(t, err)
+			err = scc.Flush()
+			require.NoError(t, err)
+			require.Greater(t, scc.Len(), tc.expectedResetSize)
 
 			scc.Reset()
-			require.Equal(t, tc.expectedCompressedSize, scc.Len())
+			require.Equal(t, tc.expectedResetSize, scc.Len())
 		})
 	}
 }

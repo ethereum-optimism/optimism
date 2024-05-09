@@ -23,38 +23,15 @@ func zeroFrameTxID(fn uint16) txID {
 	return txID{frameID{frameNumber: fn}}
 }
 
-func TestChannel(t *testing.T) {
-	tests := []struct {
-		name string
-		f    func(t *testing.T, algo derive.CompressionAlgo)
-	}{
-		{"ChannelTimeout", ChannelTimeout},
-		{"ChannelManager_NextTxData", ChannelManager_NextTxData},
-		{"Channel_NextTxData_singleFrameTx", Channel_NextTxData_singleFrameTx},
-		{"Channel_NextTxData_multiFrameTx", Channel_NextTxData_multiFrameTx},
-		{"ChannelTxConfirmed", ChannelTxConfirmed},
-		{"ChannelTxFailed", ChannelTxFailed},
-	}
-
-	for _, test := range tests {
-		test := test
-		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(test.name+"_"+algo.String(), func(t *testing.T) {
-				test.f(t, algo)
-			})
-		}
-	}
-}
-
 // TestChannelTimeout tests that the channel manager
 // correctly identifies when a pending channel is timed out.
-func ChannelTimeout(t *testing.T, algo derive.CompressionAlgo) {
+func TestChannelTimeout(t *testing.T) {
 	// Create a new channel manager with a ChannelTimeout
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		ChannelTimeout: 100,
 		CompressorConfig: compressor.Config{
-			CompressionAlgo: algo,
+			CompressionAlgo: derive.Zlib,
 		},
 	}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
@@ -96,10 +73,10 @@ func ChannelTimeout(t *testing.T, algo derive.CompressionAlgo) {
 }
 
 // TestChannelManager_NextTxData tests the nextTxData function.
-func ChannelManager_NextTxData(t *testing.T, algo derive.CompressionAlgo) {
+func TestChannelManager_NextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
-		CompressionAlgo: algo,
+		CompressionAlgo: derive.Zlib,
 	}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
@@ -140,7 +117,7 @@ func ChannelManager_NextTxData(t *testing.T, algo derive.CompressionAlgo) {
 	require.Equal(t, expectedTxData, channel.pendingTransactions[expectedChannelID])
 }
 
-func Channel_NextTxData_singleFrameTx(t *testing.T, algo derive.CompressionAlgo) {
+func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 	require := require.New(t)
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
@@ -148,7 +125,7 @@ func Channel_NextTxData_singleFrameTx(t *testing.T, algo derive.CompressionAlgo)
 		MultiFrameTxs:   false,
 		TargetNumFrames: n,
 		CompressorConfig: compressor.Config{
-			CompressionAlgo: algo,
+			CompressionAlgo: derive.Zlib,
 		},
 	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
@@ -181,7 +158,7 @@ func Channel_NextTxData_singleFrameTx(t *testing.T, algo derive.CompressionAlgo)
 	require.False(ch.HasTxData())
 }
 
-func Channel_NextTxData_multiFrameTx(t *testing.T, algo derive.CompressionAlgo) {
+func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 	require := require.New(t)
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
@@ -189,7 +166,7 @@ func Channel_NextTxData_multiFrameTx(t *testing.T, algo derive.CompressionAlgo) 
 		MultiFrameTxs:   true,
 		TargetNumFrames: n,
 		CompressorConfig: compressor.Config{
-			CompressionAlgo: algo,
+			CompressionAlgo: derive.Zlib,
 		},
 	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
@@ -229,7 +206,7 @@ func makeMockFrameDatas(id derive.ChannelID, n int) []frameData {
 }
 
 // TestChannelTxConfirmed checks the [ChannelManager.TxConfirmed] function.
-func ChannelTxConfirmed(t *testing.T, algo derive.CompressionAlgo) {
+func TestChannelTxConfirmed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
@@ -238,7 +215,7 @@ func ChannelTxConfirmed(t *testing.T, algo derive.CompressionAlgo) {
 		// clearing confirmed transactions, and resetting the pendingChannels map
 		ChannelTimeout: 10,
 		CompressorConfig: compressor.Config{
-			CompressionAlgo: algo,
+			CompressionAlgo: derive.Zlib,
 		},
 	}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
@@ -286,11 +263,11 @@ func ChannelTxConfirmed(t *testing.T, algo derive.CompressionAlgo) {
 }
 
 // TestChannelTxFailed checks the [ChannelManager.TxFailed] function.
-func ChannelTxFailed(t *testing.T, algo derive.CompressionAlgo) {
+func TestChannelTxFailed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
-		CompressionAlgo: algo,
+		CompressionAlgo: derive.Zlib,
 	}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 

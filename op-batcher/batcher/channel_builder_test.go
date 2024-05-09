@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	dtest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
@@ -101,12 +100,10 @@ func addTooManyBlocks(cb *ChannelBuilder) error {
 // is set to 0, the channel builder cannot have a duration timeout.
 func FuzzDurationTimeoutZeroMaxChannelDuration(f *testing.F) {
 	for i := range [10]int{} {
-		for _, algo := range derive.CompressionAlgoTypes {
-			f.Add(uint64(i), algo.String())
-		}
+		f.Add(uint64(i))
 	}
-	f.Fuzz(func(t *testing.T, l1BlockNum uint64, algo string) {
-		channelConfig := defaultTestChannelConfig(derive.CompressionAlgo(algo))
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64) {
+		channelConfig := defaultTestChannelConfig()
 		channelConfig.MaxChannelDuration = 0
 		cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
 		require.NoError(t, err)
@@ -121,17 +118,15 @@ func FuzzDurationTimeoutZeroMaxChannelDuration(f *testing.F) {
 // as long as the channel builder's timeout is set to 0.
 func FuzzChannelBuilder_DurationZero(f *testing.F) {
 	for i := range [10]int{} {
-		for _, algo := range derive.CompressionAlgoTypes {
-			f.Add(uint64(i), uint64(i), algo.String())
-		}
+		f.Add(uint64(i), uint64(i))
 	}
-	f.Fuzz(func(t *testing.T, l1BlockNum uint64, maxChannelDuration uint64, algo string) {
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64, maxChannelDuration uint64) {
 		if maxChannelDuration == 0 {
 			t.Skip("Max channel duration cannot be 0")
 		}
 
 		// Create the channel builder
-		channelConfig := defaultTestChannelConfig(derive.CompressionAlgo(algo))
+		channelConfig := defaultTestChannelConfig()
 		channelConfig.MaxChannelDuration = maxChannelDuration
 		cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
 		require.NoError(t, err)
@@ -150,18 +145,15 @@ func FuzzChannelBuilder_DurationZero(f *testing.F) {
 func FuzzDurationTimeoutMaxChannelDuration(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
-		for _, algo := range derive.CompressionAlgoTypes {
-			f.Add(uint64(i), uint64(i), uint64(i), algo.String())
-		}
-
+		f.Add(uint64(i), uint64(i), uint64(i))
 	}
-	f.Fuzz(func(t *testing.T, l1BlockNum uint64, maxChannelDuration uint64, timeout uint64, algo string) {
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64, maxChannelDuration uint64, timeout uint64) {
 		if maxChannelDuration == 0 {
 			t.Skip("Max channel duration cannot be 0")
 		}
 
 		// Create the channel builder
-		channelConfig := defaultTestChannelConfig(derive.CompressionAlgo(algo))
+		channelConfig := defaultTestChannelConfig()
 		channelConfig.MaxChannelDuration = maxChannelDuration
 		cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
 		require.NoError(t, err)
@@ -190,13 +182,11 @@ func FuzzDurationTimeoutMaxChannelDuration(f *testing.F) {
 func FuzzChannelCloseTimeout(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
-		for _, algo := range derive.CompressionAlgoTypes {
-			f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5), algo.String())
-		}
+		f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5))
 	}
-	f.Fuzz(func(t *testing.T, l1BlockNum uint64, channelTimeout uint64, subSafetyMargin uint64, timeout uint64, algo string) {
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64, channelTimeout uint64, subSafetyMargin uint64, timeout uint64) {
 		// Create the channel builder
-		channelConfig := defaultTestChannelConfig(derive.CompressionAlgo(algo))
+		channelConfig := defaultTestChannelConfig()
 		channelConfig.ChannelTimeout = channelTimeout
 		channelConfig.SubSafetyMargin = subSafetyMargin
 		cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -220,13 +210,11 @@ func FuzzChannelCloseTimeout(f *testing.F) {
 func FuzzChannelZeroCloseTimeout(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
-		for _, algo := range derive.CompressionAlgoTypes {
-			f.Add(uint64(i), uint64(i), uint64(i), algo.String())
-		}
+		f.Add(uint64(i), uint64(i), uint64(i))
 	}
-	f.Fuzz(func(t *testing.T, l1BlockNum uint64, channelTimeout uint64, subSafetyMargin uint64, algo string) {
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64, channelTimeout uint64, subSafetyMargin uint64) {
 		// Create the channel builder
-		channelConfig := defaultTestChannelConfig(derive.CompressionAlgo(algo))
+		channelConfig := defaultTestChannelConfig()
 		channelConfig.ChannelTimeout = channelTimeout
 		channelConfig.SubSafetyMargin = subSafetyMargin
 		cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -249,13 +237,11 @@ func FuzzChannelZeroCloseTimeout(f *testing.F) {
 func FuzzSeqWindowClose(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
-		for _, algo := range derive.CompressionAlgoTypes {
-			f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5), algo.String())
-		}
+		f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5))
 	}
-	f.Fuzz(func(t *testing.T, epochNum uint64, seqWindowSize uint64, subSafetyMargin uint64, timeout uint64, algo string) {
+	f.Fuzz(func(t *testing.T, epochNum uint64, seqWindowSize uint64, subSafetyMargin uint64, timeout uint64) {
 		// Create the channel builder
-		channelConfig := defaultTestChannelConfig(derive.CompressionAlgo(algo))
+		channelConfig := defaultTestChannelConfig()
 		channelConfig.SeqWindowSize = seqWindowSize
 		channelConfig.SubSafetyMargin = subSafetyMargin
 		cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -279,13 +265,11 @@ func FuzzSeqWindowClose(f *testing.F) {
 func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
-		for _, algo := range derive.CompressionAlgoTypes {
-			f.Add(uint64(i), uint64(i), uint64(i), algo.String())
-		}
+		f.Add(uint64(i), uint64(i), uint64(i))
 	}
-	f.Fuzz(func(t *testing.T, epochNum uint64, seqWindowSize uint64, subSafetyMargin uint64, algo string) {
+	f.Fuzz(func(t *testing.T, epochNum uint64, seqWindowSize uint64, subSafetyMargin uint64) {
 		// Create the channel builder
-		channelConfig := defaultTestChannelConfig(derive.CompressionAlgo(algo))
+		channelConfig := defaultTestChannelConfig()
 		channelConfig.SeqWindowSize = seqWindowSize
 		channelConfig.SubSafetyMargin = subSafetyMargin
 		cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -341,10 +325,6 @@ func TestChannelBuilderSingularBatch(t *testing.T) {
 	}{
 		{"ChannelBuilder_NextFrame", ChannelBuilder_NextFrame},
 		{"ChannelBuilder_OutputFrames", ChannelBuilder_OutputFrames},
-		{"ChannelBuilder_CheckTimeout", ChannelBuilder_CheckTimeout},
-		{"ChannelBuilder_CheckTimeoutZeroMaxChannelDuration", ChannelBuilder_CheckTimeoutZeroMaxChannelDuration},
-		{"ChannelBuilder_FramePublished", ChannelBuilder_FramePublished},
-		{"ChannelBuilder_LatestL1Origin", ChannelBuilder_LatestL1Origin},
 	}
 	for _, test := range tests {
 		test := test
@@ -358,7 +338,7 @@ func TestChannelBuilderSingularBatch(t *testing.T) {
 
 // TestChannelBuilder_NextFrame tests calling NextFrame on a ChannelBuilder with only one frame
 func ChannelBuilder_NextFrame(t *testing.T, algo derive.CompressionAlgo) {
-	channelConfig := defaultTestChannelConfig(algo)
+	channelConfig := defaultTestChannelConfig()
 
 	// Create a new channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -398,7 +378,7 @@ func ChannelBuilder_NextFrame(t *testing.T, algo derive.CompressionAlgo) {
 
 // TestChannelBuilder_OutputWrongFramePanic tests that a panic is thrown when a frame is pushed with an invalid frame id
 func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
-	channelConfig := defaultTestChannelConfig(algo)
+	channelConfig := defaultTestChannelConfig()
 	channelConfig.BatchType = batchType
 
 	// Construct a channel builder
@@ -432,10 +412,10 @@ func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint, algo der
 
 // TestChannelBuilder_OutputFrames tests [ChannelBuilder.OutputFrames] for singular batches.
 func ChannelBuilder_OutputFrames(t *testing.T, algo derive.CompressionAlgo) {
-	channelConfig := defaultTestChannelConfig(algo)
+	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = 1000
-	channelConfig.InitNoneCompressor(algo)
+	channelConfig.InitNoneCompressor()
 
 	// Construct the channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -476,18 +456,18 @@ func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
 	for _, algo := range derive.CompressionAlgoTypes {
 		t.Run("ChannelBuilder_OutputFrames_SpanBatch"+algo.String(), func(t *testing.T) {
 			if algo.IsBrotli() {
-				ChannelBuilder_OutputFrames_SpanBatch(t, algo, 1) // to fill faster for brotli
+				ChannelBuilder_OutputFrames_SpanBatch(t, algo) // to fill faster for brotli
 			} else {
-				ChannelBuilder_OutputFrames_SpanBatch(t, algo, 5)
+				ChannelBuilder_OutputFrames_SpanBatch(t, algo)
 			}
 		})
 	}
 }
 
-func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.CompressionAlgo, targetNumFrames int) {
-	channelConfig := defaultTestChannelConfig(algo)
+func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.CompressionAlgo) {
+	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
-	channelConfig.TargetNumFrames = targetNumFrames
+	channelConfig.TargetNumFrames = 5
 	channelConfig.BatchType = derive.SpanBatchType
 	channelConfig.InitRatioCompressor(1, algo)
 
@@ -543,9 +523,9 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.Compression
 // function errors when the max RLP bytes per channel is reached.
 func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
 	t.Parallel()
-	channelConfig := defaultTestChannelConfig(algo)
+	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.MaxRLPBytesPerChannel * 2
-	channelConfig.InitNoneCompressor(algo)
+	channelConfig.InitNoneCompressor()
 	channelConfig.BatchType = batchType
 
 	// Construct the channel builder
@@ -560,7 +540,7 @@ func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint, algo der
 // ChannelBuilder_OutputFramesMaxFrameIndex tests the [ChannelBuilder.OutputFrames]
 // function errors when the max frame index is reached.
 func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
-	channelConfig := defaultTestChannelConfig(algo)
+	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = math.MaxUint16 + 1
 	channelConfig.InitRatioCompressor(.1, algo)
@@ -599,39 +579,25 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint, algo
 // [derive.FrameV0OverHeadSize] in [MaxDataSize] is omitted, which has been the
 // case before it got fixed it #9887.
 func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
-	for _, algo := range derive.CompressionAlgoTypes {
-		t.Run("ChannelBuilder_FullShadowCompressor"+algo.String(), func(t *testing.T) {
-			ChannelBuilder_FullShadowCompressor(t, algo)
-		})
-	}
-}
-
-func ChannelBuilder_FullShadowCompressor(t *testing.T, algo derive.CompressionAlgo) {
 	require := require.New(t)
 	cfg := ChannelConfig{
 		MaxFrameSize:    752,
 		TargetNumFrames: 1,
 		BatchType:       derive.SpanBatchType,
-		CompressorConfig: compressor.Config{
-			CompressionAlgo: algo,
-		},
 	}
 
-	cfg.InitShadowCompressor(algo)
+	cfg.InitShadowCompressor(derive.Zlib)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err)
 
 	rng := rand.New(rand.NewSource(420))
 	a := dtest.RandomL2BlockWithChainId(rng, 1, defaultTestRollupConfig.L2ChainID)
-
-	for {
-		_, err = cb.AddBlock(a)
-		if err != nil {
-			require.ErrorIs(err, derive.ErrCompressorFull)
-			break
-		}
-	}
-
+	_, err = cb.AddBlock(a)
+	require.NoError(err)
+	_, err = cb.AddBlock(a)
+	require.ErrorIs(err, derive.ErrCompressorFull)
+	// without fix, adding the second block would succeed and then adding a
+	// third block would fail with full error and the compressor would be full.
 	require.NoError(cb.OutputFrames())
 	require.True(cb.HasFrame())
 	f := cb.NextFrame()
@@ -641,7 +607,7 @@ func ChannelBuilder_FullShadowCompressor(t *testing.T, algo derive.CompressionAl
 }
 
 func ChannelBuilder_AddBlock(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
-	channelConfig := defaultTestChannelConfig(algo)
+	channelConfig := defaultTestChannelConfig()
 	channelConfig.BatchType = batchType
 
 	// Lower the max frame size so that we can batch
@@ -673,8 +639,8 @@ func ChannelBuilder_AddBlock(t *testing.T, batchType uint, algo derive.Compressi
 	require.ErrorIs(t, addMiniBlock(cb), derive.ErrCompressorFull)
 }
 
-func ChannelBuilder_CheckTimeout(t *testing.T, algo derive.CompressionAlgo) {
-	channelConfig := defaultTestChannelConfig(algo)
+func TestChannelBuilder_CheckTimeout(t *testing.T) {
+	channelConfig := defaultTestChannelConfig()
 
 	// Construct the channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -695,8 +661,8 @@ func ChannelBuilder_CheckTimeout(t *testing.T, algo derive.CompressionAlgo) {
 	require.ErrorIs(t, cb.FullErr(), ErrMaxDurationReached)
 }
 
-func ChannelBuilder_CheckTimeoutZeroMaxChannelDuration(t *testing.T, algo derive.CompressionAlgo) {
-	channelConfig := defaultTestChannelConfig(algo)
+func TestChannelBuilder_CheckTimeoutZeroMaxChannelDuration(t *testing.T) {
+	channelConfig := defaultTestChannelConfig()
 
 	// Set the max channel duration to 0
 	channelConfig.MaxChannelDuration = 0
@@ -718,8 +684,8 @@ func ChannelBuilder_CheckTimeoutZeroMaxChannelDuration(t *testing.T, algo derive
 	require.Equal(t, uint64(0), cb.timeout)
 }
 
-func ChannelBuilder_FramePublished(t *testing.T, algo derive.CompressionAlgo) {
-	cfg := defaultTestChannelConfig(algo)
+func TestChannelBuilder_FramePublished(t *testing.T) {
+	cfg := defaultTestChannelConfig()
 	cfg.MaxChannelDuration = 10_000
 	cfg.ChannelTimeout = 1000
 	cfg.SubSafetyMargin = 100
@@ -741,8 +707,8 @@ func ChannelBuilder_FramePublished(t *testing.T, algo derive.CompressionAlgo) {
 	require.Less(t, cb.timeout, priorTimeout)
 }
 
-func ChannelBuilder_LatestL1Origin(t *testing.T, algo derive.CompressionAlgo) {
-	cb, err := NewChannelBuilder(defaultTestChannelConfig(algo), defaultTestRollupConfig, latestL1BlockOrigin)
+func TestChannelBuilder_LatestL1Origin(t *testing.T) {
+	cb, err := NewChannelBuilder(defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.LatestL1Origin())
 
@@ -767,7 +733,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint, algo
 	const tnf = 9
 	rng := rand.New(rand.NewSource(94572314))
 	require := require.New(t)
-	cfg := defaultTestChannelConfig(algo)
+	cfg := defaultTestChannelConfig()
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = tnf
 	cfg.BatchType = batchType
@@ -810,7 +776,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint, algo
 func ChannelBuilder_InputBytes(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(4982432))
-	cfg := defaultTestChannelConfig(algo)
+	cfg := defaultTestChannelConfig()
 	cfg.BatchType = batchType
 	var spanBatch *derive.SpanBatch
 	if batchType == derive.SpanBatchType {
@@ -849,7 +815,7 @@ func ChannelBuilder_InputBytes(t *testing.T, batchType uint, algo derive.Compres
 func ChannelBuilder_OutputBytes(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(9860372))
-	cfg := defaultTestChannelConfig(algo)
+	cfg := defaultTestChannelConfig()
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = 16
 	cfg.BatchType = batchType

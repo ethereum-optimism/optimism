@@ -32,19 +32,19 @@ type CompressorWriter interface {
 
 type BaseChannelCompressor struct {
 	compressed *bytes.Buffer
-	writer     CompressorWriter
+	CompressorWriter
 }
 
 func (bcc *BaseChannelCompressor) Write(data []byte) (int, error) {
-	return bcc.writer.Write(data)
+	return bcc.CompressorWriter.Write(data)
 }
 
 func (bcc *BaseChannelCompressor) Flush() error {
-	return bcc.writer.Flush()
+	return bcc.CompressorWriter.Flush()
 }
 
 func (bcc *BaseChannelCompressor) Close() error {
-	return bcc.writer.Close()
+	return bcc.CompressorWriter.Close()
 }
 
 func (bcc *BaseChannelCompressor) Len() int {
@@ -65,7 +65,7 @@ type ZlibCompressor struct {
 
 func (zc *ZlibCompressor) Reset() {
 	zc.compressed.Reset()
-	zc.writer.Reset(zc.compressed)
+	zc.CompressorWriter.Reset(zc.compressed)
 }
 
 type BrotliCompressor struct {
@@ -75,7 +75,7 @@ type BrotliCompressor struct {
 func (bc *BrotliCompressor) Reset() {
 	bc.compressed.Reset()
 	bc.compressed.WriteByte(ChannelVersionBrotli)
-	bc.writer.Reset(bc.compressed)
+	bc.CompressorWriter.Reset(bc.compressed)
 }
 
 func NewChannelCompressor(algo CompressionAlgo) (ChannelCompressor, error) {
@@ -87,8 +87,8 @@ func NewChannelCompressor(algo CompressionAlgo) (ChannelCompressor, error) {
 		}
 		return &ZlibCompressor{
 			BaseChannelCompressor{
-				writer:     writer,
-				compressed: compressed,
+				CompressorWriter: writer,
+				compressed:       compressed,
 			},
 		}, nil
 	} else if algo.IsBrotli() {
@@ -96,8 +96,8 @@ func NewChannelCompressor(algo CompressionAlgo) (ChannelCompressor, error) {
 		writer := brotli.NewWriterLevel(compressed, GetBrotliLevel(algo))
 		return &BrotliCompressor{
 			BaseChannelCompressor{
-				writer:     writer,
-				compressed: compressed,
+				CompressorWriter: writer,
+				compressed:       compressed,
 			},
 		}, nil
 	} else {

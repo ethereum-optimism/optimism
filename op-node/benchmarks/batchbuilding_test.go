@@ -176,7 +176,7 @@ func BenchmarkIncremental(b *testing.B) {
 			}
 			done := false
 			for base := 0; !done; base += tc.BatchCount {
-				rangeName := fmt.Sprintf("Incremental %s: %d-%d", tc.String(), base, base+tc.BatchCount)
+				rangeName := fmt.Sprintf("Incremental %s-%s: %d-%d", algo, tc.String(), base, base+tc.BatchCount)
 				b.Run(rangeName+"_"+algo.String(), func(b *testing.B) {
 					b.StopTimer()
 					// prepare the batches

@@ -71,8 +71,8 @@ func (cc *ChannelConfig) InitShadowCompressor(compressionAlgo derive.Compression
 	cc.InitCompressorConfig(0, compressor.ShadowKind, compressionAlgo)
 }
 
-func (cc *ChannelConfig) InitNoneCompressor(compressionAlgo derive.CompressionAlgo) {
-	cc.InitCompressorConfig(0, compressor.NoneKind, compressionAlgo)
+func (cc *ChannelConfig) InitNoneCompressor() {
+	cc.InitCompressorConfig(0, compressor.NoneKind, derive.Zlib)
 }
 
 func (cc *ChannelConfig) MaxFramesPerTx() int {

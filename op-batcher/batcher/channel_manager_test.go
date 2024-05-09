@@ -25,15 +25,12 @@ func channelManagerTestConfig(maxFrameSize uint64, batchType uint, algo derive.C
 		MaxFrameSize:    maxFrameSize,
 		TargetNumFrames: 1,
 		BatchType:       batchType,
-		CompressorConfig: compressor.Config{
-			CompressionAlgo: algo,
-		},
 	}
 	cfg.InitRatioCompressor(1, algo)
 	return cfg
 }
 
-func TestChannelManagerBatchType(t *testing.T) {
+func TestChannelManagerBatchTypeAndAlgo(t *testing.T) {
 	tests := []struct {
 		name string
 		f    func(t *testing.T, batchType uint, algo derive.CompressionAlgo)
@@ -45,7 +42,6 @@ func TestChannelManagerBatchType(t *testing.T) {
 		{"ChannelManagerCloseBeforeFirstUse", ChannelManagerCloseBeforeFirstUse},
 		{"ChannelManagerCloseNoPendingChannel", ChannelManagerCloseNoPendingChannel},
 		{"ChannelManagerClosePendingChannel", ChannelManagerClosePendingChannel},
-		{"ChannelManagerCloseAllTxsFailed", ChannelManagerCloseAllTxsFailed},
 	}
 	for _, test := range tests {
 		test := test
@@ -65,6 +61,29 @@ func TestChannelManagerBatchType(t *testing.T) {
 		}
 	}
 }
+
+func TestChannelManagerBatchType(t *testing.T) {
+	tests := []struct {
+		name string
+		f    func(t *testing.T, batchType uint)
+	}{
+		{"ChannelManagerCloseAllTxsFailed", ChannelManagerCloseAllTxsFailed},
+	}
+	for _, test := range tests {
+		test := test
+			t.Run(test.name+"_SingularBatch_",func(t *testing.T) {
+				test.f(t, derive.SingularBatchType)
+			})
+	}
+
+	for _, test := range tests {
+		test := test
+			t.Run(test.name+"_SpanBatch", func(t *testing.T) {
+				test.f(t, derive.SpanBatchType)
+			})
+	}
+}
+
 
 // ChannelManagerReturnsErrReorg ensures that the channel manager
 // detects a reorg when it has cached L1 blocks.
@@ -343,14 +362,6 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint, algo derive
 // Couldn't get the test to work even with modifying NonCompressor
 // to flush half-way through writing to the compressor...
 func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
-	for _, algo := range derive.CompressionAlgoTypes {
-		t.Run("ChannelManager_Close_PartiallyPendingChannel"+algo.String(), func(t *testing.T) {
-			ChannelManager_Close_PartiallyPendingChannel(t, algo)
-		})
-	}
-}
-
-func ChannelManager_Close_PartiallyPendingChannel(t *testing.T, algo derive.CompressionAlgo) {
 	require := require.New(t)
 	// The number of batch txs depends on compression of the random data, hence the static test RNG seed.
 	// Example of different RNG seed that creates less than 2 frames: 1698700588902821588
@@ -360,11 +371,8 @@ func ChannelManager_Close_PartiallyPendingChannel(t *testing.T, algo derive.Comp
 		MaxFrameSize:    2200,
 		ChannelTimeout:  1000,
 		TargetNumFrames: 100,
-		CompressorConfig: compressor.Config{
-			CompressionAlgo: algo,
-		},
 	}
-	cfg.InitNoneCompressor(algo)
+	cfg.InitNoneCompressor()
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
@@ -410,13 +418,13 @@ func ChannelManager_Close_PartiallyPendingChannel(t *testing.T, algo derive.Comp
 // ChannelManagerCloseAllTxsFailed ensures that the channel manager
 // can gracefully close after producing transaction frames if none of these
 // have successfully landed on chain.
-func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(1357))
 	log := testlog.Logger(t, log.LevelCrit)
-	cfg := channelManagerTestConfig(100, batchType, algo)
+	cfg := channelManagerTestConfig(100, batchType, derive.Zlib)
 	cfg.TargetNumFrames = 1000
-	cfg.InitNoneCompressor(algo)
+	cfg.InitNoneCompressor()
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
@@ -460,19 +468,11 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint, algo derive.C
 }
 
 func TestChannelManager_ChannelCreation(t *testing.T) {
-	for _, algo := range derive.CompressionAlgoTypes {
-		t.Run("ChannelManager_ChannelCreation"+algo.String(), func(t *testing.T) {
-			ChannelManager_ChannelCreation(t, algo)
-		})
-	}
-}
-
-func ChannelManager_ChannelCreation(t *testing.T, algo derive.CompressionAlgo) {
 	l := testlog.Logger(t, log.LevelCrit)
 	const maxChannelDuration = 15
-	cfg := channelManagerTestConfig(1000, derive.SpanBatchType, algo)
+	cfg := channelManagerTestConfig(1000, derive.SpanBatchType, derive.Zlib)
 	cfg.MaxChannelDuration = maxChannelDuration
-	cfg.InitNoneCompressor(algo)
+	cfg.InitNoneCompressor()
 
 	for _, tt := range []struct {
 		name                   string

@@ -110,62 +110,89 @@ func TestFrameValidity(t *testing.T) {
 func TestBatchReader(t *testing.T) {
 	// Get batch data
 	rng := rand.New(rand.NewSource(0x543331))
-	singularBatch := RandomSingularBatch(rng, 5000, big.NewInt(333))
+	singularBatch := RandomSingularBatch(rng, 20, big.NewInt(333))
 	batchDataInput := NewBatchData(singularBatch)
 
 	encodedBatch := &bytes.Buffer{}
 	buf := &bytes.Buffer{}
 	// Get the encoded data of the batch data
-	batchDataInput.encodeTyped(buf)
-	err := rlp.Encode(encodedBatch, buf.Bytes())
+	err := batchDataInput.encodeTyped(buf)
+	require.NoError(t, err)
+	err = rlp.Encode(encodedBatch, buf.Bytes())
 	require.NoError(t, err)
 
 	var testCases = []struct {
-		name string
-		algo func(buf *bytes.Buffer)
-	}{{
-		name: "zlib",
-		algo: func(buf *bytes.Buffer) {
-			writer := zlib.NewWriter(buf)
-			writer.Write(encodedBatch.Bytes())
-			writer.Close()
+		name      string
+		algo      func(buf *bytes.Buffer, t *testing.T)
+		expectErr bool
+	}{
+		{
+			name: "zlib",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				writer := zlib.NewWriter(buf)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
 		},
-	},
+		{
+			name: "brotli9",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(ChannelVersionBrotli)
+				writer := brotli.NewWriterLevel(buf, 9)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+		},
 		{
 			name: "brotli10",
-			algo: func(buf *bytes.Buffer) {
+			algo: func(buf *bytes.Buffer, t *testing.T) {
 				buf.WriteByte(ChannelVersionBrotli)
 				writer := brotli.NewWriterLevel(buf, 10)
-				writer.Write(encodedBatch.Bytes())
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
 				writer.Close()
 			},
-		}, {
+		},
+		{
+			name: "brotli11",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(ChannelVersionBrotli)
+				writer := brotli.NewWriterLevel(buf, 11)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+		},
+		{
 			name: "zstd",
-			algo: func(buf *bytes.Buffer) {
+			algo: func(buf *bytes.Buffer, t *testing.T) {
 				writer := zstd.NewWriter(buf)
-				writer.Write(encodedBatch.Bytes())
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
 				writer.Close()
 			},
+			expectErr: true,
 		}}
 
 	for _, tc := range testCases {
-		compressed := bytes.NewBuffer([]byte{})
+		compressed := new(bytes.Buffer)
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc.algo(compressed)
+			tc.algo(compressed, t)
 			reader, err := BatchReader(bytes.NewReader(compressed.Bytes()))
-			if tc.name == "zstd" {
-				require.NotNil(t, err)
+			if tc.expectErr {
+				require.Error(t, err)
 				return
 			}
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// read the batch data
 			batchData, err := reader()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, batchData)
 			require.Equal(t, batchDataInput, batchData)
 		})
 	}
-
 }

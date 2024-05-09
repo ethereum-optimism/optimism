@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func validBatcherConfig(algo derive.CompressionAlgo) batcher.CLIConfig {
+func validBatcherConfig() batcher.CLIConfig {
 	return batcher.CLIConfig{
 		L1EthRpc:               "fake",
 		L2EthRpc:               "fake",
@@ -35,16 +35,15 @@ func validBatcherConfig(algo derive.CompressionAlgo) batcher.CLIConfig {
 		LogConfig:              log.DefaultCLIConfig(),
 		MetricsConfig:          metrics.DefaultCLIConfig(),
 		PprofConfig:            oppprof.DefaultCLIConfig(),
-		RPC:                    rpc.DefaultCLIConfig(),
-		CompressionAlgo:        algo,
+		// The compressor config is not checked in config.Check()
+		RPC:             rpc.DefaultCLIConfig(),
+		CompressionAlgo: derive.Zlib,
 	}
 }
 
 func TestValidBatcherConfig(t *testing.T) {
-	for _, algo := range derive.CompressionAlgoTypes {
-		cfg := validBatcherConfig(algo)
-		require.NoError(t, cfg.Check(), "valid config should pass the check function")
-	}
+	cfg := validBatcherConfig()
+	require.NoError(t, cfg.Check(), "valid config should pass the check function")
 }
 
 func TestBatcherConfig(t *testing.T) {
@@ -118,12 +117,10 @@ func TestBatcherConfig(t *testing.T) {
 
 	for _, test := range tests {
 		tc := test
-		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(tc.name+"_"+algo.String(), func(t *testing.T) {
-				cfg := validBatcherConfig(algo)
-				tc.override(&cfg)
-				require.ErrorContains(t, cfg.Check(), tc.errString)
-			})
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validBatcherConfig()
+			tc.override(&cfg)
+			require.ErrorContains(t, cfg.Check(), tc.errString)
+		})
 	}
 }

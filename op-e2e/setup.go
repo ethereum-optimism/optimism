@@ -844,9 +844,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
 		BatchType:            batchType,
 		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
-		// Add the compression stuff
-		//CompressionAlgo: derive.Zlib,
-		CompressionAlgo: derive.Brotli10,
+		CompressionAlgo:      derive.Zlib,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

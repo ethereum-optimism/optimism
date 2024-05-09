@@ -17,7 +17,7 @@ type Config struct {
 	// will default to RatioKind.
 	Kind string
 
-	// Type of compression algorithm to use. Must be one of [zlib, brotli]
+	// Type of compression algorithm to use. Must be one of [zlib, brotli-(9|10|11)]
 	CompressionAlgo derive.CompressionAlgo
 }
 

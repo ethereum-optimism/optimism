@@ -6,46 +6,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsBrotli(t *testing.T) {
+func TestCompressionAlgo(t *testing.T) {
 	testCases := []struct {
 		name                       string
 		algo                       CompressionAlgo
-		expectedResult             bool
+		isBrotli                   bool
 		isValidCompressionAlgoType bool
-	}{{
-		name:                       "zlib",
-		algo:                       Zlib,
-		expectedResult:             false,
-		isValidCompressionAlgoType: true,
-	},
+	}{
+		{
+			name:                       "zlib",
+			algo:                       Zlib,
+			isBrotli:                   false,
+			isValidCompressionAlgoType: true,
+		},
 		{
 			name:                       "brotli-9",
 			algo:                       Brotli9,
-			expectedResult:             true,
+			isBrotli:                   true,
 			isValidCompressionAlgoType: true,
 		},
 		{
 			name:                       "brotli-10",
 			algo:                       Brotli10,
-			expectedResult:             true,
+			isBrotli:                   true,
 			isValidCompressionAlgoType: true,
 		},
 		{
 			name:                       "brotli-11",
 			algo:                       Brotli11,
-			expectedResult:             true,
+			isBrotli:                   true,
 			isValidCompressionAlgoType: true,
 		},
 		{
 			name:                       "invalid",
 			algo:                       CompressionAlgo("invalid"),
-			expectedResult:             false,
+			isBrotli:                   false,
 			isValidCompressionAlgoType: false,
 		}}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expectedResult, tc.algo.IsBrotli())
+			require.Equal(t, tc.isBrotli, tc.algo.IsBrotli())
+			if tc.isBrotli {
+				require.NotPanics(t, func() { GetBrotliLevel((tc.algo)) })
+			} else {
+				require.Panics(t, func() { GetBrotliLevel(tc.algo) })
+			}
 			require.Equal(t, tc.isValidCompressionAlgoType, ValidCompressionAlgoType(tc.algo))
 		})
 	}
