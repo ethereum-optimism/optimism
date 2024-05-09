@@ -286,18 +286,15 @@ func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 	})
 }
 
-func TestChannelBuilderBatchType(t *testing.T) {
+func TestChannelBuilderBatchTypeAndAlgo(t *testing.T) {
 	tests := []struct {
 		name string
 		f    func(t *testing.T, batchType uint, algo derive.CompressionAlgo)
 	}{
-		{"ChannelBuilder_MaxRLPBytesPerChannel", ChannelBuilder_MaxRLPBytesPerChannel},
 		{"ChannelBuilder_OutputFramesMaxFrameIndex", ChannelBuilder_OutputFramesMaxFrameIndex},
 		{"ChannelBuilder_AddBlock", ChannelBuilder_AddBlock},
 		{"ChannelBuilder_PendingFrames_TotalFrames", ChannelBuilder_PendingFrames_TotalFrames},
-		{"ChannelBuilder_InputBytes", ChannelBuilder_InputBytes},
 		{"ChannelBuilder_OutputBytes", ChannelBuilder_OutputBytes},
-		{"ChannelBuilder_OutputWrongFramePanic", ChannelBuilder_OutputWrongFramePanic},
 	}
 	for _, test := range tests {
 		test := test
@@ -318,26 +315,32 @@ func TestChannelBuilderBatchType(t *testing.T) {
 	}
 }
 
-func TestChannelBuilderSingularBatch(t *testing.T) {
+func TestChannelBuilderBatchType(t *testing.T) {
 	tests := []struct {
 		name string
-		f    func(t *testing.T, algo derive.CompressionAlgo)
+		f    func(t *testing.T, batchType uint)
 	}{
-		{"ChannelBuilder_NextFrame", ChannelBuilder_NextFrame},
-		{"ChannelBuilder_OutputFrames", ChannelBuilder_OutputFrames},
+		{"ChannelBuilder_MaxRLPBytesPerChannel", ChannelBuilder_MaxRLPBytesPerChannel},
+		{"ChannelBuilder_InputBytes", ChannelBuilder_InputBytes},
+		{"ChannelBuilder_OutputWrongFramePanic", ChannelBuilder_OutputWrongFramePanic},
 	}
 	for _, test := range tests {
 		test := test
-		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(test.name+"_"+algo.String(), func(t *testing.T) {
-				test.f(t, algo)
-			})
-		}
+		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
+			test.f(t, derive.SingularBatchType)
+		})
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name+"_SpanBatch_", func(t *testing.T) {
+			test.f(t, derive.SpanBatchType)
+		})
 	}
 }
 
 // TestChannelBuilder_NextFrame tests calling NextFrame on a ChannelBuilder with only one frame
-func ChannelBuilder_NextFrame(t *testing.T, algo derive.CompressionAlgo) {
+func TestChannelBuilder_NextFrame(t *testing.T) {
 	channelConfig := defaultTestChannelConfig()
 
 	// Create a new channel builder
@@ -377,7 +380,7 @@ func ChannelBuilder_NextFrame(t *testing.T, algo derive.CompressionAlgo) {
 }
 
 // TestChannelBuilder_OutputWrongFramePanic tests that a panic is thrown when a frame is pushed with an invalid frame id
-func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.BatchType = batchType
 
@@ -411,7 +414,7 @@ func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint, algo der
 }
 
 // TestChannelBuilder_OutputFrames tests [ChannelBuilder.OutputFrames] for singular batches.
-func ChannelBuilder_OutputFrames(t *testing.T, algo derive.CompressionAlgo) {
+func TestChannelBuilder_OutputFrames(t *testing.T) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = 1000
@@ -454,7 +457,7 @@ func ChannelBuilder_OutputFrames(t *testing.T, algo derive.CompressionAlgo) {
 
 func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
 	for _, algo := range derive.CompressionAlgoTypes {
-		t.Run("ChannelBuilder_OutputFrames_SpanBatch"+algo.String(), func(t *testing.T) {
+		t.Run("ChannelBuilder_OutputFrames_SpanBatch_"+algo.String(), func(t *testing.T) {
 			if algo.IsBrotli() {
 				ChannelBuilder_OutputFrames_SpanBatch(t, algo) // to fill faster for brotli
 			} else {
@@ -467,7 +470,11 @@ func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
 func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.CompressionAlgo) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
-	channelConfig.TargetNumFrames = 5
+	if algo.IsBrotli() {
+		channelConfig.TargetNumFrames = 3
+	} else {
+		channelConfig.TargetNumFrames = 5
+	}
 	channelConfig.BatchType = derive.SpanBatchType
 	channelConfig.InitRatioCompressor(1, algo)
 
@@ -521,7 +528,7 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.Compression
 
 // ChannelBuilder_MaxRLPBytesPerChannel tests the [ChannelBuilder.OutputFrames]
 // function errors when the max RLP bytes per channel is reached.
-func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 	t.Parallel()
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.MaxRLPBytesPerChannel * 2
@@ -598,7 +605,9 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	require.ErrorIs(err, derive.ErrCompressorFull)
 	// without fix, adding the second block would succeed and then adding a
 	// third block would fail with full error and the compressor would be full.
+
 	require.NoError(cb.OutputFrames())
+
 	require.True(cb.HasFrame())
 	f := cb.NextFrame()
 	require.Less(len(f.data), int(cfg.MaxFrameSize)) // would fail without fix, full frame
@@ -773,7 +782,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint, algo
 	}
 }
 
-func ChannelBuilder_InputBytes(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(4982432))
 	cfg := defaultTestChannelConfig()

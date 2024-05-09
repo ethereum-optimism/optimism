@@ -71,19 +71,18 @@ func TestChannelManagerBatchType(t *testing.T) {
 	}
 	for _, test := range tests {
 		test := test
-			t.Run(test.name+"_SingularBatch_",func(t *testing.T) {
-				test.f(t, derive.SingularBatchType)
-			})
+		t.Run(test.name+"_SingularBatch_", func(t *testing.T) {
+			test.f(t, derive.SingularBatchType)
+		})
 	}
 
 	for _, test := range tests {
 		test := test
-			t.Run(test.name+"_SpanBatch", func(t *testing.T) {
-				test.f(t, derive.SpanBatchType)
-			})
+		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
+			test.f(t, derive.SpanBatchType)
+		})
 	}
 }
-
 
 // ChannelManagerReturnsErrReorg ensures that the channel manager
 // detects a reorg when it has cached L1 blocks.

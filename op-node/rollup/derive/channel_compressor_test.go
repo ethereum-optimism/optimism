@@ -25,11 +25,12 @@ func TestChannelCompressor_NewReset(t *testing.T) {
 		algo              CompressionAlgo
 		expectedResetSize int
 		expectErr         bool
-	}{{
-		name:              "zlib",
-		algo:              Zlib,
-		expectedResetSize: 0,
-	},
+	}{
+		{
+			name:              "zlib",
+			algo:              Zlib,
+			expectedResetSize: 0,
+		},
 		{
 			name:              "brotli10",
 			algo:              Brotli10,
@@ -40,7 +41,8 @@ func TestChannelCompressor_NewReset(t *testing.T) {
 			algo:              CompressionAlgo("zstd"),
 			expectedResetSize: 0,
 			expectErr:         true,
-		}}
+		},
+	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -192,7 +192,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			target := batcher.MaxDataSize(1, s.l2BatcherCfg.MaxL1TxSize)
 			c, e := compressor.NewShadowCompressor(compressor.Config{
 				TargetOutputSize: target,
-				CompressionAlgo: derive.Zlib,
+				CompressionAlgo:  derive.Zlib,
 			})
 			require.NoError(t, e, "failed to create compressor")
 
