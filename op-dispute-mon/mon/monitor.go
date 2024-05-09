@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type ForecastResolution func(ctx context.Context, games []*types.EnrichedGameData, ignoredCount, failedCount int)
+type ForecastResolution func(games []*types.EnrichedGameData, ignoredCount, failedCount int)
 type Bonds func(games []*types.EnrichedGameData)
 type Resolutions func(games []*types.EnrichedGameData)
 type MonitorClaims func(games []*types.EnrichedGameData)
@@ -100,7 +100,7 @@ func (m *gameMonitor) monitorGames() error {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	m.resolutions(enrichedGames)
-	m.forecast(m.ctx, enrichedGames, ignored, failed)
+	m.forecast(enrichedGames, ignored, failed)
 	m.bonds(enrichedGames)
 	m.claims(enrichedGames)
 	m.withdrawals(enrichedGames)

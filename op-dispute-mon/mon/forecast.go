@@ -1,26 +1,18 @@
 package mon
 
 import (
-	"context"
 	"errors"
-	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
 	ErrRootAgreement = errors.New("failed to check root agreement")
 )
-
-type OutputValidator interface {
-	CheckRootAgreement(ctx context.Context, l1HeadNum uint64, l2BlockNum uint64, root common.Hash) (bool, common.Hash, error)
-}
 
 type ForecastMetrics interface {
 	RecordGameAgreement(status metrics.GameAgreementStatus, count int)
@@ -44,23 +36,21 @@ type forecastBatch struct {
 }
 
 type Forecast struct {
-	logger    log.Logger
-	metrics   ForecastMetrics
-	validator OutputValidator
+	logger  log.Logger
+	metrics ForecastMetrics
 }
 
-func NewForecast(logger log.Logger, metrics ForecastMetrics, validator OutputValidator) *Forecast {
+func NewForecast(logger log.Logger, metrics ForecastMetrics) *Forecast {
 	return &Forecast{
-		logger:    logger,
-		metrics:   metrics,
-		validator: validator,
+		logger:  logger,
+		metrics: metrics,
 	}
 }
 
-func (f *Forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData, ignoredCount, failedCount int) {
+func (f *Forecast) Forecast(games []*monTypes.EnrichedGameData, ignoredCount, failedCount int) {
 	batch := forecastBatch{}
 	for _, game := range games {
-		if err := f.forecastGame(ctx, game, &batch); err != nil {
+		if err := f.forecastGame(game, &batch); err != nil {
 			f.logger.Error("Failed to forecast game", "err", err)
 		}
 	}
@@ -84,12 +74,10 @@ func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount in
 	f.metrics.RecordFailedGames(failedCount)
 }
 
-func (f *Forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *forecastBatch) error {
+func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *forecastBatch) error {
 	// Check the root agreement.
-	agreement, expected, err := f.validator.CheckRootAgreement(ctx, game.L1HeadNum, game.L2BlockNumber, game.RootClaim)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrRootAgreement, err)
-	}
+	agreement := game.AgreeWithClaim
+	expected := game.ExpectedRootClaim
 
 	expectedResult := types.GameStatusDefenderWon
 	if !agreement {

@@ -44,7 +44,6 @@ type Service struct {
 	claims       *ClaimMonitor
 	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
-	validator    *outputValidator
 
 	l1Client *ethclient.Client
 
@@ -90,7 +89,6 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initResolutionMonitor()
 	s.initWithdrawalMonitor()
 
-	s.initOutputValidator()   // Must be called before initForecast
 	s.initGameCallerCreator() // Must be called before initForecast
 
 	s.initExtractor(cfg)
@@ -118,10 +116,6 @@ func (s *Service) initWithdrawalMonitor() {
 	s.withdrawals = NewWithdrawalMonitor(s.logger, s.metrics)
 }
 
-func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.logger, s.metrics, s.rollupClient)
-}
-
 func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
@@ -139,11 +133,12 @@ func (s *Service) initExtractor(cfg *config.Config) {
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewAgreementEnricher(s.logger, s.metrics, s.rollupClient),
 	)
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
-	s.forecast = NewForecast(s.logger, s.metrics, s.validator)
+	s.forecast = NewForecast(s.logger, s.metrics)
 }
 
 func (s *Service) initBonds() {
