@@ -474,11 +474,21 @@ contract OptimismPortal_Test is CommonTest {
     /// @notice Ensures that the deposit event is correct for the `setGasPayingToken`
     ///         code path that manually emits a deposit transaction outside of the
     ///         `depositTransaction` function. This is a simple differential test.
-    function test_setGasPayingToken_correctEvent_succeeds() external {
+    function test_setGasPayingToken_correctEvent_succeeds(
+        address _token,
+        string memory _name,
+        string memory _symbol
+    ) external {
+        vm.assume(bytes(_name).length <= 32);
+        vm.assume(bytes(_symbol).length <= 32);
+
+        bytes32 name = GasPayingToken.sanitize(_name);
+        bytes32 symbol = GasPayingToken.sanitize(_symbol);
+
         vm.recordLogs();
 
         vm.prank(address(systemConfig));
-        optimismPortal.setGasPayingToken({ _token: address(0x9999), _decimals: 19, _name: "", _symbol: "" });
+        optimismPortal.setGasPayingToken({ _token: _token, _decimals: 18, _name: name, _symbol: symbol });
 
         vm.prank(address(Constants.DEPOSITOR_ACCOUNT));
         optimismPortal.depositTransaction({
@@ -486,7 +496,7 @@ contract OptimismPortal_Test is CommonTest {
             _value: 0,
             _gasLimit: 80_000,
             _isCreation: false,
-            _data: abi.encodeCall(L1Block.setGasPayingToken, (address(0x9999), 19, bytes32(0), bytes32(0)))
+            _data: abi.encodeCall(L1Block.setGasPayingToken, (_token, 18, name, symbol))
         });
 
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
