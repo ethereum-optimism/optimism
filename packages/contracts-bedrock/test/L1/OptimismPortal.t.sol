@@ -494,7 +494,7 @@ contract OptimismPortal_Test is CommonTest {
         optimismPortal.depositTransaction({
             _to: Predeploys.L1_BLOCK_ATTRIBUTES,
             _value: 0,
-            _gasLimit: 80_000,
+            _gasLimit: 200_000,
             _isCreation: false,
             _data: abi.encodeCall(L1Block.setGasPayingToken, (_token, 18, name, symbol))
         });
@@ -505,6 +505,9 @@ contract OptimismPortal_Test is CommonTest {
         VmSafe.Log memory systemPath = logs[0];
         VmSafe.Log memory userPath = logs[1];
 
+        assertEq(systemPath.topics.length, userPath.topics.length);
+        //assertEq(systemPath.topics[0], userPath.topics[0]);
+        //assertEq(systemPath.topics[1], userPath.topics[1]);
         assertEq(systemPath.data, userPath.data);
     }
 
