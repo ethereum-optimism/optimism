@@ -520,94 +520,7 @@ contract L2StandardBridge_BridgeERC20To_Test is PreBridgeERC20To {
 }
 
 contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
-    /// @dev Tests that `finalizeDeposit` succeeds. It should:
-    ///      - only be callable by the l1TokenBridge
-    ///      - emit `DepositFinalized` if the token pair is supported
-    ///      - call `Withdrawer.initiateWithdrawal` if the token pair is not supported
-    function test_finalizeDeposit_depositingERC20_succeeds() external {
-        vm.mockCall(
-            address(l2StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
-        );
-
-        vm.expectCall(address(L2Token), abi.encodeWithSelector(OptimismMintableERC20.mint.selector, alice, 100));
-
-        // Should emit both the bedrock and legacy events
-        vm.expectEmit(address(l2StandardBridge));
-        emit DepositFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
-
-        vm.expectEmit(address(l2StandardBridge));
-        emit ERC20BridgeFinalized(address(L2Token), address(L1Token), alice, alice, 100, hex"");
-
-        vm.prank(address(l2CrossDomainMessenger));
-        l2StandardBridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
-    }
-
-    /// @dev Tests that `finalizeDeposit` succeeds when depositing ERC20 with custom gas token.
-    function test_finalizeDeposit_depositingERC20_customGasToken_reverts() external {
-        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(18)));
-
-        vm.mockCall(
-            address(l2StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
-        );
-
-        vm.expectRevert("L2StandardBridge: not supported with custom gas token");
-        vm.prank(address(l2CrossDomainMessenger));
-        l2StandardBridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
-    }
-
-    /// @dev Tests that `finalizeDeposit` succeeds when depositing ETH.
-    function test_finalizeDeposit_depositingETH_succeeds() external {
-        vm.mockCall(
-            address(l2StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
-        );
-
-        // Should emit both the bedrock and legacy events
-        vm.expectEmit(address(l2StandardBridge));
-        emit DepositFinalized(address(0), Predeploys.LEGACY_ERC20_ETH, alice, alice, 100, hex"");
-
-        vm.expectEmit(address(l2StandardBridge));
-        emit ETHBridgeFinalized(alice, alice, 100, hex"");
-
-        vm.deal(address(l2CrossDomainMessenger), 100);
-        vm.prank(address(l2CrossDomainMessenger));
-        l2StandardBridge.finalizeDeposit{ value: 100 }(
-            address(0), Predeploys.LEGACY_ERC20_ETH, alice, alice, 100, hex""
-        );
-    }
-
-    /// @dev Tests that `finalizeDeposit` reverts when depositing ETH with custom gas token.
-    function test_finalizeDeposit_depositingETH_customGasToken_reverts() external {
-        vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(1), uint8(2)));
-        vm.mockCall(
-            address(l2StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
-        );
-        vm.prank(address(l2CrossDomainMessenger));
-        vm.expectRevert("L2StandardBridge: not supported with custom gas token");
-        l2StandardBridge.finalizeDeposit(address(0), Predeploys.LEGACY_ERC20_ETH, alice, alice, 100, hex"");
-    }
-
-    /// @dev Tests that `finalizeDeposit` reverts if the amounts do not match.
-    function test_finalizeBridgeETH_incorrectValue_reverts() external {
-        vm.mockCall(
-            address(l2StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
-        );
-        vm.deal(address(l2CrossDomainMessenger), 100);
-        vm.prank(address(l2CrossDomainMessenger));
-        vm.expectRevert("StandardBridge: amount sent does not match amount required");
-        l2StandardBridge.finalizeBridgeETH{ value: 50 }(alice, alice, 100, hex"");
-    }
-
-    /// @dev Tests that `finalizeDeposit` reverts if the receipient is the other bridge.
+    /// @dev Tests that `finalizeBridgeETH` reverts if the receipient is the other bridge.
     function test_finalizeBridgeETH_sendToSelf_reverts() external {
         vm.mockCall(
             address(l2StandardBridge.messenger()),
@@ -620,7 +533,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         l2StandardBridge.finalizeBridgeETH{ value: 100 }(alice, address(l2StandardBridge), 100, hex"");
     }
 
-    /// @dev Tests that `finalizeDeposit` reverts if the receipient is the messenger.
+    /// @dev Tests that `finalizeBridgeETH` reverts if the receipient is the messenger.
     function test_finalizeBridgeETH_sendToMessenger_reverts() external {
         vm.mockCall(
             address(l2StandardBridge.messenger()),
