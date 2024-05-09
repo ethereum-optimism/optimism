@@ -28,7 +28,7 @@ const (
 	DefaultMonitorInterval = time.Second * 30
 
 	//DefaultMaxConcurrency is the default number of threads to use when fetching game data
-	DefaultMaxConcurrency = uint(10)
+	DefaultMaxConcurrency = uint(5)
 )
 
 // Config is a well typed config that is parsed from the CLI params.
