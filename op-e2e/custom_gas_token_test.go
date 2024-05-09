@@ -25,6 +25,10 @@ import (
 func TestCustomGasToken(t *testing.T) {
 	InitParallel(t)
 
+	if e2eutils.UseFPAC() {
+		t.Skip("Custom Gas Token feature is not yet compatible with FPAC")
+	}
+
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2 // 2s finalization period
 
