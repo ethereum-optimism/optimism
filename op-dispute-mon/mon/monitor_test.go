@@ -172,7 +172,7 @@ type mockForecast struct {
 	calls int
 }
 
-func (m *mockForecast) Forecast(_ context.Context, _ []*monTypes.EnrichedGameData, _, _ int) {
+func (m *mockForecast) Forecast(_ []*monTypes.EnrichedGameData, _, _ int) {
 	m.calls++
 }
 
