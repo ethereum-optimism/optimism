@@ -125,6 +125,46 @@
   {
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "version",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "messagePasserStorageRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "latestBlockhash",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct Types.OutputRootProof",
+        "name": "_outputRootProof",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_headerRLP",
+        "type": "bytes"
+      }
+    ],
+    "name": "challengeRootL2Block",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "_recipient",
         "type": "address"
@@ -429,6 +469,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l2BlockNumberChallenged",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -814,6 +867,11 @@
   },
   {
     "inputs": [],
+    "name": "BlockNumberMatches",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BondTransferFailed",
     "type": "error"
   },
@@ -849,7 +907,17 @@
   },
   {
     "inputs": [],
+    "name": "ContentLengthMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "DuplicateStep",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmptyItem",
     "type": "error"
   },
   {
@@ -874,7 +942,27 @@
   },
   {
     "inputs": [],
+    "name": "InvalidDataRemainder",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidHeader",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidHeaderRLP",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidLocalIdent",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidOutputRootProof",
     "type": "error"
   },
   {
@@ -894,6 +982,11 @@
   },
   {
     "inputs": [],
+    "name": "L2BlockNumberChallenged",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "MaxDepthTooLarge",
     "type": "error"
   },
@@ -908,6 +1001,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "UnexpectedList",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "Claim",
@@ -916,6 +1014,11 @@
       }
     ],
     "name": "UnexpectedRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedString",
     "type": "error"
   },
   {

@@ -754,7 +754,27 @@
   },
   {
     "inputs": [],
+    "name": "ContentLengthMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmptyItem",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "GasEstimation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDataRemainder",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidHeader",
     "type": "error"
   },
   {
@@ -775,6 +795,16 @@
   {
     "inputs": [],
     "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedList",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedString",
     "type": "error"
   }
 ]
