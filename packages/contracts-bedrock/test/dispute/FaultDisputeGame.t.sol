@@ -5,12 +5,15 @@ import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { FaultDisputeGame, IDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
@@ -588,6 +591,168 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function test_move_incorrectBondAmount_reverts() public {
         vm.expectRevert(IncorrectBondAmount.selector);
         gameProxy.attack{ value: 0 }(0, _dummyClaim());
+    }
+
+    /// @dev Tests that challenging the root claim's L2 block number by providing the real preimage of the output root
+    ///      succeeds.
+    function testFuzz_challengeRootL2Block_succeeds(
+        bytes32 _storageRoot,
+        bytes32 _withdrawalRoot,
+        uint256 _l2BlockNumber
+    )
+        public
+    {
+        _l2BlockNumber = bound(_l2BlockNumber, 0, type(uint256).max - 1);
+
+        (Types.OutputRootProof memory outputRootProof, bytes32 outputRoot, bytes memory headerRLP) =
+            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(_l2BlockNumber));
+
+        // Create the dispute game with the output root at the wrong L2 block number.
+        IDisputeGame game = disputeGameFactory.create(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(_l2BlockNumber + 1));
+
+        // Challenge the L2 block number.
+        FaultDisputeGame fdg = FaultDisputeGame(address(game));
+        fdg.challengeRootL2Block(outputRootProof, headerRLP);
+
+        // Ensure that a duplicate challenge reverts.
+        vm.expectRevert(L2BlockNumberChallenged.selector);
+        fdg.challengeRootL2Block(outputRootProof, headerRLP);
+
+        // Warp past the clocks, resolve the game.
+        vm.warp(block.timestamp + 3 days + 12 hours + 1);
+        fdg.resolveClaim(0, 0);
+        fdg.resolve();
+
+        // Ensure the challenge was successful.
+        assertEq(uint8(fdg.status()), uint8(GameStatus.CHALLENGER_WINS));
+        assertTrue(fdg.l2BlockNumberChallenged());
+    }
+
+    /// @dev Tests that challenging the root claim's L2 block number by providing the real preimage of the output root
+    ///      succeeds. Also, this claim should always receive the bond when there is another counter that is as far left
+    ///      as possible.
+    function testFuzz_challengeRootL2Block_receivesBond_succeeds(
+        bytes32 _storageRoot,
+        bytes32 _withdrawalRoot,
+        uint256 _l2BlockNumber
+    )
+        public
+    {
+        vm.deal(address(0xb0b), 1 ether);
+        _l2BlockNumber = bound(_l2BlockNumber, 0, type(uint256).max - 1);
+
+        (Types.OutputRootProof memory outputRootProof, bytes32 outputRoot, bytes memory headerRLP) =
+            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(_l2BlockNumber));
+
+        // Create the dispute game with the output root at the wrong L2 block number.
+        disputeGameFactory.setInitBond(GAME_TYPE, 0.1 ether);
+        uint256 balanceBefore = address(this).balance;
+        IDisputeGame game = disputeGameFactory.create{ value: 0.1 ether }(
+            GAME_TYPE, Claim.wrap(outputRoot), abi.encode(_l2BlockNumber + 1)
+        );
+        FaultDisputeGame fdg = FaultDisputeGame(address(game));
+
+        // Attack the root as 0xb0b
+        uint256 bond = _getRequiredBond(0);
+        vm.prank(address(0xb0b));
+        fdg.attack{ value: bond }(0, Claim.wrap(0));
+
+        // Challenge the L2 block number as 0xace. This claim should receive the root claim's bond.
+        vm.prank(address(0xace));
+        fdg.challengeRootL2Block(outputRootProof, headerRLP);
+
+        // Warp past the clocks, resolve the game.
+        vm.warp(block.timestamp + 3 days + 12 hours + 1);
+        fdg.resolveClaim(1, 0);
+        fdg.resolveClaim(0, 0);
+        fdg.resolve();
+
+        // Ensure the challenge was successful.
+        assertEq(uint8(fdg.status()), uint8(GameStatus.CHALLENGER_WINS));
+
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
+        // Claim credit
+        vm.expectRevert(NoCreditToClaim.selector);
+        fdg.claimCredit(address(this));
+        fdg.claimCredit(address(0xb0b));
+        fdg.claimCredit(address(0xace));
+
+        // Ensure that the party who challenged the L2 block number with the special move received the bond.
+        // - Root claim loses their bond
+        // - 0xace receives the root claim's bond
+        // - 0xb0b receives their bond back
+        assertEq(address(this).balance, balanceBefore - 0.1 ether);
+        assertEq(address(0xb0b).balance, 1 ether);
+        assertEq(address(0xace).balance, 0.1 ether);
+    }
+
+    /// @dev Tests that challenging the root claim's L2 block number by providing the real preimage of the output root
+    ///      never succeeds.
+    function testFuzz_challengeRootL2Block_rightBlockNumber_reverts(
+        bytes32 _storageRoot,
+        bytes32 _withdrawalRoot,
+        uint256 _l2BlockNumber
+    )
+        public
+    {
+        _l2BlockNumber = bound(_l2BlockNumber, 1, type(uint256).max);
+
+        (Types.OutputRootProof memory outputRootProof, bytes32 outputRoot, bytes memory headerRLP) =
+            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(_l2BlockNumber));
+
+        // Create the dispute game with the output root at the wrong L2 block number.
+        IDisputeGame game = disputeGameFactory.create(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(_l2BlockNumber));
+
+        // Challenge the L2 block number.
+        FaultDisputeGame fdg = FaultDisputeGame(address(game));
+        vm.expectRevert(BlockNumberMatches.selector);
+        fdg.challengeRootL2Block(outputRootProof, headerRLP);
+
+        // Warp past the clocks, resolve the game.
+        vm.warp(block.timestamp + 3 days + 12 hours + 1);
+        fdg.resolveClaim(0, 0);
+        fdg.resolve();
+
+        // Ensure the challenge was successful.
+        assertEq(uint8(fdg.status()), uint8(GameStatus.DEFENDER_WINS));
+    }
+
+    /// @dev Tests that challenging the root claim's L2 block number with a bad output root proof reverts.
+    function test_challengeRootL2Block_badProof_reverts() public {
+        Types.OutputRootProof memory outputRootProof =
+            Types.OutputRootProof({ version: 0, stateRoot: 0, messagePasserStorageRoot: 0, latestBlockhash: 0 });
+
+        vm.expectRevert(InvalidOutputRootProof.selector);
+        gameProxy.challengeRootL2Block(outputRootProof, hex"");
+    }
+
+    /// @dev Tests that challenging the root claim's L2 block number with a bad output root proof reverts.
+    function test_challengeRootL2Block_badHeaderRLP_reverts() public {
+        Types.OutputRootProof memory outputRootProof =
+            Types.OutputRootProof({ version: 0, stateRoot: 0, messagePasserStorageRoot: 0, latestBlockhash: 0 });
+        bytes32 outputRoot = Hashing.hashOutputRootProof(outputRootProof);
+
+        // Create the dispute game with the output root at the wrong L2 block number.
+        IDisputeGame game = disputeGameFactory.create(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(1));
+        FaultDisputeGame fdg = FaultDisputeGame(address(game));
+
+        vm.expectRevert(InvalidHeaderRLP.selector);
+        fdg.challengeRootL2Block(outputRootProof, hex"");
+    }
+
+    /// @dev Tests that challenging the root claim's L2 block number with a bad output root proof reverts.
+    function test_challengeRootL2Block_badHeaderRLPBlockNumberLength_reverts() public {
+        (Types.OutputRootProof memory outputRootProof, bytes32 outputRoot,) =
+            _generateOutputRootProof(0, 0, new bytes(64));
+
+        // Create the dispute game with the output root at the wrong L2 block number.
+        IDisputeGame game = disputeGameFactory.create(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(1));
+        FaultDisputeGame fdg = FaultDisputeGame(address(game));
+
+        vm.expectRevert(InvalidHeaderRLP.selector);
+        fdg.challengeRootL2Block(outputRootProof, hex"");
     }
 
     /// @dev Tests that a claim cannot be stepped against twice.
@@ -1454,6 +1619,39 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Defender wins game since the root claim is uncountered
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
+    }
+
+    /// @dev Helper to generate a mock RLP encoded header (with only a real block number) & an output root proof.
+    function _generateOutputRootProof(
+        bytes32 _storageRoot,
+        bytes32 _withdrawalRoot,
+        bytes memory _l2BlockNumber
+    )
+        internal
+        pure
+        returns (Types.OutputRootProof memory proof_, bytes32 root_, bytes memory rlp_)
+    {
+        // L2 Block header
+        bytes[] memory rawHeaderRLP = new bytes[](9);
+        rawHeaderRLP[0] = hex"83FACADE";
+        rawHeaderRLP[1] = hex"83FACADE";
+        rawHeaderRLP[2] = hex"83FACADE";
+        rawHeaderRLP[3] = hex"83FACADE";
+        rawHeaderRLP[4] = hex"83FACADE";
+        rawHeaderRLP[5] = hex"83FACADE";
+        rawHeaderRLP[6] = hex"83FACADE";
+        rawHeaderRLP[7] = hex"83FACADE";
+        rawHeaderRLP[8] = RLPWriter.writeBytes(_l2BlockNumber);
+        rlp_ = RLPWriter.writeList(rawHeaderRLP);
+
+        // Output root
+        proof_ = Types.OutputRootProof({
+            version: 0,
+            stateRoot: _storageRoot,
+            messagePasserStorageRoot: _withdrawalRoot,
+            latestBlockhash: keccak256(rlp_)
+        });
+        root_ = Hashing.hashOutputRootProof(proof_);
     }
 
     /// @dev Helper to get the required bond for the given claim index.

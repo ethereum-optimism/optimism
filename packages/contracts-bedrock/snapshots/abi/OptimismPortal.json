@@ -498,7 +498,27 @@
   },
   {
     "inputs": [],
+    "name": "ContentLengthMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmptyItem",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "GasEstimation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDataRemainder",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidHeader",
     "type": "error"
   },
   {
@@ -516,4 +536,3 @@
     "name": "SmallGasLimit",
     "type": "error"
   }
-]
