@@ -19,37 +19,40 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // The maximum number of children that will be processed during a call to `resolveClaim`
 var maxChildChecks = big.NewInt(512)
 
 var (
-	methodVersion             = "version"
-	methodMaxClockDuration    = "maxClockDuration"
-	methodMaxGameDepth        = "maxGameDepth"
-	methodAbsolutePrestate    = "absolutePrestate"
-	methodStatus              = "status"
-	methodRootClaim           = "rootClaim"
-	methodClaimCount          = "claimDataLen"
-	methodClaim               = "claimData"
-	methodL1Head              = "l1Head"
-	methodResolvedSubgames    = "resolvedSubgames"
-	methodResolve             = "resolve"
-	methodResolveClaim        = "resolveClaim"
-	methodAttack              = "attack"
-	methodDefend              = "defend"
-	methodStep                = "step"
-	methodAddLocalData        = "addLocalData"
-	methodVM                  = "vm"
-	methodStartingBlockNumber = "startingBlockNumber"
-	methodStartingRootHash    = "startingRootHash"
-	methodSplitDepth          = "splitDepth"
-	methodL2BlockNumber       = "l2BlockNumber"
-	methodRequiredBond        = "getRequiredBond"
-	methodClaimCredit         = "claimCredit"
-	methodCredit              = "credit"
-	methodWETH                = "weth"
+	methodVersion                 = "version"
+	methodMaxClockDuration        = "maxClockDuration"
+	methodMaxGameDepth            = "maxGameDepth"
+	methodAbsolutePrestate        = "absolutePrestate"
+	methodStatus                  = "status"
+	methodRootClaim               = "rootClaim"
+	methodClaimCount              = "claimDataLen"
+	methodClaim                   = "claimData"
+	methodL1Head                  = "l1Head"
+	methodResolvedSubgames        = "resolvedSubgames"
+	methodResolve                 = "resolve"
+	methodResolveClaim            = "resolveClaim"
+	methodAttack                  = "attack"
+	methodDefend                  = "defend"
+	methodStep                    = "step"
+	methodAddLocalData            = "addLocalData"
+	methodVM                      = "vm"
+	methodStartingBlockNumber     = "startingBlockNumber"
+	methodStartingRootHash        = "startingRootHash"
+	methodSplitDepth              = "splitDepth"
+	methodL2BlockNumber           = "l2BlockNumber"
+	methodRequiredBond            = "getRequiredBond"
+	methodClaimCredit             = "claimCredit"
+	methodCredit                  = "credit"
+	methodWETH                    = "weth"
+	methodL2BlockNumberChallenged = "l2BlockNumberChallenged"
+	methodChallengeRootL2Block    = "challengeRootL2Block"
 )
 
 var (
@@ -68,6 +71,14 @@ type Proposal struct {
 	OutputRoot    common.Hash
 }
 
+// outputRootProof is designed to match the solidity OutputRootProof struct.
+type outputRootProof struct {
+	Version                  [32]byte
+	StateRoot                [32]byte
+	MessagePasserStorageRoot [32]byte
+	LatestBlockhash          [32]byte
+}
+
 func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (FaultDisputeGameContract, error) {
 	contractAbi := snapshots.LoadFaultDisputeGameABI()
 
@@ -81,6 +92,16 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 		// Detected an older version of contracts, use a compatibility shim.
 		legacyAbi := mustParseAbi(faultDisputeGameAbi020)
 		return &FaultDisputeGameContract080{
+			FaultDisputeGameContractLatest: FaultDisputeGameContractLatest{
+				metrics:     metrics,
+				multiCaller: caller,
+				contract:    batching.NewBoundContract(legacyAbi, addr),
+			},
+		}, nil
+	} else if strings.HasPrefix(version, "0.18.") {
+		// Detected an older version of contracts, use a compatibility shim.
+		legacyAbi := mustParseAbi(faultDisputeGameAbi0180)
+		return &FaultDisputeGameContract0180{
 			FaultDisputeGameContractLatest: FaultDisputeGameContractLatest{
 				metrics:     metrics,
 				multiCaller: caller,
@@ -414,11 +435,25 @@ func (f *FaultDisputeGameContractLatest) vm(ctx context.Context) (*VMContract, e
 }
 
 func (f *FaultDisputeGameContractLatest) IsL2BlockNumberChallenged(ctx context.Context, block rpcblock.Block) (bool, error) {
-	return false, nil
+	defer f.metrics.StartContractRequest("IsL2BlockNumberChallenged")()
+	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodL2BlockNumberChallenged))
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch block number challenged: %w", err)
+	}
+	return result.GetBool(0), nil
 }
 
 func (f *FaultDisputeGameContractLatest) ChallengeL2BlockNumberTx(challenge *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error) {
-	return txmgr.TxCandidate{}, ErrChallengeL2BlockNotSupported
+	headerRlp, err := rlp.EncodeToBytes(challenge.Header)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to serialize header: %w", err)
+	}
+	return f.contract.Call(methodChallengeRootL2Block, outputRootProof{
+		Version:                  challenge.Output.Version,
+		StateRoot:                challenge.Output.StateRoot,
+		MessagePasserStorageRoot: challenge.Output.WithdrawalStorageRoot,
+		LatestBlockhash:          challenge.Output.BlockRef.Hash,
+	}, headerRlp).ToTxCandidate()
 }
 
 func (f *FaultDisputeGameContractLatest) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {

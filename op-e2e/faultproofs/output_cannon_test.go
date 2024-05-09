@@ -784,3 +784,35 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 		})
 	}
 }
+
+func TestInvalidateCorrectProposalFutureBlock(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	// Spin up the system without the batcher so the safe head doesn't advance
+	sys, l1Client := StartFaultDisputeSystem(t, WithBatcherStopped(), WithSequencerWindowSize(100000))
+	t.Cleanup(sys.Close)
+
+	// Create a dispute game factory helper.
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+
+	// No batches submitted so safe head is genesis
+	output, err := sys.RollupClient("sequencer").OutputAtBlock(ctx, 0)
+	require.NoError(t, err, "Failed to get output at safe head")
+	// Create a dispute game with an output root that is valid at `safeHead`, but that claims to correspond to block
+	// `safeHead.Number + 10000`. This is dishonest, because this block does not exist yet.
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 10_000, common.Hash(output.OutputRoot), disputegame.WithFutureProposal())
+
+	// Start the honest challenger.
+	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+
+	game.WaitForL2BlockNumberChallenged(ctx)
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	// The game should resolve as `CHALLENGER_WINS` always, because the root claim signifies a claim that does not exist
+	// yet in the L2 chain.
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.LogGameData(ctx)
+}

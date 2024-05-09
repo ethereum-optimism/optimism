@@ -3,21 +3,26 @@ package contracts
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
+	"math/rand"
 	"testing"
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +39,8 @@ type contractVersion struct {
 
 const (
 	vers080    = "0.8.0"
-	versLatest = "0.18.0"
+	vers0180   = "0.18.0"
+	versLatest = "1.1.0"
 )
 
 var versions = []contractVersion{
@@ -42,6 +48,12 @@ var versions = []contractVersion{
 		version: vers080,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi020)
+		},
+	},
+	{
+		version: vers0180,
+		loadAbi: func() *abi.ABI {
+			return mustParseAbi(faultDisputeGameAbi0180)
 		},
 	},
 	{
@@ -655,12 +667,22 @@ func TestFaultDisputeGame_IsResolved(t *testing.T) {
 func TestFaultDisputeGameContractLatest_IsL2BlockNumberChallenged(t *testing.T) {
 	for _, version := range versions {
 		version := version
-		t.Run(version.version, func(t *testing.T) {
-			_, game := setupFaultDisputeGameTest(t, version)
-			challenged, err := game.IsL2BlockNumberChallenged(context.Background(), rpcblock.Latest)
-			require.NoError(t, err)
-			require.False(t, challenged)
-		})
+		for _, expected := range []bool{true, false} {
+			expected := expected
+			t.Run(fmt.Sprintf("%v-%v", version.version, expected), func(t *testing.T) {
+				block := rpcblock.ByHash(common.Hash{0x43})
+				stubRpc, game := setupFaultDisputeGameTest(t, version)
+				supportsL2BlockNumChallenge := version.version != vers080 && version.version != vers0180
+				if supportsL2BlockNumChallenge {
+					stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expected})
+				} else if expected {
+					t.Skip("Can't have challenged L2 block number on this contract version")
+				}
+				challenged, err := game.IsL2BlockNumberChallenged(context.Background(), block)
+				require.NoError(t, err)
+				require.Equal(t, expected, challenged)
+			})
+		}
 	}
 }
 
@@ -668,10 +690,40 @@ func TestFaultDisputeGameContractLatest_ChallengeL2BlockNumberTx(t *testing.T) {
 	for _, version := range versions {
 		version := version
 		t.Run(version.version, func(t *testing.T) {
-			_, game := setupFaultDisputeGameTest(t, version)
-			tx, err := game.ChallengeL2BlockNumberTx(&faultTypes.InvalidL2BlockNumberChallenge{})
-			require.ErrorIs(t, err, ErrChallengeL2BlockNotSupported)
-			require.Equal(t, txmgr.TxCandidate{}, tx)
+			rng := rand.New(rand.NewSource(0))
+			stubRpc, game := setupFaultDisputeGameTest(t, version)
+			challenge := &faultTypes.InvalidL2BlockNumberChallenge{
+				Output: &eth.OutputResponse{
+					Version:               eth.Bytes32{},
+					OutputRoot:            eth.Bytes32{0xaa},
+					BlockRef:              eth.L2BlockRef{Hash: common.Hash{0xbb}},
+					WithdrawalStorageRoot: common.Hash{0xcc},
+					StateRoot:             common.Hash{0xdd},
+				},
+				Header: testutils.RandomHeader(rng),
+			}
+			supportsL2BlockNumChallenge := version.version != vers080 && version.version != vers0180
+			if supportsL2BlockNumChallenge {
+				headerRlp, err := rlp.EncodeToBytes(challenge.Header)
+				require.NoError(t, err)
+				stubRpc.SetResponse(fdgAddr, methodChallengeRootL2Block, rpcblock.Latest, []interface{}{
+					outputRootProof{
+						Version:                  challenge.Output.Version,
+						StateRoot:                challenge.Output.StateRoot,
+						MessagePasserStorageRoot: challenge.Output.WithdrawalStorageRoot,
+						LatestBlockhash:          challenge.Output.BlockRef.Hash,
+					},
+					headerRlp,
+				}, nil)
+			}
+			tx, err := game.ChallengeL2BlockNumberTx(challenge)
+			if supportsL2BlockNumChallenge {
+				require.NoError(t, err)
+				stubRpc.VerifyTxCandidate(tx)
+			} else {
+				require.ErrorIs(t, err, ErrChallengeL2BlockNotSupported)
+				require.Equal(t, txmgr.TxCandidate{}, tx)
+			}
 		})
 	}
 }
