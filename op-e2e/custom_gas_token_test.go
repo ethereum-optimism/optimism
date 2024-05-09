@@ -50,7 +50,7 @@ func TestCustomGasToken(t *testing.T) {
 		common.HexToAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
 		"Ether",
 		"ETH",
-		uint8(0x12),
+		uint8(18),
 	}
 	enabledExpectations := Expectations{}
 	enabledExpectations.tokenAddress = weth9Address
