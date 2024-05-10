@@ -47,6 +47,14 @@ func fjordAt(t *uint64) func(*rollup.Config) {
 	}
 }
 
+func multiMod[T any](mods ...func(T)) func(T) {
+	return func(x T) {
+		for _, mod := range mods {
+			mod(x)
+		}
+	}
+}
+
 const defaultBlockTime = 2
 
 func TestValidBatch(t *testing.T) {
@@ -847,6 +855,25 @@ func TestValidBatch(t *testing.T) {
 			Expected:    BatchDrop,
 			ExpectedLog: "batch exceeded sequencer time drift, sequencer must adopt new L1 origin to include transactions again",
 			ConfigMod:   deltaAtGenesis,
+		},
+		{
+			Name:       "no sequencer time drift on same epoch with non-empty txs and Fjord",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A3,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: initializedSpanBatch([]*SingularBatch{
+					{ // we build l2A4, which has a timestamp of 2*4 = 8 higher than l2A0
+						ParentHash:   l2A4.ParentHash,
+						EpochNum:     rollup.Epoch(l2A4.L1Origin.Number),
+						EpochHash:    l2A4.L1Origin.Hash,
+						Timestamp:    l2A4.Time,
+						Transactions: []hexutil.Bytes{randTxData},
+					},
+				}, uint64(0), big.NewInt(0)),
+			},
+			Expected:  BatchAccept,
+			ConfigMod: multiMod(deltaAtGenesis, fjordAt(&l1A.Time)),
 		},
 		{
 			Name:       "sequencer time drift on same epoch with non-empty txs - long span",
