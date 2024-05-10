@@ -59,9 +59,6 @@ const (
 	AgreeDefenderAhead
 	DisagreeDefenderAhead
 
-	// L2 Block Number Challenge
-	DisagreeL2BlockChallenge
-
 	// Completed
 	AgreeDefenderWins
 	DisagreeDefenderWins
@@ -135,6 +132,8 @@ type Metricer interface {
 
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
 
+	RecordL2Challenges(count int)
+
 	caching.Metrics
 	contractMetrics.ContractMetricer
 }
@@ -172,6 +171,7 @@ type Metrics struct {
 	latestInvalidProposal prometheus.Gauge
 	ignoredGames          prometheus.Gauge
 	failedGames           prometheus.Gauge
+	l2Challenges          prometheus.Gauge
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -311,6 +311,11 @@ func NewMetrics() *Metrics {
 			// additional DelayedWETH contracts to be used by dispute games
 			"delayedWETH",
 			"balance",
+		}),
+		l2Challenges: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "l2_block_challenges",
+			Help:      "Number of games where the L2 block number has been successfully challenged",
 		}),
 	}
 }
@@ -464,6 +469,10 @@ func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, a
 	m.availableCollateral.WithLabelValues(addr.Hex(), balance).Set(weiToEther(available))
 }
 
+func (m *Metrics) RecordL2Challenges(count int) {
+	m.l2Challenges.Set(float64(count))
+}
+
 const (
 	inProgress = true
 	correct    = true
@@ -495,10 +504,6 @@ func labelValuesFor(status GameAgreementStatus) []string {
 		return asStrings("agree_defender_ahead", inProgress, correct, agree)
 	case DisagreeDefenderAhead:
 		return asStrings("disagree_defender_ahead", inProgress, !correct, !agree)
-
-	// L2 Block Number Challenge
-	case DisagreeL2BlockChallenge:
-		return asStrings("disagree_l2_block_challenge", inProgress, !correct, !agree)
 
 	// Completed
 	case AgreeDefenderWins:

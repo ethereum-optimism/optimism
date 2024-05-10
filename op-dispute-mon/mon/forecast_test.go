@@ -120,7 +120,8 @@ func TestForecast_Forecast_EndLogs(t *testing.T) {
 		require.Equal(t, false, l.AttrValue("agreement"))
 
 		expectedMetrics := zeroGameAgreement()
-		expectedMetrics[metrics.AgreeChallengerAhead] = 1
+		// We disagree with the root claim and the challenger is ahead
+		expectedMetrics[metrics.DisagreeChallengerAhead] = 1
 		require.Equal(t, expectedMetrics, m.gameAgreement)
 	})
 
@@ -140,8 +141,8 @@ func TestForecast_Forecast_EndLogs(t *testing.T) {
 		require.Equal(t, true, l.AttrValue("agreement"))
 
 		expectedMetrics := zeroGameAgreement()
-		expectedMetrics[metrics.DisagreeChallengerAhead] = 1
-		expectedMetrics[metrics.DisagreeL2BlockChallenge] = 1
+		// We agree with the root claim and the challenger is ahead
+		expectedMetrics[metrics.AgreeChallengerAhead] = 1
 		require.Equal(t, expectedMetrics, m.gameAgreement)
 	})
 
@@ -304,15 +305,14 @@ func setupForecastTest(t *testing.T) (*Forecast, *mockForecastMetrics, *testlog.
 
 func zeroGameAgreement() map[metrics.GameAgreementStatus]int {
 	return map[metrics.GameAgreementStatus]int{
-		metrics.AgreeChallengerAhead:     0,
-		metrics.DisagreeChallengerAhead:  0,
-		metrics.AgreeDefenderAhead:       0,
-		metrics.DisagreeDefenderAhead:    0,
-		metrics.AgreeDefenderWins:        0,
-		metrics.DisagreeDefenderWins:     0,
-		metrics.AgreeChallengerWins:      0,
-		metrics.DisagreeChallengerWins:   0,
-		metrics.DisagreeL2BlockChallenge: 0,
+		metrics.AgreeChallengerAhead:    0,
+		metrics.DisagreeChallengerAhead: 0,
+		metrics.AgreeDefenderAhead:      0,
+		metrics.DisagreeDefenderAhead:   0,
+		metrics.AgreeDefenderWins:       0,
+		metrics.DisagreeDefenderWins:    0,
+		metrics.AgreeChallengerWins:     0,
+		metrics.DisagreeChallengerWins:  0,
 	}
 }
 

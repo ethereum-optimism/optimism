@@ -25,7 +25,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	t.Parallel()
 
 	t.Run("FailedFetchBlocknumber", func(t *testing.T) {
-		monitor, _, _, _, _, _, _ := setupMonitorTest(t)
+		monitor, _, _, _, _, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockNumber = func(ctx context.Context) (uint64, error) {
 			return 0, boom
@@ -35,7 +35,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 
 	t.Run("FailedFetchBlockHash", func(t *testing.T) {
-		monitor, _, _, _, _, _, _ := setupMonitorTest(t)
+		monitor, _, _, _, _, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockHash = func(ctx context.Context, number *big.Int) (common.Hash, error) {
 			return common.Hash{}, boom
@@ -45,7 +45,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 
 	t.Run("MonitorsWithNoGames", func(t *testing.T) {
-		monitor, factory, forecast, bonds, withdrawals, resolutions, claims := setupMonitorTest(t)
+		monitor, factory, forecast, bonds, withdrawals, resolutions, claims, l2Challenges := setupMonitorTest(t)
 		factory.games = []*monTypes.EnrichedGameData{}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -54,10 +54,11 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		require.Equal(t, 1, resolutions.calls)
 		require.Equal(t, 1, claims.calls)
 		require.Equal(t, 1, withdrawals.calls)
+		require.Equal(t, 1, l2Challenges.calls)
 	})
 
 	t.Run("MonitorsMultipleGames", func(t *testing.T) {
-		monitor, factory, forecast, bonds, withdrawals, resolutions, claims := setupMonitorTest(t)
+		monitor, factory, forecast, bonds, withdrawals, resolutions, claims, l2Challenges := setupMonitorTest(t)
 		factory.games = []*monTypes.EnrichedGameData{{}, {}, {}}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -66,6 +67,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		require.Equal(t, 1, resolutions.calls)
 		require.Equal(t, 1, claims.calls)
 		require.Equal(t, 1, withdrawals.calls)
+		require.Equal(t, 1, l2Challenges.calls)
 	})
 }
 
@@ -73,7 +75,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	t.Run("MonitorsGames", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, factory, forecaster, _, _, _, _ := setupMonitorTest(t)
+		monitor, factory, forecaster, _, _, _, _, _ := setupMonitorTest(t)
 		factory.games = []*monTypes.EnrichedGameData{newEnrichedGameData(addr1, 9999), newEnrichedGameData(addr2, 9999)}
 		factory.maxSuccess = len(factory.games) // Only allow two successful fetches
 
@@ -86,7 +88,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	})
 
 	t.Run("FailsToFetchGames", func(t *testing.T) {
-		monitor, factory, forecaster, _, _, _, _ := setupMonitorTest(t)
+		monitor, factory, forecaster, _, _, _, _, _ := setupMonitorTest(t)
 		factory.fetchErr = errors.New("boom")
 
 		monitor.StartMonitoring()
@@ -108,7 +110,7 @@ func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.Enric
 	}
 }
 
-func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, *mockBonds, *mockWithdrawalMonitor, *mockResolutionMonitor, *mockClaimMonitor) {
+func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, *mockBonds, *mockMonitor, *mockResolutionMonitor, *mockMonitor, *mockMonitor) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1, nil
@@ -123,8 +125,9 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 	forecast := &mockForecast{}
 	bonds := &mockBonds{}
 	resolutions := &mockResolutionMonitor{}
-	claims := &mockClaimMonitor{}
-	withdrawals := &mockWithdrawalMonitor{}
+	claims := &mockMonitor{}
+	withdrawals := &mockMonitor{}
+	l2Challenges := &mockMonitor{}
 	monitor := newGameMonitor(
 		context.Background(),
 		logger,
@@ -135,13 +138,14 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 		forecast.Forecast,
 		bonds.CheckBonds,
 		resolutions.CheckResolutions,
-		claims.CheckClaims,
-		withdrawals.CheckWithdrawals,
+		claims.Check,
+		withdrawals.Check,
+		l2Challenges.Check,
 		extractor.Extract,
 		fetchBlockNum,
 		fetchBlockHash,
 	)
-	return monitor, extractor, forecast, bonds, withdrawals, resolutions, claims
+	return monitor, extractor, forecast, bonds, withdrawals, resolutions, claims, l2Challenges
 }
 
 type mockResolutionMonitor struct {
@@ -152,19 +156,11 @@ func (m *mockResolutionMonitor) CheckResolutions(games []*monTypes.EnrichedGameD
 	m.calls++
 }
 
-type mockClaimMonitor struct {
+type mockMonitor struct {
 	calls int
 }
 
-func (m *mockClaimMonitor) CheckClaims(games []*monTypes.EnrichedGameData) {
-	m.calls++
-}
-
-type mockWithdrawalMonitor struct {
-	calls int
-}
-
-func (m *mockWithdrawalMonitor) CheckWithdrawals(games []*monTypes.EnrichedGameData) {
+func (m *mockMonitor) Check(games []*monTypes.EnrichedGameData) {
 	m.calls++
 }
 

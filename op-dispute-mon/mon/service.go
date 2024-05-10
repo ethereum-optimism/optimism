@@ -213,6 +213,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		}
 		return block.Hash(), nil
 	}
+	l2ChallengesMonitor := NewL2ChallengesMonitor(s.metrics)
 	s.monitor = newGameMonitor(
 		ctx,
 		s.logger,
@@ -225,6 +226,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.resolutions.CheckResolutions,
 		s.claims.CheckClaims,
 		s.withdrawals.CheckWithdrawals,
+		l2ChallengesMonitor.CheckL2Challenges,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,

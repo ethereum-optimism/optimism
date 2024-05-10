@@ -16,8 +16,7 @@ import (
 type ForecastResolution func(games []*types.EnrichedGameData, ignoredCount, failedCount int)
 type Bonds func(games []*types.EnrichedGameData)
 type Resolutions func(games []*types.EnrichedGameData)
-type MonitorClaims func(games []*types.EnrichedGameData)
-type MonitorWithdrawals func(games []*types.EnrichedGameData)
+type Monitor func(games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
 type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, int, error)
@@ -41,8 +40,9 @@ type gameMonitor struct {
 	forecast         ForecastResolution
 	bonds            Bonds
 	resolutions      Resolutions
-	claims           MonitorClaims
-	withdrawals      MonitorWithdrawals
+	claims           Monitor
+	withdrawals      Monitor
+	l2Challenges     Monitor
 	extract          Extract
 	fetchBlockHash   BlockHashFetcher
 	fetchBlockNumber BlockNumberFetcher
@@ -58,8 +58,9 @@ func newGameMonitor(
 	forecast ForecastResolution,
 	bonds Bonds,
 	resolutions Resolutions,
-	claims MonitorClaims,
-	withdrawals MonitorWithdrawals,
+	claims Monitor,
+	withdrawals Monitor,
+	l2Challenges Monitor,
 	extract Extract,
 	fetchBlockNumber BlockNumberFetcher,
 	fetchBlockHash BlockHashFetcher,
@@ -77,6 +78,7 @@ func newGameMonitor(
 		resolutions:      resolutions,
 		claims:           claims,
 		withdrawals:      withdrawals,
+		l2Challenges:     l2Challenges,
 		extract:          extract,
 		fetchBlockNumber: fetchBlockNumber,
 		fetchBlockHash:   fetchBlockHash,
@@ -104,6 +106,7 @@ func (m *gameMonitor) monitorGames() error {
 	m.bonds(enrichedGames)
 	m.claims(enrichedGames)
 	m.withdrawals(enrichedGames)
+	m.l2Challenges(enrichedGames)
 	timeTaken := m.clock.Since(start)
 	m.metrics.RecordMonitorDuration(timeTaken)
 	m.logger.Info("Completed monitoring update", "blockNumber", blockNumber, "blockHash", blockHash, "duration", timeTaken, "games", len(enrichedGames), "ignored", ignored, "failed", failed)
