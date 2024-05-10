@@ -64,7 +64,7 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) (CommitmentData, er
 	if len(img) == 0 {
 		return nil, ErrInvalidInput
 	}
-	// TODO: this is hard-coded to produce Keccak256 commitments
+	// TODO(#10312): this is hard-coded to produce Keccak256 commitments
 	comm := NewCommitmentData(Keccak256CommitmentType, img)
 	// encode with commitment type prefix
 	key := comm.Encode()

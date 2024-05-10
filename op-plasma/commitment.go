@@ -3,7 +3,6 @@ package plasma
 import (
 	"bytes"
 	"errors"
-	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -36,7 +35,7 @@ type CommitmentData interface {
 // Keccak256Commitment is an implementation of CommitmentData that uses Keccak256 as the commitment function.
 type Keccak256Commitment []byte
 
-// Keccak256Commitment is an implementation of CommitmentData that treats the commitment as an opaque bytestring.
+// GenericCommitment is an implementation of CommitmentData that treats the commitment as an opaque bytestring.
 type GenericCommitment []byte
 
 // NewCommitmentData creates a new commitment from the given input and desired type.
@@ -58,15 +57,12 @@ func DecodeCommitmentData(input []byte) (CommitmentData, error) {
 	if len(input) == 0 {
 		return nil, ErrInvalidCommitment
 	}
-	fmt.Println(input, input[0])
 	t := CommitmentType(input[0])
 	data := input[1:]
 	switch t {
 	case Keccak256CommitmentType:
-		fmt.Println("DecodeKeccak256")
 		return DecodeKeccak256(data)
 	case GenericCommitmentType:
-		fmt.Println("DecodeGenericCommitment")
 		return DecodeGenericCommitment(data)
 	default:
 		return nil, ErrInvalidCommitment
@@ -142,6 +138,7 @@ func (c GenericCommitment) TxData() []byte {
 	return append([]byte{TxDataVersion1}, c.Encode()...)
 }
 
+// Verify always returns true for GenericCommitment because the DA Server must validate the data before returning it to the op-node.
 func (c GenericCommitment) Verify(input []byte) error {
 	return nil
 }
