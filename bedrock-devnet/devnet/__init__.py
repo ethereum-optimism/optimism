@@ -29,7 +29,7 @@ log = logging.getLogger()
 # Global environment variables
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_FPAC = os.getenv('DEVNET_FPAC') == "true"
-DEVNET_PLASMA = True
+DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
 
 class Bunch:
     def __init__(self, **kwds):
