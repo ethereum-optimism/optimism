@@ -273,8 +273,10 @@ def devnet_deploy(paths):
 
     if DEVNET_PLASMA:
         docker_env['PLASMA_ENABLED'] = 'true'
+        docker_env['PLASMA_DA_SERVICE'] = 'true'
     else:
         docker_env['PLASMA_ENABLED'] = 'false'
+        docker_env['PLASMA_DA_SERVICE'] = 'false'
 
     # Bring up the rest of the services.
     log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
