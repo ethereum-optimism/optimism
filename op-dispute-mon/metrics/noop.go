@@ -44,4 +44,4 @@ func (*NoopMetricsImpl) RecordFailedGames(_ int) {}
 
 func (*NoopMetricsImpl) RecordBondCollateral(_ common.Address, _ *big.Int, _ *big.Int) {}
 
-func (*NoopMetricsImpl) RecordL2Challenges(_ int) {}
+func (*NoopMetricsImpl) RecordL2Challenges(_ bool, _ int) {}
