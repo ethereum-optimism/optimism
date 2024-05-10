@@ -28,7 +28,7 @@ type L1BlobsFetcher interface {
 
 type PlasmaInputFetcher interface {
 	// GetInput fetches the input for the given commitment at the given block number from the DA storage service.
-	GetInput(ctx context.Context, l1 plasma.L1Fetcher, c plasma.Keccak256Commitment, blockId eth.BlockID) (eth.Data, error)
+	GetInput(ctx context.Context, l1 plasma.L1Fetcher, c plasma.CommitmentData, blockId eth.BlockID) (eth.Data, error)
 	// AdvanceL1Origin advances the L1 origin to the given block number, syncing the DA challenge events.
 	AdvanceL1Origin(ctx context.Context, l1 plasma.L1Fetcher, blockId eth.BlockID) error
 	// Reset the challenge origin in case of L1 reorg
