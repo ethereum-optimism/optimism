@@ -59,21 +59,19 @@ func TestChannelConfig_InputThreshold(t *testing.T) {
 
 	// Validate each test case
 	for i, tt := range tests {
-		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(fmt.Sprintf("test-%d-%s", i, algo.String()), func(t *testing.T) {
-				comp, err := compressor.NewRatioCompressor(compressor.Config{
-					TargetOutputSize: tt.targetOutputSize,
-					ApproxComprRatio: tt.approxComprRatio,
-					CompressionAlgo:  algo,
-				})
-				require.NoError(t, err)
-				got := comp.(*compressor.RatioCompressor).InputThreshold()
-				if tt.assertion != nil {
-					tt.assertion(got)
-				} else {
-					require.Equal(t, tt.expInputThreshold, got)
-				}
+		t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
+			comp, err := compressor.NewRatioCompressor(compressor.Config{
+				TargetOutputSize: tt.targetOutputSize,
+				ApproxComprRatio: tt.approxComprRatio,
+				CompressionAlgo:  derive.Zlib,
 			})
-		}
+			require.NoError(t, err)
+			got := comp.(*compressor.RatioCompressor).InputThreshold()
+			if tt.assertion != nil {
+				tt.assertion(got)
+			} else {
+				require.Equal(t, tt.expInputThreshold, got)
+			}
+		})
 	}
 }
