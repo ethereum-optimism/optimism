@@ -124,7 +124,7 @@ func TestBatchReader(t *testing.T) {
 	var testCases = []struct {
 		name      string
 		algo      func(buf *bytes.Buffer, t *testing.T)
-		isFjord bool
+		isFjord   bool
 		expectErr bool
 	}{
 		{
@@ -167,7 +167,7 @@ func TestBatchReader(t *testing.T) {
 				require.NoError(t, err)
 				writer.Close()
 			},
-			isFjord: false,
+			isFjord:   false,
 			expectErr: true, // expect an error because brotli is not supported before Fjord
 		},
 		{
@@ -201,7 +201,7 @@ func TestBatchReader(t *testing.T) {
 				writer.Close()
 			},
 			expectErr: true,
-			isFjord: true,
+			isFjord:   true,
 		}}
 
 	for _, tc := range testCases {

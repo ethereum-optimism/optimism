@@ -174,7 +174,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 		if err != nil {
 			return nil, err
 		}
-	// If the bits equal to 1, then it is a brotli reader
+		// If the bits equal to 1, then it is a brotli reader
 	} else if compressionType[0] == ChannelVersionBrotli {
 		// discard the first byte
 		_, err := bufReader.Discard(1)
