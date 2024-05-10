@@ -76,6 +76,7 @@ library ChainAssertions {
             require(config.batcherHash() == bytes32(uint256(uint160(_cfg.batchSenderAddress()))));
             require(config.gasLimit() == uint64(_cfg.l2GenesisBlockGasLimit()));
             require(config.unsafeBlockSigner() == _cfg.p2pSequencerAddress());
+            require(config.scalar() >> 248 == 1);
             // Check _config
             ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
             require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
