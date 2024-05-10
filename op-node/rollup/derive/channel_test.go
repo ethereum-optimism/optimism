@@ -181,7 +181,7 @@ func TestBatchReader(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			tc.algo(compressed, t)
-			reader, err := BatchReader(bytes.NewReader(compressed.Bytes()))
+			reader, err := BatchReader(bytes.NewReader(compressed.Bytes()), 120000)
 			if tc.expectErr {
 				require.Error(t, err)
 				return

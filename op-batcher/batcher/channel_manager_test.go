@@ -20,20 +20,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func channelManagerTestConfig(maxFrameSize uint64, batchType uint, algo derive.CompressionAlgo) ChannelConfig {
+func channelManagerTestConfig(maxFrameSize uint64, batchType uint) ChannelConfig {
 	cfg := ChannelConfig{
 		MaxFrameSize:    maxFrameSize,
 		TargetNumFrames: 1,
 		BatchType:       batchType,
 	}
-	cfg.InitRatioCompressor(1, algo)
+	cfg.InitRatioCompressor(1, derive.Zlib)
 	return cfg
 }
 
-func TestChannelManagerBatchTypeAndAlgo(t *testing.T) {
+func TestChannelManagerBatchType(t *testing.T) {
 	tests := []struct {
 		name string
-		f    func(t *testing.T, batchType uint, algo derive.CompressionAlgo)
+		f    func(t *testing.T, batchType uint)
 	}{
 		{"ChannelManagerReturnsErrReorg", ChannelManagerReturnsErrReorg},
 		{"ChannelManagerReturnsErrReorgWhenDrained", ChannelManagerReturnsErrReorgWhenDrained},
@@ -42,36 +42,11 @@ func TestChannelManagerBatchTypeAndAlgo(t *testing.T) {
 		{"ChannelManagerCloseBeforeFirstUse", ChannelManagerCloseBeforeFirstUse},
 		{"ChannelManagerCloseNoPendingChannel", ChannelManagerCloseNoPendingChannel},
 		{"ChannelManagerClosePendingChannel", ChannelManagerClosePendingChannel},
-	}
-	for _, test := range tests {
-		test := test
-		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(test.name+"_SingularBatch_"+algo.String(), func(t *testing.T) {
-				test.f(t, derive.SingularBatchType, algo)
-			})
-		}
-	}
-
-	for _, test := range tests {
-		test := test
-		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(test.name+"_SpanBatch"+algo.String(), func(t *testing.T) {
-				test.f(t, derive.SpanBatchType, algo)
-			})
-		}
-	}
-}
-
-func TestChannelManagerBatchType(t *testing.T) {
-	tests := []struct {
-		name string
-		f    func(t *testing.T, batchType uint)
-	}{
 		{"ChannelManagerCloseAllTxsFailed", ChannelManagerCloseAllTxsFailed},
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name+"_SingularBatch_", func(t *testing.T) {
+		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
 			test.f(t, derive.SingularBatchType)
 		})
 	}
@@ -86,9 +61,9 @@ func TestChannelManagerBatchType(t *testing.T) {
 
 // ChannelManagerReturnsErrReorg ensures that the channel manager
 // detects a reorg when it has cached L1 blocks.
-func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelCrit)
-	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{BatchType: batchType, CompressorConfig: compressor.Config{CompressionAlgo: algo}}, &rollup.Config{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{BatchType: batchType, CompressorConfig: compressor.Config{CompressionAlgo: derive.Zlib}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
 	a := types.NewBlock(&types.Header{
@@ -117,9 +92,9 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint, algo derive.Com
 
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
 // detects a reorg even if it does not have any blocks inside it.
-func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelCrit)
-	cfg := channelManagerTestConfig(120_000, batchType, algo)
+	cfg := channelManagerTestConfig(120_000, batchType)
 	cfg.CompressorConfig.TargetOutputSize = 1 // full on first block
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &rollup.Config{})
 	m.Clear(eth.BlockID{})
@@ -138,18 +113,18 @@ func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint, algo
 }
 
 // ChannelManager_Clear tests clearing the channel manager.
-func ChannelManager_Clear(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require := require.New(t)
 
 	// Create a channel manager
 	log := testlog.Logger(t, log.LevelCrit)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	cfg := channelManagerTestConfig(derive.FrameV0OverHeadSize+1, batchType, algo)
+	cfg := channelManagerTestConfig(derive.FrameV0OverHeadSize+1, batchType)
 	// Need to set the channel timeout here so we don't clear pending
 	// channels on confirmation. This would result in [TxConfirmed]
 	// clearing confirmed transactions, and resetting the pendingChannels map
 	cfg.ChannelTimeout = 10
-	cfg.InitRatioCompressor(1, algo)
+	cfg.InitRatioCompressor(1, derive.Zlib)
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 
 	// Channel Manager state should be empty by default
@@ -215,11 +190,11 @@ func ChannelManager_Clear(t *testing.T, batchType uint, algo derive.CompressionA
 	require.Empty(m.txChannels)
 }
 
-func ChannelManager_TxResend(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelManager_TxResend(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LevelError)
-	cfg := channelManagerTestConfig(120_000, batchType, algo)
+	cfg := channelManagerTestConfig(120_000, batchType)
 	cfg.CompressorConfig.TargetOutputSize = 1 // full on first block
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
@@ -254,12 +229,12 @@ func ChannelManager_TxResend(t *testing.T, batchType uint, algo derive.Compressi
 
 // ChannelManagerCloseBeforeFirstUse ensures that the channel manager
 // will not produce any frames if closed immediately.
-func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
-		channelManagerTestConfig(10000, batchType, algo),
+		channelManagerTestConfig(10000, batchType),
 		&defaultTestRollupConfig,
 	)
 	m.Clear(eth.BlockID{})
@@ -278,10 +253,10 @@ func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint, algo derive
 // ChannelManagerCloseNoPendingChannel ensures that the channel manager
 // can gracefully close with no pending channels, and will not emit any new
 // channel frames.
-func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 	require := require.New(t)
 	log := testlog.Logger(t, log.LevelCrit)
-	cfg := channelManagerTestConfig(10000, batchType, algo)
+	cfg := channelManagerTestConfig(10000, batchType)
 	cfg.CompressorConfig.TargetOutputSize = 1 // full on first block
 	cfg.ChannelTimeout = 1000
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
@@ -312,13 +287,13 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint, algo deri
 // ChannelManagerCloseNoPendingChannel ensures that the channel manager
 // can gracefully close with a pending channel, and will not produce any
 // new channel frames after this point.
-func ChannelManagerClosePendingChannel(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 	require := require.New(t)
 	// The number of batch txs depends on compression of the random data, hence the static test RNG seed.
 	// Example of different RNG seed that creates less than 2 frames: 1698700588902821588
 	rng := rand.New(rand.NewSource(123))
 	log := testlog.Logger(t, log.LevelError)
-	cfg := channelManagerTestConfig(10_000, batchType, algo)
+	cfg := channelManagerTestConfig(10_000, batchType)
 	cfg.ChannelTimeout = 1000
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
@@ -421,7 +396,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(1357))
 	log := testlog.Logger(t, log.LevelCrit)
-	cfg := channelManagerTestConfig(100, batchType, derive.Zlib)
+	cfg := channelManagerTestConfig(100, batchType)
 	cfg.TargetNumFrames = 1000
 	cfg.InitNoneCompressor()
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
@@ -469,7 +444,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 func TestChannelManager_ChannelCreation(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 	const maxChannelDuration = 15
-	cfg := channelManagerTestConfig(1000, derive.SpanBatchType, derive.Zlib)
+	cfg := channelManagerTestConfig(1000, derive.SpanBatchType)
 	cfg.MaxChannelDuration = maxChannelDuration
 	cfg.InitNoneCompressor()
 
