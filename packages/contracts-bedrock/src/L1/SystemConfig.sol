@@ -25,7 +25,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
-    /// @custom:value GAS_TOKEN            Represents an update to the gas token address.
+    /// @custom:value GAS_PAYING_TOKEN     Represents an update to the gas token address.
     /// @custom:value ADD_DEPENDENCY       Represents an update (addition) to the interop dependency list.
     /// @custom:value REMOVE_DEPENDENCY    Represents an update (removal) to the interop dependency list.
     enum UpdateType {
@@ -33,7 +33,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         GAS_CONFIG,
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER,
-        GAS_TOKEN,
+        GAS_PAYING_TOKEN,
         ADD_DEPENDENCY,
         REMOVE_DEPENDENCY
     }
@@ -327,7 +327,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             });
 
             emit ConfigUpdate(
-                VERSION, UpdateType.GAS_TOKEN, abi.encode(_token, GAS_PAYING_TOKEN_DECIMALS, name, symbol)
+                VERSION, UpdateType.GAS_PAYING_TOKEN, abi.encode(_token, GAS_PAYING_TOKEN_DECIMALS, name, symbol)
             );
         }
     }
