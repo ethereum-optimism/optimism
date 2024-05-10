@@ -127,6 +127,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         _;
     }
 
+    /// @notice Reverts when the caller is not the SystemConfig contract.
+    modifier onlySystemConfig() {
+        if (msg.sender != address(systemConfig)) revert Unauthorized();
+        _;
+    }
+
     /// @notice Semantic version.
     /// @custom:semver 2.8.0
     string public constant version = "2.8.0";
@@ -556,11 +562,28 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
-    /// @notice Sets static configuration options for the L2 system. Only the SystemConfig contract can call this
-    ///         function.
-    function setConfig(ConfigType _type, bytes memory _value) external {
-        if (msg.sender != address(systemConfig)) revert Unauthorized();
+    /// @notice Sets the gas paying token for the L2 system. This token is used as the
+    ///         L2 native asset. Only the SystemConfig contract can call this function.
+    function setGasPayingToken(
+        address _token,
+        uint8 _decimals,
+        bytes32 _name,
+        bytes32 _symbol
+    )
+        external
+        onlySystemConfig
+    {
+        setConfig(ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, _decimals, _name, _symbol));
+    }
 
+    /// @notice Sets the batcher hash for the L2 system.
+    ///         Only the SystemConfig contract can call this function.
+    function setBatcherHash(bytes32 _batcherHash) external onlySystemConfig {
+        setConfig(ConfigType.BATCHER_HASH, abi.encode(_batcherHash));
+    }
+
+    /// @notice Sets static configuration options for the L2 system.
+    function _setConfig(ConfigType _type, bytes memory _value) internal {
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
         // This value must be large enough to cover the cost of calling `L1Block.setConfig`.
         useGas(SYSTEM_DEPOSIT_GAS_LIMIT);

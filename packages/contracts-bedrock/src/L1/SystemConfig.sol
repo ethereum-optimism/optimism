@@ -313,9 +313,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
             // Set the gas paying token in storage and in the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
-            OptimismPortal(payable(optimismPortal())).setConfig(
-                ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, GAS_PAYING_TOKEN_DECIMALS, name, symbol)
-            );
+            OptimismPortal(payable(optimismPortal())).setGasPayingToken({
+                _token: _token,
+                _decimals: GAS_PAYING_TOKEN_DECIMALS,
+                _name: name,
+                _symbol: symbol
+            });
         }
     }
 
@@ -354,7 +357,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
             bytes memory data = abi.encode(_batcherHash);
 
-            OptimismPortal(payable(optimismPortal())).setConfig(ConfigType.BATCHER_HASH, data);
+            OptimismPortal(payable(optimismPortal())).setBatcherHash(data);
 
             emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
         }
