@@ -20,7 +20,6 @@ var ErrInvalidInput = errors.New("invalid input")
 type DAClient struct {
 	url string
 	// verify sets the client to verify a Keccak256 commitment on read.
-	// Service commitments can only be verified server side.
 	verify bool
 
 	ct CommitmentType
