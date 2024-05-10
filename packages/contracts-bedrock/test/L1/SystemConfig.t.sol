@@ -329,8 +329,8 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
         systemConfig.initialize({
             _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
+            _basefeeScalar: 2100,
+            _blobbasefeeScalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: 30_000_000,
             _unsafeBlockSigner: address(1),
