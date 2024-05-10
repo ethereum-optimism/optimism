@@ -22,11 +22,13 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
+    /// @custom:value GAS_TOKEN            Represents an update to the gas token address.
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER
+        UNSAFE_BLOCK_SIGNER,
+        GAS_TOKEN
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -299,12 +301,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         config for the gas paying token to OptimismPortal will fail.
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
-        if (_token != address(0) && optimismPortal() == address(0)) {
-            revert("SystemConfig: cannot set gas paying token without OptimismPortal");
-        }
-
-        if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken() && optimismPortal() != address(0))
-        {
+        if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
+            require(optimismPortal() != address(0), "SystemConfig: cannot set gas paying token without OptimismPortal");
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
             );
@@ -319,6 +317,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 _name: name,
                 _symbol: symbol
             });
+
+            emit ConfigUpdate(
+                VERSION, UpdateType.GAS_TOKEN, abi.encode(_token, GAS_PAYING_TOKEN_DECIMALS, name, symbol)
+            );
         }
     }
 
@@ -343,16 +345,15 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setBatcherHash(_batcherHash);
     }
 
-    /// @notice Internal function for updating the batcher hash. OptimismPortal's address
-    ///         must be non zero, since otherwise the call to set the config for the batcher
-    ///         hash to OptimismPortal will fail.
+    /// @notice Internal function for updating the batcher hash.
+    ///         OptimismPortal's address must be non zero if the value is being updated,
+    ///         since otherwise the call to set the config for the batcher hash to
+    ///         OptimismPortal will fail.
     /// @param _batcherHash New batcher hash.
     function _setBatcherHash(bytes32 _batcherHash) internal {
-        if (_batcherHash != bytes32(0) && optimismPortal() == address(0)) {
-            revert("SystemConfig: cannot set batcher hash without OptimismPortal");
-        }
+        if (!(_batcherHash == bytes32(0) && batcherHash == bytes32(0))) {
+            require(optimismPortal() != address(0), "SystemConfig: cannot update batcher hash without OptimismPortal");
 
-        if (optimismPortal() != address(0)) {
             batcherHash = _batcherHash;
 
             bytes memory data = abi.encode(_batcherHash);
