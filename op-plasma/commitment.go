@@ -3,6 +3,7 @@ package plasma
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -26,6 +27,7 @@ const (
 
 // CommitmentData is the binary representation of a commitment.
 type CommitmentData interface {
+	CommitmentType() CommitmentType
 	Encode() []byte
 	TxData() []byte
 	Verify(input []byte) error
@@ -56,12 +58,15 @@ func DecodeCommitmentData(input []byte) (CommitmentData, error) {
 	if len(input) == 0 {
 		return nil, ErrInvalidCommitment
 	}
+	fmt.Println(input, input[0])
 	t := CommitmentType(input[0])
 	data := input[1:]
 	switch t {
 	case Keccak256CommitmentType:
+		fmt.Println("DecodeKeccak256")
 		return DecodeKeccak256(data)
 	case GenericCommitmentType:
+		fmt.Println("DecodeGenericCommitment")
 		return DecodeGenericCommitment(data)
 	default:
 		return nil, ErrInvalidCommitment
@@ -84,6 +89,11 @@ func DecodeKeccak256(commitment []byte) (Keccak256Commitment, error) {
 		return nil, ErrInvalidCommitment
 	}
 	return commitment, nil
+}
+
+// CommitmentType returns the commitment type of Keccak256.
+func (c Keccak256Commitment) CommitmentType() CommitmentType {
+	return Keccak256CommitmentType
 }
 
 // Encode adds a commitment type prefix self describing the commitment.
@@ -117,6 +127,11 @@ func DecodeGenericCommitment(commitment []byte) (GenericCommitment, error) {
 	return commitment[:], nil
 }
 
+// CommitmentType returns the commitment type of Generic Commitment.
+func (c GenericCommitment) CommitmentType() CommitmentType {
+	return GenericCommitmentType
+}
+
 // Encode adds a commitment type prefix self describing the commitment.
 func (c GenericCommitment) Encode() []byte {
 	return append([]byte{byte(GenericCommitmentType)}, c...)
@@ -127,6 +142,10 @@ func (c GenericCommitment) TxData() []byte {
 	return append([]byte{TxDataVersion1}, c.Encode()...)
 }
 
+// Verify checks if the commitment matches the given input.
 func (c GenericCommitment) Verify(input []byte) error {
+	if !bytes.Equal(c, input) {
+		return ErrCommitmentMismatch
+	}
 	return nil
 }

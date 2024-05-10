@@ -61,10 +61,16 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		}
 
 		// validate batcher inbox data is a commitment.
-		comm, err := plasma.DecodeCommitmentData(data)
-		// TODO: validate that the commitment type is expected/supported
+		// strip the version byte from the data before decoding.
+		comm, err := plasma.DecodeCommitmentData(data[1:])
 		if err != nil {
 			s.log.Warn("invalid commitment", "commitment", data, "err", err)
+			return s.Next(ctx)
+		}
+		// only support keccak256 commitments for now.
+		// TODO: support other commitment types via flag
+		if comm.CommitmentType() != plasma.Keccak256CommitmentType {
+			s.log.Warn("wrong commitment type", "commitmentType", comm.CommitmentType())
 			return s.Next(ctx)
 		}
 		s.comm = comm

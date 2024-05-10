@@ -14,14 +14,16 @@ import (
 // MockDAClient mocks a DA storage provider to avoid running an HTTP DA server
 // in unit tests.
 type MockDAClient struct {
-	store ethdb.KeyValueStore
-	log   log.Logger
+	CommitmentType CommitmentType
+	store          ethdb.KeyValueStore
+	log            log.Logger
 }
 
 func NewMockDAClient(log log.Logger) *MockDAClient {
 	return &MockDAClient{
-		store: memorydb.New(),
-		log:   log,
+		CommitmentType: Keccak256CommitmentType,
+		store:          memorydb.New(),
+		log:            log,
 	}
 }
 
@@ -34,7 +36,7 @@ func (c *MockDAClient) GetInput(ctx context.Context, key CommitmentData) ([]byte
 }
 
 func (c *MockDAClient) SetInput(ctx context.Context, data []byte) (CommitmentData, error) {
-	key := NewGenericCommitment(data)
+	key := NewCommitmentData(c.CommitmentType, data)
 	return key, c.store.Put(key.Encode(), data)
 }
 
