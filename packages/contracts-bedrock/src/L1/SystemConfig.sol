@@ -159,8 +159,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
                 gasPayingToken: address(0)
-            }),
-            _dependencySet: new uint256[](0)
+            })
         });
     }
 
@@ -176,7 +175,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
-    /// @param _dependencySet     Initial interop dependency set.
     function initialize(
         address _owner,
         uint256 _overhead,
@@ -186,8 +184,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
-        SystemConfig.Addresses memory _addresses,
-        uint256 _dependencySet
+        SystemConfig.Addresses memory _addresses
     )
         public
         initializer
@@ -214,10 +211,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
-
-        for (uint256 i = 0; i < _dependencySet; i++) {
-            _addDependency(i);
-        }
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
