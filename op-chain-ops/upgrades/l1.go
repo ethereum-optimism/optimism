@@ -1,6 +1,7 @@
 package upgrades
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -9,10 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades/bindings"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
@@ -743,6 +744,10 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return fmt.Errorf("DefaultResourceConfig MaximumBaseFee doesn't match contract MaximumBaseFee")
 	}
 
+	if true {
+		return errors.New("Update superchain-registry dependency to include DisputeGameFactory and GasPayingToken addresses")
+	}
+
 	calldata, err := systemConfigABI.Pack(
 		"initialize",
 		finalSystemOwner,
@@ -757,6 +762,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			L1CrossDomainMessenger:       common.Address(list.L1CrossDomainMessengerProxy),
 			L1ERC721Bridge:               common.Address(list.L1ERC721BridgeProxy),
 			L1StandardBridge:             common.Address(list.L1StandardBridgeProxy),
+			DisputeGameFactory:           common.Address{},
 			OptimismPortal:               common.Address(list.OptimismPortalProxy),
 			OptimismMintableERC20Factory: common.Address(list.OptimismMintableERC20FactoryProxy),
 			GasPayingToken:               common.Address{},
