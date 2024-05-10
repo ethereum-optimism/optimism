@@ -1,0 +1,25 @@
+abis := '../packages/contracts-bedrock/snapshots/abi'
+
+bindings-upgrades:
+  #!/usr/bin/env bash
+  set -euxo pipefail
+
+  build_abi() {
+    local lowercase=$(echo "$1" | awk '{print tolower($0)}')
+    abigen \
+      --abi "{{abis}}/$1.json" \
+      --pkg bindings \
+      --out "upgrades/bindings/$lowercase.go" \
+      --type $1
+  }
+
+  build_abi L1CrossDomainMessenger
+  build_abi L1ERC721Bridge
+  build_abi L1StandardBridge
+  build_abi L2OutputOracle
+  build_abi OptimismMintableERC20Factory
+  build_abi OptimismPortal
+  build_abi SystemConfig
+  #build_abi ISemver
+  build_abi ProxyAdmin
+  build_abi StorageSetter
