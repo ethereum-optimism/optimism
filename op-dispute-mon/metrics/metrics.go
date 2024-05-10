@@ -453,12 +453,18 @@ func (m *Metrics) RecordFailedGames(count int) {
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
-	balance := "sufficient"
+	balanceLabel := "sufficient"
+	zeroBalanceLabel := "insufficient"
 	if required.Cmp(available) > 0 {
-		balance = "insufficient"
+		balanceLabel = "insufficient"
+		zeroBalanceLabel = "sufficient"
 	}
-	m.requiredCollateral.WithLabelValues(addr.Hex(), balance).Set(weiToEther(required))
-	m.availableCollateral.WithLabelValues(addr.Hex(), balance).Set(weiToEther(available))
+	m.requiredCollateral.WithLabelValues(addr.Hex(), balanceLabel).Set(weiToEther(required))
+	m.availableCollateral.WithLabelValues(addr.Hex(), balanceLabel).Set(weiToEther(available))
+
+	// If the balance is sufficient, make sure the insufficient label is zeroed out and vice versa.
+	m.requiredCollateral.WithLabelValues(addr.Hex(), zeroBalanceLabel).Set(0)
+	m.availableCollateral.WithLabelValues(addr.Hex(), zeroBalanceLabel).Set(0)
 }
 
 const (
