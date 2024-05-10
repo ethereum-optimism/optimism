@@ -442,9 +442,9 @@ func TestPlasma_ChallengeReorg(gt *testing.T) {
 // Sequencer stalls as data is not available, batcher keeps posting, untracked commitments are
 // challenged and resolved, then sequencer resumes and catches up.
 func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
-	// if !e2eutils.UsePlasma() {
-	// 	gt.Skip("Plasma is not enabled")
-	// }
+	if !e2eutils.UsePlasma() {
+		gt.Skip("Plasma is not enabled")
+	}
 
 	t := NewDefaultTesting(gt)
 	a := NewL2PlasmaDA(t)
