@@ -442,9 +442,9 @@ func TestPlasma_ChallengeReorg(gt *testing.T) {
 // Sequencer stalls as data is not available, batcher keeps posting, untracked commitments are
 // challenged and resolved, then sequencer resumes and catches up.
 func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
-	if !e2eutils.UsePlasma() {
-		gt.Skip("Plasma is not enabled")
-	}
+	// if !e2eutils.UsePlasma() {
+	// 	gt.Skip("Plasma is not enabled")
+	// }
 
 	t := NewDefaultTesting(gt)
 	a := NewL2PlasmaDA(t)
@@ -458,7 +458,7 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 
 	// keep track of the related commitment
 	comm1 := a.lastComm
-	input1, err := a.storage.GetInput(t.Ctx(), plasma.Keccak256(comm1[1:]))
+	input1, err := a.storage.GetInput(t.Ctx(), plasma.Keccak256Commitment(comm1[1:]))
 	bn1 := a.lastCommBn
 	require.NoError(t, err)
 
