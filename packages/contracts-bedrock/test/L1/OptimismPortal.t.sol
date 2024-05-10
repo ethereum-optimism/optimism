@@ -478,7 +478,9 @@ contract OptimismPortal_Test is CommonTest {
         address _token,
         string memory _name,
         string memory _symbol
-    ) external {
+    )
+        external
+    {
         vm.assume(bytes(_name).length <= 32);
         vm.assume(bytes(_symbol).length <= 32);
 
