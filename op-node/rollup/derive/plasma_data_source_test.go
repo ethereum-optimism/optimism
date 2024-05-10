@@ -2,7 +2,6 @@ package derive
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"math/big"
 	"math/rand"
@@ -124,7 +123,6 @@ func TestPlasmaDataSource(t *testing.T) {
 			// mock input commitments in l1 transactions
 			input := testutils.RandomData(rng, 2000)
 			comm, _ := storage.SetInput(ctx, input)
-			fmt.Println("comm", comm.CommitmentType())
 			// plasma da tests are designed for keccak256 commitments, so we type assert here
 			kComm := comm.(plasma.Keccak256Commitment)
 			inputs = append(inputs, input)
