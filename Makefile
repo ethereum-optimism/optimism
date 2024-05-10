@@ -217,11 +217,6 @@ test-unit:
 	pnpm test
 .PHONY: test-unit
 
-test-integration:
-	bash ./ops-bedrock/test-integration.sh \
-		./packages/contracts-bedrock/deployments/devnetL1
-.PHONY: test-integration
-
 # Remove the baseline-commit to generate a base reading & show all issues
 semgrep:
 	$(eval DEV_REF := $(shell git rev-parse develop))
