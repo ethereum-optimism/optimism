@@ -197,9 +197,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
+        _setBatcherHash(_batcherHash);
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
-        _setBatcherHash(_batcherHash);
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -356,11 +356,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
             batcherHash = _batcherHash;
 
-            bytes memory data = abi.encode(_batcherHash);
+            OptimismPortal(payable(optimismPortal())).setBatcherHash(_batcherHash);
 
-            OptimismPortal(payable(optimismPortal())).setBatcherHash(data);
-
-            emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
+            emit ConfigUpdate(VERSION, UpdateType.BATCHER, abi.encode(_batcherHash));
         }
     }
 

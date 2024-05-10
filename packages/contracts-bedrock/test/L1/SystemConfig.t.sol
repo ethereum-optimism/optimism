@@ -440,10 +440,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     function test_initialize_customGasTokenCall_succeeds() external {
         vm.expectCall(
             address(optimismPortal),
-            abi.encodeCall(
-                optimismPortal.setConfig,
-                (ConfigType.GAS_PAYING_TOKEN, abi.encode(address(token), 18, bytes32("Silly"), bytes32("SIL")))
-            )
+            abi.encodeCall(optimismPortal.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
         );
 
         vm.expectEmit(address(optimismPortal));
