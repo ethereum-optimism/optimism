@@ -128,7 +128,7 @@ func (s *Service) initExtractor(cfg *config.Config) {
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
 		extract.NewClaimEnricher(),
-		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
 		extract.NewWithdrawalsEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
