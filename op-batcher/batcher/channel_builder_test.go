@@ -286,43 +286,17 @@ func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 	})
 }
 
-func TestChannelBuilderBatchTypeAndAlgo(t *testing.T) {
-	tests := []struct {
-		name string
-		f    func(t *testing.T, batchType uint, algo derive.CompressionAlgo)
-	}{
-		{"ChannelBuilder_OutputFramesMaxFrameIndex", ChannelBuilder_OutputFramesMaxFrameIndex},
-		{"ChannelBuilder_AddBlock", ChannelBuilder_AddBlock},
-		{"ChannelBuilder_PendingFrames_TotalFrames", ChannelBuilder_PendingFrames_TotalFrames},
-		{"ChannelBuilder_OutputBytes", ChannelBuilder_OutputBytes},
-	}
-	for _, test := range tests {
-		test := test
-		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(test.name+"_SingularBatch_"+algo.String(), func(t *testing.T) {
-				test.f(t, derive.SingularBatchType, algo)
-			})
-		}
-	}
-
-	for _, test := range tests {
-		test := test
-		for _, algo := range derive.CompressionAlgoTypes {
-			t.Run(test.name+"_SpanBatch_"+algo.String(), func(t *testing.T) {
-				test.f(t, derive.SpanBatchType, algo)
-			})
-		}
-	}
-}
-
 func TestChannelBuilderBatchType(t *testing.T) {
 	tests := []struct {
 		name string
 		f    func(t *testing.T, batchType uint)
 	}{
 		{"ChannelBuilder_MaxRLPBytesPerChannel", ChannelBuilder_MaxRLPBytesPerChannel},
+		{"ChannelBuilder_OutputFramesMaxFrameIndex", ChannelBuilder_OutputFramesMaxFrameIndex},
+		{"ChannelBuilder_AddBlock", ChannelBuilder_AddBlock},
+		{"ChannelBuilder_PendingFrames_TotalFrames", ChannelBuilder_PendingFrames_TotalFrames},
 		{"ChannelBuilder_InputBytes", ChannelBuilder_InputBytes},
-		{"ChannelBuilder_OutputWrongFramePanic", ChannelBuilder_OutputWrongFramePanic},
+		{"ChannelBuilder_OutputBytes", ChannelBuilder_OutputBytes},
 	}
 	for _, test := range tests {
 		test := test
@@ -546,11 +520,11 @@ func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 
 // ChannelBuilder_OutputFramesMaxFrameIndex tests the [ChannelBuilder.OutputFrames]
 // function errors when the max frame index is reached.
-func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = math.MaxUint16 + 1
-	channelConfig.InitRatioCompressor(.1, algo)
+	channelConfig.InitRatioCompressor(.1, derive.Zlib)
 	channelConfig.BatchType = batchType
 
 	rng := rand.New(rand.NewSource(123))
@@ -615,7 +589,7 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	require.False(cb.HasFrame(), "no leftover frame expected") // would fail without fix
 }
 
-func ChannelBuilder_AddBlock(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.BatchType = batchType
 
@@ -623,7 +597,7 @@ func ChannelBuilder_AddBlock(t *testing.T, batchType uint, algo derive.Compressi
 	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
 	channelConfig.TargetNumFrames = 2
 	// Configure the Input Threshold params so we observe a full channel
-	channelConfig.InitRatioCompressor(1, algo)
+	channelConfig.InitRatioCompressor(1, derive.Zlib)
 
 	// Construct the channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -738,7 +712,7 @@ func TestChannelBuilder_LatestL1Origin(t *testing.T) {
 	require.Equal(t, uint64(2), cb.LatestL1Origin().Number)
 }
 
-func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	const tnf = 9
 	rng := rand.New(rand.NewSource(94572314))
 	require := require.New(t)
@@ -746,7 +720,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint, algo
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = tnf
 	cfg.BatchType = batchType
-	cfg.InitShadowCompressor(algo)
+	cfg.InitShadowCompressor(derive.Zlib)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err)
 
@@ -821,14 +795,14 @@ func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
 	}
 }
 
-func ChannelBuilder_OutputBytes(t *testing.T, batchType uint, algo derive.CompressionAlgo) {
+func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(9860372))
 	cfg := defaultTestChannelConfig()
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = 16
 	cfg.BatchType = batchType
-	cfg.InitRatioCompressor(1.0, algo)
+	cfg.InitRatioCompressor(1.0, derive.Zlib)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err, "NewChannelBuilder")
 
