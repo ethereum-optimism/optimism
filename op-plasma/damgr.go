@@ -40,8 +40,8 @@ type L1Fetcher interface {
 
 // DAStorage interface for calling the DA storage server.
 type DAStorage interface {
-	GetInput(ctx context.Context, key Keccak256Commitment) ([]byte, error)
-	SetInput(ctx context.Context, img []byte) (Keccak256Commitment, error)
+	GetInput(ctx context.Context, key Commit) ([]byte, error)
+	SetInput(ctx context.Context, img []byte) (Commit, error)
 }
 
 // HeadSignalFn is the callback function to accept head-signals without a context.

@@ -11,6 +11,7 @@ const (
 	EnabledFlagName         = "plasma.enabled"
 	DaServerAddressFlagName = "plasma.da-server"
 	VerifyOnReadFlagName    = "plasma.verify-on-read"
+	GenericDAFlagName       = "plasma.generic"
 )
 
 func plasmaEnv(envprefix, v string) []string {
@@ -39,6 +40,13 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			EnvVars:  plasmaEnv(envPrefix, "VERIFY_ON_READ"),
 			Category: category,
 		},
+		&cli.BoolFlag{
+			Name:     GenericDAFlagName,
+			Usage:    "Verify input data matches the commitments from the DA storage service",
+			Value:    false,
+			EnvVars:  plasmaEnv(envPrefix, "GENERIC"),
+			Category: category,
+		},
 	}
 }
 
@@ -46,6 +54,7 @@ type CLIConfig struct {
 	Enabled      bool
 	DAServerURL  string
 	VerifyOnRead bool
+	GenericDA    bool
 }
 
 func (c CLIConfig) Check() error {
@@ -61,7 +70,11 @@ func (c CLIConfig) Check() error {
 }
 
 func (c CLIConfig) NewDAClient() *DAClient {
-	return &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead}
+	ct := Keccak256CommitmentType
+	if c.GenericDA {
+		ct = ServiceCommitmentType
+	}
+	return &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead, ct: ct}
 }
 
 func ReadCLIConfig(c *cli.Context) CLIConfig {
@@ -69,5 +82,6 @@ func ReadCLIConfig(c *cli.Context) CLIConfig {
 		Enabled:      c.Bool(EnabledFlagName),
 		DAServerURL:  c.String(DaServerAddressFlagName),
 		VerifyOnRead: c.Bool(VerifyOnReadFlagName),
+		GenericDA:    c.Bool(GenericDAFlagName),
 	}
 }

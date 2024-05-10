@@ -131,10 +131,24 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := path.Base(r.URL.Path)
-	comm, err := hexutil.Decode(key)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+
+	var comm []byte
+	// no commit provided
+	if key == "/" || key == "." {
+		b, err := hexutil.Decode(key)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		comm = ServiceCommitment(b)
+	} else {
+		b, err := hexutil.Decode(key)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		comm = Keccak256Commitment(b)
 	}
 
 	if err := d.store.Put(r.Context(), comm, input); err != nil {
