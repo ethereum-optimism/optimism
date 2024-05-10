@@ -24,15 +24,23 @@ struct SafeConfig {
     address[] owners;
 }
 
-/// @notice Configuration for the Security Council Safe.
-struct SecurityCouncilConfig {
-    SafeConfig safeConfig;
+struct LivenessModuleConfig {
     uint256 livenessInterval;
     uint256 thresholdPercentage;
     uint256 minOwners;
     address fallbackOwner;
+}
+
+struct DeputyGuardianModuleConfig {
     address deputyGuardian;
     SuperchainConfig superchainConfig;
+}
+/// @notice Configuration for the Security Council Safe.
+
+struct SecurityCouncilConfig {
+    SafeConfig safeConfig;
+    LivenessModuleConfig livenessModuleConfig;
+    DeputyGuardianModuleConfig deputyGuardianModuleConfig;
 }
 
 // The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
@@ -73,12 +81,16 @@ contract DeployOwnership is Deploy {
         SafeConfig memory safeConfig = SafeConfig({ threshold: 10, owners: exampleCouncilOwners });
         councilConfig_ = SecurityCouncilConfig({
             safeConfig: safeConfig,
-            livenessInterval: 24 weeks,
-            thresholdPercentage: 75,
-            minOwners: 8,
-            fallbackOwner: mustGetAddress("FoundationSafe"),
-            deputyGuardian: makeAddr("DeputyGuardian"),
-            superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
+            livenessModuleConfig: LivenessModuleConfig({
+                livenessInterval: 24 weeks,
+                thresholdPercentage: 75,
+                minOwners: 8,
+                fallbackOwner: mustGetAddress("FoundationSafe")
+            }),
+            deputyGuardianModuleConfig: DeputyGuardianModuleConfig({
+                deputyGuardian: mustGetAddress("FoundationSafe"),
+                superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
+            })
         });
     }
 
@@ -109,16 +121,16 @@ contract DeployOwnership is Deploy {
     function deployLivenessModule() public returns (address addr_) {
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
         address guard = mustGetAddress("LivenessGuard");
-        SecurityCouncilConfig memory councilConfig = _getExampleCouncilConfig();
+        LivenessModuleConfig memory livenessModuleConfig = _getExampleCouncilConfig().livenessModuleConfig;
 
         addr_ = address(
             new LivenessModule({
                 _safe: councilSafe,
                 _livenessGuard: LivenessGuard(guard),
-                _livenessInterval: councilConfig.livenessInterval,
-                _thresholdPercentage: councilConfig.thresholdPercentage,
-                _minOwners: councilConfig.minOwners,
-                _fallbackOwner: councilConfig.fallbackOwner
+                _livenessInterval: livenessModuleConfig.livenessInterval,
+                _thresholdPercentage: livenessModuleConfig.thresholdPercentage,
+                _minOwners: livenessModuleConfig.minOwners,
+                _fallbackOwner: livenessModuleConfig.fallbackOwner
             })
         );
 
@@ -131,11 +143,12 @@ contract DeployOwnership is Deploy {
     function deployDeputyGuardianModule() public returns (address addr_) {
         SecurityCouncilConfig memory councilConfig = _getExampleCouncilConfig();
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
+        DeputyGuardianModuleConfig memory deputyGuardianModuleConfig = councilConfig.deputyGuardianModuleConfig;
         addr_ = address(
             new DeputyGuardianModule({
                 _safe: councilSafe,
-                _superchainConfig: councilConfig.superchainConfig,
-                _deputyGuardian: councilConfig.deputyGuardian
+                _superchainConfig: deputyGuardianModuleConfig.superchainConfig,
+                _deputyGuardian: deputyGuardianModuleConfig.deputyGuardian
             })
         );
 
