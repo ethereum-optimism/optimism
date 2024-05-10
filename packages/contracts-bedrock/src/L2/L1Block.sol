@@ -5,7 +5,9 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 
-/// @notice Configuration types for the L1Block contract.
+/// @notice Enum representing different types of configurations that can be set on L1Block.
+/// @custom:value BATCHER_HASH      Represents the config type for the batcher hash.
+/// @custom:value GAS_PAYING_TOKEN  Represents the config type for the gas paying token.
 enum ConfigType {
     BATCHER_HASH,
     GAS_PAYING_TOKEN
