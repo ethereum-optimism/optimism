@@ -142,10 +142,6 @@ func (c GenericCommitment) TxData() []byte {
 	return append([]byte{TxDataVersion1}, c.Encode()...)
 }
 
-// Verify checks if the commitment matches the given input.
 func (c GenericCommitment) Verify(input []byte) error {
-	if !bytes.Equal(c, input) {
-		return ErrCommitmentMismatch
-	}
 	return nil
 }

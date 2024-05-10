@@ -59,7 +59,10 @@ func TestCommitmentData(t *testing.T) {
 				// Test that Verify() returns no error for the correct data
 				require.NoError(t, comm.Verify(tc.commData))
 				// Test that Verify() returns error for the incorrect data
-				require.ErrorIs(t, ErrCommitmentMismatch, comm.Verify([]byte("wrong data")))
+				// don't do this for GenericCommitmentType, which does not do any verification
+				if tc.commType != GenericCommitmentType {
+					require.ErrorIs(t, ErrCommitmentMismatch, comm.Verify([]byte("wrong data")))
+				}
 			}
 		})
 	}
