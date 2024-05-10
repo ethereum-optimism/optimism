@@ -3,14 +3,40 @@ package upgrades
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
+
+var (
+	// uint128Max is type(uint128).max and is set in the init function.
+	uint128Max = new(big.Int)
+	// The default values for the ResourceConfig, used as part of
+	// an EIP-1559 curve for deposit gas.
+	DefaultResourceConfig = bindings.ResourceMeteringResourceConfig{
+		MaxResourceLimit:            20_000_000,
+		ElasticityMultiplier:        10,
+		BaseFeeMaxChangeDenominator: 8,
+		MinimumBaseFee:              params.GWei,
+		SystemTxMaxGas:              1_000_000,
+	}
+)
+
+func init() {
+	var ok bool
+	uint128Max, ok = new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
+	if !ok {
+		panic("bad uint128Max")
+	}
+	// Set the maximum base fee on the default config.
+	DefaultResourceConfig.MaximumBaseFee = uint128Max
+}
 
 // CheckL1 will check that the versions of the contracts on L1 match the versions
 // in the superchain registry.

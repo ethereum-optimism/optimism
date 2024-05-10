@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -391,7 +392,7 @@ func (d *DeployConfig) Check() error {
 	}
 	// When the initial resource config is made to be configurable by the DeployConfig, ensure
 	// that this check is updated to use the values from the DeployConfig instead of the defaults.
-	if uint64(d.L2GenesisBlockGasLimit) < uint64(DefaultResourceConfig.MaxResourceLimit+DefaultResourceConfig.SystemTxMaxGas) {
+	if uint64(d.L2GenesisBlockGasLimit) < uint64(upgrades.DefaultResourceConfig.MaxResourceLimit+upgrades.DefaultResourceConfig.SystemTxMaxGas) {
 		return fmt.Errorf("%w: L2 genesis block gas limit is too small", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
