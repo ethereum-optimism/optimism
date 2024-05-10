@@ -16,6 +16,9 @@ import { ConfigType } from "src/L2/L1Block.sol";
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
 contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
+    /// @notice Error thrown when the OptimismPortal address is not set.
+    error OptimismPortalNotSet();
+
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
@@ -156,7 +159,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
                 gasPayingToken: address(0)
-            })
+            }),
+            _dependencySet: new uint256[](0)
         });
     }
 
@@ -172,6 +176,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
+    /// @param _dependencySet     Initial interop dependency set.
     function initialize(
         address _owner,
         uint256 _overhead,
@@ -181,7 +186,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
-        SystemConfig.Addresses memory _addresses
+        SystemConfig.Addresses memory _addresses,
+        uint256 _dependencySet
     )
         public
         initializer
@@ -208,6 +214,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
+
+        for (uint256 i = 0; i < _dependencySet; i++) {
+            _addDependency(i);
+        }
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -307,7 +317,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @param _token Address of the gas paying token.
     function _setGasPayingToken(address _token) internal {
         if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
-            require(optimismPortal() != address(0), "SystemConfig: cannot set gas paying token without OptimismPortal");
+            if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
             );
@@ -450,8 +460,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     }
 
     /// @notice Internal function for adding a chain to the interop dependency set.
+    ///         OptimismPortal must be set before calling this function.
     /// @param _chainId Chain ID of chain to add.
     function _addDependency(uint256 _chainId) internal {
+        if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
+
         OptimismPortal(payable(optimismPortal())).addDependency(_chainId);
 
         bytes memory data = abi.encode(_chainId);
@@ -465,8 +478,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     }
 
     /// @notice Internal function for removing a chain from the interop dependency set.
+    ///         OptimismPortal must be set before calling this function.
     /// @param _chainId Chain ID of the chain to remove.
     function _removeDependency(uint256 _chainId) internal {
+        if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
+
         OptimismPortal(payable(optimismPortal())).removeDependency(_chainId);
 
         bytes memory data = abi.encode(_chainId);
