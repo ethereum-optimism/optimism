@@ -476,6 +476,7 @@ func TestGetGameMetadata(t *testing.T) {
 			expectedRootClaim := common.Hash{0x01, 0x02}
 			expectedStatus := types.GameStatusChallengerWon
 			expectedL2BlockNumberChallenged := true
+			expectedL2BlockNumberChallenger := common.Address{0xee}
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
 			stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
@@ -483,22 +484,29 @@ func TestGetGameMetadata(t *testing.T) {
 			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
 			if version.version == vers080 {
 				expectedL2BlockNumberChallenged = false
+				expectedL2BlockNumberChallenger = common.Address{}
 				stubRpc.SetResponse(fdgAddr, methodGameDuration, block, nil, []interface{}{expectedMaxClockDuration * 2})
 			} else if version.version == vers0180 {
 				expectedL2BlockNumberChallenged = false
+				expectedL2BlockNumberChallenger = common.Address{}
 				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
 			} else {
 				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
 				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expectedL2BlockNumberChallenged})
+				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenger, block, nil, []interface{}{expectedL2BlockNumberChallenger})
 			}
-			l1Head, l2BlockNumber, rootClaim, status, duration, blockNumChallenged, err := contract.GetGameMetadata(context.Background(), block)
+			actual, err := contract.GetGameMetadata(context.Background(), block)
+			expected := GameMetadata{
+				L1Head:                  expectedL1Head,
+				L2BlockNum:              expectedL2BlockNumber,
+				RootClaim:               expectedRootClaim,
+				Status:                  expectedStatus,
+				MaxClockDuration:        expectedMaxClockDuration,
+				L2BlockNumberChallenged: expectedL2BlockNumberChallenged,
+				L2BlockNumberChallenger: expectedL2BlockNumberChallenger,
+			}
 			require.NoError(t, err)
-			require.Equal(t, expectedL1Head, l1Head)
-			require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
-			require.Equal(t, expectedRootClaim, rootClaim)
-			require.Equal(t, expectedStatus, status)
-			require.Equal(t, expectedMaxClockDuration, duration)
-			require.Equal(t, expectedL2BlockNumberChallenged, blockNumChallenged)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
