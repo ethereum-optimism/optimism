@@ -32,7 +32,7 @@ func TestCommitmentData(t *testing.T) {
 		},
 		{
 			name:        "valid generic commitment",
-			commType:    Keccak256CommitmentType,
+			commType:    GenericCommitmentType,
 			commData:    []byte("any length of data! wow, that's so generic!"),
 			expectedErr: ErrInvalidCommitment,
 		},
