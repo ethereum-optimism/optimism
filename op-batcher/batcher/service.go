@@ -228,6 +228,11 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		bs.Log.Warn("Ecotone upgrade is active, but batcher is not configured to use Blobs!")
 	}
 
+	// Checking for brotli compression only post Fjord
+	if bs.ChannelConfig.CompressorConfig.CompressionAlgo.IsBrotli() && !bs.RollupConfig.IsFjord(uint64(time.Now().Unix())) {
+		return fmt.Errorf("cannot use brotli compression before Fjord")
+	}
+
 	if err := cc.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)
 	}

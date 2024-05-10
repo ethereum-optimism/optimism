@@ -124,19 +124,31 @@ func TestBatchReader(t *testing.T) {
 	var testCases = []struct {
 		name      string
 		algo      func(buf *bytes.Buffer, t *testing.T)
+		isFjord bool
 		expectErr bool
 	}{
 		{
-			name: "zlib",
+			name: "zlib-post-fjord",
 			algo: func(buf *bytes.Buffer, t *testing.T) {
 				writer := zlib.NewWriter(buf)
 				_, err := writer.Write(encodedBatch.Bytes())
 				require.NoError(t, err)
 				writer.Close()
 			},
+			isFjord: true,
 		},
 		{
-			name: "brotli9",
+			name: "zlib-pre-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				writer := zlib.NewWriter(buf)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			isFjord: false,
+		},
+		{
+			name: "brotli9-post-fjord",
 			algo: func(buf *bytes.Buffer, t *testing.T) {
 				buf.WriteByte(ChannelVersionBrotli)
 				writer := brotli.NewWriterLevel(buf, 9)
@@ -144,9 +156,22 @@ func TestBatchReader(t *testing.T) {
 				require.NoError(t, err)
 				writer.Close()
 			},
+			isFjord: true,
 		},
 		{
-			name: "brotli10",
+			name: "brotli9-pre-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(ChannelVersionBrotli)
+				writer := brotli.NewWriterLevel(buf, 9)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			isFjord: false,
+			expectErr: true, // expect an error because brotli is not supported before Fjord
+		},
+		{
+			name: "brotli10-post-fjord",
 			algo: func(buf *bytes.Buffer, t *testing.T) {
 				buf.WriteByte(ChannelVersionBrotli)
 				writer := brotli.NewWriterLevel(buf, 10)
@@ -154,9 +179,10 @@ func TestBatchReader(t *testing.T) {
 				require.NoError(t, err)
 				writer.Close()
 			},
+			isFjord: true,
 		},
 		{
-			name: "brotli11",
+			name: "brotli11-post-fjord",
 			algo: func(buf *bytes.Buffer, t *testing.T) {
 				buf.WriteByte(ChannelVersionBrotli)
 				writer := brotli.NewWriterLevel(buf, 11)
@@ -164,9 +190,10 @@ func TestBatchReader(t *testing.T) {
 				require.NoError(t, err)
 				writer.Close()
 			},
+			isFjord: true,
 		},
 		{
-			name: "zstd",
+			name: "zstd-post-fjord",
 			algo: func(buf *bytes.Buffer, t *testing.T) {
 				writer := zstd.NewWriter(buf)
 				_, err := writer.Write(encodedBatch.Bytes())
@@ -174,6 +201,7 @@ func TestBatchReader(t *testing.T) {
 				writer.Close()
 			},
 			expectErr: true,
+			isFjord: true,
 		}}
 
 	for _, tc := range testCases {
@@ -181,7 +209,7 @@ func TestBatchReader(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			tc.algo(compressed, t)
-			reader, err := BatchReader(bytes.NewReader(compressed.Bytes()), 120000)
+			reader, err := BatchReader(bytes.NewReader(compressed.Bytes()), 120000, tc.isFjord)
 			if tc.expectErr {
 				require.Error(t, err)
 				return

@@ -158,7 +158,7 @@ func (ch *Channel) Reader() io.Reader {
 // The L1Inclusion block is also provided at creation time.
 // Warning: the batch reader can read every batch-type.
 // The caller of the batch-reader should filter the results.
-func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64) (func() (*BatchData, error), error) {
+func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func() (*BatchData, error), error) {
 	// use buffered reader so can peek the first byte
 	bufReader := bufio.NewReader(r)
 	compressionType, err := bufReader.Peek(1)
@@ -174,12 +174,16 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64) (func() (*BatchData,
 		if err != nil {
 			return nil, err
 		}
-		// If the bits equal to 1, then it is a brotli reader
+	// If the bits equal to 1, then it is a brotli reader
 	} else if compressionType[0] == ChannelVersionBrotli {
 		// discard the first byte
 		_, err := bufReader.Discard(1)
 		if err != nil {
 			return nil, err
+		}
+		// If before Fjord, we cannot accept brotli compressed batch
+		if !isFjord {
+			return nil, fmt.Errorf("cannot accept zlib compressed batch after Fjord")
 		}
 		zr = brotli.NewReader(bufReader)
 	} else {

@@ -111,7 +111,7 @@ func processFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, fr
 	var batchTypes []int
 	invalidBatches := false
 	if ch.IsReady() {
-		br, err := derive.BatchReader(ch.Reader(), spec.MaxRLPBytesPerChannel(ch.HighestBlock().Time))
+		br, err := derive.BatchReader(ch.Reader(), spec.MaxRLPBytesPerChannel(ch.HighestBlock().Time), rollupCfg.IsFjord(ch.HighestBlock().Time))
 		if err == nil {
 			for batchData, err := br(); err != io.EOF; batchData, err = br() {
 				if err != nil {
