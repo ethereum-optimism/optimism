@@ -402,14 +402,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         return _resourceConfig;
     }
 
-    /// @notice An external setter for the resource config.
-    ///         In the future, this method may emit an event that the `op-node` picks up
-    ///         for when the resource config is changed.
-    /// @param _config The new resource config values.
-    function setResourceConfig(ResourceMetering.ResourceConfig memory _config) external onlyOwner {
-        _setResourceConfig(_config);
-    }
-
     /// @notice An internal setter for the resource config.
     ///         Ensures that the config is sane before storing it by checking for invariants.
     /// @param _config The new resource config.
