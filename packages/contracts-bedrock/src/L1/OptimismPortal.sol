@@ -576,12 +576,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         _setConfig(ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, _decimals, _name, _symbol));
     }
 
-    /// @notice Sets the batcher hash for the L2 system.
-    ///         Only the SystemConfig contract can call this function.
-    function setBatcherHash(bytes32 _batcherHash) external onlySystemConfig {
-        _setConfig(ConfigType.BATCHER_HASH, abi.encode(_batcherHash));
-    }
-
     /// @notice Sets static configuration options for the L2 system.
     function _setConfig(ConfigType _type, bytes memory _value) internal {
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.

@@ -6,10 +6,8 @@ import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 
 /// @notice Enum representing different types of configurations that can be set on L1Block.
-/// @custom:value BATCHER_HASH      Represents the config type for the batcher hash.
 /// @custom:value GAS_PAYING_TOKEN  Represents the config type for the gas paying token.
 enum ConfigType {
-    BATCHER_HASH,
     GAS_PAYING_TOKEN
 }
 
@@ -23,9 +21,6 @@ enum ConfigType {
 contract L1Block is ISemver, IGasToken {
     /// @notice Error returns when a non-depositor account tries to set L1 block values.
     error NotDepositor();
-
-    /// @notice Event emitted when the batcher hash is set.
-    event BatcherHashSet(bytes32 indexed hash);
 
     /// @notice Event emitted when the gas paying token is set.
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
@@ -198,14 +193,6 @@ contract L1Block is ISemver, IGasToken {
     ///         depositor account.
     function setConfig(ConfigType _type, bytes calldata _value) external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
-
-        // For BATCHER_HASH config type
-        if (_type == ConfigType.BATCHER_HASH) {
-            batcherHash = abi.decode(_value, (bytes32));
-
-            emit BatcherHashSet(batcherHash);
-            return;
-        }
 
         // For GAS_PAYING_TOKEN config type
         if (_type == ConfigType.GAS_PAYING_TOKEN) {

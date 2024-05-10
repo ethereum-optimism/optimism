@@ -185,6 +185,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         __Ownable_init();
         transferOwnership(_owner);
 
+        // These are set in ascending order of their UpdateTypes.
+        _setBatcherHash(_batcherHash);
         _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
         _setGasLimit(_gasLimit);
 
@@ -197,7 +199,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
-        _setBatcherHash(_batcherHash);
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
 
@@ -346,20 +347,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     }
 
     /// @notice Internal function for updating the batcher hash.
-    ///         OptimismPortal's address must be non zero if the value is being updated,
-    ///         since otherwise the call to set the config for the batcher hash to
-    ///         OptimismPortal will fail.
     /// @param _batcherHash New batcher hash.
     function _setBatcherHash(bytes32 _batcherHash) internal {
-        if (!(_batcherHash == bytes32(0) && batcherHash == bytes32(0))) {
-            require(optimismPortal() != address(0), "SystemConfig: cannot update batcher hash without OptimismPortal");
+        batcherHash = _batcherHash;
 
-            batcherHash = _batcherHash;
-
-            OptimismPortal(payable(optimismPortal())).setBatcherHash(_batcherHash);
-
-            emit ConfigUpdate(VERSION, UpdateType.BATCHER, abi.encode(_batcherHash));
-        }
+        bytes memory data = abi.encode(_batcherHash);
+        emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
     }
 
     /// @notice Updates gas config. Can only be called by the owner.
