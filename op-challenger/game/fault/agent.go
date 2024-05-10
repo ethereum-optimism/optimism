@@ -138,7 +138,8 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 		a.metrics.RecordGameMove()
 	case types.ActionTypeStep:
 		a.metrics.RecordGameStep()
-		// TODO(client-pod#852): Add metrics for L2 block number challenges
+	case types.ActionTypeChallengeL2BlockNumber:
+		a.metrics.RecordGameL2Challenge()
 	}
 	actionLog.Info("Performing action")
 	err := a.responder.PerformAction(ctx, action)
