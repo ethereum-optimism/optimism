@@ -35,6 +35,8 @@
   "l2GenesisBlockBaseFeePerGas": "0x1",
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
+  "gasPriceOracleBaseFeeScalar": 1368,
+  "gasPriceOracleBlobBaseFeeScalar": 810949,
   "enableGovernance": true,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
