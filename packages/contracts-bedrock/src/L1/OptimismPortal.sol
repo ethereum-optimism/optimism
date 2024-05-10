@@ -576,6 +576,20 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         _setConfig(ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, _decimals, _name, _symbol));
     }
 
+    /// @notice Adds a chain to the interop dependency set.
+    ///         Only the SystemConfig contract can call this function.
+    /// @param _chainId Chain ID to add to the dependency set.
+    function addDependency(uint256 _chainId) external onlySystemConfig {
+        _setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
+    }
+
+    /// @notice Removes a chain from the interop dependency set.
+    ///         Only the SystemConfig contract can call this function.
+    /// @param _chainId Chain ID to remove from the dependency set.
+    function removeDependency(uint256 _chainId) external onlySystemConfig {
+        _setConfig(ConfigType.REMOVE_DEPENDENCY, abi.encode(_chainId));
+    }
+
     /// @notice Sets static configuration options for the L2 system.
     function _setConfig(ConfigType _type, bytes memory _value) internal {
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.

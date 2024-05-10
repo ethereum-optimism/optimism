@@ -6,9 +6,13 @@ import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 
 /// @notice Enum representing different types of configurations that can be set on L1Block.
-/// @custom:value GAS_PAYING_TOKEN  Represents the config type for the gas paying token.
+/// @custom:value GAS_PAYING_TOKEN   Represents the config type for the gas paying token.
+/// @custom:value ADD_DEPENDENCY     Represents the config type for adding a chain to the interchain dependency set.
+/// @custom:value REMOVE_DEPENDENCY  Represents the config type for removing a chain from the interchain dependency set.
 enum ConfigType {
-    GAS_PAYING_TOKEN
+    GAS_PAYING_TOKEN,
+    ADD_DEPENDENCY,
+    REMOVE_DEPENDENCY
 }
 
 /// @custom:proxied
@@ -24,6 +28,11 @@ contract L1Block is ISemver, IGasToken {
 
     /// @notice Event emitted when the gas paying token is set.
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
+
+    modifier onlyDepositor() {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        _;
+    }
 
     /// @notice Address of the special depositor account.
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
@@ -65,9 +74,9 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.4.0
+    /// @custom:semver 1.5.0
     function version() public pure virtual returns (string memory) {
-        return "1.4.0";
+        return "1.5.0";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -116,9 +125,8 @@ contract L1Block is ISemver, IGasToken {
         uint256 _l1FeeScalar
     )
         external
+        onlyDepositor
     {
-        require(msg.sender == DEPOSITOR_ACCOUNT(), "L1Block: only the depositor account can set L1 block values");
-
         number = _number;
         timestamp = _timestamp;
         basefee = _basefee;
@@ -141,14 +149,8 @@ contract L1Block is ISemver, IGasToken {
     ///   7. _blobBaseFee        L1 blob base fee.
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
-    function setL1BlockValuesEcotone() external {
-        address depositor = DEPOSITOR_ACCOUNT();
+    function setL1BlockValuesEcotone() external onlyDepositor {
         assembly {
-            // Revert if the caller is not the depositor account.
-            if xor(caller(), depositor) {
-                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
-                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
-            }
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
             sstore(sequenceNumber.slot, shr(128, calldataload(4)))
             // number (uint64) and timestamp (uint64)
@@ -160,40 +162,18 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
-    /// @notice Updates the L1 block values for an Holocene upgraded chain.
-    /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
-    /// Params are expected to be in the following order:
-    ///   1. _baseFeeScalar      L1 base fee scalar
-    ///   2. _blobBaseFeeScalar  L1 blob base fee scalar
-    ///   3. _sequenceNumber     Number of L2 blocks since epoch start.
-    ///   4. _timestamp          L1 timestamp.
-    ///   5. _number             L1 blocknumber.
-    ///   6. _basefee            L1 base fee.
-    ///   7. _blobBaseFee        L1 blob base fee.
-    ///   8. _hash               L1 blockhash.
-    function setL1BlockValuesHolocene() external {
-        address depositor = DEPOSITOR_ACCOUNT();
-        assembly {
-            // Revert if the caller is not the depositor account.
-            if xor(caller(), depositor) {
-                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
-                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
-            }
-            // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
-            sstore(sequenceNumber.slot, shr(128, calldataload(4)))
-            // number (uint64) and timestamp (uint64)
-            sstore(number.slot, shr(128, calldataload(20)))
-            sstore(basefee.slot, calldataload(36)) // uint256
-            sstore(blobBaseFee.slot, calldataload(68)) // uint256
-            sstore(hash.slot, calldataload(100)) // bytes32
-        }
-    }
-
     /// @notice Sets static configuration options for the L2 system. Can only be called by the special
     ///         depositor account.
-    function setConfig(ConfigType _type, bytes calldata _value) external {
-        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+    /// @param _type  The type of configuration to set.
+    /// @param _value The encoded value with which to set the configuration.
+    function setConfig(ConfigType _type, bytes calldata _value) external onlyDepositor {
+        _setConfig(_type, _value);
+    }
 
+    /// @notice Internal function to set configuration options for the L2 system.
+    /// @param _type  The type of configuration to set.
+    /// @param _value The encoded value with which to set the configuration.
+    function _setConfig(ConfigType _type, bytes calldata _value) internal virtual {
         // For GAS_PAYING_TOKEN config type
         if (_type == ConfigType.GAS_PAYING_TOKEN) {
             (address token, uint8 decimals, bytes32 name, bytes32 symbol) =

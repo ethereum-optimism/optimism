@@ -23,12 +23,16 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
     /// @custom:value GAS_TOKEN            Represents an update to the gas token address.
+    /// @custom:value ADD_DEPENDENCY       Represents an update (addition) to the interop dependency list.
+    /// @custom:value REMOVE_DEPENDENCY    Represents an update (removal) to the interop dependency list.
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER,
-        GAS_TOKEN
+        GAS_TOKEN,
+        ADD_DEPENDENCY,
+        REMOVE_DEPENDENCY
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -437,5 +441,35 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         );
 
         _resourceConfig = _config;
+    }
+
+    /// @notice Adds a chain to the interop dependency set. Can only be called by the owner.
+    /// @param _chainId Chain ID of chain to add.
+    function addDependency(uint256 _chainId) external onlyOwner {
+        _addDependency(_chainId);
+    }
+
+    /// @notice Internal function for adding a chain to the interop dependency set.
+    /// @param _chainId Chain ID of chain to add.
+    function _addDependency(uint256 _chainId) internal {
+        OptimismPortal(payable(optimismPortal())).addDependency(_chainId);
+
+        bytes memory data = abi.encode(_chainId);
+        emit ConfigUpdate(VERSION, UpdateType.ADD_DEPENDENCY, data);
+    }
+
+    /// @notice Removes a chain from the interop dependency set. Can only be called by the owner.
+    /// @param _chainId Chain ID of the chain to remove.
+    function removeDependency(uint256 _chainId) external onlyOwner {
+        _addDependency(_chainId);
+    }
+
+    /// @notice Internal function for removing a chain from the interop dependency set.
+    /// @param _chainId Chain ID of the chain to remove.
+    function _removeDependency(uint256 _chainId) internal {
+        OptimismPortal(payable(optimismPortal())).removeDependency(_chainId);
+
+        bytes memory data = abi.encode(_chainId);
+        emit ConfigUpdate(VERSION, UpdateType.REMOVE_DEPENDENCY, data);
     }
 }
