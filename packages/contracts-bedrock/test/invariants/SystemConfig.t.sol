@@ -6,7 +6,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
-contract SystemConfig_GasLimitLowerBound_Invariant is Test {
+contract SystemConfig_GasLimitBoundaries_Invariant is Test {
     SystemConfig public config;
 
     function setUp() external {
@@ -63,9 +63,13 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
         targetInterface(target);
     }
 
-    /// @custom:invariant The gas limit of the `SystemConfig` contract can never be lower
-    ///                   than the hard-coded lower bound.
-    function invariant_gasLimitLowerBound() external view {
+    /// @custom:invariant Gas limit boundaries
+    ///
+    /// The gas limit of the `SystemConfig` contract can never be lower than the hard-coded lower bound or higher than
+    /// the hard-coded upper bound. The lower bound must never be higher than the upper bound.
+    function invariant_gasLimitBoundaries() external view {
         assertTrue(config.gasLimit() >= config.minimumGasLimit());
+        assertTrue(config.gasLimit() <= config.maximumGasLimit());
+        assertTrue(config.minimumGasLimit() <= config.maximumGasLimit());
     }
 }
