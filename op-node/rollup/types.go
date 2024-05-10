@@ -61,9 +61,9 @@ type Config struct {
 	// Note: When L1 has many 1 second consecutive blocks, and L2 grows at fixed 2 seconds,
 	// the L2 time may still grow beyond this difference.
 	//
-	// With Fjord, the MaxSequencerDrift becomes a constant. Learn the correct
-	// max sequencer drift for a given block timestamp via the ChainSpec instead
-	// of reading this rollup configuration field directly.
+	// With Fjord, the MaxSequencerDrift becomes a constant. Use the ChainSpec
+	// instead of reading this rollup configuration field directly to determine
+	// the max sequencer drift for a given block based on the block's L1 origin.
 	// Chains that activate Fjord at genesis may leave this field empty.
 	MaxSequencerDrift uint64 `json:"max_sequencer_drift,omitempty"`
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch L1 origin block itself
