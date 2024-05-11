@@ -240,7 +240,7 @@ func (d *DA) isExpired(bn uint64) bool {
 // trigger a derivation reset.
 func (d *DA) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
 	// do not repeat for the same origin
-	if block.Number <= d.origin.Number {
+	if block.Number < d.origin.Number {
 		return nil
 	}
 	// sync challenges for the given block ID
