@@ -319,7 +319,7 @@ func NewMetrics() *Metrics {
 		}, []string{
 			// Agreement with the root claim, not the actual l2 block number challenge.
 			// An l2 block number challenge with an agreement means the challenge was invalid.
-			"agreement",
+			"root_agreement",
 		}),
 	}
 }
@@ -474,9 +474,9 @@ func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, a
 }
 
 func (m *Metrics) RecordL2Challenges(agreement bool, count int) {
-	agree := "false"
+	agree := "disagree"
 	if agreement {
-		agree = "true"
+		agree = "agree"
 	}
 	m.l2Challenges.WithLabelValues(agree).Set(float64(count))
 }
