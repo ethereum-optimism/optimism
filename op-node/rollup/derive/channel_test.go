@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/zstd"
 	"github.com/andybalholm/brotli"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -114,11 +113,7 @@ func TestBatchReader(t *testing.T) {
 	batchDataInput := NewBatchData(singularBatch)
 
 	encodedBatch := &bytes.Buffer{}
-	buf := &bytes.Buffer{}
-	// Get the encoded data of the batch data
-	err := batchDataInput.encodeTyped(buf)
-	require.NoError(t, err)
-	err = rlp.Encode(encodedBatch, buf.Bytes())
+	err := batchDataInput.EncodeRLP(encodedBatch)
 	require.NoError(t, err)
 
 	var testCases = []struct {
