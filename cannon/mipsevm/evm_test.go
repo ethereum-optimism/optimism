@@ -400,12 +400,6 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r != nil {
-					require.Failf(t, "Test panicked", "%v", r)
-				}
-			}()
-
 			oracle := hintTrackingOracle{}
 			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
 
