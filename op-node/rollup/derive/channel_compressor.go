@@ -35,18 +35,6 @@ type BaseChannelCompressor struct {
 	CompressorWriter
 }
 
-func (bcc *BaseChannelCompressor) Write(data []byte) (int, error) {
-	return bcc.CompressorWriter.Write(data)
-}
-
-func (bcc *BaseChannelCompressor) Flush() error {
-	return bcc.CompressorWriter.Flush()
-}
-
-func (bcc *BaseChannelCompressor) Close() error {
-	return bcc.CompressorWriter.Close()
-}
-
 func (bcc *BaseChannelCompressor) Len() int {
 	return bcc.compressed.Len()
 }
