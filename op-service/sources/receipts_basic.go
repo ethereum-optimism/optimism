@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 
@@ -39,7 +40,7 @@ func (f *BasicRPCReceiptsFetcher) FetchReceipts(ctx context.Context, blockInfo e
 
 	// Fetch all receipts
 	for {
-		if err := call.Fetch(ctx); err == io.EOF {
+		if err := call.Fetch(ctx); errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err

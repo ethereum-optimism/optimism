@@ -2,6 +2,7 @@ package reassemble
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -113,7 +114,7 @@ func processFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, fr
 	if ch.IsReady() {
 		br, err := derive.BatchReader(ch.Reader(), spec.MaxRLPBytesPerChannel(ch.HighestBlock().Time))
 		if err == nil {
-			for batchData, err := br(); err != io.EOF; batchData, err = br() {
+			for batchData, err := br(); !errors.Is(err, io.EOF); batchData, err = br() {
 				if err != nil {
 					fmt.Printf("Error reading batchData for channel %v. Err: %v\n", id.String(), err)
 					invalidBatches = true

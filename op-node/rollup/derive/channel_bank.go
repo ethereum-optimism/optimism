@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"io"
 	"slices"
 
@@ -180,7 +181,7 @@ func (cb *ChannelBank) tryReadChannelAtIndex(i int) (data []byte, err error) {
 func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 	// Do the read from the channel bank first
 	data, err := cb.Read()
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		// continue - We will attempt to load data into the channel bank
 	} else if err != nil {
 		return nil, err
@@ -189,7 +190,7 @@ func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 	}
 
 	// Then load data into the channel bank
-	if frame, err := cb.prev.NextFrame(ctx); err == io.EOF {
+	if frame, err := cb.prev.NextFrame(ctx); errors.Is(err, io.EOF) {
 		return nil, io.EOF
 	} else if err != nil {
 		return nil, err

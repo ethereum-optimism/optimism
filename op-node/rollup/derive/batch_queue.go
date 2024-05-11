@@ -148,7 +148,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 
 	// Load more data into the batch queue
 	outOfData := false
-	if batch, err := bq.prev.NextBatch(ctx); err == io.EOF {
+	if batch, err := bq.prev.NextBatch(ctx); errors.Is(err, io.EOF) {
 		outOfData = true
 	} else if err != nil {
 		return nil, false, err
@@ -168,9 +168,9 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 
 	// Finally attempt to derive more batches
 	batch, err := bq.deriveNextBatch(ctx, outOfData, parent)
-	if err == io.EOF && outOfData {
+	if errors.Is(err, io.EOF) && outOfData {
 		return nil, false, io.EOF
-	} else if err == io.EOF {
+	} else if errors.Is(err, io.EOF) {
 		return nil, false, NotEnoughData
 	} else if err != nil {
 		return nil, false, err

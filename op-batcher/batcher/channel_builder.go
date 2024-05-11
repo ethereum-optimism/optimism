@@ -300,7 +300,7 @@ func (c *ChannelBuilder) outputReadyFrames() error {
 	// When creating a frame from the ready compression data, the frame overhead
 	// will be added to the total output size, so we can add it in the condition.
 	for c.co.ReadyBytes()+derive.FrameV0OverHeadSize >= int(c.cfg.MaxFrameSize) {
-		if err := c.outputFrame(); err == io.EOF {
+		if err := c.outputFrame(); errors.Is(err, io.EOF) {
 			return nil
 		} else if err != nil {
 			return err
@@ -315,7 +315,7 @@ func (c *ChannelBuilder) closeAndOutputAllFrames() error {
 	}
 
 	for {
-		if err := c.outputFrame(); err == io.EOF {
+		if err := c.outputFrame(); errors.Is(err, io.EOF) {
 			return nil
 		} else if err != nil {
 			return err
@@ -329,7 +329,7 @@ func (c *ChannelBuilder) closeAndOutputAllFrames() error {
 func (c *ChannelBuilder) outputFrame() error {
 	var buf bytes.Buffer
 	fn, err := c.co.OutputFrame(&buf, c.cfg.MaxFrameSize)
-	if err != io.EOF && err != nil {
+	if !errors.Is(err, io.EOF) && err != nil {
 		return fmt.Errorf("writing frame[%d]: %w", fn, err)
 	}
 

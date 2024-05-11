@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -71,7 +72,7 @@ func (d *scoreBook) startGC() {
 
 func (d *scoreBook) GetPeerScores(id peer.ID) (PeerScores, error) {
 	record, err := d.book.getRecord(id)
-	if err == UnknownRecordErr {
+	if errors.Is(err, UnknownRecordErr) {
 		return PeerScores{}, nil // return zeroed scores by default
 	}
 	if err != nil {

@@ -133,7 +133,7 @@ func (tc *batchTestCase) Run(t *testing.T) {
 		}
 
 		err := iter.Fetch(ctx)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			require.Equal(t, i, len(tc.batchCalls)-1, "EOF only on last call")
 		} else {
 			require.False(t, iter.Complete())
@@ -147,7 +147,7 @@ func (tc *batchTestCase) Run(t *testing.T) {
 	for i, ec := range tc.singleCalls {
 		ctx := context.Background()
 		err := iter.Fetch(ctx)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			require.Equal(t, i, len(tc.singleCalls)-1, "EOF only on last call")
 		} else {
 			require.False(t, iter.Complete())

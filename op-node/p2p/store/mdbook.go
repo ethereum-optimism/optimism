@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -69,7 +70,7 @@ func (m *metadataBook) startGC() {
 func (m *metadataBook) GetPeerMetadata(id peer.ID) (PeerMetadata, error) {
 	record, err := m.book.getRecord(id)
 	// If the record is not found, return an empty PeerMetadata
-	if err == UnknownRecordErr {
+	if errors.Is(err, UnknownRecordErr) {
 		return PeerMetadata{}, nil
 	}
 	if err != nil {

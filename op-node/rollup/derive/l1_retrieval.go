@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -49,7 +50,7 @@ func (l1r *L1Retrieval) Origin() eth.L1BlockRef {
 func (l1r *L1Retrieval) NextData(ctx context.Context) ([]byte, error) {
 	if l1r.datas == nil {
 		next, err := l1r.prev.NextL1Block(ctx)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil, io.EOF
 		} else if err != nil {
 			return nil, err
@@ -61,7 +62,7 @@ func (l1r *L1Retrieval) NextData(ctx context.Context) ([]byte, error) {
 
 	l1r.log.Debug("fetching next piece of data")
 	data, err := l1r.datas.Next(ctx)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		l1r.datas = nil
 		return nil, io.EOF
 	} else if err != nil {

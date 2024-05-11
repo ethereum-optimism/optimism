@@ -376,7 +376,7 @@ func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txID], receiptsCh c
 		}
 		err := l.publishTxToL1(l.killCtx, queue, receiptsCh)
 		if err != nil {
-			if err != io.EOF {
+			if !errors.Is(err, io.EOF) {
 				l.Log.Error("error publishing tx to l1", "err", err)
 			}
 			return
@@ -436,7 +436,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	// Collect next transaction data
 	txdata, err := l.state.TxData(l1tip.ID())
 
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		l.Log.Trace("no transaction data available")
 		return err
 	} else if err != nil {

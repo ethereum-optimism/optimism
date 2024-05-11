@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"errors"
 	"io"
 	"math/big"
 
@@ -239,7 +240,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 	data := new(bytes.Buffer)
 	data.WriteByte(derive.DerivationVersion0)
 	// subtract one, to account for the version byte
-	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); errors.Is(err, io.EOF) {
 		s.l2ChannelOut = nil
 		s.l2Submitting = false
 	} else if err != nil {
@@ -342,7 +343,7 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 			// subtract one, to account for the version byte
 			l = s.l2BatcherCfg.MaxL1TxSize - 1
 		}
-		if _, err := s.l2ChannelOut.OutputFrame(data, l); err == io.EOF {
+		if _, err := s.l2ChannelOut.OutputFrame(data, l); errors.Is(err, io.EOF) {
 			s.l2Submitting = false
 			if i < numBlobs-1 {
 				t.Fatalf("failed to fill up %d blobs, only filled %d", numBlobs, i+1)
@@ -410,7 +411,7 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 	data.WriteByte(derive.DerivationVersion0)
 
 	// subtract one, to account for the version byte
-	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); errors.Is(err, io.EOF) {
 		s.l2ChannelOut = nil
 		s.l2Submitting = false
 	} else if err != nil {

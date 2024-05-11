@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -65,7 +66,7 @@ func (cr *ChannelInReader) NextChannel() {
 // It will return a temporary error if it needs to be called again to advance some internal state.
 func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	if cr.nextBatchFn == nil {
-		if data, err := cr.prev.NextData(ctx); err == io.EOF {
+		if data, err := cr.prev.NextData(ctx); errors.Is(err, io.EOF) {
 			return nil, io.EOF
 		} else if err != nil {
 			return nil, err
@@ -79,7 +80,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	// TODO: can batch be non nil while err == io.EOF
 	// This depends on the behavior of rlp.Stream
 	batchData, err := cr.nextBatchFn()
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		cr.NextChannel()
 		return nil, NotEnoughData
 	} else if err != nil {

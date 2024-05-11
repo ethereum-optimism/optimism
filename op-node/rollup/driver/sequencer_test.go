@@ -324,7 +324,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		// reset errors
 		originErr = nil
 		attrsErr = nil
-		if engControl.err != mockResetErr { // the mockResetErr requires the sequencer to Reset() to recover.
+		if !errors.Is(engControl.err, mockResetErr) { // the mockResetErr requires the sequencer to Reset() to recover.
 			engControl.err = nil
 		}
 		engControl.errTyp = derive.BlockInsertOK

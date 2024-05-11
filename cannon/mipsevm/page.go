@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -47,7 +48,7 @@ func (p *Page) UnmarshalJSON(dat []byte) error {
 	defer r.Close()
 	if n, err := r.Read(p[:]); n != PageSize {
 		return fmt.Errorf("epxeted %d bytes, but got %d", PageSize, n)
-	} else if err == io.EOF {
+	} else if errors.Is(err, io.EOF) {
 		return nil
 	} else {
 		return err

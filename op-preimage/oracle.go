@@ -3,6 +3,7 @@ package preimage
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -51,7 +52,7 @@ type PreimageGetter func(key [32]byte) ([]byte, error)
 func (o *OracleServer) NextPreimageRequest(getPreimage PreimageGetter) error {
 	var key [32]byte
 	if _, err := io.ReadFull(o.rw, key[:]); err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return io.EOF
 		}
 		return fmt.Errorf("failed to read requested pre-image key: %w", err)

@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"errors"
 	"io"
 	"math/big"
 	"math/rand"
@@ -409,7 +410,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	drainTxData := func() (txdatas []txData) {
 		for {
 			txdata, err := m.TxData(eth.BlockID{})
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			require.NoError(err, "Expected channel manager to produce valid tx data")

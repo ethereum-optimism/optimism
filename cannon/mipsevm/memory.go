@@ -3,6 +3,7 @@ package mipsevm
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/bits"
@@ -278,7 +279,7 @@ func (m *Memory) SetMemoryRange(addr uint32, r io.Reader) error {
 		p.InvalidateFull()
 		n, err := r.Read(p.Data[pageAddr:])
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return err

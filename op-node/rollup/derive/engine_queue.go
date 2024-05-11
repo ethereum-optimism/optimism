@@ -304,7 +304,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	// Trying unsafe payload should be done before safe attributes
 	// It allows the unsafe head can move forward while the long-range consolidation is in progress.
 	if eq.unsafePayloads.Len() > 0 {
-		if err := eq.tryNextUnsafePayload(ctx); err != io.EOF {
+		if err := eq.tryNextUnsafePayload(ctx); !errors.Is(err, io.EOF) {
 			return err
 		}
 		// EOF error means we can't process the next unsafe payload. Then we should process next safe attributes.
@@ -331,7 +331,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	if err := eq.tryFinalizePastL2Blocks(ctx); err != nil {
 		return err
 	}
-	if next, err := eq.prev.NextAttributes(ctx, eq.ec.PendingSafeL2Head()); err == io.EOF {
+	if next, err := eq.prev.NextAttributes(ctx, eq.ec.PendingSafeL2Head()); errors.Is(err, io.EOF) {
 		return io.EOF
 	} else if err != nil {
 		return err

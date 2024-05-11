@@ -43,7 +43,7 @@ func TestHints(t *testing.T) {
 					got <- hint
 					return nil
 				})
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				require.NoError(t, err)

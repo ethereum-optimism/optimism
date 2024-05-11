@@ -2,6 +2,7 @@ package preimage
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -48,7 +49,7 @@ type HintHandler func(hint string) error
 func (hr *HintReader) NextHint(router HintHandler) error {
 	var length uint32
 	if err := binary.Read(hr.rw, binary.BigEndian, &length); err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return io.EOF
 		}
 		return fmt.Errorf("failed to read hint length prefix: %w", err)

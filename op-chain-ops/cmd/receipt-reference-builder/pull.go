@@ -335,7 +335,7 @@ func batchBlockByNumber(ctx context.Context, c *ethclient.Client, blockNumbers [
 		int(MaxBatchSize),
 	)
 	for {
-		if err := batchReq.Fetch(ctx); err == io.EOF {
+		if err := batchReq.Fetch(ctx); errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			log.Warn("Failed to Fetch Blocks", "Err", err, "Start", blockNumbers[0], "End", blockNumbers[len(blockNumbers)-1])

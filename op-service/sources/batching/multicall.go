@@ -2,6 +2,7 @@ package batching
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -58,7 +59,7 @@ func (m *MultiCaller) Call(ctx context.Context, block rpcblock.Block, calls ...C
 		m.rpc.CallContext,
 		m.batchSize)
 	for {
-		if err := fetcher.Fetch(ctx); err == io.EOF {
+		if err := fetcher.Fetch(ctx); errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, fmt.Errorf("failed to fetch batch: %w", err)

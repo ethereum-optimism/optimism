@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"io"
 	"math/big"
 	"math/rand"
@@ -260,7 +261,7 @@ func TestPlasmaDataSource(t *testing.T) {
 			break
 		}
 
-		for data, err := src.Next(ctx); err != io.EOF; data, err = src.Next(ctx) {
+		for data, err := src.Next(ctx); !errors.Is(err, io.EOF); data, err = src.Next(ctx) {
 			logger.Info("yielding data")
 			// check that each commitment is resolved
 			require.NoError(t, err)
