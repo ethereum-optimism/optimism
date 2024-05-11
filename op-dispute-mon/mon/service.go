@@ -213,7 +213,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		}
 		return block.Hash(), nil
 	}
-	l2ChallengesMonitor := NewL2ChallengesMonitor(s.metrics)
+	l2ChallengesMonitor := NewL2ChallengesMonitor(s.logger, s.metrics)
 	s.monitor = newGameMonitor(
 		ctx,
 		s.logger,
