@@ -391,56 +391,11 @@ const (
 	L1ScalarBedrock = byte(0)
 	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
 	L1ScalarEcotone = byte(1)
-	// L1ScalarFjord is new in Fjord, allowing the configuration of the linear regression formula.
-	L1ScalarFjord = byte(2)
 )
 
 type EcotoneScalars struct {
 	BlobBaseFeeScalar uint32
 	BaseFeeScalar     uint32
-}
-
-type FjordScalars struct {
-	BlobBaseFeeScalar uint32
-	BaseFeeScalar     uint32
-	CostIntercept     int32
-	CostFastLzCoef    int32
-}
-
-func (sysCfg *SystemConfig) FjordScalars() (FjordScalars, error) {
-	if err := CheckFjordL1SystemConfigScalar(sysCfg.Scalar); err != nil {
-		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
-			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
-			// the padding area.
-			return FjordScalars{
-				BlobBaseFeeScalar: 0,
-				BaseFeeScalar:     math.MaxUint32,
-				CostIntercept:     0,
-				CostFastLzCoef:    0,
-			}, nil
-		}
-		return FjordScalars{}, err
-	}
-	if sysCfg.Scalar[0] == L1ScalarFjord {
-		return FjordScalars{
-			CostFastLzCoef:    int32(binary.BigEndian.Uint32(sysCfg.Scalar[16:20])),
-			CostIntercept:     int32(binary.BigEndian.Uint32(sysCfg.Scalar[20:24])),
-			BlobBaseFeeScalar: binary.BigEndian.Uint32(sysCfg.Scalar[24:28]),
-			BaseFeeScalar:     binary.BigEndian.Uint32(sysCfg.Scalar[28:32]),
-		}, nil
-	} else {
-		ecotoneScalars, err := sysCfg.EcotoneScalars()
-		if err != nil {
-			return FjordScalars{}, err
-		}
-
-		return FjordScalars{
-			BlobBaseFeeScalar: ecotoneScalars.BlobBaseFeeScalar,
-			BaseFeeScalar:     ecotoneScalars.BaseFeeScalar,
-			CostIntercept:     0,
-			CostFastLzCoef:    0,
-		}, nil
-	}
 }
 
 func (sysCfg *SystemConfig) EcotoneScalars() (EcotoneScalars, error) {
@@ -500,17 +455,6 @@ func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 		// ignore the event if it's an unknown scalar format
 		return fmt.Errorf("unrecognized scalar version: %d", versionByte)
 	}
-}
-
-func CheckFjordL1SystemConfigScalar(scalar [32]byte) error {
-	versionByte := scalar[0]
-	if versionByte == L1ScalarFjord {
-		if ([11]byte)(scalar[1:12]) != ([11]byte{}) { // check padding
-			return fmt.Errorf("invalid version 2 scalar padding: %x", scalar[1:12])
-		}
-		return nil
-	}
-	return CheckEcotoneL1SystemConfigScalar(scalar)
 }
 
 type Bytes48 [48]byte

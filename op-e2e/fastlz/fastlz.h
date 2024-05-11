@@ -19,6 +19,9 @@
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
+
+  This implementation is taken from the following repository/commit:
+  https://github.com/ariya/FastLZ/tree/344eb4025f9ae866ebf7a2ec48850f7113a97a42
 */
 
 #ifndef FASTLZ_H

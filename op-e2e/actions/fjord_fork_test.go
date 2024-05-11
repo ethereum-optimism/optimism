@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -15,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	fjordGasPriceOracleCodeHash = common.HexToHash("0x58e192326ee67ed52b7add91e4640024cbd1b21528a0ff1e1d21b7ca54e3ee62")
+	fjordGasPriceOracleCodeHash = common.HexToHash("0xa88fa50a2745b15e6794247614b5298483070661adacb8d32d716434ed24c6b2")
 	// https://basescan.org/tx/0x8debb2fe54200183fb8baa3c6dbd8e6ec2e4f7a4add87416cd60336b8326d16a
 	txHex = "02f875822105819b8405709fb884057d460082e97f94273ca93a52b817294830ed7572aa591ccfa647fd80881249c58b0021fb3fc080a05bb08ccfd68f83392e446dac64d88a2d28e7072c06502dfabc4a77e77b5c7913a05878d53dd4ebba4f6367e572d524dffcabeec3abb1d8725ee3ac5dc32e1852e3"
 )
@@ -32,8 +32,7 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	genesisBlock := hexutil.Uint64(0)
-	ecotoneOffset := hexutil.Uint64(4)
-	fjordOffset := hexutil.Uint64(8)
+	fjordOffset := hexutil.Uint64(2)
 
 	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
 
@@ -41,7 +40,7 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &ecotoneOffset
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisFjordTimeOffset = &fjordOffset
 	require.NoError(t, dp.DeployConfig.Check(), "must have valid config")
 
@@ -50,10 +49,6 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 
-	// build a single block to move away from the genesis with 0-values in L1Block contract
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
-
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -61,8 +56,6 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	// Get gas price from oracle
 	gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, ethCl)
 	require.NoError(t, err)
-
-	sequencer.ActBuildL2ToEcotone(t)
 
 	// Get current implementations addresses (by slot) for L1Block + GasPriceOracle
 	initialGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, nil)
@@ -107,41 +100,31 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	txData, err := hex.DecodeString(txHex)
 	require.NoError(t, err)
 
-	l1GasUsed, err := gasPriceOracle.GetL1GasUsed(&bind.CallOpts{}, txData)
+	gpoL1GasUsed, err := gasPriceOracle.GetL1GasUsed(&bind.CallOpts{}, txData)
 	require.NoError(t, err)
-	require.Equal(gt, uint64(1_888), l1GasUsed.Uint64())
-
-	fastLzSize := types.FlzCompressLen(txData)
+	require.Equal(gt, uint64(1_888), gpoL1GasUsed.Uint64())
 
 	// Check that GetL1Fee takes into account fast LZ
-	used, err := gasPriceOracle.GetL1Fee(&bind.CallOpts{}, txData)
+	gpoFee, err := gasPriceOracle.GetL1Fee(&bind.CallOpts{}, txData)
 	require.NoError(t, err)
 
-	cost := fjordL1Cost(t, gasPriceOracle, int64(fastLzSize))
-	require.Equal(t, cost.Uint64(), used.Uint64())
+	gethFee := fjordL1Cost(t, gasPriceOracle, types.RollupCostData{
+		FastLzSize: uint64(types.FlzCompressLen(txData) + 68),
+	})
+	require.Equal(t, gethFee.Uint64(), gpoFee.Uint64())
 
-	// Check that L1FeeUppberBound works
+	// Check that L1FeeUpperBound works
 	upperBound, err := gasPriceOracle.GetL1FeeUpperBound(&bind.CallOpts{}, big.NewInt(int64(len(txData))))
 	require.NoError(t, err)
 
-	flzUpperBound := len(txData) + len(txData)/255 + 16
+	txLen := len(txData) + 68
+	flzUpperBound := uint64(txLen + txLen/255 + 16)
 
-	upperBoundCost := fjordL1Cost(t, gasPriceOracle, int64(flzUpperBound))
+	upperBoundCost := fjordL1Cost(t, gasPriceOracle, types.RollupCostData{FastLzSize: flzUpperBound})
 	require.Equal(t, upperBoundCost.Uint64(), upperBound.Uint64())
 }
 
-// The new cost function:
-// l1BaseFeeScaled = l1BaseFeeScalar * l1BaseFee * 16
-// l1BlobFeeScaled = l1BlobFeeScalar * l1BlobBaseFee
-// l1FeeScaled = l1BaseFeeScaled + l1BlobFeeScaled
-// ((intercept + fastlzCoef*max(fastlzLength, 100)) * l1FeeScaled) / 1e6
-func fjordL1Cost(
-	t require.TestingT,
-	gasPriceOracle *bindings.GasPriceOracleCaller,
-	fastLzLength int64,
-) *big.Int {
-	fastLzLength = max(fastLzLength, types.MinTransactionSize.Int64())
-
+func fjordL1Cost(t require.TestingT, gasPriceOracle *bindings.GasPriceOracleCaller, rollupCostData types.RollupCostData) *big.Int {
 	baseFeeScalar, err := gasPriceOracle.BaseFeeScalar(nil)
 	require.NoError(t, err)
 	l1BaseFee, err := gasPriceOracle.L1BaseFee(nil)
@@ -151,16 +134,12 @@ func fjordL1Cost(
 	blobBaseFee, err := gasPriceOracle.BlobBaseFee(nil)
 	require.NoError(t, err)
 
-	feeScaled := new(big.Int).Mul(new(big.Int).SetUint64(uint64(baseFeeScalar)), big.NewInt(16))
-	feeScaled = new(big.Int).Mul(feeScaled, l1BaseFee)
-	feeScaled = new(big.Int).Add(feeScaled, new(big.Int).Mul(new(big.Int).SetUint64(uint64(blobBaseFeeScalar)), blobBaseFee))
+	costFunc := types.NewL1CostFuncFjord(
+		l1BaseFee,
+		blobBaseFee,
+		new(big.Int).SetUint64(uint64(baseFeeScalar)),
+		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
 
-	cost := new(big.Int).Mul(types.L1CostFastlzCoef, new(big.Int).SetInt64(fastLzLength+68))
-	cost = new(big.Int).Add(cost, types.L1CostIntercept)
-	require.True(t, cost.Sign() >= 0)
-
-	cost = new(big.Int).Mul(cost, feeScaled)
-	cost = new(big.Int).Div(cost, new(big.Int).SetInt64(int64(1e12)))
-
-	return cost
+	fee, _ := costFunc(rollupCostData)
+	return fee
 }
