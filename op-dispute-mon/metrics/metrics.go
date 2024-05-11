@@ -59,9 +59,6 @@ const (
 	AgreeDefenderAhead
 	DisagreeDefenderAhead
 
-	// L2 Block Number Challenge
-	DisagreeL2BlockChallenge
-
 	// Completed
 	AgreeDefenderWins
 	DisagreeDefenderWins
@@ -135,6 +132,8 @@ type Metricer interface {
 
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
 
+	RecordL2Challenges(agreement bool, count int)
+
 	caching.Metrics
 	contractMetrics.ContractMetricer
 }
@@ -172,6 +171,7 @@ type Metrics struct {
 	latestInvalidProposal prometheus.Gauge
 	ignoredGames          prometheus.Gauge
 	failedGames           prometheus.Gauge
+	l2Challenges          prometheus.GaugeVec
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -311,6 +311,15 @@ func NewMetrics() *Metrics {
 			// additional DelayedWETH contracts to be used by dispute games
 			"delayedWETH",
 			"balance",
+		}),
+		l2Challenges: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "l2_block_challenges",
+			Help:      "Number of games where the L2 block number has been successfully challenged",
+		}, []string{
+			// Agreement with the root claim, not the actual l2 block number challenge.
+			// An l2 block number challenge with an agreement means the challenge was invalid.
+			"root_agreement",
 		}),
 	}
 }
@@ -464,6 +473,14 @@ func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, a
 	m.availableCollateral.WithLabelValues(addr.Hex(), balance).Set(weiToEther(available))
 }
 
+func (m *Metrics) RecordL2Challenges(agreement bool, count int) {
+	agree := "disagree"
+	if agreement {
+		agree = "agree"
+	}
+	m.l2Challenges.WithLabelValues(agree).Set(float64(count))
+}
+
 const (
 	inProgress = true
 	correct    = true
@@ -495,10 +512,6 @@ func labelValuesFor(status GameAgreementStatus) []string {
 		return asStrings("agree_defender_ahead", inProgress, correct, agree)
 	case DisagreeDefenderAhead:
 		return asStrings("disagree_defender_ahead", inProgress, !correct, !agree)
-
-	// L2 Block Number Challenge
-	case DisagreeL2BlockChallenge:
-		return asStrings("disagree_l2_block_challenge", inProgress, !correct, !agree)
 
 	// Completed
 	case AgreeDefenderWins:

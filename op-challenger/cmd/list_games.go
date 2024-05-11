@@ -80,12 +80,11 @@ func ListGames(ctx *cli.Context) error {
 
 type gameInfo struct {
 	types.GameMetadata
-	claimCount         uint64
-	l2BlockNum         uint64
-	rootClaim          common.Hash
-	status             types.GameStatus
-	blockNumChallenged bool
-	err                error
+	claimCount uint64
+	l2BlockNum uint64
+	rootClaim  common.Hash
+	status     types.GameStatus
+	err        error
 }
 
 func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contracts.DisputeGameFactoryContract, block common.Hash, gameWindow time.Duration, sortBy, sortOrder string) error {
@@ -110,15 +109,14 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, l2BlockNum, rootClaim, status, _, blockNumChallenged, err := gameContract.GetGameMetadata(ctx, rpcblock.ByHash(block))
+			metadata, err := gameContract.GetGameMetadata(ctx, rpcblock.ByHash(block))
 			if err != nil {
 				info.err = fmt.Errorf("failed to retrieve metadata for game %v: %w", gameProxy, err)
 				return
 			}
-			infos[currIndex].status = status
-			infos[currIndex].l2BlockNum = l2BlockNum
-			infos[currIndex].rootClaim = rootClaim
-			infos[currIndex].blockNumChallenged = blockNumChallenged
+			infos[currIndex].status = metadata.Status
+			infos[currIndex].l2BlockNum = metadata.L2BlockNum
+			infos[currIndex].rootClaim = metadata.RootClaim
 			claimCount, err := gameContract.GetClaimCount(ctx)
 			if err != nil {
 				info.err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)

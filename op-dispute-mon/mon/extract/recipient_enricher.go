@@ -25,6 +25,9 @@ func (w *RecipientEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCa
 			recipients[claim.Claimant] = true
 		}
 	}
+	if game.BlockNumberChallenger != (common.Address{}) {
+		recipients[game.BlockNumberChallenger] = true
+	}
 	game.Recipients = recipients
 	return nil
 }

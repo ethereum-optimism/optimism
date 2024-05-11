@@ -32,8 +32,6 @@ type forecastBatch struct {
 	AgreeChallengerWins    int
 	DisagreeChallengerWins int
 
-	DisagreeL2BlockChallenge int
-
 	LatestInvalidProposal uint64
 }
 
@@ -69,8 +67,6 @@ func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount in
 	f.metrics.RecordGameAgreement(metrics.DisagreeChallengerAhead, batch.DisagreeChallengerAhead)
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderAhead, batch.AgreeDefenderAhead)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderAhead, batch.DisagreeDefenderAhead)
-
-	f.metrics.RecordGameAgreement(metrics.DisagreeL2BlockChallenge, batch.DisagreeL2BlockChallenge)
 
 	f.metrics.RecordLatestInvalidProposal(batch.LatestInvalidProposal)
 
@@ -115,25 +111,19 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 		return nil
 	}
 
+	var forecastStatus types.GameStatus
 	// Games that have their block number challenged are won
 	// by the challenger since the counter is proven on-chain.
 	if game.BlockNumberChallenged {
 		f.logger.Debug("Found game with challenged block number",
 			"game", game.Proxy, "blockNum", game.L2BlockNumber, "agreement", agreement)
-		if !agreement {
-			metrics.AgreeChallengerAhead++
-		} else {
-			metrics.DisagreeChallengerAhead++
-			metrics.DisagreeL2BlockChallenge++
-		}
-		return nil
+		// If the block number is challenged the challenger will always win
+		forecastStatus = types.GameStatusChallengerWon
+	} else {
+		// Otherwise we go through the resolution process to determine who would win based on the current claims
+		tree := transform.CreateBidirectionalTree(game.Claims)
+		forecastStatus = Resolve(tree)
 	}
-
-	// Create the bidirectional tree of claims.
-	tree := transform.CreateBidirectionalTree(game.Claims)
-
-	// Compute the resolution status of the game.
-	forecastStatus := Resolve(tree)
 
 	if agreement {
 		// If we agree with the output root proposal, the Defender should win, defending that claim.

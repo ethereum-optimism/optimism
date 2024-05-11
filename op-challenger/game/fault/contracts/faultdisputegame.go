@@ -52,6 +52,7 @@ var (
 	methodCredit                  = "credit"
 	methodWETH                    = "weth"
 	methodL2BlockNumberChallenged = "l2BlockNumberChallenged"
+	methodL2BlockNumberChallenger = "l2BlockNumberChallenger"
 	methodChallengeRootL2Block    = "challengeRootL2Block"
 )
 
@@ -162,8 +163,18 @@ func (f *FaultDisputeGameContractLatest) GetBlockRange(ctx context.Context) (pre
 	return
 }
 
+type GameMetadata struct {
+	L1Head                  common.Hash
+	L2BlockNum              uint64
+	RootClaim               common.Hash
+	Status                  gameTypes.GameStatus
+	MaxClockDuration        uint64
+	L2BlockNumberChallenged bool
+	L2BlockNumberChallenger common.Address
+}
+
 // GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, max clock duration, and is l2 block number challenged.
-func (f *FaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, block rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, bool, error) {
+func (f *FaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error) {
 	defer f.metrics.StartContractRequest("GetGameMetadata")()
 	results, err := f.multiCaller.Call(ctx, block,
 		f.contract.Call(methodL1Head),
@@ -172,23 +183,33 @@ func (f *FaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, bl
 		f.contract.Call(methodStatus),
 		f.contract.Call(methodMaxClockDuration),
 		f.contract.Call(methodL2BlockNumberChallenged),
+		f.contract.Call(methodL2BlockNumberChallenger),
 	)
 	if err != nil {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, false, fmt.Errorf("failed to retrieve game metadata: %w", err)
+		return GameMetadata{}, fmt.Errorf("failed to retrieve game metadata: %w", err)
 	}
-	if len(results) != 6 {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, false, fmt.Errorf("expected 6 results but got %v", len(results))
+	if len(results) != 7 {
+		return GameMetadata{}, fmt.Errorf("expected 6 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
 	l2BlockNumber := results[1].GetBigInt(0).Uint64()
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, false, fmt.Errorf("failed to convert game status: %w", err)
+		return GameMetadata{}, fmt.Errorf("failed to convert game status: %w", err)
 	}
 	duration := results[4].GetUint64(0)
 	blockChallenged := results[5].GetBool(0)
-	return l1Head, l2BlockNumber, rootClaim, status, duration, blockChallenged, nil
+	blockChallenger := results[6].GetAddress(0)
+	return GameMetadata{
+		L1Head:                  l1Head,
+		L2BlockNum:              l2BlockNumber,
+		RootClaim:               rootClaim,
+		Status:                  status,
+		MaxClockDuration:        duration,
+		L2BlockNumberChallenged: blockChallenged,
+		L2BlockNumberChallenger: blockChallenger,
+	}, nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetStartingRootHash(ctx context.Context) (common.Hash, error) {
@@ -552,7 +573,7 @@ func (f *FaultDisputeGameContractLatest) decodeClaim(result *batching.CallResult
 type FaultDisputeGameContract interface {
 	GetBalance(ctx context.Context, block rpcblock.Block) (*big.Int, common.Address, error)
 	GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error)
-	GetGameMetadata(ctx context.Context, block rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, bool, error)
+	GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
 	GetStartingRootHash(ctx context.Context) (common.Hash, error)
 	GetSplitDepth(ctx context.Context) (types.Depth, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)

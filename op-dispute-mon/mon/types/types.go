@@ -24,6 +24,7 @@ type EnrichedGameData struct {
 	Status                types.GameStatus
 	MaxClockDuration      uint64
 	BlockNumberChallenged bool
+	BlockNumberChallenger common.Address
 	Claims                []EnrichedClaim
 
 	AgreeWithClaim    bool
