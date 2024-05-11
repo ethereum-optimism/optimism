@@ -111,11 +111,19 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 		return nil
 	}
 
-	// Create the bidirectional tree of claims.
-	tree := transform.CreateBidirectionalTree(game.Claims)
-
-	// Compute the resolution status of the game.
-	forecastStatus := Resolve(tree)
+	var forecastStatus types.GameStatus
+	// Games that have their block number challenged are won
+	// by the challenger since the counter is proven on-chain.
+	if game.BlockNumberChallenged {
+		f.logger.Debug("Found game with challenged block number",
+			"game", game.Proxy, "blockNum", game.L2BlockNumber, "agreement", agreement)
+		// If the block number is challenged the challenger will always win
+		forecastStatus = types.GameStatusChallengerWon
+	} else {
+		// Otherwise we go through the resolution process to determine who would win based on the current claims
+		tree := transform.CreateBidirectionalTree(game.Claims)
+		forecastStatus = Resolve(tree)
+	}
 
 	if agreement {
 		// If we agree with the output root proposal, the Defender should win, defending that claim.
