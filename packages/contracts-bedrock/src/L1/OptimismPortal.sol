@@ -15,7 +15,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { L1Block, ConfigType } from "src/L2/L1Block.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/PortalErrors.sol";
 
@@ -127,15 +127,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         _;
     }
 
-    /// @notice Reverts when the caller is not the SystemConfig contract.
-    modifier onlySystemConfig() {
-        if (msg.sender != address(systemConfig)) revert Unauthorized();
-        _;
-    }
-
     /// @notice Semantic version.
-    /// @custom:semver 2.8.0
-    string public constant version = "2.8.0";
+    /// @custom:semver 1.8.0
+    function version() public pure virtual returns (string memory) {
+        return "1.8.0";
+    }
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
@@ -564,45 +560,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
-    /// @param _token    Address of the gas paying token.
-    /// @param _decimals Decimals of the gas paying token.
-    /// @param _name     Name of the gas paying token.
-    /// @param _symbol   Symbol of the gas paying token.
-    function setGasPayingToken(
-        address _token,
-        uint8 _decimals,
-        bytes32 _name,
-        bytes32 _symbol
-    )
-        external
-        onlySystemConfig
-    {
-        _setConfig(ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, _decimals, _name, _symbol));
-    }
+    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external virtual {
+        if (msg.sender != address(systemConfig)) revert Unauthorized();
 
-    /// @notice Adds a chain to the interop dependency set.
-    ///         Only the SystemConfig contract can call this function.
-    /// @param _chainId Chain ID to add to the dependency set.
-    function addDependency(uint256 _chainId) external onlySystemConfig {
-        _setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
-    }
-
-    /// @notice Removes a chain from the interop dependency set.
-    ///         Only the SystemConfig contract can call this function.
-    /// @param _chainId Chain ID to remove from the dependency set.
-    function removeDependency(uint256 _chainId) external onlySystemConfig {
-        _setConfig(ConfigType.REMOVE_DEPENDENCY, abi.encode(_chainId));
-    }
-
-    /// @notice Sets static configuration options for the L2 system.
-    /// @param _type  Type of configuration to set.
-    /// @param _value Encoded value of the configuration.
-    function _setConfig(ConfigType _type, bytes memory _value) internal {
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
-        // This value must be large enough to cover the cost of calling `L1Block.setConfig`.
+        // This value must be large enough to cover the cost of calling `L1Block.setGasPayingToken`.
         useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
 
-        // Emit the special deposit transaction directly that sets the config in the L1Block predeploy contract.
+        // Emit the special deposit transaction directly that sets the gas paying
+        // token in the L1Block predeploy contract.
         emit TransactionDeposited(
             Constants.DEPOSITOR_ACCOUNT,
             Predeploys.L1_BLOCK_ATTRIBUTES,
@@ -612,7 +578,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 uint256(0), // value
                 uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1Block.setConfig, (_type, _value))
+                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
             )
         );
     }
