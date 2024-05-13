@@ -185,12 +185,6 @@ type DeployConfig struct {
 	// OptimismPortalProxy represents the address of the OptimismPortalProxy on L1 and is used
 	// as part of the derivation pipeline.
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
-	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
-	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
-	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
-	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
-	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
-	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
 	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
 	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
 	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
@@ -382,12 +376,6 @@ func (d *DeployConfig) Check() error {
 	}
 	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
-	}
-	if d.GasPriceOracleOverhead == 0 {
-		log.Warn("GasPriceOracleOverhead is 0")
-	}
-	if d.GasPriceOracleScalar == 0 {
-		log.Warn("GasPriceOracleScalar is 0")
 	}
 	if d.GasPriceOracleBaseFeeScalar == 0 {
 		log.Warn("GasPriceOracleBaseFeeScalar is 0")
@@ -636,7 +624,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 			L2Time: l1StartBlock.Time(),
 			SystemConfig: eth.SystemConfig{
 				BatcherAddr: d.BatchSenderAddress,
-				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+				Overhead:    eth.Bytes32{},
 				Scalar:      eth.Bytes32(d.FeeScalar()),
 				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 			},

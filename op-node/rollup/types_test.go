@@ -406,11 +406,6 @@ func TestConfig_Check(t *testing.T) {
 			expectedErr: ErrMissingBatcherAddr,
 		},
 		{
-			name:        "NoOverhead",
-			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Overhead = eth.Bytes32{} },
-			expectedErr: ErrMissingOverhead,
-		},
-		{
 			name:        "NoScalar",
 			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Scalar = eth.Bytes32{} },
 			expectedErr: ErrMissingScalar,
