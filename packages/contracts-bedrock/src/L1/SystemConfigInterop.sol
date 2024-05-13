@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortalInterop as OptimismPortal } from "src/L1/OptimismPortalInterop.sol";
-import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 /// @title SystemConfigInterop
