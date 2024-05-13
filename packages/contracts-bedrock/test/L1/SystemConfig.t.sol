@@ -83,8 +83,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     /// @dev Tests that initailization sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
-        assertEq(systemConfig.overhead(), overhead);
-        assertEq(systemConfig.scalar(), scalar);
+        assertEq(systemConfig.overhead(), 0);
+        assertEq(systemConfig.scalar(), 0);
         assertEq(systemConfig.batcherHash(), batcherHash);
         assertEq(systemConfig.gasLimit(), gasLimit);
         assertEq(systemConfig.unsafeBlockSigner(), unsafeBlockSigner);
