@@ -57,8 +57,6 @@
   "proxyAdminOwner": "0x0000000000000000000000000000000000000222",
   "gasPriceOracleBaseFeeScalar": 0,
   "gasPriceOracleBlobBaseFeeScalar": 0,
-  "gasPriceOracleOverhead": 2100,
-  "gasPriceOracleScalar": 1000000,
   "enableGovernance": true,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
