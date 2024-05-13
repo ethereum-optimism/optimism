@@ -218,11 +218,12 @@ contract HonestGameSolver is GameSolver {
         bool isAttack = _direction == Direction.Attack;
 
         uint256 bond = GAME.getRequiredBond(_movePos);
+        (,,,, Claim disputed,,) = GAME.claimData(_challengeIndex);
 
         move_ = Move({
             kind: isAttack ? MoveKind.Attack : MoveKind.Defend,
             value: bond,
-            data: abi.encodeCall(FaultDisputeGame.move, (_challengeIndex, claimAt(_movePos), isAttack))
+            data: abi.encodeCall(FaultDisputeGame.move, (disputed, _challengeIndex, claimAt(_movePos), isAttack))
         });
     }
 
