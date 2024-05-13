@@ -398,6 +398,22 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         systemConfig.setResourceConfig(config);
     }
 
+    /// @dev Tests that `setGasLimit` reverts if the gas limit is too low.
+    function test_setGasLimit_lowGasLimit_reverts() external {
+        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: gas limit too low");
+        systemConfig.setGasLimit(minimumGasLimit - 1);
+    }
+
+    /// @dev Tests that `setGasLimit` reverts if the gas limit is too high.
+    function test_setGasLimit_highGasLimit_reverts() external {
+        uint64 maximumGasLimit = systemConfig.maximumGasLimit();
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: gas limit too high");
+        systemConfig.setGasLimit(maximumGasLimit + 1);
+    }
+
     /// @dev Tests that `setResourceConfig` reverts if the min base fee
     ///      is greater than the maximum allowed base fee.
     function test_setResourceConfig_badMinMax_reverts() external {
@@ -489,7 +505,8 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     /// @dev Tests that `setGasLimit` updates the gas limit successfully.
     function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
-        newGasLimit = uint64(bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(type(uint64).max)));
+        uint64 maximumGasLimit = systemConfig.maximumGasLimit();
+        newGasLimit = uint64(bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(maximumGasLimit)));
 
         vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_LIMIT, abi.encode(newGasLimit));
