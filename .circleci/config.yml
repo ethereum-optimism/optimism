@@ -567,11 +567,21 @@ jobs:
       - run:
           name: Install dependencies
           command: pnpm install:ci
-      # Note: this step needs to come first because one of the later steps modifies the cache & forces a contracts rebuild
       - run:
           name: forge version
           command: forge --version
       - run:
+          # The solc warnings check must be the first step to build the contracts, that way the
+          # warnings are output here. On subsequent runs, forge will read artifacts from the cache
+          # so warnings would not occur.
+          name: solc warnings check
+          command: |
+            forge build --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
+        # Semver lock must come second because one of the later steps may modify the cache & force a contracts rebuild.
           name: semver lock
           command: |
             pnpm semver-lock
@@ -585,16 +595,6 @@ jobs:
           name: lint
           command: |
             pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          # The solc warnings check must be the first step to build the contracts, that way the
-          # warnings are output here. On subsequent runs, forge will read artifacts from the cache
-          # so warnings would not occur.
-          name: solc warnings check
-          command: |
-            forge build --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
-          environment:
-            FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
