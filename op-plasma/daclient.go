@@ -81,7 +81,7 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) (CommitmentData, er
 }
 
 // setInputWithCommit sets a precomputed commitment for some pre-image data.
-func (c *DAClient) setInputWithCommit(ctx context.Context, comm Keccak256Commitment, img []byte) error {
+func (c *DAClient) setInputWithCommit(ctx context.Context, comm CommitmentData, img []byte) error {
 	// encode with commitment type prefix
 	key := comm.Encode()
 	body := bytes.NewReader(img)

@@ -2,11 +2,9 @@ package plasma
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"path"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -105,6 +104,7 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 
 	input, err := d.store.Get(r.Context(), comm)
 	if err != nil && errors.Is(err, ErrNotFound) {
+		d.log.Error("Commitment not found", "key", key, "error", err)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -118,6 +118,8 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
 }
 func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	d.log.Info("PUT", "url", r.URL)
@@ -137,22 +139,16 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == "/put" || r.URL.Path == "/put/" { // without commitment
 		// generate random commitment from random integer
-		n, err := rand.Int(rand.Reader, big.NewInt(99999999999999))
-		if err != nil {
-			d.log.Error("Failed to generate commitment", "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
 
-		comm := n.Bytes()
-		if err = d.store.Put(r.Context(), comm, input); err != nil {
+		comm := GenericCommitment(crypto.Keccak256Hash(input).Bytes())
+		if err = d.store.Put(r.Context(), comm.Encode(), input); err != nil {
 			d.log.Error("Failed to store commitment to the DA server", "err", err, "comm", comm)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		// write out encoded commitment
-		d.log.Info("Writing encoded commitment to request body")
-		if _, err := w.Write(NewGenericCommitment(comm).Encode()); err != nil {
+		if _, err := w.Write(comm); err != nil {
 			d.log.Error("Failed to write commitment request body", "err", err, "comm", comm)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
