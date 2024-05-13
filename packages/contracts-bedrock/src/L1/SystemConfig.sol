@@ -404,6 +404,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
     /// @notice An internal setter for the resource config.
     ///         Ensures that the config is sane before storing it by checking for invariants.
+    ///         In the future, this method may emit an event that the `op-node` picks up
+    ///         for when the resource config is changed.
     /// @param _config The new resource config.
     function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
         // Min base fee must be less than or equal to max base fee.

@@ -49,7 +49,7 @@
   },
   "src/L1/SystemConfig.sol": {
     "initCodeHash": "0xe937c5747e42d6701ff3fbb10471302288fa765fb40cbd9822e22547a42dfa25",
-    "sourceCodeHash": "0xc57b2508e009f3a0a6ee195720149a7b4fd3027123a85454c796edc7ef85cb9f"
+    "sourceCodeHash": "0x9fb21393eb206f94bdf7e034c667535c415b7de93a1355058626d1c9e8abbff5"
   },
   "src/L2/BaseFeeVault.sol": {
     "initCodeHash": "0x2744d34573be83206d1b75d049d18a7bb37f9058e68c0803e5008c46b0dc2474",

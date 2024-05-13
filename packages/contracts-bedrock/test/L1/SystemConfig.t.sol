@@ -269,7 +269,12 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
 
     /// @dev Helper to initialize the system config with a resource config and default values, and expect a revert
     ///      with the given message.
-    function _initializeWithResourceConfig(ResourceMetering.ResourceConfig memory config, string memory revertMessage) internal {
+    function _initializeWithResourceConfig(
+        ResourceMetering.ResourceConfig memory config,
+        string memory revertMessage
+    )
+        internal
+    {
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
         // Fetch the current gas limit
