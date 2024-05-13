@@ -30,7 +30,7 @@ func NewDAClient(url string, verify bool) *DAClient {
 }
 
 // GetInput returns the input data for the given encoded commitment bytes.
-func (c *DAClient) GetInput(ctx context.Context, comm Keccak256Commitment) ([]byte, error) {
+func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x", c.url, comm.Encode()), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -60,11 +60,12 @@ func (c *DAClient) GetInput(ctx context.Context, comm Keccak256Commitment) ([]by
 }
 
 // SetInput sets the input data and returns the keccak256 hash commitment.
-func (c *DAClient) SetInput(ctx context.Context, img []byte) (Keccak256Commitment, error) {
+func (c *DAClient) SetInput(ctx context.Context, img []byte) (CommitmentData, error) {
 	if len(img) == 0 {
 		return nil, ErrInvalidInput
 	}
-	comm := Keccak256(img)
+	// TODO(#10312): this is hard-coded to produce Keccak256 commitments
+	comm := NewCommitmentData(Keccak256CommitmentType, img)
 	// encode with commitment type prefix
 	key := comm.Encode()
 	body := bytes.NewReader(img)

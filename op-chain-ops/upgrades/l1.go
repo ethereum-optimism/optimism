@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
@@ -725,22 +725,22 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	if resourceConfig.MaxResourceLimit != genesis.DefaultResourceConfig.MaxResourceLimit {
+	if resourceConfig.MaxResourceLimit != DefaultResourceConfig.MaxResourceLimit {
 		return fmt.Errorf("DefaultResourceConfig MaxResourceLimit doesn't match contract MaxResourceLimit")
 	}
-	if resourceConfig.ElasticityMultiplier != genesis.DefaultResourceConfig.ElasticityMultiplier {
+	if resourceConfig.ElasticityMultiplier != DefaultResourceConfig.ElasticityMultiplier {
 		return fmt.Errorf("DefaultResourceConfig ElasticityMultiplier doesn't match contract ElasticityMultiplier")
 	}
-	if resourceConfig.BaseFeeMaxChangeDenominator != genesis.DefaultResourceConfig.BaseFeeMaxChangeDenominator {
+	if resourceConfig.BaseFeeMaxChangeDenominator != DefaultResourceConfig.BaseFeeMaxChangeDenominator {
 		return fmt.Errorf("DefaultResourceConfig BaseFeeMaxChangeDenominator doesn't match contract BaseFeeMaxChangeDenominator")
 	}
-	if resourceConfig.MinimumBaseFee != genesis.DefaultResourceConfig.MinimumBaseFee {
+	if resourceConfig.MinimumBaseFee != DefaultResourceConfig.MinimumBaseFee {
 		return fmt.Errorf("DefaultResourceConfig MinimumBaseFee doesn't match contract MinimumBaseFee")
 	}
-	if resourceConfig.SystemTxMaxGas != genesis.DefaultResourceConfig.SystemTxMaxGas {
+	if resourceConfig.SystemTxMaxGas != DefaultResourceConfig.SystemTxMaxGas {
 		return fmt.Errorf("DefaultResourceConfig SystemTxMaxGas doesn't match contract SystemTxMaxGas")
 	}
-	if resourceConfig.MaximumBaseFee.Cmp(genesis.DefaultResourceConfig.MaximumBaseFee) != 0 {
+	if resourceConfig.MaximumBaseFee.Cmp(DefaultResourceConfig.MaximumBaseFee) != 0 {
 		return fmt.Errorf("DefaultResourceConfig MaximumBaseFee doesn't match contract MaximumBaseFee")
 	}
 
@@ -756,7 +756,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		batcherHash,
 		l2GenesisBlockGasLimit,
 		p2pSequencerAddress,
-		genesis.DefaultResourceConfig,
+		DefaultResourceConfig,
 		chainConfig.BatchInboxAddr,
 		bindings.SystemConfigAddresses{
 			L1CrossDomainMessenger:       common.Address(list.L1CrossDomainMessengerProxy),

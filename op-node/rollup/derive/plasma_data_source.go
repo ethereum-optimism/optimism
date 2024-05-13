@@ -19,7 +19,7 @@ type PlasmaDataSource struct {
 	l1      L1Fetcher
 	id      eth.BlockID
 	// keep track of a pending commitment so we can keep trying to fetch the input.
-	comm plasma.Keccak256Commitment
+	comm plasma.CommitmentData
 }
 
 func NewPlasmaDataSource(log log.Logger, src DataIter, l1 L1Fetcher, fetcher PlasmaInputFetcher, id eth.BlockID) *PlasmaDataSource {
@@ -61,10 +61,17 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		}
 
 		// validate batcher inbox data is a commitment.
-		comm, err := plasma.DecodeKeccak256(data[1:])
+		// strip the transaction data version byte from the data before decoding.
+		comm, err := plasma.DecodeCommitmentData(data[1:])
 		if err != nil {
 			s.log.Warn("invalid commitment", "commitment", data, "err", err)
-			return s.Next(ctx)
+			return nil, NotEnoughData
+		}
+		// only support keccak256 commitments for now.
+		// TODO: support other commitment types via flag
+		if comm.CommitmentType() != plasma.Keccak256CommitmentType {
+			s.log.Warn("wrong commitment type", "commitmentType", comm.CommitmentType())
+			return nil, NotEnoughData
 		}
 		s.comm = comm
 	}

@@ -80,6 +80,7 @@ type SetupData struct {
 	L1Cfg         *core.Genesis
 	L2Cfg         *core.Genesis
 	RollupCfg     *rollup.Config
+	ChainSpec     *rollup.ChainSpec
 	DeploymentsL1 *genesis.L1Deployments
 }
 
@@ -187,6 +188,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L1Cfg:         l1Genesis,
 		L2Cfg:         l2Genesis,
 		RollupCfg:     rollupCfg,
+		ChainSpec:     rollup.NewChainSpec(rollupCfg),
 		DeploymentsL1: l1Deployments,
 	}
 }

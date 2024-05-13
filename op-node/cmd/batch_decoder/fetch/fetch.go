@@ -134,11 +134,12 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, number 
 			if err != nil {
 				return 0, 0, err
 			}
-			defer file.Close()
 			enc := json.NewEncoder(file)
 			if err := enc.Encode(txm); err != nil {
+				file.Close()
 				return 0, 0, err
 			}
+			file.Close()
 		}
 	}
 	return validBatchCount, invalidBatchCount, nil

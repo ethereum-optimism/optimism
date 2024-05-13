@@ -48,8 +48,8 @@
     "sourceCodeHash": "0xd6a894e371c2c7182b5960c507491f81c3775dda0efedd29475f7c30ca07b004"
   },
   "src/L1/SystemConfig.sol": {
-    "initCodeHash": "0xace1ef0e25a5416a686c7555acd20e9b0191ab2a8c8320d57606ed12092ccbb6",
-    "sourceCodeHash": "0x1f35f55aa230a686f6457e42bd08acc8bd94d691f89ac23a4b2efd7cc1eefdc6"
+    "initCodeHash": "0x68a862089f654e951850708a48025e93231c041b862d05086e1a05be9d9ac4e9",
+    "sourceCodeHash": "0x3a7cd5254306a01b50c9c68d9e57a57db7ad8163326eb30dff23e368c35ff166"
   },
   "src/L2/BaseFeeVault.sol": {
     "initCodeHash": "0x2744d34573be83206d1b75d049d18a7bb37f9058e68c0803e5008c46b0dc2474",
@@ -99,21 +99,25 @@
     "initCodeHash": "0xd62e193d89b1661d34031227a45ce1eade9c2a89b0bd7f362f511d03cceef294",
     "sourceCodeHash": "0xa304b4b556162323d69662b4dd9a1d073d55ec661494465489bb67f1e465e7b3"
   },
+  "src/L2/WETH.sol": {
+    "initCodeHash": "0xde72ae96910e95249623c2d695749847e4c4adeaf96a7a35033afd77318a528a",
+    "sourceCodeHash": "0xbe200a6cb297a3ca1a7d174a9c886e3f17eb8edf617ad014a2ac4f6c2e2ac7f1"
+  },
   "src/Safe/DeputyGuardianModule.sol": {
     "initCodeHash": "0x433eb7488e613a51c7ff05a76bbecf47f5beac8b8614f5c50001f99e39ae7ed2",
-    "sourceCodeHash": "0x2919835fc15c166a027b2ff1cf801c847f139948baf2df0db3d02ac3017c09d9"
+    "sourceCodeHash": "0x5b415dc432a83fb1d5c41585539245997c62acb6bd77c489bf57e9b59be5f983"
   },
   "src/Safe/LivenessGuard.sol": {
-    "initCodeHash": "0x16ec47f0888391638814047a1735dbac849b48e256b2e20182bbb3186d950a3c",
-    "sourceCodeHash": "0x9633cea9b66077e222f470439fe3e9a31f3e33b4f7a5618374c44310fd234b24"
+    "initCodeHash": "0xf54289de5cef7ba0044e0d63310937fa231d6528aac91e13e531c845af42afac",
+    "sourceCodeHash": "0xea3872d8f196ae3c863363dfa4b57803cb2a24b0c100244d8f861891e901e03f"
   },
   "src/Safe/LivenessModule.sol": {
     "initCodeHash": "0xa8b233f0f26f8a73b997b12ba06d64cefa8ee98d523f68cd63320e9787468fae",
-    "sourceCodeHash": "0x73aa5934e56ba2a45f368806c5db1d442bf5713d51b2184749f4638eaceb832e"
+    "sourceCodeHash": "0x15dfd32e92577f4cb5ab05def834a5a1b183e30ca249184f282fca6441be8788"
   },
   "src/cannon/MIPS.sol": {
-    "initCodeHash": "0xd447743c7a3c1babe141050603dd643467ada00bd90465a52ef3093445ee1b02",
-    "sourceCodeHash": "0xe37efbb893e0a7499fcd565f8495f6ba911611ba36795ac131738474f116fce5"
+    "initCodeHash": "0xa5d36fc67170ad87322f358f612695f642757bbf5280800d5d878da21402579a",
+    "sourceCodeHash": "0x75701f3efb7a9c16079ba0a4ed2867999aab7d95bfa0fe5ebb131cfc278593aa"
   },
   "src/cannon/PreimageOracle.sol": {
     "initCodeHash": "0xe5db668fe41436f53995e910488c7c140766ba8745e19743773ebab508efd090",

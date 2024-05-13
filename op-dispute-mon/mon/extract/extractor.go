@@ -125,7 +125,7 @@ func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create contracts: %w", err)
 	}
-	l1Head, l2BlockNum, rootClaim, status, duration, err := caller.GetGameMetadata(ctx, rpcblock.ByHash(blockHash))
+	meta, err := caller.GetGameMetadata(ctx, rpcblock.ByHash(blockHash))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch game metadata: %w", err)
 	}
@@ -138,13 +138,15 @@ func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game 
 		enrichedClaims[i] = monTypes.EnrichedClaim{Claim: claim}
 	}
 	enrichedGame := &monTypes.EnrichedGameData{
-		GameMetadata:     game,
-		L1Head:           l1Head,
-		L2BlockNumber:    l2BlockNum,
-		RootClaim:        rootClaim,
-		Status:           status,
-		MaxClockDuration: duration,
-		Claims:           enrichedClaims,
+		GameMetadata:          game,
+		L1Head:                meta.L1Head,
+		L2BlockNumber:         meta.L2BlockNum,
+		RootClaim:             meta.RootClaim,
+		Status:                meta.Status,
+		MaxClockDuration:      meta.MaxClockDuration,
+		BlockNumberChallenged: meta.L2BlockNumberChallenged,
+		BlockNumberChallenger: meta.L2BlockNumberChallenger,
+		Claims:                enrichedClaims,
 	}
 	if err := e.applyEnrichers(ctx, blockHash, caller, enrichedGame); err != nil {
 		return nil, fmt.Errorf("failed to enrich game: %w", err)
