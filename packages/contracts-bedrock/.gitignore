@@ -32,6 +32,8 @@ deployments/1337
 deployments/31337-deploy.json
 deployments/kontrol.json
 deployments/kontrol.jsonReversed
+deployments/kontrol-fp.json
+deployments/kontrol-fp.jsonReversed
 snapshots/state-diff/Kontrol-31337.json
 
 # Devnet config which changes with each 'make devnet-up'
