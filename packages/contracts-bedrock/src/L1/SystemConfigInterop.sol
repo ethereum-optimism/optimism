@@ -15,8 +15,6 @@ contract SystemConfigInterop is SystemConfig {
     /// @notice Error thrown when the OptimismPortal address is not set.
     error OptimismPortalNotSet();
 
-    constructor() SystemConfig() { }
-
     /// @custom:semver 2.2.0+interop
     function version() public pure override returns (string memory) {
         return string.concat(super.version(), "+interop");
