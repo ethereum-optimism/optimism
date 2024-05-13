@@ -10,7 +10,7 @@ import {
 } from "scripts/DeployOwnership.s.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { Safe } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 

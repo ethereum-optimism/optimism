@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { ForgeArtifacts, Abi } from "scripts/ForgeArtifacts.sol";
-import { Safe } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
