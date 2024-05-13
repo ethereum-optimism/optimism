@@ -5,16 +5,6 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 
-/// @notice Enum representing different types of configurations that can be set on L1Block.
-/// @custom:value GAS_PAYING_TOKEN   Represents the config type for the gas paying token.
-/// @custom:value ADD_DEPENDENCY     Represents the config type for adding a chain to the interchain dependency set.
-/// @custom:value REMOVE_DEPENDENCY  Represents the config type for removing a chain from the interchain dependency set.
-enum ConfigType {
-    GAS_PAYING_TOKEN,
-    ADD_DEPENDENCY,
-    REMOVE_DEPENDENCY
-}
-
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1Block
@@ -28,11 +18,6 @@ contract L1Block is ISemver, IGasToken {
 
     /// @notice Event emitted when the gas paying token is set.
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
-
-    modifier onlyDepositor() {
-        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
-        _;
-    }
 
     /// @notice Address of the special depositor account.
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
@@ -74,9 +59,9 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.5.0
+    /// @custom:semver 1.4.0
     function version() public pure virtual returns (string memory) {
-        return "1.5.0";
+        return "1.4.0";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -149,8 +134,14 @@ contract L1Block is ISemver, IGasToken {
     ///   7. _blobBaseFee        L1 blob base fee.
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
-    function setL1BlockValuesEcotone() external onlyDepositor {
+    function setL1BlockValuesEcotone() external {
+        address depositor = DEPOSITOR_ACCOUNT();
         assembly {
+            // Revert if the caller is not the depositor account.
+            if xor(caller(), depositor) {
+                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
+            }
             // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
             sstore(sequenceNumber.slot, shr(128, calldataload(4)))
             // number (uint64) and timestamp (uint64)
@@ -162,27 +153,14 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
-    /// @notice Sets static configuration options for the L2 system. Can only be called by the special
-    ///         depositor account.
-    /// @param _type  The type of configuration to set.
-    /// @param _value The encoded value with which to set the configuration.
-    function setConfig(ConfigType _type, bytes calldata _value) external onlyDepositor {
-        _setConfig(_type, _value);
-    }
+    /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
+    ///         depositor account. This function is not called on every L2 block but instead
+    ///         only called by specially crafted L1 deposit transactions.
+    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
-    /// @notice Internal function to set configuration options for the L2 system.
-    /// @param _type  The type of configuration to set.
-    /// @param _value The encoded value with which to set the configuration.
-    function _setConfig(ConfigType _type, bytes calldata _value) internal virtual {
-        // For GAS_PAYING_TOKEN config type
-        if (_type == ConfigType.GAS_PAYING_TOKEN) {
-            (address token, uint8 decimals, bytes32 name, bytes32 symbol) =
-                abi.decode(_value, (address, uint8, bytes32, bytes32));
+        GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
 
-            GasPayingToken.set({ _token: token, _decimals: decimals, _name: name, _symbol: symbol });
-
-            emit GasPayingTokenSet({ token: token, decimals: decimals, name: name, symbol: symbol });
-            return;
-        }
+        emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
     }
 }

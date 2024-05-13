@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L1Block, ConfigType } from "src/L2/L1Block.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 
 /// @notice Thrown when a non-depositor account attempts to set L1 block values.
 error NotDepositor();
@@ -11,6 +11,16 @@ error DependencySetSizeMismatch();
 
 /// @notice Error when a chain ID is not in the interop dependency set.
 error NotDependency();
+
+/// @notice Enum representing different types of configurations that can be set on L1Block.
+/// @custom:value GAS_PAYING_TOKEN   Represents the config type for the gas paying token.
+/// @custom:value ADD_DEPENDENCY     Represents the config type for adding a chain to the interchain dependency set.
+/// @custom:value REMOVE_DEPENDENCY  Represents the config type for removing a chain from the interchain dependency set.
+enum ConfigType {
+    GAS_PAYING_TOKEN,
+    ADD_DEPENDENCY,
+    REMOVE_DEPENDENCY
+}
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
@@ -60,11 +70,12 @@ contract L1BlockInterop is L1Block {
         return uint8(dependencySet.length);
     }
 
-    /// @notice Internal function to set configuration options for the L2 system.
+    /// @notice Sets static configuration options for the L2 system. Can only be called by the special
+    ///         depositor account.
     /// @param _type  The type of configuration to set.
     /// @param _value The encoded value with which to set the configuration.
-    function _setConfig(ConfigType _type, bytes calldata _value) internal override {
-        super._setConfig(_type, _value);
+    function setConfig(ConfigType _type, bytes calldata _value) external onlyDepositor {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
         // For ADD_DEPENDENCY config type
         if (_type == ConfigType.ADD_DEPENDENCY) {
