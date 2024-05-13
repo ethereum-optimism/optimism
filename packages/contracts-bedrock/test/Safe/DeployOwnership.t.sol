@@ -29,7 +29,7 @@ contract DeployOwnershipTest is Test, DeployOwnership {
         run();
     }
 
-    function _checkSafeConfig(SafeConfig memory _safeConfig, Safe _safe) internal {
+    function _checkSafeConfig(SafeConfig memory _safeConfig, Safe _safe) internal view {
         assertEq(_safe.getThreshold(), _safeConfig.threshold);
 
         address[] memory safeOwners = _safe.getOwners();
@@ -77,7 +77,6 @@ contract DeployOwnershipTest is Test, DeployOwnership {
 
         // DeputyGuardianModule checks
         DeputyGuardianModuleConfig memory dgmConfig = exampleSecurityCouncilConfig.deputyGuardianModuleConfig;
-        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfig"));
         assertEq(DeputyGuardianModule(deputyGuardianModule).deputyGuardian(), dgmConfig.deputyGuardian);
         assertEq(
             address(DeputyGuardianModule(deputyGuardianModule).superchainConfig()), address(dgmConfig.superchainConfig)
