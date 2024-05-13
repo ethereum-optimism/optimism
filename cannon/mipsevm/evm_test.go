@@ -250,6 +250,184 @@ func TestEVMSingleStep(t *testing.T) {
 	}
 }
 
+func TestEVMSysWriteHint(t *testing.T) {
+	contracts, addrs := testContractsSetup(t)
+	var tracer vm.EVMLogger
+
+	cases := []struct {
+		name          string
+		memOffset     int      // Where the hint data is stored in memory
+		hintData      []byte   // Hint data stored in memory at memOffset
+		bytesToWrite  int      // How many bytes of hintData to write
+		lastHint      []byte   // The buffer that stores lastHint in the state
+		expectedHints [][]byte // The hints we expect to be processed
+	}{
+		{
+			name:      "write 1 full hint at beginning of page",
+			memOffset: 4096,
+			hintData: []byte{
+				0, 0, 0, 6, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
+			},
+			bytesToWrite: 10,
+			lastHint:     nil,
+			expectedHints: [][]byte{
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB},
+			},
+		},
+		{
+			name:      "write 1 full hint across page boundary",
+			memOffset: 4092,
+			hintData: []byte{
+				0, 0, 0, 8, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB, // Hint data
+			},
+			bytesToWrite: 12,
+			lastHint:     nil,
+			expectedHints: [][]byte{
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB},
+			},
+		},
+		{
+			name:      "write 2 full hints",
+			memOffset: 5012,
+			hintData: []byte{
+				0, 0, 0, 6, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
+				0, 0, 0, 8, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB, // Hint data
+			},
+			bytesToWrite: 22,
+			lastHint:     nil,
+			expectedHints: [][]byte{
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB},
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB},
+			},
+		},
+		{
+			name:      "write a single partial hint",
+			memOffset: 4092,
+			hintData: []byte{
+				0, 0, 0, 6, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
+			},
+			bytesToWrite:  8,
+			lastHint:      nil,
+			expectedHints: nil,
+		},
+		{
+			name:      "write 1 full, 1 partial hint",
+			memOffset: 5012,
+			hintData: []byte{
+				0, 0, 0, 6, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
+				0, 0, 0, 8, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB, // Hint data
+			},
+			bytesToWrite: 16,
+			lastHint:     nil,
+			expectedHints: [][]byte{
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB},
+			},
+		},
+		{
+			name:      "write a single partial hint to large capacity lastHint buffer",
+			memOffset: 4092,
+			hintData: []byte{
+				0, 0, 0, 6, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
+			},
+			bytesToWrite:  8,
+			lastHint:      make([]byte, 0, 4096),
+			expectedHints: nil,
+		},
+		{
+			name:      "write full hint to large capacity lastHint buffer",
+			memOffset: 5012,
+			hintData: []byte{
+				0, 0, 0, 6, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
+			},
+			bytesToWrite: 10,
+			lastHint:     make([]byte, 0, 4096),
+			expectedHints: [][]byte{
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB},
+			},
+		},
+		{
+			name:      "write multiple hints to large capacity lastHint buffer",
+			memOffset: 4092,
+			hintData: []byte{
+				0, 0, 0, 8, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xCC, 0xCC, // Hint data
+				0, 0, 0, 8, // Length prefix
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB, // Hint data
+			},
+			bytesToWrite: 24,
+			lastHint:     make([]byte, 0, 4096),
+			expectedHints: [][]byte{
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xCC, 0xCC},
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB},
+			},
+		},
+		{
+			name:      "write remaining hint data to non-empty lastHint buffer",
+			memOffset: 4092,
+			hintData: []byte{
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xCC, 0xCC, // Hint data
+			},
+			bytesToWrite: 8,
+			lastHint:     []byte{0, 0, 0, 8},
+			expectedHints: [][]byte{
+				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xCC, 0xCC},
+			},
+		},
+		{
+			name:      "write partial hint data to non-empty lastHint buffer",
+			memOffset: 4092,
+			hintData: []byte{
+				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xCC, 0xCC, // Hint data
+			},
+			bytesToWrite:  4,
+			lastHint:      []byte{0, 0, 0, 8},
+			expectedHints: nil,
+		},
+	}
+
+	const (
+		insn = uint32(0x00_00_00_0C) // syscall instruction
+	)
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			oracle := hintTrackingOracle{}
+			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+
+			state.LastHint = tt.lastHint
+			state.Registers[2] = sysWrite
+			state.Registers[4] = fdHintWrite
+			state.Registers[5] = uint32(tt.memOffset)
+			state.Registers[6] = uint32(tt.bytesToWrite)
+
+			err := state.Memory.SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
+			require.NoError(t, err)
+			state.Memory.SetMemory(0, insn)
+
+			us := NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr)
+			stepWitness, err := us.Step(true)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedHints, oracle.hints)
+
+			evm := NewMIPSEVM(contracts, addrs)
+			evm.SetTracer(tracer)
+			evmPost := evm.Step(t, stepWitness)
+			goPost := us.state.EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
 func TestEVMFault(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
@@ -392,4 +570,16 @@ func TestClaimEVM(t *testing.T) {
 
 	require.Equal(t, expectedStdOut, stdOutBuf.String(), "stdout")
 	require.Equal(t, expectedStdErr, stdErrBuf.String(), "stderr")
+}
+
+type hintTrackingOracle struct {
+	hints [][]byte
+}
+
+func (t *hintTrackingOracle) Hint(v []byte) {
+	t.hints = append(t.hints, v)
+}
+
+func (t *hintTrackingOracle) GetPreimage(k [32]byte) []byte {
+	return nil
 }
