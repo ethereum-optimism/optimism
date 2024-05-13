@@ -6,6 +6,7 @@ import { OptimismPortalInterop as OptimismPortal } from "src/L1/OptimismPortalIn
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ConfigType } from "src/L2/L1BlockInterop.sol";
 
 /// @title SystemConfigInterop
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -38,12 +39,9 @@ contract SystemConfigInterop is SystemConfig {
 
             // Set the gas paying token in storage and in the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
-            OptimismPortal(payable(optimismPortal())).setGasPayingToken({
-                _token: _token,
-                _decimals: GAS_PAYING_TOKEN_DECIMALS,
-                _name: name,
-                _symbol: symbol
-            });
+            OptimismPortal(payable(optimismPortal())).setConfig(
+                ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, GAS_PAYING_TOKEN_DECIMALS, name, symbol)
+            );
         }
     }
 
@@ -59,7 +57,7 @@ contract SystemConfigInterop is SystemConfig {
     function _addDependency(uint256 _chainId) internal {
         if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
 
-        OptimismPortal(payable(optimismPortal())).addDependency(_chainId);
+        OptimismPortal(payable(optimismPortal())).setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
     }
 
     /// @notice Removes a chain from the interop dependency set. Can only be called by the owner.
@@ -74,6 +72,6 @@ contract SystemConfigInterop is SystemConfig {
     function _removeDependency(uint256 _chainId) internal {
         if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
 
-        OptimismPortal(payable(optimismPortal())).removeDependency(_chainId);
+        OptimismPortal(payable(optimismPortal())).setConfig(ConfigType.REMOVE_DEPENDENCY, abi.encode(_chainId));
     }
 }
