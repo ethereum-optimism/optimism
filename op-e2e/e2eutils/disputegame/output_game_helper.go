@@ -568,7 +568,7 @@ func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim com
 	transactOpts := g.makeBondedTransactOpts(ctx, pos.Attack().ToGIndex(), cfg.Opts)
 
 	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
-		return g.Game.Attack(transactOpts, big.NewInt(claimIdx), claim)
+		return g.Game.Attack(transactOpts, claimData.Claim, big.NewInt(claimIdx), claim)
 	})
 	if err != nil {
 		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, attackPos, claim) {
@@ -589,7 +589,7 @@ func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim com
 	transactOpts := g.makeBondedTransactOpts(ctx, defendPos.ToGIndex(), cfg.Opts)
 
 	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
-		return g.Game.Defend(transactOpts, big.NewInt(claimIdx), claim)
+		return g.Game.Defend(transactOpts, claimData.Claim, big.NewInt(claimIdx), claim)
 	})
 	if err != nil {
 		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, defendPos, claim) {
