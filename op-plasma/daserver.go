@@ -2,9 +2,11 @@ package plasma
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"path"
@@ -96,6 +98,7 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 	key := path.Base(r.URL.Path)
 	comm, err := hexutil.Decode(key)
 	if err != nil {
+		d.log.Error("Failed to decode commitment", "err", err, "key", key)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -106,17 +109,18 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		d.log.Error("Failed to read commitment", "err", err, "key", key)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if _, err := w.Write(input); err != nil {
+		d.log.Error("Failed to write pre-image", "err", err, "key", key)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }
-
 func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
-	d.log.Debug("PUT", "url", r.URL)
+	d.log.Info("PUT", "url", r.URL)
 
 	route := path.Dir(r.URL.Path)
 	if route != "/put" {
@@ -126,40 +130,52 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 
 	input, err := io.ReadAll(r.Body)
 	if err != nil {
+		d.log.Error("Failed to read request body", "err", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	key := path.Base(r.URL.Path)
-
-	var comm []byte
-	// no commit provided
-	if key == "/" || key == "." {
-		b, err := hexutil.Decode(key)
+	if r.URL.Path == "/put" || r.URL.Path == "/put/" { // without commitment
+		// generate random commitment from random integer
+		n, err := rand.Int(rand.Reader, big.NewInt(99999999999999))
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			d.log.Error("Failed to generate commitment", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+
+		comm := n.Bytes()
+		if err = d.store.Put(r.Context(), comm, input); err != nil {
+			d.log.Error("Failed to store commitment to the DA server", "err", err, "comm", comm)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		comm = ServiceCommitment(b)
+		// write out encoded commitment
+		d.log.Info("Writing encoded commitment to request body")
+		if _, err := w.Write(ServiceCommitment(comm).Encode()); err != nil {
+			d.log.Error("Failed to write commitment request body", "err", err, "comm", comm)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 	} else {
-		b, err := hexutil.Decode(key)
+		key := path.Base(r.URL.Path)
+		comm, err := hexutil.Decode(key)
 		if err != nil {
+			d.log.Error("Failed to decode commitment", "err", err, "key", key)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		comm = Keccak256Commitment(b)
+
+		if err := d.store.Put(r.Context(), comm, input); err != nil {
+			d.log.Error("Failed to store commitment to the DA server", "err", err, "key", key)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
-	if err := d.store.Put(r.Context(), comm, input); err != nil {
-		d.log.Info("Failed to store commitment to the DA server", "err", err, "key", key)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if _, err := w.Write(comm); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	w.WriteHeader(http.StatusOK)
+
 }
 
 func (b *DAServer) Endpoint() string {

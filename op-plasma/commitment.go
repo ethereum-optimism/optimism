@@ -13,6 +13,8 @@ type Commit interface {
 	Verify(input []byte) error
 }
 
+var ErrInvalidCommitLength = errors.New("commitment length must be greater than zero")
+
 // ErrInvalidCommitment is returned when the commitment cannot be parsed into a known commitment type.
 var ErrInvalidCommitment = errors.New("invalid commitment")
 
@@ -69,7 +71,7 @@ func (c ServiceCommitment) Verify(input []byte) error {
 // DecodeSvcCommit partially validates and casts the commitment into a ServiceCommitment.
 func DecodeSvcCommit(commitment []byte) (ServiceCommitment, error) {
 	if len(commitment) == 0 {
-		return nil, ErrInvalidCommitment
+		return nil, ErrInvalidCommitLength
 	}
 	if commitment[0] != byte(ServiceCommitmentType) {
 		return nil, ErrInvalidCommitment
@@ -87,7 +89,7 @@ func Keccak256(input []byte) Keccak256Commitment {
 // DecodeKeccak256 validates and casts the commitment into a Keccak256Commitment.
 func DecodeKeccak256(commitment []byte) (Keccak256Commitment, error) {
 	if len(commitment) == 0 {
-		return nil, ErrInvalidCommitment
+		return nil, ErrInvalidCommitLength
 	}
 	if commitment[0] != byte(Keccak256CommitmentType) {
 		return nil, ErrInvalidCommitment

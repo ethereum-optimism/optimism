@@ -21,12 +21,12 @@ type DAClient struct {
 	url string
 	// verify sets the client to verify a Keccak256 commitment on read.
 	verify bool
-
-	ct CommitmentType
+	// whether commitment is precomputable (only applicable to keccak256)
+	precompute bool
 }
 
-func NewDAClient(url string, verify bool, ct CommitmentType) *DAClient {
-	return &DAClient{url, verify, ct}
+func NewDAClient(url string, verify bool, pc bool) *DAClient {
+	return &DAClient{url, verify, pc}
 }
 
 // GetInput returns the input data for the given encoded commitment bytes.
@@ -66,7 +66,7 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) (Commit, error) {
 		return nil, ErrInvalidInput
 	}
 
-	if c.ct == Keccak256CommitmentType { // precompute commitment
+	if c.precompute { // precompute commitment (only applicable to keccak256)
 		comm := Keccak256(img)
 		if err := c.setInputWithCommit(ctx, comm, img); err != nil {
 			return nil, err
@@ -75,11 +75,9 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) (Commit, error) {
 		return comm, nil
 	}
 
-	if c.ct == ServiceCommitmentType { // let DA server generate commitment
-		return c.setInput(ctx, img)
-	}
+	// let DA server generate commitment
+	return c.setInput(ctx, img)
 
-	return nil, fmt.Errorf("unknown commitment type provided")
 }
 
 // setInputWithCommit sets a precomputed commitment for some pre-image data.

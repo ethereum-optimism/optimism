@@ -70,11 +70,7 @@ func (c CLIConfig) Check() error {
 }
 
 func (c CLIConfig) NewDAClient() *DAClient {
-	ct := Keccak256CommitmentType
-	if c.GenericDA {
-		ct = ServiceCommitmentType
-	}
-	return &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead, ct: ct}
+	return &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead, precompute: !c.GenericDA}
 }
 
 func ReadCLIConfig(c *cli.Context) CLIConfig {
