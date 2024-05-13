@@ -14,6 +14,9 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         If the number of owners falls below the minimum number of owners, the ownership of the
 ///         safe will be transferred to the fallback owner.
 contract LivenessModule is ISemver {
+    /// @notice Error message for failed owner removal.
+    error OwnerRemovalFailed(string);
+
     /// @notice Emitted when an owner is removed due to insufficient liveness
     event RemovedOwner(address indexed owner);
 
@@ -184,15 +187,15 @@ contract LivenessModule is ISemver {
     /// @param _prevOwner Owner that pointed to the owner to be replaced in the linked list
     /// @param _oldOwner Owner address to be replaced.
     function _swapToFallbackOwnerSafeCall(address _prevOwner, address _oldOwner) internal {
-        require(
-            SAFE.execTransactionFromModule({
-                to: address(SAFE),
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
-            }),
-            "LivenessModule: failed to swap to fallback owner"
-        );
+        (bool success, bytes memory returnData) = SAFE.execTransactionFromModuleReturnData({
+            to: address(SAFE),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
+        });
+        if (!success) {
+            revert OwnerRemovalFailed(string(returnData));
+        }
         emit OwnershipTransferredToFallback();
     }
 
@@ -201,15 +204,15 @@ contract LivenessModule is ISemver {
     /// @param _owner Owner address to be removed.
     /// @param _threshold New threshold.
     function _removeOwnerSafeCall(address _prevOwner, address _owner, uint256 _threshold) internal {
-        require(
-            SAFE.execTransactionFromModule({
-                to: address(SAFE),
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
-            }),
-            "LivenessModule: failed to remove owner"
-        );
+        (bool success, bytes memory returnData) = SAFE.execTransactionFromModuleReturnData({
+            to: address(SAFE),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
+        });
+        if (!success) {
+            revert OwnerRemovalFailed(string(returnData));
+        }
         emit RemovedOwner(_owner);
     }
 

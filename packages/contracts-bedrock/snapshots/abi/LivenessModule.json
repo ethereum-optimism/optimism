@@ -200,5 +200,16 @@
     ],
     "name": "RemovedOwner",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "OwnerRemovalFailed",
+    "type": "error"
   }
 ]
