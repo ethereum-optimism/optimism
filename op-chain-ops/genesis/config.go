@@ -409,7 +409,7 @@ func (d *DeployConfig) Check() error {
 	}
 	// When the initial resource config is made to be configurable by the DeployConfig, ensure
 	// that this check is updated to use the values from the DeployConfig instead of the defaults.
-	if uint64(d.L2GenesisBlockGasLimit) < uint64(upgrades.DefaultResourceConfig.MaxResourceLimit+upgrades.DefaultResourceConfig.SystemTxMaxGas) {
+	if uint64(d.L2GenesisBlockGasLimit) < uint64(MaxResourceLimit+SystemTxMaxGas) {
 		return fmt.Errorf("%w: L2 genesis block gas limit is too small", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
