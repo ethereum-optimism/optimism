@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -28,6 +27,24 @@ import (
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
+	// MaximumBaseFee represents the max base fee for deposits, since
+	// there is an on chain EIP-1559 curve for deposits purchasing L2 gas.
+	// It is type(uint128).max in solidity.
+	MaximumBaseFee, _ = new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
+)
+
+const (
+	// MaxResourceLimit represents the maximum amount of L2 gas that a single deposit can use.
+	MaxResourceLimit = 20_000_000
+	// ElasticityMultiplier represents the elasticity of the deposit EIP-1559 fee market.
+	ElasticityMultiplier = 10
+	// BaseFeeMaxChangeDenominator represents the maximum change in base fee per block.
+	BaseFeeMaxChangeDenominator = 8
+	// MinimumBaseFee represents the minimum base fee for deposits.
+	MinimumBaseFee = params.GWei
+	// SystemTxMaxGas represents the maximum gas that a system transaction can use
+	// when it is included with user deposits.
+	SystemTxMaxGas = 1_000_000
 )
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
