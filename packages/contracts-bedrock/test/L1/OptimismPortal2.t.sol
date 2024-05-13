@@ -28,7 +28,7 @@ import "src/libraries/PortalErrors.sol";
 contract OptimismPortal2_Test is CommonTest {
     address depositor;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.enableFaultProofs();
         super.setUp();
 
