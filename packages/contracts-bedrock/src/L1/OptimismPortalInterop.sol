@@ -24,7 +24,7 @@ contract OptimismPortalInterop is OptimismPortal {
     /// @notice Constructs the OptimismPortal contract.
     constructor() OptimismPortal() { }
 
-    /// @custom:semver 1.8.0+interop
+    /// @custom:semver 2.8.0+interop
     function version() public pure override returns (string memory) {
         return string.concat(super.version(), "+interop");
     }
