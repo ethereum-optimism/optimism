@@ -177,6 +177,7 @@ var optionalFlags = []cli.Flag{
 	BatchTypeFlag,
 	DataAvailabilityTypeFlag,
 	ActiveSequencerCheckDurationFlag,
+	CompressionAlgoFlag,
 }
 
 func init() {
