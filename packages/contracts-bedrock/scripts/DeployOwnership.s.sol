@@ -205,6 +205,11 @@ contract DeployOwnership is Deploy {
                 OwnerManager.removeOwner, (SENTINEL_OWNERS, msg.sender, exampleCouncilConfig.safeConfig.threshold)
             )
         });
+        address[] memory owners = safe.getOwners();
+        require(
+            safe.getThreshold() == LivenessModule(livenessModule).getRequiredThreshold(owners.length),
+            "Safe threshold must be equal to the LivenessModule's required threshold"
+        );
         addr_ = address(safe);
         console.log("Deployed and configured the Security Council Safe!");
     }
