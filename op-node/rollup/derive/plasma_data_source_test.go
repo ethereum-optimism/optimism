@@ -330,7 +330,10 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		LegacyUsePlasma:   true,
+		PlasmaConfig: &rollup.PlasmaConfig{
+			DAChallengeWindow: pcfg.ChallengeWindow,
+			DAResolveWindow:   pcfg.ResolveWindow,
+		},
 	}
 
 	signer := cfg.L1Signer()
@@ -445,7 +448,10 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		LegacyUsePlasma:   true,
+		PlasmaConfig: &rollup.PlasmaConfig{
+			DAChallengeWindow: pcfg.ChallengeWindow,
+			DAResolveWindow:   pcfg.ResolveWindow,
+		},
 	}
 
 	signer := cfg.L1Signer()
