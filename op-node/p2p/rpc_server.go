@@ -327,7 +327,7 @@ func (s *APIBackend) ListBlockedAddrs(_ context.Context) ([]net.IP, error) {
 // Note: active connections to the IP subnet are not automatically closed.
 func (s *APIBackend) BlockSubnet(_ context.Context, ipnet *net.IPNet) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_blockSubnet")
-	if ipnet == nil {
+	if ipnet == nil || ipnet.IP == nil || ipnet.Mask == nil {
 		log.Warn("invalid IPNet", "method", "BlockSubnet")
 		return ErrInvalidRequest
 	}
@@ -341,7 +341,7 @@ func (s *APIBackend) BlockSubnet(_ context.Context, ipnet *net.IPNet) error {
 
 func (s *APIBackend) UnblockSubnet(_ context.Context, ipnet *net.IPNet) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_unblockSubnet")
-	if ipnet == nil {
+	if ipnet == nil || ipnet.IP == nil || ipnet.Mask == nil {
 		log.Warn("invalid IPNet", "method", "UnblockSubnet")
 		return ErrInvalidRequest
 	}

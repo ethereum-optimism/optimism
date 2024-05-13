@@ -183,8 +183,19 @@ func TestP2PFull(t *testing.T) {
 
 	require.Error(t, p2pClientA.BlockAddr(ctx, nil))
 	require.Error(t, p2pClientA.UnblockAddr(ctx, nil))
+
 	require.Error(t, p2pClientA.BlockSubnet(ctx, nil))
+	require.Error(t, p2pClientA.BlockSubnet(ctx, &net.IPNet{}))
+	require.Error(t, p2pClientA.BlockSubnet(ctx, &net.IPNet{Mask: net.IPMask{255, 255, 0, 0}}))
+	require.Error(t, p2pClientA.BlockSubnet(ctx, &net.IPNet{IP: net.IP{0, 0, 0, 1}}))
+	require.NoError(t, p2pClientA.BlockSubnet(ctx, &net.IPNet{IP: net.IP{0, 0, 0, 1}, Mask: net.IPMask{255, 255, 0, 0}}))
+
 	require.Error(t, p2pClientA.UnblockSubnet(ctx, nil))
+	require.Error(t, p2pClientA.UnblockSubnet(ctx, &net.IPNet{}))
+	require.Error(t, p2pClientA.UnblockSubnet(ctx, &net.IPNet{Mask: net.IPMask{255, 255, 0, 0}}))
+	require.Error(t, p2pClientA.UnblockSubnet(ctx, &net.IPNet{IP: net.IP{0, 0, 0, 1}}))
+	require.NoError(t, p2pClientA.UnblockSubnet(ctx, &net.IPNet{IP: net.IP{0, 0, 0, 1}, Mask: net.IPMask{255, 255, 0, 0}}))
+
 	require.Error(t, p2pClientA.BlockPeer(ctx, ""))
 	require.Error(t, p2pClientA.UnblockPeer(ctx, ""))
 	require.Error(t, p2pClientA.ProtectPeer(ctx, ""))
