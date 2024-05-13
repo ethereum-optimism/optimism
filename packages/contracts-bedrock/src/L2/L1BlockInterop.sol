@@ -74,7 +74,7 @@ contract L1BlockInterop is L1Block {
     ///         depositor account.
     /// @param _type  The type of configuration to set.
     /// @param _value The encoded value with which to set the configuration.
-    function setConfig(ConfigType _type, bytes calldata _value) external onlyDepositor {
+    function setConfig(ConfigType _type, bytes calldata _value) external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
         // For ADD_DEPENDENCY config type
