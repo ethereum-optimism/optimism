@@ -26,7 +26,7 @@ func (h *HonestHelper) Attack(ctx context.Context, claimIdx int64) {
 	value, err := h.correctTrace.Get(ctx, attackPos)
 	h.require.NoErrorf(err, "Get correct claim at position %v with g index %v", attackPos, attackPos.ToGIndex())
 	h.t.Log("Performing attack")
-	h.game.Attack(ctx, claimIdx, value)
+	h.game.Attack(ctx, claim.Claim, claimIdx, value)
 	h.t.Log("Attack complete")
 }
 
@@ -38,7 +38,7 @@ func (h *HonestHelper) Defend(ctx context.Context, claimIdx int64) {
 	defendPos := pos.Defend()
 	value, err := h.correctTrace.Get(ctx, defendPos)
 	h.game.require.NoErrorf(err, "Get correct claim at position %v with g index %v", defendPos, defendPos.ToGIndex())
-	h.game.Defend(ctx, claimIdx, value)
+	h.game.Defend(ctx, claim.Claim, claimIdx, value)
 }
 
 func (h *HonestHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool) {

@@ -308,15 +308,15 @@ func (g *FaultGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64,
 	return newClaimLen, err
 }
 
-func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
-	tx, err := g.game.Attack(g.opts, big.NewInt(claimIdx), claim)
+func (g *FaultGameHelper) Attack(ctx context.Context, parentClaim common.Hash, claimIdx int64, claim common.Hash) {
+	tx, err := g.game.Attack(g.opts, parentClaim, big.NewInt(claimIdx), claim)
 	g.require.NoError(err, "Attack transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Attack transaction was not OK")
 }
 
-func (g *FaultGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
-	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
+func (g *FaultGameHelper) Defend(ctx context.Context, parentClaim common.Hash, claimIdx int64, claim common.Hash) {
+	tx, err := g.game.Defend(g.opts, parentClaim, big.NewInt(claimIdx), claim)
 	g.require.NoError(err, "Defend transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Defend transaction was not OK")
