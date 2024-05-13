@@ -45,6 +45,7 @@ func (c contractVersion) Is(versions ...string) bool {
 const (
 	vers080    = "0.8.0"
 	vers0180   = "0.18.0"
+	vers111    = "1.1.1"
 	versLatest = "1.2.0"
 )
 
@@ -59,6 +60,12 @@ var versions = []contractVersion{
 		version: vers0180,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi0180)
+		},
+	},
+	{
+		version: vers111,
+		loadAbi: func() *abi.ABI {
+			return mustParseAbi(faultDisputeGameAbi111)
 		},
 	},
 	{
@@ -388,7 +395,7 @@ func TestAttackTx(t *testing.T) {
 			value := common.Hash{0xaa}
 			parent := faultTypes.Claim{ClaimData: faultTypes.ClaimData{Value: common.Hash{0xbb}}, ContractIndex: 111}
 			stubRpc.SetResponse(fdgAddr, methodRequiredBond, rpcblock.Latest, []interface{}{parent.Position.Attack().ToGIndex()}, []interface{}{bond})
-			if version.Is(vers080, vers0180) {
+			if version.Is(vers080, vers0180, vers111) {
 				stubRpc.SetResponse(fdgAddr, methodAttack, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
 			} else {
 				stubRpc.SetResponse(fdgAddr, methodAttack, rpcblock.Latest, []interface{}{parent.Value, big.NewInt(111), value}, nil)
@@ -410,7 +417,7 @@ func TestDefendTx(t *testing.T) {
 			value := common.Hash{0xaa}
 			parent := faultTypes.Claim{ClaimData: faultTypes.ClaimData{Value: common.Hash{0xbb}}, ContractIndex: 111}
 			stubRpc.SetResponse(fdgAddr, methodRequiredBond, rpcblock.Latest, []interface{}{parent.Position.Defend().ToGIndex()}, []interface{}{bond})
-			if version.Is(vers080, vers0180) {
+			if version.Is(vers080, vers0180, vers111) {
 				stubRpc.SetResponse(fdgAddr, methodDefend, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
 			} else {
 				stubRpc.SetResponse(fdgAddr, methodDefend, rpcblock.Latest, []interface{}{parent.Value, big.NewInt(111), value}, nil)

@@ -109,6 +109,16 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 				contract:    batching.NewBoundContract(legacyAbi, addr),
 			},
 		}, nil
+	} else if strings.HasPrefix(version, "1.1.") {
+		// Detected an older version of contracts, use a compatibility shim.
+		legacyAbi := mustParseAbi(faultDisputeGameAbi111)
+		return &FaultDisputeGameContract111{
+			FaultDisputeGameContractLatest: FaultDisputeGameContractLatest{
+				metrics:     metrics,
+				multiCaller: caller,
+				contract:    batching.NewBoundContract(legacyAbi, addr),
+			},
+		}, nil
 	} else {
 		return &FaultDisputeGameContractLatest{
 			metrics:     metrics,
