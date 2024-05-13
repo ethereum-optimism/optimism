@@ -456,14 +456,26 @@ func (f *FaultDisputeGameContractLatest) ChallengeL2BlockNumberTx(challenge *typ
 	}, headerRlp).ToTxCandidate()
 }
 
-func (f *FaultDisputeGameContractLatest) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {
-	call := f.contract.Call(methodAttack, new(big.Int).SetUint64(parentContractIndex), pivot)
-	return call.ToTxCandidate()
+func (f *FaultDisputeGameContractLatest) AttackTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodAttack, parent.Value, big.NewInt(int64(parent.ContractIndex)), pivot)
+	return f.txWithBond(ctx, parent.Position.Attack(), call)
 }
 
-func (f *FaultDisputeGameContractLatest) DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {
-	call := f.contract.Call(methodDefend, new(big.Int).SetUint64(parentContractIndex), pivot)
-	return call.ToTxCandidate()
+func (f *FaultDisputeGameContractLatest) DefendTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodDefend, parent.Value, big.NewInt(int64(parent.ContractIndex)), pivot)
+	return f.txWithBond(ctx, parent.Position.Defend(), call)
+}
+
+func (f *FaultDisputeGameContractLatest) txWithBond(ctx context.Context, position types.Position, call *batching.ContractCall) (txmgr.TxCandidate, error) {
+	tx, err := call.ToTxCandidate()
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to create transaction: %w", err)
+	}
+	tx.Value, err = f.GetRequiredBond(ctx, position)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to fetch required bond: %w", err)
+	}
+	return tx, nil
 }
 
 func (f *FaultDisputeGameContractLatest) StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error) {
@@ -571,8 +583,8 @@ type FaultDisputeGameContract interface {
 	IsResolved(ctx context.Context, block rpcblock.Block, claims ...types.Claim) ([]bool, error)
 	IsL2BlockNumberChallenged(ctx context.Context, block rpcblock.Block) (bool, error)
 	ChallengeL2BlockNumberTx(challenge *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error)
-	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
-	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
+	AttackTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error)
+	DefendTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
 	ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error)
