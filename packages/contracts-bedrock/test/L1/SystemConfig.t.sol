@@ -287,8 +287,8 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
         vm.expectRevert(bytes(revertMessage));
         systemConfig.initialize({
             _owner: address(0xdEaD),
-            _overhead: 0,
-            _scalar: 0,
+            _basefeeScalar: 0,
+            _blobbasefeeScalar: 0,
             _batcherHash: bytes32(0),
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(0),
