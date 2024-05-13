@@ -486,18 +486,12 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     function test_setGasConfig_badValues_reverts() external {
         vm.prank(systemConfig.owner());
         vm.expectRevert("SystemConfig: scalar exceeds max.");
-        systemConfig.setGasConfig({
-            _overhead: 0,
-            _scalar: type(uint256).max
-        });
+        systemConfig.setGasConfig({ _overhead: 0, _scalar: type(uint256).max });
     }
 
     function test_setGasConfigEcotone_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setGasConfigEcotone({
-            _basefeeScalar: 0,
-            _blobbasefeeScalar: 0
-        });
+        systemConfig.setGasConfigEcotone({ _basefeeScalar: 0, _blobbasefeeScalar: 0 });
     }
 
     /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
@@ -552,19 +546,14 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     }
 
     function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
-        bytes32 encoded = ffi.encodeScalarEcotone({
-            _basefeeScalar: _basefeeScalar,
-            _blobbasefeeScalar: _blobbasefeeScalar
-        });
+        bytes32 encoded =
+            ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
 
         vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(systemConfig.overhead(), encoded));
 
         vm.prank(systemConfig.owner());
-        systemConfig.setGasConfigEcotone({
-            _basefeeScalar: _basefeeScalar,
-            _blobbasefeeScalar: _blobbasefeeScalar
-        });
+        systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
         assertEq(systemConfig.basefeeScalar(), _basefeeScalar);
         assertEq(systemConfig.blobbasefeeScalar(), _blobbasefeeScalar);
         assertEq(systemConfig.scalar(), uint256(encoded));
