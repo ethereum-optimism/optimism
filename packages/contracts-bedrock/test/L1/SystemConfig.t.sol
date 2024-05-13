@@ -264,6 +264,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     )
         external
     {
+        vm.assume(_token != address(vm));
         vm.assume(bytes(_name).length <= 32);
         vm.assume(bytes(_symbol).length <= 32);
 
