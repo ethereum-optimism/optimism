@@ -273,7 +273,7 @@ def devnet_deploy(paths):
 
     if DEVNET_PLASMA:
         docker_env['PLASMA_ENABLED'] = 'true'
-        docker_env['PLASMA_DA_SERVICE'] = 'true'
+        docker_env['PLASMA_DA_SERVICE'] = 'false'
     else:
         docker_env['PLASMA_ENABLED'] = 'false'
         docker_env['PLASMA_DA_SERVICE'] = 'false'
