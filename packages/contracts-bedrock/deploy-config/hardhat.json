@@ -16,8 +16,6 @@
   "l2OutputOracleSubmissionInterval": 6,
   "l2OutputOracleStartingTimestamp": 1,
   "l2OutputOracleStartingBlockNumber": 1,
-  "gasPriceOracleOverhead": 2100,
-  "gasPriceOracleScalar": 1000000,
   "gasPriceOracleBaseFeeScalar": 1368,
   "gasPriceOracleBlobBaseFeeScalar": 810949,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",

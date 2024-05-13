@@ -26,8 +26,6 @@ contract SystemConfig_Init is CommonTest {
 contract SystemConfig_Initialize_Test is SystemConfig_Init {
     address batchInbox;
     address owner;
-    uint256 overhead;
-    uint256 scalar;
     bytes32 batcherHash;
     uint64 gasLimit;
     address unsafeBlockSigner;
@@ -40,8 +38,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         super.setUp();
         batchInbox = deploy.cfg().batchInboxAddress();
         owner = deploy.cfg().finalSystemOwner();
-        overhead = deploy.cfg().gasPriceOracleOverhead();
-        scalar = deploy.cfg().gasPriceOracleScalar();
         basefeeScalar = deploy.cfg().basefeeScalar();
         blobbasefeeScalar = deploy.cfg().blobbasefeeScalar();
         batcherHash = bytes32(uint256(uint160(deploy.cfg().batchSenderAddress())));
