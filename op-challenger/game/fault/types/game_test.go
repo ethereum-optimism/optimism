@@ -3,6 +3,7 @@ package types
 import (
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -215,6 +216,43 @@ func TestAncestorWithTraceIndex(t *testing.T) {
 	actual, ok = game.AncestorWithTraceIndex(claims[3], big.NewInt(1))
 	require.True(t, ok)
 	require.Equal(t, claims[3], actual)
+}
+
+func TestChessClock(t *testing.T) {
+	rootTime := time.UnixMilli(42978249)
+	defenderRootClaim, challengerFirstClaim, defenderSecondClaim, challengerSecondClaim := createTestClaims()
+	defenderRootClaim.Clock = Clock{Timestamp: rootTime, Duration: 0}
+	challengerFirstClaim.Clock = Clock{Timestamp: rootTime.Add(5 * time.Minute), Duration: 5 * time.Minute}
+	defenderSecondClaim.Clock = Clock{Timestamp: challengerFirstClaim.Clock.Timestamp.Add(2 * time.Minute), Duration: 2 * time.Minute}
+	challengerSecondClaim.Clock = Clock{Timestamp: defenderSecondClaim.Clock.Timestamp.Add(3 * time.Minute), Duration: 8 * time.Minute}
+	claims := []Claim{defenderRootClaim, challengerFirstClaim, defenderSecondClaim, challengerSecondClaim}
+	game := NewGameState(claims, 10)
+
+	// At the time the root claim is posted, both defender and challenger have no time on their chess clock
+	// The root claim starts the chess clock for the challenger
+	require.Equal(t, time.Duration(0), game.ChessClock(rootTime, game.Claims()[0]))
+	// As time progresses, the challenger's chess clock increases
+	require.Equal(t, 2*time.Minute, game.ChessClock(rootTime.Add(2*time.Minute), game.Claims()[0]))
+
+	// The challenger's first claim arrives 5 minutes after the root claim and starts the clock for the defender
+	// This is the defender's first turn so at the time the claim is posted, the defender's chess clock is 0
+	require.Equal(t, time.Duration(0), game.ChessClock(challengerFirstClaim.Clock.Timestamp, challengerFirstClaim))
+	// As time progresses, the defender's chess clock increases
+	require.Equal(t, 3*time.Minute, game.ChessClock(challengerFirstClaim.Clock.Timestamp.Add(3*time.Minute), challengerFirstClaim))
+
+	// The defender's second claim arrives 2 minutes after the challenger's first claim.
+	// This starts the challenger's clock again. At the time of the claim it already has 5 minutes on the clock
+	// from the challenger's previous turn
+	require.Equal(t, 5*time.Minute, game.ChessClock(defenderSecondClaim.Clock.Timestamp, defenderSecondClaim))
+	// As time progresses the challenger's chess clock increases
+	require.Equal(t, 5*time.Minute+30*time.Second, game.ChessClock(defenderSecondClaim.Clock.Timestamp.Add(30*time.Second), defenderSecondClaim))
+
+	// The challenger's second claim arrives 3 minutes after the defender's second claim.
+	// This starts the defender's clock again. At the time of the claim it already has 2 minutes on the clock
+	// from the defenders previous turn
+	require.Equal(t, 2*time.Minute, game.ChessClock(challengerSecondClaim.Clock.Timestamp, challengerSecondClaim))
+	// As time progresses, the defender's chess clock increases
+	require.Equal(t, 2*time.Minute+45*time.Minute, game.ChessClock(challengerSecondClaim.Clock.Timestamp.Add(45*time.Minute), challengerSecondClaim))
 }
 
 func buildGameWithClaim(claimGIndex *big.Int, parentGIndex *big.Int) *gameState {

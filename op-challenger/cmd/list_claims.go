@@ -64,6 +64,9 @@ func ListClaims(ctx *cli.Context) error {
 
 func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, verbose bool) error {
 	metadata, err := game.GetGameMetadata(ctx, rpcblock.Latest)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve metadata: %w", err)
+	}
 	maxDepth, err := game.GetMaxGameDepth(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve max depth: %w", err)
@@ -101,18 +104,28 @@ func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, ve
 	if verbose {
 		valueFormat = "%-66v"
 	}
-	lineFormat := "%3v %-7v %6v %5v %14v " + valueFormat + " %-42v %-19v %-44v\n"
-	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Time", "Resolution")
+	now := time.Now()
+	lineFormat := "%3v %-7v %6v %5v %14v " + valueFormat + " %-42v %-19v %10v %v\n"
+	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Time", "Clock Used", "Resolution")
 	for i, claim := range claims {
 		pos := claim.Position
 		parent := strconv.Itoa(claim.ParentContractIndex)
+		var elapsed time.Duration // Root claim does not accumulate any time on its team's chess clock
 		if claim.IsRoot() {
 			parent = ""
+		} else {
+			parentClaim, err := gameState.GetParent(claim)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve parent claim: %w", err)
+			}
+			// Get the total chess clock time accumulated by the team that posted this claim at the time of the claim.
+			elapsed = gameState.ChessClock(claim.Clock.Timestamp, parentClaim)
 		}
 		var countered string
 		if !resolved[i] {
-			resolveAt := claim.Clock.Timestamp.Add(maxClockDuration - claim.Clock.Duration).Format(time.DateTime)
-			countered = fmt.Sprintf("⏱️  %v", resolveAt)
+			clock := gameState.ChessClock(now, claim)
+			resolvableAt := now.Add(maxClockDuration - clock).Format(time.DateTime)
+			countered = fmt.Sprintf("⏱️  %v", resolvableAt)
 		} else if claim.IsRoot() && metadata.L2BlockNumberChallenged {
 			countered = "❌ " + metadata.L2BlockNumberChallenger.Hex()
 		} else if claim.CounteredBy != (common.Address{}) {
@@ -140,10 +153,11 @@ func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, ve
 		if verbose {
 			value = claim.Value.Hex()
 		}
+		timestamp := claim.Clock.Timestamp.Format(time.DateTime)
 		info = info + fmt.Sprintf(lineFormat,
-			i, move, parent, pos.Depth(), traceIdx, value, claim.Claimant, claim.Clock.Timestamp.Format(time.DateTime), countered)
+			i, move, parent, pos.Depth(), traceIdx, value, claim.Claimant, timestamp, elapsed, countered)
 	}
-	blockNumChallenger := "L2 Block: ✅"
+	blockNumChallenger := "L2 Block: Unchallenged"
 	if metadata.L2BlockNumberChallenged {
 		blockNumChallenger = "L2 Block: ❌ " + metadata.L2BlockNumberChallenger.Hex()
 	}

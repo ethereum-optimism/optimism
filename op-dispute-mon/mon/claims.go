@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"time"
 
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -100,7 +101,11 @@ func (c *ClaimMonitor) checkGameClaims(
 		}
 
 		maxChessTime := time.Duration(game.MaxClockDuration) * time.Second
-		accumulatedTime := claim.ChessTime(c.clock.Now())
+		var parent faultTypes.Claim
+		if !claim.IsRoot() {
+			parent = game.Claims[claim.ParentContractIndex].Claim
+		}
+		accumulatedTime := faultTypes.ChessClock(c.clock.Now(), claim.Claim, parent)
 		clockExpired := accumulatedTime >= maxChessTime
 
 		if claim.Resolved {

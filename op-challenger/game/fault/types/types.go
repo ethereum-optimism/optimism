@@ -185,17 +185,6 @@ func (c Claim) IsRoot() bool {
 	return c.Position.IsRootPosition()
 }
 
-// ChessTime returns the amount of time accumulated in the chess clock.
-// Does not assume the claim is countered and uses the specified time
-// to calculate the time since the claim was posted.
-func (c Claim) ChessTime(now time.Time) time.Duration {
-	timeSince := time.Duration(0)
-	if now.Compare(c.Clock.Timestamp) > 0 {
-		timeSince = now.Sub(c.Clock.Timestamp)
-	}
-	return c.Clock.Duration + timeSince
-}
-
 // Clock tracks the chess clock for a claim.
 type Clock struct {
 	// Duration is the time elapsed on the chess clock at the last update.
