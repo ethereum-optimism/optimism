@@ -664,6 +664,13 @@ func (oc *OpConductor) startSequencer() error {
 	if err != nil {
 		if errors.Is(err, ErrUnsafeHeadMismarch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
+			oc.log.Debug(
+				"posting unsafe head to op-node",
+				"consensus_num", uint64(unsafeInCons.ExecutionPayload.BlockNumber),
+				"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash.Hex(),
+				"node_num", unsafeInNode.NumberU64(),
+				"node_hash", unsafeInNode.Hash().Hex(),
+			)
 			if innerErr := oc.ctrl.PostUnsafePayload(ctx, unsafeInCons); innerErr != nil {
 				oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", innerErr)
 			}
@@ -696,14 +703,14 @@ func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPay
 		return unsafeInCons, nil, errors.Wrap(err, "failed to get latest unsafe block from EL during compareUnsafeHead phase")
 	}
 
-	oc.log.Debug("comparing unsafe head", "consensus", unsafeInCons.ExecutionPayload.BlockNumber, "node", unsafeInNode.NumberU64())
+	oc.log.Debug("comparing unsafe head", "consensus", uint64(unsafeInCons.ExecutionPayload.BlockNumber), "node", unsafeInNode.NumberU64())
 	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
 		oc.log.Warn(
 			"latest unsafe block in consensus is not the same as the one in op-node",
 			"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash,
-			"consensus_block_num", unsafeInCons.ExecutionPayload.BlockNumber,
+			"consensus_num", uint64(unsafeInCons.ExecutionPayload.BlockNumber),
 			"node_hash", unsafeInNode.Hash(),
-			"node_block_num", unsafeInNode.NumberU64(),
+			"node_num", unsafeInNode.NumberU64(),
 		)
 
 		return unsafeInCons, unsafeInNode, ErrUnsafeHeadMismarch
