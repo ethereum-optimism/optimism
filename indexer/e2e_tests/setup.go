@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
-	"github.com/ethereum-optimism/optimism/indexer/client"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 
@@ -38,8 +37,8 @@ type E2ETestSuite struct {
 	MetricsRegistry *prometheus.Registry
 
 	// API
-	Client *client.Client
-	API    *api.APIService
+	API       *api.APIService
+	ApiClient *api.Client
 
 	// Indexer
 	DB      *database.DB
@@ -156,13 +155,13 @@ func createE2ETestSuite(t *testing.T, cfgOpt ...ConfigOpts) E2ETestSuite {
 	// Wait for the API to start listening
 	time.Sleep(1 * time.Second)
 
-	client, err := client.NewClient(&client.Config{PaginationLimit: 100, BaseURL: "http://" + apiService.Addr()})
+	apiClient, err := api.NewClient(&api.ClientConfig{PaginationLimit: 100, BaseURL: "http://" + apiService.Addr()})
 	require.NoError(t, err, "must open indexer API client")
 
 	return E2ETestSuite{
 		t:               t,
 		MetricsRegistry: metrics.NewRegistry(),
-		Client:          client,
+		ApiClient:       apiClient,
 		DB:              db,
 		Indexer:         ix,
 		OpCfg:           &opCfg,
