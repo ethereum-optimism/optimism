@@ -46,8 +46,8 @@ func checkRules(game types.Game, action types.Action, correctTrace types.TracePr
 // parentMustExist checks that every action performed has a valid parent claim
 // Rationale: The action would be rejected by the contracts
 func parentMustExist(game types.Game, action types.Action, _ types.TraceProvider) error {
-	if len(game.Claims()) <= action.ParentIdx || action.ParentIdx < 0 {
-		return fmt.Errorf("parent claim %v does not exist in game with %v claims", action.ParentIdx, len(game.Claims()))
+	if len(game.Claims()) <= action.ParentClaim.ContractIndex || action.ParentClaim.ContractIndex < 0 {
+		return fmt.Errorf("parent claim %v does not exist in game with %v claims", action.ParentClaim.ContractIndex, len(game.Claims()))
 	}
 	return nil
 }
@@ -58,7 +58,7 @@ func onlyStepAtMaxDepth(game types.Game, action types.Action, _ types.TraceProvi
 	if action.Type == types.ActionTypeStep {
 		return nil
 	}
-	parentDepth := game.Claims()[action.ParentIdx].Position.Depth()
+	parentDepth := game.Claims()[action.ParentClaim.ContractIndex].Position.Depth()
 	if parentDepth >= game.MaxDepth() {
 		return fmt.Errorf("parent at max depth (%v) but attempting to perform %v action instead of step",
 			parentDepth, action.Type)
@@ -72,7 +72,7 @@ func onlyMoveBeforeMaxDepth(game types.Game, action types.Action, _ types.TraceP
 	if action.Type == types.ActionTypeMove {
 		return nil
 	}
-	parentDepth := game.Claims()[action.ParentIdx].Position.Depth()
+	parentDepth := game.Claims()[action.ParentClaim.ContractIndex].Position.Depth()
 	if parentDepth < game.MaxDepth() {
 		return fmt.Errorf("parent (%v) not at max depth (%v) but attempting to perform %v action instead of move",
 			parentDepth, game.MaxDepth(), action.Type)
@@ -87,7 +87,7 @@ func doNotDuplicateExistingMoves(game types.Game, action types.Action, _ types.T
 		Value:    action.Value,
 		Position: resultingPosition(game, action),
 	}
-	if game.IsDuplicate(types.Claim{ClaimData: newClaimData, ParentContractIndex: action.ParentIdx}) {
+	if game.IsDuplicate(types.Claim{ClaimData: newClaimData, ParentContractIndex: action.ParentClaim.ContractIndex}) {
 		return fmt.Errorf("creating duplicate claim at %v with value %v", newClaimData.Position.ToGIndex(), newClaimData.Value)
 	}
 	return nil
@@ -96,7 +96,7 @@ func doNotDuplicateExistingMoves(game types.Game, action types.Action, _ types.T
 // doNotStepAlreadyCounteredClaims checks the challenger does not attempt to call step on already countered claims
 // Rationale: The step call is redundant and a waste of gas
 func doNotStepAlreadyCounteredClaims(game types.Game, action types.Action, _ types.TraceProvider) error {
-	claim := game.Claims()[action.ParentIdx]
+	claim := game.Claims()[action.ParentClaim.ContractIndex]
 	if claim.CounteredBy != (common.Address{}) {
 		return fmt.Errorf("attempting to step already countered claim: %v", claim.ContractIndex)
 	}
@@ -106,8 +106,8 @@ func doNotStepAlreadyCounteredClaims(game types.Game, action types.Action, _ typ
 // doNotDefendRootClaim checks the challenger doesn't attempt to defend the root claim
 // Rationale: The action would be rejected by the contracts
 func doNotDefendRootClaim(game types.Game, action types.Action, _ types.TraceProvider) error {
-	if game.Claims()[action.ParentIdx].IsRootPosition() && !action.IsAttack {
-		return fmt.Errorf("defending the root claim at idx %v", action.ParentIdx)
+	if game.Claims()[action.ParentClaim.ContractIndex].IsRootPosition() && !action.IsAttack {
+		return fmt.Errorf("defending the root claim at idx %v", action.ParentClaim.ContractIndex)
 	}
 	return nil
 }
@@ -115,9 +115,9 @@ func doNotDefendRootClaim(game types.Game, action types.Action, _ types.TracePro
 // doNotCounterSelf checks the challenger doesn't counter its own claims
 // Rationale: The challenger should not disagree with itself
 func doNotCounterSelf(game types.Game, action types.Action, _ types.TraceProvider) error {
-	claim := game.Claims()[action.ParentIdx]
+	claim := game.Claims()[action.ParentClaim.ContractIndex]
 	if claim.Claimant == challengerAddr {
-		return fmt.Errorf("countering own claim at idx %v", action.ParentIdx)
+		return fmt.Errorf("countering own claim at idx %v", action.ParentClaim.ContractIndex)
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func avoidPoisonedPrestate(game types.Game, action types.Action, correctTrace ty
 	movePosition := resultingPosition(game, action)
 	honestTraceIndex := movePosition.TraceIndex(game.MaxDepth())
 	// Walk back up the claims and find the claim with highest trace index < honestTraceIndex
-	claim := game.Claims()[action.ParentIdx]
+	claim := game.Claims()[action.ParentClaim.ContractIndex]
 	var preStateClaim types.Claim
 	for {
 		ancestors += printClaim(claim, game) + "\n"
@@ -164,7 +164,7 @@ func avoidPoisonedPrestate(game types.Game, action types.Action, correctTrace ty
 		return fmt.Errorf("failed to get correct trace at position %v: %w", preStateClaim.Position, err)
 	}
 	if correctValue != preStateClaim.Value {
-		err = fmt.Errorf("prestate poisoned claim %v has invalid prestate and is left of honest claim countering %v at trace index %v", preStateClaim.ContractIndex, action.ParentIdx, honestTraceIndex)
+		err = fmt.Errorf("prestate poisoned claim %v has invalid prestate and is left of honest claim countering %v at trace index %v", preStateClaim.ContractIndex, action.ParentClaim.ContractIndex, honestTraceIndex)
 		return err
 	}
 	return nil
@@ -199,10 +199,10 @@ func detectFailedStep(game types.Game, action types.Action, correctTrace types.T
 		poststateIndex = new(big.Int).Add(honestTraceIndex, big.NewInt(1))
 	}
 	// Walk back up the claims and find the claim required post state index
-	claim := game.Claims()[action.ParentIdx]
+	claim := game.Claims()[action.ParentClaim.ContractIndex]
 	poststateClaim, ok := game.AncestorWithTraceIndex(claim, poststateIndex)
 	if !ok {
-		return fmt.Errorf("did not find required poststate at %v to counter claim %v", poststateIndex, action.ParentIdx)
+		return fmt.Errorf("did not find required poststate at %v to counter claim %v", poststateIndex, action.ParentClaim.ContractIndex)
 	}
 	correctValue, err := correctTrace.Get(context.Background(), poststateClaim.Position)
 	if err != nil {
@@ -212,7 +212,7 @@ func detectFailedStep(game types.Game, action types.Action, correctTrace types.T
 	parentPostAgree := (claim.Depth()-poststateClaim.Depth())%2 == 0
 	if parentPostAgree == validStep {
 		return fmt.Errorf("failed step against claim at %v using poststate from claim %v post state is correct? %v parentPostAgree? %v",
-			action.ParentIdx, poststateClaim.ContractIndex, validStep, parentPostAgree)
+			action.ParentClaim.ContractIndex, poststateClaim.ContractIndex, validStep, parentPostAgree)
 	}
 	return nil
 }
@@ -242,7 +242,7 @@ func detectPoisonedStepPrestate(game types.Game, action types.Action, correctTra
 		return nil
 	}
 	// Walk back up the claims and find the claim with highest trace index < honestTraceIndex
-	claim := game.Claims()[action.ParentIdx]
+	claim := game.Claims()[action.ParentClaim.ContractIndex]
 	preStateClaim, ok := game.AncestorWithTraceIndex(claim, prestateIndex)
 	if !ok {
 		return fmt.Errorf("performing step against claim %v with no prestate available at %v", claim.ContractIndex, prestateIndex)
@@ -253,9 +253,9 @@ func detectPoisonedStepPrestate(game types.Game, action types.Action, correctTra
 	}
 	if correctValue != preStateClaim.Value {
 		if action.Type == types.ActionTypeStep {
-			return fmt.Errorf("stepping from poisoned prestate at claim %v when countering %v", preStateClaim.ContractIndex, action.ParentIdx)
+			return fmt.Errorf("stepping from poisoned prestate at claim %v when countering %v", preStateClaim.ContractIndex, action.ParentClaim.ContractIndex)
 		} else {
-			return fmt.Errorf("posting leaf claim with poisoned prestate from claim %v when countering %v", preStateClaim.ContractIndex, action.ParentIdx)
+			return fmt.Errorf("posting leaf claim with poisoned prestate from claim %v when countering %v", preStateClaim.ContractIndex, action.ParentClaim.ContractIndex)
 		}
 	}
 	if action.Type == types.ActionTypeStep {
@@ -268,7 +268,7 @@ func detectPoisonedStepPrestate(game types.Game, action types.Action, correctTra
 }
 
 func resultingPosition(game types.Game, action types.Action) types.Position {
-	parentPos := game.Claims()[action.ParentIdx].Position
+	parentPos := game.Claims()[action.ParentClaim.ContractIndex].Position
 	if action.Type == types.ActionTypeStep {
 		return parentPos
 	}
