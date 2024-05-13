@@ -103,8 +103,7 @@ func (c *DAClient) setInputWithCommit(ctx context.Context, comm CommitmentData, 
 	return nil
 }
 
-// setInputs sets some data to a plasma DA server and reads the generated commitment from
-// http response.
+// setInputs sets the input data and reads the respective DA generated commitment.
 func (c *DAClient) setInput(ctx context.Context, img []byte) (CommitmentData, error) {
 	if len(img) == 0 {
 		return nil, ErrInvalidInput
