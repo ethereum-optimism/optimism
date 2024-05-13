@@ -52,7 +52,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         SystemConfig impl = SystemConfig(systemConfigImpl);
         assertEq(impl.owner(), address(0xdEaD));
         assertEq(impl.overhead(), 0);
-        assertEq(impl.scalar(), 0);
+        assertEq(impl.scalar(), uint256(0x01) << 248);
         assertEq(impl.batcherHash(), bytes32(0));
         assertEq(impl.gasLimit(), 1);
         assertEq(impl.unsafeBlockSigner(), address(0));
@@ -84,7 +84,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
         assertEq(systemConfig.overhead(), 0);
-        assertEq(systemConfig.scalar(), 0);
+        assertEq(systemConfig.scalar() >> 248, 1);
         assertEq(systemConfig.batcherHash(), batcherHash);
         assertEq(systemConfig.gasLimit(), gasLimit);
         assertEq(systemConfig.unsafeBlockSigner(), unsafeBlockSigner);
@@ -532,6 +532,8 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
 
     /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
     function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
+        // always zero out most significant byte
+        newScalar = (newScalar << 16) >> 16;
         vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(newOverhead, newScalar));
 
