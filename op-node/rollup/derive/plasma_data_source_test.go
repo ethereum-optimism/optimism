@@ -88,7 +88,10 @@ func TestPlasmaDataSource(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		UsePlasma:         true,
+		PlasmaConfig: &rollup.PlasmaConfig{
+			DAChallengeWindow: pcfg.ChallengeWindow,
+			DAResolveWindow:   pcfg.ResolveWindow,
+		},
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
@@ -327,7 +330,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		UsePlasma:         true,
+		LegacyUsePlasma:   true,
 	}
 
 	signer := cfg.L1Signer()
@@ -442,7 +445,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		UsePlasma:         true,
+		LegacyUsePlasma:   true,
 	}
 
 	signer := cfg.L1Signer()

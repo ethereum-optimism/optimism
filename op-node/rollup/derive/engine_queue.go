@@ -141,8 +141,8 @@ const finalityDelay = 64
 func calcFinalityLookback(cfg *rollup.Config) uint64 {
 	// in plasma mode the longest finality lookback is a commitment is challenged on the last block of
 	// the challenge window in which case it will be both challenge + resolve window.
-	if cfg.UsePlasma {
-		lkb := cfg.DAChallengeWindow + cfg.DAResolveWindow + 1
+	if cfg.PlasmaEnabled() {
+		lkb := cfg.PlasmaConfig.DAChallengeWindow + cfg.PlasmaConfig.DAResolveWindow + 1
 		// in the case only if the plasma windows are longer than the default finality lookback
 		if lkb > finalityLookback {
 			return lkb
