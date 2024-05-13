@@ -262,33 +262,29 @@ contract Deploy is Deployer {
 
     /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
-        console.log("Deploying a fresh OP Stack including SuperchainConfig");
-        _run();
+        console.log("Deploying Safe...");
+        address l2ProxyAdminOwner = 0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D;
+        console.log(l2ProxyAdminOwner);
+        _run(l2ProxyAdminOwner);
     }
 
-    function runWithStateDump() public {
-        vm.chainId(cfg.l1ChainID());
-        _run();
-        vm.dumpState(Config.stateDumpPath(""));
-    }
+    // function runWithStateDump() public {
+    //     vm.chainId(cfg.l1ChainID());
+    //     _run();
+    //     vm.dumpState(Config.stateDumpPath(""));
+    // }
 
-    /// @notice Deploy all L1 contracts and write the state diff to a file.
-    function runWithStateDiff() public stateDiff {
-        _run();
-    }
+    // /// @notice Deploy all L1 contracts and write the state diff to a file.
+    // function runWithStateDiff() public stateDiff {
+    //     _run();
+    // }
 
     /// @notice Internal function containing the deploy logic.
-    function _run() internal virtual {
-        console.log("start of L1 Deploy!");
-        deploySafe("SystemOwnerSafe");
-        console.log("deployed Safe!");
-        setupSuperchain();
-        console.log("set up superchain!");
-        if (cfg.usePlasma()) {
-            setupOpPlasma();
-        }
-        setupOpChain();
-        console.log("set up op chain!");
+    function _run(address l2ProxyAdminOwner) internal virtual {
+        console.log("Starting...");
+        deployAddressManager();
+        deployProxyAdmin(l2ProxyAdminOwner);
+        console.log("Deployed L2ProxyAdmin.");
     }
 
     ////////////////////////////////////////////////////////////////
@@ -306,7 +302,7 @@ contract Deploy is Deployer {
         // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
         // in the OP Chain system.
         deployAddressManager();
-        deployProxyAdmin();
+        deployProxyAdmin(0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D);
         transferProxyAdminOwnership();
 
         // Deploy the SuperchainConfigProxy
@@ -474,10 +470,12 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the ProxyAdmin
-    function deployProxyAdmin() public broadcast returns (address addr_) {
+    function deployProxyAdmin(address l2ProxyAdminOwner) public broadcast returns (address addr_) {
         console.log("Deploying ProxyAdmin");
         ProxyAdmin admin = new ProxyAdmin({ _owner: msg.sender });
-        require(admin.owner() == msg.sender);
+        address currentOwner = admin.owner();
+        // console.log(currentOwner);
+        require(currentOwner == msg.sender);
 
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         if (admin.addressManager() != addressManager) {
@@ -488,6 +486,11 @@ contract Deploy is Deployer {
 
         save("ProxyAdmin", address(admin));
         console.log("ProxyAdmin deployed at %s", address(admin));
+        console.log("Setting ProxyAdmin owner as %s", l2ProxyAdminOwner);
+        admin.transferOwnership(l2ProxyAdminOwner);
+        address newOwner = admin.owner();
+        require(newOwner == l2ProxyAdminOwner, "New owner is not as expected on ProxyAdmin.");
+
         addr_ = address(admin);
     }
 
