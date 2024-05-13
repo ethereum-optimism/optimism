@@ -110,8 +110,9 @@ contract L1Block is ISemver, IGasToken {
         uint256 _l1FeeScalar
     )
         external
-        onlyDepositor
     {
+        require(msg.sender == DEPOSITOR_ACCOUNT(), "L1Block: only the depositor account can set L1 block values");
+
         number = _number;
         timestamp = _timestamp;
         basefee = _basefee;

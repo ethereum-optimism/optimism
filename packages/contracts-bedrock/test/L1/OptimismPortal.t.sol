@@ -21,7 +21,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { L1Block, ConfigType } from "src/L2/L1Block.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
@@ -463,9 +463,7 @@ contract OptimismPortal_Test is CommonTest {
                 uint256(0), // value
                 uint64(200_000), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(
-                    L1Block.setConfig, (ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, _decimals, _name, _symbol))
-                )
+                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
             )
         );
 

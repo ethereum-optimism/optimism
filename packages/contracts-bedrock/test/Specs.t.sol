@@ -267,7 +267,7 @@ contract Specification_Test is CommonTest {
             _name: "OptimismPortal",
             _sel: _getSel("depositERC20Transaction(address,uint256,uint256,uint64,bool,bytes)")
         });
-        _addSpec({ _name: "OptimismPortal", _sel: _getSel("setConfig(ConfigType,bytes)") });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("setGasPayingToken(address,uint8,bytes32,bytes32)") });
 
         // OptimismPortal2
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)") });
