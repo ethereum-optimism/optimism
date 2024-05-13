@@ -262,10 +262,11 @@ contract Deploy is Deployer {
 
     /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
-        console.log("Deploying Safe...");
-        address l2ProxyAdminOwner = 0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D;
-        console.log(l2ProxyAdminOwner);
-        _run(l2ProxyAdminOwner);
+        console.log("Deploying...");
+        //address l2ProxyAdminOwner = 0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D;
+        //console.log(l2ProxyAdminOwner);
+        //_run(l2ProxyAdminOwner);
+        _run();
     }
 
     // function runWithStateDump() public {
@@ -280,11 +281,30 @@ contract Deploy is Deployer {
     // }
 
     /// @notice Internal function containing the deploy logic.
-    function _run(address l2ProxyAdminOwner) internal virtual {
+    function _run() internal virtual {
         console.log("Starting...");
         deployAddressManager();
-        deployProxyAdmin(l2ProxyAdminOwner);
-        console.log("Deployed L2ProxyAdmin.");
+        address l2proxyAdminOwner = 0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D; // Aliased L1 Safe.
+        address l2ProxyAdminImpl = deployProxyAdmin(l2proxyAdminOwner); // Set this from proxy level again?
+        console.log("Current sender: %s", msg.sender);
+        address proxyAdminProxy = deployERC1967ProxyWithOwner("ProxyAdminProxy", msg.sender);
+        console.log("Deployed proxy for ProxyAdmin.");
+        address currentProxyAdminProxyOwner = Proxy(payable(proxyAdminProxy)).admin();
+        console.log("currentProxyAdminProxyOwner %s", currentProxyAdminProxyOwner);
+        Proxy(payable(proxyAdminProxy)).upgradeTo(l2ProxyAdminImpl);
+        Proxy(payable(proxyAdminProxy)).changeAdmin(proxyAdminProxy);
+
+        _runDeploySimpleProxy(proxyAdminProxy);
+        console.log("Deployed L2ProxyAdmin Proxy: %s", proxyAdminProxy);
+        console.log("Deployed L2ProxyAdmin Impl: %s", l2ProxyAdminImpl);
+    }
+
+    function _runDeploySimpleProxy(address l2ProxyAdmin) internal virtual {
+        console.log("Starting...");
+        deployERC1967ProxyWithOwner("ProtocolVersionsProxy", l2ProxyAdmin);
+        deployProtocolVersions();
+        initializeProtocolVersions(l2ProxyAdmin);
+        console.log("Simple Proxy Deployed.");
     }
 
     ////////////////////////////////////////////////////////////////
@@ -313,7 +333,7 @@ contract Deploy is Deployer {
         // Deploy the ProtocolVersionsProxy
         deployERC1967Proxy("ProtocolVersionsProxy");
         deployProtocolVersions();
-        initializeProtocolVersions();
+        initializeProtocolVersions(address(0)); // This is wrong but this code path not executed.
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
@@ -1248,12 +1268,12 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismPortal2({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
-    function initializeProtocolVersions() public broadcast {
+    function initializeProtocolVersions(address l2ProxyAdmin) public broadcast {
         console.log("Upgrading and initializing ProtocolVersions proxy");
         address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
         address protocolVersions = mustGetAddress("ProtocolVersions");
 
-        address finalSystemOwner = cfg.finalSystemOwner();
+        address finalSystemOwner = l2ProxyAdmin;// cfg.finalSystemOwner();
         uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
