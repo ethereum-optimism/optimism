@@ -67,10 +67,6 @@ contract LivenessModule is ISemver {
         MIN_OWNERS = _minOwners;
         address[] memory owners = _safe.getOwners();
         require(_minOwners <= owners.length, "LivenessModule: minOwners must be less than the number of owners");
-        require(
-            _safe.getThreshold() >= getRequiredThreshold(owners.length),
-            "LivenessModule: Insufficient threshold for the number of owners"
-        );
         require(_thresholdPercentage > 0, "LivenessModule: thresholdPercentage must be greater than 0");
         require(_thresholdPercentage <= 100, "LivenessModule: thresholdPercentage must be less than or equal to 100");
     }
