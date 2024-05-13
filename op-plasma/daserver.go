@@ -138,7 +138,6 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Path == "/put" || r.URL.Path == "/put/" { // without commitment
-		// generate random commitment from random integer
 
 		comm := GenericCommitment(crypto.Keccak256Hash(input).Bytes())
 		if err = d.store.Put(r.Context(), comm.Encode(), input); err != nil {
