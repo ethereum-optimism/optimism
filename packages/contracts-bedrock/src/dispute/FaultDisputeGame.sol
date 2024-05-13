@@ -312,6 +312,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @notice Generic move function, used for both `attack` and `defend` moves.
+    /// @notice _disputed The disputed `Claim`.
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
