@@ -418,8 +418,9 @@ func FuzzStateHintWrite(f *testing.F) {
 			LastHint:       nil,
 		}
 		// Set random data at the target memory range
-		randBytes := randomBytes(randSeed, count)
-		err := state.Memory.SetMemoryRange(addr, bytes.NewReader(randBytes))
+		randBytes, err := randomBytes(randSeed, count)
+		require.NoError(t, err)
+		err = state.Memory.SetMemoryRange(addr, bytes.NewReader(randBytes))
 		require.NoError(t, err)
 		// Set syscall instruction
 		state.Memory.SetMemory(0, syscallInsn)
@@ -508,9 +509,11 @@ func FuzzStatePreimageWrite(f *testing.F) {
 	})
 }
 
-func randomBytes(seed int64, length uint32) []byte {
+func randomBytes(seed int64, length uint32) ([]byte, error) {
 	r := rand.New(rand.NewSource(seed))
 	randBytes := make([]byte, length)
-	r.Read(randBytes)
-	return randBytes
+	if _, err := r.Read(randBytes); err != nil {
+		return nil, err
+	}
+	return randBytes, nil
 }
