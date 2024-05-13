@@ -43,8 +43,8 @@ contract MIPS is ISemver {
     uint32 public constant BRK_START = 0x40000000;
 
     /// @notice The semantic version of the MIPS contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
@@ -422,6 +422,9 @@ contract MIPS is ISemver {
             // Stores the quotient in LO
             // And the remainder in HI
             else if (_func == 0x1a) {
+                if (int32(_rt) == 0) {
+                    revert("MIPS: division by zero");
+                }
                 state.hi = uint32(int32(_rs) % int32(_rt));
                 state.lo = uint32(int32(_rs) / int32(_rt));
             }
@@ -429,6 +432,9 @@ contract MIPS is ISemver {
             // Stores the quotient in LO
             // And the remainder in HI
             else if (_func == 0x1b) {
+                if (_rt == 0) {
+                    revert("MIPS: division by zero");
+                }
                 state.hi = _rs % _rt;
                 state.lo = _rs / _rt;
             }
