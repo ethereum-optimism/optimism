@@ -20,7 +20,7 @@ func defaultTestChannelConfig() ChannelConfig {
 		TargetNumFrames:    1,
 		BatchType:          derive.SingularBatchType,
 	}
-	c.InitRatioCompressor(0.4)
+	c.InitRatioCompressor(0.4, derive.Zlib)
 	return c
 }
 
