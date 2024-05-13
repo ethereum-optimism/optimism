@@ -36,6 +36,11 @@ func (algo *CompressionAlgo) Set(value string) error {
 	return nil
 }
 
+func (algo *CompressionAlgo) Clone() any {
+	cpy := *algo
+	return &cpy
+}
+
 func (algo *CompressionAlgo) IsBrotli() bool {
 	return brotliRegexp.MatchString(algo.String())
 }
