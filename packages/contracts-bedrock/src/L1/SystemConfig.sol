@@ -9,33 +9,23 @@ import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ConfigType } from "src/L2/L1Block.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
 contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
-    /// @notice Error thrown when the OptimismPortal address is not set.
-    error OptimismPortalNotSet();
-
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
-    /// @custom:value GAS_PAYING_TOKEN     Represents an update to the gas token address.
-    /// @custom:value ADD_DEPENDENCY       Represents an update (addition) to the interop dependency list.
-    /// @custom:value REMOVE_DEPENDENCY    Represents an update (removal) to the interop dependency list.
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER,
-        GAS_PAYING_TOKEN,
-        ADD_DEPENDENCY,
-        REMOVE_DEPENDENCY
+        UNSAFE_BLOCK_SIGNER
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -125,8 +115,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.2.0
-    string public constant version = "2.2.0";
+    /// @custom:semver 2.3.0
+    function version() public pure virtual returns (string memory) {
+        return "2.3.0";
+    }
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -304,19 +296,15 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice Internal setter for the gas paying token address, includes validation.
     ///         The token must not already be set and must be non zero and not the ether address
     ///         to set the token address. This prevents the token address from being changed
-    ///         and makes it explicitly opt-in to use custom gas token. Additionally,
-    ///         OptimismPortal's address must be non zero, since otherwise the call to set the
-    ///         config for the gas paying token to OptimismPortal will fail.
+    ///         and makes it explicitly opt-in to use custom gas token.
     /// @param _token Address of the gas paying token.
-    function _setGasPayingToken(address _token) internal {
+    function _setGasPayingToken(address _token) internal virtual {
         if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
-            if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
             );
             bytes32 name = GasPayingToken.sanitize(ERC20(_token).name());
             bytes32 symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
-
             // Set the gas paying token in storage and in the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
             OptimismPortal(payable(optimismPortal())).setGasPayingToken({
@@ -325,10 +313,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 _name: name,
                 _symbol: symbol
             });
-
-            emit ConfigUpdate(
-                VERSION, UpdateType.GAS_PAYING_TOKEN, abi.encode(_token, GAS_PAYING_TOKEN_DECIMALS, name, symbol)
-            );
         }
     }
 
@@ -444,41 +428,5 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         );
 
         _resourceConfig = _config;
-    }
-
-    /// @notice Adds a chain to the interop dependency set. Can only be called by the owner.
-    /// @param _chainId Chain ID of chain to add.
-    function addDependency(uint256 _chainId) external onlyOwner {
-        _addDependency(_chainId);
-    }
-
-    /// @notice Internal function for adding a chain to the interop dependency set.
-    ///         OptimismPortal must be set before calling this function.
-    /// @param _chainId Chain ID of chain to add.
-    function _addDependency(uint256 _chainId) internal {
-        if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
-
-        OptimismPortal(payable(optimismPortal())).addDependency(_chainId);
-
-        bytes memory data = abi.encode(_chainId);
-        emit ConfigUpdate(VERSION, UpdateType.ADD_DEPENDENCY, data);
-    }
-
-    /// @notice Removes a chain from the interop dependency set. Can only be called by the owner.
-    /// @param _chainId Chain ID of the chain to remove.
-    function removeDependency(uint256 _chainId) external onlyOwner {
-        _addDependency(_chainId);
-    }
-
-    /// @notice Internal function for removing a chain from the interop dependency set.
-    ///         OptimismPortal must be set before calling this function.
-    /// @param _chainId Chain ID of the chain to remove.
-    function _removeDependency(uint256 _chainId) internal {
-        if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
-
-        OptimismPortal(payable(optimismPortal())).removeDependency(_chainId);
-
-        bytes memory data = abi.encode(_chainId);
-        emit ConfigUpdate(VERSION, UpdateType.REMOVE_DEPENDENCY, data);
     }
 }
