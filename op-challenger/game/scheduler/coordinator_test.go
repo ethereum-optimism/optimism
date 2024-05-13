@@ -225,7 +225,8 @@ func TestSchedule_RecordActedL1Block(t *testing.T) {
 	require.NoError(t, c.schedule(ctx, asGames(gameAddr3), 2))
 
 	// Verify that the block number is recorded by the metricer as acted upon
-	require.Equal(t, uint64(1), c.m.(*stubSchedulerMetrics).actedL1Blocks)
+	// The one game is now complete so its block number is updated immediately because it doesn't get scheduled
+	require.Equal(t, uint64(2), c.m.(*stubSchedulerMetrics).actedL1Blocks)
 }
 
 func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {

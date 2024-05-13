@@ -30,7 +30,7 @@ func NewDAClient(url string, verify bool, pc bool) *DAClient {
 }
 
 // GetInput returns the input data for the given encoded commitment bytes.
-func (c *DAClient) GetInput(ctx context.Context, comm Commit) ([]byte, error) {
+func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x", c.url, comm.Encode()), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -61,13 +61,13 @@ func (c *DAClient) GetInput(ctx context.Context, comm Commit) ([]byte, error) {
 }
 
 // SetInput sets the input data and returns the respective commitment.
-func (c *DAClient) SetInput(ctx context.Context, img []byte) (Commit, error) {
+func (c *DAClient) SetInput(ctx context.Context, img []byte) (CommitmentData, error) {
 	if len(img) == 0 {
 		return nil, ErrInvalidInput
 	}
 
 	if c.precompute { // precompute commitment (only applicable to keccak256)
-		comm := Keccak256(img)
+		comm := Keccak256Commitment(img)
 		if err := c.setInputWithCommit(ctx, comm, img); err != nil {
 			return nil, err
 		}
@@ -105,7 +105,7 @@ func (c *DAClient) setInputWithCommit(ctx context.Context, comm Keccak256Commitm
 
 // setInputs sets some data to a plasma DA server and reads the generated commitment from
 // http response.
-func (c *DAClient) setInput(ctx context.Context, img []byte) (Commit, error) {
+func (c *DAClient) setInput(ctx context.Context, img []byte) (CommitmentData, error) {
 	if len(img) == 0 {
 		return nil, ErrInvalidInput
 	}
@@ -131,7 +131,7 @@ func (c *DAClient) setInput(ctx context.Context, img []byte) (Commit, error) {
 		return nil, err
 	}
 
-	comm, err := DecodeSvcCommit(b)
+	comm, err := DecodeGenericCommitment(b)
 	if err != nil {
 		return nil, err
 	}

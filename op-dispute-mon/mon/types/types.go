@@ -17,13 +17,15 @@ type EnrichedClaim struct {
 
 type EnrichedGameData struct {
 	types.GameMetadata
-	L1Head           common.Hash
-	L1HeadNum        uint64
-	L2BlockNumber    uint64
-	RootClaim        common.Hash
-	Status           types.GameStatus
-	MaxClockDuration uint64
-	Claims           []EnrichedClaim
+	L1Head                common.Hash
+	L1HeadNum             uint64
+	L2BlockNumber         uint64
+	RootClaim             common.Hash
+	Status                types.GameStatus
+	MaxClockDuration      uint64
+	BlockNumberChallenged bool
+	BlockNumberChallenger common.Address
+	Claims                []EnrichedClaim
 
 	AgreeWithClaim    bool
 	ExpectedRootClaim common.Hash

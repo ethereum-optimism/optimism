@@ -50,7 +50,7 @@ var testConfig = Config{
 	UsePlasma:               false,
 }
 
-func TestCanyonForkActivation(t *testing.T) {
+func TestChainSpec_CanyonForkActivation(t *testing.T) {
 	c := NewChainSpec(&testConfig)
 	tests := []struct {
 		name     string
@@ -74,7 +74,7 @@ func TestCanyonForkActivation(t *testing.T) {
 	}
 }
 
-func TestMaxChannelBankSize(t *testing.T) {
+func TestChainSpec_MaxChannelBankSize(t *testing.T) {
 	c := NewChainSpec(&testConfig)
 	tests := []struct {
 		name        string
@@ -97,7 +97,7 @@ func TestMaxChannelBankSize(t *testing.T) {
 	}
 }
 
-func TestMaxRLPBytesPerChannel(t *testing.T) {
+func TestChainSpec_MaxRLPBytesPerChannel(t *testing.T) {
 	c := NewChainSpec(&testConfig)
 	tests := []struct {
 		name        string
@@ -115,6 +115,29 @@ func TestMaxRLPBytesPerChannel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := c.MaxRLPBytesPerChannel(tt.blockNum)
+			require.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
+
+func TestChainSpec_MaxSequencerDrift(t *testing.T) {
+	c := NewChainSpec(&testConfig)
+	tests := []struct {
+		name        string
+		blockNum    uint64
+		expected    uint64
+		description string
+	}{
+		{"Genesis", 0, testConfig.MaxSequencerDrift, "Before Fjord activation, should use rollup config value"},
+		{"FjordTimeMinusOne", 49, testConfig.MaxSequencerDrift, "Just before Fjord, should still use rollup config value"},
+		{"FjordTime", 50, maxSequencerDriftFjord, "At Fjord activation, should switch to Fjord constant"},
+		{"FjordTimePlusOne", 51, maxSequencerDriftFjord, "After Fjord activation, should use Fjord constant"},
+		{"NextForkTime", 60, maxSequencerDriftFjord, "Well after Fjord, should continue to use Fjord constant"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := c.MaxSequencerDrift(tt.blockNum)
 			require.Equal(t, tt.expected, result, tt.description)
 		})
 	}

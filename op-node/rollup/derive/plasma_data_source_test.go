@@ -92,7 +92,7 @@ func TestPlasmaDataSource(t *testing.T) {
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
-	var comms []plasma.Commit
+	var comms []plasma.CommitmentData
 
 	signer := cfg.L1Signer()
 
@@ -123,8 +123,10 @@ func TestPlasmaDataSource(t *testing.T) {
 			// mock input commitments in l1 transactions
 			input := testutils.RandomData(rng, 2000)
 			comm, _ := storage.SetInput(ctx, input)
+			// plasma da tests are designed for keccak256 commitments, so we type assert here
+			kComm := comm.(plasma.Keccak256Commitment)
 			inputs = append(inputs, input)
-			comms = append(comms, comm)
+			comms = append(comms, kComm)
 
 			tx, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
 				ChainID:   signer.ChainID(),
@@ -223,8 +225,10 @@ func TestPlasmaDataSource(t *testing.T) {
 				// mock input commitments in l1 transactions
 				input := testutils.RandomData(rng, 2000)
 				comm, _ := storage.SetInput(ctx, input)
+				// plasma da tests are designed for keccak256 commitments, so we type assert here
+				kComm := comm.(plasma.Keccak256Commitment)
 				inputs = append(inputs, input)
-				comms = append(comms, comm)
+				comms = append(comms, kComm)
 
 				tx, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
 					ChainID:   signer.ChainID(),

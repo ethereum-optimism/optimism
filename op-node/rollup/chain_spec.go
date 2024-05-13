@@ -20,6 +20,12 @@ const (
 // TODO(#10428) Remove this parameter
 const SafeMaxRLPBytesPerChannel = maxRLPBytesPerChannelBedrock
 
+// Fjord changes the max sequencer drift to a protocol constant. It was previously configurable via
+// the rollup config.
+// From Fjord, the max sequencer drift for a given block timestamp should be learned via the
+// ChainSpec instead of reading the rollup configuration field directly.
+const maxSequencerDriftFjord = 1800
+
 type ChainSpec struct {
 	config *Config
 }
@@ -54,4 +60,20 @@ func (s *ChainSpec) MaxRLPBytesPerChannel(t uint64) uint64 {
 		return maxRLPBytesPerChannelFjord
 	}
 	return maxRLPBytesPerChannelBedrock
+}
+
+// IsFeatMaxSequencerDriftConstant specifies in which fork the max sequencer drift change to a
+// constant will be performed.
+func (s *ChainSpec) IsFeatMaxSequencerDriftConstant(t uint64) bool {
+	return s.config.IsFjord(t)
+}
+
+// MaxSequencerDrift returns the maximum sequencer drift for the given block timestamp. Until Fjord,
+// this was a rollup configuration parameter. Since Fjord, it is a constant, so its effective value
+// should always be queried via the ChainSpec.
+func (s *ChainSpec) MaxSequencerDrift(t uint64) uint64 {
+	if s.IsFeatMaxSequencerDriftConstant(t) {
+		return maxSequencerDriftFjord
+	}
+	return s.config.MaxSequencerDrift
 }

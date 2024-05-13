@@ -152,7 +152,7 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 
 		// write out encoded commitment
 		d.log.Info("Writing encoded commitment to request body")
-		if _, err := w.Write(ServiceCommitment(comm).Encode()); err != nil {
+		if _, err := w.Write(NewGenericCommitment(comm).Encode()); err != nil {
 			d.log.Error("Failed to write commitment request body", "err", err, "comm", comm)
 			w.WriteHeader(http.StatusInternalServerError)
 			return

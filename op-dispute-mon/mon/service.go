@@ -128,7 +128,7 @@ func (s *Service) initExtractor(cfg *config.Config) {
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
 		extract.NewClaimEnricher(),
-		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
 		extract.NewWithdrawalsEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
@@ -213,6 +213,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		}
 		return block.Hash(), nil
 	}
+	l2ChallengesMonitor := NewL2ChallengesMonitor(s.logger, s.metrics)
 	s.monitor = newGameMonitor(
 		ctx,
 		s.logger,
@@ -225,6 +226,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.resolutions.CheckResolutions,
 		s.claims.CheckClaims,
 		s.withdrawals.CheckWithdrawals,
+		l2ChallengesMonitor.CheckL2Challenges,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,

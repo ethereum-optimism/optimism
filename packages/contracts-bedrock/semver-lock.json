@@ -99,6 +99,10 @@
     "initCodeHash": "0xd62e193d89b1661d34031227a45ce1eade9c2a89b0bd7f362f511d03cceef294",
     "sourceCodeHash": "0xa304b4b556162323d69662b4dd9a1d073d55ec661494465489bb67f1e465e7b3"
   },
+  "src/L2/WETH.sol": {
+    "initCodeHash": "0xde72ae96910e95249623c2d695749847e4c4adeaf96a7a35033afd77318a528a",
+    "sourceCodeHash": "0xbe200a6cb297a3ca1a7d174a9c886e3f17eb8edf617ad014a2ac4f6c2e2ac7f1"
+  },
   "src/Safe/DeputyGuardianModule.sol": {
     "initCodeHash": "0x433eb7488e613a51c7ff05a76bbecf47f5beac8b8614f5c50001f99e39ae7ed2",
     "sourceCodeHash": "0x2919835fc15c166a027b2ff1cf801c847f139948baf2df0db3d02ac3017c09d9"
