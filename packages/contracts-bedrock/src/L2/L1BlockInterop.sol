@@ -36,7 +36,7 @@ contract L1BlockInterop is L1Block {
     /// @notice The chain IDs of the interop dependency set.
     uint256[] public dependencySet;
 
-    /// @custom:semver 1.3.0+interop
+    /// @custom:semver 1.4.0+interop
     function version() public pure override returns (string memory) {
         return string.concat(super.version(), "+interop");
     }

@@ -33,7 +33,7 @@ contract SystemConfigInterop is SystemConfig {
         _;
     }
 
-    /// @custom:semver 2.2.0+interop
+    /// @custom:semver 2.3.0+interop
     function version() public pure override returns (string memory) {
         return string.concat(super.version(), "+interop");
     }

@@ -15,7 +15,7 @@ contract OptimismPortalInterop is OptimismPortal {
     /// @notice Thrown when a non-depositor account attempts update static configuration.
     error Unauthorized();
 
-    /// @custom:semver 2.8.0+interop
+    /// @custom:semver 2.9.0+interop
     function version() public pure override returns (string memory) {
         return string.concat(super.version(), "+interop");
     }
