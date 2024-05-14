@@ -209,6 +209,100 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
     }
 }
 
+contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
+    /// @dev Tests that `setResourceConfig` reverts if the min base fee
+    ///      is greater than the maximum allowed base fee.
+    function test_setResourceConfig_badMinMax_reverts() external {
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 2 gwei,
+            maximumBaseFee: 1 gwei
+        });
+        _initializeWithResourceConfig(config, "SystemConfig: min base fee must be less than max base");
+    }
+
+    /// @dev Tests that `setResourceConfig` reverts if the baseFeeMaxChangeDenominator
+    ///      is zero.
+    function test_setResourceConfig_zeroDenominator_reverts() external {
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 0,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        _initializeWithResourceConfig(config, "SystemConfig: denominator must be larger than 1");
+    }
+
+    /// @dev Tests that `setResourceConfig` reverts if the gas limit is too low.
+    function test_setResourceConfig_lowGasLimit_reverts() external {
+        uint64 gasLimit = systemConfig.gasLimit();
+
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: uint32(gasLimit),
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: uint32(gasLimit),
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        _initializeWithResourceConfig(config, "SystemConfig: gas limit too low");
+    }
+
+    /// @dev Tests that `setResourceConfig` reverts if the elasticity multiplier
+    ///      and max resource limit are configured such that there is a loss of precision.
+    function test_setResourceConfig_badPrecision_reverts() external {
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 11,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        _initializeWithResourceConfig(config, "SystemConfig: precision loss with target resource limit");
+    }
+
+    /// @dev Helper to initialize the system config with a resource config and default values, and expect a revert
+    ///      with the given message.
+    function _initializeWithResourceConfig(
+        ResourceMetering.ResourceConfig memory config,
+        string memory revertMessage
+    )
+        internal
+    {
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        // Fetch the current gas limit
+        uint64 gasLimit = uint64(deploy.cfg().l2GenesisBlockGasLimit());
+
+        vm.expectRevert(bytes(revertMessage));
+        systemConfig.initialize({
+            _owner: address(0xdEaD),
+            _overhead: 0,
+            _scalar: 0,
+            _batcherHash: bytes32(0),
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: address(0),
+            _config: config,
+            _batchInbox: address(0),
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                disputeGameFactory: address(0),
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: address(0)
+            })
+        });
+    }
+}
+
 contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     ERC20 token;
 
@@ -392,13 +486,6 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         systemConfig.setUnsafeBlockSigner(address(0x20));
     }
 
-    /// @dev Tests that `setResourceConfig` reverts if the caller is not the owner.
-    function test_setResourceConfig_notOwner_reverts() external {
-        ResourceMetering.ResourceConfig memory config = Constants.DEFAULT_RESOURCE_CONFIG();
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setResourceConfig(config);
-    }
-
     /// @dev Tests that `setGasLimit` reverts if the gas limit is too low.
     function test_setGasLimit_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
@@ -413,71 +500,6 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         vm.prank(systemConfig.owner());
         vm.expectRevert("SystemConfig: gas limit too high");
         systemConfig.setGasLimit(maximumGasLimit + 1);
-    }
-
-    /// @dev Tests that `setResourceConfig` reverts if the min base fee
-    ///      is greater than the maximum allowed base fee.
-    function test_setResourceConfig_badMinMax_reverts() external {
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            systemTxMaxGas: 1_000_000,
-            minimumBaseFee: 2 gwei,
-            maximumBaseFee: 1 gwei
-        });
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: min base fee must be less than max base");
-        systemConfig.setResourceConfig(config);
-    }
-
-    /// @dev Tests that `setResourceConfig` reverts if the baseFeeMaxChangeDenominator
-    ///      is zero.
-    function test_setResourceConfig_zeroDenominator_reverts() external {
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 0,
-            systemTxMaxGas: 1_000_000,
-            minimumBaseFee: 1 gwei,
-            maximumBaseFee: 2 gwei
-        });
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: denominator must be larger than 1");
-        systemConfig.setResourceConfig(config);
-    }
-
-    /// @dev Tests that `setResourceConfig` reverts if the gas limit is too low.
-    function test_setResourceConfig_lowGasLimit_reverts() external {
-        uint64 gasLimit = systemConfig.gasLimit();
-
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: uint32(gasLimit),
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            systemTxMaxGas: uint32(gasLimit),
-            minimumBaseFee: 1 gwei,
-            maximumBaseFee: 2 gwei
-        });
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: gas limit too low");
-        systemConfig.setResourceConfig(config);
-    }
-
-    /// @dev Tests that `setResourceConfig` reverts if the elasticity multiplier
-    ///      and max resource limit are configured such that there is a loss of precision.
-    function test_setResourceConfig_badPrecision_reverts() external {
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 11,
-            baseFeeMaxChangeDenominator: 8,
-            systemTxMaxGas: 1_000_000,
-            minimumBaseFee: 1 gwei,
-            maximumBaseFee: 2 gwei
-        });
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: precision loss with target resource limit");
-        systemConfig.setResourceConfig(config);
     }
 }
 
