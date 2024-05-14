@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { L1Block } from "src/L2/L1Block.sol";
 import { EnumerableSetLib } from "@solady/utils/EnumerableSetLib.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
 /// @notice Thrown when a non-depositor account attempts to set L1 block values.
 error NotDepositor();
@@ -64,6 +65,17 @@ contract L1BlockInterop is L1Block {
     /// @param _value The encoded value with which to set the configuration.
     function setConfig(ConfigType _type, bytes calldata _value) external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        // For GAS_PAYING_TOKEN config type
+        if (_type == ConfigType.GAS_PAYING_TOKEN) {
+            (address token, uint8 decimals, bytes32 name, bytes32 symbol) =
+                abi.decode(_value, (address, uint8, bytes32, bytes32));
+
+            GasPayingToken.set({ _token: token, _decimals: decimals, _name: name, _symbol: symbol });
+
+            emit GasPayingTokenSet({ token: token, decimals: decimals, name: name, symbol: symbol });
+            return;
+        }
 
         // For ADD_DEPENDENCY config type
         if (_type == ConfigType.ADD_DEPENDENCY) {
