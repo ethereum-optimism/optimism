@@ -149,6 +149,7 @@ func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_unsafe", r)
 	e.unsafeHead = r
 	e.needFCUCall = true
+	e.rollupCfg.CheckForkActivation(e.log, r)
 }
 
 // SetBackupUnsafeL2Head implements LocalEngineControl.
