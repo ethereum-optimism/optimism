@@ -238,7 +238,7 @@ func (g *OutputCannonGameHelper) VerifyPreimage(ctx context.Context, outputRootC
 		g.Require.NotNil(oracleData, "Should have had required preimage oracle data")
 		g.Require.Equal(common.Hash(preimageKey.PreimageKey()).Bytes(), oracleData.OracleKey, "Must have correct preimage key")
 
-		tx, err := g.Game.AddLocalData(g.Opts,
+		tx, err := g.GameBindings.AddLocalData(g.Opts,
 			oracleData.GetIdent(),
 			big.NewInt(outputRootClaim.Index),
 			new(big.Int).SetUint64(uint64(oracleData.OracleOffset)))
@@ -250,7 +250,7 @@ func (g *OutputCannonGameHelper) VerifyPreimage(ctx context.Context, outputRootC
 		g.Require.NoError(err, "Failed to get expected post state")
 
 		callOpts := &bind.CallOpts{Context: ctx}
-		vmAddr, err := g.Game.Vm(callOpts)
+		vmAddr, err := g.GameBindings.Vm(callOpts)
 		g.Require.NoError(err, "Failed to get VM address")
 
 		abi, err := bindings.MIPSMetaData.GetAbi()

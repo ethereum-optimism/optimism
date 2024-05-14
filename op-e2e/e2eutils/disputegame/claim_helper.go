@@ -16,19 +16,19 @@ type ClaimHelper struct {
 	require     *require.Assertions
 	game        *OutputGameHelper
 	Index       int64
-	ParentIndex uint32
+	ParentIndex int
 	Position    types.Position
 	claim       common.Hash
 }
 
-func newClaimHelper(game *OutputGameHelper, idx int64, claim ContractClaim) *ClaimHelper {
+func newClaimHelper(game *OutputGameHelper, idx int64, claim types.Claim) *ClaimHelper {
 	return &ClaimHelper{
 		require:     game.Require,
 		game:        game,
 		Index:       idx,
-		ParentIndex: claim.ParentIndex,
-		Position:    types.NewPositionFromGIndex(claim.Position),
-		claim:       claim.Claim,
+		ParentIndex: claim.ParentContractIndex,
+		Position:    claim.Position,
+		claim:       claim.Value,
 	}
 }
 
@@ -72,8 +72,8 @@ func (c *ClaimHelper) WaitForCounterClaim(ctx context.Context, ignoreClaims ...*
 		// This is the first claim we need to run cannon on, so give it more time
 		timeout = timeout * 2
 	}
-	counterIdx, counterClaim := c.game.waitForClaim(ctx, timeout, fmt.Sprintf("failed to find claim with parent idx %v", c.Index), func(claimIdx int64, claim ContractClaim) bool {
-		return int64(claim.ParentIndex) == c.Index && !containsClaim(claimIdx, ignoreClaims)
+	counterIdx, counterClaim := c.game.waitForClaim(ctx, timeout, fmt.Sprintf("failed to find claim with parent idx %v", c.Index), func(claimIdx int64, claim types.Claim) bool {
+		return int64(claim.ParentContractIndex) == c.Index && !containsClaim(claimIdx, ignoreClaims)
 	})
 	return newClaimHelper(c.game, counterIdx, counterClaim)
 }
@@ -115,7 +115,7 @@ func (c *ClaimHelper) RequireDifferentClaimValue(other *ClaimHelper) {
 func (c *ClaimHelper) RequireOnlyCounteredBy(ctx context.Context, expected ...*ClaimHelper) {
 	claims := c.game.getAllClaims(ctx)
 	for idx, claim := range claims {
-		if int64(claim.ParentIndex) != c.Index {
+		if int64(claim.ParentContractIndex) != c.Index {
 			// Doesn't counter this claim, so ignore
 			continue
 		}
