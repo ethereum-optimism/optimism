@@ -88,11 +88,22 @@ contract PermissionedDisputeGame is FaultDisputeGame {
     }
 
     /// @notice Generic move function, used for both `attack` and `defend` moves.
-    /// @param _challengeIndex The index of the claim being moved against.
+    /// @notice _disputed The disputed `Claim`.
+    /// @param _challengeIndex The index of the claim being moved against. This must match the `_disputed` claim.
     /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
-    function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable override onlyAuthorized {
-        super.move(_challengeIndex, _claim, _isAttack);
+    function move(
+        Claim _disputed,
+        uint256 _challengeIndex,
+        Claim _claim,
+        bool _isAttack
+    )
+        public
+        payable
+        override
+        onlyAuthorized
+    {
+        super.move(_disputed, _challengeIndex, _claim, _isAttack);
     }
 
     /// @inheritdoc IInitializable

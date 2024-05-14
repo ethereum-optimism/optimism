@@ -102,11 +102,10 @@ func (s *GameBuilderSeq) ExpectAttack() *GameBuilderSeq {
 	newPos := s.lastClaim.Position.Attack()
 	value := s.builder.CorrectClaimAtPosition(newPos)
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
-		Type:           types.ActionTypeMove,
-		ParentIdx:      s.lastClaim.ContractIndex,
-		ParentPosition: s.lastClaim.Position,
-		IsAttack:       true,
-		Value:          value,
+		Type:        types.ActionTypeMove,
+		ParentClaim: s.lastClaim,
+		IsAttack:    true,
+		Value:       value,
 	})
 	return s
 }
@@ -115,11 +114,10 @@ func (s *GameBuilderSeq) ExpectDefend() *GameBuilderSeq {
 	newPos := s.lastClaim.Position.Defend()
 	value := s.builder.CorrectClaimAtPosition(newPos)
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
-		Type:           types.ActionTypeMove,
-		ParentIdx:      s.lastClaim.ContractIndex,
-		ParentPosition: s.lastClaim.Position,
-		IsAttack:       false,
-		Value:          value,
+		Type:        types.ActionTypeMove,
+		ParentClaim: s.lastClaim,
+		IsAttack:    false,
+		Value:       value,
 	})
 	return s
 }
@@ -127,13 +125,12 @@ func (s *GameBuilderSeq) ExpectDefend() *GameBuilderSeq {
 func (s *GameBuilderSeq) ExpectStepAttack() *GameBuilderSeq {
 	traceIdx := s.lastClaim.TraceIndex(s.builder.maxDepth)
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
-		Type:           types.ActionTypeStep,
-		ParentIdx:      s.lastClaim.ContractIndex,
-		ParentPosition: s.lastClaim.Position,
-		IsAttack:       true,
-		PreState:       s.builder.CorrectPreState(traceIdx),
-		ProofData:      s.builder.CorrectProofData(traceIdx),
-		OracleData:     s.builder.CorrectOracleData(traceIdx),
+		Type:        types.ActionTypeStep,
+		ParentClaim: s.lastClaim,
+		IsAttack:    true,
+		PreState:    s.builder.CorrectPreState(traceIdx),
+		ProofData:   s.builder.CorrectProofData(traceIdx),
+		OracleData:  s.builder.CorrectOracleData(traceIdx),
 	})
 	return s
 }
@@ -141,13 +138,12 @@ func (s *GameBuilderSeq) ExpectStepAttack() *GameBuilderSeq {
 func (s *GameBuilderSeq) ExpectStepDefend() *GameBuilderSeq {
 	traceIdx := new(big.Int).Add(s.lastClaim.TraceIndex(s.builder.maxDepth), big.NewInt(1))
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
-		Type:           types.ActionTypeStep,
-		ParentIdx:      s.lastClaim.ContractIndex,
-		ParentPosition: s.lastClaim.Position,
-		IsAttack:       false,
-		PreState:       s.builder.CorrectPreState(traceIdx),
-		ProofData:      s.builder.CorrectProofData(traceIdx),
-		OracleData:     s.builder.CorrectOracleData(traceIdx),
+		Type:        types.ActionTypeStep,
+		ParentClaim: s.lastClaim,
+		IsAttack:    false,
+		PreState:    s.builder.CorrectPreState(traceIdx),
+		ProofData:   s.builder.CorrectProofData(traceIdx),
+		OracleData:  s.builder.CorrectOracleData(traceIdx),
 	})
 	return s
 }

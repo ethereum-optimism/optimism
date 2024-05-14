@@ -85,13 +85,12 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim t
 		return nil, nil
 	}
 	return &types.Action{
-		Type:           types.ActionTypeStep,
-		ParentIdx:      step.LeafClaim.ContractIndex,
-		ParentPosition: step.LeafClaim.Position,
-		IsAttack:       step.IsAttack,
-		PreState:       step.PreState,
-		ProofData:      step.ProofData,
-		OracleData:     step.OracleData,
+		Type:        types.ActionTypeStep,
+		ParentClaim: step.LeafClaim,
+		IsAttack:    step.IsAttack,
+		PreState:    step.PreState,
+		ProofData:   step.ProofData,
+		OracleData:  step.OracleData,
 	}, nil
 }
 
@@ -108,10 +107,9 @@ func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, claim t
 		return nil, nil
 	}
 	return &types.Action{
-		Type:           types.ActionTypeMove,
-		IsAttack:       !game.DefendsParent(*move),
-		ParentIdx:      move.ParentContractIndex,
-		ParentPosition: claim.Position,
-		Value:          move.Value,
+		Type:        types.ActionTypeMove,
+		IsAttack:    !game.DefendsParent(*move),
+		ParentClaim: game.Claims()[move.ParentContractIndex],
+		Value:       move.Value,
 	}, nil
 }
