@@ -48,13 +48,6 @@ contract SystemConfigInterop is SystemConfig {
     /// @notice Adds a chain to the interop dependency set. Can only be called by the owner.
     /// @param _chainId Chain ID of chain to add.
     function addDependency(uint256 _chainId) external onlyOwner {
-        _addDependency(_chainId);
-    }
-
-    /// @notice Internal function for adding a chain to the interop dependency set.
-    ///         OptimismPortal must be set before calling this function.
-    /// @param _chainId Chain ID of chain to add.
-    function _addDependency(uint256 _chainId) internal {
         if (optimismPortal().code.length == 0) revert NoCode(optimismPortal());
 
         OptimismPortal(payable(optimismPortal())).setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
@@ -63,13 +56,6 @@ contract SystemConfigInterop is SystemConfig {
     /// @notice Removes a chain from the interop dependency set. Can only be called by the owner.
     /// @param _chainId Chain ID of the chain to remove.
     function removeDependency(uint256 _chainId) external onlyOwner {
-        _addDependency(_chainId);
-    }
-
-    /// @notice Internal function for removing a chain from the interop dependency set.
-    ///         OptimismPortal must be set before calling this function.
-    /// @param _chainId Chain ID of the chain to remove.
-    function _removeDependency(uint256 _chainId) internal {
         if (optimismPortal().code.length == 0) revert NoCode(optimismPortal());
 
         OptimismPortal(payable(optimismPortal())).setConfig(ConfigType.REMOVE_DEPENDENCY, abi.encode(_chainId));
