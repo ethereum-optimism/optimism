@@ -67,7 +67,7 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) (CommitmentData, er
 	}
 
 	if c.precompute { // precompute commitment (only applicable to keccak256)
-		comm := Keccak256Commitment(img)
+		comm := NewKeccak256Commitment(img)
 		if err := c.setInputWithCommit(ctx, comm, img); err != nil {
 			return nil, err
 		}
