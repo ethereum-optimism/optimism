@@ -111,10 +111,6 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.NoError(t, err)
 	require.LessOrEqual(t, seqBlock.NumberU64(), seqStatus.UnsafeL2.Number)
-	// basic check that version endpoint works
-	seqVersion, err := rollupClient.Version(context.Background())
-	require.NoError(t, err)
-	require.NotEqual(t, "", seqVersion)
 
 	// quick check that the batch submitter works
 	require.Eventually(t, func() bool {
@@ -129,13 +125,14 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "receipt block must match canonical block at tx inclusion height")
 
-	// find L1 block that contained the blob(s) batch tx
+	// find L1 block that contained the blob batch tx
 	tip, err := l1Client.HeaderByNumber(context.Background(), nil)
 	require.NoError(t, err)
 	_, err = gethutils.FindBlock(l1Client, int(tip.Number.Int64()), 0, 5*time.Second,
 		func(b *types.Block) (bool, error) {
-			// check that the transaction exists in the L1 block
+			// check that the blob transaction exists in the L1 block
 			require.Equal(t, b.Transactions().Len(), 1)
+			require.Equal(t, int(b.Transactions()[0].Type()), types.BlobTxType)
 			return true, nil
 		})
 	require.NoError(t, err)
