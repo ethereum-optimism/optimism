@@ -245,6 +245,8 @@ contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, Liveness
             privateKeys[ownerAddrs[i]] = ownerkeys[i];
         }
 
+        // Override the saltNonce to ensure prevent a create2 collision.
+        saltNonce = uint256(keccak256(bytes("LIVENESS GUARD OWNER MANAGEMENT TEST")));
         // Create the new safe and register the guard.
         SafeInstance memory safeInstance = _setupSafe(ownerkeys, threshold);
         livenessGuard = new WrappedGuard(safeInstance.safe);
