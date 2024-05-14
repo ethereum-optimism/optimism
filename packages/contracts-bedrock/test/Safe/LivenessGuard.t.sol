@@ -28,14 +28,20 @@ contract LivenessGuard_TestInit is Test, SafeTestTools {
 
     event OwnerRecorded(address owner);
 
-    uint256 initTime = 10;
     WrappedGuard livenessGuard;
     SafeInstance safeInstance;
+
+    // This needs to be non-zero so that the `lastLive` mapping can record non-zero timestamps
+    uint256 initTime = 10;
+    // These values reflect the planned state of the mainnet Security Council Safe.
+    uint256 threshold = 10;
+    uint256 ownerCount = 13;
 
     /// @dev Sets up the test environment
     function setUp() public {
         vm.warp(initTime);
-        safeInstance = _setupSafe();
+        (, uint256[] memory privKeys) = SafeTestLib.makeAddrsAndKeys("test-owners", ownerCount);
+        safeInstance = _setupSafe(privKeys, threshold);
         livenessGuard = new WrappedGuard(safeInstance.safe);
         safeInstance.setGuard(address(livenessGuard));
     }
@@ -88,8 +94,10 @@ contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
         // Create an array of the addresses who will sign the transaction. SafeTestTools
         // will generate these signatures up to the threshold by iterating over the owners array.
         address[] memory signers = new address[](safeInstance.threshold);
-        signers[0] = safeInstance.owners[0];
-        signers[1] = safeInstance.owners[1];
+        // copy the first threshold owners into the signers array
+        for (uint256 i; i < safeInstance.threshold; i++) {
+            signers[i] = safeInstance.owners[i];
+        }
 
         // Record the timestamps before the transaction
         uint256[] memory beforeTimestamps = new uint256[](safeInstance.owners.length);

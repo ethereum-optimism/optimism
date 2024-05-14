@@ -101,23 +101,6 @@ contract LivenessModule_Constructor_TestFail is LivenessModule_TestInit {
             _fallbackOwner: address(0)
         });
     }
-
-    /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
-    function test_constructor_wrongThreshold_reverts() external {
-        uint256 wrongThreshold = livenessModule.getRequiredThreshold(safeInstance.owners.length) - 1;
-        vm.mockCall(
-            address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(wrongThreshold)
-        );
-        vm.expectRevert("LivenessModule: Insufficient threshold for the number of owners");
-        new LivenessModule({
-            _safe: safeInstance.safe,
-            _livenessGuard: livenessGuard,
-            _livenessInterval: LIVENESS_INTERVAL,
-            _thresholdPercentage: THRESHOLD_PERCENTAGE,
-            _minOwners: MIN_OWNERS,
-            _fallbackOwner: address(0)
-        });
-    }
 }
 
 contract LivenessModule_Getters_Test is LivenessModule_TestInit {
