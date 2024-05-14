@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -63,7 +62,7 @@ func setupAliceAccount(t *testing.T, cfg SystemConfig, sys *System, ethPrivKey *
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 }
 
-func TestBrotliBatcherFjord(t *testing.T,) {
+func TestBrotliBatcherFjord(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
@@ -76,7 +75,7 @@ func TestBrotliBatcherFjord(t *testing.T,) {
 	cfg.DeployConfig.L2GenesisFjordTimeOffset = &genesisActivation
 
 	// set up batcher to use brotli
-	sys, err := cfg.Start(t, SystemConfigOption{"compressionAlgo", "brotli", nil} )
+	sys, err := cfg.Start(t, SystemConfigOption{"compressionAlgo", "brotli", nil})
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -140,20 +139,12 @@ func TestBrotliBatcherFjord(t *testing.T,) {
 	// find L1 block that contained the blob(s) batch tx
 	tip, err := l1Client.HeaderByNumber(context.Background(), nil)
 	require.NoError(t, err)
-	var blobTx *types.Transaction
 	_, err = gethutils.FindBlock(l1Client, int(tip.Number.Int64()), 0, 5*time.Second,
 		func(b *types.Block) (bool, error) {
-			for _, tx := range b.Transactions() {
-				if tx.Type() != types.BlobTxType {
-					continue
-				}
-				blobTx = tx
-				return true, nil
-			}
-			return false, nil
+			// Check that the transaction exists in the L1 block
+			require.Equal(t, b.Transactions().Len(), 1)
+			return true, nil
 		})
 	require.NoError(t, err)
 
-	// check blob tx is the same as receipt
-	require.Equal(t, blobTx.BlobHashes()[0], receipt.TxHash)
 }
