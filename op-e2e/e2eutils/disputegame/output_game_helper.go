@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -19,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -436,13 +434,10 @@ func (g *OutputGameHelper) WaitForInactivity(ctx context.Context, numInactiveBlo
 
 func (g *OutputGameHelper) WaitForL2BlockNumberChallenged(ctx context.Context) {
 	g.T.Logf("Waiting for game %v to have L2 block number challenged", g.Addr)
-	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, g.Addr, caller)
-	g.Require.NoError(err)
 	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	err = wait.For(timedCtx, time.Second, func() (bool, error) {
-		return contract.IsL2BlockNumberChallenged(ctx, rpcblock.Latest)
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		return g.Game.IsL2BlockNumberChallenged(ctx, rpcblock.Latest)
 	})
 	g.Require.NoError(err, "L2 block number was not challenged in time")
 }
@@ -709,10 +704,7 @@ func (g *OutputGameHelper) UploadPreimage(ctx context.Context, data *types.Preim
 }
 
 func (g *OutputGameHelper) oracle(ctx context.Context) *contracts.PreimageOracleContract {
-	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, g.Addr, caller)
-	g.Require.NoError(err)
-	oracle, err := contract.GetOracle(ctx)
+	oracle, err := g.Game.GetOracle(ctx)
 	g.Require.NoError(err, "Failed to create oracle contract")
 	return oracle
 }
