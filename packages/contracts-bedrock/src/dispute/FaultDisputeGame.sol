@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { FixedPointMathLib } from "@solady-v0.0.158/utils/FixedPointMathLib.sol";
 
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
@@ -10,7 +10,7 @@ import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
-import { Clone } from "@solady/utils/Clone.sol";
+import { Clone } from "@solady-v0.0.158/utils/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 

@@ -5,7 +5,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { LibZip } from "@solady/utils/LibZip.sol";
+import { LibZip } from "@solady-v0.0.158/utils/LibZip.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x420000000000000000000000000000000000000F
