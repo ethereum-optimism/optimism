@@ -15,12 +15,6 @@ contract OptimismPortalInterop is OptimismPortal {
     /// @notice Thrown when a non-depositor account attempts update static configuration.
     error Unauthorized();
 
-    /// @notice Reverts when the caller is not the SystemConfig contract.
-    modifier onlySystemConfig() {
-        if (msg.sender != address(systemConfig)) revert Unauthorized();
-        _;
-    }
-
     /// @custom:semver 2.8.0+interop
     function version() public pure override returns (string memory) {
         return string.concat(super.version(), "+interop");
