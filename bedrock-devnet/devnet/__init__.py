@@ -170,7 +170,7 @@ def devnet_l2_allocs(paths):
 
     # For the previous forks, and the latest fork (default, thus empty prefix),
     # move the forge-dumps into place as .devnet allocs.
-    for suffix in ["-delta", ""]:
+    for suffix in ["-delta", "-ecotone", ""]:
         input_path = pjoin(paths.contracts_bedrock_dir, f"state-dump-901{suffix}.json")
         output_path = pjoin(paths.devnet_dir, f'allocs-l2{suffix}.json')
         shutil.move(src=input_path, dst=output_path)
