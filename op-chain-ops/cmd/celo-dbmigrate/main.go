@@ -20,7 +20,7 @@ import (
 // You can set the log level using the -verbosity flag
 // The number of ancient records to migrate in one batch can be set using the -batchSize flag
 // The default batch size is 1000
-// You can set a memory limit in MB using the -memoryLimit flag. Defaults to 7500 MB
+// You can set a memory limit in MB using the -memoryLimit flag. Defaults to 7500 MB. Make sure to set a limit that is less than your machine's available memory.
 // Use -clear-all to start with a fresh new database
 // Use -clear-nonAncients to keep migrated ancients, but not non-ancients
 
