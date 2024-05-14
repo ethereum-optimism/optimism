@@ -60,7 +60,6 @@ contract L1BlockInteropTest is Test {
         assertEq(l1Block.batcherHash(), _batcherHash);
         assertEq(l1Block.dependencySetSize(), _dependencySet.length);
         for (uint256 i = 0; i < _dependencySet.length; i++) {
-            assertEq(l1Block.dependencySet(i), _dependencySet[i]);
             assertTrue(l1Block.isInDependencySet(_dependencySet[i]));
         }
 

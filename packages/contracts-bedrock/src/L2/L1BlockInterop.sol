@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { L1Block } from "src/L2/L1Block.sol";
+import { EnumerableSetLib } from "@solady/utils/EnumerableSetLib.sol";
 
 /// @notice Thrown when a non-depositor account attempts to set L1 block values.
 error NotDepositor();
@@ -27,14 +28,16 @@ enum ConfigType {
 /// @title L1BlockInterop
 /// @notice Interop extenstions of L1Block.
 contract L1BlockInterop is L1Block {
+    using EnumerableSetLib for EnumerableSetLib.Uint256Set;
+
     /// @notice Event emitted when a new dependency is added to the interop dependency set.
     event DependencyAdded(uint256 indexed chainId);
 
     /// @notice Event emitted when a dependency is removed from the interop dependency set.
     event DependencyRemoved(uint256 indexed chainId);
 
-    /// @notice The chain IDs of the interop dependency set.
-    uint256[] public dependencySet;
+    /// @notice The interop dependency set, containing the chain IDs in it.
+    EnumerableSetLib.Uint256Set public dependencySet;
 
     /// @custom:semver 1.4.0+interop
     function version() public pure override returns (string memory) {
@@ -42,32 +45,17 @@ contract L1BlockInterop is L1Block {
     }
 
     /// @notice Returns true if a chain ID is in the interop dependency set and false otherwise.
-    ///         Every chain ID is in the interop dependency set of itself.
+    ///         The chain's chain ID is always considered to be in the dependency set.
     /// @param _chainId The chain ID to check.
     /// @return True if the chain ID to check is in the interop dependency set. False otherwise.
     function isInDependencySet(uint256 _chainId) public view returns (bool) {
-        // Every chain ID is in the interop dependency set of itself.
-        if (_chainId == block.chainid) {
-            return true;
-        }
-
-        uint256 length = dependencySet.length;
-        for (uint256 i = 0; i < length;) {
-            if (dependencySet[i] == _chainId) {
-                return true;
-            }
-            unchecked {
-                i++;
-            }
-        }
-
-        return false;
+        return _chainId == block.chainid || dependencySet.contains(_chainId);
     }
 
     /// @notice Returns the size of the interop dependency set.
     /// @return The size of the interop dependency set.
     function dependencySetSize() external view returns (uint8) {
-        return uint8(dependencySet.length);
+        return uint8(dependencySet.length());
     }
 
     /// @notice Sets static configuration options for the L2 system. Can only be called by the special
@@ -81,7 +69,7 @@ contract L1BlockInterop is L1Block {
         if (_type == ConfigType.ADD_DEPENDENCY) {
             uint256 chainId = abi.decode(_value, (uint256));
 
-            dependencySet.push(chainId);
+            dependencySet.add(chainId);
 
             emit DependencyAdded(chainId);
             return;
@@ -91,21 +79,7 @@ contract L1BlockInterop is L1Block {
         if (_type == ConfigType.REMOVE_DEPENDENCY) {
             uint256 chainId = abi.decode(_value, (uint256));
 
-            uint256 length = dependencySet.length;
-            for (uint256 i = 0; i < length;) {
-                if (dependencySet[i] == chainId) {
-                    dependencySet[i] = dependencySet[length - 1];
-                    dependencySet.pop();
-
-                    emit DependencyRemoved(chainId);
-                    return;
-                }
-                unchecked {
-                    i++;
-                }
-            }
-
-            revert NotDependency();
+            if (!dependencySet.remove(chainId)) revert NotDependency();
         }
     }
 }
