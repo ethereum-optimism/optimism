@@ -404,7 +404,9 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
 
         // Ensure that the LivenessModule's removeOwners function is now disabled
         assertTrue(livenessModule.ownershipTransferredToFallback());
-        vm.expectRevert("LivenessModule: The safe has been shutdown, the LivenessModule should be removed or replaced.");
+        vm.expectRevert(
+            "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
+        );
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 }
@@ -555,7 +557,7 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
                 // Ensure that the LivenessModule's removeOwners function is now disabled
                 assertTrue(livenessModule.ownershipTransferredToFallback());
                 vm.expectRevert(
-                    "LivenessModule: The safe has been shutdown, the LivenessModule should be removed or replaced."
+                    "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
                 );
                 livenessModule.removeOwners(prevOwners, ownersToRemove);
             } else {

@@ -137,7 +137,7 @@ contract LivenessModule is ISemver {
         address[] memory currentOwners = SAFE.getOwners();
         require(
             !ownershipTransferredToFallback,
-            "LivenessModule: The safe has been shutdown, the LivenessModule should be removed or replaced."
+            "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
         );
 
         // Initialize the ownersCount count to the current number of owners, so that we can track the number of
