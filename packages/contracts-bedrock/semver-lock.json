@@ -32,7 +32,7 @@
     "sourceCodeHash": "0xf5fcf570721e25459fadbb37e02f9efe349e1c8afcbf1e3b5fdb09c9f612cdc0"
   },
   "src/L1/OptimismPortal.sol": {
-    "initCodeHash": "0xe7aa232aaf0826d0d9129e2fae35979e9d5ad8dbf0d8d23886a5ef851e3f3a81",
+    "initCodeHash": "0x00fa38ade9a5665704e7d826923889cb6688e59b523a21ab826f5ee7652d2e87",
     "sourceCodeHash": "0xd3450653cecc14bf8fbc21f2fa9b4a5fde348c2b6313d72e74e08666201295a2"
   },
   "src/L1/OptimismPortal2.sol": {
@@ -48,8 +48,8 @@
     "sourceCodeHash": "0xd6a894e371c2c7182b5960c507491f81c3775dda0efedd29475f7c30ca07b004"
   },
   "src/L1/SystemConfig.sol": {
-    "initCodeHash": "0xa7419d85404d5ea842025ad8fdffb7a0edbb80ef3e6e454b593d50e6bb0ca6e4",
-    "sourceCodeHash": "0xb29beac61b1f4d0ac7ef0f2b3201eb19b5e6f0c1c2b08892268f38fcb4166066"
+    "initCodeHash": "0xebc600cf619a65f953162aaf9c70756007a15eb6b2a316babe8a158ff29e79da",
+    "sourceCodeHash": "0xd94e439de2426306ce7d51ec11b6169607f09c2d849dea28ed97ee9079578c74"
   },
   "src/L2/BaseFeeVault.sol": {
     "initCodeHash": "0x2744d34573be83206d1b75d049d18a7bb37f9058e68c0803e5008c46b0dc2474",
@@ -183,3 +183,4 @@
     "initCodeHash": "0xb656d2aa6aff3e6435e747a0c23236d1b66f1f5c0b45e4b1a10d290a90223c5a",
     "sourceCodeHash": "0xebfc968e6b78d7ea355547d427300739f14d000a11ff35f29d9ded3ddb7882da"
   }
+}

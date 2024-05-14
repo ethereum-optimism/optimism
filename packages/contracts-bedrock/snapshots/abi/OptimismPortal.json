@@ -535,4 +535,15 @@
     "inputs": [],
     "name": "SmallGasLimit",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedList",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedString",
+    "type": "error"
   }
+]

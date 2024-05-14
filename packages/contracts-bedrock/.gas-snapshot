@@ -8,4 +8,4 @@ GasBenchMark_L1StandardBridge_Finalize:test_finalizeETHWithdrawal_benchmark() (g
 GasBenchMark_L2OutputOracle:test_proposeL2Output_benchmark() (gas: 92950)
 GasBenchMark_OptimismPortal:test_depositTransaction_benchmark() (gas: 68354)
 GasBenchMark_OptimismPortal:test_depositTransaction_benchmark_1() (gas: 69018)
-GasBenchMark_OptimismPortal:test_proveWithdrawalTransaction_benchmark() (gas: 155567)
+GasBenchMark_OptimismPortal:test_proveWithdrawalTransaction_benchmark() (gas: 155573)
