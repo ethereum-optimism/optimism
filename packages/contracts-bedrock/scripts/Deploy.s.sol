@@ -11,9 +11,13 @@ import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
 import { Deployer } from "scripts/Deployer.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { SimpleStorage } from "src/L2/SimpleStorage.sol";
+import { SimpleStorage2 } from "src/L2/SimpleStorage2.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
@@ -153,7 +157,8 @@ contract Deploy is Deployer {
             SystemConfig: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
-            SuperchainConfig: mustGetAddress("SuperchainConfigProxy")
+            SuperchainConfig: mustGetAddress("SuperchainConfigProxy"),
+            SimpleStorage: mustGetAddress("SimpleStorageProxy")
         });
     }
 
@@ -172,7 +177,8 @@ contract Deploy is Deployer {
             SystemConfig: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
-            SuperchainConfig: getAddress("SuperchainConfigProxy")
+            SuperchainConfig: getAddress("SuperchainConfigProxy"),
+            SimpleStorage: getAddress("SimpleStorageProxy")
         });
     }
 
@@ -263,49 +269,65 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
         console.log("Deploying...");
-        //address l2ProxyAdminOwner = 0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D;
-        //console.log(l2ProxyAdminOwner);
-        //_run(l2ProxyAdminOwner);
-        _run();
+        // _run();
+        _run2();
     }
 
-    // function runWithStateDump() public {
-    //     vm.chainId(cfg.l1ChainID());
-    //     _run();
-    //     vm.dumpState(Config.stateDumpPath(""));
-    // }
-
-    // /// @notice Deploy all L1 contracts and write the state diff to a file.
-    // function runWithStateDiff() public stateDiff {
-    //     _run();
-    // }
-
-    /// @notice Internal function containing the deploy logic.
     function _run() internal virtual {
-        console.log("Starting...");
+        console.log("Starting deployment process...");
+
+        console.log("Current msg.sender: %s", msg.sender);
+
         deployAddressManager();
-        address l2proxyAdminOwner = 0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D; // Aliased L1 Safe.
-        address l2ProxyAdminImpl = deployProxyAdmin(l2proxyAdminOwner); // Set this from proxy level again?
-        console.log("Current sender: %s", msg.sender);
+
+        // 0xd7e14964d3D4A7F23442f09a02dAdF6BfDf5B3FC + 0x1111000000000000000000000000000000001111 = 0xe8f2...5C50D
+        // https://sepolia.etherscan.io/address/0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D
+        address aliasedL2ProxyAdminOwner = 0xe8f24964D3D4A7f23442f09A02dAdf6BFdf5C50D; // Aliased L1 Safe
+        address l2ProxyAdminImpl = deployProxyAdmin(aliasedL2ProxyAdminOwner); // Deploy the proxy admin implementation
+
         address proxyAdminProxy = deployERC1967ProxyWithOwner("ProxyAdminProxy", msg.sender);
-        console.log("Deployed proxy for ProxyAdmin.");
-        address currentProxyAdminProxyOwner = Proxy(payable(proxyAdminProxy)).admin();
-        console.log("currentProxyAdminProxyOwner %s", currentProxyAdminProxyOwner);
-        Proxy(payable(proxyAdminProxy)).upgradeTo(l2ProxyAdminImpl);
-        Proxy(payable(proxyAdminProxy)).changeAdmin(proxyAdminProxy);
+        console.log("Deployed proxy for ProxyAdmin: %s", proxyAdminProxy);
 
-        _runDeploySimpleProxy(proxyAdminProxy);
+        vm.startBroadcast(msg.sender);
+
+        address adminOfProxyProxyAdmin = Proxy(payable(proxyAdminProxy)).admin();
+        console.log("Current admin for ProxyAdminProxy: %s", adminOfProxyProxyAdmin);
+
+        // Set initial storage slot and upgrade the proxy to include the admin implementation
+        Proxy(payable(proxyAdminProxy)).setStorageSlot0(msg.sender); // https://networks.optimism.io/op-sepolia/genesis.json and ctrl + f for "4200000000000000000000000000000000000018": - Look at storage slot 0
+        Proxy(payable(proxyAdminProxy)).upgradeToAndCall(l2ProxyAdminImpl, abi.encodeCall(Ownable.transferOwnership, aliasedL2ProxyAdminOwner));
+        console.log("Upgraded Proxy for ProxyAdmin to include the ProxyAdmin implementation.");
+
+        address proxyAdminOwnerAfterTransfer = ProxyAdmin(payable(proxyAdminProxy)).owner();
+        console.log("ProxyAdminProxy Owner After Transfer: %s", proxyAdminOwnerAfterTransfer);
+
+        Proxy(payable(proxyAdminProxy)).changeAdmin(proxyAdminProxy); // This is because on mainnet the ProxyAdminProxy owns itself.
+
+        vm.stopBroadcast();
+
+        vm.prank(address(0));
+        address adminOfProxyProxyAdminAfter = Proxy(payable(proxyAdminProxy)).admin();
+        console.log("Current admin for ProxyAdminProxy After changeAdmin: %s", adminOfProxyProxyAdminAfter);
+
+        address simpleStorageProxy = deployERC1967ProxyWithOwner("SimpleStorageProxy", msg.sender);
+        address simpleStorageImpl = deploySimpleStorage();
         console.log("Deployed L2ProxyAdmin Proxy: %s", proxyAdminProxy);
-        console.log("Deployed L2ProxyAdmin Impl: %s", l2ProxyAdminImpl);
+        console.log("Deployed L2ProxyAdmin Implementation: %s", l2ProxyAdminImpl);
+
+        console.log("Deployed SimpleStorage Proxy: %s", simpleStorageProxy);
+        console.log("Deployed SimpleStorage Implementation: %s", simpleStorageImpl);
+        vm.startBroadcast(msg.sender);
+        Proxy(payable(simpleStorageProxy)).upgradeToAndCall(simpleStorageImpl, abi.encodeCall(SimpleStorage.set, uint256(7)));
+        Proxy(payable(simpleStorageProxy)).changeAdmin(proxyAdminProxy);
+        vm.stopBroadcast();
+        console.log("Set the SimpleStorage Implementation contract on the SimpleStorageProxy.");
     }
 
-    function _runDeploySimpleProxy(address l2ProxyAdmin) internal virtual {
-        console.log("Starting...");
-        deployERC1967ProxyWithOwner("ProtocolVersionsProxy", l2ProxyAdmin);
-        deployProtocolVersions();
-        initializeProtocolVersions(l2ProxyAdmin);
-        console.log("Simple Proxy Deployed.");
+    function _run2() internal virtual {
+        address simpleStorage2Impl = deploySimpleStorage2();
+        console.log("SimpleStorage2 Implementation address: %s", simpleStorage2Impl);
     }
+
 
     ////////////////////////////////////////////////////////////////
     //           High Level Deployment Functions                  //
@@ -494,7 +516,7 @@ contract Deploy is Deployer {
         console.log("Deploying ProxyAdmin");
         ProxyAdmin admin = new ProxyAdmin({ _owner: msg.sender });
         address currentOwner = admin.owner();
-        // console.log(currentOwner);
+        console.log("Current owner on ProxyAdmin Impl contract: ", currentOwner);
         require(currentOwner == msg.sender);
 
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
@@ -770,6 +792,25 @@ contract Deploy is Deployer {
 
         addr_ = address(versions);
     }
+
+    function deploySimpleStorage() public broadcast returns (address addr_) {
+        console.log("Deploying SimpleStorage implementation");
+        SimpleStorage simpleStorage = new SimpleStorage();
+        console.log("SimpleStorage deployed");
+        console.log("Saved SimpleStorage Address");
+        console.log("SimpleStorage deployed at %s", address(simpleStorage));
+        addr_ = address(simpleStorage);
+    }
+
+    function deploySimpleStorage2() public broadcast returns (address addr_) {
+        console.log("Deploying SimpleStorage2 implementation");
+        SimpleStorage2 simpleStorage = new SimpleStorage2();
+        console.log("SimpleStorage2 deployed");
+        console.log("Saved SimpleStorage2 Address");
+        console.log("SimpleStorage2 deployed at %s", address(simpleStorage));
+        addr_ = address(simpleStorage);
+    }
+
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public broadcast returns (address addr_) {

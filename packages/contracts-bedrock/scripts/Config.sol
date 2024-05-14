@@ -24,7 +24,10 @@ library Config {
         if (vm.isContext(VmSafe.ForgeContext.TestGroup)) {
             _env = string.concat(vm.projectRoot(), "/deploy-config/hardhat.json");
         } else {
-            _env = vm.envOr("DEPLOY_CONFIG_PATH", string("/Users/blaine/code/optimism/packages/contracts-bedrock/deploy-config/sepolia-devnet-0.json"));
+            _env = vm.envOr(
+                "DEPLOY_CONFIG_PATH",
+                string("/Users/blaine/code/optimism/packages/contracts-bedrock/deploy-config/sepolia-devnet-0.json")
+            );
             require(bytes(_env).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
         }
     }

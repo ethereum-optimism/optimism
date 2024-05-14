@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Constants } from "src/libraries/Constants.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 /// @title Proxy
 /// @notice Proxy is a transparent proxy that passes through the call if the caller is the owner or
@@ -25,8 +24,6 @@ contract Proxy {
     ///         inspection. We assume that nobody is able to trigger calls from address(0) during
     ///         normal EVM execution.
     modifier proxyCallIfNotAdmin() {
-        console.log(_getAdmin());
-        console.log(msg.sender);
         if (msg.sender == _getAdmin() || msg.sender == address(0)) {
             _;
         } else {
@@ -109,6 +106,13 @@ contract Proxy {
             sstore(proxyImplementation, _implementation)
         }
         emit Upgraded(_implementation);
+    }
+
+    function setStorageSlot0(address _value) public {
+        require(msg.sender == _getAdmin(), "Unauthorized");
+        assembly {
+            sstore(0, _value)
+        }
     }
 
     /// @notice Changes the owner of the proxy contract.
