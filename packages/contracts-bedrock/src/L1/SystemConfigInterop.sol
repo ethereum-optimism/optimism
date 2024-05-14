@@ -8,13 +8,30 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ConfigType } from "src/L2/L1BlockInterop.sol";
 
+/// @notice Error thrown when an address has no code.
+error NoCode(address);
+
 /// @title SystemConfigInterop
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
 contract SystemConfigInterop is SystemConfig {
-    /// @notice Error thrown when the OptimismPortal address is not set.
-    error OptimismPortalNotSet();
+    /// @notice Modifier to check if an address has code.
+    /// @param _address Address to check.
+    /// @param _check Boolean to determine if the check should be performed.
+    modifier mustHaveCode(address _address, bool _check) {
+        if (_check) {
+            assembly {
+                let size := extcodesize(_address)
+                // Revert if the code size is 0.
+                if iszero(size) {
+                    mstore(0x00, 0x674520b6) // 0x674520b6 is the 4-byte selector of "NoCode(address)"
+                    revert(0x1C, 0x04) // returns the stored 4-byte selector from above
+                }
+            }
+        }
+        _;
+    }
 
     /// @custom:semver 2.2.0+interop
     function version() public pure override returns (string memory) {
@@ -28,9 +45,12 @@ contract SystemConfigInterop is SystemConfig {
     ///         OptimismPortal's address must be non zero, since otherwise the call to set the
     ///         config for the gas paying token to OptimismPortal will fail.
     /// @param _token Address of the gas paying token.
-    function _setGasPayingToken(address _token) internal override {
+    function _setGasPayingToken(address _token)
+        internal
+        override
+        mustHaveCode(optimismPortal(), _token != address(0) && _token != Constants.ETHER && !isCustomGasToken())
+    {
         if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
-            if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
             );
@@ -54,9 +74,7 @@ contract SystemConfigInterop is SystemConfig {
     /// @notice Internal function for adding a chain to the interop dependency set.
     ///         OptimismPortal must be set before calling this function.
     /// @param _chainId Chain ID of chain to add.
-    function _addDependency(uint256 _chainId) internal {
-        if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
-
+    function _addDependency(uint256 _chainId) internal mustHaveCode(optimismPortal(), true) {
         OptimismPortal(payable(optimismPortal())).setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
     }
 
@@ -69,9 +87,7 @@ contract SystemConfigInterop is SystemConfig {
     /// @notice Internal function for removing a chain from the interop dependency set.
     ///         OptimismPortal must be set before calling this function.
     /// @param _chainId Chain ID of the chain to remove.
-    function _removeDependency(uint256 _chainId) internal {
-        if (optimismPortal() == address(0)) revert OptimismPortalNotSet();
-
+    function _removeDependency(uint256 _chainId) internal mustHaveCode(optimismPortal(), true) {
         OptimismPortal(payable(optimismPortal())).setConfig(ConfigType.REMOVE_DEPENDENCY, abi.encode(_chainId));
     }
 }
