@@ -111,10 +111,9 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
 
     /// @dev Tests that Fjord cannot be activated without activating Ecotone
     function test_setFjord_withoutEcotone_reverts() external {
-        vm.startPrank(depositor);
+        vm.prank(depositor);
         vm.expectRevert("GasPriceOracle: Fjord can only be activated after Ecotone");
         gasPriceOracle.setFjord();
-        vm.stopPrank();
     }
 }
 

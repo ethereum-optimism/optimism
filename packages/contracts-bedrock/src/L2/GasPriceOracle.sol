@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { LibZip } from "@solady/utils/LibZip.sol";
 
 /// @custom:proxied
@@ -31,9 +32,11 @@ contract GasPriceOracle is ISemver {
     /// @notice This is the intercept value for the linear regression used to estimate the final size of the
     ///         compressed transaction.
     int32 private constant COST_INTERCEPT = -42_585_600;
+
     /// @notice This is the coefficient value for the linear regression used to estimate the final size of the
     ///         compressed transaction.
     uint32 private constant COST_FASTLZ_COEF = 836_500;
+
     /// @notice This is the minimum bound for the fastlz to brotli size estimation. Any estimations below this
     ///         are set to this value.
     uint256 private constant MIN_TRANSACTION_SIZE = 100;
@@ -77,7 +80,7 @@ contract GasPriceOracle is ISemver {
     /// @notice Set chain to be Ecotone chain (callable by depositor account)
     function setEcotone() external {
         require(
-            msg.sender == L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT(),
+            msg.sender == Constants.DEPOSITOR_ACCOUNT,
             "GasPriceOracle: only the depositor account can set isEcotone flag"
         );
         require(isEcotone == false, "GasPriceOracle: Ecotone already active");
@@ -87,8 +90,7 @@ contract GasPriceOracle is ISemver {
     /// @notice Set chain to be Fjord chain (callable by depositor account)
     function setFjord() external {
         require(
-            msg.sender == L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT(),
-            "GasPriceOracle: only the depositor account can set isFjord flag"
+            msg.sender == Constants.DEPOSITOR_ACCOUNT, "GasPriceOracle: only the depositor account can set isFjord flag"
         );
         require(isEcotone, "GasPriceOracle: Fjord can only be activated after Ecotone");
         require(isFjord == false, "GasPriceOracle: Fjord already active");
