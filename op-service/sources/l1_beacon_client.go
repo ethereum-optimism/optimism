@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/ethereum/go-ethereum"
@@ -120,16 +121,12 @@ func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSide
 	reqPath := path.Join(sidecarsMethodPrefix, strconv.FormatUint(slot, 10))
 	var reqQuery url.Values
 	if !fetchAllSidecars {
-		indexString := ""
+		indices := []string{}
 		for i := range hashes {
-			if i != 0 {
-				// Prepend a comma for all but the first index in comma-separated list
-				indexString += ","
-			}
-			indexString += strconv.FormatUint(hashes[i].Index, 10)
+			indices = append(indices, strconv.FormatUint(hashes[i].Index, 10))
 		}
 		reqQuery = url.Values{}
-		reqQuery.Add("indices", indexString)
+		reqQuery.Add("indices", strings.Join(indices, ","))
 	}
 	var resp eth.APIGetBlobSidecarsResponse
 	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {

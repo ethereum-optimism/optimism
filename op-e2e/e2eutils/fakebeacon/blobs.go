@@ -87,15 +87,16 @@ func (f *FakeBeacon) Start(addr string) error {
 		}
 
 		query := r.URL.Query()
-		rawIndices := query["indices"]
+		rawIndices := query.Get("indices")
 		indices := make([]uint64, 0, len(bundle.Blobs))
-		if len(rawIndices) == 0 {
+		if rawIndices == "" {
 			// request is for all blobs
 			for i := range bundle.Blobs {
 				indices = append(indices, uint64(i))
 			}
 		} else {
-			for _, raw := range rawIndices {
+			rawIndexSlice := strings.Split(rawIndices, ",")
+			for _, raw := range rawIndexSlice {
 				ix, err := strconv.ParseUint(raw, 10, 64)
 				if err != nil {
 					f.log.Error("could not parse index from request", "url", r.URL)
