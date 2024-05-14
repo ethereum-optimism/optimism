@@ -25,13 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestSystem4844E2E runs the SystemE2E test with 4844 enabled on L1,
-// and active on the rollup in the op-batcher and verifier.
-// func TestSystem4844E2E(t *testing.T) {
-// 	t.Run("single-blob", func(t *testing.T) { testSystem4844E2E(t, false) })
-// 	t.Run("multi-blob", func(t *testing.T) { testSystem4844E2E(t, true) })
-// }
-
 func setupAliceAccount(t *testing.T, cfg SystemConfig, sys *System, ethPrivKey *ecdsa.PrivateKey) {
 	l1Client := sys.Clients["l1"]
 	l2Verif := sys.Clients["verifier"]
@@ -141,10 +134,9 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	require.NoError(t, err)
 	_, err = gethutils.FindBlock(l1Client, int(tip.Number.Int64()), 0, 5*time.Second,
 		func(b *types.Block) (bool, error) {
-			// Check that the transaction exists in the L1 block
+			// check that the transaction exists in the L1 block
 			require.Equal(t, b.Transactions().Len(), 1)
 			return true, nil
 		})
 	require.NoError(t, err)
-
 }

@@ -827,9 +827,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	var compressionAlgo derive.CompressionAlgo = derive.Zlib
-	// If setting has brotli key, set the compression algo as brotli
+	// if opt has brotli key, set the compression algo as brotli
 	if _, ok := opts.Get("compressionAlgo", "brotli"); ok {
-		fmt.Println("setting as brotli")
 		compressionAlgo = derive.Brotli10
 	}
 
