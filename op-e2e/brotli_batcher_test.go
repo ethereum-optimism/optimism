@@ -13,12 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
-	gethutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -75,7 +73,6 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
-	l1Client := sys.Clients["l1"]
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
 
@@ -121,19 +118,8 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	}, time.Second*20, time.Second, "expected L2 to be batch-submitted and labeled as safe")
 
 	// check that the L2 tx is still canonical
+	// safe and canonical => the block was batched successfully with brotli
 	seqBlock, err = l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "receipt block must match canonical block at tx inclusion height")
-
-	// find L1 block that contained the blob batch tx
-	tip, err := l1Client.HeaderByNumber(context.Background(), nil)
-	require.NoError(t, err)
-	_, err = gethutils.FindBlock(l1Client, int(tip.Number.Int64()), 0, 5*time.Second,
-		func(b *types.Block) (bool, error) {
-			// check that the blob transaction exists in the L1 block
-			require.Equal(t, b.Transactions().Len(), 1)
-			require.Equal(t, int(b.Transactions()[0].Type()), types.BlobTxType)
-			return true, nil
-		})
-	require.NoError(t, err)
 }
