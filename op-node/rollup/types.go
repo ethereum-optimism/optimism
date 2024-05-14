@@ -70,6 +70,7 @@ const (
 	Ecotone  ForkName = "ecotone"
 	Fjord    ForkName = "fjord"
 	Interop  ForkName = "interop"
+	None     ForkName = "none"
 )
 
 var nextFork = map[ForkName]ForkName{
@@ -78,6 +79,7 @@ var nextFork = map[ForkName]ForkName{
 	Delta:    Ecotone,
 	Ecotone:  Fjord,
 	Fjord:    Interop,
+	Interop:  None,
 }
 
 type Config struct {
@@ -433,8 +435,28 @@ func (c *Config) IsInterop(timestamp uint64) bool {
 }
 
 func (c *Config) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
+	if c.nextFork == None {
+		return
+	}
+
 	if c.nextFork == "" {
-		c.nextFork = Regolith
+		// Initialize c.nextFork if it is not set yet
+		if !c.IsRegolith(block.Time) {
+			c.nextFork = Regolith
+		} else if !c.IsCanyon(block.Time) {
+			c.nextFork = Canyon
+		} else if !c.IsDelta(block.Time) {
+			c.nextFork = Delta
+		} else if !c.IsEcotone(block.Time) {
+			c.nextFork = Ecotone
+		} else if !c.IsFjord(block.Time) {
+			c.nextFork = Fjord
+		} else if !c.IsInterop(block.Time) {
+			c.nextFork = Interop
+		} else {
+			c.nextFork = None
+			return
+		}
 	}
 
 	foundActivationBlock := false
