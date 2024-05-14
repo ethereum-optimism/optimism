@@ -120,10 +120,16 @@ func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSide
 	reqPath := path.Join(sidecarsMethodPrefix, strconv.FormatUint(slot, 10))
 	var reqQuery url.Values
 	if !fetchAllSidecars {
-		reqQuery = url.Values{}
+		indexString := ""
 		for i := range hashes {
-			reqQuery.Add("indices", strconv.FormatUint(hashes[i].Index, 10))
+			if i != 0 {
+				// Prepend a comma for all but the first index in comma-separated list
+				indexString += ","
+			}
+			indexString += strconv.FormatUint(hashes[i].Index, 10)
 		}
+		reqQuery = url.Values{}
+		reqQuery.Add("indices", indexString)
 	}
 	var resp eth.APIGetBlobSidecarsResponse
 	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {
