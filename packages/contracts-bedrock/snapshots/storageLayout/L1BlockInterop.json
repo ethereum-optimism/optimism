@@ -81,6 +81,6 @@
     "label": "dependencySet",
     "offset": 0,
     "slot": "8",
-    "type": "uint256[]"
+    "type": "struct EnumerableSetLib.Uint256Set"
   }
 ]
