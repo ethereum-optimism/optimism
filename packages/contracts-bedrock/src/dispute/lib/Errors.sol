@@ -45,8 +45,8 @@ error CannotDefendRootClaim();
 /// @notice Thrown when a claim is attempting to be made that already exists.
 error ClaimAlreadyExists();
 
-/// @notice Thrown when a given claim is invalid.
-error InvalidClaim();
+/// @notice Thrown when a disputed claim does not match its index in the game.
+error InvalidDisputedClaimIndex();
 
 /// @notice Thrown when an action that requires the game to be `IN_PROGRESS` is invoked when
 ///         the game is not in progress.

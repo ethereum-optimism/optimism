@@ -132,3 +132,21 @@ func (f *FaultDisputeGameContract080) ResolveClaimTx(claimIdx uint64) (txmgr.TxC
 func (f *FaultDisputeGameContract080) resolveClaimCall(claimIdx uint64) *batching.ContractCall {
 	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx))
 }
+
+func (f *FaultDisputeGameContract080) IsL2BlockNumberChallenged(_ context.Context, _ rpcblock.Block) (bool, error) {
+	return false, nil
+}
+
+func (f *FaultDisputeGameContract080) ChallengeL2BlockNumberTx(_ *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, ErrChallengeL2BlockNotSupported
+}
+
+func (f *FaultDisputeGameContract080) AttackTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodAttack, big.NewInt(int64(parent.ContractIndex)), pivot)
+	return f.txWithBond(ctx, parent.Position.Attack(), call)
+}
+
+func (f *FaultDisputeGameContract080) DefendTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodDefend, big.NewInt(int64(parent.ContractIndex)), pivot)
+	return f.txWithBond(ctx, parent.Position.Defend(), call)
+}

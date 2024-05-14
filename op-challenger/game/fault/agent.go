@@ -110,6 +110,8 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 		containsOracleData := action.OracleData != nil
 		isLocal := containsOracleData && action.OracleData.IsLocal
 		actionLog = actionLog.New(
+			"is_attack", action.IsAttack,
+			"parent", action.ParentClaim.ContractIndex,
 			"prestate", common.Bytes2Hex(action.PreState),
 			"proof", common.Bytes2Hex(action.ProofData),
 			"containsOracleData", containsOracleData,
@@ -118,8 +120,8 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 		if action.OracleData != nil {
 			actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
 		}
-	} else {
-		actionLog = actionLog.New("value", action.Value)
+	} else if action.Type == types.ActionTypeMove {
+		actionLog = actionLog.New("is_attack", action.IsAttack, "parent", action.ParentClaim.ContractIndex, "value", action.Value)
 	}
 
 	switch action.Type {
