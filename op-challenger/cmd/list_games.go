@@ -29,6 +29,7 @@ var (
 	SortByFlag = &cli.StringFlag{
 		Name:    "sort-by",
 		Usage:   "Sort games by column. Valid options: " + openum.EnumString(ColumnTypes),
+		Value:   "time",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "SORT_BY"),
 	}
 	SortOrderFlag = &cli.StringFlag{
@@ -53,7 +54,7 @@ func ListGames(ctx *cli.Context) error {
 		return err
 	}
 	sortBy := ctx.String(SortByFlag.Name)
-	if !slices.Contains(ColumnTypes, sortBy) {
+	if sortBy != "" && !slices.Contains(ColumnTypes, sortBy) {
 		return fmt.Errorf("invalid sort-by value: %v", sortBy)
 	}
 	sortOrder := ctx.String(SortOrderFlag.Name)

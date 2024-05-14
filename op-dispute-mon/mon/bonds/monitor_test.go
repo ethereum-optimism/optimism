@@ -24,7 +24,7 @@ func TestCheckBonds(t *testing.T) {
 	weth1 := common.Address{0x1a}
 	weth1Balance := big.NewInt(4200)
 	weth2 := common.Address{0x2b}
-	weth2Balance := big.NewInt(6000)
+	weth2Balance := big.NewInt(10) // Insufficient
 	game1 := &monTypes.EnrichedGameData{
 		Credits: map[common.Address]*big.Int{
 			common.Address{0x01}: big.NewInt(2),
@@ -40,7 +40,7 @@ func TestCheckBonds(t *testing.T) {
 		ETHCollateral: weth2Balance,
 	}
 
-	bonds, metrics, _ := setupBondMetricsTest(t)
+	bonds, metrics, logs := setupBondMetricsTest(t)
 	bonds.CheckBonds([]*monTypes.EnrichedGameData{game1, game2})
 
 	require.Len(t, metrics.recorded, 2)
@@ -50,6 +50,14 @@ func TestCheckBonds(t *testing.T) {
 	require.Equal(t, metrics.recorded[weth1].Actual.Uint64(), weth1Balance.Uint64())
 	require.Equal(t, metrics.recorded[weth2].Required.Uint64(), uint64(46))
 	require.Equal(t, metrics.recorded[weth2].Actual.Uint64(), weth2Balance.Uint64())
+
+	require.NotNil(t, logs.FindLog(
+		testlog.NewMessageFilter("Insufficient collateral"),
+		testlog.NewAttributesFilter("delayedWETH", weth2.Hex()),
+		testlog.NewAttributesFilter("required", "46"),
+		testlog.NewAttributesFilter("actual", weth2Balance.String())))
+	// No messages about weth1 since it has sufficient collateral
+	require.Nil(t, logs.FindLog(testlog.NewAttributesFilter("delayedWETH", weth1.Hex())))
 }
 
 func TestCheckRecipientCredit(t *testing.T) {

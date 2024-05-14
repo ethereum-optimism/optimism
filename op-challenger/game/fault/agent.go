@@ -179,7 +179,11 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 
 	var resolvableClaims []uint64
 	for _, claim := range claims {
-		if claim.ChessTime(a.l1Clock.Now()) <= a.maxClockDuration {
+		var parent types.Claim
+		if !claim.IsRootPosition() {
+			parent = claims[claim.ParentContractIndex]
+		}
+		if types.ChessClock(a.l1Clock.Now(), claim, parent) <= a.maxClockDuration {
 			continue
 		}
 		if a.selective {
