@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -39,15 +40,17 @@ type Helper struct {
 	require *require.Assertions
 	dir     string
 	chl     cliapp.Lifecycle
+	metrics *CapturingMetrics
 }
 
-func NewHelper(log log.Logger, t *testing.T, require *require.Assertions, dir string, chl cliapp.Lifecycle) *Helper {
+func NewHelper(log log.Logger, t *testing.T, require *require.Assertions, dir string, chl cliapp.Lifecycle, m *CapturingMetrics) *Helper {
 	return &Helper{
 		log:     log,
 		t:       t,
 		require: require,
 		dir:     dir,
 		chl:     chl,
+		metrics: m,
 	}
 }
 
@@ -134,17 +137,13 @@ func NewChallenger(t *testing.T, ctx context.Context, sys EndpointProvider, name
 	log := testlog.Logger(t, log.LevelDebug).New("role", name)
 	log.Info("Creating challenger")
 	cfg := NewChallengerConfig(t, sys, "sequencer", options...)
-	chl, err := challenger.Main(ctx, log, cfg)
+	cfg.MetricsConfig.Enabled = false // Don't start the metrics server
+	m := NewCapturingMetrics()
+	chl, err := challenger.Main(ctx, log, cfg, m)
 	require.NoError(t, err, "must init challenger")
 	require.NoError(t, chl.Start(ctx), "must start challenger")
 
-	return &Helper{
-		log:     log,
-		t:       t,
-		require: require.New(t),
-		dir:     cfg.Datadir,
-		chl:     chl,
-	}
+	return NewHelper(log, t, require.New(t), cfg.Datadir, chl, m)
 }
 
 func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, options ...Option) *config.Config {
@@ -233,4 +232,22 @@ func (h *Helper) WaitForGameDataDeletion(ctx context.Context, games ...GameAddr)
 
 func (h *Helper) gameDataDir(addr common.Address) string {
 	return filepath.Join(h.dir, "game-"+addr.Hex())
+}
+
+func (h *Helper) WaitL1HeadActedOn(ctx context.Context, client *ethclient.Client) {
+	l1Head, err := client.BlockNumber(ctx)
+	h.require.NoError(err)
+	h.WaitForHighestActedL1Block(ctx, l1Head)
+}
+
+func (h *Helper) WaitForHighestActedL1Block(ctx context.Context, head uint64) {
+	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	var actual uint64
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		actual = h.metrics.HighestActedL1Block.Load()
+		h.log.Info("Waiting for highest acted L1 block", "target", head, "actual", actual)
+		return actual >= head, nil
+	})
+	h.require.NoErrorf(err, "Highest acted L1 block did not reach %v, was: %v", head, actual)
 }
