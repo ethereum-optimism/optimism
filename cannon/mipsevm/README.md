@@ -3,7 +3,7 @@
 Supported 63 instructions:
 | Category             | Instruction   | Description                                  |
 |----------------------|---------------|----------------------------------------------|
-| `Arithmetic`         | `add`         | Add.                   |
+| `Arithmetic`         | `add`         | Add.                                         |
 | `Arithmetic`         | `addi`        | Add immediate (with sign-extension).         |
 | `Arithmetic`         | `addiu`       | Add immediate unsigned (no overflow).        |
 | `Arithmetic`         | `addu`        | Add unsigned (no overflow).                  |
