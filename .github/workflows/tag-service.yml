@@ -35,6 +35,7 @@ on:
           - ufm-metamask
           - op-contracts
           - op-conductor
+          - op-conductor-mon
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false

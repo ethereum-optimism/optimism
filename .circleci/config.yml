@@ -1790,6 +1790,10 @@ workflows:
           module: op-conductor
           requires: ["go-mod-download"]
       - go-test:
+          name: op-conductor-mon-tests
+          module: op-conductor-mon
+          requires: ["go-mod-download"]
+      - go-test:
           name: op-program-tests
           module: op-program
           requires: ["go-mod-download"]
@@ -1860,6 +1864,7 @@ workflows:
             - op-challenger-tests
             - op-dispute-mon-tests
             - op-conductor-tests
+            - op-conductor-mon-tests
             - op-program-tests
             - op-program-compat
             - op-service-tests
@@ -1903,6 +1908,11 @@ workflows:
           docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           # op-conductor is not part of the devnet, we don't save it.
+      - docker-build:
+          name: op-conductor-mon-docker-build
+          docker_name: op-conductor-mon
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          # op-conductor-mon is not part of the devnet, we don't save it.
       - docker-build:
           name: op-heartbeat-docker-build
           docker_name: op-heartbeat
@@ -2101,6 +2111,26 @@ workflows:
           op_component: op-conductor
           requires:
             - op-conductor-docker-release
+      - docker-build:
+          name: op-conductor-mon-docker-release
+          filters:
+            tags:
+              only: /^op-conductor-mon\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: op-conductor-mon
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['hold']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-conductor-mon-cross-platform
+          op_component: op-conductor-mon
+          requires:
+            - op-conductor-mon-docker-release
       - docker-build:
           name: da-server-docker-release
           filters:
