@@ -115,6 +115,7 @@ contract LivenessModule_Getters_Test is LivenessModule_TestInit {
         assertEq(livenessModule.thresholdPercentage(), THRESHOLD_PERCENTAGE);
         assertEq(safeInstance.safe.getThreshold(), livenessModule.getRequiredThreshold(safeInstance.owners.length));
         assertEq(livenessModule.fallbackOwner(), fallbackOwner);
+        assertFalse(livenessModule.ownershipTransferredToFallback());
     }
 }
 
@@ -400,6 +401,13 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         assertEq(safeInstance.safe.getOwners().length, 1);
         assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
         assertEq(safeInstance.safe.getThreshold(), 1);
+
+        // Ensure that the LivenessModule's removeOwners function is now disabled
+        assertTrue(livenessModule.ownershipTransferredToFallback());
+        vm.expectRevert(
+            "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
+        );
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 }
 
@@ -546,6 +554,12 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
                 assertEq(safeInstance.safe.getOwners().length, 1);
                 assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
                 assertEq(safeInstance.safe.getThreshold(), 1);
+                // Ensure that the LivenessModule's removeOwners function is now disabled
+                assertTrue(livenessModule.ownershipTransferredToFallback());
+                vm.expectRevert(
+                    "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
+                );
+                livenessModule.removeOwners(prevOwners, ownersToRemove);
             } else {
                 // For both of the incorrect behaviors, we need to calculate the number of owners to remove to
                 // trigger that behavior. We initialize that value here then set it in the if statements below.

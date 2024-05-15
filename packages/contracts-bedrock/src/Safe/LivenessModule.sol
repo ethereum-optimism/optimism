@@ -23,6 +23,9 @@ contract LivenessModule is ISemver {
     /// @notice Emitted when the fallback owner takes ownership
     event OwnershipTransferredToFallback();
 
+    /// @notice Flag to indicate if the module has been deactivated
+    bool public ownershipTransferredToFallback;
+
     /// @notice The Safe contract instance
     Safe internal immutable SAFE;
 
@@ -51,7 +54,7 @@ contract LivenessModule is ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    string public constant version = "1.2.0";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(
@@ -131,11 +134,16 @@ contract LivenessModule is ISemver {
     /// @param _ownersToRemove The owners to remove
     function removeOwners(address[] memory _previousOwners, address[] memory _ownersToRemove) external {
         require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
+        address[] memory currentOwners = SAFE.getOwners();
+        require(
+            !ownershipTransferredToFallback,
+            "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
+        );
 
         // Initialize the ownersCount count to the current number of owners, so that we can track the number of
         // owners in the Safe after each removal. The Safe will revert if an owner cannot be removed, so it is safe
         // keep a local count of the number of owners this way.
-        uint256 ownersCount = SAFE.getOwners().length;
+        uint256 ownersCount = currentOwners.length;
         for (uint256 i = 0; i < _previousOwners.length; i++) {
             // Validate that the owner can be removed, which means that either:
             //   1. the ownersCount is now less than MIN_OWNERS, in which case all owners should be removed regardless
@@ -196,6 +204,9 @@ contract LivenessModule is ISemver {
         if (!success) {
             revert OwnerRemovalFailed(string(returnData));
         }
+
+        // Deactivate the module to prevent unintended behavior after the fallback owner has taken ownership.
+        ownershipTransferredToFallback = true;
         emit OwnershipTransferredToFallback();
     }
 
