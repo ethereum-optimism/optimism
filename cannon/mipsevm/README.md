@@ -1,6 +1,6 @@
 # `mipsevm`
 
-Supported 70 instructions:
+Supported 63 instructions:
 | Category             | Instruction   | Description                                  |
 |----------------------|---------------|----------------------------------------------|
 | `Arithmetic`         | `add`         | Add.                   |
@@ -9,15 +9,12 @@ Supported 70 instructions:
 | `Arithmetic`         | `addu`        | Add unsigned (no overflow).                  |
 | `Logical`            | `and`         | Bitwise AND.                                 |
 | `Logical`            | `andi`        | Bitwise AND immediate.                       |
-| `Branch`             | `b`           | Unconditional branch.                        |
 | `Conditional Branch` | `beq`         | Branch on equal.                             |
-| `Conditional Branch` | `beqz`        | Branch if equal to zero.                     |
 | `Conditional Branch` | `bgez`        | Branch on greater than or equal to zero.     |
 | `Conditional Branch` | `bgtz`        | Branch on greater than zero.                 |
 | `Conditional Branch` | `blez`        | Branch on less than or equal to zero.        |
 | `Conditional Branch` | `bltz`        | Branch on less than zero.                    |
 | `Conditional Branch` | `bne`         | Branch on not equal.                         |
-| `Conditional Branch` | `bnez`        | Branch if not equal to zero.                 |
 | `Logical`            | `clo`         | Count leading ones.                          |
 | `Logical`            | `clz`         | Count leading zeros.                         |
 | `Arithmetic`         | `div`         | Divide.                                      |
@@ -37,7 +34,6 @@ Supported 70 instructions:
 | `Data Transfer`      | `lwr`         | Load word right.                             |
 | `Data Transfer`      | `mfhi`        | Move from HI register.                       |
 | `Data Transfer`      | `mflo`        | Move from LO register.                       |
-| `Data Transfer`      | `move`        | Move between registers.                      |
 | `Data Transfer`      | `movn`        | Move conditional on not zero.                |
 | `Data Transfer`      | `movz`        | Move conditional on zero.                    |
 | `Data Transfer`      | `mthi`        | Move to HI register.                         |
@@ -45,10 +41,7 @@ Supported 70 instructions:
 | `Arithmetic`         | `mul`         | Multiply (to produce a word result).         |
 | `Arithmetic`         | `mult`        | Multiply.                                    |
 | `Arithmetic`         | `multu`       | Multiply unsigned.                           |
-| `Arithmetic`         | `negu`        | Negate unsigned.                             |
-| `No Op`              | `nop`         | No operation.                                |
 | `Logical`            | `nor`         | Bitwise NOR.                                 |
-| `Logical`            | `not`         | Bitwise NOT (pseudo-instruction in MIPS).    |
 | `Logical`            | `or`          | Bitwise OR.                                  |
 | `Logical`            | `ori`         | Bitwise OR immediate.                        |
 | `Data Transfer`      | `sb`          | Store byte.                                  |
