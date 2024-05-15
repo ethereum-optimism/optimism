@@ -5,8 +5,8 @@ Supported 63 instructions:
 |----------------------|---------------|----------------------------------------------|
 | `Arithmetic`         | `add`         | Add.                                         |
 | `Arithmetic`         | `addi`        | Add immediate (with sign-extension).         |
-| `Arithmetic`         | `addiu`       | Add immediate unsigned (no overflow).        |
-| `Arithmetic`         | `addu`        | Add unsigned (no overflow).                  |
+| `Arithmetic`         | `addiu`       | Add immediate unsigned.                      |
+| `Arithmetic`         | `addu`        | Add unsigned.                                |
 | `Logical`            | `and`         | Bitwise AND.                                 |
 | `Logical`            | `andi`        | Bitwise AND immediate.                       |
 | `Conditional Branch` | `beq`         | Branch on equal.                             |
