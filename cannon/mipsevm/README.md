@@ -1,8 +1,9 @@
 # `mipsevm`
 
-Supported 55 instructions:
+Supported 70 instructions:
 | Category             | Instruction   | Description                                  |
 |----------------------|---------------|----------------------------------------------|
+| `Arithmetic`         | `add`         | Add.                   |
 | `Arithmetic`         | `addi`        | Add immediate (with sign-extension).         |
 | `Arithmetic`         | `addiu`       | Add immediate unsigned (no overflow).        |
 | `Arithmetic`         | `addu`        | Add unsigned (no overflow).                  |
@@ -17,7 +18,9 @@ Supported 55 instructions:
 | `Conditional Branch` | `bltz`        | Branch on less than zero.                    |
 | `Conditional Branch` | `bne`         | Branch on not equal.                         |
 | `Conditional Branch` | `bnez`        | Branch if not equal to zero.                 |
+| `Logical`            | `clo`         | Count leading ones.                          |
 | `Logical`            | `clz`         | Count leading zeros.                         |
+| `Arithmetic`         | `div`         | Divide.                                      |
 | `Arithmetic`         | `divu`        | Divide unsigned.                             |
 | `Unconditional Jump` | `j`           | Jump.                                        |
 | `Unconditional Jump` | `jal`         | Jump and link.                               |
@@ -25,34 +28,46 @@ Supported 55 instructions:
 | `Unconditional Jump` | `jr`          | Jump register.                               |
 | `Data Transfer`      | `lb`          | Load byte.                                   |
 | `Data Transfer`      | `lbu`         | Load byte unsigned.                          |
+| `Data Transfer`      | `lh`          | Load halfword.                               |
+| `Data Transfer`      | `lhu`         | Load halfword unsigned.                      |
+| `Data Transfer`      | `ll`          | Load linked word.                            |
 | `Data Transfer`      | `lui`         | Load upper immediate.                        |
 | `Data Transfer`      | `lw`          | Load word.                                   |
+| `Data Transfer`      | `lwl`         | Load word left.                              |
 | `Data Transfer`      | `lwr`         | Load word right.                             |
 | `Data Transfer`      | `mfhi`        | Move from HI register.                       |
 | `Data Transfer`      | `mflo`        | Move from LO register.                       |
 | `Data Transfer`      | `move`        | Move between registers.                      |
 | `Data Transfer`      | `movn`        | Move conditional on not zero.                |
 | `Data Transfer`      | `movz`        | Move conditional on zero.                    |
+| `Data Transfer`      | `mthi`        | Move to HI register.                         |
 | `Data Transfer`      | `mtlo`        | Move to LO register.                         |
 | `Arithmetic`         | `mul`         | Multiply (to produce a word result).         |
+| `Arithmetic`         | `mult`        | Multiply.                                    |
 | `Arithmetic`         | `multu`       | Multiply unsigned.                           |
 | `Arithmetic`         | `negu`        | Negate unsigned.                             |
 | `No Op`              | `nop`         | No operation.                                |
+| `Logical`            | `nor`         | Bitwise NOR.                                 |
 | `Logical`            | `not`         | Bitwise NOT (pseudo-instruction in MIPS).    |
 | `Logical`            | `or`          | Bitwise OR.                                  |
 | `Logical`            | `ori`         | Bitwise OR immediate.                        |
 | `Data Transfer`      | `sb`          | Store byte.                                  |
+| `Data Transfer`      | `sc`          | Store conditional.                           |
+| `Data Transfer`      | `sh`          | Store halfword.                              |
 | `Logical`            | `sll`         | Shift left logical.                          |
 | `Logical`            | `sllv`        | Shift left logical variable.                 |
 | `Comparison`         | `slt`         | Set on less than (signed).                   |
 | `Comparison`         | `slti`        | Set on less than immediate.                  |
-| `Comparison`         | `sltiu`       | Set on less than immediate unsigned.        |
+| `Comparison`         | `sltiu`       | Set on less than immediate unsigned.         |
 | `Comparison`         | `sltu`        | Set on less than unsigned.                   |
 | `Logical`            | `sra`         | Shift right arithmetic.                      |
+| `Logical`            | `srav`        | Shift right arithmetic variable.             |
 | `Logical`            | `srl`         | Shift right logical.                         |
 | `Logical`            | `srlv`        | Shift right logical variable.                |
+| `Arithmetic`         | `sub`         | Subtract.                                    |
 | `Arithmetic`         | `subu`        | Subtract unsigned.                           |
 | `Data Transfer`      | `sw`          | Store word.                                  |
+| `Data Transfer`      | `swl`         | Store word left.                             |
 | `Data Transfer`      | `swr`         | Store word right.                            |
 | `Serialization`      | `sync`        | Synchronize shared memory.                   |
 | `System Calls`       | `syscall`     | System call.                                 |
