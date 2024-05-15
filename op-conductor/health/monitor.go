@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -150,12 +151,15 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 
 	if timeDiff > hm.rollupCfg.BlockTime && expectedBlocks > blockDiff {
 		hm.log.Error(
-			"unsafe head is not progressing as expected",
+			fmt.Sprintf("unsafe head is ahead by %d", expectedBlocks),
 			"now", now,
 			"unsafe_head_num", status.UnsafeL2.Number,
 			"last_seen_unsafe_num", hm.lastSeenUnsafeNum,
 			"last_seen_unsafe_time", hm.lastSeenUnsafeTime,
 			"unsafe_interval", hm.unsafeInterval,
+			"time_diff", timeDiff,
+			"block_diff", blockDiff,
+			"expected_blocks", expectedBlocks,
 		)
 		return ErrSequencerNotHealthy
 	}
@@ -167,6 +171,7 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 			"unsafe_head_num", status.UnsafeL2.Number,
 			"unsafe_head_time", status.UnsafeL2.Time,
 			"unsafe_interval", hm.unsafeInterval,
+			"curr_unsafe_timeDiff", calculateTimeDiff(now, status.UnsafeL2.Time),
 		)
 		return ErrSequencerNotHealthy
 	}

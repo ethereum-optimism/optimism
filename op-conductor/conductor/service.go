@@ -291,6 +291,10 @@ func (s *state) Equal(other *state) bool {
 	return s.leader == other.leader && s.healthy == other.healthy && s.active == other.active
 }
 
+func (s *state) String() string {
+	return fmt.Sprintf("leader: %t, healthy: %t, active: %t", s.leader, s.healthy, s.active)
+}
+
 var _ cliapp.Lifecycle = (*OpConductor)(nil)
 
 // Start implements cliapp.Lifecycle.
@@ -475,9 +479,11 @@ func (oc *OpConductor) loopAction() {
 	case leader := <-oc.leaderUpdateCh:
 		oc.handleLeaderUpdate(leader)
 	case <-oc.pauseCh:
+		oc.log.Info("pausing OpConductor")
 		oc.paused.Store(true)
 		oc.pauseDoneCh <- struct{}{}
 	case <-oc.resumeCh:
+		oc.log.Info("resuming OpConductor")
 		oc.paused.Store(false)
 		oc.resumeDoneCh <- struct{}{}
 		// queue an action to make sure sequencer is in the desired state after resume.
@@ -602,9 +608,9 @@ func (oc *OpConductor) action() {
 		// normal leader, do nothing
 	}
 
-	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
+	oc.log.Debug("exiting action with status and error", "status", status.String(), "err", err)
 	if err != nil {
-		oc.log.Error("failed to execute step, queueing another one to retry", "err", err)
+		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status.String())
 		// randomly sleep for 0-200ms to avoid excessive retry
 		time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
 		oc.queueAction()
@@ -612,7 +618,7 @@ func (oc *OpConductor) action() {
 	}
 
 	if !status.Equal(oc.prevState) {
-		oc.log.Info("state changed", "prev_state", oc.prevState, "new_state", status)
+		oc.log.Info("state changed", "prev_state", oc.prevState.String(), "new_state", status.String())
 		oc.prevState = status
 	}
 }
@@ -721,3 +727,5 @@ func (oc *OpConductor) updateSequencerActiveStatus() error {
 	oc.seqActive.Store(active)
 	return nil
 }
+
+func ()
