@@ -13,6 +13,6 @@ RUN addgroup -S app && adduser -S app -G app
 USER app
 WORKDIR /app
 
-COPY --from=builder /app/bin/opcm /app
+COPY --from=builder /app/bin/op-conductor-mon /app
 
-ENTRYPOINT ["/app/opcm"]
+ENTRYPOINT ["/app/op-conductor-mon"]

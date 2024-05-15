@@ -13,10 +13,10 @@ docker:
 	docker build ../ -f Dockerfile -t op-conductor-mon:latest
 
 build:
-	env GO111MODULE=on go build -v $(LDFLAGS) -o ./bin/opcm ./cmd/opcm
+	env GO111MODULE=on go build -v $(LDFLAGS) -o ./bin/op-conductor-mon ./cmd/op-conductor-mon
 
 clean:
-	rm ./bin/opcm
+	rm ./bin/op-conductor-mon
 
 generate:
 	[ '$(shell mockgen --version)' = 'v1.6.0' ] || go install github.com/golang/mock/mockgen@v1.6.0

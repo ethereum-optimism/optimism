@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-conductor-mon/pkg/config"
 	"github.com/ethereum-optimism/optimism/op-conductor-mon/pkg/metrics"
-	"github.com/ethereum-optimism/optimism/op-conductor-mon/pkg/opcm"
+	"github.com/ethereum-optimism/optimism/op-conductor-mon/pkg/monitor"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -54,7 +54,7 @@ func (s *Service) Start(ctx context.Context) {
 		}()
 	}
 
-	n := opcm.New(s.Config, s.Config.Nodes)
+	n := monitor.New(s.Config, s.Config.Nodes)
 	n.Start(ctx)
 
 	log.Info("service started")

@@ -26,6 +26,7 @@ MIN_VERSIONS = {
     'ufm-metamask': '0.1.0',
     'op-contracts': '1.0.0',
     'op-conductor': '0.0.0',
+    'op-conductor-mon': '0.0.0',
 }
 
 VALID_BUMPS = ('major', 'minor', 'patch', 'prerelease', 'finalize-prerelease')

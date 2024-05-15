@@ -10,5 +10,5 @@ Install go1.18
 make build
 
 source .env.example # (or copy to .envrc if using direnv)
-./bin/opcm
+./bin/op-conductor-mon
 ```
