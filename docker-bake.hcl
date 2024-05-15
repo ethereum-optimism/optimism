@@ -69,6 +69,9 @@ variable "OP_CONDUCTOR_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_CONDUCTOR_MON_VERSION" {
+  default = "${GIT_VERSION}"
+}
 
 target "op-node" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
