@@ -13,6 +13,8 @@ import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
+    error OwnerRemovalFailed(string reason);
+
     // LivenessModule events
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
     event RemovedOwner(address indexed owner);
@@ -261,10 +263,13 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         address[] memory prevOwners = new address[](1);
         address[] memory ownersToRemove = new address[](1);
         ownersToRemove[0] = safeInstance.owners[0];
-        prevOwners[0] = ownersToRemove[0]; // incorrect.
+        // Incorrectly set the previous owner as equal to the owner to remove, which will cause the Safe to revert.
+        prevOwners[0] = ownersToRemove[0];
 
         _warpPastLivenessInterval();
-        vm.expectRevert("LivenessModule: failed to remove owner");
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnerRemovalFailed.selector, (abi.encodeWithSignature("Error(string)", "GS205")))
+        );
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 
@@ -278,11 +283,13 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         }
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
-        // Incorrectly set the final owner to address(0)
+        // Incorrectly set the final owner to address(0), causing the Safe to revert.
         ownersToRemove[ownersToRemove.length - 1] = address(0);
 
         _warpPastLivenessInterval();
-        vm.expectRevert("LivenessModule: failed to swap to fallback owner");
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnerRemovalFailed.selector, (abi.encodeWithSignature("Error(string)", "GS203")))
+        );
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 
