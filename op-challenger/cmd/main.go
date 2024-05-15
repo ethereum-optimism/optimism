@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -29,7 +30,9 @@ var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDat
 func main() {
 	args := os.Args
 	ctx := opio.WithInterruptBlocker(context.Background())
-	if err := run(ctx, args, challenger.Main); err != nil {
+	if err := run(ctx, args, func(ctx context.Context, l log.Logger, config *config.Config) (cliapp.Lifecycle, error) {
+		return challenger.Main(ctx, l, config, metrics.NewMetrics())
+	}); err != nil {
 		log.Crit("Application failed", "err", err)
 	}
 }
