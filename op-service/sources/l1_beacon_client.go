@@ -253,7 +253,7 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 	}
 
 	if len(hashes) != len(apiscs) {
-		return nil, fmt.Errorf("expected %v sidecars but got %v", len(hashes), len(apiscs))
+		return nil, fmt.Errorf("expected %v sidecars but got %v: %w", len(hashes), len(apiscs), ethereum.NotFound)
 	}
 
 	bscs := make([]*eth.BlobSidecar, 0, len(hashes))
@@ -273,7 +273,11 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
 	}
-	return blobsFromSidecars(blobSidecars, hashes)
+	blobs, err := blobsFromSidecars(blobSidecars, hashes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get blobs from sidecars %w: %w", err, ethereum.NotFound)
+	}
+	return blobs, nil
 }
 
 func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
