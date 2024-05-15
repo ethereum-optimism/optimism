@@ -3,12 +3,12 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SystemConfigInterop, NoCode } from "src/L1/SystemConfigInterop.sol";
 import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
