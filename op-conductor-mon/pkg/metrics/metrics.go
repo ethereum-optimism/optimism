@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	MetricsNamespace = "op-conductor-mon"
+	MetricsNamespace = "opconductor_mon"
 )
 
 var (
