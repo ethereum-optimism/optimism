@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test, StdUtils } from "forge-std/Test.sol";
-import { Safe } from "safe-contracts/Safe.sol";
-import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
-import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
+import { Test } from "forge-std/Test.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
@@ -100,23 +98,6 @@ contract LivenessModule_Constructor_TestFail is LivenessModule_TestInit {
             _livenessInterval: LIVENESS_INTERVAL,
             _thresholdPercentage: THRESHOLD_PERCENTAGE,
             _minOwners: safeInstance.owners.length + 1,
-            _fallbackOwner: address(0)
-        });
-    }
-
-    /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
-    function test_constructor_wrongThreshold_reverts() external {
-        uint256 wrongThreshold = livenessModule.getRequiredThreshold(safeInstance.owners.length) - 1;
-        vm.mockCall(
-            address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(wrongThreshold)
-        );
-        vm.expectRevert("LivenessModule: Insufficient threshold for the number of owners");
-        new LivenessModule({
-            _safe: safeInstance.safe,
-            _livenessGuard: livenessGuard,
-            _livenessInterval: LIVENESS_INTERVAL,
-            _thresholdPercentage: THRESHOLD_PERCENTAGE,
-            _minOwners: MIN_OWNERS,
             _fallbackOwner: address(0)
         });
     }

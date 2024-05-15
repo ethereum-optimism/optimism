@@ -131,13 +131,16 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
         vm.startPrank(CHALLENGER, CHALLENGER);
         uint256 firstBond = _getRequiredBond(0);
         vm.deal(CHALLENGER, firstBond);
-        gameProxy.attack{ value: firstBond }(0, Claim.wrap(0));
+        (,,,, Claim disputed,,) = gameProxy.claimData(0);
+        gameProxy.attack{ value: firstBond }(disputed, 0, Claim.wrap(0));
         uint256 secondBond = _getRequiredBond(1);
         vm.deal(CHALLENGER, secondBond);
-        gameProxy.defend{ value: secondBond }(1, Claim.wrap(0));
+        (,,,, disputed,,) = gameProxy.claimData(1);
+        gameProxy.defend{ value: secondBond }(disputed, 1, Claim.wrap(0));
         uint256 thirdBond = _getRequiredBond(2);
         vm.deal(CHALLENGER, thirdBond);
-        gameProxy.move{ value: thirdBond }(2, Claim.wrap(0), true);
+        (,,,, disputed,,) = gameProxy.claimData(2);
+        gameProxy.move{ value: thirdBond }(disputed, 2, Claim.wrap(0), true);
         vm.stopPrank();
     }
 
@@ -146,13 +149,16 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
         vm.startPrank(PROPOSER, PROPOSER);
         uint256 firstBond = _getRequiredBond(0);
         vm.deal(PROPOSER, firstBond);
-        gameProxy.attack{ value: firstBond }(0, Claim.wrap(0));
+        (,,,, Claim disputed,,) = gameProxy.claimData(0);
+        gameProxy.attack{ value: firstBond }(disputed, 0, Claim.wrap(0));
         uint256 secondBond = _getRequiredBond(1);
         vm.deal(PROPOSER, secondBond);
-        gameProxy.defend{ value: secondBond }(1, Claim.wrap(0));
+        (,,,, disputed,,) = gameProxy.claimData(1);
+        gameProxy.defend{ value: secondBond }(disputed, 1, Claim.wrap(0));
         uint256 thirdBond = _getRequiredBond(2);
         vm.deal(PROPOSER, thirdBond);
-        gameProxy.move{ value: thirdBond }(2, Claim.wrap(0), true);
+        (,,,, disputed,,) = gameProxy.claimData(2);
+        gameProxy.move{ value: thirdBond }(disputed, 2, Claim.wrap(0), true);
         vm.stopPrank();
     }
 
@@ -162,12 +168,13 @@ contract PermissionedDisputeGame_Test is PermissionedDisputeGame_Init {
         vm.assume(_p != PROPOSER && _p != CHALLENGER);
 
         vm.startPrank(_p, _p);
+        (,,,, Claim disputed,,) = gameProxy.claimData(0);
         vm.expectRevert(BadAuth.selector);
-        gameProxy.attack(0, Claim.wrap(0));
+        gameProxy.attack(disputed, 0, Claim.wrap(0));
         vm.expectRevert(BadAuth.selector);
-        gameProxy.defend(1, Claim.wrap(0));
+        gameProxy.defend(disputed, 0, Claim.wrap(0));
         vm.expectRevert(BadAuth.selector);
-        gameProxy.move(2, Claim.wrap(0), true);
+        gameProxy.move(disputed, 0, Claim.wrap(0), true);
         vm.expectRevert(BadAuth.selector);
         gameProxy.step(0, true, absolutePrestateData, hex"");
         vm.stopPrank();

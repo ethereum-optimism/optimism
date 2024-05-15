@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 //go:embed abis/FaultDisputeGame-0.8.0.json
@@ -145,4 +146,14 @@ func (f *FaultDisputeGameContract080) IsL2BlockNumberChallenged(_ context.Contex
 
 func (f *FaultDisputeGameContract080) ChallengeL2BlockNumberTx(_ *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error) {
 	return txmgr.TxCandidate{}, ErrChallengeL2BlockNotSupported
+}
+
+func (f *FaultDisputeGameContract080) AttackTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodAttack, big.NewInt(int64(parent.ContractIndex)), pivot)
+	return f.txWithBond(ctx, parent.Position.Attack(), call)
+}
+
+func (f *FaultDisputeGameContract080) DefendTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodDefend, big.NewInt(int64(parent.ContractIndex)), pivot)
+	return f.txWithBond(ctx, parent.Position.Defend(), call)
 }

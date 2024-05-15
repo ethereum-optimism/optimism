@@ -2,7 +2,7 @@ package derive
 
 import (
 	"bytes"
-	"compress/zlib"
+
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -26,10 +26,8 @@ type SpanChannelOut struct {
 	// lastCompressedRLPSize tracks the *uncompressed* size of the last RLP buffer that was compressed
 	// it is used to measure the growth of the RLP buffer when adding a new batch to optimize compression
 	lastCompressedRLPSize int
-	// compressed contains compressed data for making output frames
-	compressed *bytes.Buffer
-	// compress is the zlib writer for the channel
-	compressor *zlib.Writer
+	// the compressor for the channel
+	compressor ChannelCompressor
 	// target is the target size of the compressed data
 	target uint64
 	// closed indicates if the channel is closed
@@ -49,22 +47,23 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64) (*SpanChannelOut, error) {
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
-		id:         ChannelID{},
-		frame:      0,
-		spanBatch:  NewSpanBatch(genesisTimestamp, chainID),
-		rlp:        [2]*bytes.Buffer{{}, {}},
-		compressed: &bytes.Buffer{},
-		target:     targetOutputSize,
+		id:        ChannelID{},
+		frame:     0,
+		spanBatch: NewSpanBatch(genesisTimestamp, chainID),
+		rlp:       [2]*bytes.Buffer{{}, {}},
+		target:    targetOutputSize,
 	}
 	var err error
 	if err = c.setRandomID(); err != nil {
 		return nil, err
 	}
-	if c.compressor, err = zlib.NewWriterLevel(c.compressed, zlib.BestCompression); err != nil {
+
+	if c.compressor, err = NewChannelCompressor(compressionAlgo); err != nil {
 		return nil, err
 	}
+
 	return c, nil
 }
 
@@ -75,8 +74,7 @@ func (co *SpanChannelOut) Reset() error {
 	co.rlp[0].Reset()
 	co.rlp[1].Reset()
 	co.lastCompressedRLPSize = 0
-	co.compressed.Reset()
-	co.compressor.Reset(co.compressed)
+	co.compressor.Reset()
 	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
 	// setting the new randomID is the only part of the reset that can fail
 	return co.setRandomID()
@@ -153,7 +151,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	// if the compressed data *plus* the new rlp data is under the target size, return early
 	// this optimizes out cases where the compressor will obviously come in under the target size
 	rlpGrowth := co.activeRLP().Len() - co.lastCompressedRLPSize
-	if uint64(co.compressed.Len()+rlpGrowth) < co.target {
+	if uint64(co.compressor.Len()+rlpGrowth) < co.target {
 		return nil
 	}
 
@@ -186,8 +184,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 // compress compresses the active RLP buffer and checks if the compressed data is over the target size.
 // it resets all the compression buffers because Span Batches aren't meant to be compressed incrementally.
 func (co *SpanChannelOut) compress() error {
-	co.compressed.Reset()
-	co.compressor.Reset(co.compressed)
+	co.compressor.Reset()
 	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {
 		return err
 	}
@@ -207,7 +204,7 @@ func (co *SpanChannelOut) InputBytes() int {
 // Span Channel Out does not provide early output, so this will always be 0 until the channel is closed or full
 func (co *SpanChannelOut) ReadyBytes() int {
 	if co.closed || co.FullErr() != nil {
-		return co.compressed.Len()
+		return co.compressor.Len()
 	}
 	return 0
 }
@@ -225,7 +222,7 @@ func (co *SpanChannelOut) checkFull() {
 	if co.full != nil {
 		return
 	}
-	if uint64(co.compressed.Len()) >= co.target {
+	if uint64(co.compressor.Len()) >= co.target {
 		co.full = ErrCompressorFull
 	}
 }
@@ -264,7 +261,7 @@ func (co *SpanChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, 
 
 	f := createEmptyFrame(co.id, co.frame, co.ReadyBytes(), co.closed, maxSize)
 
-	if _, err := io.ReadFull(co.compressed, f.Data); err != nil {
+	if _, err := io.ReadFull(co.compressor.GetCompressed(), f.Data); err != nil {
 		return 0, err
 	}
 

@@ -296,6 +296,7 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		BatchType:                    derive.SpanBatchType,
 		DataAvailabilityType:         batcherFlags.CalldataType,
 		ActiveSequencerCheckDuration: 0,
+		CompressionAlgo:              derive.Zlib,
 	}
 
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

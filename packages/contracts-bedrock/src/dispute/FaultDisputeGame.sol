@@ -69,8 +69,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1
-    string public constant version = "1.1.1";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -312,15 +312,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @notice Generic move function, used for both `attack` and `defend` moves.
+    /// @param _disputed The disputed `Claim`.
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
-    function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable virtual {
+    function move(Claim _disputed, uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable virtual {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData memory parent = claimData[_challengeIndex];
+
+        // INVARIANT: The claim at the _challengeIndex must be the disputed claim.
+        if (Claim.unwrap(parent.claim) != Claim.unwrap(_disputed)) revert InvalidDisputedClaimIndex();
 
         // Compute the position that the claim commits to. Because the parent's position is already
         // known, we can compute the next position by moving left or right depending on whether
@@ -412,13 +416,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function attack(uint256 _parentIndex, Claim _claim) external payable {
-        move(_parentIndex, _claim, true);
+    function attack(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable {
+        move(_disputed, _parentIndex, _claim, true);
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function defend(uint256 _parentIndex, Claim _claim) external payable {
-        move(_parentIndex, _claim, false);
+    function defend(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable {
+        move(_disputed, _parentIndex, _claim, false);
     }
 
     /// @inheritdoc IFaultDisputeGame

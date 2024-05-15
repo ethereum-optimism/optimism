@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,6 +63,7 @@ func TestChannelConfig_InputThreshold(t *testing.T) {
 			comp, err := compressor.NewRatioCompressor(compressor.Config{
 				TargetOutputSize: tt.targetOutputSize,
 				ApproxComprRatio: tt.approxComprRatio,
+				CompressionAlgo:  derive.Zlib,
 			})
 			require.NoError(t, err)
 			got := comp.(*compressor.RatioCompressor).InputThreshold()

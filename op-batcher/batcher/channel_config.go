@@ -53,25 +53,26 @@ type ChannelConfig struct {
 // value consistent with cc.TargetNumFrames and cc.MaxFrameSize.
 // comprKind can be the empty string, in which case the default compressor will
 // be used.
-func (cc *ChannelConfig) InitCompressorConfig(approxComprRatio float64, comprKind string) {
+func (cc *ChannelConfig) InitCompressorConfig(approxComprRatio float64, comprKind string, compressionAlgo derive.CompressionAlgo) {
 	cc.CompressorConfig = compressor.Config{
 		// Compressor output size needs to account for frame encoding overhead
 		TargetOutputSize: MaxDataSize(cc.TargetNumFrames, cc.MaxFrameSize),
 		ApproxComprRatio: approxComprRatio,
 		Kind:             comprKind,
+		CompressionAlgo:  compressionAlgo,
 	}
 }
 
-func (cc *ChannelConfig) InitRatioCompressor(approxComprRatio float64) {
-	cc.InitCompressorConfig(approxComprRatio, compressor.RatioKind)
+func (cc *ChannelConfig) InitRatioCompressor(approxComprRatio float64, compressionAlgo derive.CompressionAlgo) {
+	cc.InitCompressorConfig(approxComprRatio, compressor.RatioKind, compressionAlgo)
 }
 
-func (cc *ChannelConfig) InitShadowCompressor() {
-	cc.InitCompressorConfig(0, compressor.ShadowKind)
+func (cc *ChannelConfig) InitShadowCompressor(compressionAlgo derive.CompressionAlgo) {
+	cc.InitCompressorConfig(0, compressor.ShadowKind, compressionAlgo)
 }
 
 func (cc *ChannelConfig) InitNoneCompressor() {
-	cc.InitCompressorConfig(0, compressor.NoneKind)
+	cc.InitCompressorConfig(0, compressor.NoneKind, derive.Zlib)
 }
 
 func (cc *ChannelConfig) MaxFramesPerTx() int {

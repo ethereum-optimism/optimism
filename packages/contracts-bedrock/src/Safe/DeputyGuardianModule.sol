@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Safe } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";

@@ -127,6 +127,9 @@ if [ "$SCRIPT_TESTS" == true ]; then
   test_list=( "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
               "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1(" \
               "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
+              "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused0" \
+              "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused1(" \
+              "OptimismPortal2Kontrol.prove_finalizeWithdrawalTransaction_paused" \
               "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
               "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
               "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \

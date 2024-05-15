@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 
 	"github.com/ethereum-optimism/optimism/indexer/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

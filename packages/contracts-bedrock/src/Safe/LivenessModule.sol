@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Safe, OwnerManager } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
@@ -67,10 +67,6 @@ contract LivenessModule is ISemver {
         MIN_OWNERS = _minOwners;
         address[] memory owners = _safe.getOwners();
         require(_minOwners <= owners.length, "LivenessModule: minOwners must be less than the number of owners");
-        require(
-            _safe.getThreshold() >= getRequiredThreshold(owners.length),
-            "LivenessModule: Insufficient threshold for the number of owners"
-        );
         require(_thresholdPercentage > 0, "LivenessModule: thresholdPercentage must be greater than 0");
         require(_thresholdPercentage <= 100, "LivenessModule: thresholdPercentage must be less than or equal to 100");
     }

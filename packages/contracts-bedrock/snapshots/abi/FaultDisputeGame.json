@@ -107,6 +107,11 @@
   {
     "inputs": [
       {
+        "internalType": "Claim",
+        "name": "_disputed",
+        "type": "bytes32"
+      },
+      {
         "internalType": "uint256",
         "name": "_parentIndex",
         "type": "uint256"
@@ -303,6 +308,11 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "Claim",
+        "name": "_disputed",
+        "type": "bytes32"
+      },
       {
         "internalType": "uint256",
         "name": "_parentIndex",
@@ -538,6 +548,11 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "Claim",
+        "name": "_disputed",
+        "type": "bytes32"
+      },
       {
         "internalType": "uint256",
         "name": "_challengeIndex",
@@ -956,6 +971,11 @@
   {
     "inputs": [],
     "name": "InvalidDataRemainder",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDisputedClaimIndex",
     "type": "error"
   },
   {

@@ -10,7 +10,7 @@ import {
 } from "scripts/DeployOwnership.s.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { Safe } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
@@ -29,7 +29,7 @@ contract DeployOwnershipTest is Test, DeployOwnership {
         run();
     }
 
-    function _checkSafeConfig(SafeConfig memory _safeConfig, Safe _safe) internal {
+    function _checkSafeConfig(SafeConfig memory _safeConfig, Safe _safe) internal view {
         assertEq(_safe.getThreshold(), _safeConfig.threshold);
 
         address[] memory safeOwners = _safe.getOwners();
@@ -77,7 +77,6 @@ contract DeployOwnershipTest is Test, DeployOwnership {
 
         // DeputyGuardianModule checks
         DeputyGuardianModuleConfig memory dgmConfig = exampleSecurityCouncilConfig.deputyGuardianModuleConfig;
-        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfig"));
         assertEq(DeputyGuardianModule(deputyGuardianModule).deputyGuardian(), dgmConfig.deputyGuardian);
         assertEq(
             address(DeputyGuardianModule(deputyGuardianModule).superchainConfig()), address(dgmConfig.superchainConfig)
@@ -89,5 +88,8 @@ contract DeployOwnershipTest is Test, DeployOwnership {
         assertEq(LivenessModule(livenessModule).livenessInterval(), lmConfig.livenessInterval);
         assertEq(LivenessModule(livenessModule).thresholdPercentage(), lmConfig.thresholdPercentage);
         assertEq(LivenessModule(livenessModule).minOwners(), lmConfig.minOwners);
+
+        // Ensure the threshold on the safe agrees with the LivenessModule's required threshold
+        assertEq(securityCouncilSafe.getThreshold(), LivenessModule(livenessModule).getRequiredThreshold(owners.length));
     }
 }

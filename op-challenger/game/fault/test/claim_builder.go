@@ -15,15 +15,18 @@ import (
 var DefaultClaimant = common.Address{0xba, 0xdb, 0xad, 0xba, 0xdb, 0xad}
 
 type claimCfg struct {
-	value         common.Hash
-	invalidValue  bool
-	claimant      common.Address
-	parentIdx     int
-	clockDuration time.Duration
+	value          common.Hash
+	invalidValue   bool
+	claimant       common.Address
+	parentIdx      int
+	clockTimestamp time.Time
+	clockDuration  time.Duration
 }
 
 func newClaimCfg(opts ...ClaimOpt) *claimCfg {
-	cfg := &claimCfg{}
+	cfg := &claimCfg{
+		clockTimestamp: time.Unix(math.MaxInt64-1, 0),
+	}
 	for _, opt := range opts {
 		opt.Apply(cfg)
 	}
@@ -64,9 +67,10 @@ func WithParent(claim types.Claim) ClaimOpt {
 	})
 }
 
-func WithExpiredClock(maxClockDuration time.Duration) ClaimOpt {
+func WithClock(timestamp time.Time, duration time.Duration) ClaimOpt {
 	return claimOptFn(func(cfg *claimCfg) {
-		cfg.clockDuration = maxClockDuration
+		cfg.clockTimestamp = timestamp
+		cfg.clockDuration = duration
 	})
 }
 
@@ -134,7 +138,7 @@ func (c *ClaimBuilder) claim(pos types.Position, opts ...ClaimOpt) types.Claim {
 		Claimant: DefaultClaimant,
 		Clock: types.Clock{
 			Duration:  cfg.clockDuration,
-			Timestamp: time.Unix(math.MaxInt64-1, 0),
+			Timestamp: cfg.clockTimestamp,
 		},
 	}
 	if cfg.claimant != (common.Address{}) {
