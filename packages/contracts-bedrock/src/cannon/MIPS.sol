@@ -541,7 +541,7 @@ contract MIPS is ISemver {
             uint256 offset = proofOffset(_proofIndex);
 
             assembly {
-                // Validate the address alignement.
+                // Validate the address alignment.
                 if and(_addr, 3) { revert(0, 0) }
 
                 // Load the leaf value.
@@ -595,7 +595,7 @@ contract MIPS is ISemver {
             uint256 offset = proofOffset(_proofIndex);
 
             assembly {
-                // Validate the address alignement.
+                // Validate the address alignment.
                 if and(_addr, 3) { revert(0, 0) }
 
                 // Load the leaf value.
