@@ -148,6 +148,18 @@ target "op-conductor" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-conductor:${tag}"]
 }
 
+target "op-conductor-mon" {
+  dockerfile = "./op-conductor-mon/Dockerfile"
+  context = "./"
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_CONDUCTOR_VERSION = "${OP_CONDUCTOR_VERSION}"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-conductor-mon:${tag}"]
+}
+
 target "op-heartbeat" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
