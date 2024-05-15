@@ -13,7 +13,7 @@ docker:
 	docker build ../ -f Dockerfile -t op-conductor-mon:latest
 
 build:
-	env GO111MODULE=on go build -v $(LDFLAGS) -o ./bin/op-conductor-mon ./cmd/op-conductor-mon
+	env GO111MODULE=on go build -v $(LDFLAGS) -o ./bin/op-conductor-mon ./cmd/monitor
 
 clean:
 	rm ./bin/op-conductor-mon
