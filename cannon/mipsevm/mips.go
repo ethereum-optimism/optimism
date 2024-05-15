@@ -498,7 +498,7 @@ func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 			switch fun {
 			case 0x2: // mul
 				return uint32(int32(rs) * int32(rt))
-			case 0x20, 0x21: // clo
+			case 0x20, 0x21: // clz, clo
 				if fun == 0x20 {
 					rs = ^rs
 				}
