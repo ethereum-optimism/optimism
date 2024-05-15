@@ -244,7 +244,11 @@ func TestSchedule_RecordActedL1Block(t *testing.T) {
 	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 3))
 
 	// Process the result (only the in-progress game gets rescheduled)
-	// Yes, the third update really did trigger a bug where the block number wasn't updated for completed games
+	// This is deliberately done a third time, because there was actually a bug where it worked for the first two
+	// cycles and failed on the third. This was because the first cycle the game status was unknown so it was processed
+	// the second cycle was the first time the game was known to be complete so was skipped but crucially it left it
+	// marked as in-flight.  On the third update the was incorrectly skipped as in-flight and the l1 block number
+	// wasn't updated. From then on the block number would never be updated.
 	require.Len(t, workQueue, 1)
 	j = <-workQueue
 	require.Equal(t, gameAddr2, j.addr)
