@@ -370,6 +370,7 @@ func (oc *OpConductor) Pause(ctx context.Context) error {
 	select {
 	case oc.pauseCh <- struct{}{}:
 		<-oc.pauseDoneCh
+		oc.log.Info("OpConductor paused")
 		return nil
 	case <-ctx.Done():
 		return ErrPauseTimeout
@@ -386,6 +387,7 @@ func (oc *OpConductor) Resume(ctx context.Context) error {
 	select {
 	case oc.resumeCh <- struct{}{}:
 		<-oc.resumeDoneCh
+		oc.log.Info("OpConductor resumed")
 		return nil
 	case <-ctx.Done():
 		return ErrResumeTimeout
@@ -479,11 +481,9 @@ func (oc *OpConductor) loopAction() {
 	case leader := <-oc.leaderUpdateCh:
 		oc.handleLeaderUpdate(leader)
 	case <-oc.pauseCh:
-		oc.log.Info("pausing OpConductor")
 		oc.paused.Store(true)
 		oc.pauseDoneCh <- struct{}{}
 	case <-oc.resumeCh:
-		oc.log.Info("resuming OpConductor")
 		oc.paused.Store(false)
 		oc.resumeDoneCh <- struct{}{}
 		// queue an action to make sure sequencer is in the desired state after resume.
@@ -727,5 +727,3 @@ func (oc *OpConductor) updateSequencerActiveStatus() error {
 	oc.seqActive.Store(active)
 	return nil
 }
-
-func ()
