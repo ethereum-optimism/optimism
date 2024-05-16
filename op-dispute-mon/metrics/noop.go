@@ -36,7 +36,7 @@ func (*NoopMetricsImpl) RecordOutputFetchTime(_ float64) {}
 
 func (*NoopMetricsImpl) RecordGameAgreement(_ GameAgreementStatus, _ int) {}
 
-func (*NoopMetricsImpl) RecordLatestInvalidProposal(_ uint64) {}
+func (*NoopMetricsImpl) RecordLatestProposals(_ uint64, _ uint64) {}
 
 func (*NoopMetricsImpl) RecordIgnoredGames(_ int) {}
 
