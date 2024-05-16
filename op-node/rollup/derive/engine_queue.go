@@ -490,7 +490,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	first := firstEnvelope.ExecutionPayload
 
 	if uint64(first.BlockNumber) <= eq.ec.SafeL2Head().Number {
-		eq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", eq.ec.SafeL2Head().ID(), "unsafe", first.ID(), "payload", first.ID())
+		eq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", eq.ec.SafeL2Head().ID(), "unsafe", eq.ec.UnsafeL2Head().ID(), "unsafe_payload", first.ID())
 		eq.unsafePayloads.Pop()
 		return nil
 	}
@@ -503,7 +503,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	// Ensure that the unsafe payload builds upon the current unsafe head
 	if first.ParentHash != eq.ec.UnsafeL2Head().Hash {
 		if uint64(first.BlockNumber) == eq.ec.UnsafeL2Head().Number+1 {
-			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.ec.SafeL2Head().ID(), "unsafe", first.ID(), "payload", first.ID())
+			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.ec.SafeL2Head().ID(), "unsafe", eq.ec.UnsafeL2Head().ID(), "unsafe_payload", first.ID())
 			eq.unsafePayloads.Pop()
 		}
 		return io.EOF // time to go to next stage if we cannot process the first unsafe payload
