@@ -827,6 +827,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if batcherTargetNumFrames == 0 {
 		batcherTargetNumFrames = 1
 	}
+
+	var compressionAlgo derive.CompressionAlgo = derive.Zlib
+	// if opt has brotli key, set the compression algo as brotli
+	if _, ok := opts.Get("compressionAlgo", "brotli"); ok {
+		compressionAlgo = derive.Brotli10
+	}
+
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:                 sys.EthInstances["sequencer"].WSEndpoint(),
@@ -847,7 +854,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
 		BatchType:            batchType,
 		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
-		CompressionAlgo:      derive.Zlib,
+		CompressionAlgo:      compressionAlgo,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])
