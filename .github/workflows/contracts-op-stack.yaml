@@ -79,7 +79,7 @@ jobs:
       - name: Generate config JSON
         run: |
           cd packages/contracts-bedrock
-          ./scripts/getting-started/config.sh
+          ./scripts/getting-started/config-vars-op-stack.sh
           cp deploy-config/$DEPLOYMENT_CONTEXT.json /home/runner/work/optimism/optimism/ethereum-optimism/packages/contracts-bedrock/deploy-config/$DEPLOYMENT_CONTEXT.json
 
       - name: Deploy L1 contracts
