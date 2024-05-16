@@ -55,7 +55,7 @@ contract L1BlockInteropTest is CommonTest {
     function testFuzz_isInDependencySet_dependencySetEmpty_succeeds(uint256 _chainId) public view {
         vm.assume(_chainId != block.chainid);
 
-        assertTrue(_l1BlockInterop().dependencySetSize() == 0);
+        assertEq(_l1BlockInterop().dependencySetSize(), 0);
 
         assertFalse(_l1BlockInterop().isInDependencySet(_chainId));
     }
@@ -90,7 +90,7 @@ contract L1BlockInteropTest is CommonTest {
 
     /// @dev Tests that the dependency set size is correct when the dependency set is empty.
     function test_dependencySetSize_dependencySetEmpty_succeeds() public view {
-        assertTrue(_l1BlockInterop().dependencySetSize() == 0);
+        assertEq(_l1BlockInterop().dependencySetSize(), 0);
     }
 
     /// @dev Tests that the config for the gas paying token can be set.
