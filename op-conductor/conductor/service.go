@@ -370,7 +370,7 @@ func (oc *OpConductor) Pause(ctx context.Context) error {
 	select {
 	case oc.pauseCh <- struct{}{}:
 		<-oc.pauseDoneCh
-		oc.log.Info("OpConductor paused")
+		oc.log.Info("OpConductor has been paused")
 		return nil
 	case <-ctx.Done():
 		return ErrPauseTimeout
@@ -387,7 +387,7 @@ func (oc *OpConductor) Resume(ctx context.Context) error {
 	select {
 	case oc.resumeCh <- struct{}{}:
 		<-oc.resumeDoneCh
-		oc.log.Info("OpConductor resumed")
+		oc.log.Info("OpConductor has been resumed")
 		return nil
 	case <-ctx.Done():
 		return ErrResumeTimeout
