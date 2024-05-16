@@ -67,12 +67,6 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 			s.log.Warn("invalid commitment", "commitment", data, "err", err)
 			return nil, NotEnoughData
 		}
-		// only support keccak256 commitments for now.
-		// TODO: support other commitment types via flag
-		if comm.CommitmentType() != plasma.Keccak256CommitmentType {
-			s.log.Warn("wrong commitment type", "commitmentType", comm.CommitmentType())
-			return nil, NotEnoughData
-		}
 		s.comm = comm
 	}
 	// use the commitment to fetch the input from the plasma DA provider.

@@ -83,6 +83,7 @@ services:
       --rpc.enable-admin
       --safedb.path=/db
       --plasma.enabled=${PLASMA_ENABLED}
+      --plasma.da-service=${PLASMA_DA_SERVICE}
       --plasma.da-server=http://da-server:3100
     ports:
       - "7545:8545"
@@ -156,6 +157,7 @@ services:
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_BATCH_TYPE: 0
       OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
+      OP_BATCHER_PLASMA_DA_SERVICE: "${PLASMA_DA_SERVICE}"
       OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
 
   op-challenger:

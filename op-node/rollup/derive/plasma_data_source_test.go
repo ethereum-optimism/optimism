@@ -92,7 +92,7 @@ func TestPlasmaDataSource(t *testing.T) {
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
-	var comms []plasma.Keccak256Commitment
+	var comms []plasma.CommitmentData
 
 	signer := cfg.L1Signer()
 
