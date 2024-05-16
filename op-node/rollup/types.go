@@ -312,16 +312,16 @@ func (cfg *Config) Check() error {
 		return err
 	}
 
-	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, "regolith", "canyon"); err != nil {
+	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, Regolith, Canyon); err != nil {
 		return err
 	}
-	if err := checkFork(cfg.CanyonTime, cfg.DeltaTime, "canyon", "delta"); err != nil {
+	if err := checkFork(cfg.CanyonTime, cfg.DeltaTime, Canyon, Delta); err != nil {
 		return err
 	}
-	if err := checkFork(cfg.DeltaTime, cfg.EcotoneTime, "delta", "ecotone"); err != nil {
+	if err := checkFork(cfg.DeltaTime, cfg.EcotoneTime, Delta, Ecotone); err != nil {
 		return err
 	}
-	if err := checkFork(cfg.EcotoneTime, cfg.FjordTime, "ecotone", "fjord"); err != nil {
+	if err := checkFork(cfg.EcotoneTime, cfg.FjordTime, Ecotone, Fjord); err != nil {
 		return err
 	}
 
@@ -354,7 +354,7 @@ func validatePlasmaConfig(cfg *Config) error {
 }
 
 // checkFork checks that fork A is before or at the same time as fork B
-func checkFork(a, b *uint64, aName, bName string) error {
+func checkFork(a, b *uint64, aName, bName ForkName) error {
 	if a == nil && b == nil {
 		return nil
 	}
@@ -394,14 +394,6 @@ func (c *Config) IsEcotone(timestamp uint64) bool {
 	return c.EcotoneTime != nil && timestamp >= *c.EcotoneTime
 }
 
-// IsEcotoneActivationBlock returns whether the specified block is the first block subject to the
-// Ecotone upgrade. Ecotone activation at genesis does not count.
-func (c *Config) IsEcotoneActivationBlock(l2BlockTime uint64) bool {
-	return c.IsEcotone(l2BlockTime) &&
-		l2BlockTime >= c.BlockTime &&
-		!c.IsEcotone(l2BlockTime-c.BlockTime)
-}
-
 // IsFjord returns true if the Fjord hardfork is active at or past the given timestamp.
 func (c *Config) IsFjord(timestamp uint64) bool {
 	return c.FjordTime != nil && timestamp >= *c.FjordTime
@@ -418,6 +410,38 @@ func (c *Config) IsFjordActivationBlock(l2BlockTime uint64) bool {
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.InteropTime != nil && timestamp >= *c.InteropTime
+}
+
+func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {
+	return c.IsRegolith(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsRegolith(l2BlockTime-c.BlockTime)
+}
+
+func (c *Config) IsCanyonActivationBlock(l2BlockTime uint64) bool {
+	return c.IsCanyon(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsCanyon(l2BlockTime-c.BlockTime)
+}
+
+func (c *Config) IsDeltaActivationBlock(l2BlockTime uint64) bool {
+	return c.IsDelta(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsDelta(l2BlockTime-c.BlockTime)
+}
+
+// IsEcotoneActivationBlock returns whether the specified block is the first block subject to the
+// Ecotone upgrade. Ecotone activation at genesis does not count.
+func (c *Config) IsEcotoneActivationBlock(l2BlockTime uint64) bool {
+	return c.IsEcotone(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsEcotone(l2BlockTime-c.BlockTime)
+}
+
+func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
+	return c.IsInterop(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsInterop(l2BlockTime-c.BlockTime)
 }
 
 // ForkchoiceUpdatedVersion returns the EngineAPIMethod suitable for the chain hard fork version.
