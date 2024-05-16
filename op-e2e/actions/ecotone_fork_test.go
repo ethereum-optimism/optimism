@@ -75,7 +75,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, err)
 	require.True(t, scalar.Cmp(big.NewInt(0)) > 0, "scalar must start non-zero")
 	feeScalar := dp.DeployConfig.FeeScalar()
-	require.True(t, scalar.Cmp(new(big.Int).SetBytes(feeScalar[:])) == 0, "must match deploy config")
+	require.Equal(t, scalar, new(big.Int).SetBytes(feeScalar[:]), "must match deploy config")
 
 	// Get current implementations addresses (by slot) for L1Block + GasPriceOracle
 	initialGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, nil)
@@ -194,7 +194,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// test if the migrated scalar matches the deploy config
 	basefeeScalar, err := gasPriceOracle.BaseFeeScalar(nil)
 	require.NoError(t, err)
-	require.True(t, basefeeScalar == dp.DeployConfig.GasPriceOracleBaseFeeScalar, "must match deploy config")
+	require.Equal(t, basefeeScalar, dp.DeployConfig.GasPriceOracleBaseFeeScalar, "must match deploy config")
 
 	cost, err = gasPriceOracle.GetL1Fee(nil, []byte{0, 1, 2, 3, 4})
 	require.NoError(t, err)
