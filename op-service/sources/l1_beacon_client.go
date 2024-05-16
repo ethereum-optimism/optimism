@@ -129,6 +129,9 @@ func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSide
 	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {
 		return eth.APIGetBlobSidecarsResponse{}, err
 	}
+	if len(resp.Data) != len(hashes) {
+		return eth.APIGetBlobSidecarsResponse{}, fmt.Errorf("#returned blobs(%d) != #requested blobs(%d)", len(resp.Data), len(hashes))
+	}
 	return resp, nil
 }
 
@@ -209,7 +212,7 @@ func (cl *L1BeaconClient) fetchSidecars(ctx context.Context, slot uint64, hashes
 	for i := 0; i < cl.pool.Len(); i++ {
 		f := cl.pool.Get()
 		resp, err := f.BeaconBlobSideCars(ctx, cl.cfg.FetchAllSidecars, slot, hashes)
-		if err != nil || len(resp.Data) != len(hashes) {
+		if err != nil {
 			cl.pool.MoveToNext()
 			errs = append(errs, err)
 		} else {
