@@ -34,6 +34,7 @@ const maxSequencerDriftFjord = 1800
 type ForkName string
 
 const (
+	Bedrock  ForkName = "bedrock"
 	Regolith ForkName = "regolith"
 	Canyon   ForkName = "canyon"
 	Delta    ForkName = "delta"
@@ -44,6 +45,7 @@ const (
 )
 
 var nextFork = map[ForkName]ForkName{
+	Bedrock:  Regolith,
 	Regolith: Canyon,
 	Canyon:   Delta,
 	Delta:    Ecotone,
@@ -53,8 +55,8 @@ var nextFork = map[ForkName]ForkName{
 }
 
 type ChainSpec struct {
-	config   *Config
-	nextFork ForkName
+	config      *Config
+	currentFork ForkName
 }
 
 func NewChainSpec(config *Config) *ChainSpec {
@@ -106,33 +108,38 @@ func (s *ChainSpec) MaxSequencerDrift(t uint64) uint64 {
 }
 
 func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
-	if s.nextFork == None {
+	if s.currentFork == Interop {
 		return
 	}
 
-	if s.nextFork == "" {
-		// Initialize c.nextFork if it is not set yet
-		if !s.config.IsRegolith(block.Time) {
-			s.nextFork = Regolith
-		} else if !s.config.IsCanyon(block.Time) {
-			s.nextFork = Canyon
-		} else if !s.config.IsDelta(block.Time) {
-			s.nextFork = Delta
-		} else if !s.config.IsEcotone(block.Time) {
-			s.nextFork = Ecotone
-		} else if !s.config.IsFjord(block.Time) {
-			s.nextFork = Fjord
-		} else if !s.config.IsInterop(block.Time) {
-			s.nextFork = Interop
-		} else {
-			s.nextFork = None
-			return
+	if s.currentFork == "" {
+		// Initialize currentFork if it is not set yet
+		s.currentFork = Bedrock
+		if s.config.IsRegolith(block.Time) {
+			s.currentFork = Regolith
 		}
+		if s.config.IsCanyon(block.Time) {
+			s.currentFork = Canyon
+		}
+		if s.config.IsDelta(block.Time) {
+			s.currentFork = Delta
+		}
+		if s.config.IsEcotone(block.Time) {
+			s.currentFork = Ecotone
+		}
+		if s.config.IsFjord(block.Time) {
+			s.currentFork = Fjord
+		}
+		if s.config.IsInterop(block.Time) {
+			s.currentFork = Interop
+		}
+		log.Info("Current hardfork version detected", "forkName", s.currentFork)
+		return
 	}
 
 	foundActivationBlock := false
 
-	switch s.nextFork {
+	switch nextFork[s.currentFork] {
 	case Regolith:
 		foundActivationBlock = s.config.IsRegolithActivationBlock(block.Time)
 	case Canyon:
@@ -148,7 +155,7 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 	}
 
 	if foundActivationBlock {
-		log.Info("Detected hardfork activation block", "forkName", s.nextFork, "timestamp", block.Time, "blockNum", block.Number, "hash", block.Hash)
-		s.nextFork = nextFork[s.nextFork]
+		s.currentFork = nextFork[s.currentFork]
+		log.Info("Detected hardfork activation block", "forkName", s.currentFork, "timestamp", block.Time, "blockNum", block.Number, "hash", block.Hash)
 	}
 }
