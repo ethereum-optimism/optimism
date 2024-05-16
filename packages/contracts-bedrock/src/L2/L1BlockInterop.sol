@@ -96,6 +96,9 @@ contract L1BlockInterop is L1Block {
             if (chainId == block.chainid) revert CantRemovedChainId();
 
             if (!dependencySet.remove(chainId)) revert NotDependency();
+
+            emit DependencyRemoved(chainId);
+            return;
         }
     }
 }
