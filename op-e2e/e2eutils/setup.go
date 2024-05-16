@@ -143,6 +143,15 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		l2Genesis.Alloc[addr] = val
 	}
 
+	var plasma *rollup.PlasmaConfig
+	if deployConf.UsePlasma {
+		plasma = &rollup.PlasmaConfig{
+			DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
+			DAChallengeWindow:  deployConf.DAChallengeWindow,
+			DAResolveWindow:    deployConf.DAResolveWindow,
+		}
+	}
+
 	rollupCfg := &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
@@ -171,10 +180,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		DAChallengeAddress:     l1Deployments.DataAvailabilityChallengeProxy,
-		DAChallengeWindow:      deployConf.DAChallengeWindow,
-		DAResolveWindow:        deployConf.DAResolveWindow,
-		UsePlasma:              deployConf.UsePlasma,
+		PlasmaConfig:           plasma,
 	}
 
 	require.NoError(t, rollupCfg.Check())

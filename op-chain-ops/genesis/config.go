@@ -614,6 +614,14 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	if d.SystemConfigProxy == (common.Address{}) {
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
+	var plasma *rollup.PlasmaConfig
+	if d.UsePlasma {
+		plasma = &rollup.PlasmaConfig{
+			DAChallengeAddress: d.DAChallengeProxy,
+			DAChallengeWindow:  d.DAChallengeWindow,
+			DAResolveWindow:    d.DAResolveWindow,
+		}
+	}
 
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -648,10 +656,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		UsePlasma:              d.UsePlasma,
-		DAChallengeAddress:     d.DAChallengeProxy,
-		DAChallengeWindow:      d.DAChallengeWindow,
-		DAResolveWindow:        d.DAResolveWindow,
+		PlasmaConfig:           plasma,
 	}, nil
 }
 

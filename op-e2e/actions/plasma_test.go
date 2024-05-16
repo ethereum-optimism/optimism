@@ -58,7 +58,7 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 
-	require.True(t, sd.RollupCfg.UsePlasma)
+	require.True(t, sd.RollupCfg.PlasmaEnabled())
 
 	miner := NewL1Miner(t, log, sd.L1Cfg)
 	l1Client := miner.EthClient()
@@ -72,7 +72,7 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
 
-	plasmaCfg, err := sd.RollupCfg.PlasmaConfig()
+	plasmaCfg, err := sd.RollupCfg.GetOPPlasmaConfig()
 	require.NoError(t, err)
 
 	daMgr := plasma.NewPlasmaDAWithStorage(log, plasmaCfg, storage, &plasma.NoopMetrics{})
@@ -94,7 +94,7 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
 	alice.L2.SetUserEnv(l2UserEnv)
 
-	contract, err := bindings.NewDataAvailabilityChallenge(sd.RollupCfg.DAChallengeAddress, l1Client)
+	contract, err := bindings.NewDataAvailabilityChallenge(sd.RollupCfg.PlasmaConfig.DAChallengeAddress, l1Client)
 	require.NoError(t, err)
 
 	challengeWindow, err := contract.ChallengeWindow(nil)
