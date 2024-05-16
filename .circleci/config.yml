@@ -35,6 +35,7 @@ parameters:
 
 orbs:
   go: circleci/go@1.8.0
+  shellcheck: circleci/shellcheck@3.2.0
 commands:
   check-changed:
     description: "Conditionally halts a step if certain modules change"
