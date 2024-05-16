@@ -194,7 +194,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// test if the migrated scalar matches the deploy config
 	basefeeScalar, err := gasPriceOracle.BaseFeeScalar(nil)
 	require.NoError(t, err)
-	require.Equal(t, basefeeScalar, dp.DeployConfig.GasPriceOracleBaseFeeScalar, "must match deploy config")
+	require.Equal(t, basefeeScalar, dp.DeployConfig.GasPriceOracleScalar, "must match deploy config")
 
 	cost, err = gasPriceOracle.GetL1Fee(nil, []byte{0, 1, 2, 3, 4})
 	require.NoError(t, err)
