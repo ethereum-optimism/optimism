@@ -1750,7 +1750,7 @@ workflows:
       - fuzz-golang:
           name: op-chain-ops-fuzz
           package_name: op-chain-ops
-          on_changes: op-chain-ops,op-bindings
+          on_changes: op-chain-ops
           requires: ["go-mod-download"]
       - fuzz-golang:
           name: cannon-fuzz
@@ -1771,10 +1771,6 @@ workflows:
       - go-test:
           name: op-batcher-tests
           module: op-batcher
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-bindings-tests
-          module: op-bindings
           requires: ["go-mod-download"]
       - go-test:
           name: op-chain-ops-tests
@@ -1863,7 +1859,6 @@ workflows:
             - check-generated-mocks-op-service
             - go-mod-download
             - op-batcher-tests
-            - op-bindings-tests
             - op-chain-ops-tests
             - op-heartbeat-tests
             - op-node-tests
