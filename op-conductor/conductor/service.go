@@ -608,9 +608,9 @@ func (oc *OpConductor) action() {
 		// normal leader, do nothing
 	}
 
-	oc.log.Debug("exiting action with status and error", "status", status.String(), "err", err)
+	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
-		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status.String())
+		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
 		// randomly sleep for 0-200ms to avoid excessive retry
 		time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
 		oc.queueAction()
@@ -618,7 +618,7 @@ func (oc *OpConductor) action() {
 	}
 
 	if !status.Equal(oc.prevState) {
-		oc.log.Info("state changed", "prev_state", oc.prevState.String(), "new_state", status.String())
+		oc.log.Info("state changed", "prev_state", oc.prevState, "new_state", status)
 		oc.prevState = status
 	}
 }
