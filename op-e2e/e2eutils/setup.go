@@ -6,6 +6,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -201,7 +202,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.SystemConfig {
 	return eth.SystemConfig{
 		BatcherAddr: deployConfig.BatchSenderAddress,
-		Overhead:    eth.Bytes32{},
+		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleOverhead))),
 		Scalar:      eth.Bytes32(deployConfig.FeeScalar()),
 		GasLimit:    uint64(deployConfig.L2GenesisBlockGasLimit),
 	}
