@@ -43,8 +43,9 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	InitParallel(t)
 	// Define our values to set in the GasPriceOracle (we set them high to see if it can lock L2 or stop bindings
 	// from updating the prices once again.
-	overheadValue := abi.MaxUint256
-	scalarValue := abi.MaxUint256
+	overheadValue := new(big.Int).Set(abi.MaxUint256)
+	// Ensure the most significant byte is 0x00
+	scalarValue := new(big.Int).Rsh(new(big.Int).Set(abi.MaxUint256), 8)
 	var cancel context.CancelFunc
 
 	// Create our system configuration for L1/L2 and start it
