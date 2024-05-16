@@ -61,29 +61,7 @@ type PlasmaConfig struct {
 	DAResolveWindow uint64 `json:"da_resolve_window"`
 }
 
-type ForkName string
-
-const (
-	Regolith ForkName = "regolith"
-	Canyon   ForkName = "canyon"
-	Delta    ForkName = "delta"
-	Ecotone  ForkName = "ecotone"
-	Fjord    ForkName = "fjord"
-	Interop  ForkName = "interop"
-	None     ForkName = "none"
-)
-
-var nextFork = map[ForkName]ForkName{
-	Regolith: Canyon,
-	Canyon:   Delta,
-	Delta:    Ecotone,
-	Ecotone:  Fjord,
-	Fjord:    Interop,
-	Interop:  None,
-}
-
 type Config struct {
-	nextFork ForkName
 	// Genesis anchor point of the rollup
 	Genesis Genesis `json:"genesis"`
 	// Seconds per L2 block
@@ -432,54 +410,6 @@ func (c *Config) IsFjordActivationBlock(l2BlockTime uint64) bool {
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.InteropTime != nil && timestamp >= *c.InteropTime
-}
-
-func (c *Config) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
-	if c.nextFork == None {
-		return
-	}
-
-	if c.nextFork == "" {
-		// Initialize c.nextFork if it is not set yet
-		if !c.IsRegolith(block.Time) {
-			c.nextFork = Regolith
-		} else if !c.IsCanyon(block.Time) {
-			c.nextFork = Canyon
-		} else if !c.IsDelta(block.Time) {
-			c.nextFork = Delta
-		} else if !c.IsEcotone(block.Time) {
-			c.nextFork = Ecotone
-		} else if !c.IsFjord(block.Time) {
-			c.nextFork = Fjord
-		} else if !c.IsInterop(block.Time) {
-			c.nextFork = Interop
-		} else {
-			c.nextFork = None
-			return
-		}
-	}
-
-	foundActivationBlock := false
-
-	switch c.nextFork {
-	case Regolith:
-		foundActivationBlock = c.IsRegolithActivationBlock(block.Time)
-	case Canyon:
-		foundActivationBlock = c.IsCanyonActivationBlock(block.Time)
-	case Delta:
-		foundActivationBlock = c.IsDeltaActivationBlock(block.Time)
-	case Ecotone:
-		foundActivationBlock = c.IsEcotoneActivationBlock(block.Time)
-	case Fjord:
-		foundActivationBlock = c.IsFjordActivationBlock(block.Time)
-	case Interop:
-		foundActivationBlock = c.IsInteropActivationBlock(block.Time)
-	}
-
-	if foundActivationBlock {
-		log.Info("Detected hardfork activation block", "forkName", c.nextFork, "timestamp", block.Time, "blockNum", block.Number, "hash", block.Hash)
-		c.nextFork = nextFork[c.nextFork]
-	}
 }
 
 func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {

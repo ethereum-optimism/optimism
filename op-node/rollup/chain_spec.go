@@ -1,5 +1,10 @@
 package rollup
 
+import (
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/log"
+)
+
 // maxChannelBankSize is the amount of memory space, in number of bytes,
 // till the bank is pruned by removing channels, starting with the oldest channel.
 // It's value is changed with the Fjord network upgrade.
@@ -26,12 +31,34 @@ const SafeMaxRLPBytesPerChannel = maxRLPBytesPerChannelBedrock
 // ChainSpec instead of reading the rollup configuration field directly.
 const maxSequencerDriftFjord = 1800
 
+type ForkName string
+
+const (
+	Regolith ForkName = "regolith"
+	Canyon   ForkName = "canyon"
+	Delta    ForkName = "delta"
+	Ecotone  ForkName = "ecotone"
+	Fjord    ForkName = "fjord"
+	Interop  ForkName = "interop"
+	None     ForkName = "none"
+)
+
+var nextFork = map[ForkName]ForkName{
+	Regolith: Canyon,
+	Canyon:   Delta,
+	Delta:    Ecotone,
+	Ecotone:  Fjord,
+	Fjord:    Interop,
+	Interop:  None,
+}
+
 type ChainSpec struct {
-	config *Config
+	config   *Config
+	nextFork ForkName
 }
 
 func NewChainSpec(config *Config) *ChainSpec {
-	return &ChainSpec{config}
+	return &ChainSpec{config: config}
 }
 
 // IsCanyon returns true if t >= canyon_time
@@ -76,4 +103,52 @@ func (s *ChainSpec) MaxSequencerDrift(t uint64) uint64 {
 		return maxSequencerDriftFjord
 	}
 	return s.config.MaxSequencerDrift
+}
+
+func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
+	if s.nextFork == None {
+		return
+	}
+
+	if s.nextFork == "" {
+		// Initialize c.nextFork if it is not set yet
+		if !s.config.IsRegolith(block.Time) {
+			s.nextFork = Regolith
+		} else if !s.config.IsCanyon(block.Time) {
+			s.nextFork = Canyon
+		} else if !s.config.IsDelta(block.Time) {
+			s.nextFork = Delta
+		} else if !s.config.IsEcotone(block.Time) {
+			s.nextFork = Ecotone
+		} else if !s.config.IsFjord(block.Time) {
+			s.nextFork = Fjord
+		} else if !s.config.IsInterop(block.Time) {
+			s.nextFork = Interop
+		} else {
+			s.nextFork = None
+			return
+		}
+	}
+
+	foundActivationBlock := false
+
+	switch s.nextFork {
+	case Regolith:
+		foundActivationBlock = s.config.IsRegolithActivationBlock(block.Time)
+	case Canyon:
+		foundActivationBlock = s.config.IsCanyonActivationBlock(block.Time)
+	case Delta:
+		foundActivationBlock = s.config.IsDeltaActivationBlock(block.Time)
+	case Ecotone:
+		foundActivationBlock = s.config.IsEcotoneActivationBlock(block.Time)
+	case Fjord:
+		foundActivationBlock = s.config.IsFjordActivationBlock(block.Time)
+	case Interop:
+		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
+	}
+
+	if foundActivationBlock {
+		log.Info("Detected hardfork activation block", "forkName", s.nextFork, "timestamp", block.Time, "blockNum", block.Number, "hash", block.Hash)
+		s.nextFork = nextFork[s.nextFork]
+	}
 }
