@@ -66,7 +66,7 @@ config=$(cat << EOL
   "sequencerFeeVaultWithdrawalNetwork": 0,
 
   "gasPriceOracleOverhead": 0,
-  "gasPriceOracleScalar": "0x010000000000000000000000000000000000000000000000000c5fc500000558",
+  "gasPriceOracleScalar": 1000000,
 
   "enableGovernance": true,
   "governanceTokenSymbol": "OP",
