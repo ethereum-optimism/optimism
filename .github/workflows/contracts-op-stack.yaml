@@ -1,0 +1,116 @@
+name: Alfajores-Holesky Deploy OP-Stack L1 Contracts
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_contracts:
+        required: false
+        type: boolean
+        default: true
+      contracts_tag:
+        required: false
+        type: string
+        default: 'op-contracts/v1.3.0'
+      deployment_context:
+        required: false
+        type: string
+        default: 'test-alvaro'
+      l2_chain_id:
+        required: false
+        default: '42069'
+
+jobs:
+  deploy-contracts:
+    runs-on: ubuntu-latest
+    permissions: # Must change the job token permissions to use Akeyless JWT auth
+      id-token: write
+      contents: read
+    if: ${{ ! startsWith(github.triggering_actor, 'akeyless') }}
+    env:
+      DEPLOY_CONTRACTS: ${{ github.event_name == 'push' && 'true' || inputs.deploy_contracts }}
+      CONTRACTS_TAG: ${{ github.event_name == 'push' && 'op-contracts/v1.3.0' || inputs.contracts_tag }}
+      DEPLOYMENT_CONTEXT: ${{ github.event_name == 'push' && 'test' || inputs.deployment_context }}
+      L2_CHAIN_ID: ${{ github.event_name == 'push' && '42069' || inputs.l2_chain_id }}
+      L1_CHAIN_ID: '17000' # Holesky
+      L1_RPC_URL: 'https://ethereum-holesky-rpc.publicnode.com'
+      GS_ADMIN_ADDRESS: '0xb2397dF29AFB4B4661559436180019bEb7912985'
+      GS_BATCHER_ADDRESS: '0x7fDBe8F4D22ab511340667d7Ce5675568d09eBB4'
+      GS_PROPOSER_ADDRESS: '0xdCf30236Fa0aBE2ca0BEc2eE0a2F40b16A144DB3'
+      GS_SEQUENCER_ADDRESS: '0x3e2Df8efB6fA1d6E6021572a99BB67BA9ab2C59D'
+    steps:
+
+      - name: "Get GitHub Token from Akeyless"
+        id: get_auth_token
+        uses:
+          docker://us-west1-docker.pkg.dev/devopsre/akeyless-public/akeyless-action:latest
+        with:
+          api-url: https://api.gateway.akeyless.celo-networks-dev.org
+          access-id: p-kf9vjzruht6l
+          dynamic-secrets: '{"/dynamic-secrets/keys/github/optimism/contents=write,pull_requests=write":"PAT"}'
+
+      # "/static-secrets/devops-circle/alfajores/op-testnet-alfajores/HOLESKY_QUICKNODE_URL":"L1_RPC_URL",
+      - name: Akeyless get secrets
+        uses: docker://us-west1-docker.pkg.dev/devopsre/akeyless-public/akeyless-action:latest
+        with:
+          api-url: https://api.gateway.akeyless.celo-networks-dev.org
+          access-id: p-kf9vjzruht6l
+          static-secrets: '{
+            "/static-secrets/devops-circle/alfajores/op-testnet-alfajores/GS_ADMIN_PRIVATE_KEY":"GS_ADMIN_PRIVATE_KEY"
+            }'
+
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          token: ${{ env.PAT }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: "Checkout OP Repo"
+        uses: actions/checkout@v4
+        with:
+          repository: 'ethereum-optimism/optimism'
+          ref: '${{ env.CONTRACTS_TAG }}'
+          path: ethereum-optimism
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Generate config JSON
+        run: |
+          cd packages/contracts-bedrock
+          ./scripts/getting-started/config.sh
+          cp deploy-config/$DEPLOYMENT_CONTEXT.json /home/runner/work/optimism/optimism/ethereum-optimism/packages/contracts-bedrock/deploy-config/$DEPLOYMENT_CONTEXT.json
+
+      - name: Deploy L1 contracts
+        if: ${{ env.DEPLOY_CONTRACTS != 'false' }}
+        run: |
+          export IMPL_SALT=$(openssl rand -hex 32)
+          cd ethereum-optimism/packages/contracts-bedrock
+          echo "Broadcasting ..."
+          forge script scripts/Deploy.s.sol:Deploy --private-key $GS_ADMIN_PRIVATE_KEY --broadcast --rpc-url $L1_RPC_URL --legacy
+          mkdir -p /home/runner/work/optimism/optimism/packages/contracts-bedrock/deployments/$DEPLOYMENT_CONTEXT
+          cp deployments/$DEPLOYMENT_CONTEXT/.deploy /home/runner/work/optimism/optimism/packages/contracts-bedrock/deployments/$DEPLOYMENT_CONTEXT/.deploy
+
+      - name: Copy old .deploy file if contracts not deployed
+        if: ${{ env.DEPLOY_CONTRACTS == 'false' }}
+        run: |
+          mkdir -p ethereum-optimism/packages/contracts-bedrock/deployments/$DEPLOYMENT_CONTEXT
+          cp packages/contracts-bedrock/deployments/$DEPLOYMENT_CONTEXT/.deploy ethereum-optimism/packages/contracts-bedrock/deployments/$DEPLOYMENT_CONTEXT/.deploy
+
+      - name: Generate genesis files
+        run: |
+          mkdir -p l2-config-files/$DEPLOYMENT_CONTEXT
+          cd ethereum-optimism/op-node
+          go run cmd/main.go genesis l2 \
+            --deploy-config ../packages/contracts-bedrock/deploy-config/$DEPLOYMENT_CONTEXT.json \
+            --l1-deployments ../packages/contracts-bedrock/deployments/$DEPLOYMENT_CONTEXT/.deploy \
+            --outfile.l2 ../../l2-config-files/$DEPLOYMENT_CONTEXT/genesis-$(date +%s).json \
+            --outfile.rollup ../../l2-config-files/$DEPLOYMENT_CONTEXT/rollup-$(date +%s).json \
+            --l1-rpc $L1_RPC_URL
+
+      - name: "Commit genesis files"
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: '[Automatic] - Commit genesis files'
+          file_pattern: 'l2-config-files packages/contracts-bedrock/**'
