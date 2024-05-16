@@ -7,25 +7,13 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
 
 contract L1BlockInteropTest is CommonTest {
-    /// @notice Thrown when a non-depositor account attempts to set L1 block values.
     error NotDepositor();
-
-    /// @notice Error when a chain ID is not in the interop dependency set.
     error NotDependency();
-
-    /// @notice Error when the interop dependency set size is too large.
     error DependencySetSizeTooLarge();
-
-    /// @notice Error when the chain's chain ID is attempted to be removed from the interop dependency set.
     error CantRemovedChainId();
 
-    /// @notice Event emitted when the gas paying token is set.
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
-
-    /// @notice Event emitted when a new dependency is added to the interop dependency set.
     event DependencyAdded(uint256 indexed chainId);
-
-    /// @notice Event emitted when a dependency is removed from the interop dependency set.
     event DependencyRemoved(uint256 indexed chainId);
 
     modifier prankDepositor() {
