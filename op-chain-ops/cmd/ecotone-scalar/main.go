@@ -59,7 +59,7 @@ func main() {
 		scalar = uint(decoded.BaseFeeScalar)
 		blobScalar = uint(decoded.BlobBaseFeeScalar)
 	} else {
-		encoded = eth.EncodeScalar(eth.EcostoneScalars{
+		encoded = eth.EncodeScalar(eth.EcotoneScalars{
 			BlobBaseFeeScalar: uint32(blobScalar),
 			BaseFeeScalar:     uint32(scalar),
 		})

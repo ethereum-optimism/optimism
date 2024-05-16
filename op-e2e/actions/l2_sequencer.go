@@ -175,3 +175,10 @@ func (s *L2Sequencer) ActBuildL2ToEcotone(t Testing) {
 		s.ActL2EndBlock(t)
 	}
 }
+func (s *L2Sequencer) ActBuildL2ToFjord(t Testing) {
+	require.NotNil(t, s.rollupCfg.FjordTime, "cannot activate FjordTime when it is not scheduled")
+	for s.L2Unsafe().Time < *s.rollupCfg.FjordTime {
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
