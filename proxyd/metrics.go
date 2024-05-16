@@ -264,6 +264,31 @@ var (
 		"backend_group_name",
 	})
 
+	consensusCandidateLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_candidate_lag",
+		Help:      "Consensus candidate lag",
+	}, []string{
+		"backend_group_name",
+		"backend_name",
+	})
+
+	consensusRequestedBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_requested_block",
+		Help:      "Consensus requested block",
+	}, []string{
+		"origin",
+	})
+
+	consensusCurrentConsensusBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_current_consensus_block",
+		Help:      "Consensus currently known consensus block",
+	}, []string{
+		"origin",
+	})
+
 	consensusHAError = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "group_consensus_ha_error",
@@ -591,6 +616,18 @@ func RecordBackendNetworkErrorRateSlidingWindow(b *Backend, rate float64) {
 
 func RecordBackendGroupFallbacks(bg *BackendGroup, name string, fallback bool) {
 	backendGroupFallbackBackend.WithLabelValues(bg.Name, name, strconv.FormatBool(fallback)).Set(boolToFloat64(fallback))
+}
+
+func RecordConsensusCandidateLag(group *BackendGroup, b *Backend, candidateLag uint64) {
+	consensusCandidateLag.WithLabelValues(group.Name, b.Name).Set(float64(candidateLag))
+}
+
+func RecordConsensusRequestedBlock(origin string, blockNumber hexutil.Uint64) {
+	consensusRequestedBlock.WithLabelValues(origin).Set(float64(blockNumber))
+}
+
+func RecordConsensusCurrentConsensusBlock(origin string, blockNumber hexutil.Uint64) {
+	consensusCurrentConsensusBlock.WithLabelValues(origin).Set(float64(blockNumber))
 }
 
 func boolToFloat64(b bool) float64 {

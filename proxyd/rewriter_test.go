@@ -25,6 +25,10 @@ type rewriteTest struct {
 	check       func(*testing.T, args)
 }
 
+var cp = &ConsensusPoller{
+	tracker: NewInMemoryConsensusTracker(),
+}
+
 func TestRewriteRequest(t *testing.T) {
 	tests := []rewriteTest{
 		/* range scoped */
@@ -206,7 +210,9 @@ func TestRewriteRequest(t *testing.T) {
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["toBlock"])
 			},
 		},
+
 		/* required parameter at pos 0 */
+
 		{
 			name: "debug_getRawReceipts latest",
 			args: args{
@@ -677,6 +683,66 @@ func generalize(tests []rewriteTest, baseMethod string, generalizedMethod string
 		}
 	}
 	return append(tests, newCases...)
+}
+
+func TestOutdatedRewriteContext(t *testing.T) {
+	// consensus tracker is at block 100
+	cp.tracker.SetLatestBlockNumber(hexutil.Uint64(100))
+	tests := []rewriteTest{
+		{
+			name: "eth_getBlockByNumber with enabled consensusPollerRetry, requested block 100",
+			args: args{
+				// RewriteContext is still at block 99
+				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusPollerRetry: true},
+				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{hexutil.Uint64(100).String()})},
+				res:  nil,
+			},
+			expected: RewriteNone,
+			check: func(t *testing.T, args args) {
+				var p []string
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, 1, len(p))
+				require.Equal(t, hexutil.Uint64(100).String(), p[0])
+			},
+		},
+		{
+			name: "eth_getBlockByNumber with disabled consensusPollerRetry, requested block 100",
+			args: args{
+				// RewriteContext is still at block 99
+				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusPollerRetry: false},
+				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{hexutil.Uint64(100).String()})},
+				res:  nil,
+			},
+			expected:    RewriteOverrideError,
+			expectedErr: ErrRewriteBlockOutOfRange,
+		},
+		{
+			name: "eth_getBlockByNumber with enabled consensusPollerRetry, requested block 101",
+			args: args{
+				// RewriteContext is still at block 99
+				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusPollerRetry: true},
+				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{hexutil.Uint64(101).String()})},
+				res:  nil,
+			},
+			expected:    RewriteOverrideError,
+			expectedErr: ErrRewriteBlockOutOfRange,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RewriteRequest(tt.args.rctx, tt.args.req, tt.args.res)
+			if result != RewriteOverrideError {
+				require.Nil(t, err)
+				require.Equal(t, tt.expected, result)
+			} else {
+				require.Equal(t, tt.expectedErr, err)
+			}
+			if tt.check != nil {
+				tt.check(t, tt.args)
+			}
+		})
+	}
 }
 
 func TestRewriteResponse(t *testing.T) {

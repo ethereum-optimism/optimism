@@ -115,6 +115,7 @@ type BackendGroupConfig struct {
 	ConsensusAware          bool         `toml:"consensus_aware"`
 	ConsensusAsyncHandler   string       `toml:"consensus_handler"`
 	ConsensusPollerInterval TOMLDuration `toml:"consensus_poller_interval"`
+	ConsensusPollerRetry    bool         `toml:"consensus_poller_retry`
 
 	ConsensusBanPeriod          TOMLDuration `toml:"consensus_ban_period"`
 	ConsensusMaxUpdateThreshold TOMLDuration `toml:"consensus_max_update_threshold"`

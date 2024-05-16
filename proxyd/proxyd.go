@@ -379,6 +379,9 @@ func Start(config *Config) (*Server, func(), error) {
 			if bgcfg.ConsensusPollerInterval > 0 {
 				copts = append(copts, WithPollerInterval(time.Duration(bgcfg.ConsensusPollerInterval)))
 			}
+			if bgcfg.ConsensusPollerRetry {
+				copts = append(copts, WithPollerRetry(true))
+			}
 
 			for _, be := range bgcfg.Backends {
 				if fallback, ok := bg.FallbackBackends[be]; !ok {

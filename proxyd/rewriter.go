@@ -3,16 +3,19 @@ package proxyd
 import (
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type RewriteContext struct {
-	latest        hexutil.Uint64
-	safe          hexutil.Uint64
-	finalized     hexutil.Uint64
-	maxBlockRange uint64
+	latest               hexutil.Uint64
+	safe                 hexutil.Uint64
+	finalized            hexutil.Uint64
+	maxBlockRange        uint64
+	cp                   *ConsensusPoller
+	consensusPollerRetry bool
 }
 
 type RewriteResult uint8
@@ -273,7 +276,29 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 	case rpc.LatestBlockNumber:
 		return rctx.latest.String(), true, nil
 	default:
-		if bnh.BlockNumber.Int64() > int64(rctx.latest) {
+		consensusBlock := int64(rctx.latest)
+		if bnh.BlockNumber.Int64() > consensusBlock {
+			if !rctx.consensusPollerRetry {
+				return "", false, ErrRewriteBlockOutOfRange
+			}
+			// check if consensus has a newer block already
+			// increase the sleep time in each iteration by 10ms
+			// this will sleep at most 2100ms in total (20*21/2*10)
+			for i := 1; i < 21; i++ {
+				consensusBlock = int64(rctx.cp.GetLatestBlockNumber())
+				if bnh.BlockNumber.Int64() <= consensusBlock {
+					break
+				}
+				time.Sleep(time.Duration(i*10) * time.Millisecond)
+			}
+		}
+
+		// track requested values
+		RecordConsensusRequestedBlock("rewriteTag", hexutil.Uint64(bnh.BlockNumber.Int64()))
+		RecordConsensusCurrentConsensusBlock("rewriteTag", hexutil.Uint64(consensusBlock))
+
+		// return an error if the consensus block is still too small
+		if bnh.BlockNumber.Int64() > consensusBlock {
 			return "", false, ErrRewriteBlockOutOfRange
 		}
 	}

@@ -35,12 +35,13 @@ type ConsensusPoller struct {
 	tracker      ConsensusTracker
 	asyncHandler ConsensusAsyncHandler
 
-	minPeerCount       uint64
-	banPeriod          time.Duration
-	maxUpdateThreshold time.Duration
-	maxBlockLag        uint64
-	maxBlockRange      uint64
-	interval           time.Duration
+	minPeerCount         uint64
+	banPeriod            time.Duration
+	maxUpdateThreshold   time.Duration
+	maxBlockLag          uint64
+	maxBlockRange        uint64
+	interval             time.Duration
+	consensusPollerRetry bool
 }
 
 type backendState struct {
@@ -246,6 +247,12 @@ func WithMinPeerCount(minPeerCount uint64) ConsensusOpt {
 func WithPollerInterval(interval time.Duration) ConsensusOpt {
 	return func(cp *ConsensusPoller) {
 		cp.interval = interval
+	}
+}
+
+func WithPollerRetry(consensusPollerRetry bool) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.consensusPollerRetry = consensusPollerRetry
 	}
 }
 
@@ -732,7 +739,9 @@ func (cp *ConsensusPoller) FilterCandidates(backends []*Backend) map[*Backend]*b
 	lagging := make([]*Backend, 0, len(candidates))
 	for be, bs := range candidates {
 		// check if backend is lagging behind the highest block
-		if uint64(highestLatestBlock-bs.latestBlockNumber) > cp.maxBlockLag {
+		candidateLag := uint64(highestLatestBlock - bs.latestBlockNumber)
+		RecordConsensusCandidateLag(cp.backendGroup, be, candidateLag)
+		if candidateLag > cp.maxBlockLag {
 			lagging = append(lagging, be)
 		}
 	}
