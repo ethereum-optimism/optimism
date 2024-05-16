@@ -162,7 +162,7 @@ func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg 
 
 func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *AttributesWithParent, updateSafe bool) (errType BlockInsertionErrType, err error) {
 	if e.IsEngineSyncing() {
-		return BlockInsertTemporaryErr, fmt.Errorf("engine is in progess of p2p sync")
+		return BlockInsertTemporaryErr, fmt.Errorf("engine is in progress of p2p sync")
 	}
 	if e.buildingInfo != (eth.PayloadInfo{}) {
 		e.log.Warn("did not finish previous block building, starting new building now", "prev_onto", e.buildingOnto, "prev_payload_id", e.buildingInfo.ID, "new_onto", parent)

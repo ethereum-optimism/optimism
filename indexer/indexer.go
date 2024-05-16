@@ -239,7 +239,7 @@ func (ix *Indexer) startHttpServer(ctx context.Context, cfg config.ServerConfig)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Heartbeat("/healthz"))
 
-	// needed so that the middlware gets invoked
+	// needed so that the middleware gets invoked
 	r.Get("/", r.NotFoundHandler())
 
 	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
