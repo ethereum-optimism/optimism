@@ -576,7 +576,7 @@ func (oc *OpConductor) action() {
 			break
 		}
 
-		// 2. we're here becasuse an healthy leader became unhealthy itself
+		// 2. we're here because an healthy leader became unhealthy itself
 		//    then we should try to stop sequencing locally and transfer leadership.
 		var result *multierror.Error
 		// Try to stop sequencer first, but since sequencer is not healthy, we may not be able to stop it.
