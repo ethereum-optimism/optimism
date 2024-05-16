@@ -143,11 +143,12 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, bl
 		state.player = player
 		state.status = player.Status()
 	}
-	state.inflight = true
 	if state.status != types.GameStatusInProgress {
 		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
+		state.lastProcessedBlockNum = blockNumber
 		return nil, nil
 	}
+	state.inflight = true
 	return newJob(blockNumber, game.Proxy, state.player, state.status), nil
 }
 

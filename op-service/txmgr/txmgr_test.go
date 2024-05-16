@@ -409,7 +409,7 @@ func TestAlreadyReserved(t *testing.T) {
 	require.ErrorIs(t, err, ErrAlreadyReserved)
 }
 
-// TestTxMgrConfirmsAtMaxGasPrice asserts that Send properly returns the max gas
+// TestTxMgrConfirmsAtHigherGasPrice asserts that Send properly returns the max gas
 // price receipt if none of the lower gas price txs were mined.
 func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	t.Parallel()
@@ -439,7 +439,7 @@ func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
 }
 
-// TestTxMgrConfirmsBlobTxAtMaxGasPrice asserts that Send properly returns the max gas price
+// TestTxMgrConfirmsBlobTxAtHigherGasPrice asserts that Send properly returns the max gas price
 // receipt if none of the lower gas price txs were mined when attempting to send a blob tx.
 func TestTxMgrConfirmsBlobTxAtHigherGasPrice(t *testing.T) {
 	t.Parallel()

@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"math/big"
+	"time"
 )
 
 var (
@@ -21,6 +22,10 @@ type Game interface {
 	// DefendsParent returns true if and only if the claim is a defense (i.e. goes right) of
 	// its parent.
 	DefendsParent(claim Claim) bool
+
+	// ChessClock returns the amount of time elapsed on the chess clock of the potential challenger to the supplied claim.
+	// Specifically, this returns the chess clock of the team that *disagrees* with the supplied claim.
+	ChessClock(now time.Time, claim Claim) time.Duration
 
 	// IsDuplicate returns true if the provided [Claim] already exists in the game state
 	// referencing the same parent claim
@@ -98,6 +103,27 @@ func (g *gameState) DefendsParent(claim Claim) bool {
 		return false
 	}
 	return claim.RightOf(parent.Position)
+}
+
+// ChessClock returns the amount of time elapsed on the chess clock of the potential challenger to the supplied claim.
+// Specifically, this returns the chess clock of the team that *disagrees* with the supplied claim.
+func (g *gameState) ChessClock(now time.Time, claim Claim) time.Duration {
+	parentRef := g.getParent(claim)
+	var parent Claim
+	if parentRef != nil {
+		parent = *parentRef
+	}
+	return ChessClock(now, claim, parent)
+}
+
+func ChessClock(now time.Time, claim Claim, parent Claim) time.Duration {
+	// Calculate the time elapsed since the claim was created
+	duration := now.Sub(claim.Clock.Timestamp)
+	if parent != (Claim{}) {
+		// Add total time elapsed from previous turns
+		duration = parent.Clock.Duration + duration
+	}
+	return duration
 }
 
 func (g *gameState) getParent(claim Claim) *Claim {

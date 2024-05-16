@@ -69,12 +69,12 @@ type Service struct {
 }
 
 // NewService creates a new Service.
-func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
+func NewService(ctx context.Context, logger log.Logger, cfg *config.Config, m metrics.Metricer) (*Service, error) {
 	s := &Service{
 		systemClock: clock.SystemClock,
 		l1Clock:     clock.NewSimpleClock(),
 		logger:      logger,
-		metrics:     metrics.NewMetrics(),
+		metrics:     m,
 	}
 
 	if err := s.initFromConfig(ctx, cfg); err != nil {

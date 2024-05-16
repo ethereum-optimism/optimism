@@ -120,7 +120,7 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 		isLocal := containsOracleData && action.OracleData.IsLocal
 		actionLog = actionLog.New(
 			"is_attack", action.IsAttack,
-			"parent", action.ParentIdx,
+			"parent", action.ParentClaim.ContractIndex,
 			"prestate", common.Bytes2Hex(action.PreState),
 			"proof", common.Bytes2Hex(action.ProofData),
 			"containsOracleData", containsOracleData,
@@ -130,7 +130,7 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 			actionLog = actionLog.New("oracleKey", common.Bytes2Hex(action.OracleData.OracleKey))
 		}
 	} else if action.Type == types.ActionTypeMove {
-		actionLog = actionLog.New("is_attack", action.IsAttack, "parent", action.ParentIdx, "value", action.Value)
+		actionLog = actionLog.New("is_attack", action.IsAttack, "parent", action.ParentClaim.ContractIndex, "value", action.Value)
 	}
 
 	switch action.Type {
@@ -138,7 +138,8 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 		a.metrics.RecordGameMove()
 	case types.ActionTypeStep:
 		a.metrics.RecordGameStep()
-		// TODO(client-pod#852): Add metrics for L2 block number challenges
+	case types.ActionTypeChallengeL2BlockNumber:
+		a.metrics.RecordGameL2Challenge()
 	}
 	actionLog.Info("Performing action")
 	err := a.responder.PerformAction(ctx, action)
@@ -178,7 +179,11 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 
 	var resolvableClaims []uint64
 	for _, claim := range claims {
-		if claim.ChessTime(a.l1Clock.Now()) <= a.maxClockDuration {
+		var parent types.Claim
+		if !claim.IsRootPosition() {
+			parent = claims[claim.ParentContractIndex]
+		}
+		if types.ChessClock(a.l1Clock.Now(), claim, parent) <= a.maxClockDuration {
 			continue
 		}
 		if a.selective {

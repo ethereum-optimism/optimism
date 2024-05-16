@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { stdError } from "forge-std/Test.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
@@ -468,6 +469,51 @@ contract OptimismPortal_Test is CommonTest {
 
         vm.prank(address(systemConfig));
         optimismPortal.setGasPayingToken({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
+    }
+
+    /// @notice Ensures that the deposit event is correct for the `setGasPayingToken`
+    ///         code path that manually emits a deposit transaction outside of the
+    ///         `depositTransaction` function. This is a simple differential test.
+    function test_setGasPayingToken_correctEvent_succeeds(
+        address _token,
+        string memory _name,
+        string memory _symbol
+    )
+        external
+    {
+        vm.assume(bytes(_name).length <= 32);
+        vm.assume(bytes(_symbol).length <= 32);
+
+        bytes32 name = GasPayingToken.sanitize(_name);
+        bytes32 symbol = GasPayingToken.sanitize(_symbol);
+
+        vm.recordLogs();
+
+        vm.prank(address(systemConfig));
+        optimismPortal.setGasPayingToken({ _token: _token, _decimals: 18, _name: name, _symbol: symbol });
+
+        vm.prank(Constants.DEPOSITOR_ACCOUNT, Constants.DEPOSITOR_ACCOUNT);
+        optimismPortal.depositTransaction({
+            _to: Predeploys.L1_BLOCK_ATTRIBUTES,
+            _value: 0,
+            _gasLimit: 200_000,
+            _isCreation: false,
+            _data: abi.encodeCall(L1Block.setGasPayingToken, (_token, 18, name, symbol))
+        });
+
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 2);
+
+        VmSafe.Log memory systemPath = logs[0];
+        VmSafe.Log memory userPath = logs[1];
+
+        assertEq(systemPath.topics.length, 4);
+        assertEq(systemPath.topics.length, userPath.topics.length);
+        assertEq(systemPath.topics[0], userPath.topics[0]);
+        assertEq(systemPath.topics[1], userPath.topics[1]);
+        assertEq(systemPath.topics[2], userPath.topics[2]);
+        assertEq(systemPath.topics[3], userPath.topics[3]);
+        assertEq(systemPath.data, userPath.data);
     }
 
     /// @dev Tests that the gas paying token cannot be set by a non-system config.

@@ -80,6 +80,7 @@ type SetupData struct {
 	L1Cfg         *core.Genesis
 	L2Cfg         *core.Genesis
 	RollupCfg     *rollup.Config
+	ChainSpec     *rollup.ChainSpec
 	DeploymentsL1 *genesis.L1Deployments
 }
 
@@ -142,6 +143,15 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		l2Genesis.Alloc[addr] = val
 	}
 
+	var plasma *rollup.PlasmaConfig
+	if deployConf.UsePlasma {
+		plasma = &rollup.PlasmaConfig{
+			DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
+			DAChallengeWindow:  deployConf.DAChallengeWindow,
+			DAResolveWindow:    deployConf.DAResolveWindow,
+		}
+	}
+
 	rollupCfg := &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
@@ -170,10 +180,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		DAChallengeAddress:     l1Deployments.DataAvailabilityChallengeProxy,
-		DAChallengeWindow:      deployConf.DAChallengeWindow,
-		DAResolveWindow:        deployConf.DAResolveWindow,
-		UsePlasma:              deployConf.UsePlasma,
+		PlasmaConfig:           plasma,
 	}
 
 	require.NoError(t, rollupCfg.Check())
@@ -187,6 +194,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L1Cfg:         l1Genesis,
 		L2Cfg:         l2Genesis,
 		RollupCfg:     rollupCfg,
+		ChainSpec:     rollup.NewChainSpec(rollupCfg),
 		DeploymentsL1: l1Deployments,
 	}
 }

@@ -50,6 +50,17 @@ type Genesis struct {
 	SystemConfig eth.SystemConfig `json:"system_config"`
 }
 
+type PlasmaConfig struct {
+	// L1 DataAvailabilityChallenge contract proxy address
+	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
+	// DA challenge window value set on the DAC contract. Used in plasma mode
+	// to compute when a commitment can no longer be challenged.
+	DAChallengeWindow uint64 `json:"da_challenge_window"`
+	// DA resolve window value set on the DAC contract. Used in plasma mode
+	// to compute when a challenge expires and trigger a reorg if needed.
+	DAResolveWindow uint64 `json:"da_resolve_window"`
+}
+
 type Config struct {
 	// Genesis anchor point of the rollup
 	Genesis Genesis `json:"genesis"`
@@ -60,7 +71,12 @@ type Config struct {
 	//
 	// Note: When L1 has many 1 second consecutive blocks, and L2 grows at fixed 2 seconds,
 	// the L2 time may still grow beyond this difference.
-	MaxSequencerDrift uint64 `json:"max_sequencer_drift"`
+	//
+	// With Fjord, the MaxSequencerDrift becomes a constant. Use the ChainSpec
+	// instead of reading this rollup configuration field directly to determine
+	// the max sequencer drift for a given block based on the block's L1 origin.
+	// Chains that activate Fjord at genesis may leave this field empty.
+	MaxSequencerDrift uint64 `json:"max_sequencer_drift,omitempty"`
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch L1 origin block itself
 	SeqWindowSize uint64 `json:"seq_window_size"`
 	// Number of L1 blocks between when a channel can be opened and when it must be closed by.
@@ -109,19 +125,22 @@ type Config struct {
 	// L1 address that declares the protocol versions, optional (Beta feature)
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
 
+	// Plasma Config. We are in the process of migrating to the PlasmaConfig from these legacy top level values
+	PlasmaConfig *PlasmaConfig `json:"plasma_config,omitempty"`
+
 	// L1 DataAvailabilityChallenge contract proxy address
-	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
+	LegacyDAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
 
 	// DA challenge window value set on the DAC contract. Used in plasma mode
 	// to compute when a commitment can no longer be challenged.
-	DAChallengeWindow uint64 `json:"da_challenge_window"`
+	LegacyDAChallengeWindow uint64 `json:"da_challenge_window,omitempty"`
 
 	// DA resolve window value set on the DAC contract. Used in plasma mode
 	// to compute when a challenge expires and trigger a reorg if needed.
-	DAResolveWindow uint64 `json:"da_resolve_window"`
+	LegacyDAResolveWindow uint64 `json:"da_resolve_window,omitempty"`
 
-	// UsePlasma is activated when the chain is in plasma mode.
-	UsePlasma bool `json:"use_plasma"`
+	// LegacyUsePlasma is activated when the chain is in plasma mode.
+	LegacyUsePlasma bool `json:"use_plasma,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -289,6 +308,9 @@ func (cfg *Config) Check() error {
 	if cfg.L2ChainID.Sign() < 1 {
 		return ErrL2ChainIDNotPositive
 	}
+	if err := validatePlasmaConfig(cfg); err != nil {
+		return err
+	}
 
 	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, "regolith", "canyon"); err != nil {
 		return err
@@ -303,6 +325,31 @@ func (cfg *Config) Check() error {
 		return err
 	}
 
+	return nil
+}
+
+// validatePlasmaConfig checks the two approaches to configuring plasma mode.
+// If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
+func validatePlasmaConfig(cfg *Config) error {
+	if cfg.LegacyUsePlasma && cfg.PlasmaConfig == nil {
+		// copy from top level to plasma config
+		cfg.PlasmaConfig = &PlasmaConfig{
+			DAChallengeAddress: cfg.LegacyDAChallengeAddress,
+			DAChallengeWindow:  cfg.LegacyDAChallengeWindow,
+			DAResolveWindow:    cfg.LegacyDAResolveWindow,
+		}
+	} else if cfg.LegacyUsePlasma && cfg.PlasmaConfig != nil {
+		// validate that both are the same
+		if cfg.LegacyDAChallengeAddress != cfg.PlasmaConfig.DAChallengeAddress {
+			return fmt.Errorf("LegacyDAChallengeAddress (%v) !=  PlasmaConfig.DAChallengeAddress (%v)", cfg.LegacyDAChallengeAddress, cfg.PlasmaConfig.DAChallengeAddress)
+		}
+		if cfg.LegacyDAChallengeWindow != cfg.PlasmaConfig.DAChallengeWindow {
+			return fmt.Errorf("LegacyDAChallengeWindow (%v) !=  PlasmaConfig.DAChallengeWindow (%v)", cfg.LegacyDAChallengeWindow, cfg.PlasmaConfig.DAChallengeWindow)
+		}
+		if cfg.LegacyDAResolveWindow != cfg.PlasmaConfig.DAResolveWindow {
+			return fmt.Errorf("LegacyDAResolveWindow (%v) !=  PlasmaConfig.DAResolveWindow (%v)", cfg.LegacyDAResolveWindow, cfg.PlasmaConfig.DAResolveWindow)
+		}
+	}
 	return nil
 }
 
@@ -405,29 +452,36 @@ func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	}
 }
 
-// PlasmaConfig validates and returns the plasma config from the rollup config.
-func (c *Config) PlasmaConfig() (plasma.Config, error) {
-	if c.DAChallengeAddress == (common.Address{}) {
-		return plasma.Config{}, fmt.Errorf("missing DAChallengeAddress")
+// GetOPPlasmaConfig validates and returns the plasma config from the rollup config.
+func (c *Config) GetOPPlasmaConfig() (plasma.Config, error) {
+	if c.PlasmaConfig == nil {
+		return plasma.Config{}, errors.New("no plasma config")
 	}
-	if c.DAChallengeWindow == uint64(0) {
-		return plasma.Config{}, fmt.Errorf("missing DAChallengeWindow")
+	if c.PlasmaConfig.DAChallengeAddress == (common.Address{}) {
+		return plasma.Config{}, errors.New("missing DAChallengeAddress")
 	}
-	if c.DAResolveWindow == uint64(0) {
-		return plasma.Config{}, fmt.Errorf("missing DAResolveWindow")
+	if c.PlasmaConfig.DAChallengeWindow == uint64(0) {
+		return plasma.Config{}, errors.New("missing DAChallengeWindow")
+	}
+	if c.PlasmaConfig.DAResolveWindow == uint64(0) {
+		return plasma.Config{}, errors.New("missing DAResolveWindow")
 	}
 	return plasma.Config{
-		DAChallengeContractAddress: c.DAChallengeAddress,
-		ChallengeWindow:            c.DAChallengeWindow,
-		ResolveWindow:              c.DAResolveWindow,
+		DAChallengeContractAddress: c.PlasmaConfig.DAChallengeAddress,
+		ChallengeWindow:            c.PlasmaConfig.DAChallengeWindow,
+		ResolveWindow:              c.PlasmaConfig.DAResolveWindow,
 	}, nil
+}
+
+func (c *Config) PlasmaEnabled() bool {
+	return c.PlasmaConfig != nil
 }
 
 // SyncLookback computes the number of blocks to walk back in order to find the correct L1 origin.
 // In plasma mode longest possible window is challenge + resolve windows.
 func (c *Config) SyncLookback() uint64 {
-	if c.UsePlasma {
-		if win := (c.DAChallengeWindow + c.DAResolveWindow); win > c.SeqWindowSize {
+	if c.PlasmaEnabled() {
+		if win := (c.PlasmaConfig.DAChallengeWindow + c.PlasmaConfig.DAResolveWindow); win > c.SeqWindowSize {
 			return win
 		}
 	}

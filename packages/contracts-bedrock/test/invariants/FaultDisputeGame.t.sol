@@ -89,7 +89,8 @@ contract RandomClaimActor is StdUtils {
 
         totalBonded += _bondAmount;
 
-        GAME.move{ value: _bondAmount }(_parentIndex, _claim, _isAttack);
+        (,,,, Claim disputed,,) = GAME.claimData(_parentIndex);
+        GAME.move{ value: _bondAmount }(disputed, _parentIndex, _claim, _isAttack);
     }
 
     fallback() external payable { }

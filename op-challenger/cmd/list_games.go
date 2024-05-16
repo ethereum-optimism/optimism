@@ -29,6 +29,7 @@ var (
 	SortByFlag = &cli.StringFlag{
 		Name:    "sort-by",
 		Usage:   "Sort games by column. Valid options: " + openum.EnumString(ColumnTypes),
+		Value:   "time",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "SORT_BY"),
 	}
 	SortOrderFlag = &cli.StringFlag{
@@ -53,7 +54,7 @@ func ListGames(ctx *cli.Context) error {
 		return err
 	}
 	sortBy := ctx.String(SortByFlag.Name)
-	if !slices.Contains(ColumnTypes, sortBy) {
+	if sortBy != "" && !slices.Contains(ColumnTypes, sortBy) {
 		return fmt.Errorf("invalid sort-by value: %v", sortBy)
 	}
 	sortOrder := ctx.String(SortOrderFlag.Name)
@@ -109,14 +110,14 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, l2BlockNum, rootClaim, status, _, err := gameContract.GetGameMetadata(ctx, rpcblock.ByHash(block))
+			metadata, err := gameContract.GetGameMetadata(ctx, rpcblock.ByHash(block))
 			if err != nil {
 				info.err = fmt.Errorf("failed to retrieve metadata for game %v: %w", gameProxy, err)
 				return
 			}
-			infos[currIndex].status = status
-			infos[currIndex].l2BlockNum = l2BlockNum
-			infos[currIndex].rootClaim = rootClaim
+			infos[currIndex].status = metadata.Status
+			infos[currIndex].l2BlockNum = metadata.L2BlockNum
+			infos[currIndex].rootClaim = metadata.RootClaim
 			claimCount, err := gameContract.GetClaimCount(ctx)
 			if err != nil {
 				info.err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)

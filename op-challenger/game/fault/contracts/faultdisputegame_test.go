@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
@@ -37,10 +38,15 @@ type contractVersion struct {
 	loadAbi func() *abi.ABI
 }
 
+func (c contractVersion) Is(versions ...string) bool {
+	return slices.Contains(versions, c.version)
+}
+
 const (
 	vers080    = "0.8.0"
 	vers0180   = "0.18.0"
-	versLatest = "1.1.0"
+	vers111    = "1.1.1"
+	versLatest = "1.2.0"
 )
 
 var versions = []contractVersion{
@@ -54,6 +60,12 @@ var versions = []contractVersion{
 		version: vers0180,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi0180)
+		},
+	},
+	{
+		version: vers111,
+		loadAbi: func() *abi.ABI {
+			return mustParseAbi(faultDisputeGameAbi111)
 		},
 	},
 	{
@@ -379,11 +391,19 @@ func TestAttackTx(t *testing.T) {
 		version := version
 		t.Run(version.version, func(t *testing.T) {
 			stubRpc, game := setupFaultDisputeGameTest(t, version)
+			bond := big.NewInt(1044)
 			value := common.Hash{0xaa}
-			stubRpc.SetResponse(fdgAddr, methodAttack, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
-			tx, err := game.AttackTx(111, value)
+			parent := faultTypes.Claim{ClaimData: faultTypes.ClaimData{Value: common.Hash{0xbb}}, ContractIndex: 111}
+			stubRpc.SetResponse(fdgAddr, methodRequiredBond, rpcblock.Latest, []interface{}{parent.Position.Attack().ToGIndex()}, []interface{}{bond})
+			if version.Is(vers080, vers0180, vers111) {
+				stubRpc.SetResponse(fdgAddr, methodAttack, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
+			} else {
+				stubRpc.SetResponse(fdgAddr, methodAttack, rpcblock.Latest, []interface{}{parent.Value, big.NewInt(111), value}, nil)
+			}
+			tx, err := game.AttackTx(context.Background(), parent, value)
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
+			require.Equal(t, bond, tx.Value)
 		})
 	}
 }
@@ -393,11 +413,19 @@ func TestDefendTx(t *testing.T) {
 		version := version
 		t.Run(version.version, func(t *testing.T) {
 			stubRpc, game := setupFaultDisputeGameTest(t, version)
+			bond := big.NewInt(1044)
 			value := common.Hash{0xaa}
-			stubRpc.SetResponse(fdgAddr, methodDefend, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
-			tx, err := game.DefendTx(111, value)
+			parent := faultTypes.Claim{ClaimData: faultTypes.ClaimData{Value: common.Hash{0xbb}}, ContractIndex: 111}
+			stubRpc.SetResponse(fdgAddr, methodRequiredBond, rpcblock.Latest, []interface{}{parent.Position.Defend().ToGIndex()}, []interface{}{bond})
+			if version.Is(vers080, vers0180, vers111) {
+				stubRpc.SetResponse(fdgAddr, methodDefend, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
+			} else {
+				stubRpc.SetResponse(fdgAddr, methodDefend, rpcblock.Latest, []interface{}{parent.Value, big.NewInt(111), value}, nil)
+			}
+			tx, err := game.DefendTx(context.Background(), parent, value)
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
+			require.Equal(t, bond, tx.Value)
 		})
 	}
 }
@@ -475,23 +503,38 @@ func TestGetGameMetadata(t *testing.T) {
 			expectedMaxClockDuration := uint64(456)
 			expectedRootClaim := common.Hash{0x01, 0x02}
 			expectedStatus := types.GameStatusChallengerWon
+			expectedL2BlockNumberChallenged := true
+			expectedL2BlockNumberChallenger := common.Address{0xee}
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
 			stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
 			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
 			if version.version == vers080 {
+				expectedL2BlockNumberChallenged = false
+				expectedL2BlockNumberChallenger = common.Address{}
 				stubRpc.SetResponse(fdgAddr, methodGameDuration, block, nil, []interface{}{expectedMaxClockDuration * 2})
+			} else if version.version == vers0180 {
+				expectedL2BlockNumberChallenged = false
+				expectedL2BlockNumberChallenger = common.Address{}
+				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
 			} else {
 				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
+				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expectedL2BlockNumberChallenged})
+				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenger, block, nil, []interface{}{expectedL2BlockNumberChallenger})
 			}
-			l1Head, l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background(), block)
+			actual, err := contract.GetGameMetadata(context.Background(), block)
+			expected := GameMetadata{
+				L1Head:                  expectedL1Head,
+				L2BlockNum:              expectedL2BlockNumber,
+				RootClaim:               expectedRootClaim,
+				Status:                  expectedStatus,
+				MaxClockDuration:        expectedMaxClockDuration,
+				L2BlockNumberChallenged: expectedL2BlockNumberChallenged,
+				L2BlockNumberChallenger: expectedL2BlockNumberChallenger,
+			}
 			require.NoError(t, err)
-			require.Equal(t, expectedL1Head, l1Head)
-			require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
-			require.Equal(t, expectedRootClaim, rootClaim)
-			require.Equal(t, expectedStatus, status)
-			require.Equal(t, expectedMaxClockDuration, duration)
+			require.Equal(t, expected, actual)
 		})
 	}
 }

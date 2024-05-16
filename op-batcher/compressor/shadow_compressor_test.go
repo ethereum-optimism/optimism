@@ -63,6 +63,7 @@ func TestShadowCompressor(t *testing.T) {
 
 			sc, err := NewShadowCompressor(Config{
 				TargetOutputSize: test.targetOutputSize,
+				CompressionAlgo:  derive.Zlib,
 			})
 			require.NoError(t, err)
 
@@ -115,6 +116,7 @@ func TestBoundInaccurateForLargeRandomData(t *testing.T) {
 
 	sc, err := NewShadowCompressor(Config{
 		TargetOutputSize: sizeLimit + 100,
+		CompressionAlgo:  derive.Zlib,
 	})
 	require.NoError(t, err)
 

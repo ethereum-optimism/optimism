@@ -209,7 +209,7 @@ func TestCalculateNextActions(t *testing.T) {
 			postState, actions := runStep(t, solver, game, claimBuilder.CorrectTraceProvider())
 			for i, action := range builder.ExpectedActions {
 				t.Logf("Expect %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
-					i, action.Type, action.ParentIdx, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
+					i, action.Type, action.ParentClaim.ContractIndex, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
 				require.Containsf(t, actions, action, "Expected claim %v missing", i)
 			}
 			require.Len(t, actions, len(builder.ExpectedActions), "Incorrect number of actions")
@@ -227,7 +227,7 @@ func runStep(t *testing.T, solver *GameSolver, game types.Game, correctTraceProv
 
 	for i, action := range actions {
 		t.Logf("Move %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
-			i, action.Type, action.ParentIdx, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
+			i, action.Type, action.ParentClaim.ContractIndex, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
 		// Check that every move the solver returns meets the generic validation rules
 		require.NoError(t, checkRules(game, action, correctTraceProvider), "Attempting to perform invalid action")
 	}
@@ -333,9 +333,9 @@ func applyActions(game types.Game, claimant common.Address, actions []types.Acti
 	for _, action := range actions {
 		switch action.Type {
 		case types.ActionTypeMove:
-			newPosition := action.ParentPosition.Attack()
+			newPosition := action.ParentClaim.Position.Attack()
 			if !action.IsAttack {
-				newPosition = action.ParentPosition.Defend()
+				newPosition = action.ParentClaim.Position.Defend()
 			}
 			claim := types.Claim{
 				ClaimData: types.ClaimData{
@@ -345,13 +345,13 @@ func applyActions(game types.Game, claimant common.Address, actions []types.Acti
 				},
 				Claimant:            claimant,
 				ContractIndex:       len(claims),
-				ParentContractIndex: action.ParentIdx,
+				ParentContractIndex: action.ParentClaim.ContractIndex,
 			}
 			claims = append(claims, claim)
 		case types.ActionTypeStep:
-			counteredClaim := claims[action.ParentIdx]
+			counteredClaim := claims[action.ParentClaim.ContractIndex]
 			counteredClaim.CounteredBy = claimant
-			claims[action.ParentIdx] = counteredClaim
+			claims[action.ParentClaim.ContractIndex] = counteredClaim
 		default:
 			panic(fmt.Errorf("unknown move type: %v", action.Type))
 		}

@@ -17,8 +17,7 @@ var NoopMetrics Metricer = new(NoopMetricsImpl)
 func (*NoopMetricsImpl) RecordInfo(_ string) {}
 func (*NoopMetricsImpl) RecordUp()           {}
 
-func (i *NoopMetricsImpl) RecordMonitorDuration(_ time.Duration) {
-}
+func (*NoopMetricsImpl) RecordMonitorDuration(_ time.Duration) {}
 
 func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
@@ -44,3 +43,5 @@ func (*NoopMetricsImpl) RecordIgnoredGames(_ int) {}
 func (*NoopMetricsImpl) RecordFailedGames(_ int) {}
 
 func (*NoopMetricsImpl) RecordBondCollateral(_ common.Address, _ *big.Int, _ *big.Int) {}
+
+func (*NoopMetricsImpl) RecordL2Challenges(_ bool, _ int) {}

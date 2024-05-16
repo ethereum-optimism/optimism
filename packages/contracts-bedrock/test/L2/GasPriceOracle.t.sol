@@ -108,12 +108,19 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
         assertEq(success, false);
         assertEq(returndata, hex"");
     }
+
+    /// @dev Tests that Fjord cannot be activated without activating Ecotone
+    function test_setFjord_withoutEcotone_reverts() external {
+        vm.prank(depositor);
+        vm.expectRevert("GasPriceOracle: Fjord can only be activated after Ecotone");
+        gasPriceOracle.setFjord();
+    }
 }
 
 contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
-        l2OutputMode = OutputMode.LOCAL_LATEST; // activate ecotone
+        l2OutputMode = OutputMode.LOCAL_ECOTONE; // activate ecotone
         super.setUp();
         assertEq(gasPriceOracle.isEcotone(), true);
 
@@ -194,5 +201,132 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
         uint256 price = gasPriceOracle.getL1Fee(data);
         // gas * (2M*16*20 + 3M*15) / 16M == 48977.5
         assertEq(price, 48977);
+    }
+
+    /// @dev Tests that `setFjord` is only callable by the depositor.
+    function test_setFjord_wrongCaller_reverts() external {
+        vm.expectRevert("GasPriceOracle: only the depositor account can set isFjord flag");
+        gasPriceOracle.setFjord();
+    }
+}
+
+contract GasPriceOracleFjordActive_Test is GasPriceOracle_Test {
+    /// @dev Sets up the test suite.
+    function setUp() public virtual override {
+        l2OutputMode = OutputMode.LOCAL_LATEST; // activate fjord
+        super.setUp();
+
+        bytes memory calldataPacked = Encoding.encodeSetL1BlockValuesEcotone(
+            baseFeeScalar, blobBaseFeeScalar, sequenceNumber, timestamp, number, baseFee, blobBaseFee, hash, batcherHash
+        );
+
+        vm.prank(depositor);
+        (bool success,) = address(l1Block).call(calldataPacked);
+        require(success, "Function call failed");
+    }
+
+    /// @dev Tests that `setFjord` cannot be called when Fjord is already activate
+    function test_setFjord_whenFjordActive_reverts() external {
+        vm.expectRevert("GasPriceOracle: Fjord already active");
+        vm.prank(depositor);
+        gasPriceOracle.setFjord();
+    }
+
+    /// @dev Tests that `gasPrice` is set correctly.
+    function test_gasPrice_succeeds() external {
+        vm.fee(100);
+        uint256 gasPrice = gasPriceOracle.gasPrice();
+        assertEq(gasPrice, 100);
+    }
+
+    /// @dev Tests that `baseFee` is set correctly.
+    function test_baseFee_succeeds() external {
+        vm.fee(64);
+        uint256 gasPrice = gasPriceOracle.baseFee();
+        assertEq(gasPrice, 64);
+    }
+
+    /// @dev Tests that `overhead` reverts since it was removed in ecotone.
+    function test_overhead_legacyFunction_reverts() external {
+        vm.expectRevert("GasPriceOracle: overhead() is deprecated");
+        gasPriceOracle.overhead();
+    }
+
+    /// @dev Tests that `scalar` reverts since it was removed in ecotone.
+    function test_scalar_legacyFunction_reverts() external {
+        vm.expectRevert("GasPriceOracle: scalar() is deprecated");
+        gasPriceOracle.scalar();
+    }
+
+    /// @dev Tests that `l1BaseFee` is set correctly.
+    function test_l1BaseFee_succeeds() external view {
+        assertEq(gasPriceOracle.l1BaseFee(), baseFee);
+    }
+
+    /// @dev Tests that `blobBaseFee` is set correctly.
+    function test_blobBaseFee_succeeds() external view {
+        assertEq(gasPriceOracle.blobBaseFee(), blobBaseFee);
+    }
+
+    /// @dev Tests that `baseFeeScalar` is set correctly.
+    function test_baseFeeScalar_succeeds() external view {
+        assertEq(gasPriceOracle.baseFeeScalar(), baseFeeScalar);
+    }
+
+    /// @dev Tests that `blobBaseFeeScalar` is set correctly.
+    function test_blobBaseFeeScalar_succeeds() external view {
+        assertEq(gasPriceOracle.blobBaseFeeScalar(), blobBaseFeeScalar);
+    }
+
+    /// @dev Tests that `decimals` is set correctly.
+    function test_decimals_succeeds() external view {
+        assertEq(gasPriceOracle.decimals(), 6);
+        assertEq(gasPriceOracle.DECIMALS(), 6);
+    }
+
+    /// @dev Tests that `getL1GasUsed`, `getL1Fee` and `getL1FeeUpperBound` return expected values
+    ///      for the minimum bound of the linear regression
+    function test_getL1FeeMinimumBound_succeeds() external view {
+        bytes memory data = hex"0000010203"; // fastlzSize: 74, inc signature
+        uint256 gas = gasPriceOracle.getL1GasUsed(data);
+        assertEq(gas, 1600); // 100 (minimum size) * 16
+        uint256 price = gasPriceOracle.getL1Fee(data);
+        // linearRegression = -42.5856 + 74 * 0.8365 = 19.3154
+        // under the minTxSize of 100, so linear regression output is ignored
+        // 100_000_000 * (20 * 16 * 2 * 1e6 + 3 * 1e6 * 15) / 1e12
+        assertEq(price, 68500);
+
+        assertEq(data.length, 5);
+        // flzUpperBound = (5 + 68) + ((5 + 68) / 255) + 16 = 89
+        // linearRegression = -42.5856 + 89 * 0.8365 = 31.8629
+        // under the minTxSize of 100, so output is ignored
+        // 100_000_000 * (20 * 16 * 2 * 1e6 + 3 * 1e6 * 15) / 1e12
+        uint256 upperBound = gasPriceOracle.getL1FeeUpperBound(data.length);
+        assertEq(upperBound, 68500);
+    }
+
+    /// @dev Tests that `getL1GasUsed`, `getL1Fee` and `getL1FeeUpperBound` return expected values
+    ///      for a specific test transaction
+    function test_getL1FeeRegression_succeeds() external view {
+        // fastlzSize: 235, inc signature
+        bytes memory data =
+            hex"1d2c3ec4f5a9b3f3cd2c024e455c1143a74bbd637c324adcbd4f74e346786ac44e23e78f47d932abedd8d1"
+            hex"06daadcea350be16478461046273101034601364012364701331dfad43729dc486abd134bcad61b34d6ca1"
+            hex"f2eb31655b7d61ca33ba6d172cdf7d8b5b0ef389a314ca7a9a831c09fc2ca9090d059b4dd25194f3de297b"
+            hex"dba6d6d796e4f80be94f8a9151d685607826e7ba25177b40cb127ea9f1438470";
+
+        uint256 gas = gasPriceOracle.getL1GasUsed(data);
+        assertEq(gas, 2463); // 235 * 16
+        uint256 price = gasPriceOracle.getL1Fee(data);
+        // linearRegression = -42.5856 + 235 * 0.8365 = 153.9919
+        // 153_991_900 * (20 * 16 * 2 * 1e6 + 3 * 1e6 * 15) / 1e12
+        assertEq(price, 105484);
+
+        assertEq(data.length, 161);
+        // flzUpperBound = (161 + 68) + ((161 + 68) / 255) + 16 = 245
+        // linearRegression = -42.5856 + 245 * 0.8365 = 162.3569
+        // 162_356_900 * (20 * 16 * 2 * 1e6 + 3 * 1e6 * 15) / 1e12 == 111,214.4765
+        uint256 upperBound = gasPriceOracle.getL1FeeUpperBound(data.length);
+        assertEq(upperBound, 111214);
     }
 }

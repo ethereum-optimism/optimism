@@ -27,6 +27,24 @@ import (
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
+	// MaximumBaseFee represents the max base fee for deposits, since
+	// there is an on chain EIP-1559 curve for deposits purchasing L2 gas.
+	// It is type(uint128).max in solidity.
+	MaximumBaseFee, _ = new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
+)
+
+const (
+	// MaxResourceLimit represents the maximum amount of L2 gas that a single deposit can use.
+	MaxResourceLimit = 20_000_000
+	// ElasticityMultiplier represents the elasticity of the deposit EIP-1559 fee market.
+	ElasticityMultiplier = 10
+	// BaseFeeMaxChangeDenominator represents the maximum change in base fee per block.
+	BaseFeeMaxChangeDenominator = 8
+	// MinimumBaseFee represents the minimum base fee for deposits.
+	MinimumBaseFee = params.GWei
+	// SystemTxMaxGas represents the maximum gas that a system transaction can use
+	// when it is included with user deposits.
+	SystemTxMaxGas = 1_000_000
 )
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
@@ -391,7 +409,7 @@ func (d *DeployConfig) Check() error {
 	}
 	// When the initial resource config is made to be configurable by the DeployConfig, ensure
 	// that this check is updated to use the values from the DeployConfig instead of the defaults.
-	if uint64(d.L2GenesisBlockGasLimit) < uint64(DefaultResourceConfig.MaxResourceLimit+DefaultResourceConfig.SystemTxMaxGas) {
+	if uint64(d.L2GenesisBlockGasLimit) < uint64(MaxResourceLimit+SystemTxMaxGas) {
 		return fmt.Errorf("%w: L2 genesis block gas limit is too small", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
@@ -596,6 +614,14 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	if d.SystemConfigProxy == (common.Address{}) {
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
+	var plasma *rollup.PlasmaConfig
+	if d.UsePlasma {
+		plasma = &rollup.PlasmaConfig{
+			DAChallengeAddress: d.DAChallengeProxy,
+			DAChallengeWindow:  d.DAChallengeWindow,
+			DAResolveWindow:    d.DAResolveWindow,
+		}
+	}
 
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -630,10 +656,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		UsePlasma:              d.UsePlasma,
-		DAChallengeAddress:     d.DAChallengeProxy,
-		DAChallengeWindow:      d.DAChallengeWindow,
-		DAResolveWindow:        d.DAResolveWindow,
+		PlasmaConfig:           plasma,
 	}, nil
 }
 

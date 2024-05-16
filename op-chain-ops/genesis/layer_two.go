@@ -16,14 +16,15 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 type L2AllocsMode string
 
 const (
 	L2AllocsDelta   L2AllocsMode = "delta"
-	L2AllocsEcotone L2AllocsMode = "" // the default in solidity scripting / testing
+	L2AllocsEcotone L2AllocsMode = "ecotone"
+	L2AllocsFjord   L2AllocsMode = "" // the default in solidity scripting / testing
 )
 
 var (

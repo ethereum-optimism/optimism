@@ -2,7 +2,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract Safe",
+        "internalType": "contract GnosisSafe",
         "name": "_safe",
         "type": "address"
       },
@@ -126,6 +126,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "ownershipTransferredToFallback",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address[]",
@@ -148,7 +161,7 @@
     "name": "safe",
     "outputs": [
       {
-        "internalType": "contract Safe",
+        "internalType": "contract GnosisSafe",
         "name": "safe_",
         "type": "address"
       }
@@ -200,5 +213,16 @@
     ],
     "name": "RemovedOwner",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "OwnerRemovalFailed",
+    "type": "error"
   }
 ]

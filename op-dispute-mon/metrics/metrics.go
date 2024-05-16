@@ -132,6 +132,8 @@ type Metricer interface {
 
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
 
+	RecordL2Challenges(agreement bool, count int)
+
 	caching.Metrics
 	contractMetrics.ContractMetricer
 }
@@ -169,6 +171,7 @@ type Metrics struct {
 	latestInvalidProposal prometheus.Gauge
 	ignoredGames          prometheus.Gauge
 	failedGames           prometheus.Gauge
+	l2Challenges          prometheus.GaugeVec
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -308,6 +311,15 @@ func NewMetrics() *Metrics {
 			// additional DelayedWETH contracts to be used by dispute games
 			"delayedWETH",
 			"balance",
+		}),
+		l2Challenges: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "l2_block_challenges",
+			Help:      "Number of games where the L2 block number has been successfully challenged",
+		}, []string{
+			// Agreement with the root claim, not the actual l2 block number challenge.
+			// An l2 block number challenge with an agreement means the challenge was invalid.
+			"root_agreement",
 		}),
 	}
 }
@@ -453,12 +465,26 @@ func (m *Metrics) RecordFailedGames(count int) {
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
-	balance := "sufficient"
+	balanceLabel := "sufficient"
+	zeroBalanceLabel := "insufficient"
 	if required.Cmp(available) > 0 {
-		balance = "insufficient"
+		balanceLabel = "insufficient"
+		zeroBalanceLabel = "sufficient"
 	}
-	m.requiredCollateral.WithLabelValues(addr.Hex(), balance).Set(weiToEther(required))
-	m.availableCollateral.WithLabelValues(addr.Hex(), balance).Set(weiToEther(available))
+	m.requiredCollateral.WithLabelValues(addr.Hex(), balanceLabel).Set(weiToEther(required))
+	m.availableCollateral.WithLabelValues(addr.Hex(), balanceLabel).Set(weiToEther(available))
+
+	// If the balance is sufficient, make sure the insufficient label is zeroed out and vice versa.
+	m.requiredCollateral.WithLabelValues(addr.Hex(), zeroBalanceLabel).Set(0)
+	m.availableCollateral.WithLabelValues(addr.Hex(), zeroBalanceLabel).Set(0)
+}
+
+func (m *Metrics) RecordL2Challenges(agreement bool, count int) {
+	agree := "disagree"
+	if agreement {
+		agree = "agree"
+	}
+	m.l2Challenges.WithLabelValues(agree).Set(float64(count))
 }
 
 const (
