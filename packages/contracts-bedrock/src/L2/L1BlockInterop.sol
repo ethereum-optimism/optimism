@@ -5,15 +5,6 @@ import { L1Block } from "src/L2/L1Block.sol";
 import { EnumerableSetLib } from "@solady/utils/EnumerableSetLib.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
-/// @notice Thrown when a non-depositor account attempts to set L1 block values.
-error NotDepositor();
-
-/// @notice Thrown when dependencySetSize does not match the length of the dependency set.
-error DependencySetSizeMismatch();
-
-/// @notice Error when a chain ID is not in the interop dependency set.
-error NotDependency();
-
 /// @notice Enum representing different types of configurations that can be set on L1Block.
 /// @custom:value GAS_PAYING_TOKEN   Represents the config type for the gas paying token.
 /// @custom:value ADD_DEPENDENCY     Represents the config type for adding a chain to the interchain dependency set.
@@ -30,6 +21,15 @@ enum ConfigType {
 /// @notice Interop extenstions of L1Block.
 contract L1BlockInterop is L1Block {
     using EnumerableSetLib for EnumerableSetLib.Uint256Set;
+
+    /// @notice Error when a chain ID is not in the interop dependency set.
+    error NotDependency();
+
+    /// @notice Error when the interop dependency set size is too large.
+    error DependencySetSizeTooLarge();
+
+    /// @notice Error when the chain's chain ID is attempted to be removed from the interop dependency set.
+    error CantRemovedChainId();
 
     /// @notice Event emitted when a new dependency is added to the interop dependency set.
     event DependencyAdded(uint256 indexed chainId);
@@ -81,6 +81,8 @@ contract L1BlockInterop is L1Block {
         if (_type == ConfigType.ADD_DEPENDENCY) {
             uint256 chainId = abi.decode(_value, (uint256));
 
+            if (dependencySet.length() == type(uint8).max) revert DependencySetSizeTooLarge();
+
             dependencySet.add(chainId);
 
             emit DependencyAdded(chainId);
@@ -90,6 +92,8 @@ contract L1BlockInterop is L1Block {
         // For REMOVE_DEPENDENCY config type
         if (_type == ConfigType.REMOVE_DEPENDENCY) {
             uint256 chainId = abi.decode(_value, (uint256));
+
+            if (chainId == block.chainid) revert CantRemovedChainId();
 
             if (!dependencySet.remove(chainId)) revert NotDependency();
         }
