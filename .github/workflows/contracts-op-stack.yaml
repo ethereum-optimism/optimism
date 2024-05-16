@@ -113,4 +113,5 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: '[Automatic] - Commit genesis files'
+          branch: alvarof2/contracts
           file_pattern: 'l2-config-files packages/contracts-bedrock/**'
