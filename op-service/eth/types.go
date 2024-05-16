@@ -425,7 +425,7 @@ func DecodeScalar(scalar [32]byte) (EcostoneScalars, error) {
 			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
 		}, nil
 	default:
-		return EcostoneScalars{}, fmt.Errorf("unexpected system config scalar: %s", scalar)
+		return EcostoneScalars{}, fmt.Errorf("unexpected system config scalar: %x", scalar)
 	}
 }
 
