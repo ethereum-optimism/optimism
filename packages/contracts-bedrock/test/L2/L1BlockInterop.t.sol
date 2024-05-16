@@ -30,6 +30,7 @@ contract L1BlockInteropTest is CommonTest {
 
     /// @dev Tests that an arbitrary chain ID can be added to the dependency set.
     function testFuzz_isInDependencySet_succeeds(uint256 _chainId) public prankDepositor {
+        // 0xfbb67fda52d4bfb8bf is Solady's EnumerableSetLib _ZERO_SENTINEL
         vm.assume(_chainId != 0xfbb67fda52d4bfb8bf);
 
         _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
