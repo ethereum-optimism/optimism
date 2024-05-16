@@ -35,6 +35,7 @@ func makeHeaders(numHeaders uint64, prevHeader *types.Header) []types.Header {
 
 func TestHeaderTraversalNextHeadersNoOp(t *testing.T) {
 	client := &testutils.MockClient{}
+	t.Cleanup(func() { client.AssertExpectations(t) })
 
 	// start from block 10 as the latest fetched block
 	LastTraversedHeader := &types.Header{Number: big.NewInt(10)}
@@ -56,8 +57,11 @@ func TestHeaderTraversalNextHeadersNoOp(t *testing.T) {
 
 func TestHeaderTraversalNextHeadersCursored(t *testing.T) {
 	client := &testutils.MockClient{}
+	t.Cleanup(func() { client.AssertExpectations(t) })
+
 	rpc := &testutils.MockRPC{}
 	client.Mock.On("RPC").Return(rpc)
+	t.Cleanup(func() { rpc.AssertExpectations(t) })
 
 	// start from genesis, 7 available headers
 	headerTraversal := NewHeaderTraversal(client, nil, bigint.Zero)
@@ -89,8 +93,11 @@ func TestHeaderTraversalNextHeadersCursored(t *testing.T) {
 
 func TestHeaderTraversalNextHeadersMaxSize(t *testing.T) {
 	client := &testutils.MockClient{}
+	t.Cleanup(func() { client.AssertExpectations(t) })
+
 	rpc := &testutils.MockRPC{}
 	client.Mock.On("RPC").Return(rpc)
+	t.Cleanup(func() { rpc.AssertExpectations(t) })
 
 	// start from genesis, 100 available headers
 	headerTraversal := NewHeaderTraversal(client, nil, bigint.Zero)
@@ -130,8 +137,11 @@ func TestHeaderTraversalNextHeadersMaxSize(t *testing.T) {
 
 func TestHeaderTraversalMismatchedProviderStateError(t *testing.T) {
 	client := &testutils.MockClient{}
+	t.Cleanup(func() { client.AssertExpectations(t) })
+
 	rpc := &testutils.MockRPC{}
 	client.Mock.On("RPC").Return(rpc)
+	t.Cleanup(func() { rpc.AssertExpectations(t) })
 
 	// start from genesis
 	headerTraversal := NewHeaderTraversal(client, nil, bigint.Zero)
