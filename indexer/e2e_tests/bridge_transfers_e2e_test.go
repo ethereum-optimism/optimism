@@ -565,12 +565,12 @@ func TestClientBridgeFunctions(t *testing.T) {
 		actors[i].amt = l2ToL1MessagePasserWithdrawTx.Value()
 
 		// (3.d) Ensure that withdrawal and deposit txs are retrievable via API
-		deposits, err := testSuite.Client.GetAllDepositsByAddress(actor.addr)
+		deposits, err := testSuite.ApiClient.GetAllDepositsByAddress(actor.addr)
 		require.NoError(t, err)
 		require.Len(t, deposits, 1)
 		require.Equal(t, depositTx.Hash().String(), deposits[0].L1TxHash)
 
-		withdrawals, err := testSuite.Client.GetAllWithdrawalsByAddress(actor.addr)
+		withdrawals, err := testSuite.ApiClient.GetAllWithdrawalsByAddress(actor.addr)
 		require.NoError(t, err)
 		require.Len(t, withdrawals, 1)
 		require.Equal(t, l2ToL1MessagePasserWithdrawTx.Hash().String(), withdrawals[0].TransactionHash)
@@ -578,7 +578,7 @@ func TestClientBridgeFunctions(t *testing.T) {
 	}
 
 	// (4) Ensure that supply assessment is correct
-	assessment, err := testSuite.Client.GetSupplyAssessment()
+	assessment, err := testSuite.ApiClient.GetSupplyAssessment()
 	require.NoError(t, err)
 
 	mintFloat, _ := mintSum.Float64()
@@ -612,7 +612,7 @@ func TestClientBridgeFunctions(t *testing.T) {
 	}
 
 	// (6) Validate assessment for proven & finalized withdrawals
-	assessment, err = testSuite.Client.GetSupplyAssessment()
+	assessment, err = testSuite.ApiClient.GetSupplyAssessment()
 	require.NoError(t, err)
 
 	proven, acc := s.proven.Float64()
