@@ -14,7 +14,6 @@ library Types {
         address OptimismPortal;
         address OptimismPortal2;
         address SystemConfig;
-        address SystemConfigInterop;
         address L1ERC721Bridge;
         address ProtocolVersions;
         address SuperchainConfig;
