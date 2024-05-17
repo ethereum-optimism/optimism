@@ -129,7 +129,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 2.8.0
-    string public constant version = "2.8.0";
+    function version() public pure virtual returns (string memory) {
+        return "2.8.0";
+    }
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
@@ -558,7 +560,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external virtual {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
