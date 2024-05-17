@@ -31,6 +31,18 @@ type L2Source interface {
 	L2OutputRoot(uint64) (eth.Bytes32, error)
 }
 
+type NoopFinalizer struct{}
+
+func (n NoopFinalizer) OnDerivationL1End(ctx context.Context, derivedFrom eth.L1BlockRef) error {
+	return nil
+}
+
+func (n NoopFinalizer) PostProcessSafeL2(l2Safe eth.L2BlockRef, derivedFrom eth.L1BlockRef) {}
+
+func (n NoopFinalizer) Reset() {}
+
+var _ derive.FinalizerHooks = (*NoopFinalizer)(nil)
+
 type Driver struct {
 	logger         log.Logger
 	pipeline       Derivation
@@ -41,7 +53,7 @@ type Driver struct {
 
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l1BlobsSource derive.L1BlobsFetcher, l2Source L2Source, targetBlockNum uint64) *Driver {
 	engine := derive.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync)
-	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, engine, metrics.NoopMetrics, &sync.Config{}, safedb.Disabled)
+	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, engine, metrics.NoopMetrics, &sync.Config{}, safedb.Disabled, NoopFinalizer{})
 	pipeline.Reset()
 	return &Driver{
 		logger:         logger,

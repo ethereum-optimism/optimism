@@ -244,7 +244,7 @@ func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// If we get this false signal, we shouldn't finalize the L2 chain.
 	altBlock4 := sequencer.SyncStatus().SafeL1
 	altBlock4.Hash = common.HexToHash("0xdead")
-	sequencer.derivation.Finalize(altBlock4)
+	sequencer.finalizer.Finalize(altBlock4)
 	sequencer.ActL2PipelineFull(t)
 	require.Equal(t, uint64(3), sequencer.SyncStatus().FinalizedL1.Number)
 	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")

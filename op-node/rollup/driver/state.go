@@ -40,6 +40,8 @@ type Driver struct {
 	// The derivation pipeline determines the new l2Safe.
 	derivation DerivationPipeline
 
+	finalizer Finalizer
+
 	// The engine controller is used by the sequencer & derivation components.
 	// We will also use it for EL sync in a future PR.
 	engineController *derive.EngineController
@@ -358,7 +360,7 @@ func (s *Driver) eventLoop() {
 			// no step, justified L1 information does not do anything for L2 derivation or status
 		case newL1Finalized := <-s.l1FinalizedSig:
 			s.l1State.HandleNewL1FinalizedBlock(newL1Finalized)
-			s.derivation.Finalize(newL1Finalized)
+			s.finalizer.Finalize(newL1Finalized)
 			reqStep() // we may be able to mark more L2 data as finalized now
 		case <-delayedStepReq:
 			delayedStepReq = nil
@@ -538,7 +540,7 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 func (s *Driver) syncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
 		CurrentL1:          s.derivation.Origin(),
-		CurrentL1Finalized: s.derivation.FinalizedL1(),
+		CurrentL1Finalized: s.finalizer.FinalizedL1(),
 		HeadL1:             s.l1State.L1Head(),
 		SafeL1:             s.l1State.L1Safe(),
 		FinalizedL1:        s.l1State.L1Finalized(),
