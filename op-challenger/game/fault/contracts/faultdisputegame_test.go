@@ -185,7 +185,7 @@ func TestSimpleGetters(t *testing.T) {
 
 func TestClock_EncodingDecoding(t *testing.T) {
 	t.Run("DurationAndTimestamp", func(t *testing.T) {
-		by := common.Hex2Bytes("00000000000000050000000000000002")
+		by := common.FromHex("00000000000000050000000000000002")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
 		require.Equal(t, 5*time.Second, clock.Duration)
@@ -194,7 +194,7 @@ func TestClock_EncodingDecoding(t *testing.T) {
 	})
 
 	t.Run("ZeroDuration", func(t *testing.T) {
-		by := common.Hex2Bytes("00000000000000000000000000000002")
+		by := common.FromHex("00000000000000000000000000000002")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
 		require.Equal(t, 0*time.Second, clock.Duration)
@@ -203,7 +203,7 @@ func TestClock_EncodingDecoding(t *testing.T) {
 	})
 
 	t.Run("ZeroTimestamp", func(t *testing.T) {
-		by := common.Hex2Bytes("00000000000000050000000000000000")
+		by := common.FromHex("00000000000000050000000000000000")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
 		require.Equal(t, 5*time.Second, clock.Duration)
@@ -212,7 +212,7 @@ func TestClock_EncodingDecoding(t *testing.T) {
 	})
 
 	t.Run("ZeroClock", func(t *testing.T) {
-		by := common.Hex2Bytes("00000000000000000000000000000000")
+		by := common.FromHex("00000000000000000000000000000000")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
 		require.Equal(t, 0*time.Second, clock.Duration)
