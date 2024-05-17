@@ -276,30 +276,9 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 	case rpc.LatestBlockNumber:
 		return rctx.latest.String(), true, nil
 	default:
-		consensusBlock := int64(rctx.latest)
-		if bnh.BlockNumber.Int64() > consensusBlock {
-			if !rctx.consensusPollerRetry {
-				return "", false, ErrRewriteBlockOutOfRange
-			}
-			// check if consensus has a newer block already
-			// increase the sleep time in each iteration by 10ms
-			// this will sleep at most 2100ms in total (20*21/2*10)
-			for i := 1; i < 21; i++ {
-				consensusBlock = int64(rctx.cp.GetLatestBlockNumber())
-				if bnh.BlockNumber.Int64() <= consensusBlock {
-					break
-				}
-				time.Sleep(time.Duration(i*10) * time.Millisecond)
-			}
-		}
-
-		// track requested values
-		RecordConsensusRequestedBlock("rewriteTag", hexutil.Uint64(bnh.BlockNumber.Int64()))
-		RecordConsensusCurrentConsensusBlock("rewriteTag", hexutil.Uint64(consensusBlock))
-
-		// return an error if the consensus block is still too small
-		if bnh.BlockNumber.Int64() > consensusBlock {
-			return "", false, ErrRewriteBlockOutOfRange
+		err := tryConsensusBlockUpdate(bnh.BlockNumber.Int64(), int64(rctx.latest), rctx.cp, rctx.consensusPollerRetry)
+		if err != nil {
+			return "", false, err
 		}
 	}
 
@@ -326,10 +305,39 @@ func rewriteTagBlockNumberOrHash(rctx RewriteContext, current *rpc.BlockNumberOr
 		bn := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(rctx.latest))
 		return &bn, true, nil
 	default:
-		if current.BlockNumber.Int64() > int64(rctx.latest) {
-			return nil, false, ErrRewriteBlockOutOfRange
+		err := tryConsensusBlockUpdate(current.BlockNumber.Int64(), int64(rctx.latest), rctx.cp, rctx.consensusPollerRetry)
+		if err != nil {
+			return nil, false, err
 		}
 	}
 
 	return current, false, nil
+}
+
+func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *ConsensusPoller, consensusPollerRetry bool) error {
+	if requestedBlock > consensusBlock {
+		if !consensusPollerRetry {
+			return ErrRewriteBlockOutOfRange
+		}
+		// check if consensus has a newer block already
+		// increase the sleep time in each iteration by 10ms
+		// this will sleep at most 2100ms in total (20*21/2*10)
+		for i := 1; i < 21; i++ {
+			consensusBlock = int64(cp.GetLatestBlockNumber())
+			if requestedBlock <= consensusBlock {
+				break
+			}
+			time.Sleep(time.Duration(i*10) * time.Millisecond)
+		}
+	}
+
+	// track requested values
+	RecordConsensusRequestedBlock("rewriteTag", hexutil.Uint64(requestedBlock))
+	RecordConsensusCurrentConsensusBlock("rewriteTag", hexutil.Uint64(consensusBlock))
+
+	// return an error if the consensus block is still too small
+	if requestedBlock > consensusBlock {
+		return ErrRewriteBlockOutOfRange
+	}
+	return nil
 }
