@@ -23,8 +23,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -504,11 +504,11 @@ func checkAll(ctx context.Context, env *actionEnv) error {
 	}
 	env.log.Info("starting checks, tx account", "addr", env.addr, "balance_wei", bal)
 
-	if err := checkRIP7212(ctx, env); err != nil {
+	if err = checkRIP7212(ctx, env); err != nil {
 		return fmt.Errorf("rip-7212: %w", err)
 	}
 
-	if err := checkAllFastLz(ctx, env); err != nil {
+	if err = checkAllFastLz(ctx, env); err != nil {
 		return fmt.Errorf("fastLz: %w", err)
 	}
 
