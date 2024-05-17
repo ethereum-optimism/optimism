@@ -15,6 +15,7 @@ import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -351,6 +352,45 @@ library ChainAssertions {
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
         } else {
             require(address(portal.disputeGameFactory()) == address(0));
+            require(address(portal.systemConfig()) == address(0));
+            require(address(portal.superchainConfig()) == address(0));
+            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
+        }
+        // This slot is the custom gas token _balance and this check ensures
+        // that it stays unset for forwards compatibility with custom gas token.
+        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0));
+    }
+
+    /// @notice Asserts the OptimismPortalInterop is setup correctly
+    function checkOptimismPortalInterop(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        bool _isProxy
+    )
+        internal
+        view
+    {
+        console.log("Running chain assertions on the OptimismPortalInterop");
+
+        OptimismPortalInterop portal = OptimismPortalInterop(payable(_contracts.OptimismPortalInterop));
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
+
+        address guardian = _cfg.superchainConfigGuardian();
+        if (guardian.code.length == 0) {
+            console.log("Guardian has no code: %s", guardian);
+        }
+
+        if (_isProxy) {
+            require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
+            require(address(portal.systemConfig()) == _contracts.SystemConfig);
+            require(portal.guardian() == guardian);
+            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
+            require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
+        } else {
+            require(address(portal.l2Oracle()) == address(0));
             require(address(portal.systemConfig()) == address(0));
             require(address(portal.superchainConfig()) == address(0));
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);

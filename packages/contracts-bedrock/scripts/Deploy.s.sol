@@ -20,6 +20,7 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -150,6 +151,7 @@ contract Deploy is Deployer {
             OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
             OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
+            OptimismPortalInterop: mustGetAddress("OptimismPortalProxy"),
             SystemConfig: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
@@ -169,6 +171,7 @@ contract Deploy is Deployer {
             OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: getAddress("OptimismPortalProxy"),
             OptimismPortal2: getAddress("OptimismPortalProxy"),
+            OptimismPortalInterop: getAddress("OptimismPortalProxy"),
             SystemConfig: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
@@ -382,6 +385,9 @@ contract Deploy is Deployer {
         deployPreimageOracle();
         deployMips();
         deployAnchorStateRegistry();
+
+        // Interop
+        deployOptimismPortalInterop();
     }
 
     /// @notice Initialize all of the implementations
@@ -389,10 +395,15 @@ contract Deploy is Deployer {
         console.log("Initializing implementations");
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
-        // contract.
+        // contract. The same goes for interop.
         if (cfg.useFaultProofs()) {
             console.log("WARNING: FPAC is enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
+        } else if (cfg.useInterop()) {
+            console.log(
+                "WARNING: interop is enabled. Initializing the OptimismPortal proxy with OptimismPortalInterop."
+            );
+            initializeOptimismPortalInterop();
         } else {
             initializeOptimismPortal();
         }
@@ -649,6 +660,25 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal2 = address(portal);
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+
+        addr_ = address(portal);
+    }
+
+    /// @notice Deploy the OptimismPortalInterop
+    function deployOptimismPortalInterop() public broadcast returns (address addr_) {
+        console.log("Deploying OptimismPortalInterop implementation");
+
+        OptimismPortalInterop portal = new OptimismPortalInterop{ salt: _implSalt() }();
+
+        save("OptimismPortalInterop", address(portal));
+        console.log("OptimismPortalInterop deployed at %s", address(portal));
+
+        // Override the `OptimismPortalInterop` contract to the deployed implementation. This is necessary
+        // to check the `OptimismPortalInterop` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.OptimismPortalInterop = address(portal);
+        ChainAssertions.checkOptimismPortalInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         addr_ = address(portal);
     }
