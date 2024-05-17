@@ -285,6 +285,7 @@ func sendTxAndCheckFees(ctx context.Context, env *actionEnv, to *common.Address,
 		return fmt.Errorf("executing tx: %w", err)
 	}
 	blockHash := tx.receipt.BlockHash
+	opts := &bind.CallOpts{BlockHash: blockHash}
 	txUnsigned, err := tx.unsigned.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("binary-encoding unsigned tx: %w", err)
@@ -299,7 +300,7 @@ func sendTxAndCheckFees(ctx context.Context, env *actionEnv, to *common.Address,
 		"block_hash", blockHash,
 	)
 
-	gpoL1GasUsed, err := gasPriceOracle.GetL1GasUsed(&bind.CallOpts{}, txUnsigned)
+	gpoL1GasUsed, err := gasPriceOracle.GetL1GasUsed(opts, txUnsigned)
 	if err != nil {
 		return fmt.Errorf("calling GasPriceOracle.GetL1GasUsed: %w", err)
 	}
@@ -307,7 +308,7 @@ func sendTxAndCheckFees(ctx context.Context, env *actionEnv, to *common.Address,
 	env.log.Info("retrieved L1 gas used", "gpoL1GasUsed", gpoL1GasUsed.Uint64())
 
 	// Check that GetL1Fee takes into account fast LZ
-	gpoFee, err := gasPriceOracle.GetL1Fee(&bind.CallOpts{}, txUnsigned)
+	gpoFee, err := gasPriceOracle.GetL1Fee(opts, txUnsigned)
 	if err != nil {
 		return fmt.Errorf("calling GasPriceOracle.GetL1Fee: %w", err)
 	}
@@ -331,7 +332,7 @@ func sendTxAndCheckFees(ctx context.Context, env *actionEnv, to *common.Address,
 	env.log.Info("gethFee matches receipt fee")
 
 	// Check that L1FeeUpperBound works
-	upperBound, err := gasPriceOracle.GetL1FeeUpperBound(&bind.CallOpts{}, big.NewInt(int64(len(txUnsigned))))
+	upperBound, err := gasPriceOracle.GetL1FeeUpperBound(opts, big.NewInt(int64(len(txUnsigned))))
 	if err != nil {
 		return fmt.Errorf("failed when calling GasPriceOracle.GetL1FeeUpperBound function: %w", err)
 	}
