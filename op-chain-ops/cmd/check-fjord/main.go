@@ -209,19 +209,19 @@ func checkRIP7212(ctx context.Context, env *actionEnv) error {
 func checkAllFastLz(ctx context.Context, env *actionEnv) error {
 	env.log.Info("beginning all FastLz feature tests")
 	if err := checkGasPriceOracle(ctx, env); err != nil {
-		return fmt.Errorf("gas-price-oracle error: %w", err)
+		return fmt.Errorf("gas-price-oracle: %w", err)
 	}
 	if err := checkTxSendEth(ctx, env); err != nil {
-		return fmt.Errorf("tx-send-eth error: %w", err)
+		return fmt.Errorf("tx-send-eth: %w", err)
 	}
 	if err := checkTxAllZero(ctx, env); err != nil {
-		return fmt.Errorf("tx-all-zero error: %w", err)
+		return fmt.Errorf("tx-all-zero: %w", err)
 	}
 	if err := checkTxAll42(ctx, env); err != nil {
-		return fmt.Errorf("tx-all-42 error: %w", err)
+		return fmt.Errorf("tx-all-42: %w", err)
 	}
 	if err := checkTxRandom(ctx, env); err != nil {
-		return fmt.Errorf("tx-random error: %w", err)
+		return fmt.Errorf("tx-random: %w", err)
 	}
 	env.log.Info("completed all FastLz feature tests successfully")
 	return nil
@@ -249,7 +249,7 @@ func checkGasPriceOracle(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("codeAt expectedGasPriceOracleAddress is empty")
 	}
 	codeHash := crypto.Keccak256Hash(code)
-	var fjordGasPriceOracleCodeHash = common.HexToHash("0xa88fa50a2745b15e6794247614b5298483070661adacb8d32d716434ed24c6b2")
+	fjordGasPriceOracleCodeHash := common.HexToHash("0xa88fa50a2745b15e6794247614b5298483070661adacb8d32d716434ed24c6b2")
 
 	if codeHash != fjordGasPriceOracleCodeHash {
 		return fmt.Errorf("GasPriceOracle codeHash does not match expectation")
@@ -277,52 +277,75 @@ func checkGasPriceOracle(ctx context.Context, env *actionEnv) error {
 func sendTxAndCheckFees(ctx context.Context, env *actionEnv, to *common.Address, txData []byte) error {
 	gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, env.l2)
 	if err != nil {
-		return fmt.Errorf("failed to create bindings for new GaspriceOracleCaller")
+		return fmt.Errorf("creating bindings for new GaspriceOracleCaller: %w", err)
 	}
 
-	err = execTx(ctx, to, txData, false, env)
+	tx, err := execTx(ctx, to, txData, false, env)
 	if err != nil {
-		return fmt.Errorf("failed to execute tx: %w", err)
+		return fmt.Errorf("executing tx: %w", err)
 	}
-
-	gpoL1GasUsed, err := gasPriceOracle.GetL1GasUsed(&bind.CallOpts{}, txData)
+	blockHash := tx.receipt.BlockHash
+	txUnsigned, err := tx.unsigned.MarshalBinary()
 	if err != nil {
-		return fmt.Errorf("failed when calling GasPriceOracle.GetL1GasUsed function: %w", err)
+		return fmt.Errorf("binary-encoding unsigned tx: %w", err)
+	}
+	txSigned, err := tx.signed.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("binary-encoding signed tx: %w", err)
+	}
+	env.log.Info("Transaction confirmed",
+		"unsigned_len", len(txUnsigned),
+		"signed", len(txSigned),
+		"block_hash", blockHash,
+	)
+
+	gpoL1GasUsed, err := gasPriceOracle.GetL1GasUsed(&bind.CallOpts{}, txUnsigned)
+	if err != nil {
+		return fmt.Errorf("calling GasPriceOracle.GetL1GasUsed: %w", err)
 	}
 
 	env.log.Info("retrieved L1 gas used", "gpoL1GasUsed", gpoL1GasUsed.Uint64())
 
 	// Check that GetL1Fee takes into account fast LZ
-	gpoFee, err := gasPriceOracle.GetL1Fee(&bind.CallOpts{}, txData)
+	gpoFee, err := gasPriceOracle.GetL1Fee(&bind.CallOpts{}, txUnsigned)
 	if err != nil {
-		return fmt.Errorf("failed when calling GasPriceOracle.GetL1Fee function: %w", err)
+		return fmt.Errorf("calling GasPriceOracle.GetL1Fee: %w", err)
 	}
 
-	gethFee, err := fjordL1Cost(gasPriceOracle, types.RollupCostData{
-		FastLzSize: uint64(types.FlzCompressLen(txData) + 68),
-	})
+	gethGPOFee, err := fjordL1Cost(gasPriceOracle, blockHash, uint64(types.FlzCompressLen(txUnsigned)+68))
 	if err != nil {
-		return fmt.Errorf("failed to calculate fjordL1Cost: %w", err)
+		return fmt.Errorf("calculating GPO fjordL1Cost: %w", err)
 	}
-	if gethFee.Uint64() != gpoFee.Uint64() {
-		return fmt.Errorf("gethFee does not match gpoFee")
+	if gethGPOFee.Uint64() != gpoFee.Uint64() {
+		return fmt.Errorf("gethGPOFee (%s) does not match gpoFee (%s)", gethGPOFee, gpoFee)
 	}
+	env.log.Info("gethGPOFee matches gpoFee")
+
+	gethFee, err := fjordL1Cost(gasPriceOracle, blockHash, uint64(types.FlzCompressLen(txSigned)))
+	if err != nil {
+		return fmt.Errorf("calculating receipt fjordL1Cost: %w", err)
+	}
+	if gethFee.Uint64() != tx.receipt.L1Fee.Uint64() {
+		return fmt.Errorf("gethFee (%s) does not match receipt L1Fee (%s)", gethFee, tx.receipt.L1Fee)
+	}
+	env.log.Info("gethFee matches receipt fee")
 
 	// Check that L1FeeUpperBound works
-	upperBound, err := gasPriceOracle.GetL1FeeUpperBound(&bind.CallOpts{}, big.NewInt(int64(len(txData))))
+	upperBound, err := gasPriceOracle.GetL1FeeUpperBound(&bind.CallOpts{}, big.NewInt(int64(len(txUnsigned))))
 	if err != nil {
 		return fmt.Errorf("failed when calling GasPriceOracle.GetL1FeeUpperBound function: %w", err)
 	}
 
-	txLen := len(txData) + 68
-	flzUpperBound := uint64(txLen + txLen/255 + 16)
-	upperBoundCost, err := fjordL1Cost(gasPriceOracle, types.RollupCostData{FastLzSize: flzUpperBound})
+	txLenGPO := len(txUnsigned) + 68
+	flzUpperBound := uint64(txLenGPO + txLenGPO/255 + 16)
+	upperBoundCost, err := fjordL1Cost(gasPriceOracle, blockHash, flzUpperBound)
 	if err != nil {
 		return fmt.Errorf("failed to calculate fjordL1Cost: %w", err)
 	}
 	if upperBoundCost.Uint64() != upperBound.Uint64() {
-		return fmt.Errorf("upperBoundCost does not meet expecation")
+		return fmt.Errorf("upperBound (%s) does not meet expectation (%s)", upperBound, upperBoundCost)
 	}
+	env.log.Info("GPO upper bound matches")
 	return nil
 }
 
@@ -361,20 +384,21 @@ func checkTxRandom(ctx context.Context, env *actionEnv) error {
 	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
-func fjordL1Cost(gasPriceOracle *bindings.GasPriceOracleCaller, rollupCostData types.RollupCostData) (*big.Int, error) {
-	baseFeeScalar, err := gasPriceOracle.BaseFeeScalar(nil)
+func fjordL1Cost(gasPriceOracle *bindings.GasPriceOracleCaller, block common.Hash, fastLzSize uint64) (*big.Int, error) {
+	opts := &bind.CallOpts{BlockHash: block}
+	baseFeeScalar, err := gasPriceOracle.BaseFeeScalar(opts)
 	if err != nil {
 		return nil, err
 	}
-	l1BaseFee, err := gasPriceOracle.L1BaseFee(nil)
+	l1BaseFee, err := gasPriceOracle.L1BaseFee(opts)
 	if err != nil {
 		return nil, err
 	}
-	blobBaseFeeScalar, err := gasPriceOracle.BlobBaseFeeScalar(nil)
+	blobBaseFeeScalar, err := gasPriceOracle.BlobBaseFeeScalar(opts)
 	if err != nil {
 		return nil, err
 	}
-	blobBaseFee, err := gasPriceOracle.BlobBaseFee(nil)
+	blobBaseFee, err := gasPriceOracle.BlobBaseFee(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -385,18 +409,24 @@ func fjordL1Cost(gasPriceOracle *bindings.GasPriceOracleCaller, rollupCostData t
 		new(big.Int).SetUint64(uint64(baseFeeScalar)),
 		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
 
-	fee, _ := costFunc(rollupCostData)
+	fee, _ := costFunc(types.RollupCostData{FastLzSize: fastLzSize})
 	return fee, nil
 }
 
-func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert bool, env *actionEnv) error {
+type txExecution struct {
+	unsigned *types.Transaction
+	signed   *types.Transaction
+	receipt  *types.Receipt
+}
+
+func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert bool, env *actionEnv) (*txExecution, error) {
 	nonce, err := env.l2.PendingNonceAt(ctx, env.addr)
 	if err != nil {
-		return fmt.Errorf("pending nonce retrieval failed: %w", err)
+		return nil, fmt.Errorf("pending nonce retrieval failed: %w", err)
 	}
 	head, err := env.l2.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve head header: %w", err)
+		return nil, fmt.Errorf("failed to retrieve head header: %w", err)
 	}
 
 	tip := big.NewInt(params.GWei)
@@ -405,7 +435,7 @@ func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert b
 
 	chainID, err := env.l2.ChainID(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get chainID: %w", err)
+		return nil, fmt.Errorf("failed to get chainID: %w", err)
 	}
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,
@@ -417,15 +447,16 @@ func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert b
 		Data:      data,
 		Value:     big.NewInt(0),
 	})
+
 	signer := types.NewCancunSigner(chainID)
 	signedTx, err := types.SignTx(tx, signer, env.key)
 	if err != nil {
-		return fmt.Errorf("failed to sign tx: %w", err)
+		return nil, fmt.Errorf("failed to sign tx: %w", err)
 	}
 
 	env.log.Info("sending tx", "txhash", signedTx.Hash(), "to", to, "data", hexutil.Bytes(data))
 	if err := env.l2.SendTransaction(ctx, signedTx); err != nil {
-		return fmt.Errorf("failed to send tx: %w", err)
+		return nil, fmt.Errorf("failed to send tx: %w", err)
 	}
 	for i := 0; i < 30; i++ {
 		env.log.Info("checking confirmation...", "txhash", signedTx.Hash())
@@ -436,27 +467,27 @@ func execTx(ctx context.Context, to *common.Address, data []byte, expectRevert b
 				time.Sleep(time.Second)
 				continue
 			} else {
-				return fmt.Errorf("error while checking tx receipt: %w", err)
+				return nil, fmt.Errorf("error while checking tx receipt: %w", err)
 			}
 		}
 		env.RecordGasUsed(receipt)
 		if expectRevert {
 			if receipt.Status == types.ReceiptStatusFailed {
 				env.log.Info("tx reverted as expected", "txhash", signedTx.Hash())
-				return nil
+				return &txExecution{unsigned: tx, signed: signedTx, receipt: receipt}, nil
 			} else {
-				return fmt.Errorf("tx %s unexpectedly completed without revert", signedTx.Hash())
+				return nil, fmt.Errorf("tx %s unexpectedly completed without revert", signedTx.Hash())
 			}
 		} else {
 			if receipt.Status == types.ReceiptStatusSuccessful {
 				env.log.Info("tx confirmed", "txhash", signedTx.Hash())
-				return nil
+				return &txExecution{unsigned: tx, signed: signedTx, receipt: receipt}, nil
 			} else {
-				return fmt.Errorf("tx %s failed", signedTx.Hash())
+				return nil, fmt.Errorf("tx %s failed", signedTx.Hash())
 			}
 		}
 	}
-	return fmt.Errorf("failed to confirm tx: %s", signedTx.Hash())
+	return nil, fmt.Errorf("confirming tx: %s", signedTx.Hash())
 }
 
 func (ae *actionEnv) RecordGasUsed(rec *types.Receipt) {
@@ -473,11 +504,11 @@ func checkAll(ctx context.Context, env *actionEnv) error {
 	env.log.Info("starting checks, tx account", "addr", env.addr, "balance_wei", bal)
 
 	if err := checkRIP7212(ctx, env); err != nil {
-		return fmt.Errorf("failed: rip-7212: %w", err)
+		return fmt.Errorf("rip-7212: %w", err)
 	}
 
-	if err := checkGasPriceOracle(ctx, env); err != nil {
-		return fmt.Errorf("failed: fastLz error: %w", err)
+	if err := checkAllFastLz(ctx, env); err != nil {
+		return fmt.Errorf("fastLz: %w", err)
 	}
 
 	finbal, err := env.l2.BalanceAt(ctx, env.addr, nil)
