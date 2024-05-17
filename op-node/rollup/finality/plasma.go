@@ -40,6 +40,6 @@ func NewPlasmaFinalizer(log log.Logger, cfg *rollup.Config,
 	}
 }
 
-func (eq *PlasmaFinalizer) Finalize(l1Origin eth.L1BlockRef) {
-	eq.backend.Finalize(l1Origin)
+func (fi *PlasmaFinalizer) Finalize(l1Origin eth.L1BlockRef) {
+	fi.backend.Finalize(l1Origin)
 }
