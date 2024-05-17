@@ -13,7 +13,6 @@ library Types {
         address OptimismMintableERC20Factory;
         address OptimismPortal;
         address OptimismPortal2;
-        address OptimismPortalInterop;
         address SystemConfig;
         address L1ERC721Bridge;
         address ProtocolVersions;
