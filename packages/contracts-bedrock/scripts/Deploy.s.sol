@@ -154,7 +154,6 @@ contract Deploy is Deployer {
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
             OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
             SystemConfig: mustGetAddress("SystemConfigProxy"),
-            SystemConfigInterop: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
             SuperchainConfig: mustGetAddress("SuperchainConfigProxy")
@@ -174,7 +173,6 @@ contract Deploy is Deployer {
             OptimismPortal: getAddress("OptimismPortalProxy"),
             OptimismPortal2: getAddress("OptimismPortalProxy"),
             SystemConfig: getAddress("SystemConfigProxy"),
-            SystemConfigInterop: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
             SuperchainConfig: getAddress("SuperchainConfigProxy")
