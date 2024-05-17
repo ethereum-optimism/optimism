@@ -678,7 +678,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortalInterop = address(portal);
-        ChainAssertions.checkOptimismPortalInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         addr_ = address(portal);
     }
@@ -1068,7 +1068,7 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortalInterop version: %s", version);
 
-        ChainAssertions.checkOptimismPortalInterop({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Initialize the L1StandardBridge
