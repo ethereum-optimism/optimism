@@ -25,12 +25,8 @@ contract SystemConfigInterop_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function setUp() public virtual override {
+        super.enableInterop();
         super.setUp();
-        vm.etch(address(systemConfig), address(new SystemConfigWithSetGasPayingToken()).code);
-        vm.etch(address(optimismPortal), address(new OptimismPortalInterop()).code);
-
-        // Set OptimismPortal address in SystemConfig
-        _setOptimismPortalAddress(address(optimismPortal));
     }
 
     /// @dev Tests that the gas paying token can be set.
@@ -56,7 +52,7 @@ contract SystemConfigInterop_Test is CommonTest {
             abi.encode(ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, 18, _name, _symbol))
         );
 
-        _systemConfigInterop().setGasPayingToken(_token);
+        _systemConfigWithSetGasPayingToken().setGasPayingToken(_token);
     }
 
     /// @dev Tests that setting the gas paying token with no code at the OptimismPortal address reverts.
@@ -66,10 +62,12 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.assume(_token != Constants.ETHER);
 
         // Set OptimismPortal address in SystemConfig to an address with no code
-        _setOptimismPortalAddress(_noCodeAddress);
+        vm.etch(address(optimismPortal), _noCodeAddress.code);
 
-        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, _noCodeAddress));
-        _systemConfigInterop().setGasPayingToken(_token);
+        SystemConfigWithSetGasPayingToken systemConfigWithSetGasPayingToken = _systemConfigWithSetGasPayingToken();
+
+        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, address(optimismPortal)));
+        systemConfigWithSetGasPayingToken.setGasPayingToken(_token);
     }
 
     /// @dev Tests that a dependency can be added.
@@ -81,13 +79,13 @@ contract SystemConfigInterop_Test is CommonTest {
         );
 
         vm.prank(systemConfig.owner());
-        _systemConfigInterop().addDependency(_chainId);
+        systemConfigInterop.addDependency(_chainId);
     }
 
     /// @dev Tests that adding a dependency as not the owner reverts.
     function testFuzz_addDependency_notOwner_reverts(uint256 _chainId) public {
         vm.expectRevert("Ownable: caller is not the owner");
-        _systemConfigInterop().addDependency(_chainId);
+        systemConfigInterop.addDependency(_chainId);
     }
 
     /// @dev Tests that adding a dependency with no code at the OptimismPortal address reverts.
@@ -95,11 +93,11 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.assume(_noCodeAddress.code.length == 0);
 
         // Set OptimismPortal address in SystemConfig to an address with no code
-        _setOptimismPortalAddress(_noCodeAddress);
+        vm.etch(address(optimismPortal), _noCodeAddress.code);
 
         vm.prank(systemConfig.owner());
-        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, _noCodeAddress));
-        _systemConfigInterop().addDependency(_chainId);
+        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, address(optimismPortal)));
+        systemConfigInterop.addDependency(_chainId);
     }
 
     /// @dev Tests that a dependency can be removed.
@@ -111,13 +109,13 @@ contract SystemConfigInterop_Test is CommonTest {
         );
 
         vm.prank(systemConfig.owner());
-        _systemConfigInterop().removeDependency(_chainId);
+        systemConfigInterop.removeDependency(_chainId);
     }
 
     /// @dev Tests that removing a dependency as not the owner reverts.
     function testFuzz_removeDependency_notOwner_reverts(uint256 _chainId) public {
         vm.expectRevert("Ownable: caller is not the owner");
-        _systemConfigInterop().removeDependency(_chainId);
+        systemConfigInterop.removeDependency(_chainId);
     }
 
     /// @dev Tests that removing a dependency with no code at the OptimismPortal address reverts.
@@ -125,22 +123,22 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.assume(_noCodeAddress.code.length == 0);
 
         // Set OptimismPortal address in SystemConfig to an address with no code
-        _setOptimismPortalAddress(_noCodeAddress);
+        vm.etch(address(optimismPortal), _noCodeAddress.code);
 
         vm.prank(systemConfig.owner());
-        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, _noCodeAddress));
-        _systemConfigInterop().removeDependency(_chainId);
+        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, address(optimismPortal)));
+        systemConfigInterop.removeDependency(_chainId);
     }
 
-    /// @dev Returns the SystemConfigWithSetGasPayingToken instance.
-    function _systemConfigInterop() internal view returns (SystemConfigWithSetGasPayingToken) {
-        return SystemConfigWithSetGasPayingToken(address(systemConfig));
-    }
+    function _systemConfigWithSetGasPayingToken() internal returns (SystemConfigWithSetGasPayingToken) {
+        vm.etch(address(systemConfig), address(new SystemConfigWithSetGasPayingToken()).code);
 
-    /// @dev Sets the OptimismPortal address in the SystemConfig contract.
-    function _setOptimismPortalAddress(address _address) internal {
         vm.store(
-            address(systemConfig), bytes32(systemConfig.OPTIMISM_PORTAL_SLOT()), bytes32(uint256(uint160(_address)))
+            address(systemConfig),
+            bytes32(systemConfig.OPTIMISM_PORTAL_SLOT()),
+            bytes32(uint256(uint160(address(optimismPortal))))
         );
+
+        return SystemConfigWithSetGasPayingToken(address(systemConfig));
     }
 }
