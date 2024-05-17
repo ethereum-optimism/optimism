@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -210,6 +211,7 @@ func TestBeaconHTTPClient(t *testing.T) {
 	// BeaconBlobSideCars should return error when client.HTTP returns a 200 with empty list
 	_, err := b.BeaconBlobSideCars(ctx, false, slot, hashes)
 	require.Error(t, err)
+	require.Equal(t, err.Error(), fmt.Sprintf("#returned blobs(%d) != #requested blobs(%d)", 0, len(hashes)))
 }
 
 func TestClientPoolSingle(t *testing.T) {
