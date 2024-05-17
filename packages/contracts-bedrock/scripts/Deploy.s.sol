@@ -828,7 +828,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.SystemConfigInterop = address(config);
-        ChainAssertions.checkSystemConfigInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         addr_ = address(config);
     }
@@ -1089,7 +1089,7 @@ contract Deploy is Deployer {
         string memory version = config.version();
         console.log("SystemConfigInterop version: %s", version);
 
-        ChainAssertions.checkSystemConfigInterop({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+        ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Initialize the L1StandardBridge
