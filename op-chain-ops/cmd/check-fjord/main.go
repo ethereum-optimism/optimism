@@ -188,7 +188,7 @@ func checkRIP7212(ctx context.Context, env *actionEnv) error {
 	if !bytes.Equal(response, []byte{}) {
 		return fmt.Errorf("precompile should return empty response for invalid signature, but got %s", response)
 	}
-	env.log.Info("confirmed precompile returns empty reponse for invalid signature")
+	env.log.Info("confirmed precompile returns empty response for invalid signature")
 
 	// valid request returns one
 	response, err = env.l2.CallContract(ctx, ethereum.CallMsg{
@@ -381,7 +381,7 @@ func checkTxAll42(ctx context.Context, env *actionEnv) error {
 
 func checkTxRandom(ctx context.Context, env *actionEnv) error {
 	txData := make([]byte, 256)
-	rand.Read(txData)
+	_, _ = rand.Read(txData)
 	to := &env.addr
 	env.log.Info("Attempting tx-random...")
 	return sendTxAndCheckFees(ctx, env, to, txData)
