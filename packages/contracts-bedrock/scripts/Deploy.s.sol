@@ -383,9 +383,6 @@ contract Deploy is Deployer {
         deployPreimageOracle();
         deployMips();
         deployAnchorStateRegistry();
-
-        // Interop
-        deployOptimismPortalInterop();
     }
 
     /// @notice Initialize all of the implementations
@@ -393,15 +390,10 @@ contract Deploy is Deployer {
         console.log("Initializing implementations");
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
-        // contract. The same goes for interop.
+        // contract.
         if (cfg.useFaultProofs()) {
             console.log("WARNING: FPAC is enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
-        } else if (cfg.useInterop()) {
-            console.log(
-                "WARNING: interop is enabled. Initializing the OptimismPortal proxy with OptimismPortalInterop."
-            );
-            initializeOptimismPortalInterop();
         } else {
             initializeOptimismPortal();
         }
