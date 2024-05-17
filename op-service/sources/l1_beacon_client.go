@@ -129,8 +129,8 @@ func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSide
 	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {
 		return eth.APIGetBlobSidecarsResponse{}, err
 	}
-	if len(resp.Data) != len(hashes) {
-		return eth.APIGetBlobSidecarsResponse{}, fmt.Errorf("#returned blobs(%d) != #requested blobs(%d)", len(resp.Data), len(hashes))
+	if len(resp.Data) < len(hashes) {
+		return eth.APIGetBlobSidecarsResponse{}, fmt.Errorf("unexpected successful HTTP request with #returned blobs(%d) < #requested blobs(%d)", len(resp.Data), len(hashes))
 	}
 	return resp, nil
 }
