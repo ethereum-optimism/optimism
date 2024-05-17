@@ -618,21 +618,32 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
-        console.log("Deploying OptimismPortal implementation");
+        if (cfg.useInterop()) {
+            console.log("Deploying OptimismPortalInterop implementation");
 
-        OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }();
+            OptimismPortalInterop portal = new OptimismPortalInterop{ salt: _implSalt() }();
 
-        save("OptimismPortal", address(portal));
-        console.log("OptimismPortal deployed at %s", address(portal));
+            save("OptimismPortalInterop", address(portal));
+            console.log("OptimismPortalInterop deployed at %s", address(portal));
+
+            addr_ = address(portal);
+        } else {
+            console.log("Deploying OptimismPortal implementation");
+
+            OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }();
+
+            save("OptimismPortal", address(portal));
+            console.log("OptimismPortal deployed at %s", address(portal));
+
+            addr_ = address(portal);
+        }
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal` implementation alongside dependent contracts, which
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal = address(portal);
+        contracts.OptimismPortal = addr_;
         ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(portal);
     }
 
     /// @notice Deploy the OptimismPortal2
@@ -658,25 +669,6 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal2 = address(portal);
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(portal);
-    }
-
-    /// @notice Deploy the OptimismPortalInterop
-    function deployOptimismPortalInterop() public broadcast returns (address addr_) {
-        console.log("Deploying OptimismPortalInterop implementation");
-
-        OptimismPortalInterop portal = new OptimismPortalInterop{ salt: _implSalt() }();
-
-        save("OptimismPortalInterop", address(portal));
-        console.log("OptimismPortalInterop deployed at %s", address(portal));
-
-        // Override the `OptimismPortalInterop` contract to the deployed implementation. This is necessary
-        // to check the `OptimismPortalInterop` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal = address(portal);
-        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         addr_ = address(portal);
     }
