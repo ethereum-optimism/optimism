@@ -5,17 +5,10 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Target contract dependencies
 import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
+import "src/libraries/L1BlockErrors.sol";
+import "src/libraries/L1BlockEvents.sol";
 
 contract L1BlockInteropTest is CommonTest {
-    error NotDepositor();
-    error NotDependency();
-    error DependencySetSizeTooLarge();
-    error CantRemovedChainId();
-
-    event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
-    event DependencyAdded(uint256 indexed chainId);
-    event DependencyRemoved(uint256 indexed chainId);
-
     modifier prankDepositor() {
         vm.startPrank(l1Block.DEPOSITOR_ACCOUNT());
         _;
