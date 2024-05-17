@@ -291,6 +291,10 @@ func (s *state) Equal(other *state) bool {
 	return s.leader == other.leader && s.healthy == other.healthy && s.active == other.active
 }
 
+func (s *state) String() string {
+	return fmt.Sprintf("leader: %t, healthy: %t, active: %t", s.leader, s.healthy, s.active)
+}
+
 var _ cliapp.Lifecycle = (*OpConductor)(nil)
 
 // Start implements cliapp.Lifecycle.
@@ -366,6 +370,7 @@ func (oc *OpConductor) Pause(ctx context.Context) error {
 	select {
 	case oc.pauseCh <- struct{}{}:
 		<-oc.pauseDoneCh
+		oc.log.Info("OpConductor has been paused")
 		return nil
 	case <-ctx.Done():
 		return ErrPauseTimeout
@@ -382,6 +387,7 @@ func (oc *OpConductor) Resume(ctx context.Context) error {
 	select {
 	case oc.resumeCh <- struct{}{}:
 		<-oc.resumeDoneCh
+		oc.log.Info("OpConductor has been resumed")
 		return nil
 	case <-ctx.Done():
 		return ErrResumeTimeout
@@ -604,7 +610,7 @@ func (oc *OpConductor) action() {
 
 	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
-		oc.log.Error("failed to execute step, queueing another one to retry", "err", err)
+		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
 		// randomly sleep for 0-200ms to avoid excessive retry
 		time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
 		oc.queueAction()
