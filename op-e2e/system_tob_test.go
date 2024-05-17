@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -60,9 +60,9 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	ethPrivKey := cfg.Secrets.SysCfgOwner
 
 	// Bind to the SystemConfig & GasPriceOracle contracts
-	sysconfig, err := legacybindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
+	sysconfig, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
 	require.Nil(t, err)
-	gpoContract, err := legacybindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, l2Seq)
+	gpoContract, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, l2Seq)
 	require.Nil(t, err)
 
 	// Obtain our signer.
@@ -420,7 +420,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			l2Verif := sys.Clients["verifier"]
 			require.NoError(t, err)
 
-			systemConfig, err := legacybindings.NewSystemConfigCaller(cfg.L1Deployments.SystemConfigProxy, l1Client)
+			systemConfig, err := bindings.NewSystemConfigCaller(cfg.L1Deployments.SystemConfigProxy, l1Client)
 			require.NoError(t, err)
 			unsafeBlockSigner, err := systemConfig.UnsafeBlockSigner(nil)
 			require.NoError(t, err)

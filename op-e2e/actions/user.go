@@ -20,10 +20,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -450,7 +449,7 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 	return &params, nil
 }
 
-func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWithdrawalParameters) (*legacybindings.FaultDisputeGame, error) {
+func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWithdrawalParameters) (*bindings.FaultDisputeGame, error) {
 	wd := crossdomain.Withdrawal{
 		Nonce:    params.Nonce,
 		Sender:   &params.Sender,
@@ -470,7 +469,7 @@ func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWith
 	require.Nil(t, err)
 	require.NotNil(t, game, "withdrawal should be proven")
 
-	proxy, err := legacybindings.NewFaultDisputeGame(game.DisputeGameProxy, s.L1.env.EthCl)
+	proxy, err := bindings.NewFaultDisputeGame(game.DisputeGameProxy, s.L1.env.EthCl)
 	require.Nil(t, err)
 
 	return proxy, nil
