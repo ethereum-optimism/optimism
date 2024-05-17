@@ -405,15 +405,7 @@ contract Deploy is Deployer {
             initializeOptimismPortal();
         }
 
-        if (cfg.useInterop()) {
-            console.log(
-                "WARNING: interop is enabled. Initializing the SystemConfig proxy with the SystemConfigInterop."
-            );
-            initializeSystemConfigInterop();
-        } else {
-            initializeSystemConfig();
-        }
-
+        initializeSystemConfig();
         initializeL1StandardBridge();
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
@@ -1027,7 +1019,14 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the SystemConfig
     function initializeSystemConfig() public broadcast {
-        console.log("Upgrading and initializing SystemConfig proxy");
+        address systemConfig;
+        if (cfg.useInterop()) {
+            console.log("Upgrading and initializing SystemConfigInterop proxy");
+            systemConfig = mustGetAddress("SystemConfigInterop");
+        } else {
+            console.log("Upgrading and initializing SystemConfig proxy");
+            systemConfig = mustGetAddress("SystemConfig");
+        }
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
 
@@ -1065,56 +1064,15 @@ contract Deploy is Deployer {
             )
         });
 
-        SystemConfig config = SystemConfig(systemConfigProxy);
-        string memory version = config.version();
-        console.log("SystemConfig version: %s", version);
-
-        ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-    }
-
-    /// @notice Initialize the SystemConfigInterop
-    function initializeSystemConfigInterop() public broadcast {
-        console.log("Upgrading and initializing SystemConfigInterop proxy");
-        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
-        address systemConfigInterop = mustGetAddress("SystemConfigInterop");
-
-        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
-
-        address customGasTokenAddress = Constants.ETHER;
-        if (cfg.useCustomGasToken()) {
-            customGasTokenAddress = cfg.customGasTokenAddress();
+        if (cfg.useInterop()) {
+            SystemConfigInterop config = SystemConfigInterop(systemConfigProxy);
+            string memory version = config.version();
+            console.log("SystemConfigInterop version: %s", version);
+        } else {
+            SystemConfig config = SystemConfig(systemConfigProxy);
+            string memory version = config.version();
+            console.log("SystemConfig version: %s", version);
         }
-
-        _upgradeAndCallViaSafe({
-            _proxy: payable(systemConfigProxy),
-            _implementation: systemConfigInterop,
-            _innerCallData: abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    cfg.finalSystemOwner(),
-                    cfg.gasPriceOracleOverhead(),
-                    cfg.gasPriceOracleScalar(),
-                    batcherHash,
-                    uint64(cfg.l2GenesisBlockGasLimit()),
-                    cfg.p2pSequencerAddress(),
-                    Constants.DEFAULT_RESOURCE_CONFIG(),
-                    cfg.batchInboxAddress(),
-                    SystemConfig.Addresses({
-                        l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
-                        l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
-                        l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
-                        disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
-                        optimismPortal: mustGetAddress("OptimismPortalProxy"),
-                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
-                        gasPayingToken: customGasTokenAddress
-                    })
-                )
-            )
-        });
-
-        SystemConfigInterop config = SystemConfigInterop(systemConfigProxy);
-        string memory version = config.version();
-        console.log("SystemConfigInterop version: %s", version);
 
         ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
