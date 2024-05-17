@@ -130,9 +130,9 @@ func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSide
 		return eth.APIGetBlobSidecarsResponse{}, err
 	}
 
-	indices := make(map[uint64]bool)
+	indices := make(map[uint64]struct{}, len(hashes))
 	for _, h := range hashes {
-		indices[h.Index] = true
+		indices[h.Index] = struct{}{}
 	}
 
 	for _, apisc := range resp.Data {
