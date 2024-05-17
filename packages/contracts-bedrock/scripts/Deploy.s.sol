@@ -28,6 +28,7 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -152,6 +153,7 @@ contract Deploy is Deployer {
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
             OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
             SystemConfig: mustGetAddress("SystemConfigProxy"),
+            SystemConfigInterop: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
             SuperchainConfig: mustGetAddress("SuperchainConfigProxy")
@@ -171,6 +173,7 @@ contract Deploy is Deployer {
             OptimismPortal: getAddress("OptimismPortalProxy"),
             OptimismPortal2: getAddress("OptimismPortalProxy"),
             SystemConfig: getAddress("SystemConfigProxy"),
+            SystemConfigInterop: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
             SuperchainConfig: getAddress("SuperchainConfigProxy")
@@ -383,6 +386,9 @@ contract Deploy is Deployer {
         deployPreimageOracle();
         deployMips();
         deployAnchorStateRegistry();
+
+        // Interop
+        deploySystemConfigInterop();
     }
 
     /// @notice Initialize all of the implementations
@@ -398,7 +404,15 @@ contract Deploy is Deployer {
             initializeOptimismPortal();
         }
 
-        initializeSystemConfig();
+        if (cfg.useInterop()) {
+            console.log(
+                "WARNING: interop is enabled. Initializing the SystemConfig proxy with the SystemConfigInterop."
+            );
+            initializeSystemConfigInterop();
+        } else {
+            initializeSystemConfig();
+        }
+
         initializeL1StandardBridge();
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
@@ -801,6 +815,24 @@ contract Deploy is Deployer {
         addr_ = address(config);
     }
 
+    /// @notice Deploy the SystemConfigInterop
+    function deploySystemConfigInterop() public broadcast returns (address addr_) {
+        console.log("Deploying SystemConfigInterop implementation");
+        SystemConfigInterop config = new SystemConfigInterop{ salt: _implSalt() }();
+
+        save("SystemConfigInterop", address(config));
+        console.log("SystemConfigInterop deployed at %s", address(config));
+
+        // Override the `SystemConfigInterop` contract to the deployed implementation. This is necessary
+        // to check the `SystemConfigInterop` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.SystemConfigInterop = address(config);
+        ChainAssertions.checkSystemConfigInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+
+        addr_ = address(config);
+    }
+
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
         console.log("Deploying L1StandardBridge implementation");
@@ -1011,6 +1043,53 @@ contract Deploy is Deployer {
         console.log("SystemConfig version: %s", version);
 
         ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+    }
+
+    /// @notice Initialize the SystemConfigInterop
+    function initializeSystemConfigInterop() public broadcast {
+        console.log("Upgrading and initializing SystemConfigInterop proxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address systemConfigInterop = mustGetAddress("SystemConfigInterop");
+
+        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
+
+        address customGasTokenAddress = Constants.ETHER;
+        if (cfg.useCustomGasToken()) {
+            customGasTokenAddress = cfg.customGasTokenAddress();
+        }
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(systemConfigProxy),
+            _implementation: systemConfigInterop,
+            _innerCallData: abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    cfg.finalSystemOwner(),
+                    cfg.gasPriceOracleOverhead(),
+                    cfg.gasPriceOracleScalar(),
+                    batcherHash,
+                    uint64(cfg.l2GenesisBlockGasLimit()),
+                    cfg.p2pSequencerAddress(),
+                    Constants.DEFAULT_RESOURCE_CONFIG(),
+                    cfg.batchInboxAddress(),
+                    SystemConfig.Addresses({
+                        l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
+                        l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
+                        l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+                        disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
+                        optimismPortal: mustGetAddress("OptimismPortalProxy"),
+                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
+                        gasPayingToken: customGasTokenAddress
+                    })
+                )
+            )
+        });
+
+        SystemConfigInterop config = SystemConfigInterop(systemConfigProxy);
+        string memory version = config.version();
+        console.log("SystemConfigInterop version: %s", version);
+
+        ChainAssertions.checkSystemConfigInterop({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Initialize the L1StandardBridge
@@ -1244,6 +1323,35 @@ contract Deploy is Deployer {
         console.log("OptimismPortal2 version: %s", version);
 
         ChainAssertions.checkOptimismPortal2({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+    }
+
+    /// @notice Initialize the OptimismPortalInterop
+    function initializeOptimismPortalInterop() public broadcast {
+        console.log("Upgrading and initializing OptimismPortalInterop proxy");
+        address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
+        address optimismPortalInterop = mustGetAddress("OptimismPortalInterop");
+        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(optimismPortalProxy),
+            _implementation: optimismPortalInterop,
+            _innerCallData: abi.encodeCall(
+                OptimismPortal.initialize,
+                (
+                    L2OutputOracle(l2OutputOracleProxy),
+                    SystemConfig(systemConfigProxy),
+                    SuperchainConfig(superchainConfigProxy)
+                )
+            )
+        });
+
+        OptimismPortalInterop portal = OptimismPortalInterop(payable(optimismPortalProxy));
+        string memory version = portal.version();
+        console.log("OptimismPortalInterop version: %s", version);
+
+        ChainAssertions.checkOptimismPortalInterop({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
     function initializeProtocolVersions() public broadcast {
