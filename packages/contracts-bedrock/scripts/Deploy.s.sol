@@ -615,19 +615,19 @@ contract Deploy is Deployer {
 
             OptimismPortalInterop portal = new OptimismPortalInterop{ salt: _implSalt() }();
 
-            save("OptimismPortalInterop", address(portal));
-            console.log("OptimismPortalInterop deployed at %s", address(portal));
-
             addr_ = address(portal);
+
+            save("OptimismPortalInterop", addr_);
+            console.log("OptimismPortalInterop deployed at %s", addr_);
         } else {
             console.log("Deploying OptimismPortal implementation");
 
             OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }();
 
-            save("OptimismPortal", address(portal));
-            console.log("OptimismPortal deployed at %s", address(portal));
-
             addr_ = address(portal);
+
+            save("OptimismPortal", addr_);
+            console.log("OptimismPortal deployed at %s", addr_);
         }
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
