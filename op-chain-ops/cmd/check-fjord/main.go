@@ -53,7 +53,7 @@ func main() {
 			Name: "fast-lz",
 			Subcommands: []*cli.Command{
 				makeCommand("gas-price-oracle", checkGasPriceOracle),
-				makeCommand("tx-send-empty", checkTxSendEmpty),
+				makeCommand("tx-empty", checkTxEmpty),
 				makeCommand("tx-all-zero", checkTxAllZero),
 				makeCommand("tx-all-42", checkTxAll42),
 				makeCommand("tx-random", checkTxRandom),
@@ -62,7 +62,6 @@ func main() {
 			Flags:  makeFlags(),
 			Action: makeCommandAction(checkAllFastLz),
 		},
-		makeCommand("fastLz", checkGasPriceOracle),
 	}
 
 	err := app.Run(os.Args)
@@ -211,8 +210,8 @@ func checkAllFastLz(ctx context.Context, env *actionEnv) error {
 	if err := checkGasPriceOracle(ctx, env); err != nil {
 		return fmt.Errorf("gas-price-oracle: %w", err)
 	}
-	if err := checkTxSendEmpty(ctx, env); err != nil {
-		return fmt.Errorf("tx-send-empty: %w", err)
+	if err := checkTxEmpty(ctx, env); err != nil {
+		return fmt.Errorf("tx-empty: %w", err)
 	}
 	if err := checkTxAllZero(ctx, env); err != nil {
 		return fmt.Errorf("tx-all-zero: %w", err)
@@ -352,18 +351,15 @@ func sendTxAndCheckFees(ctx context.Context, env *actionEnv, to *common.Address,
 	return nil
 }
 
-func checkTxSendEmpty(ctx context.Context, env *actionEnv) error {
+func checkTxEmpty(ctx context.Context, env *actionEnv) error {
 	txData := []byte(nil)
 	to := &env.addr
-	env.log.Info("Attempting tx-send-empty...")
+	env.log.Info("Attempting tx-empty...")
 	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
 func checkTxAllZero(ctx context.Context, env *actionEnv) error {
 	txData := make([]byte, 256)
-	for i := range txData {
-		txData[i] = 0x00
-	}
 	to := &env.addr
 	env.log.Info("Attempting tx-all-zero...")
 	return sendTxAndCheckFees(ctx, env, to, txData)
