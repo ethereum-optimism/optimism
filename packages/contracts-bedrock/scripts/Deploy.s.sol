@@ -807,6 +807,7 @@ contract Deploy is Deployer {
             save("SystemConfig", addr_);
             console.log("SystemConfig deployed at %s", addr_);
         }
+
         // Override the `SystemConfig` contract to the deployed implementation. This is necessary
         // to check the `SystemConfig` implementation alongside dependent contracts, which
         // are always proxies.
