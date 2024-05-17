@@ -53,7 +53,7 @@ func main() {
 			Name: "fast-lz",
 			Subcommands: []*cli.Command{
 				makeCommand("gas-price-oracle", checkGasPriceOracle),
-				makeCommand("tx-send-eth", checkTxSendEth),
+				makeCommand("tx-send-empty", checkTxSendEmpty),
 				makeCommand("tx-all-zero", checkTxAllZero),
 				makeCommand("tx-all-42", checkTxAll42),
 				makeCommand("tx-random", checkTxRandom),
@@ -211,8 +211,8 @@ func checkAllFastLz(ctx context.Context, env *actionEnv) error {
 	if err := checkGasPriceOracle(ctx, env); err != nil {
 		return fmt.Errorf("gas-price-oracle: %w", err)
 	}
-	if err := checkTxSendEth(ctx, env); err != nil {
-		return fmt.Errorf("tx-send-eth: %w", err)
+	if err := checkTxSendEmpty(ctx, env); err != nil {
+		return fmt.Errorf("tx-send-empty: %w", err)
 	}
 	if err := checkTxAllZero(ctx, env); err != nil {
 		return fmt.Errorf("tx-all-zero: %w", err)
@@ -236,39 +236,41 @@ func checkGasPriceOracle(ctx context.Context, env *actionEnv) error {
 	if err != nil {
 		return err
 	}
-	if expectedGasPriceOracleAddress != common.BytesToAddress(updatedGasPriceOracleAddress) {
-		return fmt.Errorf("expected GasPriceOracle address does not match actual address")
+	if gpo := common.BytesToAddress(updatedGasPriceOracleAddress); expectedGasPriceOracleAddress != gpo {
+		return fmt.Errorf("expected GasPriceOracle address %s does not match actual address %s",
+			expectedGasPriceOracleAddress, gpo)
 	}
 	env.log.Info("confirmed GasPriceOracle address meets expectation")
 
 	code, err := env.l2.CodeAt(context.Background(), expectedGasPriceOracleAddress, nil)
 	if err != nil {
-		return fmt.Errorf("failed to read codeAt expectedGasPriceOracleAddress")
+		return fmt.Errorf("reading codeAt expectedGasPriceOracleAddress: %w", err)
 	}
 	if len(code) == 0 {
-		return fmt.Errorf("codeAt expectedGasPriceOracleAddress is empty")
+		return errors.New("codeAt expectedGasPriceOracleAddress is empty")
 	}
 	codeHash := crypto.Keccak256Hash(code)
 	fjordGasPriceOracleCodeHash := common.HexToHash("0xa88fa50a2745b15e6794247614b5298483070661adacb8d32d716434ed24c6b2")
 
 	if codeHash != fjordGasPriceOracleCodeHash {
-		return fmt.Errorf("GasPriceOracle codeHash does not match expectation")
+		return fmt.Errorf("GasPriceOracle codeHash (%s) does not match expectation (%s)",
+			codeHash, fjordGasPriceOracleCodeHash)
 	}
 	env.log.Info("confirmed GasPriceOracle codeHash meets expectation")
 
 	// Get gas price from oracle
 	gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, env.l2)
 	if err != nil {
-		return fmt.Errorf("failed to create bindings for new GaspriceOracleCaller")
+		return fmt.Errorf("creating bindings for new GaspriceOracleCaller: %w", err)
 	}
 
 	// Check that Fjord was activated
 	isFjord, err := gasPriceOracle.IsFjord(nil)
 	if err != nil {
-		return fmt.Errorf("failed when calling GasPriceOracle.IsFjord function: %w", err)
+		return fmt.Errorf("calling GasPriceOracle.IsFjord: %w", err)
 	}
 	if !isFjord {
-		return fmt.Errorf("GasPriceOracle.IsFjord function returned false")
+		return errors.New("GasPriceOracle.IsFjord returned false")
 	}
 	env.log.Info("confirmed GasPriceOracle reports Fjord is activated")
 	return nil
@@ -350,10 +352,10 @@ func sendTxAndCheckFees(ctx context.Context, env *actionEnv, to *common.Address,
 	return nil
 }
 
-func checkTxSendEth(ctx context.Context, env *actionEnv) error {
+func checkTxSendEmpty(ctx context.Context, env *actionEnv) error {
 	txData := []byte(nil)
 	to := &env.addr
-	env.log.Info("Attempting tx-send-eth...")
+	env.log.Info("Attempting tx-send-empty...")
 	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
