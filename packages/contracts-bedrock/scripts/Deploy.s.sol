@@ -387,9 +387,6 @@ contract Deploy is Deployer {
         deployPreimageOracle();
         deployMips();
         deployAnchorStateRegistry();
-
-        // Interop
-        deploySystemConfigInterop();
     }
 
     /// @notice Initialize all of the implementations
@@ -832,24 +829,6 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.SystemConfig = addr_;
         ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-    }
-
-    /// @notice Deploy the SystemConfigInterop
-    function deploySystemConfigInterop() public broadcast returns (address addr_) {
-        console.log("Deploying SystemConfigInterop implementation");
-        SystemConfigInterop config = new SystemConfigInterop{ salt: _implSalt() }();
-
-        save("SystemConfigInterop", address(config));
-        console.log("SystemConfigInterop deployed at %s", address(config));
-
-        // Override the `SystemConfigInterop` contract to the deployed implementation. This is necessary
-        // to check the `SystemConfigInterop` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.SystemConfigInterop = address(config);
-        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(config);
     }
 
     /// @notice Deploy the L1StandardBridge
