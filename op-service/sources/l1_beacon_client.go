@@ -130,8 +130,17 @@ func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSide
 		return eth.APIGetBlobSidecarsResponse{}, err
 	}
 
-	if len(resp.Data) < len(hashes) {
-		return eth.APIGetBlobSidecarsResponse{}, fmt.Errorf("#returned blobs(%d) != #requested blobs(%d)", len(resp.Data), len(hashes))
+	indices := make(map[uint64]bool)
+	for _, h := range hashes {
+		indices[h.Index] = true
+	}
+
+	for _, apisc := range resp.Data {
+		delete(indices, uint64(apisc.Index))
+	}
+
+	if len(indices) > 0 {
+		return eth.APIGetBlobSidecarsResponse{}, fmt.Errorf("#returned blobs(%d) != #requested blobs(%d)", len(hashes)-len(indices), len(hashes))
 	}
 	return resp, nil
 }
@@ -257,7 +266,6 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 	}
 
 	if len(hashes) != len(apiscs) {
-		cl.pool.MoveToNext()
 		return nil, fmt.Errorf("expected %v sidecars but got %v", len(hashes), len(apiscs))
 	}
 
