@@ -1042,6 +1042,35 @@ contract Deploy is Deployer {
         ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
+    /// @notice Initialize the OptimismPortalInterop
+    function initializeOptimismPortalInterop() public broadcast {
+        console.log("Upgrading and initializing OptimismPortalInterop proxy");
+        address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
+        address optimismPortalInterop = mustGetAddress("OptimismPortalInterop");
+        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(optimismPortalProxy),
+            _implementation: optimismPortalInterop,
+            _innerCallData: abi.encodeCall(
+                OptimismPortal.initialize,
+                (
+                    L2OutputOracle(l2OutputOracleProxy),
+                    SystemConfig(systemConfigProxy),
+                    SuperchainConfig(superchainConfigProxy)
+                )
+            )
+        });
+
+        OptimismPortalInterop portal = OptimismPortalInterop(payable(optimismPortalProxy));
+        string memory version = portal.version();
+        console.log("OptimismPortalInterop version: %s", version);
+
+        ChainAssertions.checkOptimismPortalInterop({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+    }
+
     /// @notice Initialize the L1StandardBridge
     function initializeL1StandardBridge() public broadcast {
         console.log("Upgrading and initializing L1StandardBridge proxy");
