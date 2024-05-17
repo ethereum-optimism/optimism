@@ -78,7 +78,7 @@ jobs:
           export IMPL_SALT=$(openssl rand -hex 32)
           cd packages/contracts-bedrock
           echo "Broadcasting ..."
-          forge script scripts/Deploy.s.sol:Deploy --private-key $GS_ADMIN_PRIVATE_KEY --broadcast --rpc-url $L1_RPC_URL
+          forge script scripts/Deploy.s.sol:Deploy --private-key $GS_ADMIN_PRIVATE_KEY --broadcast --rpc-url $L1_RPC_URL --legacy
 
       - name: Generate genesis files
         run: |
