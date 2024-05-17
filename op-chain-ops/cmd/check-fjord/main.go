@@ -103,7 +103,7 @@ var (
 		Name:    "rollup",
 		Usage:   "L2 rollup-node RPC endpoint",
 		EnvVars: op_service.PrefixEnvVar(prefix, "ROLLUP"),
-		Value:   "http://localhost:5545",
+		Value:   "http://localhost:7545",
 	}
 	AccountKey = &cli.StringFlag{
 		Name:    "account",
@@ -175,21 +175,9 @@ var (
 )
 
 func checkRIP7212(ctx context.Context, env *actionEnv) error {
-	// valid request returns one
-	response, err := env.l2.CallContract(ctx, ethereum.CallMsg{
-		To:   &rip7212Precompile,
-		Data: valid7212Data,
-	}, nil)
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(response, common.LeftPadBytes([]byte{1}, 32)) {
-		return fmt.Errorf("precompile should return 1 for valid signature, but got %s", response)
-	}
-
+	env.log.Info("checking rip-7212")
 	// invalid request returns empty response, this is how the spec denotes an error.
-	response, err = env.l2.CallContract(ctx, ethereum.CallMsg{
+	response, err := env.l2.CallContract(ctx, ethereum.CallMsg{
 		To:   &rip7212Precompile,
 		Data: invalid7212Data,
 	}, nil)
@@ -197,14 +185,29 @@ func checkRIP7212(ctx context.Context, env *actionEnv) error {
 		return err
 	}
 
-	if !bytes.Equal(response, common.LeftPadBytes([]byte{1}, 32)) {
+	if !bytes.Equal(response, []byte{}) {
 		return fmt.Errorf("precompile should return empty response for invalid signature, but got %s", response)
 	}
+	env.log.Info("confirmed precompile returns empty reponse for invalid signature")
+
+	// valid request returns one
+	response, err = env.l2.CallContract(ctx, ethereum.CallMsg{
+		To:   &rip7212Precompile,
+		Data: valid7212Data,
+	}, nil)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(response, common.LeftPadBytes([]byte{1}, 32)) {
+		return fmt.Errorf("precompile should return 1 for valid signature, but got %s", response)
+	}
+	env.log.Info("confirmed precompile returns 1 for valid signature")
 
 	return nil
 }
 
 func checkAllFastLz(ctx context.Context, env *actionEnv) error {
+	env.log.Info("beginning all FastLz feature tests")
 	if err := checkGasPriceOracle(ctx, env); err != nil {
 		return fmt.Errorf("gas-price-oracle error: %w", err)
 	}
@@ -220,11 +223,12 @@ func checkAllFastLz(ctx context.Context, env *actionEnv) error {
 	if err := checkTxRandom(ctx, env); err != nil {
 		return fmt.Errorf("tx-random error: %w", err)
 	}
-	env.log.Info("completed FastLz feature tests successfully")
+	env.log.Info("completed all FastLz feature tests successfully")
 	return nil
 }
 
 func checkGasPriceOracle(ctx context.Context, env *actionEnv) error {
+	env.log.Info("beginning GasPriceOracle checks")
 	expectedGasPriceOracleAddress := crypto.CreateAddress(derive.GasPriceOracleFjordDeployerAddress, 0)
 
 	// Gas Price Oracle Proxy is updated
@@ -326,11 +330,7 @@ func checkTxSendEth(ctx context.Context, env *actionEnv) error {
 	txData := []byte(nil)
 	to := &env.addr
 	env.log.Info("Attempting tx-send-eth...")
-	err := sendTxAndCheckFees(ctx, env, to, txData)
-	if err != nil {
-		return err
-	}
-	return nil
+	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
 func checkTxAllZero(ctx context.Context, env *actionEnv) error {
@@ -340,11 +340,7 @@ func checkTxAllZero(ctx context.Context, env *actionEnv) error {
 	}
 	to := &env.addr
 	env.log.Info("Attempting tx-all-zero...")
-	err := sendTxAndCheckFees(ctx, env, to, txData)
-	if err != nil {
-		return err
-	}
-	return nil
+	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
 func checkTxAll42(ctx context.Context, env *actionEnv) error {
@@ -354,11 +350,7 @@ func checkTxAll42(ctx context.Context, env *actionEnv) error {
 	}
 	to := &env.addr
 	env.log.Info("Attempting tx-all-42...")
-	err := sendTxAndCheckFees(ctx, env, to, txData)
-	if err != nil {
-		return err
-	}
-	return nil
+	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
 func checkTxRandom(ctx context.Context, env *actionEnv) error {
@@ -366,11 +358,7 @@ func checkTxRandom(ctx context.Context, env *actionEnv) error {
 	rand.Read(txData)
 	to := &env.addr
 	env.log.Info("Attempting tx-random...")
-	err := sendTxAndCheckFees(ctx, env, to, txData)
-	if err != nil {
-		return err
-	}
-	return nil
+	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
 func fjordL1Cost(gasPriceOracle *bindings.GasPriceOracleCaller, rollupCostData types.RollupCostData) (*big.Int, error) {
@@ -502,6 +490,5 @@ func checkAll(ctx context.Context, env *actionEnv) error {
 		"gas_used_total", env.gasUsed,
 		"l1_gas_used_total", env.l1GasUsed,
 	)
-
 	return nil
 }
