@@ -386,9 +386,6 @@ contract Deploy is Deployer {
         deployPreimageOracle();
         deployMips();
         deployAnchorStateRegistry();
-
-        // Interop
-        deploySystemConfigInterop();
     }
 
     /// @notice Initialize all of the implementations
@@ -791,38 +788,31 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
-        console.log("Deploying SystemConfig implementation");
-        SystemConfig config = new SystemConfig{ salt: _implSalt() }();
+        if (cfg.useInterop()) {
+            console.log("Deploying SystemConfigInterop implementation");
 
-        save("SystemConfig", address(config));
-        console.log("SystemConfig deployed at %s", address(config));
+            SystemConfigInterop config = new SystemConfigInterop{ salt: _implSalt() }();
 
+            addr_ = address(config);
+
+            save("SystemConfigInterop", addr_);
+            console.log("SystemConfigInterop deployed at %s", addr_);
+        } else {
+            console.log("Deploying SystemConfig implementation");
+
+            SystemConfig config = new SystemConfig{ salt: _implSalt() }();
+
+            addr_ = address(config);
+
+            save("SystemConfig", addr_);
+            console.log("SystemConfig deployed at %s", addr_);
+        }
         // Override the `SystemConfig` contract to the deployed implementation. This is necessary
         // to check the `SystemConfig` implementation alongside dependent contracts, which
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.SystemConfig = address(config);
+        contracts.SystemConfig = addr_;
         ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(config);
-    }
-
-    /// @notice Deploy the SystemConfigInterop
-    function deploySystemConfigInterop() public broadcast returns (address addr_) {
-        console.log("Deploying SystemConfigInterop implementation");
-        SystemConfigInterop config = new SystemConfigInterop{ salt: _implSalt() }();
-
-        save("SystemConfigInterop", address(config));
-        console.log("SystemConfigInterop deployed at %s", address(config));
-
-        // Override the `SystemConfigInterop` contract to the deployed implementation. This is necessary
-        // to check the `SystemConfigInterop` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.SystemConfigInterop = address(config);
-        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(config);
     }
 
     /// @notice Deploy the L1StandardBridge
