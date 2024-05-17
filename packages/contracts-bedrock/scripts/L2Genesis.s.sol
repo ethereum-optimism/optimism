@@ -233,11 +233,7 @@ contract L2Genesis is Deployer {
         setOptimismMintableERC20Factory(); // 12
         setL1BlockNumber(); // 13
         setL2ERC721Bridge(_l1Dependencies.l1ERC721BridgeProxy); // 14
-        if (cfg.useInterop()) {
-            setL1BlockInterop(); // 15
-        } else {
-            setL1Block(); // 15
-        }
+        setL1Block(); // 15
         setL2ToL1MessagePasser(); // 16
         setOptimismMintableERC721Factory(); // 17
         setProxyAdmin(); // 18
@@ -344,16 +340,16 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL1Block() public {
-        _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
-        // Note: L1 block attributes are set to 0.
-        // Before the first user-tx the state is overwritten with actual L1 attributes.
-    }
-
-    function setL1BlockInterop() public {
-        string memory cname = "L1BlockInterop";
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
-        console.log("Setting %s implementation at: %s", cname, impl);
-        vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        if (cfg.useInterop()) {
+            _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
+            // Note: L1 block attributes are set to 0.
+            // Before the first user-tx the state is overwritten with actual L1 attributes.
+        } else {
+            string memory cname = "L1BlockInterop";
+            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
+            console.log("Setting %s implementation at: %s", cname, impl);
+            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        }
     }
 
     /// @notice This predeploy is following the safety invariant #1.
