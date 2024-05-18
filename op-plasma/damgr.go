@@ -95,7 +95,7 @@ func NewPlasmaDAWithStorage(log log.Logger, cfg Config, storage DAStorage, metri
 	}
 }
 
-// NewPlasmaWithState creates a plasma storage from initial state used for testing in isolation.
+// NewPlasmaDAWithState creates a plasma storage from initial state used for testing in isolation.
 // We pass the L1Fetcher to each method so it is kept in sync with the conf depth of the pipeline.
 func NewPlasmaDAWithState(log log.Logger, cfg Config, storage DAStorage, metrics Metricer, state *State) *DA {
 	return &DA{
@@ -410,10 +410,13 @@ func DecodeChallengeStatusEvent(log *types.Log) (*bindings.DataAvailabilityChall
 
 // DecodeResolvedInput decodes the preimage bytes from the tx input data.
 func DecodeResolvedInput(data []byte) ([]byte, error) {
-	dacAbi, _ := bindings.DataAvailabilityChallengeMetaData.GetAbi()
+	dacAbi, err := bindings.DataAvailabilityChallengeMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
 
 	args := make(map[string]interface{})
-	err := dacAbi.Methods["resolve"].Inputs.UnpackIntoMap(args, data[4:])
+	err = dacAbi.Methods["resolve"].Inputs.UnpackIntoMap(args, data[4:])
 	if err != nil {
 		return nil, err
 	}
