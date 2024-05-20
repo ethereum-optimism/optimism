@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -16,10 +17,10 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var (
-	// errTimeout represents a timeout
-	errTimeout = errors.New("timeout")
-)
+const errStrTxIdxingInProgress = "transaction indexing is in progress"
+
+// errTimeout represents a timeout
+var errTimeout = errors.New("timeout")
 
 func WaitForL1OriginOnL2(rollupCfg *rollup.Config, l1BlockNum uint64, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
 	timeoutCh := time.After(timeout)
@@ -65,7 +66,8 @@ func WaitForTransaction(hash common.Hash, client *ethclient.Client, timeout time
 		receipt, err := client.TransactionReceipt(ctx, hash)
 		if receipt != nil && err == nil {
 			return receipt, nil
-		} else if err != nil && !errors.Is(err, ethereum.NotFound) {
+		} else if err != nil &&
+			!(errors.Is(err, ethereum.NotFound) || strings.Contains(err.Error(), errStrTxIdxingInProgress)) {
 			return nil, err
 		}
 
