@@ -151,7 +151,6 @@ contract Deploy is Deployer {
             OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
             OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
-            OptimismPortalInterop: mustGetAddress("OptimismPortalProxy"),
             SystemConfig: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
@@ -171,7 +170,6 @@ contract Deploy is Deployer {
             OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: getAddress("OptimismPortalProxy"),
             OptimismPortal2: getAddress("OptimismPortalProxy"),
-            OptimismPortalInterop: getAddress("OptimismPortalProxy"),
             SystemConfig: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
@@ -385,9 +383,6 @@ contract Deploy is Deployer {
         deployPreimageOracle();
         deployMips();
         deployAnchorStateRegistry();
-
-        // Interop
-        deployOptimismPortalInterop();
     }
 
     /// @notice Initialize all of the implementations
@@ -395,15 +390,10 @@ contract Deploy is Deployer {
         console.log("Initializing implementations");
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
-        // contract. The same goes for interop.
+        // contract.
         if (cfg.useFaultProofs()) {
             console.log("WARNING: FPAC is enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
-        } else if (cfg.useInterop()) {
-            console.log(
-                "WARNING: interop is enabled. Initializing the OptimismPortal proxy with OptimismPortalInterop."
-            );
-            initializeOptimismPortalInterop();
         } else {
             initializeOptimismPortal();
         }
@@ -660,25 +650,6 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal2 = address(portal);
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(portal);
-    }
-
-    /// @notice Deploy the OptimismPortalInterop
-    function deployOptimismPortalInterop() public broadcast returns (address addr_) {
-        console.log("Deploying OptimismPortalInterop implementation");
-
-        OptimismPortalInterop portal = new OptimismPortalInterop{ salt: _implSalt() }();
-
-        save("OptimismPortalInterop", address(portal));
-        console.log("OptimismPortalInterop deployed at %s", address(portal));
-
-        // Override the `OptimismPortalInterop` contract to the deployed implementation. This is necessary
-        // to check the `OptimismPortalInterop` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortalInterop = address(portal);
-        ChainAssertions.checkOptimismPortalInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         addr_ = address(portal);
     }
@@ -1040,35 +1011,6 @@ contract Deploy is Deployer {
         console.log("SystemConfig version: %s", version);
 
         ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-    }
-
-    /// @notice Initialize the OptimismPortalInterop
-    function initializeOptimismPortalInterop() public broadcast {
-        console.log("Upgrading and initializing OptimismPortalInterop proxy");
-        address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
-        address optimismPortalInterop = mustGetAddress("OptimismPortalInterop");
-        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
-        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
-        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-
-        _upgradeAndCallViaSafe({
-            _proxy: payable(optimismPortalProxy),
-            _implementation: optimismPortalInterop,
-            _innerCallData: abi.encodeCall(
-                OptimismPortal.initialize,
-                (
-                    L2OutputOracle(l2OutputOracleProxy),
-                    SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy)
-                )
-            )
-        });
-
-        OptimismPortalInterop portal = OptimismPortalInterop(payable(optimismPortalProxy));
-        string memory version = portal.version();
-        console.log("OptimismPortalInterop version: %s", version);
-
-        ChainAssertions.checkOptimismPortalInterop({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Initialize the L1StandardBridge
