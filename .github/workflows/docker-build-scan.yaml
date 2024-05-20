@@ -42,7 +42,7 @@ jobs:
         uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0
         with:
           platforms: linux/amd64
-          registry: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/cel2-migration-tool
+          registry: us-west1-docker.pkg.dev/devopsre/dev-images/cel2-migration-tool
           tags: ${{ github.sha }}
           context: ./
           dockerfile: ./op-chain-ops/Dockerfile
