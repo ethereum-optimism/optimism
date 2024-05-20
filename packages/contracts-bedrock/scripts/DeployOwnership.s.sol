@@ -186,6 +186,14 @@ contract DeployOwnership is Deploy {
         _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
         console.log("LivenessGuard setup on SecurityCouncilSafe");
 
+        // Deploy and add the Liveness Module.
+        address livenessModule = deployLivenessModule();
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(ModuleManager.enableModule, (livenessModule))
+        });
+
         // Remove the deployer address (msg.sender) which was used to setup the Security Council Safe thus far
         // this call is also used to update the threshold.
         // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
@@ -197,17 +205,11 @@ contract DeployOwnership is Deploy {
                 OwnerManager.removeOwner, (SENTINEL_OWNERS, msg.sender, exampleCouncilConfig.safeConfig.threshold)
             )
         });
-
-        // Deploy and add the Liveness Module.
-        address livenessModule = deployLivenessModule();
-        vm.stopBroadcast();
-
-        // Since we don't have private keys for the safe owners, we instead use 'startBroadcast' to do something
-        // similar to pranking as the safe. This simulates a quorum of signers executing a transation from the safe to
-        // call it's own 'enableModule' method.
-        vm.startBroadcast(address(safe));
-        safe.enableModule(livenessModule);
-        vm.stopBroadcast();
+        address[] memory owners = safe.getOwners();
+        require(
+            safe.getThreshold() == LivenessModule(livenessModule).getRequiredThreshold(owners.length),
+            "Safe threshold must be equal to the LivenessModule's required threshold"
+        );
         addr_ = address(safe);
         console.log("Deployed and configured the Security Council Safe!");
     }

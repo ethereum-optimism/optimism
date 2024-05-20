@@ -295,3 +295,27 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	amt := game.Credit(ctx, freeloaderOpts.From)
 	require.Truef(t, amt.BitLen() == 0, "freeloaders should not be rewarded. Credit: %v", amt)
 }
+
+func TestHighestActedL1BlockMetric(t *testing.T) {
+	op_e2e.InitParallel(t)
+	ctx := context.Background()
+	sys, l1Client := StartFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	honestChallenger := disputeGameFactory.StartChallenger(ctx, "Honest", challenger.WithAlphabet(), challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	game1 := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, common.Hash{0xaa})
+	sys.AdvanceTime(game1.MaxClockDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game1.WaitForGameStatus(ctx, types.GameStatusDefenderWon)
+
+	disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 2, common.Hash{0xaa})
+	disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, common.Hash{0xaa})
+
+	honestChallenger.WaitL1HeadActedOn(ctx, l1Client)
+
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+	honestChallenger.WaitL1HeadActedOn(ctx, l1Client)
+}

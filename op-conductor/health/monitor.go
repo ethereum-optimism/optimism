@@ -156,17 +156,22 @@ func (hm *SequencerHealthMonitor) healthCheck() error {
 			"last_seen_unsafe_num", hm.lastSeenUnsafeNum,
 			"last_seen_unsafe_time", hm.lastSeenUnsafeTime,
 			"unsafe_interval", hm.unsafeInterval,
+			"time_diff", timeDiff,
+			"block_diff", blockDiff,
+			"expected_blocks", expectedBlocks,
 		)
 		return ErrSequencerNotHealthy
 	}
 
-	if calculateTimeDiff(now, status.UnsafeL2.Time) > hm.unsafeInterval {
+	curUnsafeTimeDiff := calculateTimeDiff(now, status.UnsafeL2.Time)
+	if curUnsafeTimeDiff > hm.unsafeInterval {
 		hm.log.Error(
-			"unsafe head is not progressing as expected",
+			"unsafe head is falling behind the unsafe interval",
 			"now", now,
 			"unsafe_head_num", status.UnsafeL2.Number,
 			"unsafe_head_time", status.UnsafeL2.Time,
 			"unsafe_interval", hm.unsafeInterval,
+			"cur_unsafe_time_diff", curUnsafeTimeDiff,
 		)
 		return ErrSequencerNotHealthy
 	}

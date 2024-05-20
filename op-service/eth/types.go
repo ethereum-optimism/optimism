@@ -393,45 +393,45 @@ const (
 	L1ScalarEcotone = byte(1)
 )
 
-type EcostoneScalars struct {
+type EcotoneScalars struct {
 	BlobBaseFeeScalar uint32
 	BaseFeeScalar     uint32
 }
 
-func (sysCfg *SystemConfig) EcotoneScalars() (EcostoneScalars, error) {
+func (sysCfg *SystemConfig) EcotoneScalars() (EcotoneScalars, error) {
 	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
 		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
 			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
 			// the padding area.
-			return EcostoneScalars{BlobBaseFeeScalar: 0, BaseFeeScalar: math.MaxUint32}, nil
+			return EcotoneScalars{BlobBaseFeeScalar: 0, BaseFeeScalar: math.MaxUint32}, nil
 		}
-		return EcostoneScalars{}, err
+		return EcotoneScalars{}, err
 	}
 	return DecodeScalar(sysCfg.Scalar)
 }
 
 // DecodeScalar decodes the blobBaseFeeScalar and baseFeeScalar from a 32-byte scalar value.
 // It uses the first byte to determine the scalar format.
-func DecodeScalar(scalar [32]byte) (EcostoneScalars, error) {
+func DecodeScalar(scalar [32]byte) (EcotoneScalars, error) {
 	switch scalar[0] {
 	case L1ScalarBedrock:
-		return EcostoneScalars{
+		return EcotoneScalars{
 			BlobBaseFeeScalar: 0,
 			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
 		}, nil
 	case L1ScalarEcotone:
-		return EcostoneScalars{
+		return EcotoneScalars{
 			BlobBaseFeeScalar: binary.BigEndian.Uint32(scalar[24:28]),
 			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
 		}, nil
 	default:
-		return EcostoneScalars{}, fmt.Errorf("unexpected system config scalar: %s", scalar)
+		return EcotoneScalars{}, fmt.Errorf("unexpected system config scalar: %x", scalar)
 	}
 }
 
-// EncodeScalar encodes the EcostoneScalars into a 32-byte scalar value
+// EncodeScalar encodes the EcotoneScalars into a 32-byte scalar value
 // for the Ecotone serialization format.
-func EncodeScalar(scalars EcostoneScalars) (scalar [32]byte) {
+func EncodeScalar(scalars EcotoneScalars) (scalar [32]byte) {
 	scalar[0] = L1ScalarEcotone
 	binary.BigEndian.PutUint32(scalar[24:28], scalars.BlobBaseFeeScalar)
 	binary.BigEndian.PutUint32(scalar[28:32], scalars.BaseFeeScalar)

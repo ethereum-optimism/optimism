@@ -55,7 +55,7 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher,
 	config := DataSourceConfig{
 		l1Signer:          cfg.L1Signer(),
 		batchInboxAddress: cfg.BatchInboxAddress,
-		plasmaEnabled:     cfg.UsePlasma,
+		plasmaEnabled:     cfg.PlasmaEnabled(),
 	}
 	return &DataSourceFactory{
 		log:           log,

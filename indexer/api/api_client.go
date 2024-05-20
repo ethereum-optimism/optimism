@@ -1,4 +1,4 @@
-package client
+package api
 
 import (
 	"fmt"
@@ -8,9 +8,8 @@ import (
 
 	"encoding/json"
 
-	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/api/models"
-	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -30,7 +29,7 @@ const (
 type Option func(*Client) error
 
 // WithMetrics ... Triggers metric optionality
-func WithMetrics(m node.Metricer) Option {
+func WithMetrics(m metrics.RPCClientMetricer) Option {
 	return func(c *Client) error {
 		c.metrics = m
 		return nil
@@ -46,20 +45,20 @@ func WithTimeout(t time.Duration) Option {
 }
 
 // Config ... Indexer client config struct
-type Config struct {
+type ClientConfig struct {
 	PaginationLimit int
 	BaseURL         string
 }
 
 // Client ... Indexer client struct
 type Client struct {
-	cfg     *Config
+	cfg     *ClientConfig
 	c       *http.Client
-	metrics node.Metricer
+	metrics metrics.RPCClientMetricer
 }
 
 // NewClient ... Construct a new indexer client
-func NewClient(cfg *Config, opts ...Option) (*Client, error) {
+func NewClient(cfg *ClientConfig, opts ...Option) (*Client, error) {
 	if cfg.PaginationLimit <= 0 {
 		cfg.PaginationLimit = defaultPagingLimit
 	}
@@ -79,16 +78,15 @@ func NewClient(cfg *Config, opts ...Option) (*Client, error) {
 
 // doRecordRequest ... Performs a read request on a provided endpoint w/ telemetry
 func (c *Client) doRecordRequest(method string, endpoint string) ([]byte, error) {
-	var record func(error) = nil
+	var recordRequest func(error) = nil
 	if c.metrics != nil {
-		record = c.metrics.RecordRPCClientRequest(method)
+		recordRequest = c.metrics.RecordRPCClientRequest(method)
 	}
 
 	resp, err := c.c.Get(endpoint)
-	if record != nil {
-		record(err)
+	if recordRequest != nil {
+		recordRequest(err)
 	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -98,35 +96,26 @@ func (c *Client) doRecordRequest(method string, endpoint string) ([]byte, error)
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	err = resp.Body.Close()
-	if err != nil {
+	if err = resp.Body.Close(); err != nil {
 		return nil, err
 	}
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("endpoint failed with status code %d", resp.StatusCode)
-
 	}
 
-	return body, resp.Body.Close()
+	return body, nil
 }
 
 // HealthCheck ... Checks the health of the indexer API
 func (c *Client) HealthCheck() error {
-
-	_, err := c.doRecordRequest(healthz, c.cfg.BaseURL+api.HealthPath)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := c.doRecordRequest(healthz, c.cfg.BaseURL+HealthPath)
+	return err
 }
 
 // GetDepositsByAddress ... Gets a deposit response object provided an L1 address and cursor
 func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*models.DepositResponse, error) {
 	var response models.DepositResponse
-	url := c.cfg.BaseURL + api.DepositsPath + l1Address.String() + urlParams
+	url := c.cfg.BaseURL + DepositsPath + l1Address.String() + urlParams
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 
 	resp, err := c.doRecordRequest(deposits, endpoint)
@@ -153,7 +142,6 @@ func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]models.Dep
 		}
 
 		deposits = append(deposits, dResponse.Items...)
-
 		if !dResponse.HasNextPage {
 			break
 		}
@@ -169,7 +157,7 @@ func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]models.Dep
 // on both L1 and L2. This includes the individual sums of
 // (L1/L2) deposits and withdrawals
 func (c *Client) GetSupplyAssessment() (*models.BridgeSupplyView, error) {
-	url := c.cfg.BaseURL + api.SupplyPath
+	url := c.cfg.BaseURL + SupplyPath
 
 	resp, err := c.doRecordRequest(sum, url)
 	if err != nil {
@@ -196,7 +184,6 @@ func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]models.
 		}
 
 		withdrawals = append(withdrawals, wResponse.Items...)
-
 		if !wResponse.HasNextPage {
 			break
 		}
@@ -210,7 +197,7 @@ func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]models.
 // GetWithdrawalsByAddress ... Gets a withdrawal response object provided an L2 address and cursor
 func (c *Client) GetWithdrawalsByAddress(l2Address common.Address, cursor string) (*models.WithdrawalResponse, error) {
 	var wResponse *models.WithdrawalResponse
-	url := c.cfg.BaseURL + api.WithdrawalsPath + l2Address.String() + urlParams
+	url := c.cfg.BaseURL + WithdrawalsPath + l2Address.String() + urlParams
 
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 	resp, err := c.doRecordRequest(withdrawals, endpoint)

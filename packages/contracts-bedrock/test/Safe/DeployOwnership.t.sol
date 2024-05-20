@@ -88,5 +88,8 @@ contract DeployOwnershipTest is Test, DeployOwnership {
         assertEq(LivenessModule(livenessModule).livenessInterval(), lmConfig.livenessInterval);
         assertEq(LivenessModule(livenessModule).thresholdPercentage(), lmConfig.thresholdPercentage);
         assertEq(LivenessModule(livenessModule).minOwners(), lmConfig.minOwners);
+
+        // Ensure the threshold on the safe agrees with the LivenessModule's required threshold
+        assertEq(securityCouncilSafe.getThreshold(), LivenessModule(livenessModule).getRequiredThreshold(owners.length));
     }
 }

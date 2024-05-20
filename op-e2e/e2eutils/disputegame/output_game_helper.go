@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -548,7 +548,7 @@ func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim com
 	transactOpts := g.makeBondedTransactOpts(ctx, claimData.Position.Attack().ToGIndex(), cfg.Opts)
 
 	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
-		return g.GameBindings.Attack(transactOpts, big.NewInt(claimIdx), claim)
+		return g.GameBindings.Attack(transactOpts, claimData.Value, big.NewInt(claimIdx), claim)
 	})
 	if err != nil {
 		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, attackPos, claim) {
@@ -568,7 +568,7 @@ func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim com
 	transactOpts := g.makeBondedTransactOpts(ctx, defendPos.ToGIndex(), cfg.Opts)
 
 	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
-		return g.GameBindings.Defend(transactOpts, big.NewInt(claimIdx), claim)
+		return g.GameBindings.Defend(transactOpts, claimData.Value, big.NewInt(claimIdx), claim)
 	})
 	if err != nil {
 		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, defendPos, claim) {

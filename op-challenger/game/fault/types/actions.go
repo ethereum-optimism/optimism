@@ -18,9 +18,8 @@ type Action struct {
 	Type ActionType
 
 	// Moves and Steps
-	ParentIdx      int
-	ParentPosition Position
-	IsAttack       bool
+	ParentClaim Claim
+	IsAttack    bool
 
 	// Moves
 	Value common.Hash

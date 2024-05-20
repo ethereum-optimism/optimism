@@ -23,7 +23,8 @@ type L2AllocsMode string
 
 const (
 	L2AllocsDelta   L2AllocsMode = "delta"
-	L2AllocsEcotone L2AllocsMode = "" // the default in solidity scripting / testing
+	L2AllocsEcotone L2AllocsMode = "ecotone"
+	L2AllocsFjord   L2AllocsMode = "" // the default in solidity scripting / testing
 )
 
 var (

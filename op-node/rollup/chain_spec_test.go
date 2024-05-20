@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func u64ptr(n uint64) *uint64 {
@@ -47,7 +49,7 @@ var testConfig = Config{
 	DepositContractAddress:  common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
 	L1SystemConfigAddress:   common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
-	UsePlasma:               false,
+	PlasmaConfig:            nil,
 }
 
 func TestChainSpec_CanyonForkActivation(t *testing.T) {
@@ -139,6 +141,58 @@ func TestChainSpec_MaxSequencerDrift(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := c.MaxSequencerDrift(tt.blockNum)
 			require.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
+
+func TestCheckForkActivation(t *testing.T) {
+	tests := []struct {
+		name                string
+		block               eth.L2BlockRef
+		expectedCurrentFork ForkName
+		expectedLog         string
+	}{
+		{
+			name:                "Regolith activation",
+			block:               eth.L2BlockRef{Time: 10, Number: 5, Hash: common.Hash{0x5}},
+			expectedCurrentFork: Regolith,
+			expectedLog:         "Detected hardfork activation block",
+		},
+		{
+			name:                "Still Regolith",
+			block:               eth.L2BlockRef{Time: 11, Number: 6, Hash: common.Hash{0x6}},
+			expectedCurrentFork: Regolith,
+			expectedLog:         "",
+		},
+		{
+			name:                "Canyon activation",
+			block:               eth.L2BlockRef{Time: 20, Number: 7, Hash: common.Hash{0x7}},
+			expectedCurrentFork: Canyon,
+			expectedLog:         "Detected hardfork activation block",
+		},
+		{
+			name:                "No more hardforks",
+			block:               eth.L2BlockRef{Time: 700, Number: 8, Hash: common.Hash{0x8}},
+			expectedCurrentFork: Fjord,
+			expectedLog:         "",
+		},
+	}
+
+	hasInfoLevel := testlog.NewLevelFilter(slog.LevelInfo)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lgr, logs := testlog.CaptureLogger(t, slog.LevelDebug)
+
+			chainSpec := NewChainSpec(&testConfig)
+			// First call initializes chainSpec.currentFork value
+			chainSpec.CheckForkActivation(lgr, eth.L2BlockRef{Time: tt.block.Time - 1, Number: 1, Hash: common.Hash{0x1}})
+			chainSpec.CheckForkActivation(lgr, tt.block)
+			require.Equal(t, tt.expectedCurrentFork, chainSpec.currentFork)
+			if tt.expectedLog != "" {
+				require.NotNil(t, logs.FindLog(
+					hasInfoLevel,
+					testlog.NewMessageContainsFilter(tt.expectedLog)))
+			}
 		})
 	}
 }

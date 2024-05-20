@@ -13,6 +13,8 @@ import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
+    error OwnerRemovalFailed(string reason);
+
     // LivenessModule events
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
     event RemovedOwner(address indexed owner);
@@ -101,23 +103,6 @@ contract LivenessModule_Constructor_TestFail is LivenessModule_TestInit {
             _fallbackOwner: address(0)
         });
     }
-
-    /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
-    function test_constructor_wrongThreshold_reverts() external {
-        uint256 wrongThreshold = livenessModule.getRequiredThreshold(safeInstance.owners.length) - 1;
-        vm.mockCall(
-            address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(wrongThreshold)
-        );
-        vm.expectRevert("LivenessModule: Insufficient threshold for the number of owners");
-        new LivenessModule({
-            _safe: safeInstance.safe,
-            _livenessGuard: livenessGuard,
-            _livenessInterval: LIVENESS_INTERVAL,
-            _thresholdPercentage: THRESHOLD_PERCENTAGE,
-            _minOwners: MIN_OWNERS,
-            _fallbackOwner: address(0)
-        });
-    }
 }
 
 contract LivenessModule_Getters_Test is LivenessModule_TestInit {
@@ -130,6 +115,7 @@ contract LivenessModule_Getters_Test is LivenessModule_TestInit {
         assertEq(livenessModule.thresholdPercentage(), THRESHOLD_PERCENTAGE);
         assertEq(safeInstance.safe.getThreshold(), livenessModule.getRequiredThreshold(safeInstance.owners.length));
         assertEq(livenessModule.fallbackOwner(), fallbackOwner);
+        assertFalse(livenessModule.ownershipTransferredToFallback());
     }
 }
 
@@ -278,10 +264,13 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         address[] memory prevOwners = new address[](1);
         address[] memory ownersToRemove = new address[](1);
         ownersToRemove[0] = safeInstance.owners[0];
-        prevOwners[0] = ownersToRemove[0]; // incorrect.
+        // Incorrectly set the previous owner as equal to the owner to remove, which will cause the Safe to revert.
+        prevOwners[0] = ownersToRemove[0];
 
         _warpPastLivenessInterval();
-        vm.expectRevert("LivenessModule: failed to remove owner");
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnerRemovalFailed.selector, (abi.encodeWithSignature("Error(string)", "GS205")))
+        );
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 
@@ -295,11 +284,13 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         }
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
-        // Incorrectly set the final owner to address(0)
+        // Incorrectly set the final owner to address(0), causing the Safe to revert.
         ownersToRemove[ownersToRemove.length - 1] = address(0);
 
         _warpPastLivenessInterval();
-        vm.expectRevert("LivenessModule: failed to swap to fallback owner");
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnerRemovalFailed.selector, (abi.encodeWithSignature("Error(string)", "GS203")))
+        );
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 
@@ -410,6 +401,13 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         assertEq(safeInstance.safe.getOwners().length, 1);
         assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
         assertEq(safeInstance.safe.getThreshold(), 1);
+
+        // Ensure that the LivenessModule's removeOwners function is now disabled
+        assertTrue(livenessModule.ownershipTransferredToFallback());
+        vm.expectRevert(
+            "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
+        );
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 }
 
@@ -556,6 +554,12 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
                 assertEq(safeInstance.safe.getOwners().length, 1);
                 assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
                 assertEq(safeInstance.safe.getThreshold(), 1);
+                // Ensure that the LivenessModule's removeOwners function is now disabled
+                assertTrue(livenessModule.ownershipTransferredToFallback());
+                vm.expectRevert(
+                    "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
+                );
+                livenessModule.removeOwners(prevOwners, ownersToRemove);
             } else {
                 // For both of the incorrect behaviors, we need to calculate the number of owners to remove to
                 // trigger that behavior. We initialize that value here then set it in the if statements below.

@@ -499,6 +499,8 @@ contract SafeTestTools {
 
     SafeInstance[] internal instances;
 
+    uint256 internal saltNonce = uint256(keccak256(bytes("SAFE TEST")));
+
     /// @dev can be called to reinitialize the singleton, proxyFactory and handler. Useful for forking.
     function _initializeSafeTools() internal {
         singleton = new GnosisSafe();
@@ -506,6 +508,12 @@ contract SafeTestTools {
         handler = new CompatibilityFallbackHandler();
     }
 
+    /// @dev Sets up a Safe with the given parameters.
+    /// @param ownerPKs The public keys of the owners.
+    /// @param threshold The threshold for the Safe.
+    /// @param initialBalance The initial balance of the Safe.
+    /// @param advancedParams The advanced parameters for the Safe initialization.
+    /// @return The initialized Safe instance.
     function _setupSafe(
         uint256[] memory ownerPKs,
         uint256 threshold,
@@ -560,6 +568,11 @@ contract SafeTestTools {
         return instance0;
     }
 
+    /// @dev Sets up a Safe with the given parameters.
+    /// @param ownerPKs The public keys of the owners.
+    /// @param threshold The threshold for the Safe.
+    /// @param initialBalance The initial balance of the Safe.
+    /// @return The initialized Safe instance.
     function _setupSafe(
         uint256[] memory ownerPKs,
         uint256 threshold,
@@ -575,7 +588,7 @@ contract SafeTestTools {
             AdvancedSafeInitParams({
                 includeFallbackHandler: true,
                 initData: "",
-                saltNonce: 0,
+                saltNonce: saltNonce,
                 setupModulesCall_to: address(0),
                 setupModulesCall_data: "",
                 refundAmount: 0,
@@ -585,6 +598,10 @@ contract SafeTestTools {
         );
     }
 
+    /// @dev Sets up a Safe with the given parameters.
+    /// @param ownerPKs The public keys of the owners.
+    /// @param threshold The threshold for the Safe.
+    /// @return The initialized Safe instance.
     function _setupSafe(uint256[] memory ownerPKs, uint256 threshold) public returns (SafeInstance memory) {
         return _setupSafe(
             ownerPKs,
@@ -593,7 +610,7 @@ contract SafeTestTools {
             AdvancedSafeInitParams({
                 includeFallbackHandler: true,
                 initData: "",
-                saltNonce: 0,
+                saltNonce: saltNonce,
                 setupModulesCall_to: address(0),
                 setupModulesCall_data: "",
                 refundAmount: 0,
@@ -603,6 +620,8 @@ contract SafeTestTools {
         );
     }
 
+    /// @dev Sets up a Safe with default parameters. The SafeInstance will have 3 owners and a threshold of 2.
+    /// @return The initialized Safe instance.
     function _setupSafe() public returns (SafeInstance memory) {
         (, uint256[] memory defaultPKs) = SafeTestLib.makeAddrsAndKeys("default", 3);
 
@@ -613,7 +632,7 @@ contract SafeTestTools {
             AdvancedSafeInitParams({
                 includeFallbackHandler: true,
                 initData: "",
-                saltNonce: uint256(keccak256(bytes("SAFE TEST"))),
+                saltNonce: saltNonce,
                 setupModulesCall_to: address(0),
                 setupModulesCall_data: "",
                 refundAmount: 0,
@@ -623,6 +642,8 @@ contract SafeTestTools {
         );
     }
 
+    /// @dev Returns the first Safe instance.
+    /// @return The first Safe instance.
     function getSafe() public view returns (SafeInstance memory) {
         if (instances.length == 0) {
             revert("SAFETESTTOOLS: Test Safe has not been deployed, use _setupSafe() calling safe()");
@@ -630,6 +651,9 @@ contract SafeTestTools {
         return instances[0];
     }
 
+    /// @dev Returns the Safe instance with the given address.
+    /// @param _safe The address of the Safe instance to return.
+    /// @return The Safe instance with the given address.
     function getSafe(address _safe) public view returns (SafeInstance memory) {
         for (uint256 i; i < instances.length; ++i) {
             if (address(instances[i].safe) == _safe) return instances[i];

@@ -84,7 +84,7 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	}
 }
 
-func DefaultSystemConfig(t *testing.T) SystemConfig {
+func DefaultSystemConfig(t testing.TB) SystemConfig {
 	config.ExternalL2TestParms.SkipIfNecessary(t)
 
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
@@ -161,7 +161,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	}
 }
 
-func writeDefaultJWT(t *testing.T) string {
+func writeDefaultJWT(t testing.TB) string {
 	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
 	jwtPath := path.Join(t.TempDir(), "jwt_secret")
 	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0o600); err != nil {
@@ -482,7 +482,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	l1Block := l1Genesis.ToBlock()
 	var allocsMode genesis.L2AllocsMode
 	allocsMode = genesis.L2AllocsDelta
-	if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
+	if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
+		allocsMode = genesis.L2AllocsFjord
+	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
 		allocsMode = genesis.L2AllocsEcotone
 	}
 	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
@@ -825,6 +827,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if batcherTargetNumFrames == 0 {
 		batcherTargetNumFrames = 1
 	}
+
+	var compressionAlgo derive.CompressionAlgo = derive.Zlib
+	// if opt has brotli key, set the compression algo as brotli
+	if _, ok := opts.Get("compressionAlgo", "brotli"); ok {
+		compressionAlgo = derive.Brotli10
+	}
+
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:                 sys.EthInstances["sequencer"].WSEndpoint(),
@@ -845,7 +854,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
 		BatchType:            batchType,
 		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
-		CompressionAlgo:      derive.Zlib,
+		CompressionAlgo:      compressionAlgo,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

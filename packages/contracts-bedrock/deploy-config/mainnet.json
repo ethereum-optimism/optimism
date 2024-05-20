@@ -43,5 +43,19 @@
   "l2GenesisRegolithTimeOffset": "0x0",
   "systemConfigStartBlock": 17422444,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000000",
-  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000000"
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000000",
+  "faultGameAbsolutePrestate": "0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55",
+  "faultGameMaxDepth": 73,
+  "faultGameClockExtension": 10800,
+  "faultGameMaxClockDuration": 302400,
+  "faultGameGenesisBlock": 120059863,
+  "faultGameGenesisOutputRoot": "0x2694ac14dcf54b7a77363e3f60e6462dc78da0d43d1e2f058dbb6a1488814977",
+  "faultGameSplitDepth": 30,
+  "faultGameWithdrawalDelay": 604800,
+  "preimageOracleMinProposalSize": 126000,
+  "preimageOracleChallengePeriod": 86400,
+  "proofMaturityDelaySeconds": 604800,
+  "disputeGameFinalityDelaySeconds": 302400,
+  "respectedGameType": 0,
+  "useFaultProofs": true
 }

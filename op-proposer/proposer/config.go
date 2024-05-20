@@ -77,6 +77,9 @@ func (c *CLIConfig) Check() error {
 		return err
 	}
 
+	if c.DGFAddress == "" && c.L2OOAddress == "" {
+		return errors.New("neither the `DisputeGameFactory` nor `L2OutputOracle` address was provided")
+	}
 	if c.DGFAddress != "" && c.L2OOAddress != "" {
 		return errors.New("both the `DisputeGameFactory` and `L2OutputOracle` addresses were provided")
 	}
