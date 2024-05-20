@@ -34,14 +34,14 @@ contract OptimismPortalInterop_Test is CommonTest {
             _data: abi.encodeCall(L1BlockInterop.setConfig, (ConfigType.GAS_PAYING_TOKEN, _value))
         });
 
-        vm.prank(address(optimismPortal.systemConfig()));
-        optimismPortal.setConfig(ConfigType.GAS_PAYING_TOKEN, _value);
+        vm.prank(address(_optimismPortalInterop().systemConfig()));
+        _optimismPortalInterop().setConfig(ConfigType.GAS_PAYING_TOKEN, _value);
     }
 
     /// @dev Tests that setting the gas paying token config as not the system config reverts.
     function testFuzz_setConfig_gasPayingToken_notSystemConfig_reverts(bytes calldata _value) public {
         vm.expectRevert(Unauthorized.selector);
-        optimismPortal.setConfig(ConfigType.GAS_PAYING_TOKEN, _value);
+        _optimismPortalInterop().setConfig(ConfigType.GAS_PAYING_TOKEN, _value);
     }
 
     /// @dev Tests that the config for adding a dependency can be set.
@@ -57,14 +57,14 @@ contract OptimismPortalInterop_Test is CommonTest {
             _data: abi.encodeCall(L1BlockInterop.setConfig, (ConfigType.ADD_DEPENDENCY, _value))
         });
 
-        vm.prank(address(optimismPortal.systemConfig()));
-        optimismPortal.setConfig(ConfigType.ADD_DEPENDENCY, _value);
+        vm.prank(address(_optimismPortalInterop().systemConfig()));
+        _optimismPortalInterop().setConfig(ConfigType.ADD_DEPENDENCY, _value);
     }
 
     /// @dev Tests that setting the add dependency config as not the system config reverts.
     function testFuzz_setConfig_addDependency_notSystemConfig_reverts(bytes calldata _value) public {
         vm.expectRevert(Unauthorized.selector);
-        optimismPortal.setConfig(ConfigType.ADD_DEPENDENCY, _value);
+        _optimismPortalInterop().setConfig(ConfigType.ADD_DEPENDENCY, _value);
     }
 
     /// @dev Tests that the config for removing a dependency can be set.
@@ -80,13 +80,18 @@ contract OptimismPortalInterop_Test is CommonTest {
             _data: abi.encodeCall(L1BlockInterop.setConfig, (ConfigType.REMOVE_DEPENDENCY, _value))
         });
 
-        vm.prank(address(optimismPortal.systemConfig()));
-        optimismPortal.setConfig(ConfigType.REMOVE_DEPENDENCY, _value);
+        vm.prank(address(_optimismPortalInterop().systemConfig()));
+        _optimismPortalInterop().setConfig(ConfigType.REMOVE_DEPENDENCY, _value);
     }
 
     /// @dev Tests that setting the remove dependency config as not the system config reverts.
     function testFuzz_setConfig_removeDependency_notSystemConfig_reverts(bytes calldata _value) public {
         vm.expectRevert(Unauthorized.selector);
-        optimismPortal.setConfig(ConfigType.REMOVE_DEPENDENCY, _value);
+        _optimismPortalInterop().setConfig(ConfigType.REMOVE_DEPENDENCY, _value);
+    }
+
+    /// @dev Returns the OptimismPortalInterop instance.
+    function _optimismPortalInterop() internal view returns (OptimismPortalInterop) {
+        return OptimismPortalInterop(payable(address(optimismPortal)));
     }
 }
