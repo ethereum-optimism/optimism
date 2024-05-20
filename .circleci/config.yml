@@ -965,7 +965,7 @@ jobs:
           name: run tests
           command: |
             gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/testlogs/log.json \
-            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out <<parameters.go_command>> ./...
           working_directory: <<parameters.module>>
       - save_cache:
           key: golang-build-cache-<<parameters.module>>

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/triedb"
@@ -22,7 +23,7 @@ func TestInjectState(t *testing.T) {
 		Difficulty: common.Big0,
 		ParentHash: common.Hash{},
 		BaseFee:    big.NewInt(7),
-		Alloc: map[common.Address]core.GenesisAccount{
+		Alloc: map[common.Address]types.Account{
 			{1}: {
 				Balance: big.NewInt(1_000_000_000_000_000_000),
 				Nonce:   10,
@@ -74,7 +75,7 @@ func TestInjectState(t *testing.T) {
 		Difficulty: common.Big1,
 		ParentHash: common.Hash{},
 		BaseFee:    big.NewInt(7),
-		Alloc: map[common.Address]core.GenesisAccount{
+		Alloc: map[common.Address]types.Account{
 			{1}: {
 				Balance: big.NewInt(1),
 				Nonce:   1,
