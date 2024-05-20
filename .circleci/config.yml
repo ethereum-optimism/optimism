@@ -1,12 +1,15 @@
 version: 2.1
 
 parameters:
+  registry:
+    type: string
+    default: "us-docker.pkg.dev"
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.49.0
-  ci_builder_rust_image:
+    default: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:v1.2.2
+  repo:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
+    default: ${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images
   base_image:
     type: string
     default: default
@@ -42,9 +45,9 @@ commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
     parameters:
-      project_id:
+      project_number:
         type: env_var_name
-        default: GCP_PROJECT_ID
+        default: GCP_PROJECT_NUMBER
       workload_identity_pool_id:
         type: env_var_name
         default: GCP_WIP_ID
@@ -68,7 +71,7 @@ commands:
             echo $CIRCLE_OIDC_TOKEN > << parameters.oidc_token_file_path >>
             # Create a credential configuration for the generated OIDC ID Token
             gcloud iam workload-identity-pools create-cred-config \
-                "projects/${<< parameters.project_id >>}/locations/global/workloadIdentityPools/${<< parameters.workload_identity_pool_id >>}/providers/${<< parameters.workload_identity_pool_provider_id >>}"\
+                "projects/${<< parameters.project_number >>}/locations/global/workloadIdentityPools/${<< parameters.workload_identity_pool_id >>}/providers/${<< parameters.workload_identity_pool_provider_id >>}"\
                 --output-file="<< parameters.gcp_cred_config_file_path >>" \
                 --service-account="${<< parameters.service_account_email >>}" \
                 --credential-source-file=<< parameters.oidc_token_file_path >>
@@ -266,14 +269,6 @@ jobs:
         description: "Docker buildx bake target"
         type: string
         default: ""
-      registry:
-        description: Docker registry
-        type: string
-        default: "us-docker.pkg.dev"
-      repo:
-        description: Docker repo
-        type: string
-        default: "oplabs-tools-artifacts/images"
       save_image_tag:
         description: Save docker image with given tag
         type: string
@@ -324,12 +319,13 @@ jobs:
               echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
             fi
 
-            export REGISTRY="<<parameters.registry>>"
-            export REPOSITORY="<<parameters.repo>>"
+            export REGISTRY="<<pipeline.parameters.registry>>"
+            export REPOSITORY="<< pipeline.parameters.repo >>"
             export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
             export GIT_COMMIT="$(git rev-parse HEAD)"
             export GIT_DATE="$(git show -s --format='%ct')"
             export PLATFORMS="<<parameters.platforms>>"
+            export VERSION="$(echo -ne "<<pipeline.git.tag>>" | sed "s#.*/\(.*\)#\1#")"
 
             echo "Checking git tags pointing at $GIT_COMMIT:"
             tags_at_commit=$(git tag --points-at $GIT_COMMIT)
@@ -362,7 +358,7 @@ jobs:
 
             DOCKER_OUTPUT_DESTINATION=""
             if [ "<<parameters.publish>>" == "true" ]; then
-              gcloud auth configure-docker <<parameters.registry>>
+              gcloud auth configure-docker <<pipeline.parameters.registry>>
               echo "Building for platforms $PLATFORMS and then publishing to registry"
               DOCKER_OUTPUT_DESTINATION="--push"
               if [ "<<parameters.save_image_tag>>" != "" ]; then
@@ -401,7 +397,7 @@ jobs:
             - run:
                 name: Save
                 command: |
-                  IMAGE_NAME="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
+                  IMAGE_NAME="<<pipeline.parameters.registry>>/<<pipeline.parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
                   docker save -o /tmp/docker_images/<<parameters.docker_name>>.tar $IMAGE_NAME
             - persist_to_workspace:
                 root: /tmp/docker_images
@@ -414,33 +410,33 @@ jobs:
                 name: Tag
                 command: |
                   ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
-      - when:
-          condition:
-            and:
-              - or:
-                - "<<parameters.publish>>"
-                - "<<parameters.release>>"
-              - equal: [develop, << pipeline.git.branch >>]
-          steps:
-            - gcp-oidc-authenticate:
-                service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
-            - run:
-                name: Sign
-                command: |
-                  git clone https://github.com/ethereum-optimism/binary_signer
-                  cd binary_signer/signer
-                  git checkout tags/v1.0.3
+      # - when:
+      #     condition:
+      #       and:
+      #         - or:
+      #           - "<<parameters.publish>>"
+      #           - "<<parameters.release>>"
+      #         - equal: [develop, << pipeline.git.branch >>]
+      #     steps:
+      #       - gcp-oidc-authenticate:
+      #           service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
+      #       - run:
+      #           name: Sign
+      #           command: |
+      #             git clone https://github.com/ethereum-optimism/binary_signer
+      #             cd binary_signer/signer
+      #             git checkout tags/v1.0.3
 
-                  IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
-                  echo $IMAGE_PATH
-                  pip3 install -r requirements.txt
+      #             IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
+      #             echo $IMAGE_PATH
+      #             pip3 install -r requirements.txt
 
-                  python3 ./sign_image.py --command="sign"\
-                      --attestor-project-name="$ATTESTOR_PROJECT_NAME"\
-                      --attestor-name="$ATTESTOR_NAME"\
-                      --image-path="$IMAGE_PATH"\
-                      --signer-logging-level="INFO"\
-                      --attestor-key-id="//cloudkms.googleapis.com/v1/projects/$ATTESTOR_PROJECT_NAME/locations/global/keyRings/$ATTESTOR_NAME-key-ring/cryptoKeys/$ATTESTOR_NAME-key/cryptoKeyVersions/1"
+      #             python3 ./sign_image.py --command="sign"\
+      #                 --attestor-project-name="$ATTESTOR_PROJECT_NAME"\
+      #                 --attestor-name="$ATTESTOR_NAME"\
+      #                 --image-path="$IMAGE_PATH"\
+      #                 --signer-logging-level="INFO"\
+      #                 --attestor-key-id="//cloudkms.googleapis.com/v1/projects/$ATTESTOR_PROJECT_NAME/locations/global/keyRings/$ATTESTOR_NAME-key-ring/cryptoKeys/$ATTESTOR_NAME-key/cryptoKeyVersions/1"
 
   # Verify newly published images (built on AMD machine) will run on ARM
   check-cross-platform:
@@ -685,6 +681,66 @@ jobs:
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
 
+  op-bindings-build:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: check go bindings
+          command: make && git diff --exit-code
+          working_directory: op-bindings
+
+  bindgen-remote:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: bindgen remote bindings
+          command: make bindgen-remote && git diff --exit-code
+          working_directory: op-bindings
+      - notify-failures-on-develop
+
+  bindgen-test-e2e:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: bindgen test E2E
+          command: make test-bindgen-e2e
+          working_directory: op-bindings-e2e
+      - notify-failures-on-develop
+
+  boba-bindings-build:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: install goimports
+          command: go install golang.org/x/tools/cmd/goimports@latest
+      - run:
+          name: check go bindings
+          command: make && git diff --exit-code
+          working_directory: boba-bindings
+
+  boba-bindgen-remote:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: bindgen remote bindings
+          command: make bindgen-remote && git diff --exit-code
+          working_directory: boba-bindings
+
   js-lint-test:
     parameters:
       package_name:
@@ -918,6 +974,10 @@ jobs:
       module:
         description: Go Module Name
         type: string
+      go_command:
+        description: Go command to run
+        type: string
+        default: ""
     docker:
       - image: <<pipeline.parameters.ci_builder_image>> # only used to enable codecov.
     resource_class: xlarge
@@ -1339,7 +1399,7 @@ jobs:
       - run:
           name: Install pnpm
           command: |
-            npm i pnpm --global
+            npm i pnpm@8.15.7 --global
       - run:
           name: git submodules
           command: make submodules
@@ -1356,7 +1416,7 @@ jobs:
       - run:
           name: Load and tag docker images
           command: |
-            IMAGE_BASE_PREFIX="us-docker.pkg.dev/oplabs-tools-artifacts/images"
+            IMAGE_BASE_PREFIX="<<pipeline.parameters.registry>>/<<pipeline.parameters.repo>>"
             # Load from previous docker-build job
             docker load < "./op-node.tar"
             docker load < "./op-proposer.tar"
@@ -1434,6 +1494,117 @@ jobs:
             ls -R forge-artifacts || echo "No forge artifacts found"
           when: on_fail
           working_directory: packages/contracts-bedrock
+
+  devnet-hardhat:
+    machine:
+      image: ubuntu-2204:2022.10.2
+    environment:
+      DOCKER_BUILDKIT: 1
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-(.+),packages,ops-bedrock
+      - run:
+          name: Install latest golang
+          command: |
+            wget https://go.dev/dl/go1.21.1.linux-amd64.tar.gz
+            sudo rm -rf /usr/local/go
+            sudo tar -C /usr/local -xzf go1.21.1.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
+      - run:
+          name: foundryup
+          command: |
+            curl -L https://foundry.paradigm.xyz | bash
+            source $HOME/.bashrc
+            foundryup --version nightly-f625d0fa7c51e65b4bf1e8f7931cd1c6e2e285e9
+            echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
+            source $HOME/.bashrc
+            forge --version
+      - run:
+          name: Install NVM
+          command: |
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+            source ~/.bashrc
+            nvm --version
+      - run:
+          name: Install Node
+          command: |
+            nvm install
+            nvm use && node --version && npm --version
+      - run:
+          name: Install pnpm
+          command: |
+            npm i pnpm@8.15.7 --global
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: Install and build
+          command: |
+            pnpm install --frozen-lockfile --prefer-offline && pnpm build
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Load cannon pre-state
+          command: |
+            mkdir -p op-program/bin
+            cp /tmp/workspace/op-program/bin/prestate.json op-program/bin/prestate.json
+            cp /tmp/workspace/op-program/bin/meta.json op-program/bin/meta.json
+            cp /tmp/workspace/op-program/bin/prestate-proof.json op-program/bin/prestate-proof.json
+      - run:
+          name: Load devnet-allocs
+          command: |
+            mkdir -p .devnet
+            cp /tmp/workspace/.devnet/allocs-l1.json .devnet/allocs-l1.json
+            cp /tmp/workspace/.devnet/addresses.json .devnet/addresses.json
+            cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
+            cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
+      - run:
+          name: Load and tag docker images
+          command: |
+            IMAGE_BASE_PREFIX="<<pipeline.parameters.registry>>/<<pipeline.parameters.repo>>"
+            # Load from previous docker-build job
+            docker load < "/tmp/workspace/op-stack-go.tar"
+            docker load < "/tmp/workspace/op-node.tar"
+            docker load < "/tmp/workspace/op-proposer.tar"
+            docker load < "/tmp/workspace/op-batcher.tar"
+            # rename to the tags that the docker-compose of the devnet expects
+            docker tag "$IMAGE_BASE_PREFIX/op-stack-go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-stack-go:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
+      - run:
+          name: Bring up the stack
+          command: make devnet-hardhat-up
+      - run:
+          name: Test the stack
+          command: make devnet-hardhat-test
+      - run:
+          name: Dump op-node logs
+          command: |
+            docker logs ops-bedrock-op-node-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-geth logs
+          command: |
+            docker logs ops-bedrock-l2-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1 logs
+          command: |
+            docker logs ops-bedrock-l1-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-batcher logs
+          command: |
+            docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-proposer logs
+          command: |
+            docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+          when: on_fail
 
   semgrep-scan:
     parameters:
@@ -1697,6 +1868,9 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
+      - op-bindings-build
+      - boba-bindings-build
+      - boba-bindgen-remote
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
@@ -1765,9 +1939,16 @@ workflows:
           uses_artifacts: true
           requires: ["go-mod-download", "pnpm-monorepo"]
       - go-test:
+          name: boba-bindings-tests
+          module: boba-bindings
+      - go-test:
           name: op-heartbeat-tests
           module: op-heartbeat
           requires: [ "go-mod-download" ]
+      - go-test:
+          name: boba-chain-ops-tests
+          module: boba-chain-ops
+          go_command: "-tags=nosilkworm"
       - go-test:
           name: op-batcher-tests
           module: op-batcher
@@ -1847,6 +2028,13 @@ workflows:
       - op-service-rethdb-tests:
           requires:
             - go-mod-download
+      - go-e2e-test:
+          name: op-e2e-ext-erigon-tests
+          module: op-e2e
+          target: test-external-erigon
+          requires:
+            - go-mod-download
+            - pnpm-monorepo
       - op-program-compat:
           requires:
             - op-program-tests
@@ -1874,6 +2062,14 @@ workflows:
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
             - op-e2e-ext-geth-tests
+            - op-e2e-ext-erigon-tests
+            - boba-bindings-tests
+            - boba-chain-ops-tests
+      - docker-build: # just to warm up the cache (other jobs run in parallel)
+          name: op-stack-go-docker-build
+          docker_name: op-stack-go
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
@@ -1922,6 +2118,13 @@ workflows:
       - cannon-prestate:
           requires:
             - go-mod-download
+      - devnet-hardhat:
+          requires:
+            - pnpm-monorepo
+            - op-batcher-docker-build
+            - op-proposer-docker-build
+            - op-node-docker-build
+            - cannon-prestate
       - devnet:
           matrix:
             parameters:

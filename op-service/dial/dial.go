@@ -34,8 +34,8 @@ func DialEthClientWithTimeout(ctx context.Context, timeout time.Duration, log lo
 }
 
 // DialRollupClientWithTimeout attempts to dial the RPC provider using the provided URL.
-// If the dial doesn't complete within timeout seconds, this method will return an error.
-func DialRollupClientWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string) (*sources.RollupClient, error) {
+// If the dial and rpc calls don't complete within timeout seconds, this method will return an error.
+func DialRollupClientWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string, rpcTimeoutCfg ...client.BaseRPCTimeout) (*sources.RollupClient, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -44,7 +44,19 @@ func DialRollupClientWithTimeout(ctx context.Context, timeout time.Duration, log
 		return nil, err
 	}
 
-	return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
+	baseRPCClient := client.NewBaseRPCClient(rpcCl)
+	if len(rpcTimeoutCfg) > 0 {
+		if len(rpcTimeoutCfg) > 1 {
+			return nil, fmt.Errorf("too many rpc timeout configs provided")
+		}
+		if rpcTimeoutCfg[0].RPCTimeout != 0 {
+			baseRPCClient.RPCTimeout = rpcTimeoutCfg[0].RPCTimeout
+		}
+		if rpcTimeoutCfg[0].RPCBatchTimeout != 0 {
+			baseRPCClient.RPCBatchTimeout = rpcTimeoutCfg[0].RPCBatchTimeout
+		}
+	}
+	return sources.NewRollupClient(baseRPCClient), nil
 }
 
 // DialRPCClientWithTimeout attempts to dial the RPC provider using the provided URL.

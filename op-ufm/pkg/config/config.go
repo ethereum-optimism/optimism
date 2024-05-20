@@ -41,11 +41,17 @@ type HealthzConfig struct {
 type WalletConfig struct {
 	ChainID big.Int `toml:"chain_id"`
 
-	// signer | static
+	// signer | static | kms
 	SignerMethod string `toml:"signer_method"`
 	Address      string `toml:"address"`
+
 	// private key is used for static signing
 	PrivateKey string `toml:"private_key"`
+
+	// kms parameters
+	KMSKeyID    string `toml:"kms_key_id"`
+	KMSEndpoint string `toml:"kms_endpoint"`
+	KMSRegion   string `toml:"kms_region"`
 
 	// transaction parameters
 	TxValue big.Int `toml:"tx_value"`
@@ -73,6 +79,8 @@ func New(file string) (*Config, error) {
 	if _, err := toml.DecodeFile(file, cfg); err != nil {
 		return nil, err
 	}
+
+	cfg = ImportOsConfig(cfg)
 	return cfg, nil
 }
 
@@ -100,7 +108,7 @@ func (c *Config) Validate() error {
 		if wallet.ChainID.BitLen() == 0 {
 			return errors.Errorf("wallet [%s] chain_id is missing", name)
 		}
-		if wallet.SignerMethod != "signer" && wallet.SignerMethod != "static" {
+		if wallet.SignerMethod != "signer" && wallet.SignerMethod != "static" && wallet.SignerMethod != "kms" {
 			return errors.Errorf("wallet [%s] signer_method is invalid", name)
 		}
 		if wallet.SignerMethod == "signer" {
@@ -120,6 +128,17 @@ func (c *Config) Validate() error {
 		if wallet.SignerMethod == "static" {
 			if wallet.PrivateKey == "" {
 				return errors.Errorf("wallet [%s] private_key is missing", name)
+			}
+		}
+		if wallet.SignerMethod == "kms" {
+			if wallet.KMSKeyID == "" {
+				return errors.Errorf("wallet [%s] kms_key_id is missing", name)
+			}
+			if wallet.KMSEndpoint == "" {
+				return errors.Errorf("wallet [%s] kms_endpoint is missing", name)
+			}
+			if wallet.KMSRegion == "" {
+				return errors.Errorf("wallet [%s] kms_region is missing", name)
 			}
 		}
 		if wallet.Address == "" {

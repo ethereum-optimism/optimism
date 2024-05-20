@@ -127,7 +127,7 @@ library ChainAssertions {
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
         // Check that the contract is initialized
-        assertSlotValueIsOne({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
+        assertSlotValueIsThree({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
 
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
@@ -408,6 +408,15 @@ library ChainAssertions {
         require(
             uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(1),
             "Storage value is not 1 at the given slot and offset"
+        );
+    }
+    /// @dev Asserts that for a given contract the value of a storage slot at an offset is 3.
+
+    function assertSlotValueIsThree(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
+        bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
+        require(
+            uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(3),
+            "Storage value is not 3 at the given slot and offset"
         );
     }
 }

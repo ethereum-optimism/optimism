@@ -32,7 +32,7 @@ RUN mkdir manifests && \
   # .pnpmfile.cjs
   cp .pnpmfile.cjs ../manifests/
 
-FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
+FROM us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest as foundry
 # bullseye-slim is debian based
 # we use it rather than alpine because it's not much
 # bigger and alpine is often missing packages for node applications

@@ -334,6 +334,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
 	var getProofResponse *eth.AccountResult
 	err := s.client.CallContext(ctx, &getProofResponse, "eth_getProof", address, storage, blockTag)
+	s.log.Debug("eth_client GetProof", "err", err, "address", address, "blockTag", blockTag, "Response", getProofResponse)
 	if err != nil {
 		return nil, err
 	}

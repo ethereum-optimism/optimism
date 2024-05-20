@@ -129,6 +129,47 @@ var Subcommands = cli.Commands{
 		},
 	},
 	{
+		Name:  "l1-clean",
+		Usage: "Generates a L1 genesis state file",
+
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "deploy-config",
+				Usage:    "Path to hardhat deploy config file",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:  "l1-allocs",
+				Usage: "Path to L1 genesis state dump",
+			},
+			&cli.StringFlag{
+				Name:  "outfile.l1",
+				Usage: "Path to L1 genesis output file",
+			},
+		},
+		Action: func(ctx *cli.Context) error {
+			deployConfig := ctx.String("deploy-config")
+			config, err := genesis.NewDeployConfig(deployConfig)
+			if err != nil {
+				return err
+			}
+
+			var dump *state.Dump
+			if l1Allocs := ctx.String("l1-allocs"); l1Allocs != "" {
+				dump, err = genesis.NewStateDump(l1Allocs)
+				if err != nil {
+					return err
+				}
+			}
+			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, &genesis.L1Deployments{})
+			if err != nil {
+				return err
+			}
+
+			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis, 0o666)
+		},
+	},
+	{
 		Name:  "l2",
 		Usage: "Generates an L2 genesis file and rollup config suitable for a deployed network",
 		Description: "Generating the L2 genesis depends on knowledge of L1 contract addresses for the bridge to be secure. " +

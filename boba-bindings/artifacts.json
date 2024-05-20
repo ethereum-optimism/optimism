@@ -1,0 +1,62 @@
+{
+  "local": [
+    "SystemConfig",
+    "L1CrossDomainMessenger",
+    "L1StandardBridge",
+    "OptimismPortal",
+    "L2OutputOracle",
+    "AddressManager",
+    "L1Block",
+    "L2ToL1MessagePasser",
+    "GasPriceOracle",
+    "L2CrossDomainMessenger",
+    "L2StandardBridge",
+    "L2ERC721Bridge",
+    "L1ERC721Bridge",
+    "OptimismMintableERC721Factory",
+    "SequencerFeeVault",
+    "BaseFeeVault",
+    "L1FeeVault",
+    "OptimismMintableERC20Factory",
+    "OptimismMintableERC20",
+    "LegacyERC20ETH",
+    "Proxy",
+    "ProxyAdmin",
+    "LegacyMessagePasser",
+    "ERC20",
+    "WETH9",
+    "DeployerWhitelist",
+    "L1BlockNumber",
+    "DisputeGameFactory",
+    "FaultDisputeGame",
+    "AlphabetVM",
+    "StandardBridge",
+    "CrossDomainMessenger",
+    "MIPS",
+    "PreimageOracle",
+    "EAS",
+    "SchemaRegistry",
+    "BOBA",
+    "GovernanceToken",
+    "L2GovernanceERC20"
+  ],
+  "remote": [
+    {
+      "name": "Create2Deployer",
+      "verified": true,
+      "deployments": {
+        "eth": "0xF49600926c7109BD66Ab97a2c036bf696e58Dbc2",
+        "op": "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
+      }
+    },
+    {
+      "name": "DeterministicDeploymentProxy",
+      "verified": false,
+      "deployments": {
+        "eth": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+        "op": "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+      },
+      "abi": "[{\"payable\":true,\"stateMutability\":\"payable\",\"type\":\"fallback\",\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"salt\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"creationCode\",\"type\":\"bytes\"}]}]"
+    }
+  ]
+}

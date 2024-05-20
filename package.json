@@ -79,6 +79,13 @@
     "wait-on": "^7.2.0"
   },
   "dependencies": {
-    "@changesets/cli": "^2.27.1"
+    "@changesets/cli": "^2.26.0",
+    "@codechecks/client": "^0.1.11"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "@foundry-rs/hardhat-forge@0.1.17": "patches/@foundry-rs__hardhat-forge@0.1.17.patch",
+      "@eth-optimism/contracts@0.6.0": "patches/@eth-optimism__contracts@0.6.0.patch"
+    }
   }
 }

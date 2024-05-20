@@ -1,0 +1,66 @@
+{
+  "finalSystemOwner": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
+  "portalGuardian": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
+  "superchainConfigGuardian": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
+  "controller": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
+
+  "l1StartingBlockTag": "0x945d6244d259e63892abf93e5e6dd3388b79e25ae5ec0502e290a0d0163aa5cf",
+
+  "l1ChainID": 1,
+  "l1BlockTime": 12,
+  "l2ChainID": 288,
+  "l2BlockTime": 2,
+
+  "maxSequencerDrift": 600,
+  "sequencerWindowSize": 3600,
+  "channelTimeout": 300,
+
+  "p2pSequencerAddress": "0x077D266f9A3907837e716894517a12D1FD16Ac0a",
+  "batchInboxAddress": "0xfFF0000000000000000000000000000000000288",
+  "batchSenderAddress": "0xe1b64045351b0b6e9821f19b39f81bc4711d2230",
+
+  "l2OutputOracleSubmissionInterval": 1800,
+  "l2OutputOracleStartingBlockNumber": 1149019,
+  "l2OutputOracleStartingTimestamp": 1713302879,
+
+  "l2OutputOracleProposer": "0xbfbab4363034a930687b9320599a69dfbf1d21d0",
+  "l2OutputOracleChallenger": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
+
+  "finalizationPeriodSeconds": 604800,
+
+  "proxyAdminOwner": "0x1f2414D0af8741Bc822dBc2f88069c2b2907a840",
+  "baseFeeVaultRecipient": "0xbF159Ba5E5917551c70E377ADf21eD3736209fCE",
+  "l1FeeVaultRecipient": "0xbF159Ba5E5917551c70E377ADf21eD3736209fCE",
+  "sequencerFeeVaultRecipient": "0xbF159Ba5E5917551c70E377ADf21eD3736209fCE",
+
+  "baseFeeVaultMinimumWithdrawalAmount": "0x0",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x0",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x0",
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+
+  "gasPriceOracleOverhead": 2100,
+  "gasPriceOracleScalar": 1000000,
+
+  "governanceTokenSymbol": "OP",
+  "governanceTokenName": "Optimism",
+  "governanceTokenOwner": "0x0000000000000000000000000000000000000000",
+
+  "l2GenesisBlockGasLimit": "0x1c9c380",
+  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+
+  "eip1559Denominator": 50,
+  "eip1559Elasticity": 6,
+  "eip1559DenominatorCanyon": 250,
+
+  "l1BobaTokenAddress": "0x42bBFa2e77757C645eeaAd1655E0911a7553Efbc",
+
+  "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+
+  "l2GenesisRegolithTimeOffset": "0x0",
+  "l2GenesisCanyonTimeOffset": "0x0",
+  "l2GenesisDeltaTimeOffset": "0x0",
+  "l2GenesisEcotoneTimeOffset": "0x1"
+}

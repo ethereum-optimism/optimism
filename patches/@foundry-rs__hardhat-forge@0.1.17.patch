@@ -1,0 +1,72 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+deleted file mode 100644
+index 994275f8d189b585bbdeed8be9292c29931d884f..0000000000000000000000000000000000000000
+diff --git a/dist/src/forge/artifacts.js b/dist/src/forge/artifacts.js
+index 84cd0f3aae8ab870af8b1c8081d786c0cb2e0a5d..dee730a84ad37630e3a106bf06955bb5148ad4e5 100644
+--- a/dist/src/forge/artifacts.js
++++ b/dist/src/forge/artifacts.js
+@@ -50,8 +50,8 @@ class ForgeArtifacts {
+     get buildInfos() {
+         if (this._buildInfos.length === 0) {
+             for (const buildInfoPath of this.getBuildInfoPathsSync()) {
+-                const buildInfo = fs_extra_1.default.readJsonSync(buildInfoPath);
+-                this._buildInfos.push({ buildInfo, buildInfoPath });
++                // const buildInfo = fs_extra_1.default.readJsonSync(buildInfoPath);
++                this._buildInfos.push({ buildInfoPath });
+             }
+         }
+         return this._buildInfos;
+@@ -133,13 +133,13 @@ class ForgeArtifacts {
+         const buildInfo = fs_extra_1.default.readJsonSync(buildInfoPath);
+         // Handle ethers-solc serializing the metadata as a string
+         // when hardhat serializes it as an object
+-        for (const contract of Object.values(buildInfo.output.contracts)) {
+-            for (const output of Object.values(contract)) {
+-                if (typeof output.metadata === "string") {
+-                    output.metadata = JSON.parse(output.metadata);
+-                }
+-            }
+-        }
++        // for (const contract of Object.values(buildInfo.output.contracts)) {
++        //     for (const output of Object.values(contract)) {
++        //         if (typeof output.metadata === "string") {
++        //             output.metadata = JSON.parse(output.metadata);
++        //         }
++        //     }
++        // }
+         return buildInfo;
+     }
+     async getArtifactPaths() {
+@@ -473,19 +473,19 @@ Please replace "${contractName}" for the correct contract name wherever you are
+      * to the hardhat artifact
+      */
+     _writeDebugFile(out, sourceName) {
+-        for (const { buildInfo, buildInfoPath } of this.buildInfos) {
+-            for (const contract of Object.keys(buildInfo.output.contracts)) {
+-                if (contract === sourceName) {
+-                    const debugFile = {
+-                        _format: "hh-sol-dbg-1",
+-                        buildInfo: path.relative(path.dirname(out), buildInfoPath),
+-                    };
+-                    const debug = this._getDebugFilePath(out);
+-                    fs_extra_1.default.writeJsonSync(debug, debugFile, { spaces: 2 });
+-                    return;
+-                }
+-            }
+-        }
++        // for (const { buildInfo, buildInfoPath } of this.buildInfos) {
++        //     for (const contract of Object.keys(buildInfo.output.contracts)) {
++        //         if (contract === sourceName) {
++        //             const debugFile = {
++        //                 _format: "hh-sol-dbg-1",
++        //                 buildInfo: path.relative(path.dirname(out), buildInfoPath),
++        //             };
++        //             const debug = this._getDebugFilePath(out);
++        //             fs_extra_1.default.writeJsonSync(debug, debugFile, { spaces: 2 });
++        //             return;
++        //         }
++        //     }
++        // }
+     }
+     /**
+      * Converts a foundry artifact path to a hardhat artifact path

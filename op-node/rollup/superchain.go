@@ -16,6 +16,9 @@ var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 6, Minor:
 
 const (
 	pgnSepolia = 58008
+
+	bobaMainnet = 288
+	bobaSepolia = 28882
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -58,6 +61,31 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 
 	regolithTime := uint64(0)
+	// three goerli testnets test-ran Bedrock and later upgraded to Regolith.
+	// All other OP-Stack chains have Regolith enabled from the start.
+	switch chainID {
+	case baseGoerli:
+		regolithTime = 1683219600
+	case opGoerli:
+		regolithTime = 1679079600
+	case labsGoerliDevnet:
+		regolithTime = 1677984480
+	case labsGoerliChaosnet:
+		regolithTime = 1692156862
+	case bobaMainnet:
+		regolithTime = 1713302879
+	case bobaSepolia:
+		regolithTime = 1705600788
+	}
+
+	deltaTime := superChain.Config.DeltaTime
+	// OP Labs Sepolia devnet 0 activated delta at genesis, slightly earlier than
+	// Base Sepolia devnet 0 on the same superchain.
+	switch chainID {
+	case labsSepoliaDevnet0:
+		deltaTime = new(uint64)
+	}
+
 	cfg := &Config{
 		Genesis: Genesis{
 			L1: eth.BlockID{
@@ -98,6 +126,9 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	if chainID == pgnSepolia {
 		cfg.MaxSequencerDrift = 1000
 		cfg.SeqWindowSize = 7200
+	}
+	if chainID == bobaSepolia {
+		cfg.ProtocolVersionsAddress = common.Address{}
 	}
 	return cfg, nil
 }

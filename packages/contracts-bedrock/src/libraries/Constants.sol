@@ -50,4 +50,8 @@ library Constants {
         });
         return config;
     }
+
+    /// @notice The `reinitailizer` input for upgradable contracts. This value must be updated
+    ///         each time that the contracts are deployed.
+    uint8 internal constant INITIALIZER = 3;
 }

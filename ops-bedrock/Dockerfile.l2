@@ -1,4 +1,6 @@
-FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:optimism
+ARG GCP_PROJECT_ID
+ARG GCP_ARTIFACT_REPOSITORY
+FROM us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-geth:optimism
 
 RUN apk add --no-cache jq
 

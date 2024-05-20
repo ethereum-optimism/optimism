@@ -1,0 +1,50 @@
+version: '3.4'
+
+# The genesis file can be downloaded from
+# https://networks.optimism.io/op-sepolia/genesis.json
+# The erigon db can be generated using the following command:
+# erigon init --datadir=/db genesis.json
+
+services:
+  l2:
+    image:  us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-erigon:${ERIGON_VERSION:-latest}
+    command: |
+      --datadir=/db
+      --chain=optimism-sepolia
+      --http.addr=0.0.0.0
+      --http.port=9545
+      --http.corsdomain=*
+      --http.vhosts=*
+      --authrpc.addr=0.0.0.0
+      --authrpc.port=8551
+      --authrpc.vhosts=*
+      --authrpc.jwtsecret=/config/jwt-secret.txt
+      --http.api=eth,debug,net,engine,web3
+      --txpool.gossip.disable=true
+      --rollup.sequencerhttp=https://sepolia.optimism.io
+      --db.size.limit=8TB
+    ports:
+      - "9545:8545"
+      - "8551:8551"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+      - DATA_DIR:/db
+  op-node:
+    depends_on:
+      - l2
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:${OP_NODE_VERSION:-latest}
+    command: >
+      op-node
+      --l1=${ETH1_HTTP:-https://sepolia.gateway.tenderly.co}
+      --l1.beacon=${ETH2_HTTP}
+      --l2=http://l2:8551
+      --l2.jwt-secret=/config/jwt-secret.txt
+      --network=sepolia
+      --rpc.addr=0.0.0.0
+      --rpc.port=8547
+      --l1.trustrpc=true
+    ports:
+      - "8547:8547"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+    restart: always

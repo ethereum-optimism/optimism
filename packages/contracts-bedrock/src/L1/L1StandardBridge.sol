@@ -108,6 +108,13 @@ contract L1StandardBridge is StandardBridge, ISemver {
         });
     }
 
+    /// @notice It has already been initialized in existing networks, so we need to override the initializer
+    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
+    function setSuperchainConfig(SuperchainConfig _superchainConfig) external {
+        require(superchainConfig == SuperchainConfig(address(0)), "SuperchainConfig already set");
+        superchainConfig = _superchainConfig;
+    }
+
     /// @inheritdoc StandardBridge
     function paused() public view override returns (bool) {
         return superchainConfig.paused();

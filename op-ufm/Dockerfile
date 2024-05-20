@@ -24,6 +24,8 @@ RUN apk add ca-certificates jq curl bind-tools
 
 VOLUME /etc/ufm
 
+COPY ./op-ufm/boba.config.toml /etc/ufm/boba.config.toml
+
 EXPOSE 8080
 
 ENTRYPOINT ["/bin/entrypoint.sh"]

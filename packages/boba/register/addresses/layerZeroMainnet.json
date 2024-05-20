@@ -1,0 +1,77 @@
+{
+  "Layer_Zero_Protocol": {
+    "Mainnet": {
+      "Layer_Zero_Endpoint": "0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675",
+      "Layer_Zero_ChainId": "101"
+    },
+    "BNB": {
+      "Layer_Zero_Endpoint": "0x3c2269811836af69497E5F486A85D7316753cf62",
+      "Layer_Zero_ChainId": "102"
+    },
+    "Fantom": {
+      "Layer_Zero_Endpoint": "0xb6319cC6c8c27A8F5dAF0dD3DF91EA35C4720dd7",
+      "Layer_Zero_ChainId": "112"
+    },
+    "Avalanche": {
+      "Layer_Zero_Endpoint": "0x3c2269811836af69497E5F486A85D7316753cf62",
+      "Layer_Zero_ChainId": "106"
+    },
+    "Moonbeam": {
+      "Layer_Zero_Endpoint": "0x9740FF91F1985D8d2B71494aE1A2f723bb3Ed9E4",
+      "Layer_Zero_ChainId": "126"
+    }
+  },
+  "BOBA_Bridges": {
+    "Mainnet":{
+      "Proxy__EthBridgeToBNB": "0x1A36E24D61BC1aDa68C21C2Da1aD53EaB8E03e55",
+      "Proxy__EthBridgeToFantom": "0x9DD4202AA5ee9625d1eaa671E2294014dd434E7E",
+      "Proxy__EthBridgeToAvalanche": "0xB0003eB166654f7e57c0463F8D1a438eB238c490",
+      "Proxy__EthBridgeToMoonbeam": "0x6F537839714761388B6d7ED61Bc09579d5dA2F41",
+      "EthBridgeToBNB": "0x5d7824051Ea90F05eC1c6EcfEF05d5234B59040F",
+      "EthBridgeToFantom": "0xd5c567aC6571aB35568A8E8C73470dFf8Eed939e",
+      "EthBridgeToAvalanche": "0x51C3db474B023e4924133F36152f40a7b6E27f3F",
+      "EthBridgeToMoonbeam": "0x6482767251d24f309C0C9985E2EA1262465400dE",
+      "Proxy__BNBBridgeToEth": "0x819FF4d9215C9dAC76f5eC676b1355973157eBBa",
+      "Proxy__FantomBridgeToEth": "0x409e3693A23D4331F613c36f6D5f439a5b9834e8",
+      "Proxy__AvalancheBridgeToEth": "0x351F4853A0E94DB055ed6ad5DF1b3590791c1F71",
+      "Proxy__MoonbeamBridgeToEth": "0x9F868333DB1720Fb1412AFfb1AeF47e8C6cFc8c3",
+      "BNBBridgeToEth": "0x62C1275bf5484d940BF46d1fCC1e1Ad5DbdD5AE5",
+      "FantomBridgeToEth": "0x2164dFc94E0f2EE6C2982045950ed052298D12a0",
+      "AvalancheBridgeToEth": "0xBFcB8A6eD80Ef99a5265B72fdC87f4B4dAA598D3",
+      "MoonbeamBridgeToEth": "0x05469d879dF44cD83f6923Be12f46E2871dA2DAf",
+      "Eth_TK_BOBA": "0x42bbfa2e77757c645eeaad1655e0911a7553efbc",
+      "BNB_TK_BOBA": "0xE0DB679377A0F5Ae2BaE485DE475c9e1d8A4607D",
+      "Avalanche_TK_BOBA": "0x3cD790449CF7D187a143d4Bd7F4654d4f2403e02",
+      "Fantom_TK_BOBA": "0x4389b230D15119c347B9E8BEA6d930A21aaDF6BA",
+      "Moonbeam_TK_BOBA": "0x18D17A9fD652D7d6a59903E23792ab97F832Ed6C"
+    },
+    "BNB": {
+      "Proxy__EthBridgeToBNB": "0x1A36E24D61BC1aDa68C21C2Da1aD53EaB8E03e55",
+      "EthBridgeToBNB": "0x5d7824051Ea90F05eC1c6EcfEF05d5234B59040F",
+      "Proxy__BNBBridgeToEth": "0x819FF4d9215C9dAC76f5eC676b1355973157eBBa",
+      "BNBBridgeToEth": "0x62C1275bf5484d940BF46d1fCC1e1Ad5DbdD5AE5",
+      "BNB_TK_BOBA": "0xE0DB679377A0F5Ae2BaE485DE475c9e1d8A4607D"
+    },
+    "Fantom": {
+      "Proxy__EthBridgeToFantom": "0x9DD4202AA5ee9625d1eaa671E2294014dd434E7E",
+      "EthBridgeToFantom": "0xd5c567aC6571aB35568A8E8C73470dFf8Eed939e",
+      "Proxy__FantomBridgeToEth": "0x409e3693A23D4331F613c36f6D5f439a5b9834e8",
+      "FantomBridgeToEth": "0x2164dFc94E0f2EE6C2982045950ed052298D12a0",
+      "Fantom_TK_BOBA": "0x4389b230D15119c347B9E8BEA6d930A21aaDF6BA"
+    },
+    "Avalanche": {
+      "Proxy__EthBridgeToAvalanche": "0xB0003eB166654f7e57c0463F8D1a438eB238c490",
+      "EthBridgeToAvalanche": "0x51C3db474B023e4924133F36152f40a7b6E27f3F",
+      "Proxy__AvalancheBridgeToEth": "0x351F4853A0E94DB055ed6ad5DF1b3590791c1F71",
+      "AvalancheBridgeToEth": "0xBFcB8A6eD80Ef99a5265B72fdC87f4B4dAA598D3",
+      "Avalanche_TK_BOBA": "0x3cD790449CF7D187a143d4Bd7F4654d4f2403e02"
+    },
+    "Moonbeam": {
+      "Proxy__EthBridgeToMoonbeam": "0x6F537839714761388B6d7ED61Bc09579d5dA2F41",
+      "EthBridgeToMoonbeam": "0x6482767251d24f309C0C9985E2EA1262465400dE",
+      "Proxy__MoonbeamBridgeToEth": "0x9F868333DB1720Fb1412AFfb1AeF47e8C6cFc8c3",
+      "MoonbeamBridgeToEth": "0x05469d879dF44cD83f6923Be12f46E2871dA2DAf",
+      "Moonbeam_TK_BOBA": "0x18D17A9fD652D7d6a59903E23792ab97F832Ed6C"
+    }
+  }
+}

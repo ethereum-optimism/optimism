@@ -1,0 +1,24 @@
+{
+  "version": "1",
+  "name": "dao",
+  "abis": {
+    "GovernorBravoDelegate": {
+      "path": "./abis/GovernorBravoDelegate.json"
+    }
+  },
+  "chains": ["boba-eth", "boba-goerli"],
+  "instances": [
+    {
+      "abi": "GovernorBravoDelegate",
+      "address": "0x2CC555B5B1a4Cf7fA5401B29ab46fc5ba2e205b0",
+      "startBlock": 246717,
+      "chain": "boba-eth"
+    },
+    {
+      "abi": "GovernorBravoDelegate",
+      "address": "0x4670EB36c324c871224F719097c30770eff169e8",
+      "startBlock": 216070,
+      "chain": "boba-goerli"
+    }
+  ]
+}

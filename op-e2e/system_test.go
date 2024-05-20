@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"testing"
@@ -75,6 +77,17 @@ func TestSystemBatchType(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	if config.ExternalL2Shim != "" {
+		fmt.Println("Building external L2 process adapter for ", config.ExternalL2Shim)
+		// A small hack to ensure that the resulting binary is always rebuilt.
+		cmd := exec.Command("make")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Dir = filepath.Dir(config.ExternalL2Shim)
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Failed to compute externalL2Nodes dir: %s\n", err)
+			os.Exit(5)
+		}
+
 		fmt.Println("Running tests with external L2 process adapter at ", config.ExternalL2Shim)
 		// As these are integration tests which launch many other processes, the
 		// default parallelism makes the tests flaky.  This change aims to

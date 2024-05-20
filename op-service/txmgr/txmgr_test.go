@@ -13,6 +13,10 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -23,8 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 const (
@@ -1471,4 +1473,45 @@ func TestMakeSidecar(t *testing.T) {
 		require.NoError(t, eth.VerifyBlobProof((*eth.Blob)(&sidecar.Blobs[i]), commit, sidecar.Proofs[i]), "proof must be valid")
 		require.Equal(t, hashes[i], eth.KZGToVersionedHash(commit))
 	}
+}
+
+type mockKms struct {
+	addr       common.Address
+	getAddrErr error
+
+	tx      *types.Transaction
+	signErr error
+}
+
+func (kms *mockKms) GetAddr() (common.Address, error) {
+	return kms.addr, kms.getAddrErr
+}
+
+func (kms *mockKms) Sign(chainID *big.Int, tx *types.Transaction) (*types.Transaction, error) {
+	return kms.tx, kms.signErr
+}
+
+func TestSign(t *testing.T) {
+	txManager := SimpleTxManager{}
+	kms := mockKms{}
+	signerFactory := func(chainID *big.Int) opcrypto.SignerFn {
+		return func(ctx context.Context, address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return kms.Sign(chainID, tx)
+		}
+	}
+	txManager.cfg.Signer = signerFactory(big.NewInt(1))
+	tx := types.NewTransaction(1, common.Address{1}, big.NewInt(1), 1, big.NewInt(1), []byte{})
+	dynamicTx := &types.DynamicFeeTx{
+		GasTipCap: big.NewInt(1),
+		GasFeeCap: big.NewInt(2),
+	}
+	kms.tx = tx
+	kms.signErr = errors.New("fake-kms-error")
+	_, err := txManager.cfg.Signer(context.Background(), common.Address{1}, types.NewTx(dynamicTx))
+	require.ErrorContains(t, err, "fake-kms-error")
+
+	kms.signErr = nil
+	signedTx, err := txManager.cfg.Signer(context.Background(), common.Address{1}, types.NewTx(dynamicTx))
+	require.NoError(t, err)
+	require.Equal(t, tx, signedTx)
 }

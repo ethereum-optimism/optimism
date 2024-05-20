@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -25,10 +26,15 @@ type rpcServer struct {
 	appVersion string
 	log        log.Logger
 	sources.L2Client
+	rpcServerTimeout httputil.HTTPTimeouts
 }
 
-func newRPCServer(rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, safedb SafeDBReader, log log.Logger, appVersion string, m metrics.Metricer) (*rpcServer, error) {
-	api := NewNodeAPI(rollupCfg, l2Client, dr, safedb, log.New("rpc", "node"), m)
+func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, appVersion string, m metrics.Metricer) (*rpcServer, error) {
+	rpcServerTimeout := httputil.DefaultTimeouts
+	if rpcCfg.ListenTimeout != nil {
+		rpcServerTimeout = *rpcCfg.ListenTimeout
+	}
+	api := NewNodeAPI(rollupCfg, l2Client, dr, log.New("rpc", "node"), m)
 	// TODO: extend RPC config with options for WS, IPC and HTTP RPC connections
 	endpoint := net.JoinHostPort(rpcCfg.ListenAddr, strconv.Itoa(rpcCfg.ListenPort))
 	r := &rpcServer{
@@ -38,8 +44,9 @@ func newRPCServer(rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthCli
 			Service:       api,
 			Authenticated: false,
 		}},
-		appVersion: appVersion,
-		log:        log,
+		appVersion:       appVersion,
+		log:              log,
+		rpcServerTimeout: rpcServerTimeout,
 	}
 	return r, nil
 }
@@ -78,7 +85,7 @@ func (s *rpcServer) Start() error {
 	mux.Handle("/", nodeHandler)
 	mux.HandleFunc("/healthz", healthzHandler(s.appVersion))
 
-	hs, err := ophttp.StartHTTPServer(s.endpoint, mux)
+	hs, err := ophttp.StartHTTPServer(s.endpoint, mux, ophttp.WithTimeouts(s.rpcServerTimeout))
 	if err != nil {
 		return fmt.Errorf("failed to start HTTP RPC server: %w", err)
 	}

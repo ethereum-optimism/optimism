@@ -26,7 +26,7 @@ ifeq ($(shell uname),Darwin)
 endif
 
 op-node:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-node ./cmd/main.go
+	env GO111MODULE=on go build -v $(LDFLAGS) -o ./bin/op-node ./cmd/main.go
 
 clean:
 	rm bin/op-node

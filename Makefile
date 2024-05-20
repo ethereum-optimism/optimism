@@ -1,7 +1,13 @@
 COMPOSEFLAGS=-d
 ITESTS_L2_HOST=http://localhost:9545
 BEDROCK_TAGS_REMOTE?=origin
-OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
+GCP_PROJECT_ID?=local
+GCP_ARTIFACT_REPOSITORY?=local
+OP_STACK_GO_BUILDER?=us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-stack-go:latest
+
+export GCP_PROJECT_ID
+export GCP_ARTIFACT_REPOSITORY
+export OP_STACK_GO_BUILDER
 
 # Requires at least Python v3.9; specify a minor version below if needed
 PYTHON?=python3
@@ -9,7 +15,7 @@ PYTHON?=python3
 build: build-go build-ts
 .PHONY: build
 
-build-go: submodules op-node op-proposer op-batcher
+build-go: submodules op-node op-proposer op-batcher op-erigon
 .PHONY: build-go
 
 lint-go:
@@ -138,6 +144,10 @@ op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
 
+op-erigon:
+	make -C ./op-erigon erigon
+.PHONY: op-erigon
+
 cannon:
 	make -C ./cannon cannon
 .PHONY: cannon
@@ -158,12 +168,12 @@ mod-tidy:
 	# can take a while to index new versions.
 	#
 	# See https://proxy.golang.org/ for more info.
-	export GOPRIVATE="github.com/ethereum-optimism" && go mod tidy
-	make -C ./op-ufm mod-tidy
+	export GOPRIVATE="github.com/ethereum-optimism,github.com/bobanetwork" && go mod tidy
 .PHONY: mod-tidy
 
 clean:
 	rm -rf ./bin
+	make -C ./op-erigon clean
 .PHONY: clean
 
 nuke: clean devnet-clean
@@ -184,6 +194,17 @@ devnet-up: pre-devnet
 		|| make devnet-allocs
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
+
+devnet-hardhat-up:
+	@if [ ! -e op-program/bin ]; then \
+		make cannon-prestate; \
+	fi
+	PYTHONPATH=./bedrock-devnet ${PYTHON} ./bedrock-devnet/hardhat.py --monorepo-dir=.
+.PHONY: devnet-hardhat-up
+
+devnet-hardhat-test:
+	PYTHONPATH=./bedrock-devnet ${PYTHON} ./bedrock-devnet/hardhat.py --monorepo-dir=. --test
+.PHONY: devnet-hardhat-test
 
 devnet-test: pre-devnet
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --test

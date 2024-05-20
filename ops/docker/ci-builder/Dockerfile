@@ -55,6 +55,7 @@ RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(jq -r .abigen < vers
 RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(jq -r .geth < versions.json)
 
 RUN go install gotest.tools/gotestsum@v1.11.0
+RUN go install golang.org/x/tools/cmd/goimports@latest
 RUN go install github.com/vektra/mockery/v2@v2.28.1
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
 RUN go install github.com/mikefarah/yq/v4@v4.43.1
@@ -81,6 +82,7 @@ COPY --from=go-build /usr/local/go /usr/local/go
 COPY --from=go-build /go/bin/gotestsum /go/bin/gotestsum
 COPY --from=go-build /go/bin/mockery /go/bin/mockery
 COPY --from=go-build /go/bin/golangci-lint /go/bin/golangci-lint
+COPY --from=go-build /go/bin/goimports /go/bin/goimports
 COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
 COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 COPY --from=go-build /go/bin/yq /go/bin/yq

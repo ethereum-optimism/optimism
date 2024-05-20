@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -90,11 +91,13 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		require.Nil(t, gethNode.Start())
 		node = gethNode
 	} else {
+		safeName := strings.ReplaceAll(t.Name(), "/", "_")
 		externalNode := (&ExternalRunner{
-			Name:    "l2",
-			BinPath: cfg.ExternalL2Shim,
-			Genesis: l2Genesis,
-			JWTPath: cfg.JWTFilePath,
+			Name:     fmt.Sprintf("%s-l2", safeName),
+			BinPath:  cfg.ExternalL2Shim,
+			Genesis:  l2Genesis,
+			JWTPath:  cfg.JWTFilePath,
+			GasLimit: uint64(cfg.DeployConfig.L2GenesisBlockGasLimit),
 		}).Run(t)
 		node = externalNode
 	}

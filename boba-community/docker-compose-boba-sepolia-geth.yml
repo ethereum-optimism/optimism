@@ -1,0 +1,51 @@
+version: '3.4'
+
+# The geth db can be downloaded from
+# https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz
+# and extracted to the DATA_DIR
+
+services:
+  l2:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:${GETH_VERSION:-optimism}
+    command: >
+      --datadir=/db
+      --networkid=28882
+      --http
+      --http.addr=0.0.0.0
+      --http.port=9545
+      --http.corsdomain=*
+      --http.vhosts=*
+      --authrpc.addr=0.0.0.0
+      --authrpc.port=8551
+      --authrpc.vhosts=*
+      --authrpc.jwtsecret=/config/jwt-secret.txt
+      --rollup.disabletxpoolgossip=true
+      --http.api=eth,debug,net,web3
+      --nodiscover
+      --syncmode=full
+      --maxpeers=0
+      --rollup.sequencerhttp=https://sepolia.boba.network
+    ports:
+      - "9545:9545"
+      - "8551:8551"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+      - DATA_DIR:/db
+  op-node:
+    depends_on:
+      - l2
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:${OP_NODE_VERSION:-latest}
+    command: >
+      op-node
+      --l1=${ETH1_HTTP:-https://sepolia.gateway.tenderly.co}
+      --l1.beacon=${ETH2_HTTP}
+      --l2=http://l2:8551
+      --l2.jwt-secret=/config/jwt-secret.txt
+      --network=boba-sepolia
+      --rpc.addr=0.0.0.0
+      --rpc.port=8545
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+    restart: always

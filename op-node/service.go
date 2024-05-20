@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
@@ -81,8 +82,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Driver: *driverConfig,
 		Beacon: NewBeaconEndpointConfig(ctx),
 		RPC: node.RPCConfig{
-			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
-			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
+			ListenAddr: ctx.String(flags.RPCListenAddr.Name),
+			ListenPort: ctx.Int(flags.RPCListenPort.Name),
+			ListenTimeout: &httputil.HTTPTimeouts{
+				ReadTimeout:       ctx.Duration(flags.RPCListenReadTimeout.Name),
+				ReadHeaderTimeout: ctx.Duration(flags.RPCListenReadHeaderTimeout.Name),
+				WriteTimeout:      ctx.Duration(flags.RPCListenWriteTimeout.Name),
+				IdleTimeout:       ctx.Duration(flags.RPCListenIdleTimeout.Name),
+			},
 			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
 		},
 		Metrics: node.MetricsConfig{
@@ -177,6 +184,8 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	return &node.L2EndpointConfig{
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
+		L2RpcTimeout:      ctx.Duration(flags.L2RpcTimeout.Name),
+		L2RpcBatchTimeout: ctx.Duration(flags.L2RpcBatchTimeout.Name),
 	}, nil
 }
 

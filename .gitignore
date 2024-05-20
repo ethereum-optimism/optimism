@@ -19,6 +19,7 @@ cache
 
 packages/contracts-bedrock/deployments/devnetL1
 packages/contracts-bedrock/deployments/anvil
+packages/contracts-bedrock/deployments/hardhat-local
 
 # vim
 *.sw*
@@ -47,3 +48,9 @@ __pycache__
 
 # Ignore echidna artifacts
 crytic-export
+
+# ignore yarn.lock
+boba-community/*/yarn.lock
+
+# local data
+packages/boba/subgraphs/local/data

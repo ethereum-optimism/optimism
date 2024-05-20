@@ -147,6 +147,8 @@ type DeployConfig struct {
 	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
 	// this account set as its owner.
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
+	// GUARDIAN account in the OptimismPortal
+	PortalGuardian common.Address `json:"portalGuardian,omitempty"`
 	// SuperchainConfigGuardian represents the GUARDIAN account in the SuperchainConfig. Has the ability to pause withdrawals.
 	SuperchainConfigGuardian common.Address `json:"superchainConfigGuardian"`
 	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
@@ -247,6 +249,10 @@ type DeployConfig struct {
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
+	// It controls the upgrade process of the L1 contracts.
+	Controller *common.Address `json:"controller,omitempty"`
+	// L1 Boba token address
+	L1BobaToken *common.Address `json:"l1BobaTokenAddress,omitempty"`
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are required to adopt, to stay in sync with the network.
 	RequiredProtocolVersion params.ProtocolVersion `json:"requiredProtocolVersion"`
@@ -660,6 +666,19 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	}, nil
 }
 
+func (d *DeployConfig) GetL1BobaTokenAddress() (*common.Address, error) {
+	var l1TokenAddr common.Address
+	if d.L1BobaToken != nil {
+		l1TokenAddr = *d.L1BobaToken
+	} else {
+		l1TokenAddr = predeploys.BobaL2Addr
+	}
+	if l1TokenAddr == (common.Address{}) {
+		return &l1TokenAddr, fmt.Errorf("L1BobaTokenAddress cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	return &l1TokenAddr, nil
+}
+
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
 	file, err := os.ReadFile(path)
@@ -828,6 +847,193 @@ func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
 		}
 	}
 	return nil
+}
+
+// NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
+// DeployConfig and a block.
+func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables.PredeploysImmutableConfig, error) {
+	if config.L1StandardBridgeProxy == (common.Address{}) {
+		return nil, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
+		return nil, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1ERC721BridgeProxy == (common.Address{}) {
+		return nil, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.SequencerFeeVaultRecipient == (common.Address{}) {
+		return nil, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.BaseFeeVaultRecipient == (common.Address{}) {
+		return nil, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1FeeVaultRecipient == (common.Address{}) {
+		return nil, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.ProxyAdminOwner == (common.Address{}) {
+		return nil, fmt.Errorf("ProxyAdminOwner cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+
+	l1BobaTokenAddress, err := config.GetL1BobaTokenAddress()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get L1BobaTokenAddress: %w", err)
+	}
+
+	cfg := immutables.PredeploysImmutableConfig{
+		L2ToL1MessagePasser:    struct{}{},
+		DeployerWhitelist:      struct{}{},
+		WETH9:                  struct{}{},
+		L2CrossDomainMessenger: struct{}{},
+		L2StandardBridge:       struct{}{},
+		SequencerFeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.SequencerFeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.SequencerFeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		L1BlockNumber:       struct{}{},
+		GasPriceOracle:      struct{}{},
+		L1Block:             struct{}{},
+		GovernanceToken:     struct{}{},
+		LegacyMessagePasser: struct{}{},
+		L2ERC721Bridge:      struct{}{},
+		OptimismMintableERC721Factory: struct {
+			Bridge        common.Address
+			RemoteChainId *big.Int
+		}{
+			Bridge:        predeploys.L2ERC721BridgeAddr,
+			RemoteChainId: new(big.Int).SetUint64(config.L1ChainID),
+		},
+		OptimismMintableERC20Factory: struct{}{},
+		ProxyAdmin:                   struct{}{},
+		BaseFeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.BaseFeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.BaseFeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		L1FeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.L1FeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.L1FeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.L1FeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		SchemaRegistry: struct{}{},
+		EAS: struct {
+			Name string
+		}{
+			Name: "EAS",
+		},
+		Create2Deployer: struct{}{},
+		BobaL2: struct {
+			L2Bridge common.Address
+			L1Token  common.Address
+			Name     string
+			Symbol   string
+			Decimals uint8
+		}{
+			L2Bridge: predeploys.L2StandardBridgeAddr,
+			L1Token:  *l1BobaTokenAddress,
+			Name:     "Boba Token",
+			Symbol:   "BOBA",
+			Decimals: uint8(18),
+		},
+	}
+
+	if err := cfg.Check(); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis block.
+func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
+	storage := make(state.StorageConfig)
+
+	if block.Number() == nil {
+		return storage, errors.New("block number not set")
+	}
+	if block.BaseFee() == nil {
+		return storage, errors.New("block base fee not set")
+	}
+
+	storage["L2ToL1MessagePasser"] = state.StorageValues{
+		"msgNonce": 0,
+	}
+	storage["L2CrossDomainMessenger"] = state.StorageValues{
+		"_initialized":     1,
+		"_initializing":    false,
+		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
+		"msgNonce":         0,
+		"otherMessenger":   config.L1CrossDomainMessengerProxy,
+	}
+	storage["L2StandardBridge"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"otherBridge":   config.L1StandardBridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["L2ERC721Bridge"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"otherBridge":   config.L1ERC721BridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["OptimismMintableERC20Factory"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+		"bridge":        predeploys.L2StandardBridgeAddr,
+	}
+	storage["L1Block"] = state.StorageValues{
+		"number":         block.Number(),
+		"timestamp":      block.Time(),
+		"basefee":        block.BaseFee(),
+		"hash":           block.Hash(),
+		"sequenceNumber": 0,
+		"batcherHash":    eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
+		"l1FeeOverhead":  config.GasPriceOracleOverhead,
+		"l1FeeScalar":    config.GasPriceOracleScalar,
+	}
+	storage["LegacyERC20ETH"] = state.StorageValues{
+		"_name":   "Ether",
+		"_symbol": "ETH",
+	}
+	storage["WETH9"] = state.StorageValues{
+		"name":     "Wrapped Ether",
+		"symbol":   "WETH",
+		"decimals": 18,
+	}
+	if config.EnableGovernance {
+		storage["GovernanceToken"] = state.StorageValues{
+			"_name":   config.GovernanceTokenName,
+			"_symbol": config.GovernanceTokenSymbol,
+			"_owner":  config.GovernanceTokenOwner,
+		}
+	}
+	storage["ProxyAdmin"] = state.StorageValues{
+		"_owner": config.ProxyAdminOwner,
+	}
+	l1TokenAddr, err := config.GetL1BobaTokenAddress()
+	if err != nil {
+		return storage, err
+	}
+	storage["BobaL2"] = state.StorageValues{
+		"l2Bridge":  predeploys.L2StandardBridgeAddr,
+		"l1Token":   l1TokenAddr,
+		"_name":     "Boba Token",
+		"_symbol":   "BOBA",
+		"_decimals": uint8(18),
+	}
+	return storage, nil
 }
 
 type MarshalableRPCBlockNumberOrHash rpc.BlockNumberOrHash

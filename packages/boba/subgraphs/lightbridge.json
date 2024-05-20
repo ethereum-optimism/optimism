@@ -1,0 +1,88 @@
+{
+  "version": "1",
+  "name": "light-bridge",
+  "abis": {
+    "Teleportation": {
+      "path": "./abis/Teleportation.json"
+    }
+  },
+  "chains": [
+    "arbitrum-one", "boba-eth", "mainnet", "optimism", "bsc", "boba-bnb",
+    "chapel", "boba-bnb-testnet", "sepolia", "boba-sepolia", "arbitrum-sepolia", "optimism-sepolia"
+  ],
+  "instances": [
+    {
+      "abi": "Teleportation",
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 19227141,
+      "chain": "mainnet"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 116168267,
+      "chain": "optimism"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 180755096,
+      "chain": "arbitrum-one"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x0dfFd3Efe9c3237Ad7bf94252296272c96237FF5",
+      "startBlock": 1111267,
+      "chain": "boba-eth"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x0dfFd3Efe9c3237Ad7bf94252296272c96237FF5",
+      "startBlock": 36194994,
+      "chain": "bsc"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x670b130112C6f03E17192e63c67866e67D77c3ee",
+      "startBlock": 1111266,
+      "chain": "boba-bnb"
+    },
+
+    {
+      "abi": "Teleportation",
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 1043907,
+      "chain": "boba-sepolia"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0xaeE12b8D99BBff7ED47866DF868CF5b4b3F73ffF",
+      "startBlock": 5280795,
+      "chain": "sepolia"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x7f6a32bCaA70c65E08F2f221737612F6fC18347A",
+      "startBlock": 32272487,
+      "chain": "chapel"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0xf4d179d3a083Fa3Eede935FaF4C679D32d514186",
+      "startBlock": 295353,
+      "chain": "boba-bnb-testnet"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x3fc06c53aa3Ef19ad7830f5F18C9186C676EdE29",
+      "startBlock": 9968072,
+      "chain": "optimism-sepolia"
+    },
+    {
+      "abi": "Teleportation",
+      "address": "0x3fc06c53aa3Ef19ad7830f5F18C9186C676EdE29",
+      "startBlock": 28263911,
+      "chain": "arbitrum-sepolia"
+    }
+  ]
+}

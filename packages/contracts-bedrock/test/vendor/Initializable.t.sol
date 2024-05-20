@@ -362,7 +362,14 @@ contract Initializer_Test is Bridge_Initializer {
                 size := extcodesize(target)
             }
             // Assert that the contract is already initialized.
-            assertEq(_contract.initializedSlotVal, 1);
+            if (
+                (_contract.target == deploy.mustGetAddress("L1CrossDomainMessenger"))
+                    || (_contract.target == address(l1CrossDomainMessenger))
+            ) {
+                assertEq(_contract.initializedSlotVal, 3);
+            } else {
+                assertEq(_contract.initializedSlotVal, 1);
+            }
 
             // Then, attempt to re-initialize the contract. This should fail.
             (bool success, bytes memory returnData) = _contract.target.call(_contract.initCalldata);

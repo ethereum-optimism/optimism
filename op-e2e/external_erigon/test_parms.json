@@ -1,0 +1,24 @@
+{
+  "skip_tests":{
+    "TestTxGasSameAsBlockGasLimit":"Erigon does not discard txes which exceed the gas limit immediately, but instead retains them in case the gas limit changes",
+    "TestVerifyL2OutputRoot":"This test depends on debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootSpanBatch":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootDetached":"This test depends on debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootDetachedSpanBatch":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootEmptyBlock":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootEmptyBlockSpanBatch":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootEmptyBlockDetached":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootEmptyBlockDetachedSpanBatch":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestPendingGasLimit":"This test requires changes that neither Geth nor Erigon support as CLI flags",
+    "TestCannonDefendStep":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
+    "TestMultipleCannonGames":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
+    "TestCannonDisputeGame":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
+    "TestCannonProposedOutputRootInvalid":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
+    "TestCannonChallengeWithCorrectRoot":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
+    "TestChallengerCompleteExhaustiveDisputeGame": "TODO, this should be investigated, is probably the debug_dbGet though",
+    "TestCannonPoisonedPostState": "TODO, this should be investigated, is probably the debug_dbGet though",
+    "TestPreregolith/UnusedGasConsumed_RegolithNotScheduled": "Erigon doesn't reject building the block when the gas exceeds the block gas limit; instead, it discards transactions until they fit within the block",
+    "TestPreregolith/UnusedGasConsumed_RegolithNotYetActive": "Erigon doesn't reject building the block when the gas exceeds the block gas limit; instead, it discards transactions until they fit within the block",
+    "TestMultipleGameTypes": "TODO, this should be investigated, is probably the debug_dbGet though"
+  }
+}

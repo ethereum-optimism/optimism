@@ -36,6 +36,9 @@ const (
 	Permit2                       = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
 	SenderCreator                 = "0x7fc98430eaedbb6070b35b39d798725049088348"
 	EntryPoint                    = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+
+	// BOBA specific
+	BobaL2 = "0x4200000000000000000000000000000000000023"
 )
 
 var (
@@ -72,6 +75,9 @@ var (
 
 	Predeploys          = make(map[string]*Predeploy)
 	PredeploysByAddress = make(map[common.Address]*Predeploy)
+
+	// BOBA specific
+	BobaL2Addr = common.HexToAddress(BobaL2)
 )
 
 func init() {
@@ -144,6 +150,8 @@ func init() {
 		Address:       EntryPointAddr,
 		ProxyDisabled: true,
 	}
+
+	Predeploys["BobaL2"] = &Predeploy{Address: BobaL2Addr}
 
 	for _, predeploy := range Predeploys {
 		PredeploysByAddress[predeploy.Address] = predeploy
