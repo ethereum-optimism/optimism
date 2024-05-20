@@ -3,7 +3,7 @@ package finality
 import (
 	"context"
 	"errors"
-	"math/rand"
+	"math/rand" // nosemgrep
 	"testing"
 
 	"github.com/stretchr/testify/require"
