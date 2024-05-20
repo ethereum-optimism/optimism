@@ -39,12 +39,22 @@ type Batch interface {
 	LogContext(log.Logger) log.Logger
 }
 
+type batchWithMetadata struct {
+	Batch
+	comprAlgo CompressionAlgo
+}
+
+func (b batchWithMetadata) LogContext(l log.Logger) log.Logger {
+	return b.Batch.LogContext(l).With("compression_algo", b.comprAlgo)
+}
+
 // BatchData is used to represent the typed encoding & decoding.
 // and wraps around a single interface InnerBatchData.
 // Further fields such as cache can be added in the future, without embedding each type of InnerBatchData.
 // Similar design with op-geth's types.Transaction struct.
 type BatchData struct {
-	inner InnerBatchData
+	inner     InnerBatchData
+	ComprAlgo CompressionAlgo
 }
 
 // InnerBatchData is the underlying data of a BatchData.

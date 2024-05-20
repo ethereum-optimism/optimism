@@ -48,7 +48,7 @@ var (
 		derive.SpanBatchType,
 		// uncomment to include singular batches in the benchmark
 		// singular batches are not included by default because they are not the target of the benchmark
-		//derive.SingularBatchType,
+		// derive.SingularBatchType,
 	}
 )
 
@@ -129,7 +129,7 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 			// to leverage optimizations in the Batch Linked List
 			batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
 		}
-		for _, algo := range derive.CompressionAlgoTypes {
+		for _, algo := range derive.CompressionAlgos {
 			b.Run(tc.String()+"_"+algo.String(), func(b *testing.B) {
 				// reset the compressor used in the test case
 				for bn := 0; bn < b.N; bn++ {
@@ -168,7 +168,7 @@ func BenchmarkIncremental(b *testing.B) {
 		{derive.SpanBatchType, 5, 1, "RealBlindCompressor"},
 		//{derive.SingularBatchType, 100, 1, "RealShadowCompressor"},
 	}
-	for _, algo := range derive.CompressionAlgoTypes {
+	for _, algo := range derive.CompressionAlgos {
 		for _, tc := range tcs {
 			cout, err := channelOutByType(tc.BatchType, tc.compKey, algo)
 			if err != nil {
@@ -231,7 +231,7 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 		}
 	}
 
-	for _, algo := range derive.CompressionAlgoTypes {
+	for _, algo := range derive.CompressionAlgos {
 		for _, tc := range tests {
 			chainID := big.NewInt(333)
 			rng := rand.New(rand.NewSource(0x543331))
