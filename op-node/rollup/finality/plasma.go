@@ -1,16 +1,19 @@
 package finality
 
 import (
+	"context"
+
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type PlasmaBackend interface {
-	// Notify L1 finalized head so plasma finality is always behind L1
+	// Finalize notifies the L1 finalized head so plasma finality is always behind L1.
 	Finalize(ref eth.L1BlockRef)
-	// Set the engine finalization signal callback
+	// OnFinalizedHeadSignal sets the engine finalization signal callback.
 	OnFinalizedHeadSignal(f plasma.HeadSignalFn)
 }
 
@@ -32,7 +35,9 @@ func NewPlasmaFinalizer(log log.Logger, cfg *rollup.Config,
 	// In plasma mode, the finalization signal is proxied through the plasma manager.
 	// Finality signal will come from the DA contract or L1 finality whichever is last.
 	// The plasma module will then call the inner.Finalize function when applicable.
-	backend.OnFinalizedHeadSignal(inner.Finalize)
+	backend.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
+		inner.Finalize(context.Background(), ref) // plasma backend context passing can be improved
+	})
 
 	return &PlasmaFinalizer{
 		Finalizer: inner,
@@ -40,6 +45,6 @@ func NewPlasmaFinalizer(log log.Logger, cfg *rollup.Config,
 	}
 }
 
-func (fi *PlasmaFinalizer) Finalize(l1Origin eth.L1BlockRef) {
+func (fi *PlasmaFinalizer) Finalize(ctx context.Context, l1Origin eth.L1BlockRef) {
 	fi.backend.Finalize(l1Origin)
 }

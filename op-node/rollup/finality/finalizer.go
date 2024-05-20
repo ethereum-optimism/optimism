@@ -109,7 +109,7 @@ func (fi *Finalizer) FinalizedL1() (out eth.L1BlockRef) {
 }
 
 // Finalize applies a L1 finality signal, without any fork-choice or L2 state changes.
-func (fi *Finalizer) Finalize(l1Origin eth.L1BlockRef) {
+func (fi *Finalizer) Finalize(ctx context.Context, l1Origin eth.L1BlockRef) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
 	prevFinalizedL1 := fi.finalizedL1
@@ -125,6 +125,11 @@ func (fi *Finalizer) Finalize(l1Origin eth.L1BlockRef) {
 
 		// remember the L1 finalization signal
 		fi.finalizedL1 = l1Origin
+	}
+
+	// remnant of finality in EngineQueue: the finalization work does not inherit a context from the caller.
+	if err := fi.tryFinalize(ctx); err != nil {
+		fi.log.Warn("received L1 finalization signal, but was unable to determine and apply L2 finality", "err", err)
 	}
 }
 
@@ -148,6 +153,10 @@ func (fi *Finalizer) OnDerivationL1End(ctx context.Context, derivedFrom eth.L1Bl
 	}
 	fi.log.Info("processing L1 finality information", "l1_finalized", fi.finalizedL1, "derived_from", derivedFrom, "previous", fi.triedFinalizeAt)
 	fi.triedFinalizeAt = derivedFrom.Number
+	return fi.tryFinalize(ctx)
+}
+
+func (fi *Finalizer) tryFinalize(ctx context.Context) error {
 	// default to keep the same finalized block
 	finalizedL2 := fi.ec.Finalized()
 	var finalizedDerivedFrom eth.BlockID
@@ -160,15 +169,27 @@ func (fi *Finalizer) OnDerivationL1End(ctx context.Context, derivedFrom eth.L1Bl
 		}
 	}
 	if finalizedDerivedFrom != (eth.BlockID{}) {
+		// Sanity check the finality signal of L1.
+		// Even though the signal is trusted and we do the below check also,
+		// the signal itself has to be canonical to proceed.
+		// This check could be removed if the finality signal is fully trusted, and if tests were more flexible for this case.
+		signalRef, err := fi.l1Fetcher.L1BlockRefByNumber(ctx, fi.finalizedL1.Number)
+		if err != nil {
+			return derive.NewTemporaryError(fmt.Errorf("failed to check if on finalizing L1 chain, could not fetch block %d: %w", fi.finalizedL1.Number, err))
+		}
+		if signalRef.Hash != fi.finalizedL1.Hash {
+			return derive.NewResetError(fmt.Errorf("need to reset, we assumed %s is finalized, but canonical chain is %s", fi.finalizedL1, signalRef))
+		}
+
 		// Sanity check we are indeed on the finalizing chain, and not stuck on something else.
 		// We assume that the block-by-number query is consistent with the previously received finalized chain signal
-		ref, err := fi.l1Fetcher.L1BlockRefByNumber(ctx, finalizedDerivedFrom.Number)
+		derivedRef, err := fi.l1Fetcher.L1BlockRefByNumber(ctx, finalizedDerivedFrom.Number)
 		if err != nil {
-			return derive.NewTemporaryError(fmt.Errorf("failed to check if on finalizing L1 chain: %w", err))
+			return derive.NewTemporaryError(fmt.Errorf("failed to check if on finalizing L1 chain, could not fetch block %d: %w", finalizedDerivedFrom.Number, err))
 		}
-		if ref.Hash != finalizedDerivedFrom.Hash {
+		if derivedRef.Hash != finalizedDerivedFrom.Hash {
 			return derive.NewResetError(fmt.Errorf("need to reset, we are on %s, not on the finalizing L1 chain %s (towards %s)",
-				finalizedDerivedFrom, ref, fi.finalizedL1))
+				finalizedDerivedFrom, derivedRef, fi.finalizedL1))
 		}
 
 		fi.ec.SetFinalizedHead(finalizedL2)

@@ -2,6 +2,7 @@ package finality
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"testing"
 
@@ -32,8 +33,6 @@ func (f *fakeEngine) SetFinalizedHead(ref eth.L2BlockRef) {
 var _ FinalizerEngine = (*fakeEngine)(nil)
 
 func TestEngineQueue_Finalize(t *testing.T) {
-	logger := testlog.Logger(t, log.LevelInfo)
-
 	rng := rand.New(rand.NewSource(1234))
 
 	l1Time := uint64(2)
@@ -198,8 +197,10 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	// We expect the L1 block that the finalized L2 data was derived from to be checked,
 	// to be sure it is part of the canonical chain, after the finalization signal.
 	t.Run("basic", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelInfo)
 		l1F := &testutils.MockL1Source{}
 		defer l1F.AssertExpectations(t)
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 
 		ec := &fakeEngine{}
@@ -216,20 +217,51 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
 
 		// let's finalize D from which we fully derived C1, but not D0
-		fi.Finalize(refD)
-		require.Equal(t, refA1, ec.Finalized(), "C1 was included in finalized D, but finality signal has not yet been considered")
+		fi.Finalize(context.Background(), refD)
+		require.Equal(t, refC1, ec.Finalized(), "C1 was included in finalized D, and should now be finalized, as finality signal is instantly picked up")
+	})
+
+	// Finality signal is received, but couldn't immediately be checked
+	t.Run("retry", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelInfo)
+		l1F := &testutils.MockL1Source{}
+		defer l1F.AssertExpectations(t)
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, errors.New("fake error"))
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // to check finality signal
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // to check what was derived from (same in this case)
+
+		ec := &fakeEngine{}
+		ec.SetFinalizedHead(refA1)
+
+		fi := NewFinalizer(logger, &rollup.Config{}, l1F, ec)
+
+		// now say C1 was included in D and became the new safe head
+		fi.PostProcessSafeL2(refC1, refD)
+		require.NoError(t, fi.OnDerivationL1End(context.Background(), refD))
+
+		// now say D0 was included in E and became the new safe head
+		fi.PostProcessSafeL2(refD0, refE)
+		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
+
+		// let's finalize D from which we fully derived C1, but not D0
+		fi.Finalize(context.Background(), refD)
+		require.Equal(t, refA1, ec.Finalized(), "C1 was included in finalized D, but finality could not be verified yet, due to temporary test error")
 
 		require.NoError(t, fi.OnDerivationL1End(context.Background(), refF))
-		require.Equal(t, refC1, ec.Finalized(), "C1 was included in finalized D, and should now be finalized")
+		require.Equal(t, refC1, ec.Finalized(), "C1 was included in finalized D, and should now be finalized, as check can succeed when revisited")
 	})
 
 	// Test that finality progression can repeat a few times.
 	t.Run("repeat", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelInfo)
 		l1F := &testutils.MockL1Source{}
 		defer l1F.AssertExpectations(t)
 
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
+		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
+		l1F.ExpectL1BlockRefByNumber(refH.Number, refH, nil)
 		l1F.ExpectL1BlockRefByNumber(refH.Number, refH, nil)
 
 		ec := &fakeEngine{}
@@ -243,11 +275,11 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.PostProcessSafeL2(refD0, refE)
 		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
 
-		fi.Finalize(refD)
+		fi.Finalize(context.Background(), refD)
 		require.NoError(t, fi.OnDerivationL1End(context.Background(), refF))
 		require.Equal(t, refC1, ec.Finalized(), "C1 was included in D, and should be finalized now")
 
-		fi.Finalize(refE)
+		fi.Finalize(context.Background(), refE)
 		require.NoError(t, fi.OnDerivationL1End(context.Background(), refG))
 		require.Equal(t, refD0, ec.Finalized(), "D0 was included in E, and should be finalized now")
 
@@ -259,7 +291,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		require.NoError(t, fi.OnDerivationL1End(context.Background(), refH))
 		require.Equal(t, refD0, ec.Finalized(), "D1-F1 were included in L1 blocks that have not been finalized yet")
 
-		fi.Finalize(refH)
+		fi.Finalize(context.Background(), refH)
 		require.NoError(t, fi.OnDerivationL1End(context.Background(), refI))
 		require.Equal(t, refF1, ec.Finalized(), "F1 should be finalized now")
 	})
@@ -267,10 +299,11 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	// In this test the finality signal is for a block more than
 	// 1 L1 block later than what the L2 data was included in.
 	t.Run("older-data", func(t *testing.T) {
-
+		logger := testlog.Logger(t, log.LevelInfo)
 		l1F := &testutils.MockL1Source{}
 		defer l1F.AssertExpectations(t)
-		l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil)
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // check the signal
+		l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil) // check what we derived the L2 block from
 
 		ec := &fakeEngine{}
 		ec.SetFinalizedHead(refA1)
@@ -286,18 +319,20 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
 
 		// let's finalize D, from which we fully derived B1, but not C0 (referenced L1 origin in L2 block != inclusion of L2 block in L1 chain)
-		fi.Finalize(refD)
-		require.Equal(t, refA1, ec.Finalized(), "B1 was included in finalized C, but finality signal has not yet been considered")
-
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refF))
+		fi.Finalize(context.Background(), refD)
 		require.Equal(t, refB1, ec.Finalized(), "B1 was included in finalized D, and should now be finalized")
 	})
 
 	// Test that reorg race condition is handled.
 	t.Run("reorg-safe", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelInfo)
 		l1F := &testutils.MockL1Source{}
 		defer l1F.AssertExpectations(t)
-		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // shows reorg
+		l1F.ExpectL1BlockRefByNumber(refF.Number, refF, nil) // check signal
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // shows reorg to Finalize attempt
+		l1F.ExpectL1BlockRefByNumber(refF.Number, refF, nil) // check signal
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // shows reorg to OnDerivationL1End attempt
+		l1F.ExpectL1BlockRefByNumber(refF.Number, refF, nil) // check signal
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil) // post-reorg
 
 		ec := &fakeEngine{}
@@ -337,12 +372,13 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 		// We get an early finality signal for F, of the chain that did not include refC0Alt and refC1Alt,
 		// as L1 block F does not build on DAlt.
-		fi.Finalize(refF)
-		// And process DAlt, still stuck on old chain.
-		require.ErrorIs(t, derive.ErrReset, fi.OnDerivationL1End(context.Background(), refDAlt))
 		// The finality signal was for a new chain, while derivation is on an old stale chain.
 		// It should be detected that C0Alt and C1Alt cannot actually be finalized,
 		// even though they are older than the latest finality signal.
+		fi.Finalize(context.Background(), refF)
+		require.Equal(t, refA1, ec.Finalized(), "cannot verify refC0Alt and refC1Alt, and refB1 is older and not checked")
+		// And process DAlt, still stuck on old chain.
+		require.ErrorIs(t, derive.ErrReset, fi.OnDerivationL1End(context.Background(), refDAlt))
 		require.Equal(t, refA1, ec.Finalized(), "no new finalized L2 blocks after early finality signal with stale chain")
 		require.Equal(t, refF, fi.FinalizedL1(), "remember the new finality signal for later however")
 		// Now reset, because of the reset error

@@ -66,7 +66,7 @@ type DerivationPipeline interface {
 }
 
 type Finalizer interface {
-	Finalize(ref eth.L1BlockRef)
+	Finalize(ctx context.Context, ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
 	derive.FinalizerHooks
 }

@@ -107,7 +107,7 @@ func TestPlasmaFinalityData(t *testing.T) {
 	// and post processing.
 	for i := uint64(0); i < 200; i++ {
 		if i == 10 { // finalize a L1 commitment
-			fi.Finalize(l1parent)
+			fi.Finalize(context.Background(), l1parent)
 		}
 
 		previous := l1parent

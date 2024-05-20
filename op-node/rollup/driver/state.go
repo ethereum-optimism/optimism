@@ -360,7 +360,9 @@ func (s *Driver) eventLoop() {
 			// no step, justified L1 information does not do anything for L2 derivation or status
 		case newL1Finalized := <-s.l1FinalizedSig:
 			s.l1State.HandleNewL1FinalizedBlock(newL1Finalized)
-			s.finalizer.Finalize(newL1Finalized)
+			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*5)
+			s.finalizer.Finalize(ctx, newL1Finalized)
+			cancel()
 			reqStep() // we may be able to mark more L2 data as finalized now
 		case <-delayedStepReq:
 			delayedStepReq = nil
