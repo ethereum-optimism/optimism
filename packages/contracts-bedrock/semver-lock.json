@@ -65,11 +65,11 @@
   },
   "src/L2/L1Block.sol": {
     "initCodeHash": "0x00961e82f3ed7f7755115c897304063e283bff0bed1200d50e0abe5c59424069",
-    "sourceCodeHash": "0x9c19260697d5ed5f85318098dead3f5882d77f1ee87233da1b47d1e87c88bce8"
+    "sourceCodeHash": "0x4ce2aa66bf3ed7881b64bb88b899e8fa26e350ddd21c6561988a8f14cf332647"
   },
   "src/L2/L1BlockInterop.sol": {
-    "initCodeHash": "0x2929683ae3e4f76fca87462f0217b6e24c418bc964328f8d095f0e90343d2cae",
-    "sourceCodeHash": "0x78ca58451d973e9896eeb9d19699943b7a4e96c36da2724f47d5aafdf243abcd"
+    "initCodeHash": "0x30cb98a2a3edc44ffb03342af23104fff475da71e7d390dc45e6e9d814df85eb",
+    "sourceCodeHash": "0xe438d0eeca386da161e49a2aa4d8effa75991904e2107341de72f92d15547854"
   },
   "src/L2/L1FeeVault.sol": {
     "initCodeHash": "0x2744d34573be83206d1b75d049d18a7bb37f9058e68c0803e5008c46b0dc2474",
