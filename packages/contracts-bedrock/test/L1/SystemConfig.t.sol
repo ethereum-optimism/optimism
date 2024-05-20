@@ -80,7 +80,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(decimals, 18);
     }
 
-    /// @dev Tests that initailization sets the correct values.
+    /// @dev Tests that initialization sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
         assertEq(systemConfig.overhead(), 0);
