@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -126,4 +127,46 @@ func (n *proofList) Put(key []byte, value []byte) error {
 
 func (n *proofList) Delete(key []byte) error {
 	panic("not supported")
+}
+
+// encodeGasPayingToken encodes a gas paying token into a byte array.
+func encodeGasPayingToken(token common.Address, decimals uint8, name [32]byte, symbol [32]byte) ([]byte, error) {
+	tokenType, _ := abi.NewType("address", "", nil)
+	decimalsType, _ := abi.NewType("uint8", "", nil)
+	nameType, _ := abi.NewType("bytes32", "", nil)
+	symbolType, _ := abi.NewType("bytes32", "", nil)
+
+	arguments := abi.Arguments{
+		{
+			Type: tokenType,
+		},
+		{
+			Type: decimalsType,
+		},
+		{
+			Type: nameType,
+		},
+		{
+			Type: symbolType,
+		},
+	}
+
+	packed, err := arguments.Pack(token, decimals, name, symbol)
+
+	return packed, err
+}
+
+// encodeDependency encodes a dependency into a byte array.
+func encodeDependency(chainId *big.Int) ([]byte, error) {
+	chainIdType, _ := abi.NewType("uint256", "", nil)
+
+	arguments := abi.Arguments{
+		{
+			Type: chainIdType,
+		},
+	}
+
+	packed, err := arguments.Pack(chainId)
+
+	return packed, err
 }
