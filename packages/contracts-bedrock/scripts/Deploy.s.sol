@@ -610,25 +610,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
+        console.log("Deploying OptimismPortal implementation");
         if (cfg.useInterop()) {
-            console.log("Deploying OptimismPortalInterop implementation");
-
-            OptimismPortalInterop portal = new OptimismPortalInterop{ salt: _implSalt() }();
-
-            addr_ = address(portal);
-
-            save("OptimismPortalInterop", addr_);
-            console.log("OptimismPortalInterop deployed at %s", addr_);
+            addr_ = address(new OptimismPortalInterop{ salt: _implSalt() }());
         } else {
-            console.log("Deploying OptimismPortal implementation");
-
-            OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }();
-
-            addr_ = address(portal);
-
-            save("OptimismPortal", addr_);
-            console.log("OptimismPortal deployed at %s", addr_);
+            addr_ = address(new OptimismPortal{ salt: _implSalt() }());
         }
+        save("OptimismPortal", addr_);
+        console.log("OptimismPortal deployed at %s", addr_);
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal` implementation alongside dependent contracts, which
