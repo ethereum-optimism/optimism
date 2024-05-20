@@ -65,13 +65,13 @@ contract SystemConfigInterop_Test is CommonTest {
         );
 
         vm.prank(systemConfig.owner());
-        systemConfig.addDependency(_chainId);
+        _systemConfigInterop().addDependency(_chainId);
     }
 
     /// @dev Tests that adding a dependency as not the owner reverts.
     function testFuzz_addDependency_notOwner_reverts(uint256 _chainId) public {
         vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.addDependency(_chainId);
+        _systemConfigInterop().addDependency(_chainId);
     }
 
     /// @dev Tests that a dependency can be removed.
@@ -82,16 +82,22 @@ contract SystemConfigInterop_Test is CommonTest {
             abi.encode(ConfigType.GAS_PAYING_TOKEN, abi.encode(_chainId))
         );
 
-        vm.prank(systemConfig.owner());
-        systemConfig.removeDependency(_chainId);
+        vm.prank(_systemConfigInterop().owner());
+        _systemConfigInterop().removeDependency(_chainId);
     }
 
     /// @dev Tests that removing a dependency as not the owner reverts.
     function testFuzz_removeDependency_notOwner_reverts(uint256 _chainId) public {
         vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.removeDependency(_chainId);
+        _systemConfigInterop().removeDependency(_chainId);
     }
 
+    /// @dev Returns the SystemConfigInterop instance.
+    function _systemConfigInterop() internal returns (SystemConfigInterop) {
+        return SystemConfigInterop(address(systemConfig));
+    }
+
+    /// @dev Returns the SystemConfigWithSetGasPayingToken instance.
     function _systemConfigWithSetGasPayingToken() internal returns (SystemConfigWithSetGasPayingToken) {
         vm.etch(address(systemConfig), address(new SystemConfigWithSetGasPayingToken()).code);
 
