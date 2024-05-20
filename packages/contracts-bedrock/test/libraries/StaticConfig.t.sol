@@ -17,7 +17,7 @@ contract StaticConfig_Test is CommonTest {
     )
         external
     {
-        bytes memory encoding = StaticConfig.encodeGasPayingToken(_token, _decimals, _name, _symbol);
+        bytes memory encoding = StaticConfig.encodeSetGasPayingToken(_token, _decimals, _name, _symbol);
 
         bytes memory _encoding = ffi.encodeGasPayingToken(_token, _decimals, _name, _symbol);
 
