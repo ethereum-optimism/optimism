@@ -37,6 +37,7 @@ contract SystemConfigInterop_Test is CommonTest {
     )
         public
     {
+        vm.assume(_token != address(vm));
         vm.assume(_token != address(0));
         vm.assume(_token != Constants.ETHER);
         vm.assume(bytes(_name).length <= 32);
@@ -58,6 +59,7 @@ contract SystemConfigInterop_Test is CommonTest {
     /// @dev Tests that setting the gas paying token with no code at the OptimismPortal address reverts.
     function testFuzz_setGasPayingToken_optimismPortalNoCode_reverts(address _noCodeAddress, address _token) public {
         vm.assume(_noCodeAddress.code.length == 0);
+        vm.assume(_token != address(vm));
         vm.assume(_token != address(0));
         vm.assume(_token != Constants.ETHER);
 
