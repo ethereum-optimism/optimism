@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 3.3.1
+
+### Patch Changes
+
+- [#10593](https://github.com/ethereum-optimism/optimism/pull/10593) [`799bc898bfb207e2ccd4b2027e3fb4db4372292b`](https://github.com/ethereum-optimism/optimism/commit/799bc898bfb207e2ccd4b2027e3fb4db4372292b) Thanks [@nitaliano](https://github.com/nitaliano)! - expose FaultDisputeGame in getOEContract
+
 ## 3.3.0
 
 ### Minor Changes
