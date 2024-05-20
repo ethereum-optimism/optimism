@@ -4,13 +4,13 @@ pragma solidity 0.8.15;
 /// @title StaticConfig
 /// @notice Library for encoding and decoding static configuration data.
 library StaticConfig {
-    /// @notice Encodes the static configuration data for a gas paying token.
+    /// @notice Encodes the static configuration data for setting a gas paying token.
     /// @param _token    Address of the gas paying token.
     /// @param _decimals Number of decimals for the gas paying token.
     /// @param _name     Name of the gas paying token.
     /// @param _symbol   Symbol of the gas paying token.
     /// @return Encoded static configuration data.
-    function encodeGasPayingToken(
+    function encodeSetGasPayingToken(
         address _token,
         uint8 _decimals,
         bytes32 _name,
@@ -23,10 +23,10 @@ library StaticConfig {
         return abi.encode(_token, _decimals, _name, _symbol);
     }
 
-    /// @notice Decodes the static configuration data for a gas paying token.
+    /// @notice Decodes the static configuration data for setting a gas paying token.
     /// @param _data Encoded static configuration data.
     /// @return Decoded gas paying token data (token address, decimals, name, symbol).
-    function decodeGasPayingToken(bytes memory _data) internal pure returns (address, uint8, bytes32, bytes32) {
+    function decodeSetGasPayingToken(bytes memory _data) internal pure returns (address, uint8, bytes32, bytes32) {
         return abi.decode(_data, (address, uint8, bytes32, bytes32));
     }
 
