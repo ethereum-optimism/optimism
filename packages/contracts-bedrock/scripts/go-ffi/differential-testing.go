@@ -388,6 +388,36 @@ func DiffTestUtils() {
 
 		packed, err := decodedScalars.Pack(scalars.BaseFeeScalar, scalars.BlobBaseFeeScalar)
 		checkErr(err, "Error encoding output")
+	case "encodeGasPayingToken":
+		// Parse input arguments
+		token := common.HexToAddress(args[1])
+		decimals, ok := new(big.Int).SetString(args[2], 10)
+		checkOk(ok)
+		name := [32]byte(common.FromHex(args[3]))
+		symbol := [32]byte(common.FromHex(args[4]))
+
+		// Encode gas paying token
+		encoded, err := encodeGasPayingToken(token, uint8(decimals.Uint64()), name, symbol)
+		checkErr(err, "Error encoding gas paying token")
+
+		// Pack encoded gas paying token
+		packed, err := bytesArgs.Pack(&encoded)
+		checkErr(err, "Error encoding output")
+
+		fmt.Print(hexutil.Encode(packed))
+	case "encodeDependency":
+		// Parse input arguments
+		chainId, ok := new(big.Int).SetString(args[1], 10)
+		checkOk(ok)
+
+		// Encode dependency
+		encoded, err := encodeDependency(chainId)
+		checkErr(err, "Error encoding dependency")
+
+		// Pack encoded dependency
+		packed, err := bytesArgs.Pack(&encoded)
+		checkErr(err, "Error encoding output")
+
 		fmt.Print(hexutil.Encode(packed))
 	default:
 		panic(fmt.Errorf("Unknown command: %s", args[0]))
