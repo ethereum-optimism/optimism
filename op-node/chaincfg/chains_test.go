@@ -104,6 +104,41 @@ var sepoliaCfg = rollup.Config{
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 }
 
+var sepoliaDev0Cfg = rollup.Config{
+	Genesis: rollup.Genesis{
+		L1: eth.BlockID{
+			Hash:   common.HexToHash("0x5639be97000fec7131a880b19b664cae43f975c773f628a08a9bb658c2a68df0"),
+			Number: 5173577,
+		},
+		L2: eth.BlockID{
+			Hash:   common.HexToHash("0x027ae1f4f9a441f9c8a01828f3b6d05803a0f524c07e09263264a38b755f804b"),
+			Number: 0,
+		},
+		L2Time: 1706484048,
+		SystemConfig: eth.SystemConfig{
+			BatcherAddr: common.HexToAddress("0x19cc7073150d9f5888f09e0e9016d2a39667df14"),
+			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
+			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000a6fe0")),
+			GasLimit:    30000000,
+		},
+	},
+	BlockTime:               2,
+	MaxSequencerDrift:       600,
+	SeqWindowSize:           3600,
+	ChannelTimeout:          300,
+	L1ChainID:               big.NewInt(11155111),
+	L2ChainID:               big.NewInt(11155421),
+	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000011155421"),
+	DepositContractAddress:  common.HexToAddress("0x76114bd29dFcC7a9892240D317E6c7C2A281Ffc6"),
+	L1SystemConfigAddress:   common.HexToAddress("0xa6b72407e2dc9EBF84b839B69A24C88929cf20F7"),
+	RegolithTime:            u64Ptr(0),
+	CanyonTime:              u64Ptr(0),
+	DeltaTime:               u64Ptr(0),
+	EcotoneTime:             u64Ptr(1706634000),
+	FjordTime:               u64Ptr(1715961600),
+	ProtocolVersionsAddress: common.HexToAddress("0x252CbE9517F731C618961D890D534183822dcC8d"),
+}
+
 var bobaSepoliaCfg = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{

@@ -51,24 +51,11 @@ func handleLegacyName(name string) string {
 	}
 }
 
-func handleBobaSuperchainName(name string) string {
-	switch name {
-	case "boba-sepolia":
-		return "boba-boba-sepolia"
-	case "boba-mainnet":
-		return "boba-boba-mainnet"
-	default:
-		return name
-	}
-}
-
 // ChainByName returns a chain, from known available configurations, by name.
 // ChainByName returns nil when the chain name is unknown.
 func ChainByName(name string) *superchain.ChainConfig {
 	// Handle legacy name aliases
 	name = handleLegacyName(name)
-	// Handle boba superchain name
-	name = handleBobaSuperchainName(name)
 	for _, chainCfg := range superchain.OPChains {
 		if strings.EqualFold(chainCfg.Chain+"-"+chainCfg.Superchain, name) {
 			return chainCfg
