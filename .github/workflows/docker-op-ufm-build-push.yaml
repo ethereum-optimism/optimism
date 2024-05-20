@@ -1,0 +1,40 @@
+---
+name: Build container and push to cLabs registry
+on:
+    push:
+      branches:
+        - main
+      paths:
+        # Run if any of the following files are changed
+        - 'op-ufm/**'
+
+jobs:
+    build:
+      runs-on: ['self-hosted', 'org', '8-cpu']
+      permissions: # Required for workload identity auth and push the trivy results to GitHub
+        contents: read
+        id-token: write
+        security-events: write
+      steps:
+
+        - name: Checkout
+          uses: actions/checkout@v4
+
+        - name: Authenticate to Google Cloud
+          uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@main
+          with:
+            workload-id-provider: projects/1094498259535/locations/global/workloadIdentityPools/gh-optimism/providers/github-by-repos
+            service-account: celo-optimism-gh@devopsre.iam.gserviceaccount.com
+            access-token-lifetime: "60m"
+            docker-gcp-registries: us-west1-docker.pkg.dev
+
+        - name: Build, push and scan the container
+          uses: celo-org/reusable-workflows/.github/actions/build-container@main
+          with:
+            platforms: linux/amd64
+            registry: us-west1-docker.pkg.dev/devopsre/dev-images/optimism
+            tags: op-ufm-${{ github.sha }}
+            context: .
+            dockerfile: op-ufm/Dockerfile
+            push: true
+            trivy: false
