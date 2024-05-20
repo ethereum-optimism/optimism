@@ -103,7 +103,7 @@ func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash
 }
 
 func (m *MockEthClient) ExpectFetchReceipts(hash common.Hash, info eth.BlockInfo, receipts types.Receipts, err error) {
-	m.Mock.On("FetchReceipts", hash).Once().Return(&info, receipts, err)
+	m.Mock.On("FetchReceipts", hash).Return(&info, receipts, err)
 }
 
 func (m *MockEthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
