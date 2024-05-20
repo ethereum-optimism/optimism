@@ -10,8 +10,6 @@ on:
 jobs:
   slither-analyze:
     runs-on: ubuntu-latest
-    container:
-      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.49.0
     steps:
       - uses: actions/checkout@v3
         with:

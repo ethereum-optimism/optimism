@@ -10,6 +10,9 @@ parameters:
   repo:
     type: string
     default: ${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images
+  ci_builder_rust_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
   base_image:
     type: string
     default: default
@@ -680,41 +683,6 @@ jobs:
           name: validate spacers
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
-
-  op-bindings-build:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: check go bindings
-          command: make && git diff --exit-code
-          working_directory: op-bindings
-
-  bindgen-remote:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: bindgen remote bindings
-          command: make bindgen-remote && git diff --exit-code
-          working_directory: op-bindings
-      - notify-failures-on-develop
-
-  bindgen-test-e2e:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: bindgen test E2E
-          command: make test-bindgen-e2e
-          working_directory: op-bindings-e2e
-      - notify-failures-on-develop
 
   boba-bindings-build:
     docker:
@@ -1868,7 +1836,6 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - op-bindings-build
       - boba-bindings-build
       - boba-bindgen-remote
       - js-lint-test:
