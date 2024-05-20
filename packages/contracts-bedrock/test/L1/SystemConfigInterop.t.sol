@@ -79,13 +79,13 @@ contract SystemConfigInterop_Test is CommonTest {
         );
 
         vm.prank(systemConfig.owner());
-        systemConfigInterop.addDependency(_chainId);
+        systemConfig.addDependency(_chainId);
     }
 
     /// @dev Tests that adding a dependency as not the owner reverts.
     function testFuzz_addDependency_notOwner_reverts(uint256 _chainId) public {
         vm.expectRevert("Ownable: caller is not the owner");
-        systemConfigInterop.addDependency(_chainId);
+        systemConfig.addDependency(_chainId);
     }
 
     /// @dev Tests that adding a dependency with no code at the OptimismPortal address reverts.
@@ -97,7 +97,7 @@ contract SystemConfigInterop_Test is CommonTest {
 
         vm.prank(systemConfig.owner());
         vm.expectRevert(abi.encodeWithSelector(NoCode.selector, address(optimismPortal)));
-        systemConfigInterop.addDependency(_chainId);
+        systemConfig.addDependency(_chainId);
     }
 
     /// @dev Tests that a dependency can be removed.
@@ -109,13 +109,13 @@ contract SystemConfigInterop_Test is CommonTest {
         );
 
         vm.prank(systemConfig.owner());
-        systemConfigInterop.removeDependency(_chainId);
+        systemConfig.removeDependency(_chainId);
     }
 
     /// @dev Tests that removing a dependency as not the owner reverts.
     function testFuzz_removeDependency_notOwner_reverts(uint256 _chainId) public {
         vm.expectRevert("Ownable: caller is not the owner");
-        systemConfigInterop.removeDependency(_chainId);
+        systemConfig.removeDependency(_chainId);
     }
 
     /// @dev Tests that removing a dependency with no code at the OptimismPortal address reverts.
@@ -127,7 +127,7 @@ contract SystemConfigInterop_Test is CommonTest {
 
         vm.prank(systemConfig.owner());
         vm.expectRevert(abi.encodeWithSelector(NoCode.selector, address(optimismPortal)));
-        systemConfigInterop.removeDependency(_chainId);
+        systemConfig.removeDependency(_chainId);
     }
 
     function _systemConfigWithSetGasPayingToken() internal returns (SystemConfigWithSetGasPayingToken) {
