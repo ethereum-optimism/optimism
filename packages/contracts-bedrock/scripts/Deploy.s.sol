@@ -996,14 +996,7 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the SystemConfig
     function initializeSystemConfig() public broadcast {
-        address systemConfig;
-        if (cfg.useInterop()) {
-            console.log("Upgrading and initializing SystemConfigInterop proxy");
-            systemConfig = mustGetAddress("SystemConfigInterop");
-        } else {
-            console.log("Upgrading and initializing SystemConfig proxy");
-            systemConfig = mustGetAddress("SystemConfig");
-        }
+        console.log("Upgrading and initializing SystemConfig proxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
 
@@ -1041,15 +1034,9 @@ contract Deploy is Deployer {
             )
         });
 
-        if (cfg.useInterop()) {
-            SystemConfigInterop config = SystemConfigInterop(systemConfigProxy);
-            string memory version = config.version();
-            console.log("SystemConfigInterop version: %s", version);
-        } else {
-            SystemConfig config = SystemConfig(systemConfigProxy);
-            string memory version = config.version();
-            console.log("SystemConfig version: %s", version);
-        }
+        SystemConfig config = SystemConfig(systemConfigProxy);
+        string memory version = config.version();
+        console.log("SystemConfig version: %s", version);
 
         ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
