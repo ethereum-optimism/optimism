@@ -9,7 +9,7 @@ import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { SystemConfigInterop, NoCode } from "src/L1/SystemConfigInterop.sol";
+import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 
@@ -56,22 +56,6 @@ contract SystemConfigInterop_Test is CommonTest {
         _systemConfigWithSetGasPayingToken().setGasPayingToken(_token);
     }
 
-    /// @dev Tests that setting the gas paying token with no code at the OptimismPortal address reverts.
-    function testFuzz_setGasPayingToken_optimismPortalNoCode_reverts(address _noCodeAddress, address _token) public {
-        vm.assume(_noCodeAddress.code.length == 0);
-        vm.assume(_token != address(vm));
-        vm.assume(_token != address(0));
-        vm.assume(_token != Constants.ETHER);
-
-        // Set OptimismPortal address in SystemConfig to an address with no code
-        vm.etch(address(optimismPortal), _noCodeAddress.code);
-
-        SystemConfigWithSetGasPayingToken systemConfigWithSetGasPayingToken = _systemConfigWithSetGasPayingToken();
-
-        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, address(optimismPortal)));
-        systemConfigWithSetGasPayingToken.setGasPayingToken(_token);
-    }
-
     /// @dev Tests that a dependency can be added.
     function testFuzz_addDependency_succeeds(uint256 _chainId) public {
         vm.mockCall(
@@ -87,18 +71,6 @@ contract SystemConfigInterop_Test is CommonTest {
     /// @dev Tests that adding a dependency as not the owner reverts.
     function testFuzz_addDependency_notOwner_reverts(uint256 _chainId) public {
         vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.addDependency(_chainId);
-    }
-
-    /// @dev Tests that adding a dependency with no code at the OptimismPortal address reverts.
-    function testFuzz_addDependency_optimismPortalNoCode_reverts(address _noCodeAddress, uint256 _chainId) public {
-        vm.assume(_noCodeAddress.code.length == 0);
-
-        // Set OptimismPortal address in SystemConfig to an address with no code
-        vm.etch(address(optimismPortal), _noCodeAddress.code);
-
-        vm.prank(systemConfig.owner());
-        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, address(optimismPortal)));
         systemConfig.addDependency(_chainId);
     }
 
@@ -120,26 +92,8 @@ contract SystemConfigInterop_Test is CommonTest {
         systemConfig.removeDependency(_chainId);
     }
 
-    /// @dev Tests that removing a dependency with no code at the OptimismPortal address reverts.
-    function testFuzz_removeDependency_optimismPortalNoCode_reverts(address _noCodeAddress, uint256 _chainId) public {
-        vm.assume(_noCodeAddress.code.length == 0);
-
-        // Set OptimismPortal address in SystemConfig to an address with no code
-        vm.etch(address(optimismPortal), _noCodeAddress.code);
-
-        vm.prank(systemConfig.owner());
-        vm.expectRevert(abi.encodeWithSelector(NoCode.selector, address(optimismPortal)));
-        systemConfig.removeDependency(_chainId);
-    }
-
     function _systemConfigWithSetGasPayingToken() internal returns (SystemConfigWithSetGasPayingToken) {
         vm.etch(address(systemConfig), address(new SystemConfigWithSetGasPayingToken()).code);
-
-        vm.store(
-            address(systemConfig),
-            bytes32(systemConfig.OPTIMISM_PORTAL_SLOT()),
-            bytes32(uint256(uint160(address(optimismPortal))))
-        );
 
         return SystemConfigWithSetGasPayingToken(address(systemConfig));
     }
