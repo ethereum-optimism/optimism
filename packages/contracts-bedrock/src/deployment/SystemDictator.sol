@@ -241,9 +241,10 @@ contract SystemDictator is OwnableUpgradeable {
                         l1CrossDomainMessenger: zero,
                         l1ERC721Bridge: zero,
                         l1StandardBridge: zero,
-                        l2OutputOracle: zero,
+                        disputeGameFactory: zero,
                         optimismPortal: zero,
-                        optimismMintableERC20Factory: zero
+                        optimismMintableERC20Factory: zero,
+                        gasPayingToken: zero
                     })
                 ),
                 ProtocolVersionConfig(ProtocolVersion.wrap(uint256(0)), ProtocolVersion.wrap(uint256(0)))
@@ -420,7 +421,8 @@ contract SystemDictator is OwnableUpgradeable {
         // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
         try L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).initialize(
             SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy),
-            OptimismPortal(payable(config.proxyAddressConfig.optimismPortalProxy))
+            OptimismPortal(payable(config.proxyAddressConfig.optimismPortalProxy)),
+            SystemConfig(config.proxyAddressConfig.systemConfigProxy)
         ) {
             // L1CrossDomainMessenger is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -475,7 +477,8 @@ contract SystemDictator is OwnableUpgradeable {
         // Try to initialize the L1StandardBridge, only fail if it's already been initialized.
         try L1StandardBridge(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).initialize(
             L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
-            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy)
+            SuperchainConfig(config.proxyAddressConfig.superchainConfigProxy),
+            SystemConfig(config.proxyAddressConfig.systemConfigProxy)
         ) {
             // L1StandardBridge is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
