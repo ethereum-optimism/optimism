@@ -33,8 +33,8 @@ jobs:
           uses: celo-org/reusable-workflows/.github/actions/build-container@main
           with:
             platforms: linux/amd64
-            registry: us-west1-docker.pkg.dev/devopsre/dev-images/optimism
-            tags: op-ufm-${{ github.sha }}
+            registry: us-west1-docker.pkg.dev/devopsre/dev-images/op-ufm
+            tags: test
             context: .
             dockerfile: op-ufm/Dockerfile
             push: true
