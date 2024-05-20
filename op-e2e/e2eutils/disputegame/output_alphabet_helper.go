@@ -3,12 +3,9 @@ package disputegame
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -38,10 +35,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 
 func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node string) *OutputHonestHelper {
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
-	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, g.Addr, caller)
-	g.Require.NoError(err)
-	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
+	prestateBlock, poststateBlock, err := g.Game.GetBlockRange(ctx)
 	g.Require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
 	l1Head := g.GetL1Head(ctx)
@@ -50,7 +44,7 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 	g.Require.NoError(err, "Create trace accessor")
-	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, contract, correctTrace)
+	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, g.Game, correctTrace)
 }
 
 func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, l2Node string, defender bool) *DishonestHelper {

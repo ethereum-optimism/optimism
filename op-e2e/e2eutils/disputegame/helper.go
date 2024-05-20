@@ -3,14 +3,14 @@ package disputegame
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -38,31 +39,9 @@ var (
 )
 
 const (
-	cannonGameType    uint32 = 0
-	alphabetGameType  uint32 = 255
-	alphabetGameDepth        = 4
+	cannonGameType   uint32 = 0
+	alphabetGameType uint32 = 255
 )
-
-type Status uint8
-
-const (
-	StatusInProgress Status = iota
-	StatusChallengerWins
-	StatusDefenderWins
-)
-
-func (s Status) String() string {
-	switch s {
-	case StatusInProgress:
-		return "In Progress"
-	case StatusChallengerWins:
-		return "Challenger Wins"
-	case StatusDefenderWins:
-		return "Defender Wins"
-	default:
-		return fmt.Sprintf("Unknown status: %v", int(s))
-	}
-}
 
 type GameCfg struct {
 	allowFuture bool
@@ -188,28 +167,27 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.Require.Len(rcpt.Logs, 2, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.Factory.ParseDisputeGameCreated(*rcpt.Logs[1])
 	h.Require.NoError(err)
-	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.Client)
+	gameBindings, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.Client)
+	h.Require.NoError(err)
+	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
-	callOpts := &bind.CallOpts{Context: ctx}
-	prestateBlock, err := game.StartingBlockNumber(callOpts)
+	prestateBlock, poststateBlock, err := game.GetBlockRange(ctx)
 	h.Require.NoError(err, "Failed to load starting block number")
-	poststateBlock, err := game.L2BlockNumber(callOpts)
-	h.Require.NoError(err, "Failed to load l2 block number")
-	splitDepth, err := game.SplitDepth(callOpts)
+	splitDepth, err := game.GetSplitDepth(ctx)
 	h.Require.NoError(err, "Failed to load split depth")
 	l1Head := h.GetL1Head(ctx, game)
 
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
-	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 
 	return &OutputCannonGameHelper{
-		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
+		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, game, gameBindings, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
 	}
 }
 
-func (h *FactoryHelper) GetL1Head(ctx context.Context, game *bindings.FaultDisputeGame) eth.BlockID {
-	l1HeadHash, err := game.L1Head(&bind.CallOpts{Context: ctx})
+func (h *FactoryHelper) GetL1Head(ctx context.Context, game contracts.FaultDisputeGameContract) eth.BlockID {
+	l1HeadHash, err := game.GetL1Head(ctx)
 	h.Require.NoError(err, "Failed to load L1 head")
 	l1Header, err := h.Client.HeaderByHash(ctx, l1HeadHash)
 	h.Require.NoError(err, "Failed to load L1 header")
@@ -245,23 +223,22 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.Require.Len(rcpt.Logs, 2, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.Factory.ParseDisputeGameCreated(*rcpt.Logs[1])
 	h.Require.NoError(err)
-	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.Client)
+	gameBindings, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.Client)
+	h.Require.NoError(err)
+	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
-	callOpts := &bind.CallOpts{Context: ctx}
-	prestateBlock, err := game.StartingBlockNumber(callOpts)
+	prestateBlock, poststateBlock, err := game.GetBlockRange(ctx)
 	h.Require.NoError(err, "Failed to load starting block number")
-	poststateBlock, err := game.L2BlockNumber(callOpts)
-	h.Require.NoError(err, "Failed to load l2 block number")
-	splitDepth, err := game.SplitDepth(callOpts)
+	splitDepth, err := game.GetSplitDepth(ctx)
 	h.Require.NoError(err, "Failed to load split depth")
 	l1Head := h.GetL1Head(ctx, game)
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock.Uint64())
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 
-	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, faultTypes.Depth(splitDepth.Uint64()), prestateBlock.Uint64(), poststateBlock.Uint64())
+	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 
 	return &OutputAlphabetGameHelper{
-		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
+		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, game, gameBindings, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
 	}
 }
 

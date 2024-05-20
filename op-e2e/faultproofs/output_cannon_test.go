@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -70,7 +71,7 @@ func TestOutputCannonGame(t *testing.T) {
 
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 }
 
 func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
@@ -98,7 +99,7 @@ func TestOutputCannon_ChallengeAllZeroClaim(t *testing.T) {
 
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 	game.LogGameData(ctx)
 }
 
@@ -175,7 +176,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.LogGameData(ctx)
-			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+			game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 		})
 	}
 }
@@ -213,7 +214,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 
 	game.WaitForInactivity(ctx, 10, true)
 	game.LogGameData(ctx)
-	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
+	require.EqualValues(t, gameTypes.GameStatusChallengerWon, game.Status(ctx))
 }
 
 func TestOutputCannonStepWithLargePreimage(t *testing.T) {
@@ -431,7 +432,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 
 			game.WaitForInactivity(ctx, 10, true)
 			game.LogGameData(ctx)
-			require.EqualValues(t, disputegame.StatusDefenderWins, game.Status(ctx))
+			require.EqualValues(t, gameTypes.GameStatusDefenderWon, game.Status(ctx))
 		})
 	}
 }
@@ -497,7 +498,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.LogGameData(ctx)
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 }
 
 func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
@@ -546,7 +547,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
 	game.LogGameData(ctx)
 }
 
@@ -597,7 +598,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 	game.LogGameData(ctx)
 }
 
@@ -657,7 +658,7 @@ func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 	game.LogGameData(ctx)
 }
 
@@ -717,7 +718,7 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+			game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 			game.LogGameData(ctx)
 		})
 	}
@@ -779,7 +780,7 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+			game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 			game.LogGameData(ctx)
 		})
 	}
@@ -813,6 +814,6 @@ func TestInvalidateCorrectProposalFutureBlock(t *testing.T) {
 
 	// The game should resolve as `CHALLENGER_WINS` always, because the root claim signifies a claim that does not exist
 	// yet in the L2 chain.
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 	game.LogGameData(ctx)
 }
