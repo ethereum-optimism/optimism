@@ -20,7 +20,7 @@ library StaticConfig {
         pure
         returns (bytes memory)
     {
-        return abi.encode(_token, _decimals, name, symbol);
+        return abi.encode(_token, _decimals, _name, _symbol);
     }
 
     /// @notice Decodes the static configuration data for a gas paying token.
