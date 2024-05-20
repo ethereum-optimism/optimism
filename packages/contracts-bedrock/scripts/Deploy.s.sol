@@ -793,7 +793,7 @@ contract Deploy is Deployer {
 
             addr_ = address(config);
 
-            save("SystemConfigInterop", addr_);
+            save("SystemConfig", addr_);
             console.log("SystemConfigInterop deployed at %s", addr_);
         } else {
             console.log("Deploying SystemConfig implementation");
