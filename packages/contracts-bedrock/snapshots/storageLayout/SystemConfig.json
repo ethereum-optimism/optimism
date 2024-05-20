@@ -63,6 +63,20 @@
     "type": "uint64"
   },
   {
+    "bytes": "4",
+    "label": "basefeeScalar",
+    "offset": 8,
+    "slot": "104",
+    "type": "uint32"
+  },
+  {
+    "bytes": "4",
+    "label": "blobbasefeeScalar",
+    "offset": 12,
+    "slot": "104",
+    "type": "uint32"
+  },
+  {
     "bytes": "32",
     "label": "_resourceConfig",
     "offset": 0,

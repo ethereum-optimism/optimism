@@ -383,12 +383,6 @@ func (d *DeployConfig) Check() error {
 	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
-	if d.GasPriceOracleOverhead == 0 {
-		log.Warn("GasPriceOracleOverhead is 0")
-	}
-	if d.GasPriceOracleScalar == 0 {
-		log.Warn("GasPriceOracleScalar is 0")
-	}
 	if d.GasPriceOracleBaseFeeScalar == 0 {
 		log.Warn("GasPriceOracleBaseFeeScalar is 0")
 	}
@@ -606,7 +600,8 @@ func (d *DeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return &v
 }
 
-// RollupConfig converts a DeployConfig to a rollup.Config
+// RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
+// Overhead value is considered a noop.
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")

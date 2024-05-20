@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,12 @@ func TestCustomGasToken(t *testing.T) {
 	InitParallel(t, SkipOnFPAC) // Custom Gas Token feature is not yet compatible with FPAC
 
 	cfg := DefaultSystemConfig(t)
+	offset := hexutil.Uint64(0)
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &offset
+	cfg.DeployConfig.L1CancunTimeOffset = &offset
+	cfg.DeployConfig.L2GenesisCanyonTimeOffset = &offset
+	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &offset
+	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
@@ -324,9 +331,9 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	// Get existing parameters from SystemConfigProxy contract
 	owner, err := systemConfig.Owner(&bind.CallOpts{})
 	require.NoError(t, err)
-	overhead, err := systemConfig.Overhead(&bind.CallOpts{})
+	basefeeScalar, err := systemConfig.BasefeeScalar(&bind.CallOpts{})
 	require.NoError(t, err)
-	scalar, err := systemConfig.Scalar(&bind.CallOpts{})
+	blobbasefeeScalar, err := systemConfig.BlobbasefeeScalar(&bind.CallOpts{})
 	require.NoError(t, err)
 	batcherHash, err := systemConfig.BatcherHash(&bind.CallOpts{})
 	require.NoError(t, err)
@@ -406,8 +413,8 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 
 	// Reinitialise with existing initializer values but with custom gas token set
 	tx, err = systemConfig.Initialize(deployerOpts, owner,
-		overhead,
-		scalar,
+		basefeeScalar,
+		blobbasefeeScalar,
 		batcherHash,
 		gasLimit,
 		unsafeBlockSigner,

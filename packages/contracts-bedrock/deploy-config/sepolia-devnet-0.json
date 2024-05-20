@@ -57,8 +57,6 @@
   "l1ERC721BridgeProxy": "0x0000000000000000000000000000000000000000",
   "systemConfigProxy": "0x0000000000000000000000000000000000000000",
   "optimismPortalProxy": "0x0000000000000000000000000000000000000000",
-  "gasPriceOracleOverhead": 188,
-  "gasPriceOracleScalar": 684000,
   "enableGovernance": true,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
