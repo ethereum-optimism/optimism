@@ -1,12 +1,13 @@
 ---
-name: Build container and push to cLabs registry
+name: Build op-ufm container and push to cLabs registry
 on:
     push:
       branches:
-        - main
+        - cel4
       paths:
         # Run if any of the following files are changed
         - 'op-ufm/**'
+    workflow_dispatch:
 
 jobs:
     build:
