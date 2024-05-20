@@ -1,92 +1,50 @@
 name: Docker Build Scan
 on:
+  pull_request:
+    branches:
+      - "master"
+      - "celo*"
   workflow_dispatch:
 
 jobs:
-  Build-Scan-Container-op-ufm:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-ufm/Dockerfile
+  detect-files-changed:
+    runs-on: ubuntu-latest
+    outputs:
+      files-changed: ${{ steps.detect-files-changed.outputs.all_changed_files }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect files changed
+        id: detect-files-changed
+        uses: tj-actions/changed-files@v44
+        with:
+          separator: ','
 
-  Build-Scan-Container-ops-bedrock-l1:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: ops-bedrock/Dockerfile.l1
-      context: ops-bedrock
-
-  Build-Scan-Container-ops-bedrock-l2:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: ops-bedrock/Dockerfile.l2
-      context: ops-bedrock
-
-  Build-Scan-Container-indexer:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: indexer/Dockerfile
-
-  Build-Scan-Container-op-heartbeat:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-heartbeat/Dockerfile
-
-  Build-Scan-Container-op-exporter:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-exporter/Dockerfile
-
-  Build-Scan-Container-op-program:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-program/Dockerfile
-
-  Build-Scan-Container-ops-bedrock:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: ops-bedrock/Dockerfile.stateviz
-
-  Build-Scan-Container-ci-builder:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: ops/docker/ci-builder/Dockerfile
-
-  Build-Scan-Container-proxyd:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: proxyd/Dockerfile
-
-  Build-Scan-Container-op-node:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-node/Dockerfile
-
-  Build-Scan-Container-op-batcher:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-batcher/Dockerfile
-
-  Build-Scan-Container-indexer-ui:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: indexer/ui/Dockerfile
-
-  Build-Scan-Container-op-proposer:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-proposer/Dockerfile
-
-  Build-Scan-Container-op-challenger:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-challenger/Dockerfile
-
-  Build-Scan-Container-endpoint-monitor:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: endpoint-monitor/Dockerfile
-
-  Build-Scan-Container-opwheel:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
-    with:
-      dockerfile: op-wheel/Dockerfile
-
+  build-cel2-migration-tool:
+    runs-on: ubuntu-latest
+    needs: detect-files-changed
+    if: |
+      contains(needs.detect-files-changed.outputs.files-changed, 'op-chain-ops/cmd/celo-dbmigrate') ||
+      contains(needs.detect-files-changed.outputs.files-changed, 'op-chain-ops/cmd/celo-migrate') ||
+      contains(needs.detect-files-changed.outputs.files-changed, 'op-chain-ops/Dockerfile')
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login at GCP Artifact Registry
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v2.0
+        with:
+          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-optimism/providers/github-by-repos'
+          service-account: 'celo-optimism-gh@devopsre.iam.gserviceaccount.com'
+          docker-gcp-registries: us-west1-docker.pkg.dev
+      - name: Build and push container
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0
+        with:
+          platforms: linux/amd64
+          registry: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/cel2-migration-tool
+          tags: ${{ github.sha }}
+          context: ./
+          dockerfile: ./op-chain-ops/Dockerfile
+          push: true
+          trivy: false
