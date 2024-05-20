@@ -28,11 +28,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -73,9 +71,7 @@ func main() {
 
 type actionEnv struct {
 	log       log.Logger
-	l1        *ethclient.Client
 	l2        *ethclient.Client
-	rollupCl  *sources.RollupClient
 	key       *ecdsa.PrivateKey
 	addr      common.Address
 	gasUsed   uint64
@@ -86,23 +82,11 @@ type CheckAction func(ctx context.Context, env *actionEnv) error
 
 var (
 	prefix     = "CHECK_FJORD"
-	EndpointL1 = &cli.StringFlag{
-		Name:    "l1",
-		Usage:   "L1 execution RPC endpoint",
-		EnvVars: op_service.PrefixEnvVar(prefix, "L1"),
-		Value:   "http://localhost:8545",
-	}
 	EndpointL2 = &cli.StringFlag{
 		Name:    "l2",
 		Usage:   "L2 execution RPC endpoint",
 		EnvVars: op_service.PrefixEnvVar(prefix, "L2"),
 		Value:   "http://localhost:9545",
-	}
-	EndpointRollup = &cli.StringFlag{
-		Name:    "rollup",
-		Usage:   "L2 rollup-node RPC endpoint",
-		EnvVars: op_service.PrefixEnvVar(prefix, "ROLLUP"),
-		Value:   "http://localhost:7545",
 	}
 	AccountKey = &cli.StringFlag{
 		Name:    "account",
@@ -113,9 +97,7 @@ var (
 
 func makeFlags() []cli.Flag {
 	flags := []cli.Flag{
-		EndpointL1,
 		EndpointL2,
-		EndpointRollup,
 		AccountKey,
 	}
 	return append(flags, oplog.CLIFlags(prefix)...)
@@ -135,29 +117,19 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		logger := oplog.NewLogger(c.App.Writer, logCfg)
 
 		c.Context = opio.CancelOnInterrupt(c.Context)
-		l1Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL1.Name))
-		if err != nil {
-			return fmt.Errorf("failed to dial L1 RPC: %w", err)
-		}
 		l2Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL2.Name))
 		if err != nil {
 			return fmt.Errorf("failed to dial L2 RPC: %w", err)
-		}
-		rollupCl, err := dial.DialRollupClientWithTimeout(c.Context, time.Second*20, logger, c.String(EndpointRollup.Name))
-		if err != nil {
-			return fmt.Errorf("failed to dial rollup node RPC: %w", err)
 		}
 		key, err := crypto.HexToECDSA(c.String(AccountKey.Name))
 		if err != nil {
 			return fmt.Errorf("failed to parse test private key: %w", err)
 		}
 		if err := fn(c.Context, &actionEnv{
-			log:      logger,
-			l1:       l1Cl,
-			l2:       l2Cl,
-			rollupCl: rollupCl,
-			key:      key,
-			addr:     crypto.PubkeyToAddress(key.PublicKey),
+			log:  logger,
+			l2:   l2Cl,
+			key:  key,
+			addr: crypto.PubkeyToAddress(key.PublicKey),
 		}); err != nil {
 			return fmt.Errorf("command error: %w", err)
 		}
