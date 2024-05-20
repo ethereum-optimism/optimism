@@ -786,25 +786,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
+        console.log("Deploying SystemConfig implementation");
         if (cfg.useInterop()) {
-            console.log("Deploying SystemConfigInterop implementation");
-
-            SystemConfigInterop config = new SystemConfigInterop{ salt: _implSalt() }();
-
-            addr_ = address(config);
-
-            save("SystemConfig", addr_);
-            console.log("SystemConfigInterop deployed at %s", addr_);
+            addr_ = address(new SystemConfigInterop{ salt: _implSalt() }());
         } else {
-            console.log("Deploying SystemConfig implementation");
-
-            SystemConfig config = new SystemConfig{ salt: _implSalt() }();
-
-            addr_ = address(config);
-
-            save("SystemConfig", addr_);
-            console.log("SystemConfig deployed at %s", addr_);
+            addr_ = address(new SystemConfig{ salt: _implSalt() }());
         }
+        save("SystemConfig", addr_);
+        console.log("SystemConfig deployed at %s", addr_);
 
         // Override the `SystemConfig` contract to the deployed implementation. This is necessary
         // to check the `SystemConfig` implementation alongside dependent contracts, which
