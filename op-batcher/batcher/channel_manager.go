@@ -217,7 +217,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"l1OriginLastClosedChannel", s.l1OriginLastClosedChannel,
 		"blocks_pending", len(s.blocks),
 		"batch_type", s.cfg.BatchType,
-		"compresion_algo", s.cfg.CompressorConfig.CompressionAlgo,
+		"compression_algo", s.cfg.CompressorConfig.CompressionAlgo,
 		"target_num_frames", s.cfg.TargetNumFrames,
 		"max_frame_size", s.cfg.MaxFrameSize,
 	)
