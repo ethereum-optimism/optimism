@@ -1189,15 +1189,9 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the OptimismPortal
     function initializeOptimismPortal() public broadcast {
-        address optimismPortal;
-        if (cfg.useInterop()) {
-            console.log("Upgrading and initializing OptimismPortalInterop proxy");
-            optimismPortal = mustGetAddress("OptimismPortalInterop");
-        } else {
-            console.log("Upgrading and initializing OptimismPortal proxy");
-            optimismPortal = mustGetAddress("OptimismPortal");
-        }
+        console.log("Upgrading and initializing OptimismPortal proxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
+        address optimismPortal = mustGetAddress("OptimismPortal");
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
@@ -1215,15 +1209,9 @@ contract Deploy is Deployer {
             )
         });
 
-        if (cfg.useInterop()) {
-            OptimismPortalInterop portal = OptimismPortalInterop(payable(optimismPortalProxy));
-            string memory version = portal.version();
-            console.log("OptimismPortalInterop version: %s", version);
-        } else {
-            OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
-            string memory version = portal.version();
-            console.log("OptimismPortal version: %s", version);
-        }
+        OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
+        string memory version = portal.version();
+        console.log("OptimismPortal version: %s", version);
 
         ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
