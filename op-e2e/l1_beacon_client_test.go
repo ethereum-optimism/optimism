@@ -72,11 +72,11 @@ func TestInvalidBlobResponse(t *testing.T) {
 	commit, _ := kzg4844.BlobToCommitment(blob)
 	proof, _ := kzg4844.ComputeBlobProof(blob, commit)
 	hash := eth.KZGToVersionedHash(commit)
-	beaconApi.StoreBlobsBundle(10, &engine.BlobsBundleV1{
+	require.NoError(t, beaconApi.StoreBlobsBundle(10, &engine.BlobsBundleV1{
 		Commitments: []hexutil.Bytes{hexutil.Bytes(commit[:])},
-		Proofs: []hexutil.Bytes{hexutil.Bytes(proof[:])},
-		Blobs: []hexutil.Bytes{hexutil.Bytes(blob[:])},
-	})
+		Proofs:      []hexutil.Bytes{hexutil.Bytes(proof[:])},
+		Blobs:       []hexutil.Bytes{hexutil.Bytes(blob[:])},
+	}))
 
 	beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: true}
 	cl := sources.NewL1BeaconClient(sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l)), beaconCfg)
