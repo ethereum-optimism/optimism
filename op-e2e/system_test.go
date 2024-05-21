@@ -288,23 +288,49 @@ func TestCheckFjordScript(t *testing.T) {
 	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 
-	fjordActivation := hexutil.Uint64(1)
-	cfg.DeployConfig.L2GenesisFjordTimeOffset = &fjordActivation
+	one := hexutil.Uint64(1)
 
-	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
-
-	<-time.After(time.Duration(cfg.DeployConfig.L2BlockTime) * time.Second * 2)
-
-	checkFjordConfig := &fjordChecks.CheckFjordConfig{
-		Log:  log,
-		L2:   sys.Clients["sequencer"],
-		Key:  sys.Cfg.Secrets.Alice,
-		Addr: sys.Cfg.Secrets.Addresses().Alice,
+	tests := []struct {
+		name            string
+		fjordActivation *hexutil.Uint64
+		expectErr       bool
+	}{
+		{
+			name:            "fjord_activated",
+			fjordActivation: &one,
+			expectErr:       false,
+		},
+		{
+			name:            "fjord_unactivated",
+			fjordActivation: nil,
+			expectErr:       true,
+		},
 	}
-	err = fjordChecks.CheckAll(context.Background(), checkFjordConfig)
-	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg.DeployConfig.L2GenesisFjordTimeOffset = tt.fjordActivation
+
+			sys, err := cfg.Start(t)
+			require.Nil(t, err, "Error starting up system")
+			defer sys.Close()
+
+			<-time.After(time.Duration(cfg.DeployConfig.L2BlockTime) * time.Second * 2)
+
+			checkFjordConfig := &fjordChecks.CheckFjordConfig{
+				Log:  log,
+				L2:   sys.Clients["sequencer"],
+				Key:  sys.Cfg.Secrets.Alice,
+				Addr: sys.Cfg.Secrets.Addresses().Alice,
+			}
+			err = fjordChecks.CheckAll(context.Background(), checkFjordConfig)
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.

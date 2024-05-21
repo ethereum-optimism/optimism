@@ -475,10 +475,12 @@ func CheckAll(ctx context.Context, env *CheckFjordConfig) error {
 	env.Log.Info("starting checks, tx account", "addr", env.Addr, "balance_wei", bal)
 
 	if err = checkRIP7212(ctx, env); err != nil {
+		env.Log.Error("rip-7212", "err", err)
 		return fmt.Errorf("rip-7212: %w", err)
 	}
 
 	if err = checkAllFastLz(ctx, env); err != nil {
+		env.Log.Error("fastLz", "err", err)
 		return fmt.Errorf("fastLz: %w", err)
 	}
 
