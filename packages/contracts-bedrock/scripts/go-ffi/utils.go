@@ -153,11 +153,9 @@ func encodeGasPayingToken(token common.Address, decimals uint8, name common.Hash
 
 // encodeDependency encodes a dependency into a byte array.
 func encodeDependency(chainId *big.Int) ([]byte, error) {
-	chainIdType, _ := abi.NewType("uint256", "", nil)
-
 	arguments := abi.Arguments{
 		{
-			Type: chainIdType,
+			Type: uint256Type,
 		},
 	}
 
