@@ -123,7 +123,7 @@ contract L1BlockInteropTest is CommonTest {
     }
 
     /// @dev Tests that adding a dependency already in the set reverts
-    function test_setConfig_addDependency_AlreadyDependency_reverts(uint256 _chainId) public prankDepositor {
+    function test_setConfig_addDependency_alreadyDependency_reverts(uint256 _chainId) public prankDepositor {
         vm.assume(_chainId != block.chainid);
 
         _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
@@ -139,7 +139,7 @@ contract L1BlockInteropTest is CommonTest {
     }
 
     /// @dev Tests that setting the add dependency config when the dependency set size is too large reverts.
-    function test_setConfig_addDependency_DependencySetSizeTooLarge_reverts() public prankDepositor {
+    function test_setConfig_addDependency_dependencySetSizeTooLarge_reverts() public prankDepositor {
         for (uint256 i = 0; i < type(uint8).max; i++) {
             _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(i));
         }
