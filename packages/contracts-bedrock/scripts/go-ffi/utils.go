@@ -130,24 +130,19 @@ func (n *proofList) Delete(key []byte) error {
 }
 
 // encodeGasPayingToken encodes a gas paying token into a byte array.
-func encodeGasPayingToken(token common.Address, decimals uint8, name [32]byte, symbol [32]byte) ([]byte, error) {
-	tokenType, _ := abi.NewType("address", "", nil)
-	decimalsType, _ := abi.NewType("uint8", "", nil)
-	nameType, _ := abi.NewType("bytes32", "", nil)
-	symbolType, _ := abi.NewType("bytes32", "", nil)
-
+func encodeGasPayingToken(token common.Address, decimals uint8, name common.Hash, symbol common.Hash) ([]byte, error) {
 	arguments := abi.Arguments{
 		{
-			Type: tokenType,
+			Type: addressType,
 		},
 		{
-			Type: decimalsType,
+			Type: uint8Type,
 		},
 		{
-			Type: nameType,
+			Type: fixedBytes,
 		},
 		{
-			Type: symbolType,
+			Type: fixedBytes,
 		},
 	}
 
