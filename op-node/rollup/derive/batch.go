@@ -45,7 +45,11 @@ type batchWithMetadata struct {
 }
 
 func (b batchWithMetadata) LogContext(l log.Logger) log.Logger {
-	return b.Batch.LogContext(l).With("compression_algo", b.comprAlgo)
+	lgr := b.Batch.LogContext(l)
+	if b.comprAlgo == "" {
+		return lgr
+	}
+	return lgr.With("compression_algo", b.comprAlgo)
 }
 
 // BatchData is used to represent the typed encoding & decoding.
