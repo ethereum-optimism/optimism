@@ -28,6 +28,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	fjordChecks "github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-fjord/checks"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -271,6 +272,39 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	finalizationTimeout := 30 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
 	_, err = geth.WaitForBlockToBeSafe(finalizedBlock.Header().Number, l2Client, finalizationTimeout)
 	require.Nil(t, err, "Waiting for safety of L2 block")
+}
+
+// TestCheckFjordScript ensures the op-chain-ops/cmd/check-fjord script runs successfully
+// against a test chain with the fjord hardfork enabled
+func TestCheckFjordScript(t *testing.T) {
+	InitParallel(t)
+	log := testlog.Logger(t, log.LevelInfo)
+
+	cfg := DefaultSystemConfig(t)
+	genesisActivation := hexutil.Uint64(0)
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &genesisActivation
+	cfg.DeployConfig.L2GenesisCanyonTimeOffset = &genesisActivation
+	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
+	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
+
+	fjordActivation := hexutil.Uint64(1)
+	cfg.DeployConfig.L2GenesisFjordTimeOffset = &fjordActivation
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	<-time.After(time.Duration(cfg.DeployConfig.L2BlockTime) * time.Second * 2)
+
+	checkFjordConfig := &fjordChecks.CheckFjordConfig{
+		Log:  log,
+		L2:   sys.Clients["sequencer"],
+		Key:  sys.Cfg.Secrets.Alice,
+		Addr: sys.Cfg.Secrets.Addresses().Alice,
+	}
+	err = fjordChecks.CheckAll(context.Background(), checkFjordConfig)
+	require.NoError(t, err)
 }
 
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
