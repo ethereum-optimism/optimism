@@ -1367,7 +1367,7 @@ jobs:
       - run:
           name: Install pnpm
           command: |
-            npm i pnpm@8.15.7 --global
+            npm i pnpm@9.1.2 --global
       - run:
           name: git submodules
           command: make submodules
@@ -1492,7 +1492,7 @@ jobs:
       - run:
           name: Install NVM
           command: |
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
             source ~/.bashrc
             nvm --version
       - run:
@@ -1503,7 +1503,7 @@ jobs:
       - run:
           name: Install pnpm
           command: |
-            npm i pnpm@8.15.7 --global
+            npm i pnpm@9.1.2 --global
       - run:
           name: git submodules
           command: git submodule update --init --recursive
