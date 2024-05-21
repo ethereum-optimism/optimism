@@ -93,7 +93,7 @@ contract SystemConfigInterop_Test is CommonTest {
     }
 
     /// @dev Returns the SystemConfigInterop instance.
-    function _systemConfigInterop() internal returns (SystemConfigInterop) {
+    function _systemConfigInterop() internal view returns (SystemConfigInterop) {
         return SystemConfigInterop(address(systemConfig));
     }
 
