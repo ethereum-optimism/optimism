@@ -37,7 +37,7 @@ func main() {
 			os.Exit(2)
 		}
 		uint256 := new(big.Int)
-		_, ok := uint256.SetString(decode, 10)
+		_, ok := uint256.SetString(decode, 0)
 		if !ok {
 			fmt.Fprintln(flag.CommandLine.Output(), "failed to parse int from post-ecotone scalar")
 			flag.Usage()
