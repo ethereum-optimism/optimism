@@ -15,6 +15,7 @@ contract L1BlockInteropTest is CommonTest {
     modifier prankDepositor() {
         vm.startPrank(l1Block.DEPOSITOR_ACCOUNT());
         _;
+        vm.endPrank();
     }
 
     /// @notice Marked virtual to be overridden in
@@ -26,8 +27,7 @@ contract L1BlockInteropTest is CommonTest {
 
     /// @dev Tests that an arbitrary chain ID can be added to the dependency set.
     function testFuzz_isInDependencySet_succeeds(uint256 _chainId) public prankDepositor {
-        // 0xfbb67fda52d4bfb8bf is Solady's EnumerableSetLib _ZERO_SENTINEL
-        vm.assume(_chainId != 0xfbb67fda52d4bfb8bf);
+        vm.assume(_chainId != block.chainid);
 
         _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
 
@@ -60,8 +60,7 @@ contract L1BlockInteropTest is CommonTest {
     /// @dev Tests that the dependency set size is correct when adding an arbitrary number of chain IDs.
     function testFuzz_dependencySetSize_succeeds(uint256[] calldata _dependencySet) public prankDepositor {
         for (uint256 i = 0; i < _dependencySet.length; i++) {
-            // 0xfbb67fda52d4bfb8bf is Solady's EnumerableSetLib _ZERO_SENTINEL
-            vm.assume(_dependencySet[i] != 0xfbb67fda52d4bfb8bf);
+            vm.assume(_dependencySet[i] != block.chainid);
             _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_dependencySet[i]));
         }
 
@@ -121,11 +120,25 @@ contract L1BlockInteropTest is CommonTest {
 
     /// @dev Tests that the config for adding a dependency can be set.
     function testFuzz_setConfig_addDependency_succeeds(uint256 _chainId) public prankDepositor {
-        vm.assume(_chainId != 0xfbb67fda52d4bfb8bf); // 0xfbb67fda52d4bfb8bf is Solady's EnumerableSetLib _ZERO_SENTINEL
+        vm.assume(_chainId != block.chainid);
 
         vm.expectEmit(address(l1Block));
         emit DependencyAdded(_chainId);
 
+        _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
+    }
+
+    function test_setConfig_addDependency_chainChainId_reverts() public prankDepositor {
+        vm.expectRevert(AlreadyDependency.selector);
+        _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(block.chainid));
+    }
+
+    function test_setConfig_addDependency_AlreadyDependency_reverts(uint256 _chainId) public prankDepositor {
+        vm.assume(_chainId != block.chainid);
+
+        _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
+
+        vm.expectRevert(AlreadyDependency.selector);
         _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
     }
 
@@ -149,7 +162,7 @@ contract L1BlockInteropTest is CommonTest {
 
     /// @dev Tests that the config for removing a dependency can be set.
     function testFuzz_setConfig_removeDependency_succeeds(uint256 _chainId) public prankDepositor {
-        vm.assume(_chainId != 0xfbb67fda52d4bfb8bf); // 0xfbb67fda52d4bfb8bf is Solady's EnumerableSetLib _ZERO_SENTINEL
+        vm.assume(_chainId != block.chainid);
 
         // Add the chain ID to the dependency set before removing it
         _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
@@ -174,7 +187,6 @@ contract L1BlockInteropTest is CommonTest {
 
     /// @dev Tests that setting the remove dependency config for a chain ID that is not in the dependency set reverts.
     function testFuzz_setConfig_removeDependency_notDependency_reverts(uint256 _chainId) public prankDepositor {
-        vm.assume(_chainId != 0xfbb67fda52d4bfb8bf); // 0xfbb67fda52d4bfb8bf is Solady's EnumerableSetLib _ZERO_SENTINEL
         vm.assume(_chainId != block.chainid);
 
         vm.expectRevert(NotDependency.selector);
