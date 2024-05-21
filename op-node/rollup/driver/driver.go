@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
@@ -59,10 +60,14 @@ type L2Chain interface {
 type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
-	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	Origin() eth.L1BlockRef
 	EngineReady() bool
+}
+
+type CLSync interface {
 	LowestQueuedUnsafeBlock() eth.L2BlockRef
+	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
+	Proceed(ctx context.Context) error
 }
 
 type Finalizer interface {
@@ -152,6 +157,7 @@ func NewDriver(
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
 	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+	clSync := clsync.NewCLSync(log, cfg, metrics, engine)
 
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
@@ -170,6 +176,7 @@ func NewDriver(
 	return &Driver{
 		l1State:            l1State,
 		derivation:         derivationPipeline,
+		clSync:             clSync,
 		finalizer:          finalizer,
 		engineController:   engine,
 		stateReq:           make(chan chan struct{}),

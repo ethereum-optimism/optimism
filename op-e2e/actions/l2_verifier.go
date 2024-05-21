@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
@@ -36,6 +37,7 @@ type L2Verifier struct {
 	// L2 rollup
 	engine     *derive.EngineController
 	derivation *derive.DerivationPipeline
+	clSync     *clsync.CLSync
 
 	finalizer driver.Finalizer
 
@@ -70,6 +72,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	metrics := &testutils.TestDerivationMetrics{}
 	engine := derive.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode)
 
+	clSync := clsync.NewCLSync(log, cfg, metrics, engine)
+
 	var finalizer driver.Finalizer
 	if cfg.PlasmaEnabled() {
 		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, engine, plasmaSrc)
@@ -84,6 +88,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		log:            log,
 		eng:            eng,
 		engine:         engine,
+		clSync:         clSync,
 		derivation:     pipeline,
 		finalizer:      finalizer,
 		l1:             l1,
@@ -229,6 +234,22 @@ func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	s.finalizer.Finalize(t.Ctx(), finalized)
 }
 
+// syncStep represents the Driver.syncStep
+func (s *L2Verifier) syncStep(ctx context.Context) error {
+	if fcuCalled, err := s.engine.TryBackupUnsafeReorg(ctx); fcuCalled {
+		return err
+	}
+	if err := s.engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+		return err
+	}
+	if err := s.clSync.Proceed(ctx); err != io.EOF {
+		return err
+	}
+
+	s.l2PipelineIdle = false
+	return s.derivation.Step(ctx)
+}
+
 // ActL2PipelineStep runs one iteration of the L2 derivation pipeline
 func (s *L2Verifier) ActL2PipelineStep(t Testing) {
 	if s.l2Building {
@@ -236,8 +257,7 @@ func (s *L2Verifier) ActL2PipelineStep(t Testing) {
 		return
 	}
 
-	s.l2PipelineIdle = false
-	err := s.derivation.Step(t.Ctx())
+	err := s.syncStep(t.Ctx())
 	if err == io.EOF || (err != nil && errors.Is(err, derive.EngineELSyncing)) {
 		s.l2PipelineIdle = true
 		return
@@ -272,7 +292,7 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.derivation.AddUnsafePayload(payload)
+		s.clSync.AddUnsafePayload(payload)
 	}
 }
 

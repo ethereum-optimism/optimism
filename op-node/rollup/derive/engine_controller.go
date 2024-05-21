@@ -32,7 +32,7 @@ const (
 	syncStatusFinishedEL                // EL sync is done & we should be performing consolidation
 )
 
-var errNoFCUNeeded = errors.New("no FCU call was needed")
+var ErrNoFCUNeeded = errors.New("no FCU call was needed")
 
 var _ EngineControl = (*EngineController)(nil)
 var _ LocalEngineControl = (*EngineController)(nil)
@@ -298,7 +298,7 @@ func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloa
 // this is a no-op if the nodes already agree on the forkchoice state.
 func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	if !e.needFCUCall {
-		return errNoFCUNeeded
+		return ErrNoFCUNeeded
 	}
 	if e.IsEngineSyncing() {
 		e.log.Warn("Attempting to update forkchoice state while EL syncing")

@@ -1,4 +1,4 @@
-package derive
+package clsync
 
 import (
 	"container/heap"
