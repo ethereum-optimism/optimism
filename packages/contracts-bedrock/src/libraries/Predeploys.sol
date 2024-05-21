@@ -91,11 +91,11 @@ library Predeploys {
 
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
+        if (_addr == WETH) return "WETH";
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
         if (_addr == LEGACY_MESSAGE_PASSER) return "LegacyMessagePasser";
         if (_addr == L1_MESSAGE_SENDER) return "L1MessageSender";
         if (_addr == DEPLOYER_WHITELIST) return "DeployerWhitelist";
-        if (_addr == WETH) return "WETH";
         if (_addr == L2_CROSS_DOMAIN_MESSENGER) return "L2CrossDomainMessenger";
         if (_addr == GAS_PRICE_ORACLE) return "GasPriceOracle";
         if (_addr == L2_STANDARD_BRIDGE) return "L2StandardBridge";
