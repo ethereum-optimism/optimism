@@ -8,7 +8,7 @@ import "github.com/ethereum/go-ethereum/common"
 const (
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
-	WETH                          = "0x4200000000000000000000000000000000000006"
+	WETH                          = "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000"
 	L2CrossDomainMessenger        = "0x4200000000000000000000000000000000000007"
 	L2StandardBridge              = "0x4200000000000000000000000000000000000010"
 	SequencerFeeVault             = "0x4200000000000000000000000000000000000011"
