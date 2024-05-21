@@ -273,29 +273,25 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
 	}
-	blobs, err := blobsFromSidecars(blobSidecars, hashes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get blobs from sidecars %w: %w", err, ethereum.NotFound)
-	}
-	return blobs, nil
+	return blobsFromSidecars(blobSidecars, hashes)
 }
 
 func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	if len(blobSidecars) != len(hashes) {
-		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
+		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d :%w", len(hashes), len(blobSidecars), ethereum.NotFound)
 	}
 
 	out := make([]*eth.Blob, len(hashes))
 	for i, ih := range hashes {
 		sidecar := blobSidecars[i]
 		if sidx := uint64(sidecar.Index); sidx != ih.Index {
-			return nil, fmt.Errorf("expected sidecars to be ordered by hashes, but got %d != %d", sidx, ih.Index)
+			return nil, fmt.Errorf("expected sidecars to be ordered by hashes, but got %d != %d :%w", sidx, ih.Index, ethereum.NotFound)
 		}
 
 		// make sure the blob's kzg commitment hashes to the expected value
 		hash := eth.KZGToVersionedHash(kzg4844.Commitment(sidecar.KZGCommitment))
 		if hash != ih.Hash {
-			return nil, fmt.Errorf("expected hash %s for blob at index %d but got %s", ih.Hash, ih.Index, hash)
+			return nil, fmt.Errorf("expected hash %s for blob at index %d but got %s :%w", ih.Hash, ih.Index, hash, ethereum.NotFound)
 		}
 
 		// confirm blob data is valid by verifying its proof against the commitment
