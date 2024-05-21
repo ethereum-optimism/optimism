@@ -6,6 +6,8 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
 // Target contract dependencies
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -50,7 +52,15 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.mockCall(
             address(optimismPortal),
             abi.encodeWithSelector(OptimismPortalInterop.setConfig.selector),
-            abi.encode(ConfigType.GAS_PAYING_TOKEN, abi.encode(_token, 18, _name, _symbol))
+            abi.encode(
+                ConfigType.GAS_PAYING_TOKEN,
+                StaticConfig.encodeSetGasPayingToken({
+                    _token: _token,
+                    _decimals: 18,
+                    _name: GasPayingToken.sanitize(_name),
+                    _symbol: GasPayingToken.sanitize(_symbol)
+                })
+            )
         );
 
         _systemConfigWithSetGasPayingToken().setGasPayingToken(_token);
@@ -61,7 +71,7 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.mockCall(
             address(optimismPortal),
             abi.encodeWithSelector(OptimismPortalInterop.setConfig.selector),
-            abi.encode(ConfigType.GAS_PAYING_TOKEN, abi.encode(_chainId))
+            abi.encode(ConfigType.GAS_PAYING_TOKEN, StaticConfig.encodeAddDependency(_chainId))
         );
 
         vm.prank(systemConfig.owner());
@@ -79,10 +89,10 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.mockCall(
             address(optimismPortal),
             abi.encodeWithSelector(OptimismPortalInterop.setConfig.selector),
-            abi.encode(ConfigType.GAS_PAYING_TOKEN, abi.encode(_chainId))
+            abi.encode(ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId))
         );
 
-        vm.prank(_systemConfigInterop().owner());
+        vm.prank(systemConfig.owner());
         _systemConfigInterop().removeDependency(_chainId);
     }
 
