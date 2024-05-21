@@ -116,11 +116,13 @@ contract L1BlockInteropTest is CommonTest {
         _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_chainId));
     }
 
+    /// @dev Tests that adding a dependency reverts if it's the chain's chain id
     function test_setConfig_addDependency_chainChainId_reverts() public prankDepositor {
         vm.expectRevert(AlreadyDependency.selector);
         _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(block.chainid));
     }
 
+    /// @dev Tests that adding a dependency already in the set reverts
     function test_setConfig_addDependency_AlreadyDependency_reverts(uint256 _chainId) public prankDepositor {
         vm.assume(_chainId != block.chainid);
 
