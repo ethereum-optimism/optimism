@@ -44,6 +44,9 @@ var (
 	// Plain uint8 type
 	uint8Type, _ = abi.NewType("uint8", "", nil)
 
+	// Plain uint256 type
+	uint256Type, _ = abi.NewType("uint256", "", nil)
+
 	// Decoded nonce tuple (nonce, version)
 	decodedNonce, _ = abi.NewType("tuple", "DecodedNonce", []abi.ArgumentMarshaling{
 		{Name: "nonce", Type: "uint256"},
