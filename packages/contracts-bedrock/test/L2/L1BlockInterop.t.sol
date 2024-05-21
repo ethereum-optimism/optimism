@@ -91,6 +91,8 @@ contract L1BlockInteropTest is CommonTest {
         public
         prankDepositor
     {
+        vm.assume(_token != address(vm));
+
         vm.expectEmit(address(l1Block));
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
 
@@ -108,6 +110,8 @@ contract L1BlockInteropTest is CommonTest {
     )
         public
     {
+        vm.assume(_token != address(vm));
+
         vm.expectRevert(NotDepositor.selector);
         _l1BlockInterop().setConfig(
             ConfigType.GAS_PAYING_TOKEN, StaticConfig.encodeSetGasPayingToken(_token, _decimals, _name, _symbol)
