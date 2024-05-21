@@ -10,7 +10,7 @@ contract FeeCurrencyDirectory is IFeeCurrencyDirectory, Initializable, Ownable {
     mapping(address => CurrencyConfig) public currencies;
     address[] private currencyList;
 
-    constructor(bool test) public Initializable(test) { }
+    constructor(bool test) Initializable(test) { }
 
     /**
      * @notice Initializes the contract with the owner set.
