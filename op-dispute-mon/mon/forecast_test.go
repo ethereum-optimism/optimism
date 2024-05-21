@@ -263,8 +263,8 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 		{},
 		mockRootClaim,
 		{},
-		{}, // Expected latest invalid proposal (will have timestamp 7)
-		mockRootClaim,
+		{},            // Expected latest invalid proposal (will have timestamp 7)
+		mockRootClaim, // Expected latest valid proposal (will have timestamp 8)
 	}
 	games := make([]*monTypes.EnrichedGameData, 9)
 	for i := range games {
@@ -293,6 +293,7 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 	require.Equal(t, 3, m.ignoredGames)
 	require.Equal(t, 4, m.contractCreationFails)
 	require.EqualValues(t, 7, m.latestInvalidProposal)
+	require.EqualValues(t, 8, m.latestValidProposal)
 }
 
 func setupForecastTest(t *testing.T) (*Forecast, *mockForecastMetrics, *testlog.CapturingHandler) {
@@ -320,6 +321,7 @@ type mockForecastMetrics struct {
 	gameAgreement         map[metrics.GameAgreementStatus]int
 	ignoredGames          int
 	latestInvalidProposal uint64
+	latestValidProposal   uint64
 	contractCreationFails int
 }
 
@@ -331,8 +333,9 @@ func (m *mockForecastMetrics) RecordGameAgreement(status metrics.GameAgreementSt
 	m.gameAgreement[status] = count
 }
 
-func (m *mockForecastMetrics) RecordLatestInvalidProposal(timestamp uint64) {
-	m.latestInvalidProposal = timestamp
+func (m *mockForecastMetrics) RecordLatestProposals(valid, invalid uint64) {
+	m.latestValidProposal = valid
+	m.latestInvalidProposal = invalid
 }
 
 func (m *mockForecastMetrics) RecordIgnoredGames(count int) {

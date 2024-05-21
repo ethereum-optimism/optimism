@@ -16,7 +16,7 @@ var (
 
 type ForecastMetrics interface {
 	RecordGameAgreement(status metrics.GameAgreementStatus, count int)
-	RecordLatestInvalidProposal(timestamp uint64)
+	RecordLatestProposals(validTimestamp, invalidTimestamp uint64)
 	RecordIgnoredGames(count int)
 	RecordFailedGames(count int)
 }
@@ -33,6 +33,7 @@ type forecastBatch struct {
 	DisagreeChallengerWins int
 
 	LatestInvalidProposal uint64
+	LatestValidProposal   uint64
 }
 
 type Forecast struct {
@@ -68,7 +69,7 @@ func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount in
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderAhead, batch.AgreeDefenderAhead)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderAhead, batch.DisagreeDefenderAhead)
 
-	f.metrics.RecordLatestInvalidProposal(batch.LatestInvalidProposal)
+	f.metrics.RecordLatestProposals(batch.LatestValidProposal, batch.LatestInvalidProposal)
 
 	f.metrics.RecordIgnoredGames(ignoredCount)
 	f.metrics.RecordFailedGames(failedCount)
@@ -84,6 +85,10 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 		expectedResult = types.GameStatusChallengerWon
 		if metrics.LatestInvalidProposal < game.Timestamp {
 			metrics.LatestInvalidProposal = game.Timestamp
+		}
+	} else {
+		if metrics.LatestValidProposal < game.Timestamp {
+			metrics.LatestValidProposal = game.Timestamp
 		}
 	}
 
