@@ -15,7 +15,7 @@ contract L1BlockInteropTest is CommonTest {
     modifier prankDepositor() {
         vm.startPrank(l1Block.DEPOSITOR_ACCOUNT());
         _;
-        vm.endPrank();
+        vm.stopPrank();
     }
 
     /// @notice Marked virtual to be overridden in
@@ -58,27 +58,15 @@ contract L1BlockInteropTest is CommonTest {
     }
 
     /// @dev Tests that the dependency set size is correct when adding an arbitrary number of chain IDs.
-    function testFuzz_dependencySetSize_succeeds(uint256[] calldata _dependencySet) public prankDepositor {
-        for (uint256 i = 0; i < _dependencySet.length; i++) {
-            vm.assume(_dependencySet[i] != block.chainid);
-            _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(_dependencySet[i]));
-        }
+    function testFuzz_dependencySetSize_succeeds(uint8 _dependencySetSize) public prankDepositor {
+        vm.assume(_dependencySetSize <= type(uint8).max);
 
-        // Count the number of unique items in _dependencySet to compare with the dependency set size,
-        // since the dependency set is a set and should not contain duplicates
         uint256 uniqueCount = 0;
-        bool found;
-        for (uint256 i = 0; i < _dependencySet.length; i++) {
-            found = false;
-            for (uint256 j = 0; j < i; j++) {
-                if (_dependencySet[i] == _dependencySet[j]) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                uniqueCount++;
-            }
+
+        for (uint256 i = 0; i < _dependencySetSize; i++) {
+            if (i == block.chainid) continue;
+            _l1BlockInterop().setConfig(ConfigType.ADD_DEPENDENCY, abi.encode(i));
+            uniqueCount++;
         }
 
         assertEq(_l1BlockInterop().dependencySetSize(), uniqueCount);
@@ -181,7 +169,7 @@ contract L1BlockInteropTest is CommonTest {
 
     /// @dev Tests that setting the remove dependency config for the chain's chain ID reverts.
     function test_setConfig_removeDependency_chainChainId_reverts() public prankDepositor {
-        vm.expectRevert(CantRemovedChainId.selector);
+        vm.expectRevert(CantRemovedDependency.selector);
         _l1BlockInterop().setConfig(ConfigType.REMOVE_DEPENDENCY, abi.encode(block.chainid));
     }
 
