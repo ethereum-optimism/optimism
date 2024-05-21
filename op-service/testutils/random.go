@@ -169,7 +169,7 @@ func RandomLegacyTx(rng *rand.Rand, signer types.Signer) *types.Transaction {
 		Gas:      params.TxGas + uint64(rng.Int63n(2_000_000)),
 		To:       RandomTo(rng),
 		Value:    RandomETH(rng, 10),
-		Data:     RandomData(rng, rng.Intn(1000)),
+		Data:     RandomData(rng, rng.Intn(RandomDataSize)),
 	}
 	tx, err := types.SignNewTx(key, signer, txData)
 	if err != nil {
@@ -187,7 +187,7 @@ func RandomAccessListTx(rng *rand.Rand, signer types.Signer) *types.Transaction 
 		Gas:        params.TxGas + uint64(rng.Int63n(2_000_000)),
 		To:         RandomTo(rng),
 		Value:      RandomETH(rng, 10),
-		Data:       RandomData(rng, rng.Intn(1000)),
+		Data:       RandomData(rng, rng.Intn(RandomDataSize)),
 		AccessList: nil,
 	}
 	tx, err := types.SignNewTx(key, signer, txData)
@@ -208,7 +208,7 @@ func RandomDynamicFeeTxWithBaseFee(rng *rand.Rand, baseFee *big.Int, signer type
 		Gas:        params.TxGas + uint64(rng.Int63n(2_000_000)),
 		To:         RandomTo(rng),
 		Value:      RandomETH(rng, 10),
-		Data:       RandomData(rng, rng.Intn(1000)),
+		Data:       RandomData(rng, rng.Intn(RandomDataSize)),
 		AccessList: nil,
 	}
 	tx, err := types.SignNewTx(key, signer, txData)
@@ -217,6 +217,8 @@ func RandomDynamicFeeTxWithBaseFee(rng *rand.Rand, baseFee *big.Int, signer type
 	}
 	return tx
 }
+
+var RandomDataSize = 1000
 
 func RandomDynamicFeeTx(rng *rand.Rand, signer types.Signer) *types.Transaction {
 	baseFee := new(big.Int).SetUint64(rng.Uint64())
