@@ -3,66 +3,9 @@ package types
 import (
 	"math/big"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
-
-func TestClaim_RemainingDuration(t *testing.T) {
-	tests := []struct {
-		name      string
-		duration  time.Duration
-		timestamp int64
-		now       int64
-		expected  uint64
-	}{
-		{
-			name:      "AllZeros",
-			duration:  0,
-			timestamp: 0,
-			now:       0,
-			expected:  0,
-		},
-		{
-			name:      "ZeroTimestamp",
-			duration:  5 * time.Second,
-			timestamp: 0,
-			now:       0,
-			expected:  5,
-		},
-		{
-			name:      "ZeroTimestampWithNow",
-			duration:  5 * time.Second,
-			timestamp: 0,
-			now:       10,
-			expected:  15,
-		},
-		{
-			name:      "ZeroNow",
-			duration:  5 * time.Second,
-			timestamp: 10,
-			now:       0,
-			expected:  5,
-		},
-		{
-			name:      "ValidTimeSinze",
-			duration:  20 * time.Second,
-			timestamp: 10,
-			now:       15,
-			expected:  25,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			claim := &Claim{
-				Clock: NewClock(test.duration, time.Unix(test.timestamp, 0)),
-			}
-			require.Equal(t, time.Duration(test.expected)*time.Second, claim.ChessTime(time.Unix(test.now, 0)))
-		})
-	}
-}
 
 func TestNewPreimageOracleData(t *testing.T) {
 	t.Run("LocalData", func(t *testing.T) {
@@ -102,6 +45,12 @@ func TestIsRootPosition(t *testing.T) {
 			name:     "NotRoot",
 			position: NewPositionFromGIndex(big.NewInt(2)),
 			expected: false,
+		},
+		{
+			// Mostly to avoid nil dereferences in tests which may not set a real Position
+			name:     "DefaultValue",
+			position: Position{},
+			expected: true,
 		},
 	}
 

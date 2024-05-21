@@ -11,7 +11,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 import "src/L1/ProtocolVersions.sol";
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 import "scripts/Deployer.sol";
 
 /// @title Initializer_Test
@@ -60,7 +60,9 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: deploy.mustGetAddress("L1CrossDomainMessenger"),
-                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal)),
+                initCalldata: abi.encodeCall(
+                    l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal, systemConfig)
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessenger")
             })
         );
@@ -68,7 +70,9 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(l1CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal)),
+                initCalldata: abi.encodeCall(
+                    l1CrossDomainMessenger.initialize, (superchainConfig, optimismPortal, systemConfig)
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessengerProxy")
             })
         );
@@ -180,7 +184,8 @@ contract Initializer_Test is Bridge_Initializer {
                             l1StandardBridge: address(0),
                             disputeGameFactory: address(0),
                             optimismPortal: address(0),
-                            optimismMintableERC20Factory: address(0)
+                            optimismMintableERC20Factory: address(0),
+                            gasPayingToken: Constants.ETHER
                         })
                     )
                 ),
@@ -215,7 +220,8 @@ contract Initializer_Test is Bridge_Initializer {
                             l1StandardBridge: address(0),
                             disputeGameFactory: address(0),
                             optimismPortal: address(0),
-                            optimismMintableERC20Factory: address(0)
+                            optimismMintableERC20Factory: address(0),
+                            gasPayingToken: Constants.ETHER
                         })
                     )
                 ),
@@ -254,7 +260,9 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: deploy.mustGetAddress("L1StandardBridge"),
-                initCalldata: abi.encodeCall(l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig)),
+                initCalldata: abi.encodeCall(
+                    l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig, systemConfig)
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("L1StandardBridge")
             })
         );
@@ -262,7 +270,9 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(l1StandardBridge),
-                initCalldata: abi.encodeCall(l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig)),
+                initCalldata: abi.encodeCall(
+                    l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig, systemConfig)
+                ),
                 initializedSlotVal: deploy.loadInitializedSlot("L1StandardBridgeProxy")
             })
         );

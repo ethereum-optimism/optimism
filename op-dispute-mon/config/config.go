@@ -15,6 +15,7 @@ var (
 	ErrMissingL1EthRPC           = errors.New("missing l1 eth rpc url")
 	ErrMissingGameFactoryAddress = errors.New("missing game factory address")
 	ErrMissingRollupRpc          = errors.New("missing rollup rpc url")
+	ErrMissingMaxConcurrency     = errors.New("missing max concurrency")
 )
 
 const (
@@ -25,6 +26,9 @@ const (
 	// DefaultMonitorInterval is the default interval at which the dispute
 	// monitor will check for new games to monitor.
 	DefaultMonitorInterval = time.Second * 30
+
+	//DefaultMaxConcurrency is the default number of threads to use when fetching game data
+	DefaultMaxConcurrency = uint(5)
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -37,6 +41,8 @@ type Config struct {
 	RollupRpc       string           // The rollup node RPC URL.
 	MonitorInterval time.Duration    // Frequency to check for new games to monitor.
 	GameWindow      time.Duration    // Maximum window to look for games to monitor.
+	IgnoredGames    []common.Address // Games to exclude from monitoring
+	MaxConcurrency  uint             // Maximum number of threads to use when fetching game data
 
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
@@ -50,6 +56,7 @@ func NewConfig(gameFactoryAddress common.Address, l1EthRpc string) Config {
 		HonestActors:    []common.Address{},
 		MonitorInterval: DefaultMonitorInterval,
 		GameWindow:      DefaultGameWindow,
+		MaxConcurrency:  DefaultMaxConcurrency,
 
 		MetricsConfig: opmetrics.DefaultCLIConfig(),
 		PprofConfig:   oppprof.DefaultCLIConfig(),
@@ -65,6 +72,9 @@ func (c Config) Check() error {
 	}
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
+	}
+	if c.MaxConcurrency == 0 {
+		return ErrMissingMaxConcurrency
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return fmt.Errorf("metrics config: %w", err)

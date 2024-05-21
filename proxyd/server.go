@@ -156,11 +156,7 @@ func NewServer(
 	overrideLims := make(map[string]FrontendRateLimiter)
 	globalMethodLims := make(map[string]bool)
 	for method, override := range rateLimitConfig.MethodOverrides {
-		var err error
 		overrideLims[method] = limiterFactory(time.Duration(override.Interval), override.Limit, method)
-		if err != nil {
-			return nil, err
-		}
 
 		if override.Global {
 			globalMethodLims[method] = true

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "src/libraries/DisputeTypes.sol";
-import "src/libraries/DisputeErrors.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory, IDisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
@@ -272,7 +272,7 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
         games = disputeGameFactory.findLatestGames(GameType.wrap(0), gameCount - 1, 1);
         assertEq(games.length, 1);
         assertEq(games[0].index, 30);
-        (GameType gameType, Timestamp createdAt, IDisputeGame game) = games[0].metadata.unpack();
+        (GameType gameType, Timestamp createdAt, address game) = games[0].metadata.unpack();
         assertEq(gameType.raw(), 0);
         assertEq(createdAt.raw(), block.timestamp);
 

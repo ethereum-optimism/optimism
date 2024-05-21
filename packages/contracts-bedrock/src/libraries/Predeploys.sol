@@ -23,8 +23,8 @@ library Predeploys {
     /// @notice Address of the DeployerWhitelist predeploy. No longer active.
     address internal constant DEPLOYER_WHITELIST = 0x4200000000000000000000000000000000000002;
 
-    /// @notice Address of the canonical WETH9 contract.
-    address internal constant WETH9 = 0x4200000000000000000000000000000000000006;
+    /// @notice Address of the canonical WETH contract.
+    address internal constant WETH = 0x4200000000000000000000000000000000000006;
 
     /// @notice Address of the L2CrossDomainMessenger predeploy.
     address internal constant L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000007;
@@ -83,13 +83,19 @@ library Predeploys {
     ///         can no longer be accessed.
     address internal constant LEGACY_ERC20_ETH = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
 
+    /// @notice Address of the CrossL2Inbox predeploy.
+    address internal constant CROSS_L2_INBOX = 0x4200000000000000000000000000000000000022;
+
+    /// @notice Address of the L2ToL2CrossDomainMessenger predeploy.
+    address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
+
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
         if (_addr == LEGACY_MESSAGE_PASSER) return "LegacyMessagePasser";
         if (_addr == L1_MESSAGE_SENDER) return "L1MessageSender";
         if (_addr == DEPLOYER_WHITELIST) return "DeployerWhitelist";
-        if (_addr == WETH9) return "WETH9";
+        if (_addr == WETH) return "WETH";
         if (_addr == L2_CROSS_DOMAIN_MESSENGER) return "L2CrossDomainMessenger";
         if (_addr == GAS_PRICE_ORACLE) return "GasPriceOracle";
         if (_addr == L2_STANDARD_BRIDGE) return "L2StandardBridge";
@@ -107,22 +113,25 @@ library Predeploys {
         if (_addr == EAS) return "EAS";
         if (_addr == GOVERNANCE_TOKEN) return "GovernanceToken";
         if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
+        if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
+        if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
         revert("Predeploys: unnamed predeploy");
     }
 
     /// @notice Returns true if the predeploy is not proxied.
     function notProxied(address _addr) internal pure returns (bool) {
-        return _addr == GOVERNANCE_TOKEN || _addr == WETH9;
+        return _addr == GOVERNANCE_TOKEN || _addr == WETH;
     }
 
     /// @notice Returns true if the address is a defined predeploy that is embedded into new OP-Stack chains.
-    function isSupportedPredeploy(address _addr) internal pure returns (bool) {
-        return _addr == LEGACY_MESSAGE_PASSER || _addr == DEPLOYER_WHITELIST || _addr == WETH9
+    function isSupportedPredeploy(address _addr, bool _useInterop) internal pure returns (bool) {
+        return _addr == LEGACY_MESSAGE_PASSER || _addr == DEPLOYER_WHITELIST || _addr == WETH
             || _addr == L2_CROSS_DOMAIN_MESSENGER || _addr == GAS_PRICE_ORACLE || _addr == L2_STANDARD_BRIDGE
             || _addr == SEQUENCER_FEE_WALLET || _addr == OPTIMISM_MINTABLE_ERC20_FACTORY || _addr == L1_BLOCK_NUMBER
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
-            || _addr == L1_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS || _addr == GOVERNANCE_TOKEN;
+            || _addr == L1_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS || _addr == GOVERNANCE_TOKEN
+            || (_useInterop && _addr == CROSS_L2_INBOX) || (_useInterop && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 
     function isPredeployNamespace(address _addr) internal pure returns (bool) {

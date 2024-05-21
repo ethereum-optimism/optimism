@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { stdError } from "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
+import "src/libraries/rlp/RLPErrors.sol";
 
 contract RLPReader_readBytes_Test is Test {
     function test_readBytes_bytestring00_succeeds() external pure {
@@ -19,27 +20,27 @@ contract RLPReader_readBytes_Test is Test {
     }
 
     function test_readBytes_revertListItem_reverts() external {
-        vm.expectRevert("RLPReader: decoded item type for bytes is not a data item");
+        vm.expectRevert(UnexpectedList.selector);
         RLPReader.readBytes(hex"c7c0c1c0c3c0c1c0");
     }
 
     function test_readBytes_invalidStringLength_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be > than length of string length (long string)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readBytes(hex"b9");
     }
 
     function test_readBytes_invalidListLength_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be > than length of list length (long list)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readBytes(hex"ff");
     }
 
     function test_readBytes_invalidRemainder_reverts() external {
-        vm.expectRevert("RLPReader: bytes value contains an invalid remainder");
+        vm.expectRevert(InvalidDataRemainder.selector);
         RLPReader.readBytes(hex"800a");
     }
 
     function test_readBytes_invalidPrefix_reverts() external {
-        vm.expectRevert("RLPReader: invalid prefix, single byte < 0x80 are not prefixed (short string)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readBytes(hex"810a");
     }
 }
@@ -135,101 +136,101 @@ contract RLPReader_readList_Test is Test {
     }
 
     function test_readList_invalidShortList_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than list length (short list)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"efdebd");
     }
 
     function test_readList_longStringLength_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than list length (short list)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"efb83600");
     }
 
     function test_readList_notLongEnough_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than list length (short list)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"efdebdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
 
     function test_readList_int32Overflow_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than total length (long string)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"bf0f000000000000021111");
     }
 
     function test_readList_int32Overflow2_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than total length (long list)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"ff0f000000000000021111");
     }
 
     function test_readList_incorrectLengthInArray_reverts() external {
-        vm.expectRevert("RLPReader: length of content must not have any leading zeros (long string)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readList(hex"b9002100dc2b275d0f74e8a53e6f4ec61b27f24278820be3f82ea2110e582081b0565df0");
     }
 
     function test_readList_leadingZerosInLongLengthArray1_reverts() external {
-        vm.expectRevert("RLPReader: length of content must not have any leading zeros (long string)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readList(
             hex"b90040000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
         );
     }
 
     function test_readList_leadingZerosInLongLengthArray2_reverts() external {
-        vm.expectRevert("RLPReader: length of content must not have any leading zeros (long string)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readList(hex"b800");
     }
 
     function test_readList_leadingZerosInLongLengthList1_reverts() external {
-        vm.expectRevert("RLPReader: length of content must not have any leading zeros (long list)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readList(
             hex"fb00000040000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
         );
     }
 
     function test_readList_nonOptimalLongLengthArray1_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than 55 bytes (long string)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readList(hex"b81000112233445566778899aabbccddeeff");
     }
 
     function test_readList_nonOptimalLongLengthArray2_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than 55 bytes (long string)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readList(hex"b801ff");
     }
 
     function test_readList_invalidValue_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than string length (short string)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"91");
     }
 
     function test_readList_invalidRemainder_reverts() external {
-        vm.expectRevert("RLPReader: list item has an invalid data remainder");
+        vm.expectRevert(InvalidDataRemainder.selector);
         RLPReader.readList(hex"c000");
     }
 
     function test_readList_notEnoughContentForString1_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than total length (long string)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"ba010000aabbccddeeff");
     }
 
     function test_readList_notEnoughContentForString2_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than total length (long string)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"b840ffeeddccbbaa99887766554433221100");
     }
 
     function test_readList_notEnoughContentForList1_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than total length (long list)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"f90180");
     }
 
     function test_readList_notEnoughContentForList2_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than total length (long list)");
+        vm.expectRevert(ContentLengthMismatch.selector);
         RLPReader.readList(hex"ffffffffffffffffff0001020304050607");
     }
 
     function test_readList_longStringLessThan56Bytes_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than 55 bytes (long string)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readList(hex"b80100");
     }
 
     function test_readList_longListLessThan56Bytes_reverts() external {
-        vm.expectRevert("RLPReader: length of content must be greater than 55 bytes (long list)");
+        vm.expectRevert(InvalidHeader.selector);
         RLPReader.readList(hex"f80100");
     }
 }

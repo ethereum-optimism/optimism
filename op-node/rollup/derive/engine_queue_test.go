@@ -1250,16 +1250,17 @@ func TestPlasmaFinalityData(t *testing.T) {
 				GasLimit:    20_000_000,
 			},
 		},
-		BlockTime:         1,
-		SeqWindowSize:     2,
-		UsePlasma:         false,
+		BlockTime:     1,
+		SeqWindowSize: 2,
+	}
+	plasmaCfg := &rollup.PlasmaConfig{
 		DAChallengeWindow: 90,
 		DAResolveWindow:   90,
 	}
 	// shoud return l1 finality if plasma is not enabled
 	require.Equal(t, uint64(finalityLookback), calcFinalityLookback(cfg))
 
-	cfg.UsePlasma = true
+	cfg.PlasmaConfig = plasmaCfg
 	expFinalityLookback := 181
 	require.Equal(t, uint64(expFinalityLookback), calcFinalityLookback(cfg))
 

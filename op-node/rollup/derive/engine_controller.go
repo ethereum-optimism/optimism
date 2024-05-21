@@ -50,6 +50,7 @@ type EngineController struct {
 	metrics    Metrics
 	syncMode   sync.Mode
 	syncStatus syncStatusEnum
+	chainSpec  *rollup.ChainSpec
 	rollupCfg  *rollup.Config
 	elStart    time.Time
 	clock      clock.Clock
@@ -85,6 +86,7 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rol
 		engine:     engine,
 		log:        log,
 		metrics:    metrics,
+		chainSpec:  rollup.NewChainSpec(rollupCfg),
 		rollupCfg:  rollupCfg,
 		syncMode:   syncMode,
 		syncStatus: syncStatus,
@@ -149,6 +151,7 @@ func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_unsafe", r)
 	e.unsafeHead = r
 	e.needFCUCall = true
+	e.chainSpec.CheckForkActivation(e.log, r)
 }
 
 // SetBackupUnsafeL2Head implements LocalEngineControl.
@@ -327,8 +330,8 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-		isTransitionBlock := e.rollupCfg.Genesis.L2.Number != 0 && b.Hash == e.rollupCfg.Genesis.L2.Hash
-		if errors.Is(err, ethereum.NotFound) || isTransitionBlock {
+		rollupGenesisIsFinalized := b.Hash == e.rollupCfg.Genesis.L2.Hash
+		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()

@@ -127,7 +127,7 @@ func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
 func (dp *DerivationPipeline) Finalize(l1Origin eth.L1BlockRef) {
 	// In plasma mode, the finalization signal is proxied through the plasma manager.
 	// Finality signal will come from the DA contract or L1 finality whichever is last.
-	if dp.rollupCfg.UsePlasma {
+	if dp.rollupCfg.PlasmaEnabled() {
 		dp.plasma.Finalize(l1Origin)
 	} else {
 		dp.eng.Finalize(l1Origin)

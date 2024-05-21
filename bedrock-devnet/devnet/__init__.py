@@ -142,14 +142,17 @@ def devnet_l1_allocs(paths):
     init_devnet_l1_deploy_config(paths)
 
     fqn = 'scripts/Deploy.s.sol:Deploy'
-    # Use foundry pre-funded account #1 for the deployer
     run_command([
-        'forge', 'script', '--chain-id', '900', fqn, "--sig", "runWithStateDump()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-    ], env={}, cwd=paths.contracts_bedrock_dir)
+        # We need to set the sender here to an account we know the private key of,
+        # because the sender ends up being the owner of the ProxyAdmin SAFE
+        # (which we need to enable the Custom Gas Token feature).
+        'forge', 'script', fqn, "--sig", "runWithStateDump()", "--sender", "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+    ], env={
+      'DEPLOYMENT_OUTFILE': paths.l1_deployments_path,
+      'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
+    }, cwd=paths.contracts_bedrock_dir)
 
-    forge_dump = read_json(paths.forge_l1_dump_path)
-    write_json(paths.allocs_l1_path, { "accounts": forge_dump })
-    os.remove(paths.forge_l1_dump_path)
+    shutil.move(src=paths.forge_l1_dump_path, dst=paths.allocs_l1_path)
 
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
 
@@ -158,21 +161,19 @@ def devnet_l2_allocs(paths):
     log.info('Generating L2 genesis allocs, with L1 addresses: '+paths.l1_deployments_path)
 
     fqn = 'scripts/L2Genesis.s.sol:L2Genesis'
-    # Use foundry pre-funded account #1 for the deployer
     run_command([
-        'forge', 'script', '--chain-id', '901', fqn, "--sig", "runWithAllUpgrades()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        'forge', 'script', fqn, "--sig", "runWithAllUpgrades()"
     ], env={
       'CONTRACT_ADDRESSES_PATH': paths.l1_deployments_path,
+      'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
     }, cwd=paths.contracts_bedrock_dir)
 
     # For the previous forks, and the latest fork (default, thus empty prefix),
     # move the forge-dumps into place as .devnet allocs.
-    for suffix in ["-delta", ""]:
+    for suffix in ["-delta", "-ecotone", ""]:
         input_path = pjoin(paths.contracts_bedrock_dir, f"state-dump-901{suffix}.json")
-        forge_dump = read_json(input_path)
         output_path = pjoin(paths.devnet_dir, f'allocs-l2{suffix}.json')
-        write_json(output_path, { "accounts": forge_dump })
-        os.remove(input_path)
+        shutil.move(src=input_path, dst=output_path)
         log.info("Generated L2 allocs: "+output_path)
 
 
@@ -272,8 +273,10 @@ def devnet_deploy(paths):
 
     if DEVNET_PLASMA:
         docker_env['PLASMA_ENABLED'] = 'true'
+        docker_env['PLASMA_DA_SERVICE'] = 'false'
     else:
         docker_env['PLASMA_ENABLED'] = 'false'
+        docker_env['PLASMA_DA_SERVICE'] = 'false'
 
     # Bring up the rest of the services.
     log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')

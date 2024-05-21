@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/resolution"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -37,16 +36,14 @@ type Service struct {
 
 	cl clock.Clock
 
-	delays       *resolution.DelayCalculator
 	extractor    *extract.Extractor
-	forecast     *forecast
+	forecast     *Forecast
 	bonds        *bonds.Bonds
 	game         *extract.GameCallerCreator
 	resolutions  *ResolutionMonitor
 	claims       *ClaimMonitor
 	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
-	validator    *outputValidator
 
 	l1Client *ethclient.Client
 
@@ -92,11 +89,9 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initResolutionMonitor()
 	s.initWithdrawalMonitor()
 
-	s.initOutputValidator()   // Must be called before initForecast
 	s.initGameCallerCreator() // Must be called before initForecast
 
-	s.initDelayCalculator()
-	s.initExtractor()
+	s.initExtractor(cfg)
 
 	s.initForecast(cfg)
 	s.initBonds()
@@ -121,34 +116,29 @@ func (s *Service) initWithdrawalMonitor() {
 	s.withdrawals = NewWithdrawalMonitor(s.logger, s.metrics)
 }
 
-func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.logger, s.metrics, s.rollupClient)
-}
-
 func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
-func (s *Service) initDelayCalculator() {
-	s.delays = resolution.NewDelayCalculator(s.metrics, s.cl)
-}
-
-func (s *Service) initExtractor() {
+func (s *Service) initExtractor(cfg *config.Config) {
 	s.extractor = extract.NewExtractor(
 		s.logger,
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
+		cfg.IgnoredGames,
+		cfg.MaxConcurrency,
 		extract.NewClaimEnricher(),
-		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
 		extract.NewWithdrawalsEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewAgreementEnricher(s.logger, s.metrics, s.rollupClient),
 	)
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
-	s.forecast = newForecast(s.logger, s.metrics, s.validator)
+	s.forecast = NewForecast(s.logger, s.metrics)
 }
 
 func (s *Service) initBonds() {
@@ -223,18 +213,20 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		}
 		return block.Hash(), nil
 	}
+	l2ChallengesMonitor := NewL2ChallengesMonitor(s.logger, s.metrics)
 	s.monitor = newGameMonitor(
 		ctx,
 		s.logger,
 		s.cl,
+		s.metrics,
 		cfg.MonitorInterval,
 		cfg.GameWindow,
-		s.delays.RecordClaimResolutionDelayMax,
 		s.forecast.Forecast,
 		s.bonds.CheckBonds,
 		s.resolutions.CheckResolutions,
 		s.claims.CheckClaims,
 		s.withdrawals.CheckWithdrawals,
+		l2ChallengesMonitor.CheckL2Challenges,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,

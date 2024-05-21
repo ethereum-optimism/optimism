@@ -427,7 +427,7 @@ func TestMarshalUnmarshalExecutionPayloadEnvelopes(t *testing.T) {
 		ExecutionPayload:      createPayloadWithWithdrawals(&types.Withdrawals{}),
 	}
 
-	missingExecutionPaylaod := &ExecutionPayloadEnvelope{
+	missingExecutionPayload := &ExecutionPayloadEnvelope{
 		ParentBeaconBlockRoot: &hash,
 		ExecutionPayload:      nil,
 	}
@@ -439,7 +439,7 @@ func TestMarshalUnmarshalExecutionPayloadEnvelopes(t *testing.T) {
 	}{
 		{"ValidInputSucceeds", validInput, nil},
 		{"MissingHashFailsToSerialize", missingHash, ErrMissingData},
-		{"MissingExecutionDataFailsToSerialize", missingExecutionPaylaod, ErrMissingData},
+		{"MissingExecutionDataFailsToSerialize", missingExecutionPayload, ErrMissingData},
 	}
 
 	for _, test := range tests {

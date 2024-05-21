@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -20,10 +18,10 @@ type GameContract interface {
 	ResolveTx() (txmgr.TxCandidate, error)
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
 	ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error)
-	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
-	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
+	AttackTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error)
+	DefendTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
-	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
+	ChallengeL2BlockNumberTx(challenge *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error)
 }
 
 type Oracle interface {
@@ -101,7 +99,7 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 		}
 		// Always upload local preimages
 		if !preimageExists {
-			err := r.uploader.UploadPreimage(ctx, uint64(action.ParentIdx), action.OracleData)
+			err := r.uploader.UploadPreimage(ctx, uint64(action.ParentClaim.ContractIndex), action.OracleData)
 			if errors.Is(err, preimages.ErrChallengePeriodNotOver) {
 				r.log.Debug("Large Preimage Squeeze failed, challenge period not over")
 				return nil
@@ -114,22 +112,15 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 	var err error
 	switch action.Type {
 	case types.ActionTypeMove:
-		var movePos types.Position
 		if action.IsAttack {
-			movePos = action.ParentPosition.Attack()
-			candidate, err = r.contract.AttackTx(uint64(action.ParentIdx), action.Value)
+			candidate, err = r.contract.AttackTx(ctx, action.ParentClaim, action.Value)
 		} else {
-			movePos = action.ParentPosition.Defend()
-			candidate, err = r.contract.DefendTx(uint64(action.ParentIdx), action.Value)
+			candidate, err = r.contract.DefendTx(ctx, action.ParentClaim, action.Value)
 		}
-
-		bondValue, err := r.contract.GetRequiredBond(ctx, movePos)
-		if err != nil {
-			return err
-		}
-		candidate.Value = bondValue
 	case types.ActionTypeStep:
-		candidate, err = r.contract.StepTx(uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData)
+		candidate, err = r.contract.StepTx(uint64(action.ParentClaim.ContractIndex), action.IsAttack, action.PreState, action.ProofData)
+	case types.ActionTypeChallengeL2BlockNumber:
+		candidate, err = r.contract.ChallengeL2BlockNumberTx(action.InvalidL2BlockNumberChallenge)
 	}
 	if err != nil {
 		return err

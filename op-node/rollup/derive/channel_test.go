@@ -1,8 +1,14 @@
 package derive
 
 import (
+	"bytes"
+	"compress/zlib"
+	"math/big"
+	"math/rand"
 	"testing"
 
+	"github.com/DataDog/zstd"
+	"github.com/andybalholm/brotli"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
@@ -97,5 +103,119 @@ func TestFrameValidity(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, tc.Run)
+	}
+}
+
+func TestBatchReader(t *testing.T) {
+	// Get batch data
+	rng := rand.New(rand.NewSource(0x543331))
+	singularBatch := RandomSingularBatch(rng, 20, big.NewInt(333))
+	batchDataInput := NewBatchData(singularBatch)
+
+	encodedBatch := &bytes.Buffer{}
+	err := batchDataInput.EncodeRLP(encodedBatch)
+	require.NoError(t, err)
+
+	var testCases = []struct {
+		name      string
+		algo      func(buf *bytes.Buffer, t *testing.T)
+		isFjord   bool
+		expectErr bool
+	}{
+		{
+			name: "zlib-post-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				writer := zlib.NewWriter(buf)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			isFjord: true,
+		},
+		{
+			name: "zlib-pre-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				writer := zlib.NewWriter(buf)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			isFjord: false,
+		},
+		{
+			name: "brotli9-post-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(ChannelVersionBrotli)
+				writer := brotli.NewWriterLevel(buf, 9)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			isFjord: true,
+		},
+		{
+			name: "brotli9-pre-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(ChannelVersionBrotli)
+				writer := brotli.NewWriterLevel(buf, 9)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			isFjord:   false,
+			expectErr: true, // expect an error because brotli is not supported before Fjord
+		},
+		{
+			name: "brotli10-post-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(ChannelVersionBrotli)
+				writer := brotli.NewWriterLevel(buf, 10)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			isFjord: true,
+		},
+		{
+			name: "brotli11-post-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(ChannelVersionBrotli)
+				writer := brotli.NewWriterLevel(buf, 11)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			isFjord: true,
+		},
+		{
+			name: "zstd-post-fjord",
+			algo: func(buf *bytes.Buffer, t *testing.T) {
+				writer := zstd.NewWriter(buf)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				writer.Close()
+			},
+			expectErr: true,
+			isFjord:   true,
+		}}
+
+	for _, tc := range testCases {
+		compressed := new(bytes.Buffer)
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			tc.algo(compressed, t)
+			reader, err := BatchReader(bytes.NewReader(compressed.Bytes()), 120000, tc.isFjord)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// read the batch data
+			batchData, err := reader()
+			require.NoError(t, err)
+			require.NotNil(t, batchData)
+			require.Equal(t, batchDataInput, batchData)
+		})
 	}
 }

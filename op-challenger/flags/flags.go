@@ -296,10 +296,6 @@ func CheckCannonFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(CannonPreStateFlag.Name) && !ctx.IsSet(CannonPreStatesURLFlag.Name) {
 		return fmt.Errorf("flag %s or %s is required", CannonPreStatesURLFlag.Name, CannonPreStateFlag.Name)
 	}
-	// CannonL2Flag is checked because it is an alias with L2EthRpcFlag
-	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2EthRpcFlag.Name) {
-		return fmt.Errorf("flag %s is required", L2EthRpcFlag.Name)
-	}
 	return nil
 }
 
@@ -323,10 +319,6 @@ func CheckAsteriscFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(AsteriscPreStateFlag.Name) && !ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
 		return fmt.Errorf("flag %s or %s is required", AsteriscPreStatesURLFlag.Name, AsteriscPreStateFlag.Name)
 	}
-	// CannonL2Flag is checked because it is an alias with L2EthRpcFlag
-	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2EthRpcFlag.Name) {
-		return fmt.Errorf("flag %s is required", L2EthRpcFlag.Name)
-	}
 	return nil
 }
 
@@ -335,6 +327,10 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
+	}
+	// CannonL2Flag is checked because it is an alias with L2EthRpcFlag
+	if !ctx.IsSet(CannonL2Flag.Name) && !ctx.IsSet(L2EthRpcFlag.Name) {
+		return fmt.Errorf("flag %s is required", L2EthRpcFlag.Name)
 	}
 	for _, traceType := range traceTypes {
 		switch traceType {

@@ -10,7 +10,6 @@ import { getChainId, compareAddrs } from '@eth-optimism/core-utils'
 import { Provider, TransactionResponse } from '@ethersproject/abstract-provider'
 import mainnetConfig from '@eth-optimism/contracts-bedrock/deploy-config/mainnet.json'
 import sepoliaConfig from '@eth-optimism/contracts-bedrock/deploy-config/sepolia.json'
-import goerliConfig from '@eth-optimism/contracts-bedrock/deploy-config/goerli.json'
 
 import { version } from '../../package.json'
 
@@ -30,10 +29,6 @@ const networks = {
   11155420: {
     name: 'op-sepolia',
     l1StartingBlockTag: null,
-  },
-  5: {
-    name: 'goerli',
-    l1StartingBlockTag: goerliConfig.l1StartingBlockTag,
   },
   420: {
     name: 'op-goerli',

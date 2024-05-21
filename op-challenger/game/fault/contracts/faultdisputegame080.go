@@ -29,7 +29,7 @@ type FaultDisputeGameContract080 struct {
 }
 
 // GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, and max clock duration.
-func (f *FaultDisputeGameContract080) GetGameMetadata(ctx context.Context, block rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
+func (f *FaultDisputeGameContract080) GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error) {
 	defer f.metrics.StartContractRequest("GetGameMetadata")()
 	results, err := f.multiCaller.Call(ctx, block,
 		f.contract.Call(methodL1Head),
@@ -38,20 +38,27 @@ func (f *FaultDisputeGameContract080) GetGameMetadata(ctx context.Context, block
 		f.contract.Call(methodStatus),
 		f.contract.Call(methodGameDuration))
 	if err != nil {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("failed to retrieve game metadata: %w", err)
+		return GameMetadata{}, fmt.Errorf("failed to retrieve game metadata: %w", err)
 	}
 	if len(results) != 5 {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("expected 3 results but got %v", len(results))
+		return GameMetadata{}, fmt.Errorf("expected 5 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
 	l2BlockNumber := results[1].GetBigInt(0).Uint64()
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, fmt.Errorf("failed to convert game status: %w", err)
+		return GameMetadata{}, fmt.Errorf("failed to convert game status: %w", err)
 	}
 	duration := results[4].GetUint64(0)
-	return l1Head, l2BlockNumber, rootClaim, status, duration / 2, nil
+	return GameMetadata{
+		L1Head:                  l1Head,
+		L2BlockNum:              l2BlockNumber,
+		RootClaim:               rootClaim,
+		Status:                  status,
+		MaxClockDuration:        duration / 2,
+		L2BlockNumberChallenged: false,
+	}, nil
 }
 
 func (f *FaultDisputeGameContract080) GetMaxClockDuration(ctx context.Context) (time.Duration, error) {
@@ -131,4 +138,22 @@ func (f *FaultDisputeGameContract080) ResolveClaimTx(claimIdx uint64) (txmgr.TxC
 
 func (f *FaultDisputeGameContract080) resolveClaimCall(claimIdx uint64) *batching.ContractCall {
 	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx))
+}
+
+func (f *FaultDisputeGameContract080) IsL2BlockNumberChallenged(_ context.Context, _ rpcblock.Block) (bool, error) {
+	return false, nil
+}
+
+func (f *FaultDisputeGameContract080) ChallengeL2BlockNumberTx(_ *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, ErrChallengeL2BlockNotSupported
+}
+
+func (f *FaultDisputeGameContract080) AttackTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodAttack, big.NewInt(int64(parent.ContractIndex)), pivot)
+	return f.txWithBond(ctx, parent.Position.Attack(), call)
+}
+
+func (f *FaultDisputeGameContract080) DefendTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodDefend, big.NewInt(int64(parent.ContractIndex)), pivot)
+	return f.txWithBond(ctx, parent.Position.Defend(), call)
 }

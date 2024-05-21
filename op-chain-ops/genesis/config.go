@@ -10,12 +10,11 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/holiman/uint256"
 	"golang.org/x/exp/maps"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
-	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -28,6 +27,24 @@ import (
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
+	// MaximumBaseFee represents the max base fee for deposits, since
+	// there is an on chain EIP-1559 curve for deposits purchasing L2 gas.
+	// It is type(uint128).max in solidity.
+	MaximumBaseFee, _ = new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
+)
+
+const (
+	// MaxResourceLimit represents the maximum amount of L2 gas that a single deposit can use.
+	MaxResourceLimit = 20_000_000
+	// ElasticityMultiplier represents the elasticity of the deposit EIP-1559 fee market.
+	ElasticityMultiplier = 10
+	// BaseFeeMaxChangeDenominator represents the maximum change in base fee per block.
+	BaseFeeMaxChangeDenominator = 8
+	// MinimumBaseFee represents the minimum base fee for deposits.
+	MinimumBaseFee = params.GWei
+	// SystemTxMaxGas represents the maximum gas that a system transaction can use
+	// when it is included with user deposits.
+	SystemTxMaxGas = 1_000_000
 )
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
@@ -248,7 +265,10 @@ type DeployConfig struct {
 	// UseFaultProofs is a flag that indicates if the system is using fault
 	// proofs instead of the older output oracle mechanism.
 	UseFaultProofs bool `json:"useFaultProofs"`
-
+	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
+	UseCustomGasToken bool `json:"useCustomGasToken"`
+	// CustomGasTokenAddress is the address of the ERC20 token to be used to pay for gas on L2.
+	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
 	// UsePlasma is a flag that indicates if the system is using op-plasma
 	UsePlasma bool `json:"usePlasma"`
 	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
@@ -266,6 +286,9 @@ type DeployConfig struct {
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
+
+	// UseInterop is a flag that indicates if the system is using interop
+	UseInterop bool `json:"useInterop,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -360,12 +383,6 @@ func (d *DeployConfig) Check() error {
 	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
-	if d.GasPriceOracleOverhead == 0 {
-		log.Warn("GasPriceOracleOverhead is 0")
-	}
-	if d.GasPriceOracleScalar == 0 {
-		log.Warn("GasPriceOracleScalar is 0")
-	}
 	if d.GasPriceOracleBaseFeeScalar == 0 {
 		log.Warn("GasPriceOracleBaseFeeScalar is 0")
 	}
@@ -386,7 +403,7 @@ func (d *DeployConfig) Check() error {
 	}
 	// When the initial resource config is made to be configurable by the DeployConfig, ensure
 	// that this check is updated to use the values from the DeployConfig instead of the defaults.
-	if uint64(d.L2GenesisBlockGasLimit) < uint64(DefaultResourceConfig.MaxResourceLimit+DefaultResourceConfig.SystemTxMaxGas) {
+	if uint64(d.L2GenesisBlockGasLimit) < uint64(MaxResourceLimit+SystemTxMaxGas) {
 		return fmt.Errorf("%w: L2 genesis block gas limit is too small", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
@@ -427,6 +444,12 @@ func (d *DeployConfig) Check() error {
 			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
 		}
 	}
+	if d.UseCustomGasToken {
+		if d.CustomGasTokenAddress == (common.Address{}) {
+			return fmt.Errorf("%w: CustomGasTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
+		}
+		log.Info("Using custom gas token", "address", d.CustomGasTokenAddress)
+	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
 		if a == nil && b == nil {
@@ -464,7 +487,7 @@ func (d *DeployConfig) FeeScalar() [32]byte {
 	if d.GasPriceOracleScalar != 0 {
 		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
 	}
-	return eth.EncodeScalar(eth.EcostoneScalars{
+	return eth.EncodeScalar(eth.EcotoneScalars{
 		BlobBaseFeeScalar: d.GasPriceOracleBlobBaseFeeScalar,
 		BaseFeeScalar:     d.GasPriceOracleBaseFeeScalar,
 	})
@@ -577,13 +600,22 @@ func (d *DeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return &v
 }
 
-// RollupConfig converts a DeployConfig to a rollup.Config
+// RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
+// Overhead value is considered a noop.
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
 	if d.SystemConfigProxy == (common.Address{}) {
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
+	}
+	var plasma *rollup.PlasmaConfig
+	if d.UsePlasma {
+		plasma = &rollup.PlasmaConfig{
+			DAChallengeAddress: d.DAChallengeProxy,
+			DAChallengeWindow:  d.DAChallengeWindow,
+			DAResolveWindow:    d.DAResolveWindow,
+		}
 	}
 
 	return &rollup.Config{
@@ -619,10 +651,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		UsePlasma:              d.UsePlasma,
-		DAChallengeAddress:     d.DAChallengeProxy,
-		DAChallengeWindow:      d.DAChallengeWindow,
-		DAResolveWindow:        d.DAResolveWindow,
+		PlasmaConfig:           plasma,
 	}, nil
 }
 
@@ -760,69 +789,12 @@ func NewL1Deployments(path string) (*L1Deployments, error) {
 	return &deployments, nil
 }
 
-// NewStateDump will read a Dump JSON file from disk
-func NewStateDump(path string) (*gstate.Dump, error) {
-	file, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("dump at %s not found: %w", path, err)
-	}
-
-	var fdump ForgeDump
-	if err := json.Unmarshal(file, &fdump); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal dump: %w", err)
-	}
-	dump := (gstate.Dump)(fdump)
-	return &dump, nil
-}
-
-// ForgeDump is a simple alias for state.Dump that can read "nonce" as a hex string.
-// It appears as if updates to foundry have changed the serialization of the state dump.
-type ForgeDump gstate.Dump
-
-func (d *ForgeDump) UnmarshalJSON(b []byte) error {
-	type forgeDumpAccount struct {
-		Balance     string                 `json:"balance"`
-		Nonce       hexutil.Uint64         `json:"nonce"`
-		Root        hexutil.Bytes          `json:"root"`
-		CodeHash    hexutil.Bytes          `json:"codeHash"`
-		Code        hexutil.Bytes          `json:"code,omitempty"`
-		Storage     map[common.Hash]string `json:"storage,omitempty"`
-		Address     *common.Address        `json:"address,omitempty"`
-		AddressHash hexutil.Bytes          `json:"key,omitempty"`
-	}
-	type forgeDump struct {
-		Root     string                              `json:"root"`
-		Accounts map[common.Address]forgeDumpAccount `json:"accounts"`
-	}
-	var dump forgeDump
-	if err := json.Unmarshal(b, &dump); err != nil {
-		return err
-	}
-
-	d.Root = dump.Root
-	d.Accounts = make(map[string]gstate.DumpAccount)
-	for addr, acc := range dump.Accounts {
-		acc := acc
-		d.Accounts[addr.String()] = gstate.DumpAccount{
-			Balance:     acc.Balance,
-			Nonce:       (uint64)(acc.Nonce),
-			Root:        acc.Root,
-			CodeHash:    acc.CodeHash,
-			Code:        acc.Code,
-			Storage:     acc.Storage,
-			Address:     acc.Address,
-			AddressHash: acc.AddressHash,
-		}
-	}
-	return nil
-}
-
 type ForgeAllocs struct {
-	Accounts core.GenesisAlloc `json:"accounts"`
+	Accounts types.GenesisAlloc
 }
 
 func (d *ForgeAllocs) Copy() *ForgeAllocs {
-	out := make(core.GenesisAlloc, len(d.Accounts))
+	out := make(types.GenesisAlloc, len(d.Accounts))
 	maps.Copy(out, d.Accounts)
 	return &ForgeAllocs{Accounts: out}
 }
@@ -830,25 +802,22 @@ func (d *ForgeAllocs) Copy() *ForgeAllocs {
 func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
 	// forge, since integrating Alloy, likes to hex-encode everything.
 	type forgeAllocAccount struct {
-		Balance hexutil.Big                 `json:"balance"`
+		Balance hexutil.U256                `json:"balance"`
 		Nonce   hexutil.Uint64              `json:"nonce"`
 		Code    hexutil.Bytes               `json:"code,omitempty"`
 		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
 	}
-	type forgeAllocs struct {
-		Accounts map[common.Address]forgeAllocAccount `json:"accounts"`
-	}
-	var allocs forgeAllocs
+	var allocs map[common.Address]forgeAllocAccount
 	if err := json.Unmarshal(b, &allocs); err != nil {
 		return err
 	}
-	d.Accounts = make(core.GenesisAlloc, len(allocs.Accounts))
-	for addr, acc := range allocs.Accounts {
+	d.Accounts = make(types.GenesisAlloc, len(allocs))
+	for addr, acc := range allocs {
 		acc := acc
-		d.Accounts[addr] = core.GenesisAccount{
+		d.Accounts[addr] = types.Account{
 			Code:       acc.Code,
 			Storage:    acc.Storage,
-			Balance:    acc.Balance.ToInt(),
+			Balance:    (*uint256.Int)(&acc.Balance).ToBig(),
 			Nonce:      (uint64)(acc.Nonce),
 			PrivateKey: nil,
 		}

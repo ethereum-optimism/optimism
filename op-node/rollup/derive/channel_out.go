@@ -139,9 +139,9 @@ func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) e
 	if err := rlp.Encode(&buf, NewBatchData(batch)); err != nil {
 		return err
 	}
-	if co.rlpLength+buf.Len() > MaxRLPBytesPerChannel {
+	if co.rlpLength+buf.Len() > rollup.SafeMaxRLPBytesPerChannel {
 		return fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
-			buf.Len(), co.rlpLength, MaxRLPBytesPerChannel, ErrTooManyRLPBytes)
+			buf.Len(), co.rlpLength, rollup.SafeMaxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 	co.rlpLength += buf.Len()
 

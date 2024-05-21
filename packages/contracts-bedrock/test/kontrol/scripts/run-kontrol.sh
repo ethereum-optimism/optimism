@@ -109,6 +109,30 @@ regen=
 #################################
 # Tests to symbolically execute #
 #################################
+# Temporarily unexecuted tests
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \ -- This one is executed below.
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused5" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused6" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused7" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused0" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused1" \ -- This one is executed below.
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused2" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused3" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused4" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused5" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused6" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused7" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused8" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused9" \
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused10" \
+
 test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
   test_list=(

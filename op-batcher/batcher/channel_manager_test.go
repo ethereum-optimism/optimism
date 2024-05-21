@@ -25,7 +25,7 @@ func channelManagerTestConfig(maxFrameSize uint64, batchType uint) ChannelConfig
 		TargetNumFrames: 1,
 		BatchType:       batchType,
 	}
-	cfg.InitRatioCompressor(1)
+	cfg.InitRatioCompressor(1, derive.Zlib)
 	return cfg
 }
 
@@ -123,7 +123,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// channels on confirmation. This would result in [TxConfirmed]
 	// clearing confirmed transactions, and resetting the pendingChannels map
 	cfg.ChannelTimeout = 10
-	cfg.InitRatioCompressor(1)
+	cfg.InitRatioCompressor(1, derive.Zlib)
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 
 	// Channel Manager state should be empty by default

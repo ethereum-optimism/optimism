@@ -96,6 +96,10 @@ func (p *AsteriscTraceProvider) GetStepData(ctx context.Context, pos types.Posit
 	return value, data, oracleData, nil
 }
 
+func (p *AsteriscTraceProvider) GetL2BlockNumberChallenge(_ context.Context) (*types.InvalidL2BlockNumberChallenge, error) {
+	return nil, types.ErrL2BlockNumberValid
+}
+
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
 func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.ProofData, error) {

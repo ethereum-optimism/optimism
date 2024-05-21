@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Vm } from "forge-std/Vm.sol";
-import { Chains } from "scripts/Chains.sol";
+import { Vm, VmSafe } from "forge-std/Vm.sol";
 
 /// @title Config
 /// @notice Contains all env var based config. Add any new env var parsing to this file
@@ -15,15 +14,19 @@ library Config {
     ///         written to disk after doing a deployment.
     function deploymentOutfile() internal view returns (string memory _env) {
         _env = vm.envOr(
-            "DEPLOYMENT_OUTFILE", string.concat(vm.projectRoot(), "/deployments/", _getDeploymentContext(), "/.deploy")
+            "DEPLOYMENT_OUTFILE",
+            string.concat(vm.projectRoot(), "/deployments/", vm.toString(block.chainid), "-deploy.json")
         );
     }
 
     /// @notice Returns the path on the local filesystem where the deploy config is
     function deployConfigPath() internal view returns (string memory _env) {
-        _env = vm.envOr(
-            "DEPLOY_CONFIG_PATH", string.concat(vm.projectRoot(), "/deploy-config/", _getDeploymentContext(), ".json")
-        );
+        if (vm.isContext(VmSafe.ForgeContext.TestGroup)) {
+            _env = string.concat(vm.projectRoot(), "/deploy-config/hardhat.json");
+        } else {
+            _env = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
+            require(bytes(_env).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
+        }
     }
 
     /// @notice Returns the chainid from the EVM context or the value of the CHAIN_ID env var as
@@ -37,12 +40,6 @@ library Config {
     ///         which then backs the `getAddress` function.
     function contractAddressesPath() internal view returns (string memory _env) {
         _env = vm.envOr("CONTRACT_ADDRESSES_PATH", string(""));
-    }
-
-    /// @notice Returns the deployment context which was only useful in the hardhat deploy style
-    ///         of deployments. It is now DEPRECATED and will be removed in the future.
-    function deploymentContext() internal view returns (string memory _env) {
-        _env = vm.envOr("DEPLOYMENT_CONTEXT", string(""));
     }
 
     /// @notice The CREATE2 salt to be used when deploying the implementations.
@@ -59,12 +56,6 @@ library Config {
         );
     }
 
-    /// @notice Returns the sig of the entrypoint to the deploy script. By default, it is `run`.
-    ///         This was useful for creating hardhat deploy style artifacts and will be removed in a future release.
-    function sig() internal view returns (string memory _env) {
-        _env = vm.envOr("SIG", string("run"));
-    }
-
     /// @notice Returns the name of the file that the forge deployment artifact is written to on the local
     ///         filesystem. By default, it is the name of the deploy script with the suffix `-latest.json`.
     ///         This was useful for creating hardhat deploy style artifacts and will be removed in a future release.
@@ -75,36 +66,5 @@ library Config {
     /// @notice Returns the private key that is used to configure drippie.
     function drippieOwnerPrivateKey() internal view returns (uint256 _env) {
         _env = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
-    }
-
-    /// @notice The context of the deployment is used to namespace the artifacts.
-    ///         An unknown context will use the chainid as the context name.
-    ///         This is legacy code and should be removed in the future.
-    function _getDeploymentContext() private view returns (string memory) {
-        string memory context = deploymentContext();
-        if (bytes(context).length > 0) {
-            return context;
-        }
-
-        uint256 chainid = Config.chainID();
-        if (chainid == Chains.Mainnet) {
-            return "mainnet";
-        } else if (chainid == Chains.Goerli) {
-            return "goerli";
-        } else if (chainid == Chains.OPGoerli) {
-            return "optimism-goerli";
-        } else if (chainid == Chains.OPMainnet) {
-            return "optimism-mainnet";
-        } else if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet || chainid == Chains.OPLocalDevnet) {
-            return "devnetL1";
-        } else if (chainid == Chains.Hardhat) {
-            return "hardhat";
-        } else if (chainid == Chains.Sepolia) {
-            return "sepolia";
-        } else if (chainid == Chains.OPSepolia) {
-            return "optimism-sepolia";
-        } else {
-            return vm.toString(chainid);
-        }
     }
 }

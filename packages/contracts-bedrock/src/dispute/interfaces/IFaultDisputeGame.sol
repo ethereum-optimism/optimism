@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { IDisputeGame } from "./IDisputeGame.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title IFaultDisputeGame
 /// @notice The interface for a fault proof backed dispute game.
@@ -34,14 +34,18 @@ interface IFaultDisputeGame is IDisputeGame {
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
 
     /// @notice Attack a disagreed upon `Claim`.
-    /// @param _parentIndex Index of the `Claim` to attack in the `claimData` array.
+    /// @param _disputed The `Claim` being attacked.
+    /// @param _parentIndex Index of the `Claim` to attack in the `claimData` array. This must match the `_disputed`
+    /// claim.
     /// @param _claim The `Claim` at the relative attack position.
-    function attack(uint256 _parentIndex, Claim _claim) external payable;
+    function attack(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable;
 
     /// @notice Defend an agreed upon `Claim`.
-    /// @param _parentIndex Index of the claim to defend in the `claimData` array.
+    /// @notice _disputed The `Claim` being defended.
+    /// @param _parentIndex Index of the claim to defend in the `claimData` array. This must match the `_disputed`
+    /// claim.
     /// @param _claim The `Claim` at the relative defense position.
-    function defend(uint256 _parentIndex, Claim _claim) external payable;
+    function defend(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable;
 
     /// @notice Perform an instruction step via an on-chain fault proof processor.
     /// @dev This function should point to a fault proof processor in order to execute

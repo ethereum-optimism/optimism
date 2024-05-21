@@ -38,7 +38,11 @@ WORKSPACE_DIR=$( cd "$SCRIPT_HOME/../../.." >/dev/null 2>&1 && pwd )
 pushd "$WORKSPACE_DIR" > /dev/null || exit
 
 # Variables
+export KONTROL_FP_DEPLOYMENT="${KONTROL_FP_DEPLOYMENT:-false}"
 export CONTAINER_NAME=kontrol-tests
+if [ "$KONTROL_FP_DEPLOYMENT" = true ]; then
+  export CONTAINER_NAME=kontrol-fp-tests
+fi
 KONTROLRC=$(jq -r .kontrol < "$WORKSPACE_DIR/../../versions.json")
 export KONTROL_RELEASE=$KONTROLRC
 export LOCAL=false

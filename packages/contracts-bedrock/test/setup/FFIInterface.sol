@@ -243,4 +243,25 @@ contract FFIInterface {
         (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
         return (memRoot, proof);
     }
+
+    function encodeScalarEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external returns (bytes32) {
+        string[] memory cmds = new string[](5);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "encodeScalarEcotone";
+        cmds[3] = vm.toString(_basefeeScalar);
+        cmds[4] = vm.toString(_blobbasefeeScalar);
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes32));
+    }
+
+    function decodeScalarEcotone(bytes32 _scalar) external returns (uint32, uint32) {
+        string[] memory cmds = new string[](4);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "decodeScalarEcotone";
+        cmds[3] = vm.toString(_scalar);
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (uint32, uint32));
+    }
 }

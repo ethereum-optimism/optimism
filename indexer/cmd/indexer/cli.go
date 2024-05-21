@@ -7,16 +7,15 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
@@ -112,11 +111,11 @@ func runReorgDeletion(ctx *cli.Context) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	l1Clnt, err := node.DialEthClient(ctx.Context, cfg.RPCs.L1RPC, node.NewMetrics(metrics.NewRegistry(), "l1"))
+	l1Clnt, err := ethclient.DialContext(ctx.Context, cfg.RPCs.L1RPC)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1 client: %w", err)
 	}
-	l1Header, err := l1Clnt.BlockHeaderByNumber(big.NewInt(int64(fromL1Height)))
+	l1Header, err := l1Clnt.HeaderByNumber(ctx.Context, big.NewInt(int64(fromL1Height)))
 	if err != nil {
 		return fmt.Errorf("failed to query L1 header at height: %w", err)
 	} else if l1Header == nil {

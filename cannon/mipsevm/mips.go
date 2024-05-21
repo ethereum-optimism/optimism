@@ -123,7 +123,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.state.LastHint = append(m.state.LastHint, hintData...)
 			for len(m.state.LastHint) >= 4 { // process while there is enough data to check if there are any hints
 				hintLen := binary.BigEndian.Uint32(m.state.LastHint[:4])
-				if hintLen >= uint32(len(m.state.LastHint[4:])) {
+				if hintLen <= uint32(len(m.state.LastHint[4:])) {
 					hint := m.state.LastHint[4 : 4+hintLen] // without the length prefix
 					m.state.LastHint = m.state.LastHint[4+hintLen:]
 					m.preimageOracle.Hint(hint)
@@ -498,7 +498,7 @@ func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 			switch fun {
 			case 0x2: // mul
 				return uint32(int32(rs) * int32(rt))
-			case 0x20, 0x21: // clo
+			case 0x20, 0x21: // clz, clo
 				if fun == 0x20 {
 					rs = ^rs
 				}

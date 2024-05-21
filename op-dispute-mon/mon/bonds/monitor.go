@@ -36,6 +36,9 @@ func NewBonds(logger log.Logger, metrics BondMetrics, clock RClock) *Bonds {
 func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
 	data := CalculateRequiredCollateral(games)
 	for addr, collateral := range data {
+		if collateral.Required.Cmp(collateral.Actual) > 0 {
+			b.logger.Error("Insufficient collateral", "delayedWETH", addr, "required", collateral.Required, "actual", collateral.Actual)
+		}
 		b.metrics.RecordBondCollateral(addr, collateral.Required, collateral.Actual)
 	}
 
@@ -59,7 +62,10 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 			}
 			// The recipient of a resolved claim is the claimant unless it's been countered.
 			recipient := claim.Claimant
-			if claim.CounteredBy != (common.Address{}) {
+			if claim.IsRoot() && game.BlockNumberChallenged {
+				// The bond for the root claim is paid to the block number challenger if present
+				recipient = game.BlockNumberChallenger
+			} else if claim.CounteredBy != (common.Address{}) {
 				recipient = claim.CounteredBy
 			}
 			current := expectedCredits[recipient]

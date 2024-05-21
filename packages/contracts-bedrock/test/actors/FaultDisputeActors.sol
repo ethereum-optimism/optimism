@@ -6,7 +6,7 @@ import { CommonBase } from "forge-std/Base.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title GameSolver
 /// @notice The `GameSolver` contract is a contract that can produce an array of available
@@ -218,11 +218,12 @@ contract HonestGameSolver is GameSolver {
         bool isAttack = _direction == Direction.Attack;
 
         uint256 bond = GAME.getRequiredBond(_movePos);
+        (,,,, Claim disputed,,) = GAME.claimData(_challengeIndex);
 
         move_ = Move({
             kind: isAttack ? MoveKind.Attack : MoveKind.Defend,
             value: bond,
-            data: abi.encodeCall(FaultDisputeGame.move, (_challengeIndex, claimAt(_movePos), isAttack))
+            data: abi.encodeCall(FaultDisputeGame.move, (disputed, _challengeIndex, claimAt(_movePos), isAttack))
         });
     }
 

@@ -1,5 +1,31 @@
 # Smart Contract Style Guide
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Standards and Conventions](#standards-and-conventions)
+  - [Style](#style)
+    - [Comments](#comments)
+    - [Errors](#errors)
+    - [Function Parameters](#function-parameters)
+    - [Function Return Arguments](#function-return-arguments)
+    - [Event Parameters](#event-parameters)
+    - [Immutable variables](#immutable-variables)
+    - [Spacers](#spacers)
+  - [Proxy by Default](#proxy-by-default)
+  - [Versioning](#versioning)
+    - [Exceptions](#exceptions)
+  - [Dependencies](#dependencies)
+  - [Source Code](#source-code)
+  - [Tests](#tests)
+    - [Expect Revert with Low Level Calls](#expect-revert-with-low-level-calls)
+    - [Organizing Principles](#organizing-principles)
+    - [Test function naming convention](#test-function-naming-convention)
+    - [Contract Naming Conventions](#contract-naming-conventions)
+- [Withdrawing From Fee Vaults](#withdrawing-from-fee-vaults)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 This document provides guidance on how we organize and write our smart contracts. For cases where
 this document does not provide guidance, please refer to existing contracts for guidance,
 with priority on the `L2OutputOracle` and `OptimismPortal`.
@@ -105,6 +131,12 @@ making changes to a well-known, simple, and recognizable contract.
 
 Where basic functionality is already supported by an existing contract in the OpenZeppelin library,
 we should default to using the Upgradeable version of that contract.
+
+### Source Code
+
+The following guidelines should be followed for all contracts in the `src/` directory:
+
+- All state changing functions should emit a corresponding event. This ensures that all actions are transparent, can be easily monitored, and can be reconstructed from the event logs.
 
 ### Tests
 

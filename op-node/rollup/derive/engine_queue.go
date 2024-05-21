@@ -141,8 +141,8 @@ const finalityDelay = 64
 func calcFinalityLookback(cfg *rollup.Config) uint64 {
 	// in plasma mode the longest finality lookback is a commitment is challenged on the last block of
 	// the challenge window in which case it will be both challenge + resolve window.
-	if cfg.UsePlasma {
-		lkb := cfg.DAChallengeWindow + cfg.DAResolveWindow + 1
+	if cfg.PlasmaEnabled() {
+		lkb := cfg.PlasmaConfig.DAChallengeWindow + cfg.PlasmaConfig.DAResolveWindow + 1
 		// in the case only if the plasma windows are longer than the default finality lookback
 		if lkb > finalityLookback {
 			return lkb
@@ -316,7 +316,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	if eq.safeAttributes != nil {
 		return eq.tryNextSafeAttributes(ctx)
 	}
-	outOfData := false
+
 	newOrigin := eq.prev.Origin()
 	// Check if the L2 unsafe head origin is consistent with the new origin
 	if err := eq.verifyNewL1Origin(ctx, newOrigin); err != nil {
@@ -332,7 +332,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 		return err
 	}
 	if next, err := eq.prev.NextAttributes(ctx, eq.ec.PendingSafeL2Head()); err == io.EOF {
-		outOfData = true
+		return io.EOF
 	} else if err != nil {
 		return err
 	} else {
@@ -340,12 +340,6 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 		eq.log.Debug("Adding next safe attributes", "safe_head", eq.ec.SafeL2Head(),
 			"pending_safe_head", eq.ec.PendingSafeL2Head(), "next", next)
 		return NotEnoughData
-	}
-
-	if outOfData {
-		return io.EOF
-	} else {
-		return nil
 	}
 }
 
@@ -496,7 +490,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	first := firstEnvelope.ExecutionPayload
 
 	if uint64(first.BlockNumber) <= eq.ec.SafeL2Head().Number {
-		eq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", eq.ec.SafeL2Head().ID(), "unsafe", first.ID(), "payload", first.ID())
+		eq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", eq.ec.SafeL2Head().ID(), "unsafe", eq.ec.UnsafeL2Head().ID(), "unsafe_payload", first.ID())
 		eq.unsafePayloads.Pop()
 		return nil
 	}
@@ -509,7 +503,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	// Ensure that the unsafe payload builds upon the current unsafe head
 	if first.ParentHash != eq.ec.UnsafeL2Head().Hash {
 		if uint64(first.BlockNumber) == eq.ec.UnsafeL2Head().Number+1 {
-			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.ec.SafeL2Head().ID(), "unsafe", first.ID(), "payload", first.ID())
+			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.ec.SafeL2Head().ID(), "unsafe", eq.ec.UnsafeL2Head().ID(), "unsafe_payload", first.ID())
 			eq.unsafePayloads.Pop()
 		}
 		return io.EOF // time to go to next stage if we cannot process the first unsafe payload

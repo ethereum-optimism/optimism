@@ -1,6 +1,7 @@
 package mon
 
 import (
+	"math/big"
 	"testing"
 	"time"
 
@@ -33,18 +34,49 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 		require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfNotExpiredUnresolved])
 	})
 
+	t.Run("ZeroRecordsClaims", func(t *testing.T) {
+		monitor, _, cMetrics := newTestClaimMonitor(t)
+		var games []*types.EnrichedGameData
+		monitor.CheckClaims(games)
+		// Check we zero'd out any categories that didn't have games in them (otherwise they retain their previous value)
+		require.Contains(t, cMetrics.calls, metrics.FirstHalfExpiredResolved)
+		require.Contains(t, cMetrics.calls, metrics.FirstHalfExpiredUnresolved)
+		require.Contains(t, cMetrics.calls, metrics.FirstHalfNotExpiredResolved)
+		require.Contains(t, cMetrics.calls, metrics.FirstHalfNotExpiredUnresolved)
+
+		require.Contains(t, cMetrics.calls, metrics.SecondHalfExpiredResolved)
+		require.Contains(t, cMetrics.calls, metrics.SecondHalfExpiredUnresolved)
+		require.Contains(t, cMetrics.calls, metrics.SecondHalfNotExpiredResolved)
+		require.Contains(t, cMetrics.calls, metrics.SecondHalfNotExpiredUnresolved)
+	})
+
 	t.Run("RecordsUnexpectedClaimResolution", func(t *testing.T) {
 		monitor, cl, cMetrics := newTestClaimMonitor(t)
 		games := makeMultipleTestGames(uint64(cl.Now().Unix()))
 		monitor.CheckClaims(games)
 
-		// Our honest actors 0x01 has claims resolved against them (1 per game)
-		require.Equal(t, 2, cMetrics.unexpected[common.Address{0x01}])
-		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x02}])
+		// Should only have entries for honest actors
+		require.Contains(t, cMetrics.honest, common.Address{0x01})
+		require.Contains(t, cMetrics.honest, common.Address{0x02})
+		require.NotContains(t, cMetrics.honest, common.Address{0x03})
+		require.NotContains(t, cMetrics.honest, common.Address{0x04})
 
-		// The other actors should not be metriced
-		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x03}])
-		require.Equal(t, 0, cMetrics.unexpected[common.Address{0x04}])
+		actor1 := cMetrics.honest[common.Address{0x01}]
+		actor2 := cMetrics.honest[common.Address{0x02}]
+		// Our honest actors 0x01 has claims resolved against them (1 per game)
+		require.Equal(t, 2, actor1.InvalidClaimCount)
+		require.Equal(t, 0, actor1.ValidClaimCount)
+		require.Equal(t, 2, actor1.PendingClaimCount)
+		require.EqualValues(t, 4, actor1.LostBonds.Int64())
+		require.EqualValues(t, 0, actor1.WonBonds.Int64())
+		require.EqualValues(t, 10, actor1.PendingBonds.Int64())
+
+		require.Equal(t, 0, actor2.InvalidClaimCount)
+		require.Equal(t, 2, actor2.ValidClaimCount)
+		require.Equal(t, 0, actor2.PendingClaimCount)
+		require.EqualValues(t, 0, actor2.LostBonds.Int64())
+		require.EqualValues(t, 6, actor2.WonBonds.Int64())
+		require.EqualValues(t, 0, actor2.PendingBonds.Int64())
 	})
 }
 
@@ -60,8 +92,8 @@ func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock
 }
 
 type stubClaimMetrics struct {
-	calls      map[metrics.ClaimStatus]int
-	unexpected map[common.Address]int
+	calls  map[metrics.ClaimStatus]int
+	honest map[common.Address]metrics.HonestActorData
 }
 
 func (s *stubClaimMetrics) RecordClaims(status metrics.ClaimStatus, count int) {
@@ -71,11 +103,11 @@ func (s *stubClaimMetrics) RecordClaims(status metrics.ClaimStatus, count int) {
 	s.calls[status] += count
 }
 
-func (s *stubClaimMetrics) RecordUnexpectedClaimResolution(address common.Address, count int) {
-	if s.unexpected == nil {
-		s.unexpected = make(map[common.Address]int)
+func (s *stubClaimMetrics) RecordHonestActorClaims(address common.Address, data *metrics.HonestActorData) {
+	if s.honest == nil {
+		s.honest = make(map[common.Address]metrics.HonestActorData)
 	}
-	s.unexpected[address] += count
+	s.honest[address] = *data
 }
 
 func makeMultipleTestGames(duration uint64) []*types.EnrichedGameData {
@@ -98,6 +130,9 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 				Claim: faultTypes.Claim{
 					Clock:    faultTypes.NewClock(time.Duration(0), frozen),
 					Claimant: common.Address{0x02},
+					ClaimData: faultTypes.ClaimData{
+						Bond: big.NewInt(1),
+					},
 				},
 				Resolved: true,
 			},
@@ -105,6 +140,9 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 				Claim: faultTypes.Claim{
 					Claimant:    common.Address{0x01},
 					CounteredBy: common.Address{0x03},
+					ClaimData: faultTypes.ClaimData{
+						Bond: big.NewInt(2),
+					},
 				},
 				Resolved: true,
 			},
@@ -112,6 +150,9 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 				Claim: faultTypes.Claim{
 					Claimant:    common.Address{0x04},
 					CounteredBy: common.Address{0x02},
+					ClaimData: faultTypes.ClaimData{
+						Bond: big.NewInt(3),
+					},
 				},
 				Resolved: true,
 			},
@@ -120,11 +161,17 @@ func makeTestGame(duration uint64) *types.EnrichedGameData {
 					Claimant:    common.Address{0x04},
 					CounteredBy: common.Address{0x02},
 					Clock:       faultTypes.NewClock(time.Duration(0), frozen),
+					ClaimData: faultTypes.ClaimData{
+						Bond: big.NewInt(4),
+					},
 				},
 			},
 			{
 				Claim: faultTypes.Claim{
 					Claimant: common.Address{0x01},
+					ClaimData: faultTypes.ClaimData{
+						Bond: big.NewInt(5),
+					},
 				},
 			},
 		},

@@ -1,17 +1,12 @@
 package mon
 
 import (
-	"context"
 	"errors"
-	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/resolution"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -19,40 +14,51 @@ var (
 	ErrRootAgreement = errors.New("failed to check root agreement")
 )
 
-type OutputValidator interface {
-	CheckRootAgreement(ctx context.Context, l1HeadNum uint64, l2BlockNum uint64, root common.Hash) (bool, common.Hash, error)
-}
-
 type ForecastMetrics interface {
-	RecordClaimResolutionDelayMax(delay float64)
 	RecordGameAgreement(status metrics.GameAgreementStatus, count int)
+	RecordLatestProposals(validTimestamp, invalidTimestamp uint64)
+	RecordIgnoredGames(count int)
+	RecordFailedGames(count int)
 }
 
-type forecast struct {
-	logger    log.Logger
-	metrics   ForecastMetrics
-	validator OutputValidator
+type forecastBatch struct {
+	AgreeDefenderAhead      int
+	DisagreeDefenderAhead   int
+	AgreeChallengerAhead    int
+	DisagreeChallengerAhead int
+
+	AgreeDefenderWins      int
+	DisagreeDefenderWins   int
+	AgreeChallengerWins    int
+	DisagreeChallengerWins int
+
+	LatestInvalidProposal uint64
+	LatestValidProposal   uint64
 }
 
-func newForecast(logger log.Logger, metrics ForecastMetrics, validator OutputValidator) *forecast {
-	return &forecast{
-		logger:    logger,
-		metrics:   metrics,
-		validator: validator,
+type Forecast struct {
+	logger  log.Logger
+	metrics ForecastMetrics
+}
+
+func NewForecast(logger log.Logger, metrics ForecastMetrics) *Forecast {
+	return &Forecast{
+		logger:  logger,
+		metrics: metrics,
 	}
 }
 
-func (f *forecast) Forecast(ctx context.Context, games []*monTypes.EnrichedGameData) {
-	batch := monTypes.ForecastBatch{}
+func (f *Forecast) Forecast(games []*monTypes.EnrichedGameData, ignoredCount, failedCount int) {
+	batch := forecastBatch{}
 	for _, game := range games {
-		if err := f.forecastGame(ctx, game, &batch); err != nil {
+		if err := f.forecastGame(game, &batch); err != nil {
 			f.logger.Error("Failed to forecast game", "err", err)
 		}
 	}
-	f.recordBatch(batch)
+	f.recordBatch(batch, ignoredCount, failedCount)
 }
 
-func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
+func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount int) {
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderWins, batch.AgreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderWins, batch.DisagreeDefenderWins)
 	f.metrics.RecordGameAgreement(metrics.AgreeChallengerWins, batch.AgreeChallengerWins)
@@ -62,18 +68,28 @@ func (f *forecast) recordBatch(batch monTypes.ForecastBatch) {
 	f.metrics.RecordGameAgreement(metrics.DisagreeChallengerAhead, batch.DisagreeChallengerAhead)
 	f.metrics.RecordGameAgreement(metrics.AgreeDefenderAhead, batch.AgreeDefenderAhead)
 	f.metrics.RecordGameAgreement(metrics.DisagreeDefenderAhead, batch.DisagreeDefenderAhead)
+
+	f.metrics.RecordLatestProposals(batch.LatestValidProposal, batch.LatestInvalidProposal)
+
+	f.metrics.RecordIgnoredGames(ignoredCount)
+	f.metrics.RecordFailedGames(failedCount)
 }
 
-func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGameData, metrics *monTypes.ForecastBatch) error {
+func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *forecastBatch) error {
 	// Check the root agreement.
-	agreement, expected, err := f.validator.CheckRootAgreement(ctx, game.L1HeadNum, game.L2BlockNumber, game.RootClaim)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrRootAgreement, err)
-	}
+	agreement := game.AgreeWithClaim
+	expected := game.ExpectedRootClaim
 
 	expectedResult := types.GameStatusDefenderWon
 	if !agreement {
 		expectedResult = types.GameStatusChallengerWon
+		if metrics.LatestInvalidProposal < game.Timestamp {
+			metrics.LatestInvalidProposal = game.Timestamp
+		}
+	} else {
+		if metrics.LatestValidProposal < game.Timestamp {
+			metrics.LatestValidProposal = game.Timestamp
+		}
 	}
 
 	if game.Status != types.GameStatusInProgress {
@@ -100,11 +116,19 @@ func (f *forecast) forecastGame(ctx context.Context, game *monTypes.EnrichedGame
 		return nil
 	}
 
-	// Create the bidirectional tree of claims.
-	tree := transform.CreateBidirectionalTree(game.Claims)
-
-	// Compute the resolution status of the game.
-	forecastStatus := resolution.Resolve(tree)
+	var forecastStatus types.GameStatus
+	// Games that have their block number challenged are won
+	// by the challenger since the counter is proven on-chain.
+	if game.BlockNumberChallenged {
+		f.logger.Debug("Found game with challenged block number",
+			"game", game.Proxy, "blockNum", game.L2BlockNumber, "agreement", agreement)
+		// If the block number is challenged the challenger will always win
+		forecastStatus = types.GameStatusChallengerWon
+	} else {
+		// Otherwise we go through the resolution process to determine who would win based on the current claims
+		tree := transform.CreateBidirectionalTree(game.Claims)
+		forecastStatus = Resolve(tree)
+	}
 
 	if agreement {
 		// If we agree with the output root proposal, the Defender should win, defending that claim.

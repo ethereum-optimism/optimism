@@ -28,8 +28,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
@@ -43,6 +42,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -1211,6 +1211,18 @@ func TestFees(t *testing.T) {
 		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
 		testFees(t, cfg)
 	})
+	t.Run("fjord", func(t *testing.T) {
+		InitParallel(t)
+		cfg := DefaultSystemConfig(t)
+		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+
+		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
+		cfg.DeployConfig.L2GenesisFjordTimeOffset = new(hexutil.Uint64)
+		testFees(t, cfg)
+	})
 }
 
 func testFees(t *testing.T, cfg SystemConfig) {
@@ -1254,7 +1266,8 @@ func testFees(t *testing.T, cfg SystemConfig) {
 
 		scalar, err := gpoContract.Scalar(&bind.CallOpts{})
 		require.Nil(t, err, "reading gpo scalar")
-		require.Equal(t, scalar.Uint64(), cfg.DeployConfig.GasPriceOracleScalar, "wrong gpo scalar")
+		feeScalar := cfg.DeployConfig.FeeScalar()
+		require.Equal(t, scalar, new(big.Int).SetBytes(feeScalar[:]), "wrong gpo scalar")
 	} else {
 		_, err := gpoContract.Overhead(&bind.CallOpts{})
 		require.ErrorContains(t, err, "deprecated")
@@ -1352,11 +1365,25 @@ func testFees(t *testing.T, cfg SystemConfig) {
 	require.NoError(t, err)
 	require.Equal(t, sys.RollupConfig.IsEcotone(header.Time), gpoEcotone, "GPO and chain must have same ecotone view")
 
+	gpoFjord, err := gpoContract.IsFjord(nil)
+	require.NoError(t, err)
+	require.Equal(t, sys.RollupConfig.IsFjord(header.Time), gpoFjord, "GPO and chain must have same fjord view")
+
 	gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, bytes)
 	require.Nil(t, err)
 
 	adjustedGPOFee := gpoL1Fee
-	if sys.RollupConfig.IsRegolith(header.Time) {
+	if sys.RollupConfig.IsFjord(header.Time) {
+		// The fastlz size of the transaction is 102 bytes
+		require.Equal(t, uint64(102), tx.RollupCostData().FastLzSize)
+		// Which results in both the fjord cost function and GPO using the minimum value for the fastlz regression:
+		// Geth Linear Regression: -42.5856 + 102 * 0.8365 = 42.7374
+		// GPO Linear Regression: -42.5856 + 170 * 0.8365 = 99.6194
+		// The additional 68 (170 vs. 102) is due to the GPO adding 68 bytes to account for the signature.
+		require.Greater(t, types.MinTransactionSize.Uint64(), uint64(99))
+		// Because of this, we don't need to do any adjustment as the GPO and cost func are both bounded to the minimum value.
+		// However, if the fastlz regression output is ever larger than the minimum, this will require an adjustment.
+	} else if sys.RollupConfig.IsRegolith(header.Time) {
 		// if post-regolith, adjust the GPO fee by removing the overhead it adds because of signature data
 		artificialGPOOverhead := big.NewInt(68 * 16) // it adds 68 bytes to cover signature and RLP data
 		l1BaseFee := big.NewInt(7)                   // we assume the L1 basefee is the minimum, 7

@@ -8,8 +8,9 @@ import (
 	"strconv"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -17,7 +18,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
 )
 
 // ABI types
@@ -34,6 +36,8 @@ var (
 		{Type: fixedBytes},
 	}
 
+	uint32Type, _ = abi.NewType("uint32", "", nil)
+
 	// Decoded nonce tuple (nonce, version)
 	decodedNonce, _ = abi.NewType("tuple", "DecodedNonce", []abi.ArgumentMarshaling{
 		{Name: "nonce", Type: "uint256"},
@@ -41,6 +45,12 @@ var (
 	})
 	decodedNonceArgs = abi.Arguments{
 		{Name: "encodedNonce", Type: decodedNonce},
+	}
+
+	// Decoded ecotone scalars (uint32, uint32)
+	decodedScalars = abi.Arguments{
+		{Name: "basefeeScalar", Type: uint32Type},
+		{Name: "blobbasefeeScalar", Type: uint32Type},
 	}
 
 	// WithdrawalHash slot tuple (bytes32, bytes32)
@@ -274,7 +284,7 @@ func DiffTestUtils() {
 		// Create a secure trie for state
 		state, err := trie.NewStateTrie(
 			trie.TrieID(types.EmptyRootHash),
-			trie.NewDatabase(rawdb.NewMemoryDatabase(), &trie.Config{HashDB: hashdb.Defaults}),
+			triedb.NewDatabase(rawdb.NewMemoryDatabase(), &triedb.Config{HashDB: hashdb.Defaults}),
 		)
 		checkErr(err, "Error creating secure trie")
 
@@ -285,7 +295,7 @@ func DiffTestUtils() {
 		// Create a secure trie for the world state
 		world, err := trie.NewStateTrie(
 			trie.TrieID(types.EmptyRootHash),
-			trie.NewDatabase(rawdb.NewMemoryDatabase(), &trie.Config{HashDB: hashdb.Defaults}),
+			triedb.NewDatabase(rawdb.NewMemoryDatabase(), &triedb.Config{HashDB: hashdb.Defaults}),
 		)
 		checkErr(err, "Error creating secure trie")
 
@@ -360,6 +370,25 @@ func DiffTestUtils() {
 		packed, err := cannonMemoryProofArgs.Pack(&output)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(packed[32:]))
+	case "encodeScalarEcotone":
+		basefeeScalar, err := strconv.ParseUint(args[1], 10, 32)
+		checkErr(err, "Error decocding basefeeScalar")
+		blobbasefeeScalar, err := strconv.ParseUint(args[2], 10, 32)
+		checkErr(err, "Error decocding blobbasefeeScalar")
+
+		encoded := eth.EncodeScalar(eth.EcotoneScalars{
+			BaseFeeScalar:     uint32(basefeeScalar),
+			BlobBaseFeeScalar: uint32(blobbasefeeScalar),
+		})
+		fmt.Print(hexutil.Encode(encoded[:]))
+	case "decodeScalarEcotone":
+		scalar := common.HexToHash(args[1])
+		scalars, err := eth.DecodeScalar([32]byte(scalar[:]))
+		checkErr(err, "Error decoding scalar")
+
+		packed, err := decodedScalars.Pack(scalars.BaseFeeScalar, scalars.BlobBaseFeeScalar)
+		checkErr(err, "Error encoding output")
+		fmt.Print(hexutil.Encode(packed))
 	default:
 		panic(fmt.Errorf("Unknown command: %s", args[0]))
 	}

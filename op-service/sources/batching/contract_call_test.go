@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -12,7 +12,7 @@ import (
 
 func TestContractCall_ToCallArgs(t *testing.T) {
 	addr := common.Address{0xbd}
-	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	testAbi, err := test.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 	call := NewContractCall(testAbi, addr, "approve", common.Address{0xcc}, big.NewInt(1234444))
 	call.From = common.Address{0xab}
@@ -33,7 +33,7 @@ func TestContractCall_ToCallArgs(t *testing.T) {
 
 func TestContractCall_ToTxCandidate(t *testing.T) {
 	addr := common.Address{0xbd}
-	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	testAbi, err := test.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 	call := NewContractCall(testAbi, addr, "approve", common.Address{0xcc}, big.NewInt(1234444))
 	candidate, err := call.ToTxCandidate()
@@ -49,7 +49,7 @@ func TestContractCall_ToTxCandidate(t *testing.T) {
 
 func TestContractCall_Pack(t *testing.T) {
 	addr := common.Address{0xbd}
-	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	testAbi, err := test.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 	sender := common.Address{0xcc}
 	amount := big.NewInt(1234444)
@@ -64,7 +64,7 @@ func TestContractCall_Pack(t *testing.T) {
 
 func TestContractCall_PackInvalid(t *testing.T) {
 	addr := common.Address{0xbd}
-	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	testAbi, err := test.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 	// Second arg should be a *big.Int so packing should fail
 	call := NewContractCall(testAbi, addr, "approve", common.Address{0xcc}, uint32(123))
@@ -74,7 +74,7 @@ func TestContractCall_PackInvalid(t *testing.T) {
 
 func TestContractCall_Unpack(t *testing.T) {
 	addr := common.Address{0xbd}
-	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	testAbi, err := test.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 	call := NewContractCall(testAbi, addr, "balanceOf", common.Address{0xcc})
 	outputs := testAbi.Methods["balanceOf"].Outputs
@@ -89,7 +89,7 @@ func TestContractCall_Unpack(t *testing.T) {
 
 func TestContractCall_UnpackInvalid(t *testing.T) {
 	addr := common.Address{0xbd}
-	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	testAbi, err := test.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 	call := NewContractCall(testAbi, addr, "balanceOf", common.Address{0xcc})
 

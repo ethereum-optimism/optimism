@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -14,7 +14,7 @@ func TestDecodeCall(t *testing.T) {
 	method := "approve"
 	spender := common.Address{0xbb, 0xee}
 	amount := big.NewInt(4242)
-	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	testAbi, err := test.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 	validData, err := testAbi.Pack(method, spender, amount)
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestDecodeCall(t *testing.T) {
 }
 
 func TestDecodeEvent(t *testing.T) {
-	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	testAbi, err := test.ERC20MetaData.GetAbi()
 	require.NoError(t, err)
 
 	// event Transfer(address indexed from, address indexed to, uint256 amount);

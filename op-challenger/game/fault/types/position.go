@@ -10,6 +10,8 @@ import (
 
 var (
 	ErrPositionDepthTooSmall = errors.New("position depth is too small")
+
+	RootPosition = NewPositionFromGIndex(big.NewInt(1))
 )
 
 // Depth is the depth of a position in a game tree where the root level has
@@ -39,13 +41,13 @@ func NewPositionFromGIndex(x *big.Int) Position {
 }
 
 func (p Position) String() string {
-	return fmt.Sprintf("Position(depth: %v, indexAtDepth: %v)", p.depth, p.indexAtDepth)
+	return fmt.Sprintf("Position(depth: %v, indexAtDepth: %v)", p.depth, p.IndexAtDepth())
 }
 
 func (p Position) MoveRight() Position {
 	return Position{
 		depth:        p.depth,
-		indexAtDepth: new(big.Int).Add(p.indexAtDepth, big.NewInt(1)),
+		indexAtDepth: new(big.Int).Add(p.IndexAtDepth(), big.NewInt(1)),
 	}
 }
 
@@ -57,7 +59,7 @@ func (p Position) RelativeToAncestorAtDepth(ancestor Depth) (Position, error) {
 	}
 	newPosDepth := p.depth - ancestor
 	nodesAtDepth := 1 << newPosDepth
-	newIndexAtDepth := new(big.Int).Mod(p.indexAtDepth, big.NewInt(int64(nodesAtDepth)))
+	newIndexAtDepth := new(big.Int).Mod(p.IndexAtDepth(), big.NewInt(int64(nodesAtDepth)))
 	return NewPosition(newPosDepth, newIndexAtDepth), nil
 }
 
@@ -73,7 +75,7 @@ func (p Position) IndexAtDepth() *big.Int {
 }
 
 func (p Position) IsRootPosition() bool {
-	return p.depth == 0 && common.Big0.Cmp(p.indexAtDepth) == 0
+	return p.depth == 0 && common.Big0.Cmp(p.IndexAtDepth()) == 0
 }
 
 func (p Position) lshIndex(amount Depth) *big.Int {
@@ -138,7 +140,7 @@ func (p Position) Defend() Position {
 }
 
 func (p Position) Print(maxDepth Depth) {
-	fmt.Printf("GIN: %4b\tTrace Position is %4b\tTrace Depth is: %d\tTrace Index is: %d\n", p.ToGIndex(), p.indexAtDepth, p.depth, p.TraceIndex(maxDepth))
+	fmt.Printf("GIN: %4b\tTrace Position is %4b\tTrace Depth is: %d\tTrace Index is: %d\n", p.ToGIndex(), p.IndexAtDepth(), p.depth, p.TraceIndex(maxDepth))
 }
 
 func (p Position) ToGIndex() *big.Int {
