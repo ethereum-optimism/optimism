@@ -228,14 +228,6 @@ pull_request_rules:
       label:
         add:
           - A-pkg-contracts-bedrock
-  - name: Add A-pkg-fee-estimation label
-    conditions:
-      - 'files~=^packages/fee-estimation/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-pkg-fee-estimation
   - name: Add A-pkg-sdk label and ecopod reviewers
     conditions:
       - 'files~=^packages/sdk/'
@@ -247,14 +239,6 @@ pull_request_rules:
       request_reviews:
         users:
           - roninjin10
-  - name: Add A-pkg-web3js-plugin label
-    conditions:
-      - 'files~=^packages/web3js-plugin/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-pkg-web3js-plugin
   - name: Add A-proxyd label
     conditions:
       - 'files~=^proxyd/'
