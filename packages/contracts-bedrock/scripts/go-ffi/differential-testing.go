@@ -418,7 +418,7 @@ func DiffTestUtils() {
 		symbol := [32]byte(common.FromHex(args[4]))
 
 		// Encode gas paying token
-		encoded, err := encodeGasPayingToken(token, uint8(decimals.Uint64()), name, symbol)
+		encoded, err := gasPayingTokenArgs.Pack(token, uint8(decimals.Uint64()), name, symbol)
 		checkErr(err, "Error encoding gas paying token")
 
 		// Pack encoded gas paying token
@@ -432,7 +432,7 @@ func DiffTestUtils() {
 		checkOk(ok)
 
 		// Encode dependency
-		encoded, err := encodeDependency(chainId)
+		encoded, err := dependencyArgs.Pack(chainId)
 		checkErr(err, "Error encoding dependency")
 
 		// Pack encoded dependency
