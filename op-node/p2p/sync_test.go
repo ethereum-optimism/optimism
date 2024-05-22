@@ -391,3 +391,14 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	_, peerBExist3 := syncCl.peers[hostB.ID()]
 	require.True(t, !peerBExist3, "peerB should not exist in syncClient")
 }
+
+func TestPanicGuard(t *testing.T) {
+	mockPanickingFn := func(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
+		panic("gotcha")
+	}
+	require.NotPanics(t, func() {
+		err := panicGuard(mockPanickingFn)(context.Background(), peer.ID(""), 37)
+		require.EqualError(t, err, "recovered from a panic: gotcha")
+	})
+
+}
