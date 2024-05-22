@@ -725,28 +725,6 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
-  contracts-ts-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore pnpm Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
-      - check-changed:
-          patterns: sdk,contracts-bedrock,contracts
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: Check generated and build
-          command: pnpm generate:check
-          working_directory: packages/contracts-ts
-
   sdk-next-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -863,14 +841,6 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: packages
-      - run:
-          name: Check common-ts
-          command: npx depcheck
-          working_directory: packages/common-ts
-      - run:
-          name: Check core-utils
-          command: npx depcheck
-          working_directory: packages/core-utils
       - run:
           name: Check sdk
           command: npx depcheck
@@ -1675,18 +1645,6 @@ workflows:
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
-      - js-lint-test:
-          name: common-ts-tests
-          coverage_flag: common-ts-tests
-          package_name: common-ts
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: core-utils-tests
-          coverage_flag: core-utils-tests
-          package_name: core-utils
-          requires:
-            - pnpm-monorepo
       - contracts-bedrock-tests:
           requires:
             - pnpm-monorepo
@@ -1701,21 +1659,14 @@ workflows:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
-          dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: contracts-ts-tests
-          coverage_flag: contracts-ts-tests
-          package_name: contracts-ts
-          dependencies: '(contracts-bedrock|contracts-ts)'
+          dependencies: "(contracts-bedrock|sdk)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: sdk-tests
           coverage_flag: sdk-tests
           package_name: sdk
-          dependencies: "(contracts-bedrock|core-utils)"
+          dependencies: "contracts-bedrock"
           requires:
             - pnpm-monorepo
       - depcheck:

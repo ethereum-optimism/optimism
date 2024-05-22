@@ -38,8 +38,6 @@ flag_management:
         - type: patch
           target: 100%
     - name: bedrock-go-tests
-    - name: common-ts-tests
     - name: contracts-tests
-    - name: core-utils-tests
     - name: chain-mon-tests
     - name: sdk-tests
