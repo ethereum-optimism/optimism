@@ -62,7 +62,7 @@
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.6.0",
-    "@eth-optimism/core-utils": "workspace:*",
+    "@eth-optimism/core-utils": "^0.13.2",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.3.11",
     "rlp": "^2.2.7",
