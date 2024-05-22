@@ -19,13 +19,13 @@ import (
 
 type Bytes32 [32]byte
 
-func createPayloadEnvelope() *eth.ExecutionPayloadEnvelope {
+func createPayloadEnvelope(blockNum uint64) *eth.ExecutionPayloadEnvelope {
 	hash := common.HexToHash("0x12345")
 	one := hexutil.Uint64(1)
 	return &eth.ExecutionPayloadEnvelope{
 		ParentBeaconBlockRoot: &hash,
 		ExecutionPayload: &eth.ExecutionPayload{
-			BlockNumber:   eth.Uint64Quantity(222),
+			BlockNumber:   eth.Uint64Quantity(blockNum),
 			BlockHash:     common.HexToHash("0x888"),
 			Withdrawals:   &types.Withdrawals{{Index: 1, Validator: 2, Address: common.HexToAddress("0x123"), Amount: 3}},
 			ExcessBlobGas: &one,
@@ -35,11 +35,11 @@ func createPayloadEnvelope() *eth.ExecutionPayloadEnvelope {
 func TestUnsafeHeadTracker(t *testing.T) {
 	tracker := &unsafeHeadTracker{
 		log:        testlog.Logger(t, log.LevelDebug),
-		unsafeHead: createPayloadEnvelope(),
+		unsafeHead: createPayloadEnvelope(222),
 	}
 
 	t.Run("Apply", func(t *testing.T) {
-		data := createPayloadEnvelope()
+		data := createPayloadEnvelope(333)
 
 		var buf bytes.Buffer
 		_, err := data.MarshalSSZ(&buf)
@@ -47,17 +47,27 @@ func TestUnsafeHeadTracker(t *testing.T) {
 
 		l := raft.Log{Data: buf.Bytes()}
 		require.Nil(t, tracker.Apply(&l))
-		require.Equal(t, hexutil.Uint64(222), tracker.unsafeHead.ExecutionPayload.BlockNumber)
+		require.Equal(t, hexutil.Uint64(333), tracker.unsafeHead.ExecutionPayload.BlockNumber)
+	})
+
+	t.Run("Snapshot", func(t *testing.T) {
+		snapshot, err := tracker.Snapshot()
+		require.NoError(t, err)
+
+		sink := new(raft.DiscardSnapshotSink)
+
+		err = snapshot.Persist(sink)
+		require.NoError(t, err)
 	})
 
 	t.Run("Restore", func(t *testing.T) {
-		data := createPayloadEnvelope()
+		data := createPayloadEnvelope(333)
 
 		mrc, err := NewMockReadCloser(data)
 		require.NoError(t, err)
 		err = tracker.Restore(mrc)
 		require.NoError(t, err)
-		require.Equal(t, hexutil.Uint64(222), tracker.unsafeHead.ExecutionPayload.BlockNumber)
+		require.Equal(t, hexutil.Uint64(333), tracker.unsafeHead.ExecutionPayload.BlockNumber)
 	})
 }
 

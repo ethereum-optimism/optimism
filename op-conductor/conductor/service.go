@@ -30,10 +30,10 @@ import (
 )
 
 var (
-	ErrResumeTimeout                           = errors.New("timeout to resume conductor")
-	ErrPauseTimeout                            = errors.New("timeout to pause conductor")
-	ErrUnsafeHeadMismarch                      = errors.New("unsafe head mismatch")
-	ErrUnableToRetrieveUnsafeHeadFromConsensus = errors.New("unable to retrieve unsafe head from consensus")
+	ErrResumeTimeout      = errors.New("timeout to resume conductor")
+	ErrPauseTimeout       = errors.New("timeout to pause conductor")
+	ErrUnsafeHeadMismatch = errors.New("unsafe head mismatch")
+	ErrNoUnsafeHead       = errors.New("no unsafe head")
 )
 
 // New creates a new OpConductor instance.
@@ -435,7 +435,7 @@ func (oc *OpConductor) TransferLeaderToServer(_ context.Context, id string, addr
 	return oc.cons.TransferLeaderTo(id, addr)
 }
 
-// CommitUnsafePayload commits a unsafe payload (latest head) to the cluster FSM.
+// CommitUnsafePayload commits a unsafe payload (latest head) to the cluster FSM in a strongly consistent fashion.
 func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return oc.cons.CommitUnsafePayload(payload)
 }
@@ -450,8 +450,8 @@ func (oc *OpConductor) ClusterMembership(_ context.Context) ([]*consensus.Server
 	return oc.cons.ClusterMembership()
 }
 
-// LatestUnsafePayload returns the latest unsafe payload envelope from FSM.
-func (oc *OpConductor) LatestUnsafePayload(_ context.Context) *eth.ExecutionPayloadEnvelope {
+// LatestUnsafePayload returns the latest unsafe payload envelope from FSM in a strongly consistent fashion.
+func (oc *OpConductor) LatestUnsafePayload(_ context.Context) (*eth.ExecutionPayloadEnvelope, error) {
 	return oc.cons.LatestUnsafePayload()
 }
 
@@ -662,7 +662,7 @@ func (oc *OpConductor) startSequencer() error {
 	unsafeInCons, unsafeInNode, err := oc.compareUnsafeHead(ctx)
 	// if there's a mismatch, try to post the unsafe head to op-node
 	if err != nil {
-		if errors.Is(err, ErrUnsafeHeadMismarch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
+		if errors.Is(err, ErrUnsafeHeadMismatch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
 			oc.log.Debug(
 				"posting unsafe head to op-node",
@@ -693,9 +693,12 @@ func (oc *OpConductor) startSequencer() error {
 }
 
 func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPayloadEnvelope, eth.BlockInfo, error) {
-	unsafeInCons := oc.cons.LatestUnsafePayload()
+	unsafeInCons, err := oc.cons.LatestUnsafePayload()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to retrieve unsafe head from consensus")
+	}
 	if unsafeInCons == nil {
-		return nil, nil, ErrUnableToRetrieveUnsafeHeadFromConsensus
+		return nil, nil, ErrNoUnsafeHead
 	}
 
 	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(ctx)
@@ -713,7 +716,7 @@ func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPay
 			"node_num", unsafeInNode.NumberU64(),
 		)
 
-		return unsafeInCons, unsafeInNode, ErrUnsafeHeadMismarch
+		return unsafeInCons, unsafeInNode, ErrUnsafeHeadMismatch
 	}
 
 	return unsafeInCons, unsafeInNode, nil
