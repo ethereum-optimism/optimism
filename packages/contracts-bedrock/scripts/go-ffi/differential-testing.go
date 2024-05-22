@@ -91,6 +91,17 @@ var (
 	cannonMemoryProofArgs = abi.Arguments{
 		{Name: "encodedCannonMemoryProof", Type: cannonMemoryProof},
 	}
+
+	// Gas paying token tuple (address, uint8, bytes32, bytes32)
+	gasPayingTokenArgs = abi.Arguments{
+		{Name: "token", Type: addressType},
+		{Name: "decimals", Type: uint8Type},
+		{Name: "name", Type: fixedBytes},
+		{Name: "symbol", Type: fixedBytes},
+	}
+
+	// Dependency tuple (uint256)
+	dependencyArgs = abi.Arguments{{Name: "chainId", Type: uint256Type}}
 )
 
 func DiffTestUtils() {
@@ -407,7 +418,7 @@ func DiffTestUtils() {
 		symbol := [32]byte(common.FromHex(args[4]))
 
 		// Encode gas paying token
-		encoded, err := encodeGasPayingToken(token, uint8(decimals.Uint64()), name, symbol)
+		encoded, err := gasPayingTokenArgs.Pack(token, uint8(decimals.Uint64()), name, symbol)
 		checkErr(err, "Error encoding gas paying token")
 
 		// Pack encoded gas paying token
@@ -421,7 +432,7 @@ func DiffTestUtils() {
 		checkOk(ok)
 
 		// Encode dependency
-		encoded, err := encodeDependency(chainId)
+		encoded, err := dependencyArgs.Pack(chainId)
 		checkErr(err, "Error encoding dependency")
 
 		// Pack encoded dependency
