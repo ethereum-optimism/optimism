@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -15,9 +14,8 @@ import (
 )
 
 // TestCheckFjordScript ensures the op-chain-ops/cmd/check-fjord script runs successfully
-// against a test chain with the fjord hardfork enabled
+// against a test chain with the fjord hardfork activated/unactivated
 func TestCheckFjordScript(t *testing.T) {
-	InitParallel(t)
 	log := testlog.Logger(t, log.LevelInfo)
 
 	cfg := DefaultSystemConfig(t)
@@ -28,8 +26,6 @@ func TestCheckFjordScript(t *testing.T) {
 	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 
-	one := hexutil.Uint64(1)
-
 	tests := []struct {
 		name            string
 		fjordActivation *hexutil.Uint64
@@ -37,7 +33,7 @@ func TestCheckFjordScript(t *testing.T) {
 	}{
 		{
 			name:            "fjord_activated",
-			fjordActivation: &one,
+			fjordActivation: &genesisActivation,
 			expectErr:       false,
 		},
 		{
@@ -49,13 +45,12 @@ func TestCheckFjordScript(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			InitParallel(t)
 			cfg.DeployConfig.L2GenesisFjordTimeOffset = tt.fjordActivation
 
 			sys, err := cfg.Start(t)
-			require.Nil(t, err, "Error starting up system")
+			require.NoError(t, err, "Error starting up system")
 			defer sys.Close()
-
-			<-time.After(time.Duration(cfg.DeployConfig.L2BlockTime) * time.Second * 2)
 
 			checkFjordConfig := &fjordChecks.CheckFjordConfig{
 				Log:  log,
@@ -65,9 +60,21 @@ func TestCheckFjordScript(t *testing.T) {
 			}
 			err = fjordChecks.CheckAll(context.Background(), checkFjordConfig)
 			if tt.expectErr {
-				require.Error(t, err)
+				require.Error(t, err, "expected error for CheckAll")
+				err = fjordChecks.CheckRIP7212(context.Background(), checkFjordConfig)
+				require.Error(t, err, "expected error for CheckRIP7212")
+				err = fjordChecks.CheckGasPriceOracle(context.Background(), checkFjordConfig)
+				require.Error(t, err, "expected error for CheckGasPriceOracle")
+				err = fjordChecks.CheckTxEmpty(context.Background(), checkFjordConfig)
+				require.Error(t, err, "expected error for CheckTxEmpty")
+				err = fjordChecks.CheckTxAllZero(context.Background(), checkFjordConfig)
+				require.Error(t, err, "expected error for CheckTxAllZero")
+				err = fjordChecks.CheckTxAll42(context.Background(), checkFjordConfig)
+				require.Error(t, err, "expected error for CheckTxAll42")
+				err = fjordChecks.CheckTxRandom(context.Background(), checkFjordConfig)
+				require.Error(t, err, "expected error for CheckTxRandom")
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, err, "should not error on CheckAll")
 			}
 		})
 	}
