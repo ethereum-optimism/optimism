@@ -24,6 +24,7 @@ struct SafeConfig {
     address[] owners;
 }
 
+/// @notice Configuration for the Liveness Module
 struct LivenessModuleConfig {
     uint256 livenessInterval;
     uint256 thresholdPercentage;
@@ -31,12 +32,13 @@ struct LivenessModuleConfig {
     address fallbackOwner;
 }
 
+/// @notice Configuration for the Deputy Guardian Module
 struct DeputyGuardianModuleConfig {
     address deputyGuardian;
     SuperchainConfig superchainConfig;
 }
-/// @notice Configuration for the Security Council Safe.
 
+/// @notice Configuration for the Security Council Safe.
 struct SecurityCouncilConfig {
     SafeConfig safeConfig;
     LivenessModuleConfig livenessModuleConfig;
