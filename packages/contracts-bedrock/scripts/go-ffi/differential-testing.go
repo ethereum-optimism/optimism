@@ -397,6 +397,7 @@ func DiffTestUtils() {
 
 		packed, err := decodedScalars.Pack(scalars.BaseFeeScalar, scalars.BlobBaseFeeScalar)
 		checkErr(err, "Error encoding output")
+		fmt.Print(hexutil.Encode(packed))
 	case "encodeGasPayingToken":
 		// Parse input arguments
 		token := common.HexToAddress(args[1])
