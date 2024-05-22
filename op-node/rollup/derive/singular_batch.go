@@ -27,6 +27,9 @@ type SingularBatch struct {
 	Transactions []hexutil.Bytes
 }
 
+func (b *SingularBatch) AsSingularBatch() (*SingularBatch, bool) { return b, true }
+func (b *SingularBatch) AsSpanBatch() (*SpanBatch, bool)         { return nil, false }
+
 // GetBatchType returns its batch type (batch_version)
 func (b *SingularBatch) GetBatchType() int {
 	return SingularBatchType

@@ -18,13 +18,14 @@ import (
 )
 
 type ChannelWithMetadata struct {
-	ID             derive.ChannelID    `json:"id"`
-	IsReady        bool                `json:"is_ready"`
-	InvalidFrames  bool                `json:"invalid_frames"`
-	InvalidBatches bool                `json:"invalid_batches"`
-	Frames         []FrameWithMetadata `json:"frames"`
-	Batches        []derive.Batch      `json:"batches"`
-	BatchTypes     []int               `json:"batch_types"`
+	ID             derive.ChannelID         `json:"id"`
+	IsReady        bool                     `json:"is_ready"`
+	InvalidFrames  bool                     `json:"invalid_frames"`
+	InvalidBatches bool                     `json:"invalid_batches"`
+	Frames         []FrameWithMetadata      `json:"frames"`
+	Batches        []derive.Batch           `json:"batches"`
+	BatchTypes     []int                    `json:"batch_types"`
+	ComprAlgos     []derive.CompressionAlgo `json:"compr_alogs"`
 }
 
 type FrameWithMetadata struct {
@@ -54,7 +55,6 @@ func LoadFrames(directory string, inbox common.Address) []FrameWithMetadata {
 		} else {
 			return txns[i].BlockNumber < txns[j].BlockNumber
 		}
-
 	})
 	return transactionsToFrames(txns)
 }
@@ -107,8 +107,12 @@ func processFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, fr
 		}
 	}
 
-	var batches []derive.Batch
-	var batchTypes []int
+	var (
+		batches    []derive.Batch
+		batchTypes []int
+		comprAlgos []derive.CompressionAlgo
+	)
+
 	invalidBatches := false
 	if ch.IsReady() {
 		br, err := derive.BatchReader(ch.Reader(), spec.MaxRLPBytesPerChannel(ch.HighestBlock().Time), rollupCfg.IsFjord(ch.HighestBlock().Time))
@@ -118,6 +122,7 @@ func processFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, fr
 					fmt.Printf("Error reading batchData for channel %v. Err: %v\n", id.String(), err)
 					invalidBatches = true
 				} else {
+					comprAlgos = append(comprAlgos, batchData.ComprAlgo)
 					batchType := batchData.GetBatchType()
 					batchTypes = append(batchTypes, int(batchType))
 					switch batchType {
@@ -157,6 +162,7 @@ func processFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, fr
 		InvalidBatches: invalidBatches,
 		Batches:        batches,
 		BatchTypes:     batchTypes,
+		ComprAlgos:     comprAlgos,
 	}
 }
 

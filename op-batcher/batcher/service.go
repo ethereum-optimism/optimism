@@ -242,9 +242,10 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		"max_frame_size", cc.MaxFrameSize,
 		"target_num_frames", cc.TargetNumFrames,
 		"compressor", cc.CompressorConfig.Kind,
+		"compression_algo", cc.CompressorConfig.CompressionAlgo,
+		"batch_type", cc.BatchType,
 		"max_channel_duration", cc.MaxChannelDuration,
 		"channel_timeout", cc.ChannelTimeout,
-		"batch_type", cc.BatchType,
 		"sub_safety_margin", cc.SubSafetyMargin)
 	bs.ChannelConfig = cc
 	return nil

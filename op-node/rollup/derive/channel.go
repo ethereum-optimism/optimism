@@ -167,6 +167,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 	}
 
 	var zr io.Reader
+	var comprAlgo CompressionAlgo
 	// For zlib, the last 4 bits must be either 8 or 15 (both are reserved value)
 	if compressionType[0]&0x0F == ZlibCM8 || compressionType[0]&0x0F == ZlibCM15 {
 		var err error
@@ -175,6 +176,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 			return nil, err
 		}
 		// If the bits equal to 1, then it is a brotli reader
+		comprAlgo = Zlib
 	} else if compressionType[0] == ChannelVersionBrotli {
 		// If before Fjord, we cannot accept brotli compressed batch
 		if !isFjord {
@@ -186,6 +188,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 			return nil, err
 		}
 		zr = brotli.NewReader(bufReader)
+		comprAlgo = Brotli
 	} else {
 		return nil, fmt.Errorf("cannot distinguish the compression algo used given type byte %v", compressionType[0])
 	}
@@ -194,7 +197,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 	rlpReader := rlp.NewStream(zr, maxRLPBytesPerChannel)
 	// Read each batch iteratively
 	return func() (*BatchData, error) {
-		var batchData BatchData
+		batchData := BatchData{ComprAlgo: comprAlgo}
 		if err := rlpReader.Decode(&batchData); err != nil {
 			return nil, err
 		}

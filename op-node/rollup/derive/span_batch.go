@@ -422,6 +422,9 @@ type SpanBatch struct {
 	sbtxs         *spanBatchTxs
 }
 
+func (b *SpanBatch) AsSingularBatch() (*SingularBatch, bool) { return nil, false }
+func (b *SpanBatch) AsSpanBatch() (*SpanBatch, bool)         { return b, true }
+
 // spanBatchMarshaling is a helper type used for JSON marshaling.
 type spanBatchMarshaling struct {
 	ParentCheck   []hexutil.Bytes     `json:"parent_check"`
