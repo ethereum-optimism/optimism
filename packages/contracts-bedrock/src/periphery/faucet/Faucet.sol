@@ -12,6 +12,11 @@ contract SafeSend {
     }
 }
 
+interface IL1StandardBridge {
+    // Declare the depositETHTo function as it is defined in L1StandardBridge
+    function depositETHTo(address to, uint32 minGasLimit, bytes calldata extraData) external payable;
+}
+
 /// @title  Faucet
 /// @notice Faucet contract that drips ETH to users.
 contract Faucet {
@@ -20,7 +25,8 @@ contract Faucet {
     /// @param userId     The id of the user that requested the drip.
     /// @param amount     The amount of funds sent.
     /// @param recipient  The recipient of the drip.
-    event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient);
+    /// @param bridge     The destination chain's bridge of the drip.
+    event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient, address bridge);
 
     /// @notice Parameters for a drip.
     struct DripParameters {
@@ -88,7 +94,8 @@ contract Faucet {
     /// @notice Drips ETH to a recipient account.
     /// @param _params Drip parameters.
     /// @param _auth   Authentication parameters.
-    function drip(DripParameters memory _params, AuthParameters memory _auth) public {
+    /// @param _bridge Bridge address.
+    function drip(DripParameters memory _params, AuthParameters memory _auth, address _bridge) public {
         // Grab the module config once.
         ModuleConfig memory config = modules[_auth.module];
 
@@ -119,10 +126,16 @@ contract Faucet {
         // Mark the nonce as used.
         nonces[_auth.id][_params.nonce] = true;
 
-        // Execute a safe transfer of ETH to the recipient account.
-        new SafeSend{ value: config.amount }(_params.recipient);
+        if (_bridge == address(0)) {
+            // Use SafeSend if no bridge address is provided
+            new SafeSend{ value: config.amount }(_params.recipient);
+        } else {
+            // Execute a bridging of ETH to the recipient account.
+            IL1StandardBridge l1Bridge = IL1StandardBridge(_bridge);
+            l1Bridge.depositETHTo{value: config.amount}(_params.recipient, 200000, "");
+        }
 
-        emit Drip(config.name, _auth.id, config.amount, _params.recipient);
+        emit Drip(config.name, _auth.id, config.amount, _params.recipient, _bridge);
     }
 
     /// @notice Returns the enable value of a given auth module.
