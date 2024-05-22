@@ -844,7 +844,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("expected %d L1 gas, but only spent %d", expectedCalldataGas, receipt.L1GasUsed)
 	}
 	if big.NewInt(0).Cmp(receipt.L1Fee) >= 0 {
-		return fmt.Errorf("calculated to low L1 fee: %d", receipt.L1Fee)
+		return fmt.Errorf("calculated too low L1 fee: %d", receipt.L1Fee)
 	}
 	env.log.Info("L1 fees test: success")
 	return nil
