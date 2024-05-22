@@ -83,7 +83,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts
 │   ├── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
-│   └── <a href="./packages/web3js-plugin">web3js-plugin</a>: Adds functions to estimate L1 and L2 gas
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
 └── <a href="./ufm-test-services">ufm-test-services</a>: Runs a set of tasks to generate metrics
