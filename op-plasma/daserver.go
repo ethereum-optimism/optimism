@@ -17,23 +17,21 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type KVStore interface {
-	// Get retrieves the given key if it's present in the key-value data store.
+type UnifiedStore interface {
 	Get(ctx context.Context, key []byte) ([]byte, error)
-	// Put inserts the given value into the key-value data store.
-	Put(ctx context.Context, key []byte, value []byte) error
+	Put(ctx context.Context, key []byte, value []byte) ([]byte, error)
 }
 
 type DAServer struct {
 	log        log.Logger
 	endpoint   string
-	store      KVStore
+	store      UnifiedStore
 	tls        *rpc.ServerTLSConfig
 	httpServer *http.Server
 	listener   net.Listener
 }
 
-func NewDAServer(host string, port int, store KVStore, log log.Logger) *DAServer {
+func NewDAServer(host string, port int, store UnifiedStore, log log.Logger) *DAServer {
 	endpoint := net.JoinHostPort(host, strconv.Itoa(port))
 	return &DAServer{
 		log:      log,
@@ -131,6 +129,7 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input, err := io.ReadAll(r.Body)
+
 	if err != nil {
 		d.log.Error("Failed to read request body", "err", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -138,9 +137,9 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Path == "/put" || r.URL.Path == "/put/" { // without commitment
-
 		comm := GenericCommitment(crypto.Keccak256Hash(input).Bytes())
-		if err = d.store.Put(r.Context(), comm.Encode(), input); err != nil {
+		comm, err := d.store.Put(r.Context(), comm.Encode(), input)
+		if err != nil {
 			d.log.Error("Failed to store commitment to the DA server", "err", err, "comm", comm)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -155,13 +154,14 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	} else {
 		key := path.Base(r.URL.Path)
 		comm, err := hexutil.Decode(key)
+
 		if err != nil {
 			d.log.Error("Failed to decode commitment", "err", err, "key", key)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
-		if err := d.store.Put(r.Context(), comm, input); err != nil {
+		_, err = d.store.Put(r.Context(), comm, input)
+		if err != nil {
 			d.log.Error("Failed to store commitment to the DA server", "err", err, "key", key)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
