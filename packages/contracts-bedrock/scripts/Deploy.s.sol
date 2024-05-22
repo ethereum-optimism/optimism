@@ -284,7 +284,7 @@ contract Deploy is Deployer {
         console.log("deployed Safe!");
         setupSuperchain();
         console.log("set up superchain!");
-        if (cfg.usePlasma()) {
+        if (cfg.usePlasma() && cfg.daCommitmentType() == 0) {
             setupOpPlasma();
         }
         setupOpChain();
