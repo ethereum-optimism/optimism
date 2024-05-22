@@ -298,7 +298,7 @@ func (s *OpConductorTestSuite) TestScenario1() {
 		InfoHash: [32]byte{1, 2, 3},
 	}
 	s.cons.EXPECT().TransferLeader().Return(nil)
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 
 	// become leader
@@ -353,7 +353,7 @@ func (s *OpConductorTestSuite) TestScenario3() {
 		InfoNum:  1,
 		InfoHash: [32]byte{1, 2, 3},
 	}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().StartSequencer(mock.Anything, mock.Anything).Return(nil).Times(1)
 
@@ -392,7 +392,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 		InfoNum:  1,
 		InfoHash: [32]byte{2, 3, 4},
 	}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mock.Anything).Return(nil).Times(1)
 
@@ -410,7 +410,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	// unsafe caught up, we try to start sequencer at specified block and succeeds
 	mockBlockInfo.InfoNum = 2
 	mockBlockInfo.InfoHash = [32]byte{1, 2, 3}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
@@ -664,7 +664,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 		InfoNum:  1,
 		InfoHash: [32]byte{1, 2, 3},
 	}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(2)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(2)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(2)
 	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
