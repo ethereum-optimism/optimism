@@ -17,6 +17,7 @@ library CeloPredeploys {
     address internal constant FEE_CURRENCY = 0x4200000000000000000000000000000000001022;
     address internal constant BRIDGED_ETH = 0x4200000000000000000000000000000000001023;
     address internal constant FEE_CURRENCY_DIRECTORY = 0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB;
+    address internal constant cUSD = 0x765DE816845861e75A25fCA122bb6898B8B1282a;
 
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
@@ -33,6 +34,7 @@ library CeloPredeploys {
         if (_addr == FEE_CURRENCY) return "FeeCurrency";
         if (_addr == BRIDGED_ETH) return "BridgedEth";
         if (_addr == FEE_CURRENCY_DIRECTORY) return "FeeCurrencyDirectory";
+        if (_addr == cUSD) return "cUSD";
 
         revert("Predeploys: unnamed predeploy");
     }
