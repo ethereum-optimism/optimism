@@ -435,7 +435,7 @@ func (oc *OpConductor) TransferLeaderToServer(_ context.Context, id string, addr
 	return oc.cons.TransferLeaderTo(id, addr)
 }
 
-// CommitUnsafePayload commits a unsafe payload (latest head) to the cluster FSM in a strongly consistent fashion.
+// CommitUnsafePayload commits an unsafe payload (latest head) to the cluster FSM ensuring strong consistency by leveraging Raft consensus mechanisms.
 func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return oc.cons.CommitUnsafePayload(payload)
 }
