@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-plasma/cmd/adapters"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -45,13 +46,44 @@ func (s *MemStore) Put(ctx context.Context, key []byte, value []byte) error {
 	return nil
 }
 
+type DAServiceStore struct {
+	db   map[string][]byte
+	lock sync.RWMutex
+}
+
+func NewDAServiceStore() *DAServiceStore {
+	return &DAServiceStore{
+		db: make(map[string][]byte),
+	}
+}
+
+func (s *DAServiceStore) Get(ctx context.Context, key []byte) ([]byte, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if entry, ok := s.db[string(key)]; ok {
+		return common.CopyBytes(entry), nil
+	}
+	return nil, ErrNotFound
+}
+
+// Put inserts the given value into the key-value store.
+func (s *DAServiceStore) Put(ctx context.Context, value []byte) ([]byte, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	comm := NewGenericCommitment(crypto.Keccak256(value))
+
+	s.db[string(comm.Encode())] = common.CopyBytes(value)
+	return comm, nil
+}
+
 func TestDAClientPrecomputed(t *testing.T) {
 	store := NewMemStore()
 	logger := testlog.Logger(t, log.LevelDebug)
 
 	ctx := context.Background()
 
-	server := NewDAServer("127.0.0.1", 0, store, logger)
+	server := NewDAServer("127.0.0.1", 0, adapters.KVStoreAdapter{KVStore: store}, logger)
 
 	require.NoError(t, server.Start())
 
@@ -69,6 +101,7 @@ func TestDAClientPrecomputed(t *testing.T) {
 	input := RandomData(rng, 2000)
 
 	comm, err := client.SetInput(ctx, input)
+
 	require.NoError(t, err)
 
 	require.Equal(t, comm, NewKeccak256Commitment(input))
@@ -103,12 +136,12 @@ func TestDAClientPrecomputed(t *testing.T) {
 }
 
 func TestDAClientService(t *testing.T) {
-	store := NewMemStore()
+	store := NewDAServiceStore()
 	logger := testlog.Logger(t, log.LevelDebug)
 
 	ctx := context.Background()
 
-	server := NewDAServer("127.0.0.1", 0, store, logger)
+	server := NewDAServer("127.0.0.1", 0, adapters.DAServiceAdapter{DAService: store}, logger)
 
 	require.NoError(t, server.Start())
 
@@ -135,9 +168,9 @@ func TestDAClientService(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, input, stored)
-
+	_, err = store.Put(ctx, []byte("bad data"))
 	// set a bad commitment in the store
-	require.NoError(t, store.Put(ctx, comm.Encode(), []byte("bad data")))
+	require.NoError(t, err)
 
 	// assert no error as generic commitments cannot be verified client side
 	_, err = client.GetInput(ctx, comm)
