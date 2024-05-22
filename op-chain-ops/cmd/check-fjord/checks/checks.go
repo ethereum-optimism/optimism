@@ -8,11 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"strings"
 	"time"
-
-	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -27,47 +24,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
-
-func RunApp(args []string) error {
-	app := cli.NewApp()
-	app.Name = "check-fjord"
-	app.Usage = "Check Fjord upgrade results."
-	app.Description = "Check Fjord upgrade results."
-	app.Action = func(c *cli.Context) error {
-		return errors.New("see sub-commands")
-	}
-	app.Writer = os.Stdout
-	app.ErrWriter = os.Stderr
-	app.Commands = []*cli.Command{
-		makeCommand("all", CheckAll),
-		makeCommand("rip-7212", checkRIP7212),
-		{
-			Name: "fast-lz",
-			Subcommands: []*cli.Command{
-				makeCommand("gas-price-oracle", checkGasPriceOracle),
-				makeCommand("tx-empty", checkTxEmpty),
-				makeCommand("tx-all-zero", checkTxAllZero),
-				makeCommand("tx-all-42", checkTxAll42),
-				makeCommand("tx-random", checkTxRandom),
-				makeCommand("all", checkAllFastLz),
-			},
-			Flags:  makeFlags(),
-			Action: makeCommandAction(checkAllFastLz),
-		},
-	}
-
-	err := app.Run(os.Args)
-	if err != nil {
-		return fmt.Errorf("application failed: %w", err)
-	}
-	return nil
-}
 
 type CheckFjordConfig struct {
 	Log       log.Logger
@@ -84,65 +42,6 @@ func (ae *CheckFjordConfig) RecordGasUsed(rec *types.Receipt) {
 	ae.Log.Debug("Recorded tx receipt gas", "gas_used", rec.GasUsed, "l1_gas_used", rec.L1GasUsed)
 }
 
-type CheckAction func(ctx context.Context, env *CheckFjordConfig) error
-
-var (
-	prefix     = "CHECK_FJORD"
-	EndpointL2 = &cli.StringFlag{
-		Name:    "l2",
-		Usage:   "L2 execution RPC endpoint",
-		EnvVars: op_service.PrefixEnvVar(prefix, "L2"),
-		Value:   "http://localhost:9545",
-	}
-	AccountKey = &cli.StringFlag{
-		Name:    "account",
-		Usage:   "Private key (hex-formatted string) of test account to perform test txs with",
-		EnvVars: op_service.PrefixEnvVar(prefix, "ACCOUNT"),
-	}
-)
-
-func makeFlags() []cli.Flag {
-	flags := []cli.Flag{
-		EndpointL2,
-		AccountKey,
-	}
-	return append(flags, oplog.CLIFlags(prefix)...)
-}
-
-func makeCommand(name string, fn CheckAction) *cli.Command {
-	return &cli.Command{
-		Name:   name,
-		Action: makeCommandAction(fn),
-		Flags:  cliapp.ProtectFlags(makeFlags()),
-	}
-}
-
-func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
-	return func(c *cli.Context) error {
-		logCfg := oplog.ReadCLIConfig(c)
-		logger := oplog.NewLogger(c.App.Writer, logCfg)
-
-		c.Context = opio.CancelOnInterrupt(c.Context)
-		l2Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL2.Name))
-		if err != nil {
-			return fmt.Errorf("failed to dial L2 RPC: %w", err)
-		}
-		key, err := crypto.HexToECDSA(c.String(AccountKey.Name))
-		if err != nil {
-			return fmt.Errorf("failed to parse test private key: %w", err)
-		}
-		if err := fn(c.Context, &CheckFjordConfig{
-			Log:  logger,
-			L2:   l2Cl,
-			Key:  key,
-			Addr: crypto.PubkeyToAddress(key.PublicKey),
-		}); err != nil {
-			return fmt.Errorf("command error: %w", err)
-		}
-		return nil
-	}
-}
-
 var (
 	rip7212Precompile = common.HexToAddress("0x0000000000000000000000000000000000000100")
 	invalid7212Data   = []byte{0x00}
@@ -151,7 +50,7 @@ var (
 	valid7212Data = common.FromHex("4cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4da73bd4903f0ce3b639bbbf6e8e80d16931ff4bcf5993d58468e8fb19086e8cac36dbcd03009df8c59286b162af3bd7fcc0450c9aa81be5d10d312af6c66b1d604aebd3099c618202fcfe16ae7770b0c49ab5eadf74b754204a3bb6060e44eff37618b065f9832de4ca6ca971a7a1adc826d0f7c00181a5fb2ddf79ae00b4e10e")
 )
 
-func checkRIP7212(ctx context.Context, env *CheckFjordConfig) error {
+func CheckRIP7212(ctx context.Context, env *CheckFjordConfig) error {
 	env.Log.Info("checking rip-7212")
 	// invalid request returns empty response, this is how the spec denotes an error.
 	response, err := env.L2.CallContract(ctx, ethereum.CallMsg{
@@ -183,28 +82,28 @@ func checkRIP7212(ctx context.Context, env *CheckFjordConfig) error {
 	return nil
 }
 
-func checkAllFastLz(ctx context.Context, env *CheckFjordConfig) error {
+func CheckAllFastLz(ctx context.Context, env *CheckFjordConfig) error {
 	env.Log.Info("beginning all FastLz feature tests")
-	if err := checkGasPriceOracle(ctx, env); err != nil {
+	if err := CheckGasPriceOracle(ctx, env); err != nil {
 		return fmt.Errorf("gas-price-oracle: %w", err)
 	}
-	if err := checkTxEmpty(ctx, env); err != nil {
+	if err := CheckTxEmpty(ctx, env); err != nil {
 		return fmt.Errorf("tx-empty: %w", err)
 	}
-	if err := checkTxAllZero(ctx, env); err != nil {
+	if err := CheckTxAllZero(ctx, env); err != nil {
 		return fmt.Errorf("tx-all-zero: %w", err)
 	}
-	if err := checkTxAll42(ctx, env); err != nil {
+	if err := CheckTxAll42(ctx, env); err != nil {
 		return fmt.Errorf("tx-all-42: %w", err)
 	}
-	if err := checkTxRandom(ctx, env); err != nil {
+	if err := CheckTxRandom(ctx, env); err != nil {
 		return fmt.Errorf("tx-random: %w", err)
 	}
 	env.Log.Info("completed all FastLz feature tests successfully")
 	return nil
 }
 
-func checkGasPriceOracle(ctx context.Context, env *CheckFjordConfig) error {
+func CheckGasPriceOracle(ctx context.Context, env *CheckFjordConfig) error {
 	env.Log.Info("beginning GasPriceOracle checks")
 	expectedGasPriceOracleAddress := crypto.CreateAddress(derive.GasPriceOracleFjordDeployerAddress, 0)
 
@@ -329,21 +228,21 @@ func sendTxAndCheckFees(ctx context.Context, env *CheckFjordConfig, to *common.A
 	return nil
 }
 
-func checkTxEmpty(ctx context.Context, env *CheckFjordConfig) error {
+func CheckTxEmpty(ctx context.Context, env *CheckFjordConfig) error {
 	txData := []byte(nil)
 	to := &env.Addr
 	env.Log.Info("Attempting tx-empty...")
 	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
-func checkTxAllZero(ctx context.Context, env *CheckFjordConfig) error {
+func CheckTxAllZero(ctx context.Context, env *CheckFjordConfig) error {
 	txData := make([]byte, 256)
 	to := &env.Addr
 	env.Log.Info("Attempting tx-all-zero...")
 	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
-func checkTxAll42(ctx context.Context, env *CheckFjordConfig) error {
+func CheckTxAll42(ctx context.Context, env *CheckFjordConfig) error {
 	txData := make([]byte, 256)
 	for i := range txData {
 		txData[i] = 0x42
@@ -353,7 +252,7 @@ func checkTxAll42(ctx context.Context, env *CheckFjordConfig) error {
 	return sendTxAndCheckFees(ctx, env, to, txData)
 }
 
-func checkTxRandom(ctx context.Context, env *CheckFjordConfig) error {
+func CheckTxRandom(ctx context.Context, env *CheckFjordConfig) error {
 	txData := make([]byte, 256)
 	_, _ = rand.Read(txData)
 	to := &env.Addr
@@ -474,12 +373,12 @@ func CheckAll(ctx context.Context, env *CheckFjordConfig) error {
 	}
 	env.Log.Info("starting checks, tx account", "addr", env.Addr, "balance_wei", bal)
 
-	if err = checkRIP7212(ctx, env); err != nil {
+	if err = CheckRIP7212(ctx, env); err != nil {
 		env.Log.Error("rip-7212", "err", err)
 		return fmt.Errorf("rip-7212: %w", err)
 	}
 
-	if err = checkAllFastLz(ctx, env); err != nil {
+	if err = CheckAllFastLz(ctx, env); err != nil {
 		env.Log.Error("fastLz", "err", err)
 		return fmt.Errorf("fastLz: %w", err)
 	}
