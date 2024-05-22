@@ -573,7 +573,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			start := time.Now()
 
 			resultCode := ResultCodeSuccess
-			err := s.doRequestDontPanic(ctx, id, pr.num)
+			err := panicGuard(s.doRequest)(ctx, id, pr.num)
 			if err != nil {
 				s.inFlight.delete(pr.num)
 				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
@@ -619,10 +619,6 @@ func (r requestResultErr) Error() string {
 
 func (r requestResultErr) ResultCode() byte {
 	return byte(r)
-}
-
-func (s *SyncClient) doRequestDontPanic(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
-	return panicGuard(s.doRequest)(ctx, id, expectedBlockNum)
 }
 
 func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
