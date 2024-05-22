@@ -356,7 +356,7 @@ func validatePlasmaConfig(cfg *Config) error {
 		}
 		if cfg.PlasmaConfig.CommitmentType == 0 && cfg.PlasmaConfig.DAChallengeAddress == (common.Address{}) {
 			return errors.New("Must set da_challenge_contract_address for keccak commitments")
-		} else if cfg.PlasmaConfig.CommitmentType != 1 && cfg.PlasmaConfig.DAChallengeAddress != (common.Address{}) {
+		} else if cfg.PlasmaConfig.CommitmentType == 1 && cfg.PlasmaConfig.DAChallengeAddress != (common.Address{}) {
 			return errors.New("Must set empty da_challenge_contract_address for generic commitments")
 		}
 	}
