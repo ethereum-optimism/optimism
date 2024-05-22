@@ -146,9 +146,7 @@ func encodeGasPayingToken(token common.Address, decimals uint8, name common.Hash
 		},
 	}
 
-	packed, err := arguments.Pack(token, decimals, name, symbol)
-
-	return packed, err
+	return arguments.Pack(token, decimals, name, symbol)
 }
 
 // encodeDependency encodes a dependency into a byte array.
@@ -159,7 +157,5 @@ func encodeDependency(chainId *big.Int) ([]byte, error) {
 		},
 	}
 
-	packed, err := arguments.Pack(chainId)
-
-	return packed, err
+	return arguments.Pack(chainId)
 }
