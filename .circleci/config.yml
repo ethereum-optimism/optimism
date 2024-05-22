@@ -29,9 +29,6 @@ parameters:
   kontrol_dispatch:
     type: boolean
     default: false
-  sdk_dispatch:
-    type: boolean
-    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -725,83 +722,6 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
-  contracts-ts-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore pnpm Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
-      - check-changed:
-          patterns: sdk,contracts-bedrock,contracts
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: Check generated and build
-          command: pnpm generate:check
-          working_directory: packages/contracts-ts
-
-  sdk-next-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore pnpm Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
-      - check-changed:
-          patterns: sdk
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: sepolia-fork
-          background: true
-          # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_SEPOLIA_FORK_URL --fork-block-number 5580113 --port 8545
-
-      - run:
-          name: op-sepolia-fork
-          background: true
-          # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_OP_SEPOLIA_FORK_URL --port 9545 --fork-block-number 9925328
-
-      - run:
-          name: build
-          command: pnpm build
-          working_directory: packages/sdk
-      - run:
-          name: lint
-          command: pnpm lint:check
-          working_directory: packages/sdk
-      - run:
-          name: make sure anvil l1 is up
-          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
-      - run:
-          name: make sure anvil l2 is up
-          command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
-      - run:
-          name: test:next
-          command: pnpm test:next:run
-          no_output_timeout: 5m
-          working_directory: packages/sdk
-          environment:
-            # anvil[0] test private key
-            VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-            VITE_E2E_RPC_URL_L1: http://localhost:8545
-            VITE_E2E_RPC_URL_L2: http://localhost:9545
-      - notify-failures-on-develop
-
   todo-issues:
     machine:
       image: <<pipeline.parameters.base_image>>
@@ -850,31 +770,6 @@ jobs:
           key: golang-build-cache
           paths:
             - "/root/.cache/go-build"
-
-  depcheck:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: packages
-      - run:
-          name: Check common-ts
-          command: npx depcheck
-          working_directory: packages/common-ts
-      - run:
-          name: Check core-utils
-          command: npx depcheck
-          working_directory: packages/core-utils
-      - run:
-          name: Check sdk
-          command: npx depcheck
-          working_directory: packages/sdk
 
   l1-geth-version-check:
     docker:
@@ -1675,18 +1570,6 @@ workflows:
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
-      - js-lint-test:
-          name: common-ts-tests
-          coverage_flag: common-ts-tests
-          package_name: common-ts
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: core-utils-tests
-          coverage_flag: core-utils-tests
-          package_name: core-utils
-          requires:
-            - pnpm-monorepo
       - contracts-bedrock-tests:
           requires:
             - pnpm-monorepo
@@ -1701,24 +1584,7 @@ workflows:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
-          dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: contracts-ts-tests
-          coverage_flag: contracts-ts-tests
-          package_name: contracts-ts
-          dependencies: '(contracts-bedrock|contracts-ts)'
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: sdk-tests
-          coverage_flag: sdk-tests
-          package_name: sdk
-          dependencies: "(contracts-bedrock|core-utils)"
-          requires:
-            - pnpm-monorepo
-      - depcheck:
+          dependencies: "(contracts-bedrock)"
           requires:
             - pnpm-monorepo
       - go-lint-test-build:
@@ -2294,26 +2160,6 @@ workflows:
            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - kontrol-tests:
-          context:
-            - slack
-
-  develop-sdk-next-tests:
-    when:
-      and:
-        - or:
-          - equal: [ "develop", <<pipeline.git.branch>> ]
-          - equal: [ true, <<pipeline.parameters.sdk_dispatch>> ]
-        - not:
-           equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
-    jobs:
-      - pnpm-monorepo:
-          name: pnpm-monorepo
-          context:
-            - slack
-      - sdk-next-tests:
-          name: sdk-next-tests
-          requires:
-            - pnpm-monorepo
           context:
             - slack
 
