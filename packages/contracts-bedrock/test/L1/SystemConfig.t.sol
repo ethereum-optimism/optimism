@@ -362,7 +362,13 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     )
         external
     {
+        // don't use vm's address
         vm.assume(_token != address(vm));
+        // don't use console's address
+        vm.assume(_token != address(0x000000000000000000636F6e736F6c652e6c6f67));
+        // don't use create2 deployer's address
+        vm.assume(_token != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
+
         vm.assume(bytes(_name).length <= 32);
         vm.assume(bytes(_symbol).length <= 32);
 
