@@ -400,7 +400,7 @@ func TestPanicGuard(t *testing.T) {
 		mockPanickingFn(0, []byte{}, true)
 	})
 	require.NotPanics(t, func() {
-		err := panicGuard(mockPanickingFn, 0, []byte{}, true)
+		err := panicGuard(mockPanickingFn)(0, []byte{}, true)
 		require.EqualError(t, err, "recovered from a panic: gotcha")
 	})
 

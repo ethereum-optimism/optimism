@@ -622,7 +622,7 @@ func (r requestResultErr) ResultCode() byte {
 }
 
 func (s *SyncClient) doRequestDontPanic(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
-	return panicGuard(s.doRequest, ctx, id, expectedBlockNum)
+	return panicGuard(s.doRequest)(ctx, id, expectedBlockNum)
 }
 
 func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
@@ -695,14 +695,15 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 
 // panicGuard is a generic function that takes another function with generic arguments and returns an error.
 // It recovers from any panic that occurs during the execution of the function.
-func panicGuard[T, S, U any](fn func(T, S, U) error, arg0 T, arg1 S, arg2 U) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("recovered from a panic: %v", r)
-		}
-	}()
-	err = fn(arg0, arg1, arg2)
-	return err
+func panicGuard[T, S, U any](fn func(T, S, U) error) func(T, S, U) error {
+	return func(arg0 T, arg1 S, arg2 U) (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("recovered from a panic: %v", r)
+			}
+		}()
+		return fn(arg0, arg1, arg2)
+	}
 }
 
 // readExecutionPayload will unmarshal the supplied data into an ExecutionPayloadEnvelope.
