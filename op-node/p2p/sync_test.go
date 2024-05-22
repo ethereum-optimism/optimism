@@ -393,14 +393,11 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 }
 
 func TestPanicGuard(t *testing.T) {
-	mockPanickingFn := func(version uint32, data []byte, isCanyon bool) error {
+	mockPanickingFn := func(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
 		panic("gotcha")
 	}
-	require.Panics(t, func() {
-		mockPanickingFn(0, []byte{}, true)
-	})
 	require.NotPanics(t, func() {
-		err := panicGuard(mockPanickingFn)(0, []byte{}, true)
+		err := panicGuard(mockPanickingFn)(context.Background(), peer.ID(""), 37)
 		require.EqualError(t, err, "recovered from a panic: gotcha")
 	})
 
