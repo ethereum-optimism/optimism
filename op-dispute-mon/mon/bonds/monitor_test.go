@@ -348,21 +348,21 @@ func TestCheckRecipientCredit(t *testing.T) {
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Credit withdrawn early"),
-		testlog.NewAttributesFilter("gameAddr", game1.Proxy.Hex()),
+		testlog.NewAttributesFilter("game", game1.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr2.Hex()),
 		testlog.NewAttributesFilter("duration", "unreached")))
 	// addr3 is above expected
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Credit above expected amount"),
-		testlog.NewAttributesFilter("gameAddr", game1.Proxy.Hex()),
+		testlog.NewAttributesFilter("game", game1.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr3.Hex()),
 		testlog.NewAttributesFilter("duration", "unreached")))
 	// addr4 is below expected before max duration, so warn about early withdrawal
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Credit withdrawn early"),
-		testlog.NewAttributesFilter("gameAddr", game1.Proxy.Hex()),
+		testlog.NewAttributesFilter("game", game1.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr4.Hex()),
 		testlog.NewAttributesFilter("duration", "unreached")))
 
@@ -373,7 +373,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Credit above expected amount"),
-		testlog.NewAttributesFilter("gameAddr", game2.Proxy.Hex()),
+		testlog.NewAttributesFilter("game", game2.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr3.Hex()),
 		testlog.NewAttributesFilter("duration", "reached")))
 	// addr4 is correct
@@ -384,7 +384,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Credit withdrawn early"),
-		testlog.NewAttributesFilter("gameAddr", game3.Proxy.Hex()),
+		testlog.NewAttributesFilter("game", game3.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr2.Hex()),
 		testlog.NewAttributesFilter("duration", "unreached")))
 	// addr3 is not involved so no logs
@@ -392,7 +392,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Credit above expected amount"),
-		testlog.NewAttributesFilter("gameAddr", game3.Proxy.Hex()),
+		testlog.NewAttributesFilter("game", game3.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr4.Hex()),
 		testlog.NewAttributesFilter("duration", "unreached")))
 
@@ -404,7 +404,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Credit above expected amount"),
-		testlog.NewAttributesFilter("gameAddr", game4.Proxy.Hex()),
+		testlog.NewAttributesFilter("game", game4.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr4.Hex()),
 		testlog.NewAttributesFilter("duration", "reached")))
 }
