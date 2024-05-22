@@ -573,7 +573,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			start := time.Now()
 
 			resultCode := ResultCodeSuccess
-			err := s.doRequest(ctx, id, pr.num)
+			err := s.doRequestDontPanic(ctx, id, pr.num)
 			if err != nil {
 				s.inFlight.delete(pr.num)
 				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
@@ -619,6 +619,10 @@ func (r requestResultErr) Error() string {
 
 func (r requestResultErr) ResultCode() byte {
 	return byte(r)
+}
+
+func (s *SyncClient) doRequestDontPanic(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
+	return panicGuard(s.doRequest, ctx, id, expectedBlockNum)
 }
 
 func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
@@ -671,7 +675,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 
 	version := binary.LittleEndian.Uint32(versionData[:])
 	isCanyon := s.cfg.IsCanyon(s.cfg.TimestampForBlock(expectedBlockNum))
-	envelope, err := panicGuard(readExecutionPayload, version, data, isCanyon)
+	envelope, err := readExecutionPayload(version, data, isCanyon)
 	if err != nil {
 		return err
 	}
@@ -689,16 +693,16 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	return nil
 }
 
-// panicGuard is a generic function that takes another function with generic arguments and returns a value and an error.
+// panicGuard is a generic function that takes another function with generic arguments and returns an error.
 // It recovers from any panic that occurs during the execution of the function.
-func panicGuard[T, S, U, R any](fn func(T, S, U) (R, error), arg0 T, arg1 S, arg2 U) (result R, err error) {
+func panicGuard[T, S, U any](fn func(T, S, U) error, arg0 T, arg1 S, arg2 U) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("recovered from a panic: %v", r)
 		}
 	}()
-	result, err = fn(arg0, arg1, arg2)
-	return result, err
+	err = fn(arg0, arg1, arg2)
+	return err
 }
 
 // readExecutionPayload will unmarshal the supplied data into an ExecutionPayloadEnvelope.

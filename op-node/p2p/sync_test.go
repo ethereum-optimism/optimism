@@ -393,16 +393,15 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 }
 
 func TestPanicGuard(t *testing.T) {
-	mockPanickingFn := func(version uint32, data []byte, isCanyon bool) (*eth.ExecutionPayloadEnvelope, error) {
+	mockPanickingFn := func(version uint32, data []byte, isCanyon bool) error {
 		panic("gotcha")
 	}
 	require.Panics(t, func() {
 		mockPanickingFn(0, []byte{}, true)
 	})
 	require.NotPanics(t, func() {
-		result, err := panicGuard(mockPanickingFn, 0, []byte{}, true)
-		require.Nil(t, result)
-		require.Error(t, err)
+		err := panicGuard(mockPanickingFn, 0, []byte{}, true)
+		require.EqualError(t, err, "recovered from a panic: gotcha")
 	})
 
 }
