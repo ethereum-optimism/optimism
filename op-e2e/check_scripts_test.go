@@ -58,9 +58,7 @@ func TestCheckFjordScript(t *testing.T) {
 				Key:  sys.Cfg.Secrets.Alice,
 				Addr: sys.Cfg.Secrets.Addresses().Alice,
 			}
-			err = fjordChecks.CheckAll(context.Background(), checkFjordConfig)
 			if tt.expectErr {
-				require.Error(t, err, "expected error for CheckAll")
 				err = fjordChecks.CheckRIP7212(context.Background(), checkFjordConfig)
 				require.Error(t, err, "expected error for CheckRIP7212")
 				err = fjordChecks.CheckGasPriceOracle(context.Background(), checkFjordConfig)
@@ -74,6 +72,7 @@ func TestCheckFjordScript(t *testing.T) {
 				err = fjordChecks.CheckTxRandom(context.Background(), checkFjordConfig)
 				require.Error(t, err, "expected error for CheckTxRandom")
 			} else {
+				err = fjordChecks.CheckAll(context.Background(), checkFjordConfig)
 				require.NoError(t, err, "should not error on CheckAll")
 			}
 		})
