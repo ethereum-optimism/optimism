@@ -1,9 +1,7 @@
 # Packages
 /packages/chain-mon             @ethereum-optimism/security-reviewers
 /packages/chain-mon/internal/balance-mon             @ethereum-optimism/infra-reviewers
-/packages/common-ts             @ethereum-optimism/typescript-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
-/packages/core-utils            @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
 
 # Bedrock codebases
