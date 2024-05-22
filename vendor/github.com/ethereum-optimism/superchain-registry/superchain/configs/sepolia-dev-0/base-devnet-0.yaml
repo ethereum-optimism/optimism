@@ -1,0 +1,23 @@
+name: Base devnet 0
+chain_id: 11763072
+public_rpc: ""
+sequencer_rpc: ""
+explorer: ""
+
+superchain_level: 2
+superchain_time: 1706634000 # joined from Ecotone
+
+system_config_addr: "0x7f67dc4959cb3e532b10a99f41bdd906c46fdfde"
+batch_inbox_addr: "0xff00000000000000000000000000000011763072"
+
+genesis:
+  l1:
+    hash: "0x86252c512dc5bd7201d0532b31d50696ba84344a7cda545e04a98073a8e13d87"
+    number: 4344216
+  l2:
+    hash: "0x1ab91449a7c65b8cd6c06f13e2e7ea2d10b6f9cbf5def79f362f2e7e501d2928"
+    number: 0
+  l2_time: 1695433056 # Sat 23 Sep 2023 01:37:36 UTC
+
+canyon_time: 1698436800  # Fri 27 Oct 2023 20:00:00 UTC
+delta_time: 1706555000   # Mon 29 Jan 2024 19:03:20 UTC

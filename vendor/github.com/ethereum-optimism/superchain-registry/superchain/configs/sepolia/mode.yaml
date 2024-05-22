@@ -1,0 +1,21 @@
+name: Mode Sepolia
+chain_id: 919
+public_rpc: https://sepolia.mode.network
+sequencer_rpc: https://sepolia.mode.network
+explorer: https://sepolia.explorer.mode.network
+
+superchain_level: 2
+superchain_time: 1703203200 # Fri 22 Dec 2023 00:00:00 UTC
+
+batch_inbox_addr: "0xcddae6148da1e003c230e4527f9baedc8a204e7e"
+
+genesis:
+  l1:
+    hash: "0x4370cafe528a1b8f2aaffc578094731daf69ff82fd9edc30d2d842d3763f3410"
+    number: 3778382
+  l2:
+    hash: "0x13c352562289a88ed33087a51b6b6c859a27709c8555c9def7cb9757c043acad"
+    number: 0
+  l2_time: 1687867932
+
+canyon_time: 1703203200  # Fri 22 Dec 2023 00:00:00 UTC

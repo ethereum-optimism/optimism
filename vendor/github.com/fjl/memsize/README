@@ -1,0 +1,27 @@
+For Go API documentation, go to https://pkg.go.dev/github.com/fjl/memsize
+
+---
+
+Package memsize computes the size of your object graph.
+
+For any Go object, it can compute the amount of memory referenced by the object.
+Almost all Go types are supported, except for function pointers.
+
+To scan a value and print the amount of memory it uses, run
+
+    sizes := memsize.Scan(myValue)
+    fmt.Println(sizes.Total)
+
+If your program provides an HTTP server for debugging (e.g. using net/http/pprof),
+you can also add an interactive memsize tool there and use it from a
+web browser. To do this, add
+
+    import "github.com/fjl/memsize/memsizeui"
+
+    var memsizeH memsizeui.Handler
+
+and then hook the handler up to your debugging HTTP server. The web
+interface will display buttons for added 'roots', which you must register
+on the handler:
+
+    memsizeH.Add("myObject", &myObject)

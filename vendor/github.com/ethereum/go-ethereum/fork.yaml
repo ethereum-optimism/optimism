@@ -1,0 +1,265 @@
+title: "op-geth - go-ethereum fork diff overview"
+footer: |
+  Fork-diff overview of [`op-geth`](https://github.com/ethereum-optimism/op-geth), a fork of [`go-ethereum`](https://github.com/ethereum/go-ethereum).
+  and execution-engine of the [OP-stack](https://github.com/ethereum-optimism/optimism).
+base:
+  name: go-ethereum
+  url: https://github.com/ethereum/go-ethereum
+  hash: c5ba367eb6232e3eddd7d6226bfd374449c63164 v1.13.15
+fork:
+  name: op-geth
+  url: https://github.com/ethereum-optimism/op-geth
+  ref: refs/heads/optimism
+def:
+  title: "op-geth"
+  description: |
+    This is an overview of the changes in [`op-geth`](https://github.com/ethereum-optimism/op-geth),
+    a fork of [`go-ethereum`](https://github.com/ethereum/go-ethereum), part of the OP-stack.
+
+    The OP-stack architecture is modular, following the Consensus/Execution split of post-Merge Ethereum L1:
+
+      - [`op-node`](https://github.com/ethereum-optimism/optimism/tree/develop/op-node) implements most rollup-specific functionality as Consensus-Layer, similar to a L1 beacon-node. 
+      - [`op-geth`](https://github.com/ethereum-optimism/op-geth) implements the Execution-Layer, with **minimal changes** for a secure Ethereum-equivalent application environment.
+
+    Related [op-stack specifications](https://github.com/ethereum-optimism/optimism/tree/develop/specs):
+
+    - [L2 Execution Engine spec](https://github.com/ethereum-optimism/optimism/blob/develop/specs/exec-engine.md)
+    - [Deposit Transaction spec](https://github.com/ethereum-optimism/optimism/blob/develop/specs/deposits.md)
+  sub:
+    - title: "Core modifications"
+      sub:
+        - title: "State-transition modifications"
+          description: ""
+          sub:
+            - title: "Deposit Transaction type"
+              description: |
+                The Bedrock upgrade introduces a `Deposit` transaction-type (`0x7E`) to enable both users and the
+                rollup system itself to change the L2 state based on L1 events and system rules as
+                [specified](https://github.com/ethereum-optimism/optimism/blob/develop/specs/deposits.md).
+              globs:
+                - "core/types/deposit_tx.go"
+                - "core/types/transaction_marshalling.go"
+                - "core/types/transaction_signing.go"
+            - title: "Transaction properties"
+              description: |
+                The `Transaction` type now exposes the deposit-transaction and L1-cost properties required for the rollup.
+              globs:
+                - "core/types/transaction.go"
+                - "core/types/tx_access_list.go"
+                - "core/types/tx_dynamic_fee.go"
+                - "core/types/tx_legacy.go"
+                - "core/types/tx_blob.go"
+            - title: "L1 cost computation"
+              description: |
+                Transactions must pay an additional L1 cost based on the amount of rollup-data-gas they consume,
+                estimated based on gas-price-oracle information and encoded tx size."
+              globs:
+                - "core/vm/evm.go"
+                - "core/evm.go"
+                - "core/types/rollup_l1_cost.go"
+                - "core/state_processor.go"
+                - "core/state_prefetcher.go"
+            - title: Transaction processing
+              description: |
+                Deposit transactions have special processing rules: gas is pre-paid on L1,
+                and deposits with EVM-failure are included with rolled back changes (except mint).
+                For regular transactions, at the end of the transition, the 1559 burn and L1 cost are routed to vaults.
+              globs:
+                - "core/state_transition.go"
+            - title: "Core Error definitions"
+              globs:
+                - "core/error.go"
+            - title: "Gaslimit"
+              description: |
+                The gaslimit is free to be set by the Engine API caller, instead of enforcing adjustments of the
+                gaslimit in increments of 1/1024 of the previous gaslimit.
+                The gaslimit is changed (and limited) through the `SystemConfig` contract.
+              globs:
+                - "consensus/misc/eip1559/eip1559.go"
+            - title: "Consensus tweaks"
+              description: |
+                The Engine API is activated at the Merge transition, with a Total Terminal Difficulty (TTD).
+                The rollup starts post-merge, and thus sets the TTD to 0.
+                The TTD is always "reached" starting at the bedrock block.
+              globs:
+                - "consensus/beacon/consensus.go"
+            - title: "Legacy OP-mainnet / OP-goerli header-verification support"
+              description: |
+                Pre-Bedrock OP-mainnet and OP-Goerli had differently formatted block-headers, loosely compatible with the geth types (since it was based on Clique).
+                However, due to differences like the extra-data length (97+ bytes), these legacy block-headers need special verification.
+                The pre-merge "consensus" fallback is set to this custom but basic verifier, to accept these headers when syncing a pre-bedrock part of the chain,
+                independent of any clique code or configuration (which may be removed from geth at a later point).
+                All the custom verifier has to do is accept the headers, as the headers are already verified by block-hash through the reverse-header-sync.
+              globs:
+                - "consensus/beacon/oplegacy.go"
+        - title: "Engine API modifications"
+          description: |
+            The Engine API is extended to insert transactions into the block and optionally exclude the tx-pool,
+            to reproduce the exact block of the sequencer from just the inputs, as derived from L1 by the rollup-node.
+            See [L2 execution engine specs](https://github.com/ethereum-optimism/optimism/blob/develop/specs/exec-engine.md).
+          globs:
+            - "beacon/engine/types.go"
+            - "beacon/engine/gen_blockparams.go"
+            - "eth/catalyst/api.go"
+        - title: "Block-building modifications"
+          description: |
+            The block-building code (in the "miner" package because of Proof-Of-Work legacy of ethereum) implements the
+            changes to support the transaction-inclusion, tx-pool toggle and gaslimit parameters of the Engine API.
+          globs:
+            - "miner/*"
+        - title: "Tx-pool tx cost updates"
+          description: |
+            Transaction queueing and inclusion needs to account for the L1 cost component.
+          globs:
+            - "core/txpool/*"
+            - "core/txpool/legacypool/*"
+    - title: "Chain Configuration"
+      sub:
+        - title: "Chain config"
+          description: |
+            The rollup functionality is enabled with the `optimism` field in the chain config.
+            The EIP-1559 parameters are configurable to adjust for faster more frequent and smaller blocks.
+            The parameters can be overriden for testing.
+          globs:
+            - "params/config.go"
+            - "params/protocol_params.go"
+            - "core/genesis.go"
+        - title: "Chain config cleanup"
+          description: |
+            The optimism Goerli testnet used clique-config data to make geth internals accept blocks.
+            Post-bedrock the beacon-consensus (i.e. follow Engine API) is now used, and the clique config is removed.
+          globs:
+            - "core/rawdb/accessors_metadata.go"
+        - title: Genesis loading
+          globs:
+            - "core/gen_genesis.go"
+        - title: "Superchain config"
+          description: Testing of the superchain configuration
+          globs:
+            - "core/superchain.go"
+            - "params/superchain.go"
+    - title: "Node modifications"
+      description: Changes to the node configuration and services.
+      sub:
+        - title: "CLI"
+          sub:
+            - title: "Flags"
+              description: |
+                Flag changes:
+                  - Transactions can be forwarded to an RPC for sequencing.
+                  - Historical calls can be forwarded to a legacy node.
+                  - The tx pool propagation can be enabled/disabled.
+                  - The Optimism bedrock fork activation can be changed for testing.
+              globs:
+                - "cmd/utils/flags.go"
+                - "cmd/geth/main.go"
+                - "internal/flags/categories.go"
+                - "cmd/geth/config.go"
+            - title: "Versioning"
+              description: List the op-geth and upstream go-ethereum versions.
+              globs:
+                - "cmd/geth/misccmd.go"
+                - "params/version.go"
+                - "build/ci.go"
+        - title: Node config
+          globs:
+            - "eth/ethconfig/config.go"
+        - title: Tx gossip disable option
+          globs:
+            - "eth/handler.go"
+            - "eth/handler_eth.go"
+        - title: Warn on missing hardfork data
+          globs:
+            - "core/blockchain.go"
+        - title: Optional Engine API extensions
+          globs:
+            - "eth/catalyst/superchain.go"
+        - title: Support legacy DBs when snap-syncing
+          description: Snap-sync does not serve unprefixed code by default.
+          globs:
+            - "core/blockchain_reader.go"
+            - "eth/protocols/snap/handler.go"
+        - title: Historical data for Snap-sync
+          description: Snap-sync has access to trusted Deposit Transaction Nonce Data.
+          globs:
+            - "eth/downloader/downloader.go"
+            - "eth/downloader/receiptreference.go"
+        - title: Discv5 node discovery
+          description: Fix discv5 option to allow discv5 to be an active source for node-discovery.
+          globs:
+            - "p2p/server.go"
+        - title: Generated TOML config update
+          globs:
+            - "eth/ethconfig/gen_config.go"
+    - title: "User API enhancements"
+      description: "Encode the Deposit Tx properties, the L1 costs, and daisy-chain RPC-calls for pre-Bedrock historical data"
+      sub:
+        - title: "Receipts metadata"
+          description: |
+            Pre-Bedrock L1-cost receipt data is loaded from the database if available, and post-Bedrock the L1-cost 
+            metadata is hydrated on-the-fly based on the L1 fee information in the corresponding block.
+          globs:
+            - "core/types/receipt.go"
+            - "core/types/gen_receipt_json.go"
+            - "core/rawdb/accessors_chain.go"
+        - title: "API Backend"
+          description: |
+            Forward transactions to the sequencer if configured.
+          globs:
+            - "eth/api_backend.go"
+            - "eth/backend.go"
+            - "internal/ethapi/backend.go"
+        - title: "Apply L1 cost in API responses"
+          globs:
+            - "eth/state_accessor.go"
+        - title: API frontend
+          description: Format deposit and L1-cost data in transaction responses. Add `debug_chainConfig` API.
+          globs:
+            - "internal/ethapi/api.go"
+            - "rpc/errors.go"
+        - title: Tracer RPC daisy-chain
+          description: Forward pre-bedrock tracing calls to legacy node.
+          globs:
+            - "eth/tracers/api.go"
+        - title: "Daisy Chain tests"
+          globs:
+            - "internal/ethapi/transaction_args_test.go"
+            - "ethclient/ethclient_test.go"
+            - "eth/tracers/api_test.go"
+        - title: Debug API
+          description: Fix Debug API block marshaling to include deposits
+          globs:
+            - "eth/api_debug.go"
+        - title: Eth gasprice suggestions
+          description: gasprice suggestion adjustments to accommodate faster L2 blocks and lower fees.
+          globs:
+            - "eth/gasprice/gasprice.go"
+            - "eth/gasprice/optimism-gasprice.go"
+        - title: API testvector fix
+          description: |
+            Upstream test of broken behavior; in Optimism, a zero signature is valid (pre-bedrock for deposit-txs),
+            and the chain ID formula on signature data must not be used, or an underflow happens.
+          globs:
+            - "internal/ethapi/testdata/eth_getBlockByNumber-tag-pending-fullTx.json"
+    - title: "Geth extras"
+      description: Extend the tools available in geth to improve external testing and tooling.
+      sub:
+        - title: Simulated Backend
+          globs:
+            - "accounts/abi/bind/backends/simulated.go"
+            - "ethclient/simulated/backend.go"
+    - title: "Hardware wallet support"
+      description: Extend Ledger wallet support for newer devices on Macos
+      sub:
+        - title: Fix Ledger discoverability
+          # upstream PR: https://github.com/ethereum/go-ethereum/pull/28863/
+          globs:
+            - "accounts/usbwallet/hub.go"
+
+# ignored globally, does not count towards line count
+ignore:
+  - ".circleci/*"
+  - "*.sum"
+  - "go.mod"
+  - "fork.yaml"
+  - ".github/*"

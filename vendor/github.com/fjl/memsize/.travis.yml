@@ -1,0 +1,11 @@
+language: go
+go:
+  - "1.10.x"
+  - "1.12.x"
+  - "1.x"
+env:
+  - GOARCH=i386
+  - GOARCH=amd64
+  - GOARCH=arm64
+
+script: go test -v ./...

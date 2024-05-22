@@ -1,0 +1,20 @@
+name: Mode
+chain_id: 34443
+public_rpc: https://mainnet.mode.network
+sequencer_rpc: https://mainnet-sequencer.mode.network
+explorer: https://explorer.mode.network
+
+superchain_level: 2
+superchain_time: 0 # Missing hardfork times are inherited from superchain.yaml
+
+system_config_addr: "0x5e6432F18Bc5d497B1Ab2288a025Fbf9D69E2221"
+batch_inbox_addr: "0x24E59d9d3Bd73ccC28Dc54062AF7EF7bFF58Bd67"
+
+genesis:
+  l1:  # L1 anchor-point of the rollup
+    hash: "0xf9b1b22a7ef9d13f063ea467bcb70fb6e9f29698ecb7366a2cdf5af2165cacee"
+    number: 18586927
+  l2:
+    hash: "0xb0f682e12fc555fd5ce8fce51a59a67d66a5b46be28611a168260a549dac8a9b"
+    number: 0
+  l2_time: 1700167583 # Thu 16 Nov 2023 20:46:23 UTC

@@ -1,0 +1,5 @@
+.DS_Store
+dist
+build
+node_modules
+vendor/github.com/ethereum/go-ethereum

@@ -1,0 +1,13 @@
+name: Sepolia Dev 0
+l1:
+  chain_id: 11155111
+  public_rpc: https://ethereum-sepolia-rpc.allthatnode.com
+  explorer: https://sepolia.etherscan.io
+
+protocol_versions_addr: "0x252CbE9517F731C618961D890D534183822dcC8d"
+superchain_config_addr: "0x02d91Cf852423640d93920BE0CAdceC0E7A00FA7"
+
+canyon_time: 0
+delta_time: 0
+ecotone_time: 1706634000 # Tue 30 Jan 2024 17:00:00 UTC
+fjord_time: 1715961600 # Fri May 17 16:00:00 UTC 2024

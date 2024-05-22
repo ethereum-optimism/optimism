@@ -1,0 +1,20 @@
+name: Zora Sepolia
+chain_id: 999999999
+public_rpc: "https://sepolia.rpc.zora.energy"
+sequencer_rpc: "https://sepolia.rpc.zora.energy"
+explorer: "https://sepolia.explorer.zora.energy"
+
+superchain_level: 2
+superchain_time: 0 # Missing hardfork times are inherited from superchain.yaml
+
+system_config_addr: "0xb54c7bfc223058773cf9b739cc5bd4095184fb08"
+batch_inbox_addr: "0xcd734290e4bd0200dac631c7d4b9e8a33234e91f"
+
+genesis:
+  l1:
+    hash: "0xf782446a2487d900addb5d466a8597c7c543b59fa9aaa154d413830238f8798a"
+    number: 4548041
+  l2:
+    hash: "0x8b17d2d52564a5a90079d9c860e1386272579e87b17ea27a3868513f53facd74"
+    number: 0
+  l2_time: 1698080004 # Mon 23 Oct 2023 16:53:24 UTC
