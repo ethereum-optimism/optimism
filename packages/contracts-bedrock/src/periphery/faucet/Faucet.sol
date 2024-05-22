@@ -12,6 +12,11 @@ contract SafeSend {
     }
 }
 
+interface IL1StandardBridge {
+    // Declare the depositETHTo function as it is defined in L1StandardBridge
+    function depositETHTo(address to, uint32 minGasLimit, bytes calldata extraData) external payable;
+}
+
 /// @title  Faucet
 /// @notice Faucet contract that drips ETH to users.
 contract Faucet {
@@ -88,7 +93,8 @@ contract Faucet {
     /// @notice Drips ETH to a recipient account.
     /// @param _params Drip parameters.
     /// @param _auth   Authentication parameters.
-    function drip(DripParameters memory _params, AuthParameters memory _auth) public {
+    /// @param _bridge Bridge address.
+    function drip(DripParameters memory _params, AuthParameters memory _auth, address _bridge) public {
         // Grab the module config once.
         ModuleConfig memory config = modules[_auth.module];
 
@@ -120,7 +126,11 @@ contract Faucet {
         nonces[_auth.id][_params.nonce] = true;
 
         // Execute a safe transfer of ETH to the recipient account.
-        new SafeSend{ value: config.amount }(_params.recipient);
+        // new SafeSend{ value: config.amount }(_params.recipient);
+
+        // Execute a bridging of ETH to the recipient account.
+        IL1StandardBridge l1Bridge = IL1StandardBridge(_bridge);
+        l1Bridge.depositETHTo{value: config.amount}(_params.recipient, 200000, "");
 
         emit Drip(config.name, _auth.id, config.amount, _params.recipient);
     }
