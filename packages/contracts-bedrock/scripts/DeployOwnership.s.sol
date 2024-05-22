@@ -24,6 +24,7 @@ struct SafeConfig {
     address[] owners;
 }
 
+/// @notice Configuration for the Liveness Module
 struct LivenessModuleConfig {
     uint256 livenessInterval;
     uint256 thresholdPercentage;
@@ -31,12 +32,13 @@ struct LivenessModuleConfig {
     address fallbackOwner;
 }
 
+/// @notice Configuration for the Deputy Guardian Module
 struct DeputyGuardianModuleConfig {
     address deputyGuardian;
     SuperchainConfig superchainConfig;
 }
-/// @notice Configuration for the Security Council Safe.
 
+/// @notice Configuration for the Security Council Safe.
 struct SecurityCouncilConfig {
     SafeConfig safeConfig;
     LivenessModuleConfig livenessModuleConfig;
@@ -57,8 +59,10 @@ contract DeployOwnership is Deploy {
         console.log("start of Ownership Deployment");
         // The SuperchainConfig is needed as a constructor argument to the Deputy Guardian Module
         deploySuperchainConfig();
-        deployAndConfigureFoundationSafe();
-        deployAndConfigureSecurityCouncilSafe();
+
+        deployFoundationSafe();
+        deploySecurityCouncilSafe();
+        configureSecurityCouncilSafe();
 
         console.log("Ownership contracts completed");
     }
@@ -95,7 +99,7 @@ contract DeployOwnership is Deploy {
     }
 
     /// @notice Deploys a Safe with a configuration similar to that of the Foundation Safe on Mainnet.
-    function deployAndConfigureFoundationSafe() public returns (address addr_) {
+    function deployFoundationSafe() public broadcast returns (address addr_) {
         SafeConfig memory exampleFoundationConfig = _getExampleFoundationConfig();
         addr_ = deploySafe({
             _name: "FoundationSafe",
@@ -156,23 +160,25 @@ contract DeployOwnership is Deploy {
         console.log("New DeputyGuardianModule deployed at %s", addr_);
     }
 
-    /// @notice Deploy a Security Council with LivenessModule and LivenessGuard.
-    function deployAndConfigureSecurityCouncilSafe() public returns (address addr_) {
+    /// @notice Deploy a Security Council Safe.
+    function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
         // Deploy the safe with the extra deployer key, and keep the threshold at 1 to allow for further setup.
         SecurityCouncilConfig memory exampleCouncilConfig = _getExampleCouncilConfig();
-        Safe safe = Safe(
-            payable(
-                deploySafe({
-                    _name: "SecurityCouncilSafe",
-                    _owners: exampleCouncilConfig.safeConfig.owners,
-                    _threshold: 1,
-                    _keepDeployer: true
-                })
-            )
+        addr_ = payable(
+            deploySafe({
+                _name: "SecurityCouncilSafe",
+                _owners: exampleCouncilConfig.safeConfig.owners,
+                _threshold: 1,
+                _keepDeployer: true
+            })
         );
+    }
 
-        vm.startBroadcast(msg.sender);
+    /// @notice Configure the Security Council Safe with the LivenessModule, DeputyGuardianModule, and LivenessGuard.
+    function configureSecurityCouncilSafe() public broadcast returns (address addr_) {
         // Deploy and add the Deputy Guardian Module.
+        SecurityCouncilConfig memory exampleCouncilConfig = _getExampleCouncilConfig();
+        Safe safe = Safe(mustGetAddress("SecurityCouncilSafe"));
         address deputyGuardianModule = deployDeputyGuardianModule();
         _callViaSafe({
             _safe: safe,
