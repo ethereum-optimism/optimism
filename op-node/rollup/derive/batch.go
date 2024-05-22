@@ -37,6 +37,8 @@ type Batch interface {
 	GetBatchType() int
 	GetTimestamp() uint64
 	LogContext(log.Logger) log.Logger
+	AsSingularBatch() (*SingularBatch, bool)
+	AsSpanBatch() (*SpanBatch, bool)
 }
 
 type batchWithMetadata struct {
