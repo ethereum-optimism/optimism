@@ -317,6 +317,42 @@ func (s *OpConductorTestSuite) TestScenario1() {
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
 }
 
+// In this test, we have a follower that is not healthy and not sequencing, it becomes leader through election.
+// But since it fails to compare the unsafe head to the value stored in consensus, we expect it to transfer leadership to another node.
+// [follower, not healthy, not sequencing] -- become leader --> [leader, not healthy, not sequencing] -- transfer leadership --> [follower, not healthy, not sequencing]
+func (s *OpConductorTestSuite) TestScenario1Err() {
+	s.enableSynchronization()
+
+	// set initial state
+	s.conductor.leader.Store(false)
+	s.conductor.healthy.Store(false)
+	s.conductor.seqActive.Store(false)
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.prevState = &state{
+		leader:  false,
+		healthy: false,
+		active:  false,
+	}
+
+	s.cons.EXPECT().LatestUnsafePayload().Return(nil, errors.New("fake connection error")).Times(1)
+	s.cons.EXPECT().TransferLeader().Return(nil)
+
+	// become leader
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	// expect to transfer leadership, go back to [follower, not healthy, not sequencing]
+	s.False(s.conductor.leader.Load())
+	s.False(s.conductor.healthy.Load())
+	s.False(s.conductor.seqActive.Load())
+	s.Equal(health.ErrSequencerNotHealthy, s.conductor.hcerr)
+	s.Equal(&state{
+		leader:  true,
+		healthy: false,
+		active:  false,
+	}, s.conductor.prevState)
+	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
+
 // In this test, we have a follower that is not healthy and not sequencing. it becomes healthy and we expect it to stay as follower and not start sequencing.
 // [follower, not healthy, not sequencing] -- become healthy --> [follower, healthy, not sequencing]
 func (s *OpConductorTestSuite) TestScenario2() {
