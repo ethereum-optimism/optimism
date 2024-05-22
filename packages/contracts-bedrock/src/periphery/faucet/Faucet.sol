@@ -125,14 +125,12 @@ contract Faucet {
         // Mark the nonce as used.
         nonces[_auth.id][_params.nonce] = true;
 
-        if (_bridge == address(0)) {
-            // Use SafeSend if no bridge address is provided
-            new SafeSend{ value: config.amount }(_params.recipient);
-        } else {
-            // Execute a bridging of ETH to the recipient account.
-            IL1StandardBridge l1Bridge = IL1StandardBridge(_bridge);
-            l1Bridge.depositETHTo{value: config.amount}(_params.recipient, 200000, "");
-        }
+        // Execute a safe transfer of ETH to the recipient account.
+        // new SafeSend{ value: config.amount }(_params.recipient);
+
+        // Execute a bridging of ETH to the recipient account.
+        IL1StandardBridge l1Bridge = IL1StandardBridge(_bridge);
+        l1Bridge.depositETHTo{value: config.amount}(_params.recipient, 200000, "");
 
         emit Drip(config.name, _auth.id, config.amount, _params.recipient);
     }
