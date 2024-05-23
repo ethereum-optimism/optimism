@@ -5,6 +5,7 @@ import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { Contract, providers, utils, ethers } from 'ethers'
 import { predeploys, sleep } from '@eth-optimism/core-utils'
+
 import Artifact__L2ToL1MessagePasser from '../src/forge-artifacts/L2ToL1MessagePasser.json'
 import Artifact__L2CrossDomainMessenger from '../src/forge-artifacts/L2CrossDomainMessenger.json'
 import Artifact__L2StandardBridge from '../src/forge-artifacts/L2StandardBridge.json'
@@ -13,7 +14,6 @@ import Artifact__L1CrossDomainMessenger from '../src/forge-artifacts/L1CrossDoma
 import Artifact__L1StandardBridge from '../src/forge-artifacts/L1StandardBridge.json'
 import Artifact__L2OutputOracle from '../src/forge-artifacts/L2OutputOracle.json'
 import Artifact_BOBA from '../src/forge-artifacts/BOBA.json'
-
 import {
   CrossChainMessenger,
   MessageStatus,
