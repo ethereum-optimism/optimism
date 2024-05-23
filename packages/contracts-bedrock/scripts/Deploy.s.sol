@@ -8,6 +8,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
@@ -426,6 +427,13 @@ contract Deploy is Deployer {
         addr_ = deploySafe(_name, owners, 1, true);
     }
 
+    /// @notice Deploy a new Safe contract. If the keepDeployer option is used to enable further setup actions, then
+    ///         the removeDeployerFromSafe() function should be called on that safe after setup is complete.
+    ///         Note this function does not have the broadcast modifier.
+    /// @param _name The name of the Safe to deploy.
+    /// @param _owners The owners of the Safe.
+    /// @param _threshold The threshold of the Safe.
+    /// @param _keepDeployer Wether or not the deployer address will be added as an owner of the Safe.
     function deploySafe(
         string memory _name,
         address[] memory _owners,
@@ -460,6 +468,24 @@ contract Deploy is Deployer {
 
         save(_name, addr_);
         console.log("New safe: %s deployed at %s\n    Note that this safe is owned by the deployer key", _name, addr_);
+    }
+
+    /// @notice If the keepDeployer option was used with deploySafe(), this function can be used to remove the deployer.
+    ///         Note this function does not have the broadcast modifier.
+    function removeDeployerFromSafe(string memory _name, uint256 _newThreshold) public {
+        Safe safe = Safe(mustGetAddress(_name));
+
+        // The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
+        address sentinelOwners = address(0x1);
+
+        // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
+        // will be sentinelOwners.
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(OwnerManager.removeOwner, (sentinelOwners, msg.sender, _newThreshold))
+        });
+        console.log("Removed deployer owner from ", _name);
     }
 
     /// @notice Deploy the AddressManager

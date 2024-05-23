@@ -50,9 +50,6 @@ struct GuardianConfig {
     DeputyGuardianModuleConfig deputyGuardianModuleConfig;
 }
 
-// The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
-address constant SENTINEL_OWNERS = address(0x1);
-
 /// @title Deploy
 /// @notice Script used to deploy and configure the Safe contracts which are used to manage the Superchain,
 ///         as the ProxyAdminOwner and other roles in the system. Note that this script is not executable in a
@@ -84,7 +81,7 @@ contract DeployOwnership is Deploy {
     }
 
     /// @notice Returns a GuardianConfig similar to that of the Guardian Safe on Mainnet.
-    function _getExampleGuardianConfig() internal returns (GuardianConfig memory guardianConfig_) {
+    function _getExampleGuardianConfig() internal view returns (GuardianConfig memory guardianConfig_) {
         address[] memory exampleGuardianOwners = new address[](1);
         exampleGuardianOwners[0] = mustGetAddress("SecurityCouncilSafe");
         guardianConfig_ = GuardianConfig({
@@ -161,7 +158,6 @@ contract DeployOwnership is Deploy {
     /// @notice Deploy a DeputyGuardianModule for use on the Security Council Safe.
     ///         Note this function does not have the broadcast modifier.
     function deployDeputyGuardianModule() public returns (address addr_) {
-        SecurityCouncilConfig memory councilConfig = _getExampleCouncilConfig();
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
         DeputyGuardianModuleConfig memory deputyGuardianModuleConfig =
             _getExampleGuardianConfig().deputyGuardianModuleConfig;
@@ -203,23 +199,16 @@ contract DeployOwnership is Deploy {
 
     /// @notice Configure the Guardian Safe with the DeputyGuardianModule.
     function configureGuardianSafe() public broadcast returns (address addr_) {
-        Safe safe = Safe(payable(mustGetAddress("GuardianSafe")));
+        addr_ = mustGetAddress("GuardianSafe");
         address deputyGuardianModule = deployDeputyGuardianModule();
         _callViaSafe({
-            _safe: safe,
-            _target: address(safe),
+            _safe: Safe(payable(addr_)),
+            _target: addr_,
             _data: abi.encodeCall(ModuleManager.enableModule, (deputyGuardianModule))
         });
 
-        // Remove the deployer address (msg.sender) which was used to setup the Security Council Safe thus far
-        // this call is also used to update the threshold.
-        // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
-        // will be SENTINEL_OWNERS.
-        _callViaSafe({
-            _safe: safe,
-            _target: address(safe),
-            _data: abi.encodeCall(OwnerManager.removeOwner, (SENTINEL_OWNERS, msg.sender, 1))
-        });
+        // Finalize configuration by removing the additional deployer key.
+        removeDeployerFromSafe({ _name: "GuardianSafe", _newThreshold: 1 });
         console.log("DeputyGuardianModule enabled on GuardianSafe");
     }
 
@@ -242,22 +231,15 @@ contract DeployOwnership is Deploy {
             _data: abi.encodeCall(ModuleManager.enableModule, (livenessModule))
         });
 
-        // Remove the deployer address (msg.sender) which was used to setup the Security Council Safe thus far
-        // this call is also used to update the threshold.
-        // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
-        // will be SENTINEL_OWNERS.
-        _callViaSafe({
-            _safe: safe,
-            _target: address(safe),
-            _data: abi.encodeCall(
-                OwnerManager.removeOwner, (SENTINEL_OWNERS, msg.sender, exampleCouncilConfig.safeConfig.threshold)
-            )
-        });
+        // Finalize configuration by removing the additional deployer key.
+        removeDeployerFromSafe({ _name: "SecurityCouncilSafe", _newThreshold: exampleCouncilConfig.safeConfig.threshold });
+
         address[] memory owners = safe.getOwners();
         require(
             safe.getThreshold() == LivenessModule(livenessModule).getRequiredThreshold(owners.length),
             "Safe threshold must be equal to the LivenessModule's required threshold"
         );
+
         addr_ = address(safe);
         console.log("Deployed and configured the Security Council Safe!");
     }
