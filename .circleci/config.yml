@@ -226,7 +226,7 @@ jobs:
           command: cp -r .devnet/ .devnet-plasma/
       - run:
           name: Generate Generic Plasma allocs
-          command: DEVNET_PLASMA="true" PLASMA_GENERIC="true" make devnet-allocs
+          command: DEVNET_PLASMA="true" GENERIC_PLASMA="true" make devnet-allocs
       - run:
           name: Copy Plasma allocs to .devnet-plasma
           command: cp -r .devnet/ .devnet-plasma-generic/
@@ -1287,8 +1287,8 @@ jobs:
                 name: Set DEVNET_PLASMA = true
                 command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
             - run:
-                name: Set PLASMA_GENERIC = true
-                command: echo 'export PLASMA_GENERIC=true' >> $BASH_ENV
+                name: Set GENERIC_PLASMA = true
+                command: echo 'export GENERIC_PLASMA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
