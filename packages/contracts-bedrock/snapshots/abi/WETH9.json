@@ -1,81 +1,22 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_turingPrice",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
+    "stateMutability": "payable",
+    "type": "fallback"
   },
   {
-    "inputs": [],
-    "name": "HCHelperAddr",
-    "outputs": [
+    "inputs": [
       {
         "internalType": "address",
         "name": "",
         "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_addBalanceAmount",
-        "type": "uint256"
       },
       {
         "internalType": "address",
-        "name": "_helperContractAddress",
-        "type": "address"
-      }
-    ],
-    "name": "addBalanceTo",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_helperContractAddress",
-        "type": "address"
-      }
-    ],
-    "name": "getCreditAmount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "owner",
-    "outputs": [
-      {
-        "internalType": "address",
         "name": "",
         "type": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "ownerRevenue",
+    "name": "allowance",
     "outputs": [
       {
         "internalType": "uint256",
@@ -90,35 +31,16 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "prepaidBalance",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_helperContractAddress",
+        "name": "guy",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "_amount",
+        "name": "wad",
         "type": "uint256"
       }
     ],
-    "name": "spendCredit",
+    "name": "approve",
     "outputs": [
       {
         "internalType": "bool",
@@ -133,18 +55,11 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_newOwner",
+        "name": "",
         "type": "address"
       }
     ],
-    "name": "transferOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "turingPrice",
+    "name": "balanceOf",
     "outputs": [
       {
         "internalType": "uint256",
@@ -157,12 +72,58 @@
   },
   {
     "inputs": [],
-    "name": "turingToken",
+    "name": "decimals",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "uint8",
         "name": "",
-        "type": "address"
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "deposit",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "name",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "symbol",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalSupply",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -171,13 +132,24 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "dst",
+        "type": "address"
+      },
+      {
         "internalType": "uint256",
-        "name": "_turingPrice",
+        "name": "wad",
         "type": "uint256"
       }
     ],
-    "name": "updateTuringPrice",
-    "outputs": [],
+    "name": "transfer",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -185,12 +157,28 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_turingToken",
+        "name": "src",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "dst",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "wad",
+        "type": "uint256"
       }
     ],
-    "name": "updateTuringToken",
-    "outputs": [],
+    "name": "transferFrom",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -198,11 +186,11 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_withdrawAmount",
+        "name": "wad",
         "type": "uint256"
       }
     ],
-    "name": "withdrawRevenue",
+    "name": "withdraw",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -211,63 +199,88 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "address",
-        "name": "sender",
+        "name": "src",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "guy",
         "type": "address"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "balanceAmount",
+        "name": "wad",
         "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "helperContractAddress",
-        "type": "address"
       }
     ],
-    "name": "AddBalanceTo",
+    "name": "Approval",
     "type": "event"
   },
   {
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "address",
-        "name": "oldOwner",
+        "name": "dst",
         "type": "address"
       },
       {
         "indexed": false,
-        "internalType": "address",
-        "name": "newOwner",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "wad",
+        "type": "uint256"
       }
     ],
-    "name": "TransferOwnership",
+    "name": "Deposit",
     "type": "event"
   },
   {
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "address",
-        "name": "sender",
+        "name": "src",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "dst",
         "type": "address"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "withdrawAmount",
+        "name": "wad",
         "type": "uint256"
       }
     ],
-    "name": "WithdrawRevenue",
+    "name": "Transfer",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "src",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "wad",
+        "type": "uint256"
+      }
+    ],
+    "name": "Withdrawal",
     "type": "event"
   }
 ]

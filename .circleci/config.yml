@@ -1533,10 +1533,9 @@ jobs:
           command: |
             IMAGE_BASE_PREFIX="<<pipeline.parameters.registry>>/<<pipeline.parameters.repo>>"
             # Load from previous docker-build job
-            docker load < "/tmp/workspace/op-stack-go.tar"
-            docker load < "/tmp/workspace/op-node.tar"
-            docker load < "/tmp/workspace/op-proposer.tar"
-            docker load < "/tmp/workspace/op-batcher.tar"
+            docker load < "./op-node.tar"
+            docker load < "./op-proposer.tar"
+            docker load < "./op-batcher.tar"
             # rename to the tags that the docker-compose of the devnet expects
             docker tag "$IMAGE_BASE_PREFIX/op-stack-go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-stack-go:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
