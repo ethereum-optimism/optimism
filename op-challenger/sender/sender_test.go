@@ -3,6 +3,7 @@ package sender
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -168,6 +169,54 @@ func (s *stubTxMgr) From() common.Address {
 
 func (s *stubTxMgr) BlockNumber(_ context.Context) (uint64, error) {
 	panic("unsupported")
+}
+
+func (s *stubTxMgr) GetPendingTxs(bool, bool) ([]txmgr.PendingTxRPC, error) {
+	panic("unsupported")
+}
+
+func (s *stubTxMgr) CancelPendingNonce(uint64) error {
+	panic("unsupported")
+}
+
+func (s *stubTxMgr) GetMinBaseFee() *big.Int {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) SetMinBaseFee(*big.Int) {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) GetPriorityFee() *big.Int {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) SetPriorityFee(*big.Int) {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) GetMinBlobFee() *big.Int {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) SetMinBlobFee(*big.Int) {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) GetFeeThreshold() *big.Int {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) SetFeeThreshold(*big.Int) {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) GetBumpFeeRetryTime() time.Duration {
+	panic("unimplemented")
+}
+
+func (s *stubTxMgr) SetBumpFeeRetryTime(time.Duration) {
+	panic("unimplemented")
 }
 
 func (s *stubTxMgr) Close() {

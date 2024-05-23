@@ -173,12 +173,13 @@ func TestQueue_Send(t *testing.T) {
 			conf.SafeAbortNonceTooLowCount = 1
 			backend := newMockBackendWithNonce(newGasPricer(3))
 			mgr := &SimpleTxManager{
-				chainID: conf.ChainID,
-				name:    "TEST",
-				cfg:     conf,
-				backend: backend,
-				l:       testlog.Logger(t, log.LevelCrit),
-				metr:    &metrics.NoopTxMetrics{},
+				chainID:    conf.ChainID,
+				name:       "TEST",
+				cfg:        conf,
+				backend:    backend,
+				l:          testlog.Logger(t, log.LevelCrit),
+				metr:       &metrics.NoopTxMetrics{},
+				pendingTxs: make(map[uint64]*PendingTxWithCancel),
 			}
 
 			// track the nonces, and return any expected errors from tx sending

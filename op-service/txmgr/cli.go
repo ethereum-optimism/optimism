@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
 )
 
@@ -94,6 +95,8 @@ var (
 		TxNotInMempoolTimeout:     1 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
 	}
+	// geth enforces a 1 gwei minimum for blob tx fee
+	defaultMinBlobTxFee = big.NewInt(params.GWei)
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
@@ -340,6 +343,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		FeeLimitThreshold:         feeLimitThreshold,
 		MinBaseFee:                minBaseFee,
 		MinTipCap:                 minTipCap,
+		MinBlobTxFee:              defaultMinBlobTxFee,
 		ChainID:                   chainID,
 		TxSendTimeout:             cfg.TxSendTimeout,
 		TxNotInMempoolTimeout:     cfg.TxNotInMempoolTimeout,
@@ -374,6 +378,8 @@ type Config struct {
 
 	// Minimum tip cap (in Wei) to enforce when determining tx fees.
 	MinTipCap *big.Int
+
+	MinBlobTxFee *big.Int
 
 	// ChainID is the chain ID of the L1 chain.
 	ChainID *big.Int

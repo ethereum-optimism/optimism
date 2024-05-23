@@ -1,6 +1,7 @@
 package txmgr
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -36,9 +36,6 @@ const (
 var (
 	priceBumpPercent     = big.NewInt(100 + priceBump)
 	blobPriceBumpPercent = big.NewInt(100 + blobPriceBump)
-
-	// geth enforces a 1 gwei minimum for blob tx fee
-	minBlobTxFee = big.NewInt(params.GWei)
 
 	oneHundred = big.NewInt(100)
 	ninetyNine = big.NewInt(99)
@@ -71,6 +68,26 @@ type TxManager interface {
 
 	// BlockNumber returns the most recent block number from the underlying network.
 	BlockNumber(ctx context.Context) (uint64, error)
+
+	// GetPendingTxs returns all tx that have been initiated via Send(), but have not been mined yet
+	GetPendingTxs(bool, bool) ([]PendingTxRPC, error)
+	// CancelPendingNonce calls the ctx.cancel() func on a pending tx with the provided nonce
+	CancelPendingNonce(uint64) error
+
+	GetMinBaseFee() *big.Int
+	SetMinBaseFee(*big.Int)
+
+	GetPriorityFee() *big.Int
+	SetPriorityFee(*big.Int)
+
+	GetMinBlobFee() *big.Int
+	SetMinBlobFee(*big.Int)
+
+	GetFeeThreshold() *big.Int
+	SetFeeThreshold(*big.Int)
+
+	GetBumpFeeRetryTime() time.Duration
+	SetBumpFeeRetryTime(time.Duration)
 
 	// Close the underlying connection
 	Close()
@@ -124,7 +141,8 @@ type SimpleTxManager struct {
 	nonce     *uint64
 	nonceLock sync.RWMutex
 
-	pending atomic.Int64
+	numPending atomic.Int64
+	pendingTxs map[uint64]*PendingTxWithCancel
 
 	closed atomic.Bool
 }
@@ -144,12 +162,13 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 	return &SimpleTxManager{
-		chainID: conf.ChainID,
-		name:    name,
-		cfg:     conf,
-		backend: conf.Backend,
-		l:       l.New("service", name),
-		metr:    m,
+		chainID:    conf.ChainID,
+		name:       name,
+		cfg:        conf,
+		backend:    conf.Backend,
+		l:          l.New("service", name),
+		metr:       m,
+		pendingTxs: make(map[uint64]*PendingTxWithCancel),
 	}, nil
 }
 
@@ -196,6 +215,12 @@ type TxCandidate struct {
 	Value *big.Int
 }
 
+type PendingTxWithCancel struct {
+	tx     *types.Transaction
+	status string
+	cancel context.CancelFunc
+}
+
 // Send is used to publish a transaction with incrementally higher gas prices
 // until the transaction eventually confirms. This method blocks until an
 // invocation of sendTx returns (called with differing gas prices). The method
@@ -210,22 +235,17 @@ func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*typ
 	if m.closed.Load() {
 		return nil, ErrClosed
 	}
-	m.metr.RecordPendingTx(m.pending.Add(1))
+	m.metr.RecordPendingTx(m.numPending.Add(1))
 	defer func() {
-		m.metr.RecordPendingTx(m.pending.Add(-1))
+		m.metr.RecordPendingTx(m.numPending.Add(-1))
 	}()
-	receipt, err := m.send(ctx, candidate)
-	if err != nil {
-		m.resetNonce()
-	}
-	return receipt, err
-}
 
-// send performs the actual transaction creation and sending.
-func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
+	var cancel context.CancelFunc
 	if m.cfg.TxSendTimeout != 0 {
-		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
+		defer cancel()
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
 		defer cancel()
 	}
 	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
@@ -241,7 +261,127 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
-	return m.sendTx(ctx, tx)
+	m.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{
+		tx:     tx,
+		cancel: cancel,
+		status: "crafted",
+	}
+	defer func() {
+		m.l.Info("removing pending tx", "nonce", tx.Nonce())
+		delete(m.pendingTxs, tx.Nonce())
+	}()
+
+	receipt, err := m.sendTx(ctx, tx)
+	if err != nil {
+		m.resetNonce()
+	}
+	return receipt, err
+}
+
+type PendingTxRPC struct {
+	Hash         common.Hash     `json:"hash"`
+	Nonce        uint64          `json:"nonce"`
+	Status       string          `json:"status"`
+	Timestamp    time.Time       `json:"timestamp"`
+	Type         byte            `json:"type"`
+	From         *common.Address `json:"from"`
+	To           *common.Address `json:"to"`
+	Data         *[]byte         `json:"data"`
+	Size         uint64          `json:"size"`
+	EncodedBytes *[]byte         `json:"encoded_bytes"`
+	GasLimit     uint64          `json:"gas_limit"`
+	GasPrice     *big.Int        `json:"gas_price"`
+	GasTipCap    *big.Int        `json:"gas_tip_cap"`
+	GasFeeCap    *big.Int        `json:"gas_fee_cap"`
+}
+
+func (m *SimpleTxManager) CancelPendingNonce(nonce uint64) error {
+	pendingTx, exists := m.pendingTxs[nonce]
+	if !exists {
+		return fmt.Errorf("nonce not found in pending tx: %d", nonce)
+	}
+	pendingTx.cancel()
+	delete(m.pendingTxs, nonce)
+	return nil
+}
+
+// GetPendingTxs reformats each element in m.pendingTxs from a types.Transaction into a PendingTx
+func (m *SimpleTxManager) GetPendingTxs(includeData, includeEncodedBytes bool) ([]PendingTxRPC, error) {
+	txs := []PendingTxRPC{}
+	for _, p := range m.pendingTxs {
+		pendingTx := PendingTxRPC{
+			Hash:      p.tx.Hash(),
+			Nonce:     p.tx.Nonce(),
+			Status:    p.status,
+			Timestamp: p.tx.Time(),
+			Type:      p.tx.Type(),
+			From:      &m.cfg.From,
+			To:        p.tx.To(),
+			GasLimit:  p.tx.Gas(),
+			GasPrice:  p.tx.GasPrice(),
+			GasTipCap: p.tx.GasTipCap(),
+			GasFeeCap: p.tx.GasFeeCap(),
+			Size:      p.tx.Size(),
+		}
+
+		if includeData {
+			txData := p.tx.Data()
+			pendingTx.Data = &txData
+		}
+
+		if includeEncodedBytes {
+			var buf bytes.Buffer
+			err := p.tx.EncodeRLP(&buf)
+			if err != nil {
+				return []PendingTxRPC{}, fmt.Errorf("failed to encode transaction: %w", err)
+			}
+			encodedBytes := buf.Bytes()
+			pendingTx.EncodedBytes = &encodedBytes
+		}
+
+		txs = append(txs, pendingTx)
+	}
+	return txs, nil
+}
+
+func (m *SimpleTxManager) GetMinBaseFee() *big.Int {
+	return m.cfg.MinBaseFee
+}
+
+func (m *SimpleTxManager) SetMinBaseFee(val *big.Int) {
+	m.cfg.MinBaseFee = val
+}
+
+func (m *SimpleTxManager) GetPriorityFee() *big.Int {
+	return m.cfg.MinTipCap
+}
+
+func (m *SimpleTxManager) SetPriorityFee(val *big.Int) {
+	m.cfg.MinTipCap = val
+}
+
+func (m *SimpleTxManager) GetMinBlobFee() *big.Int {
+	return m.cfg.MinBlobTxFee
+}
+
+func (m *SimpleTxManager) SetMinBlobFee(val *big.Int) {
+	m.cfg.MinBlobTxFee = val
+}
+
+func (m *SimpleTxManager) GetFeeThreshold() *big.Int {
+	return m.cfg.FeeLimitThreshold
+}
+
+func (m *SimpleTxManager) SetFeeThreshold(val *big.Int) {
+	m.cfg.FeeLimitThreshold = val
+}
+
+func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
+	return m.cfg.ResubmissionTimeout
+}
+
+func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
+	m.cfg.ResubmissionTimeout = val
 }
 
 // craftTx creates the signed transaction
@@ -293,7 +433,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		if blobBaseFee == nil {
 			return nil, fmt.Errorf("expected non-nil blobBaseFee")
 		}
-		blobFeeCap := calcBlobFeeCap(blobBaseFee)
+		blobFeeCap := m.calcBlobFeeCap(blobBaseFee)
 		message := &types.BlobTx{
 			To:         *candidate.To,
 			Data:       candidate.TxData,
@@ -408,6 +548,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 		wg.Add(1)
 		tx, published := m.publishTx(ctx, tx, sendState, bumpFees)
 		if published {
+			m.pendingTxs[tx.Nonce()].tx = tx
 			go func() {
 				defer wg.Done()
 				m.waitForTx(ctx, tx, sendState, receiptChan)
@@ -792,13 +933,23 @@ func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int
 	if thr := m.cfg.FeeLimitThreshold; thr != nil && thr.Cmp(bumpedBlobFee) == 1 {
 		return nil
 	}
-	maxBlobFee := new(big.Int).Mul(calcBlobFeeCap(blobBaseFee), big.NewInt(int64(m.cfg.FeeLimitMultiplier)))
+	maxBlobFee := new(big.Int).Mul(m.calcBlobFeeCap(blobBaseFee), big.NewInt(int64(m.cfg.FeeLimitMultiplier)))
 	if bumpedBlobFee.Cmp(maxBlobFee) > 0 {
 		return fmt.Errorf(
 			"bumped blob fee %v is over %dx multiple of the suggested value: %w",
 			bumpedBlobFee, m.cfg.FeeLimitMultiplier, ErrBlobFeeLimit)
 	}
 	return nil
+}
+
+// calcBlobFeeCap computes a suggested blob fee cap that is twice the current header's blob base fee
+// value, with a minimum value of minBlobTxFee.
+func (m *SimpleTxManager) calcBlobFeeCap(blobBaseFee *big.Int) *big.Int {
+	cap := new(big.Int).Mul(blobBaseFee, two)
+	if cap.Cmp(m.cfg.MinBlobTxFee) < 0 {
+		cap.Set(m.cfg.MinBlobTxFee)
+	}
+	return cap
 }
 
 // IsClosed returns true if the tx manager is closed.
@@ -861,16 +1012,6 @@ func calcGasFeeCap(baseFee, gasTipCap *big.Int) *big.Int {
 		gasTipCap,
 		new(big.Int).Mul(baseFee, two),
 	)
-}
-
-// calcBlobFeeCap computes a suggested blob fee cap that is twice the current header's blob base fee
-// value, with a minimum value of minBlobTxFee.
-func calcBlobFeeCap(blobBaseFee *big.Int) *big.Int {
-	cap := new(big.Int).Mul(blobBaseFee, two)
-	if cap.Cmp(minBlobTxFee) < 0 {
-		cap.Set(minBlobTxFee)
-	}
-	return cap
 }
 
 // errStringMatch returns true if err.Error() is a substring in target.Error() or if both are nil.

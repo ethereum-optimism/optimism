@@ -57,12 +57,13 @@ func newTestHarnessWithConfig(t *testing.T, cfg Config) *testHarness {
 	backend := newMockBackend(g)
 	cfg.Backend = backend
 	mgr := &SimpleTxManager{
-		chainID: cfg.ChainID,
-		name:    "TEST",
-		cfg:     cfg,
-		backend: cfg.Backend,
-		l:       testlog.Logger(t, log.LevelCrit),
-		metr:    &metrics.NoopTxMetrics{},
+		chainID:    cfg.ChainID,
+		name:       "TEST",
+		cfg:        cfg,
+		backend:    cfg.Backend,
+		l:          testlog.Logger(t, log.LevelCrit),
+		metr:       &metrics.NoopTxMetrics{},
+		pendingTxs: make(map[uint64]*PendingTxWithCancel),
 	}
 
 	return &testHarness{
@@ -365,6 +366,59 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 	require.Equal(t, gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
 }
 
+func TestTxMgrPendingTxs(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHarness(t)
+	h.backend.setTxSender(func(ctx context.Context, tx *types.Transaction) error {
+		return nil
+	})
+
+	// Send 3 test txs, occupying nonce 1, 2, 3
+	numTxs := 3
+	for i := 0; i < numTxs; i++ {
+		go func() {
+			h.mgr.Send(context.Background(), TxCandidate{To: &common.Address{}})
+		}()
+	}
+	time.Sleep(time.Millisecond * 100)
+	pendingTxs, err := h.mgr.GetPendingTxs(false, false)
+	require.NoError(t, err)
+	require.Equal(t, numTxs, len(pendingTxs))
+
+	t.Run("GetPendingTxs", func(t *testing.T) {
+		// After mining a tx, it should be removed from the pendingTxs
+		minedNonce := uint64(1)
+		txHash := h.mgr.pendingTxs[minedNonce].tx.Hash()
+		h.backend.mine(&txHash, h.mgr.pendingTxs[minedNonce].tx.GasFeeCap(), h.mgr.pendingTxs[minedNonce].tx.BlobGasFeeCap())
+		time.Sleep(time.Millisecond * 100)
+		numTxs--
+
+		pendingTxs, err = h.mgr.GetPendingTxs(false, false)
+		require.NoError(t, err)
+		require.Equal(t, numTxs, len(pendingTxs))
+
+		_, exists := h.mgr.pendingTxs[minedNonce]
+		require.False(t, exists)
+	})
+
+	t.Run("CancelPendingTx", func(t *testing.T) {
+		// After cancelling a tx, it should be removed from the pendingTxs
+		cancelledNonce := uint64(2)
+		err = h.mgr.CancelPendingNonce(cancelledNonce)
+		require.NoError(t, err)
+		time.Sleep(time.Millisecond * 100)
+		numTxs--
+
+		pendingTxs, err = h.mgr.GetPendingTxs(false, false)
+		require.NoError(t, err)
+		require.Equal(t, numTxs, len(pendingTxs))
+
+		_, exists := h.mgr.pendingTxs[cancelledNonce]
+		require.False(t, exists)
+	})
+}
+
 // TestTxMgrNeverConfirmCancel asserts that a Send can be canceled even if no
 // transaction is mined. This is done to ensure the the tx mgr can properly
 // abort on shutdown, even if a txn is in the process of being published.
@@ -546,7 +600,7 @@ func TestTxMgr_CraftBlobTx(t *testing.T) {
 	// Validate the gas tip cap and fee cap.
 	require.Equal(t, gasTipCap, tx.GasTipCap())
 	require.Equal(t, gasFeeCap, tx.GasFeeCap())
-	require.Equal(t, minBlobTxFee, tx.BlobGasFeeCap())
+	require.Equal(t, defaultMinBlobTxFee, tx.BlobGasFeeCap())
 
 	// Validate the nonce was set correctly using the backend.
 	require.Equal(t, uint64(startingNonce), tx.Nonce())
@@ -955,10 +1009,11 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
 		},
-		name:    "TEST",
-		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LevelCrit),
-		metr:    &metrics.NoopTxMetrics{},
+		name:       "TEST",
+		backend:    &borkedBackend,
+		l:          testlog.Logger(t, log.LevelCrit),
+		metr:       &metrics.NoopTxMetrics{},
+		pendingTxs: make(map[uint64]*PendingTxWithCancel),
 	}
 
 	// Don't mine the tx with the default backend. The failingBackend will
@@ -993,10 +1048,11 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 			},
 			From: common.Address{},
 		},
-		name:    "TEST",
-		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LevelCrit),
-		metr:    &metrics.NoopTxMetrics{},
+		name:       "TEST",
+		backend:    &borkedBackend,
+		l:          testlog.Logger(t, log.LevelCrit),
+		metr:       &metrics.NoopTxMetrics{},
+		pendingTxs: make(map[uint64]*PendingTxWithCancel),
 	}
 
 	tx := types.NewTx(&types.DynamicFeeTx{
@@ -1164,10 +1220,11 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 			},
 			From: common.Address{},
 		},
-		name:    "TEST",
-		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LevelCrit),
-		metr:    &metrics.NoopTxMetrics{},
+		name:       "TEST",
+		backend:    &borkedBackend,
+		l:          testlog.Logger(t, log.LevelCrit),
+		metr:       &metrics.NoopTxMetrics{},
+		pendingTxs: make(map[uint64]*PendingTxWithCancel),
 	}
 	lastGoodTx := types.NewTx(&types.DynamicFeeTx{
 		GasTipCap: big.NewInt(10),
