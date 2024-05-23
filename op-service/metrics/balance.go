@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"context"
-	"math/big"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -11,19 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
-
-// weiToEther divides the wei value by 10^18 to get a number in ether as a float64
-func weiToEther(wei *big.Int) float64 {
-	num := new(big.Rat).SetInt(wei)
-	denom := big.NewRat(params.Ether, 1)
-	num = num.Quo(num, denom)
-	f, _ := num.Float64()
-	return f
-}
 
 // LaunchBalanceMetrics starts a periodic query of the balance of the supplied account and records it
 // to the "balance" metric of the namespace. The balance of the account is recorded in Ether (not Wei).
@@ -42,7 +32,7 @@ func LaunchBalanceMetrics(log log.Logger, r *prometheus.Registry, ns string, cli
 			log.Warn("failed to get balance of account", "err", err, "address", account)
 			return
 		}
-		bal := weiToEther(bigBal)
+		bal := eth.WeiToEther(bigBal)
 		balanceGuage.Set(bal)
 	}, func() error {
 		log.Info("balance metrics shutting down")
