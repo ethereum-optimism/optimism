@@ -46,5 +46,6 @@ func (p *StaticL2RollupProvider) RollupClient(context.Context) (RollupClientInte
 func (p *StaticL2RollupProvider) Close() {
 	if p.rollupClient != nil {
 		p.rollupClient.Close()
+		p.rollupClient = nil
 	}
 }

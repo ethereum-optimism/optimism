@@ -45,6 +45,7 @@ func (p *StaticL2EndpointProvider) EthClient(context.Context) (EthClientInterfac
 func (p *StaticL2EndpointProvider) Close() {
 	if p.ethClient != nil {
 		p.ethClient.Close()
+		p.ethClient = nil
 	}
 	p.StaticL2RollupProvider.Close()
 }

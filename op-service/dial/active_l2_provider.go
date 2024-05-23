@@ -109,6 +109,7 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 func (p *ActiveL2EndpointProvider) Close() {
 	if p.currentEthClient != nil {
 		p.currentEthClient.Close()
+		p.currentEthClient = nil
 	}
 	p.ActiveL2RollupProvider.Close()
 }
