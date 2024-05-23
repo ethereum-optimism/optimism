@@ -412,13 +412,13 @@ func DiffTestUtils() {
 	case "encodeGasPayingToken":
 		// Parse input arguments
 		token := common.HexToAddress(args[1])
-		decimals, ok := new(big.Int).SetString(args[2], 10)
-		checkOk(ok)
-		name := [32]byte(common.FromHex(args[3]))
-		symbol := [32]byte(common.FromHex(args[4]))
+		decimals, err := strconv.ParseUint(args[2], 10, 8)
+		checkErr(err, "Error decoding decimals")
+		name := common.HexToHash(args[3])
+		symbol := common.HexToHash(args[4])
 
 		// Encode gas paying token
-		encoded, err := gasPayingTokenArgs.Pack(token, uint8(decimals.Uint64()), name, symbol)
+		encoded, err := gasPayingTokenArgs.Pack(token, uint8(decimals), name, symbol)
 		checkErr(err, "Error encoding gas paying token")
 
 		// Pack encoded gas paying token
