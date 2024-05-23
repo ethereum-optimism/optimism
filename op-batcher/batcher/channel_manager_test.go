@@ -283,7 +283,7 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to return no new tx data")
 }
 
-// ChannelManagerCloseNoPendingChannel ensures that the channel manager
+// ChannelManagerClosePendingChannel ensures that the channel manager
 // can gracefully close with a pending channel, and will not produce any
 // new channel frames after this point.
 func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
