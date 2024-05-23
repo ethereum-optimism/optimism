@@ -1512,22 +1512,7 @@ jobs:
           command: |
             pnpm install --frozen-lockfile --prefer-offline && pnpm build
       - attach_workspace:
-          at: /tmp/workspace
-      - run:
-          name: Load cannon pre-state
-          command: |
-            mkdir -p op-program/bin
-            cp /tmp/workspace/op-program/bin/prestate.json op-program/bin/prestate.json
-            cp /tmp/workspace/op-program/bin/meta.json op-program/bin/meta.json
-            cp /tmp/workspace/op-program/bin/prestate-proof.json op-program/bin/prestate-proof.json
-      - run:
-          name: Load devnet-allocs
-          command: |
-            mkdir -p .devnet
-            cp /tmp/workspace/.devnet/allocs-l1.json .devnet/allocs-l1.json
-            cp /tmp/workspace/.devnet/addresses.json .devnet/addresses.json
-            cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
-            cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
+          at: "."
       - run:
           name: Load and tag docker images
           command: |
@@ -1541,6 +1526,10 @@ jobs:
             docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
+      - run:
+          name: pnpm i
+          command: |
+            pnpm i && pnpm build
       - run:
           name: Bring up the stack
           command: make devnet-hardhat-up
