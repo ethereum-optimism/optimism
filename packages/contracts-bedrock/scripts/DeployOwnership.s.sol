@@ -32,16 +32,21 @@ struct LivenessModuleConfig {
     address fallbackOwner;
 }
 
+/// @notice Configuration for the Security Council Safe.
+struct SecurityCouncilConfig {
+    SafeConfig safeConfig;
+    LivenessModuleConfig livenessModuleConfig;
+}
+
 /// @notice Configuration for the Deputy Guardian Module
 struct DeputyGuardianModuleConfig {
     address deputyGuardian;
     SuperchainConfig superchainConfig;
 }
 
-/// @notice Configuration for the Security Council Safe.
-struct SecurityCouncilConfig {
+/// @notice Configuration for the Guardian Safe.
+struct GuardianConfig {
     SafeConfig safeConfig;
-    LivenessModuleConfig livenessModuleConfig;
     DeputyGuardianModuleConfig deputyGuardianModuleConfig;
 }
 
@@ -62,6 +67,8 @@ contract DeployOwnership is Deploy {
 
         deployFoundationSafe();
         deploySecurityCouncilSafe();
+        deployGuardianSafe();
+        configureGuardianSafe();
         configureSecurityCouncilSafe();
 
         console.log("Ownership contracts completed");
@@ -74,6 +81,19 @@ contract DeployOwnership is Deploy {
             exampleFoundationOwners[i] = makeAddr(string.concat("fnd-", vm.toString(i)));
         }
         safeConfig_ = SafeConfig({ threshold: 5, owners: exampleFoundationOwners });
+    }
+
+    /// @notice Returns a GuardianConfig similar to that of the Guardian Safe on Mainnet.
+    function _getExampleGuardianConfig() internal returns (GuardianConfig memory guardianConfig_) {
+        address[] memory exampleGuardianOwners = new address[](1);
+        exampleGuardianOwners[0] = mustGetAddress("SecurityCouncilSafe");
+        guardianConfig_ = GuardianConfig({
+            safeConfig: SafeConfig({ threshold: 1, owners: exampleGuardianOwners }),
+            deputyGuardianModuleConfig: DeputyGuardianModuleConfig({
+                deputyGuardian: mustGetAddress("FoundationSafe"),
+                superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
+            })
+        });
     }
 
     /// @notice Returns a SafeConfig similar to that of the Security Council Safe on Mainnet.
@@ -90,10 +110,6 @@ contract DeployOwnership is Deploy {
                 thresholdPercentage: 75,
                 minOwners: 8,
                 fallbackOwner: mustGetAddress("FoundationSafe")
-            }),
-            deputyGuardianModuleConfig: DeputyGuardianModuleConfig({
-                deputyGuardian: mustGetAddress("FoundationSafe"),
-                superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
             })
         });
     }
@@ -147,7 +163,8 @@ contract DeployOwnership is Deploy {
     function deployDeputyGuardianModule() public returns (address addr_) {
         SecurityCouncilConfig memory councilConfig = _getExampleCouncilConfig();
         Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
-        DeputyGuardianModuleConfig memory deputyGuardianModuleConfig = councilConfig.deputyGuardianModuleConfig;
+        DeputyGuardianModuleConfig memory deputyGuardianModuleConfig =
+            _getExampleGuardianConfig().deputyGuardianModuleConfig;
         addr_ = address(
             new DeputyGuardianModule({
                 _safe: councilSafe,
@@ -174,18 +191,43 @@ contract DeployOwnership is Deploy {
         );
     }
 
-    /// @notice Configure the Security Council Safe with the LivenessModule, DeputyGuardianModule, and LivenessGuard.
-    function configureSecurityCouncilSafe() public broadcast returns (address addr_) {
-        // Deploy and add the Deputy Guardian Module.
-        SecurityCouncilConfig memory exampleCouncilConfig = _getExampleCouncilConfig();
-        Safe safe = Safe(mustGetAddress("SecurityCouncilSafe"));
+    /// @notice Deploy Guardian Safe.
+    function deployGuardianSafe() public broadcast returns (address addr_) {
+        // Config is hardcoded here as the Guardian Safe's configuration is inflexible.
+        address[] memory owners = new address[](1);
+        owners[0] = mustGetAddress("SecurityCouncilSafe");
+        addr_ = deploySafe({ _name: "GuardianSafe", _owners: owners, _threshold: 1, _keepDeployer: true });
+
+        console.log("Deployed and configured the Guardian Safe!");
+    }
+
+    /// @notice Configure the Guardian Safe with the DeputyGuardianModule.
+    function configureGuardianSafe() public broadcast returns (address addr_) {
+        Safe safe = Safe(payable(mustGetAddress("GuardianSafe")));
         address deputyGuardianModule = deployDeputyGuardianModule();
         _callViaSafe({
             _safe: safe,
             _target: address(safe),
             _data: abi.encodeCall(ModuleManager.enableModule, (deputyGuardianModule))
         });
-        console.log("DeputyGuardianModule enabled on SecurityCouncilSafe");
+
+        // Remove the deployer address (msg.sender) which was used to setup the Security Council Safe thus far
+        // this call is also used to update the threshold.
+        // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
+        // will be SENTINEL_OWNERS.
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(OwnerManager.removeOwner, (SENTINEL_OWNERS, msg.sender, 1))
+        });
+        console.log("DeputyGuardianModule enabled on GuardianSafe");
+    }
+
+    /// @notice Configure the Security Council Safe with the LivenessModule and LivenessGuard.
+    function configureSecurityCouncilSafe() public broadcast returns (address addr_) {
+        // Deploy and add the Deputy Guardian Module.
+        SecurityCouncilConfig memory exampleCouncilConfig = _getExampleCouncilConfig();
+        Safe safe = Safe(mustGetAddress("SecurityCouncilSafe"));
 
         // Deploy and add the Liveness Guard.
         address guard = deployLivenessGuard();
