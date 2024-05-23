@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -106,8 +106,8 @@ func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, ve
 		valueFormat = "%-66v"
 	}
 	now := time.Now()
-	lineFormat := "%3v %-7v %6v %5v %14v " + valueFormat + " %-42v %10v %-19v %10v %v\n"
-	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Bond", "Time", "Clock Used", "Resolution")
+	lineFormat := "%3v %-7v %6v %5v %14v " + valueFormat + " %-42v %12v %-19v %10v %v\n"
+	info := fmt.Sprintf(lineFormat, "Idx", "Move", "Parent", "Depth", "Index", "Value", "Claimant", "Bond (ETH)", "Time", "Clock Used", "Resolution")
 	for i, claim := range claims {
 		pos := claim.Position
 		parent := strconv.Itoa(claim.ParentContractIndex)
@@ -155,9 +155,9 @@ func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, ve
 			value = claim.Value.Hex()
 		}
 		timestamp := claim.Clock.Timestamp.Format(time.DateTime)
-		bond := fmt.Sprintf("%10.6f", bigint.WeiToETH(claim.Bond))
+		bond := fmt.Sprintf("%12.8f", eth.WeiToEther(claim.Bond))
 		if verbose {
-			bond = bigint.WeiToETH(claim.Bond).String()
+			bond = fmt.Sprintf("%f", eth.WeiToEther(claim.Bond))
 		}
 		info = info + fmt.Sprintf(lineFormat,
 			i, move, parent, pos.Depth(), traceIdx, value, claim.Claimant, bond, timestamp, elapsed, countered)
