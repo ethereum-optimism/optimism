@@ -320,6 +320,7 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 	if cfg.RPC.EnableAdmin {
 		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Metrics, bs.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
+		server.AddAPI(txmgr.NewTxmgrApi(bs.TxManager, bs.Metrics, bs.Log))
 		bs.Log.Info("Admin RPC enabled")
 	}
 	bs.Log.Info("Starting JSON-RPC server")
