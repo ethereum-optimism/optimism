@@ -471,7 +471,6 @@ contract Deploy is Deployer {
     }
 
     /// @notice If the keepDeployer option was used with deploySafe(), this function can be used to remove the deployer.
-    ///         address (msg.sender).
     ///         Note this function does not have the broadcast modifier.
     function removeDeployerFromSafe(string memory _name, uint256 _newThreshold) public {
         Safe safe = Safe(mustGetAddress(_name));
