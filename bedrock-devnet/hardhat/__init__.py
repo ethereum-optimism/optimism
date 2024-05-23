@@ -98,9 +98,9 @@ def main():
 
 def devnet_l1_genesis(paths):
     # Create the allocs
-    allocs = {"accounts": {}}
+    allocs = {}
     for account in DEV_ACCOUNTS:
-        allocs["accounts"][account] = {"balance": "200000000000000000000000000000000000000000000000000000000000000"}
+        allocs[account] = {"balance": "0x7C75D695C2706AC5E97044C3B2D3EF5929948000000000000000"}
     write_json(paths.allocs_path, allocs)
     outfile_l1 = pjoin(paths.devnet_dir, 'genesis-l1.json')
 
@@ -204,7 +204,9 @@ def devnet_bring_l2(paths):
 def devnet_bring_op_node(paths):
     log.info('Bringing up op-node.')
     run_command(['docker', 'compose', 'up', '-d', 'op-node'], cwd=paths.ops_bedrock_dir, env={
-        'PWD': paths.ops_bedrock_dir
+        'PWD': paths.ops_bedrock_dir,
+        'PLASMA_ENABLED': 'false',
+        'PLASMA_DA_SERVICE': 'false',
     })
 
 def devnet_bring_batcher_proposer(paths):
@@ -221,7 +223,9 @@ def devnet_bring_batcher_proposer(paths):
     run_command(['docker', 'compose', 'up', '-d', 'op-batcher', 'op-proposer'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir,
         'L2OO_ADDRESS': l2_output_oracle,
-        'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address
+        'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address,
+        'PLASMA_ENABLED': 'false',
+        'PLASMA_DA_SERVICE': 'false',
     })
 
 def devnet_store_addresses(paths):
