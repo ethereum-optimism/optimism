@@ -96,7 +96,7 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 			if maxDurationReached {
 				if comparison > 0 {
 					creditMetrics[metrics.CreditAboveMaxDuration] += 1
-					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "reached")
+					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "duration", "reached")
 				} else if comparison == 0 {
 					creditMetrics[metrics.CreditEqualMaxDuration] += 1
 				} else {
@@ -105,12 +105,12 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 			} else {
 				if comparison > 0 {
 					creditMetrics[metrics.CreditAboveNonMaxDuration] += 1
-					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "unreached")
+					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "duration", "unreached")
 				} else if comparison == 0 {
 					creditMetrics[metrics.CreditEqualNonMaxDuration] += 1
 				} else {
 					creditMetrics[metrics.CreditBelowNonMaxDuration] += 1
-					b.logger.Warn("Credit withdrawn early", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "unreached")
+					b.logger.Warn("Credit withdrawn early", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "duration", "unreached")
 				}
 			}
 		}
