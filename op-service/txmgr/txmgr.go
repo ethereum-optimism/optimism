@@ -544,10 +544,13 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 
 	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount, m.cfg.TxNotInMempoolTimeout)
 	receiptChan := make(chan *types.Receipt, 1)
-	publishAndWait := func(tx *types.Transaction, bumpFees bool) *types.Transaction {
+	publishAndWait := func(tx *types.Transaction, bumpFees bool) (*types.Transaction, error) {
 		wg.Add(1)
 		tx, published := m.publishTx(ctx, tx, sendState, bumpFees)
 		if published {
+			if _, exists := m.pendingTxs[tx.Nonce()]; !exists {
+				return nil, fmt.Errorf("nonce does not exist in pendingTxs: %d", tx.Nonce())
+			}
 			m.pendingTxs[tx.Nonce()].tx = tx
 			go func() {
 				defer wg.Done()
@@ -556,11 +559,14 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 		} else {
 			wg.Done()
 		}
-		return tx
+		return tx, nil
 	}
 
 	// Immediately publish a transaction before starting the resubmission loop
-	tx = publishAndWait(tx, false)
+	tx, err := publishAndWait(tx, false)
+	if err != nil {
+		return nil, err
+	}
 
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
 	defer ticker.Stop()
@@ -581,7 +587,10 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				m.txLogger(tx, false).Warn("TxManager closed, aborting transaction submission")
 				return nil, ErrClosed
 			}
-			tx = publishAndWait(tx, true)
+			tx, err = publishAndWait(tx, true)
+			if err != nil {
+				return nil, err
+			}
 
 		case <-ctx.Done():
 			return nil, ctx.Err()

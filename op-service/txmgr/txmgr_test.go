@@ -112,6 +112,7 @@ func configWithNumConfs(numConfirmations uint64) Config {
 		NumConfirmations:          numConfirmations,
 		SafeAbortNonceTooLowCount: 3,
 		FeeLimitMultiplier:        5,
+		MinBlobTxFee:              defaultMinBlobTxFee,
 		TxNotInMempoolTimeout:     1 * time.Hour,
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
@@ -360,6 +361,7 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	h.mgr.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{tx: tx, cancel: cancel}
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
@@ -441,6 +443,7 @@ func TestTxMgrNeverConfirmCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	h.mgr.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{tx: tx, cancel: cancel}
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
@@ -487,6 +490,7 @@ func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	h.mgr.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{tx: tx, cancel: cancel}
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
@@ -521,6 +525,7 @@ func TestTxMgrConfirmsBlobTxAtHigherGasPrice(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	h.mgr.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{tx: tx, cancel: cancel}
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
@@ -555,6 +560,7 @@ func TestTxMgrBlocksOnFailingRpcCalls(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	h.mgr.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{tx: tx, cancel: cancel}
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
@@ -739,6 +745,7 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	h.mgr.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{tx: tx, cancel: cancel}
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 
@@ -774,6 +781,7 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	h.mgr.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{tx: tx, cancel: cancel}
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
@@ -819,6 +827,7 @@ func TestTxMgrDoesntAbortNonceTooLowAfterMiningTx(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	h.mgr.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{tx: tx, cancel: cancel}
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
@@ -1008,6 +1017,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
+			MinBlobTxFee:              defaultMinBlobTxFee,
 		},
 		name:       "TEST",
 		backend:    &borkedBackend,
@@ -1043,6 +1053,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
 			FeeLimitMultiplier:        5,
+			MinBlobTxFee:              defaultMinBlobTxFee,
 			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return tx, nil
 			},
@@ -1215,6 +1226,7 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 			SafeAbortNonceTooLowCount: 3,
 			FeeLimitMultiplier:        5,
 			FeeLimitThreshold:         lt.thr,
+			MinBlobTxFee:              defaultMinBlobTxFee,
 			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return tx, nil
 			},
