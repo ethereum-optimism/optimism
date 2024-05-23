@@ -36,6 +36,7 @@ contract DeployOwnershipTest is Test, DeployOwnership {
 
         address[] memory safeOwners = _safe.getOwners();
         assertEq(_safeConfig.owners.length, safeOwners.length);
+        assertFalse(_safe.isOwner(msg.sender));
         for (uint256 i = 0; i < safeOwners.length; i++) {
             assertEq(safeOwners[i], _safeConfig.owners[i]);
         }
