@@ -625,12 +625,6 @@ contract SystemDictator is OwnableUpgradeable {
     function exit1() external onlyOwner {
         require(currentStep == EXIT_1_NO_RETURN_STEP, "Exit1 only before step 3");
 
-        // Reset the L1CrossDomainMessenger to the old implementation.
-        config.globalConfig.addressManager.setAddress("OVM_L1CrossDomainMessenger", oldL1CrossDomainMessenger);
-
-        // Unset the DTL shutoff block which will allow the DTL to sync again.
-        config.globalConfig.addressManager.setAddress("DTL_SHUTOFF_BLOCK", address(0));
-
         // Mark the deployment as exited.
         exited = true;
     }

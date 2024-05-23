@@ -94,6 +94,7 @@ library Predeploys {
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         if (_addr == WETH) return "WETH";
+        if (_addr == L2_BOBA) return "L2BOBA";
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
         if (_addr == LEGACY_MESSAGE_PASSER) return "LegacyMessagePasser";
         if (_addr == L1_MESSAGE_SENDER) return "L1MessageSender";
