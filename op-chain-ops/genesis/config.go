@@ -45,6 +45,15 @@ const (
 	// SystemTxMaxGas represents the maximum gas that a system transaction can use
 	// when it is included with user deposits.
 	SystemTxMaxGas = 1_000_000
+	// DefaultEIP1559Elasticity represents the default elasticity of the EIP-1559 fee market.
+	// This is the standard config value and consensus critical.
+	DefaultEIP1559Elasticity = 6
+	// DefaultEIP1559Denominator represents the default denominator of the EIP-1559 fee market.
+	// This is the standard config value and consensus critical.
+	DefaultEIP1559Denominator = 50
+	// DefaultEIP1559DenominatorCanyon represents the default denominator of the EIP-1559 fee market when Canyon is active.
+	// This is the standard config value and consensus critical.
+	DefaultEIP1559DenominatorCanyon = 250
 )
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
@@ -208,11 +217,11 @@ type DeployConfig struct {
 	// deployment. This is DEPRECATED and should be removed in a future PR.
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 	// EIP1559Elasticity is the elasticity of the EIP1559 fee market.
-	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
+	EIP1559Elasticity uint64 `json:"eip1559Elasticity,omitempty"`
 	// EIP1559Denominator is the denominator of EIP1559 base fee market.
-	EIP1559Denominator uint64 `json:"eip1559Denominator"`
+	EIP1559Denominator uint64 `json:"eip1559Denominator,omitempty"`
 	// EIP1559DenominatorCanyon is the denominator of EIP1559 base fee market when Canyon is active.
-	EIP1559DenominatorCanyon uint64 `json:"eip1559DenominatorCanyon"`
+	EIP1559DenominatorCanyon uint64 `json:"eip1559DenominatorCanyon,omitempty"`
 	// SystemConfigStartBlock represents the block at which the op-node should start syncing
 	// from. It is an override to set this value on legacy networks where it is not set by
 	// default. It can be removed once all networks have this value set in their storage.
@@ -390,13 +399,19 @@ func (d *DeployConfig) Check() error {
 		log.Warn("GasPriceOracleBlobBaseFeeScalar is 0")
 	}
 	if d.EIP1559Denominator == 0 {
-		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
+		log.Info("Using default EIP1559Denominator", "value", DefaultEIP1559Denominator)
+		d.EIP1559Denominator = DefaultEIP1559Denominator
+	}
+	if d.EIP1559DenominatorCanyon == 0 {
+		log.Info("Using default EIP1559DenominatorCanyon", "value", DefaultEIP1559DenominatorCanyon)
+		d.EIP1559DenominatorCanyon = DefaultEIP1559DenominatorCanyon
+	}
+	if d.EIP1559Elasticity == 0 {
+		log.Info("Using default EIP1559Elasticity", "value", DefaultEIP1559Elasticity)
+		d.EIP1559Elasticity = DefaultEIP1559Elasticity
 	}
 	if d.L2GenesisCanyonTimeOffset != nil && d.EIP1559DenominatorCanyon == 0 {
 		return fmt.Errorf("%w: EIP1559DenominatorCanyon cannot be 0 if Canyon is activated", ErrInvalidDeployConfig)
-	}
-	if d.EIP1559Elasticity == 0 {
-		return fmt.Errorf("%w: EIP1559Elasticity cannot be 0", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockGasLimit == 0 {
 		return fmt.Errorf("%w: L2 genesis block gas limit cannot be 0", ErrInvalidDeployConfig)
