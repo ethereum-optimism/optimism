@@ -148,7 +148,7 @@ contract DeployConfig is Script {
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
 
         usePlasma = _readOr(_json, "$.usePlasma", false);
-        daCommitmentType = _readOr(_json, "$.daCommitmentType", 1000);
+        daCommitmentType = _readOr(_json, "$.daCommitmentType", 0);
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
         daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
         daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
