@@ -46,6 +46,20 @@ func (_m *TxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return r0, r1
 }
 
+// CancelPendingNonce provides a mock function with given fields: _a0
+func (_m *TxManager) CancelPendingNonce(_a0 uint64) error {
+	ret := _m.Called(_a0)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(uint64) error); ok {
+		r0 = rf(_a0)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // Close provides a mock function with given fields:
 func (_m *TxManager) Close() {
 	_m.Called()
@@ -129,25 +143,25 @@ func (_m *TxManager) GetMinBlobFee() *big.Int {
 	return r0
 }
 
-// GetPendingTxs provides a mock function with given fields:
-func (_m *TxManager) GetPendingTxs() ([]*types.Transaction, error) {
-	ret := _m.Called()
+// GetPendingTxs provides a mock function with given fields: _a0, _a1
+func (_m *TxManager) GetPendingTxs(_a0 bool, _a1 bool) ([]txmgr.PendingTxRPC, error) {
+	ret := _m.Called(_a0, _a1)
 
-	var r0 []*types.Transaction
+	var r0 []txmgr.PendingTxRPC
 	var r1 error
-	if rf, ok := ret.Get(0).(func() ([]*types.Transaction, error)); ok {
-		return rf()
+	if rf, ok := ret.Get(0).(func(bool, bool) ([]txmgr.PendingTxRPC, error)); ok {
+		return rf(_a0, _a1)
 	}
-	if rf, ok := ret.Get(0).(func() []*types.Transaction); ok {
-		r0 = rf()
+	if rf, ok := ret.Get(0).(func(bool, bool) []txmgr.PendingTxRPC); ok {
+		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*types.Transaction)
+			r0 = ret.Get(0).([]txmgr.PendingTxRPC)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
+	if rf, ok := ret.Get(1).(func(bool, bool) error); ok {
+		r1 = rf(_a0, _a1)
 	} else {
 		r1 = ret.Error(1)
 	}
