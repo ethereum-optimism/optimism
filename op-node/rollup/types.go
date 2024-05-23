@@ -53,7 +53,7 @@ type PlasmaConfig struct {
 	// L1 DataAvailabilityChallenge contract proxy address
 	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
 	// CommitmentType specifies which commitment type can be used. Defaults to Keccak (type 0) if not present
-	CommitmentType uint64 `json:"da_commitment_type"`
+	CommitmentType string `json:"da_commitment_type"`
 	// DA challenge window value set on the DAC contract. Used in plasma mode
 	// to compute when a commitment can no longer be challenged.
 	DAChallengeWindow uint64 `json:"da_challenge_window"`
@@ -347,16 +347,16 @@ func validatePlasmaConfig(cfg *Config) error {
 		if cfg.LegacyDAResolveWindow != cfg.PlasmaConfig.DAResolveWindow {
 			return fmt.Errorf("LegacyDAResolveWindow (%v) !=  PlasmaConfig.DAResolveWindow (%v)", cfg.LegacyDAResolveWindow, cfg.PlasmaConfig.DAResolveWindow)
 		}
-		if cfg.PlasmaConfig.CommitmentType != 0 {
+		if cfg.PlasmaConfig.CommitmentType != plasma.KeccakCommitmentString {
 			return errors.New("Cannot set CommitmentType with the legacy config")
 		}
 	} else if cfg.PlasmaConfig != nil {
-		if !(cfg.PlasmaConfig.CommitmentType == 0 || cfg.PlasmaConfig.CommitmentType == 1) {
+		if !(cfg.PlasmaConfig.CommitmentType == plasma.KeccakCommitmentString || cfg.PlasmaConfig.CommitmentType == plasma.GenericCommitmentString) {
 			return fmt.Errorf("invalid commitment type: %v", cfg.PlasmaConfig.CommitmentType)
 		}
-		if cfg.PlasmaConfig.CommitmentType == 0 && cfg.PlasmaConfig.DAChallengeAddress == (common.Address{}) {
+		if cfg.PlasmaConfig.CommitmentType == plasma.KeccakCommitmentString && cfg.PlasmaConfig.DAChallengeAddress == (common.Address{}) {
 			return errors.New("Must set da_challenge_contract_address for keccak commitments")
-		} else if cfg.PlasmaConfig.CommitmentType == 1 && cfg.PlasmaConfig.DAChallengeAddress != (common.Address{}) {
+		} else if cfg.PlasmaConfig.CommitmentType == plasma.GenericCommitmentString && cfg.PlasmaConfig.DAChallengeAddress != (common.Address{}) {
 			return errors.New("Must set empty da_challenge_contract_address for generic commitments")
 		}
 	}
@@ -505,11 +505,15 @@ func (c *Config) GetOPPlasmaConfig() (plasma.Config, error) {
 	if c.PlasmaConfig.DAResolveWindow == uint64(0) {
 		return plasma.Config{}, errors.New("missing DAResolveWindow")
 	}
+	t, err := plasma.CommitmentTypeFromString(c.PlasmaConfig.CommitmentType)
+	if err != nil {
+		return plasma.Config{}, err
+	}
 	return plasma.Config{
 		DAChallengeContractAddress: c.PlasmaConfig.DAChallengeAddress,
 		ChallengeWindow:            c.PlasmaConfig.DAChallengeWindow,
 		ResolveWindow:              c.PlasmaConfig.DAResolveWindow,
-		CommitmentType:             plasma.CommitmentType(c.PlasmaConfig.CommitmentType),
+		CommitmentType:             t,
 	}, nil
 }
 

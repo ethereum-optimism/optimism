@@ -284,8 +284,12 @@ contract Deploy is Deployer {
         console.log("deployed Safe!");
         setupSuperchain();
         console.log("set up superchain!");
-        if (cfg.usePlasma() && cfg.daCommitmentType() == 0) {
-            setupOpPlasma();
+        if (cfg.usePlasma()) {
+            bytes32 typeHash = keccak256(abi.encodePacked(cfg.daCommitmentType()));
+            bytes32 keccakHash = keccak256(abi.encodePacked("KeccakCommitment"));
+            if (typeHash == keccakHash) {
+                setupOpPlasma();
+            }
         }
         setupOpChain();
         console.log("set up op chain!");

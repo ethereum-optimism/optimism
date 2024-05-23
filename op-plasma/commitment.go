@@ -3,6 +3,7 @@ package plasma
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -16,12 +17,25 @@ var ErrCommitmentMismatch = errors.New("commitment mismatch")
 // CommitmentType is the commitment type prefix.
 type CommitmentType byte
 
+func CommitmentTypeFromString(s string) (CommitmentType, error) {
+	switch s {
+	case KeccakCommitmentString:
+		return Keccak256CommitmentType, nil
+	case GenericCommitmentString:
+		return GenericCommitmentType, nil
+	default:
+		return 0, fmt.Errorf("invalid commitment type: %s", s)
+	}
+}
+
 // CommitmentType describes the binary format of the commitment.
-// KeccakCommitmentType is the default commitment type for the centralized DA storage.
+// KeccakCommitmentStringType is the default commitment type for the centralized DA storage.
 // GenericCommitmentType indicates an opaque bytestring that the op-node never opens.
 const (
 	Keccak256CommitmentType CommitmentType = 0
 	GenericCommitmentType   CommitmentType = 1
+	KeccakCommitmentString  string         = "KeccakCommitment"
+	GenericCommitmentString string         = "GenericCommitment"
 )
 
 // CommitmentData is the binary representation of a commitment.

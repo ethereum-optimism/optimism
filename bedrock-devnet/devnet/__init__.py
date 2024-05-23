@@ -137,7 +137,7 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     if DEVNET_PLASMA:
         deploy_config['usePlasma'] = True
     if GENERIC_PLASMA:
-        deploy_config['daCommitmentType'] = 1
+        deploy_config['daCommitmentType'] = "GenericCommitment"
     write_json(paths.devnet_config_path, deploy_config)
 
 def devnet_l1_allocs(paths):
