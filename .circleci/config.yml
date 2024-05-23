@@ -1465,7 +1465,7 @@ jobs:
 
   devnet-hardhat:
     machine:
-      image: ubuntu-2204:2022.10.2
+      image: <<pipeline.parameters.base_image>>
     environment:
       DOCKER_BUILDKIT: 1
     steps:
