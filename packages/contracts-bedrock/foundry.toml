@@ -54,6 +54,7 @@ line_length=120
 multiline_func_header='all'
 bracket_spacing=true
 wrap_comments=true
+ignore = ['src/boba/WETH9.sol']
 
 ################################################################
 #                         PROFILE: CI                          #

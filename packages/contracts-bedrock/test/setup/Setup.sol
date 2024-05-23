@@ -185,7 +185,8 @@ contract Setup {
             L1Dependencies({
                 l1CrossDomainMessengerProxy: payable(address(l1CrossDomainMessenger)),
                 l1StandardBridgeProxy: payable(address(l1StandardBridge)),
-                l1ERC721BridgeProxy: payable(address(l1ERC721Bridge))
+                l1ERC721BridgeProxy: payable(address(l1ERC721Bridge)),
+                l1BobaToken: address(0)
             })
         );
 

@@ -86,8 +86,10 @@ library Predeploys {
     /// @notice Address of the CrossL2Inbox predeploy.
     address internal constant CROSS_L2_INBOX = 0x4200000000000000000000000000000000000022;
 
+    address internal constant L2_BOBA = 0x4200000000000000000000000000000000000023;
+
     /// @notice Address of the L2ToL2CrossDomainMessenger predeploy.
-    address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
+    address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000024;
 
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
@@ -120,7 +122,7 @@ library Predeploys {
 
     /// @notice Returns true if the predeploy is not proxied.
     function notProxied(address _addr) internal pure returns (bool) {
-        return _addr == GOVERNANCE_TOKEN || _addr == WETH;
+        return _addr == GOVERNANCE_TOKEN || _addr == WETH || _addr == L2_BOBA;
     }
 
     /// @notice Returns true if the address is a defined predeploy that is embedded into new OP-Stack chains.
