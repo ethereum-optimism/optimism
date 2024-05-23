@@ -378,7 +378,7 @@ func TestTxMgrPendingTxs(t *testing.T) {
 	numTxs := 3
 	for i := 0; i < numTxs; i++ {
 		go func() {
-			h.mgr.Send(context.Background(), TxCandidate{To: &common.Address{}})
+			_, _ = h.mgr.Send(context.Background(), TxCandidate{To: &common.Address{}})
 		}()
 	}
 	time.Sleep(time.Millisecond * 100)
