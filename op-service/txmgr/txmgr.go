@@ -581,6 +581,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				return nil, fmt.Errorf("nonce does not exist in pendingTxs: %d", tx.Nonce())
 			}
 			m.pendingTxs[tx.Nonce()].tx = tx
+			m.pendingTxs[tx.Nonce()].status = "published"
 			m.pendingTxMu.Unlock()
 			go func() {
 				defer wg.Done()
