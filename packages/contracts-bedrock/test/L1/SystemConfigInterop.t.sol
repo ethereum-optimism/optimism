@@ -57,7 +57,7 @@ contract SystemConfigInterop_Test is CommonTest {
             abi.encodeCall(
                 OptimismPortalInterop.setConfig,
                 (
-                    ConfigType.GAS_PAYING_TOKEN,
+                    ConfigType.SET_GAS_PAYING_TOKEN,
                     StaticConfig.encodeSetGasPayingToken({
                         _token: _token,
                         _decimals: 18,
