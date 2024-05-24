@@ -10,18 +10,11 @@ import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
 // Target contract dependencies
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
-import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
-
-contract SystemConfigWithSetGasPayingToken is SystemConfigInterop {
-    /// @notice External method to set the gas paying token.
-    /// @param _token Address of the token to set as the gas paying token.
-    function setGasPayingToken(address _token) external {
-        _setGasPayingToken(_token);
-    }
-}
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ConfigType } from "src/L2/L1BlockInterop.sol";
 
 contract SystemConfigInterop_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
@@ -75,7 +68,7 @@ contract SystemConfigInterop_Test is CommonTest {
             )
         );
 
-        _systemConfigWithSetGasPayingToken().setGasPayingToken(_token);
+        _cleanStorageAndInit(_token);
     }
 
     /// @dev Tests that a dependency can be added.
@@ -122,10 +115,32 @@ contract SystemConfigInterop_Test is CommonTest {
         return SystemConfigInterop(address(systemConfig));
     }
 
-    /// @dev Returns the SystemConfigWithSetGasPayingToken instance.
-    function _systemConfigWithSetGasPayingToken() internal returns (SystemConfigWithSetGasPayingToken) {
-        vm.etch(address(systemConfig), address(new SystemConfigWithSetGasPayingToken()).code);
+    /// @dev Helper to clean storage and then initialize the system config with an arbitrary gas token address.
+    function _cleanStorageAndInit(address _token) internal {
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SLOT, bytes32(0));
+        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_NAME_SLOT, bytes32(0));
+        vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(0));
 
-        return SystemConfigWithSetGasPayingToken(address(systemConfig));
+        systemConfig.initialize({
+            _owner: alice,
+            _basefeeScalar: 2100,
+            _blobbasefeeScalar: 1000000,
+            _batcherHash: bytes32(hex"abcd"),
+            _gasLimit: 30_000_000,
+            _unsafeBlockSigner: address(1),
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _batchInbox: address(0),
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                disputeGameFactory: address(0),
+                l1StandardBridge: address(0),
+                optimismPortal: address(optimismPortal),
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: _token
+            })
+        });
     }
 }
