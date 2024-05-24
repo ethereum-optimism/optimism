@@ -329,7 +329,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			log.Info("Stopping work on payload",
 				"id", payload.id,
 				"reason", stopReason,
-				"elapsed", time.Since(start).Milliseconds())
+				"elapsed", common.PrettyDuration(time.Since(start)))
 		}()
 
 		updatePayload := func() time.Duration {

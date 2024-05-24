@@ -262,13 +262,13 @@ github.com/elastic/gosigar/sys/windows
 # github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 ## explicit; go 1.18
 github.com/ethereum-optimism/go-ethereum-hdwallet
-# github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240516202831-8117b611dc3c
+# github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240522134500-19555bdbdc95
 ## explicit; go 1.21
 github.com/ethereum-optimism/superchain-registry/superchain
 # github.com/ethereum/c-kzg-4844 v0.4.0
 ## explicit; go 1.19
 github.com/ethereum/c-kzg-4844/bindings/go
-# github.com/ethereum/go-ethereum v1.13.15 => github.com/ethereum-optimism/op-geth v1.101315.1-rc.4
+# github.com/ethereum/go-ethereum v1.13.15 => github.com/ethereum-optimism/op-geth v1.101315.1-rc.5
 ## explicit; go 1.21
 github.com/ethereum/go-ethereum
 github.com/ethereum/go-ethereum/accounts
@@ -1381,5 +1381,5 @@ lukechampine.com/blake3
 ## explicit; go 1.17
 rsc.io/tmplfunc
 rsc.io/tmplfunc/internal/parse
-# github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.1-rc.4
+# github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.1-rc.5
 # github.com/centrifuge/go-substrate-rpc-client/v4 => github.com/availproject/go-substrate-rpc-client/v4 v4.0.12-avail-1.4.0-rc1-5e286e3

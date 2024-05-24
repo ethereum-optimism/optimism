@@ -27,19 +27,21 @@ func LoadOPStackGenesis(chainID uint64) (*Genesis, error) {
 	}
 
 	genesis := &Genesis{
-		Config:     cfg,
-		Nonce:      gen.Nonce,
-		Timestamp:  gen.Timestamp,
-		ExtraData:  gen.ExtraData,
-		GasLimit:   gen.GasLimit,
-		Difficulty: (*big.Int)(gen.Difficulty),
-		Mixhash:    common.Hash(gen.Mixhash),
-		Coinbase:   common.Address(gen.Coinbase),
-		Alloc:      make(GenesisAlloc),
-		Number:     gen.Number,
-		GasUsed:    gen.GasUsed,
-		ParentHash: common.Hash(gen.ParentHash),
-		BaseFee:    (*big.Int)(gen.BaseFee),
+		Config:        cfg,
+		Nonce:         gen.Nonce,
+		Timestamp:     gen.Timestamp,
+		ExtraData:     gen.ExtraData,
+		GasLimit:      gen.GasLimit,
+		Difficulty:    (*big.Int)(gen.Difficulty),
+		Mixhash:       common.Hash(gen.Mixhash),
+		Coinbase:      common.Address(gen.Coinbase),
+		Alloc:         make(GenesisAlloc),
+		Number:        gen.Number,
+		GasUsed:       gen.GasUsed,
+		ParentHash:    common.Hash(gen.ParentHash),
+		BaseFee:       (*big.Int)(gen.BaseFee),
+		ExcessBlobGas: gen.ExcessBlobGas,
+		BlobGasUsed:   gen.BlobGasUsed,
 	}
 
 	for addr, acc := range gen.Alloc {
@@ -93,7 +95,7 @@ func LoadOPStackGenesis(chainID uint64) (*Genesis, error) {
 		}
 	}
 	if expectedHash != genesisBlockHash {
-		return nil, fmt.Errorf("produced genesis with hash %s but expected %s", genesisBlockHash, expectedHash)
+		return nil, fmt.Errorf("chainID=%d: produced genesis with hash %s but expected %s", chainID, genesisBlockHash, expectedHash)
 	}
 	return genesis, nil
 }
