@@ -119,12 +119,5 @@ func (eq *CLSync) Proceed(ctx context.Context) error {
 	}
 	eq.unsafePayloads.Pop()
 	eq.log.Trace("Executed unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
-	eq.log.Info("Sync progress",
-		"reason", "unsafe payload from sequencer",
-		"l2_finalized", eq.ec.Finalized(),
-		"l2_safe", eq.ec.SafeL2Head(),
-		"l2_unsafe", eq.ec.UnsafeL2Head(),
-		"l2_time", eq.ec.UnsafeL2Head().Time,
-	)
 	return nil
 }

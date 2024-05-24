@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/big"
 	"math/rand"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,8 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -58,6 +54,29 @@ func (n noopFinality) Reset() {
 }
 
 var _ FinalizerHooks = (*noopFinality)(nil)
+
+type fakeAttributesHandler struct {
+	attributes *AttributesWithParent
+	err        error
+}
+
+func (f *fakeAttributesHandler) HasAttributes() bool {
+	return f.attributes != nil
+}
+
+func (f *fakeAttributesHandler) SetAttributes(attributes *AttributesWithParent) {
+	f.attributes = attributes
+}
+
+func (f *fakeAttributesHandler) Proceed(ctx context.Context) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.attributes = nil
+	return io.EOF
+}
+
+var _ AttributesHandler = (*fakeAttributesHandler)(nil)
 
 func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
@@ -267,7 +286,7 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refE}
 
 	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled, noopFinality{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled, noopFinality{}, &fakeAttributesHandler{})
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
@@ -597,7 +616,7 @@ func TestVerifyNewL1Origin(t *testing.T) {
 
 			prev := &fakeAttributesQueue{origin: refE}
 			ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-			eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled, noopFinality{})
+			eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled, noopFinality{}, &fakeAttributesHandler{})
 			require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 			require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
@@ -694,7 +713,8 @@ func TestBlockBuildingRace(t *testing.T) {
 
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled, noopFinality{})
+	attribHandler := &fakeAttributesHandler{}
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled, noopFinality{}, attribHandler)
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	id := eth.PayloadID{0xff}
@@ -717,79 +737,21 @@ func TestBlockBuildingRace(t *testing.T) {
 	eng.ExpectForkchoiceUpdate(preFc, nil, preFcRes, nil)
 	require.NoError(t, eq.Step(context.Background()), "clean forkchoice state after reset")
 
-	// Expect initial building update, to process the attributes we queued up
-	eng.ExpectForkchoiceUpdate(preFc, attrs, preFcRes, nil)
-	// Don't let the payload be confirmed straight away
-	mockErr := fmt.Errorf("mock error")
-	eng.ExpectGetPayload(id, nil, mockErr)
-	// The job will be not be cancelled, the untyped error is a temporary error
-
+	// Expect initial building update, to process the attributes we queued up. Attributes get in
 	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData, "queue up attributes")
+	require.True(t, eq.attributesHandler.HasAttributes())
+
+	// Don't let the payload be confirmed straight away
+	// The job will be not be cancelled, the untyped error is a temporary error
+	mockErr := fmt.Errorf("mock error")
+	attribHandler.err = mockErr
 	require.ErrorIs(t, eq.Step(context.Background()), mockErr, "expecting to fail to process attributes")
-	require.NotNil(t, eq.safeAttributes, "still have attributes")
+	require.True(t, eq.attributesHandler.HasAttributes(), "still have attributes")
 
 	// Now allow the building to complete
-	a1InfoTx, err := L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA1.SequenceNumber, &testutils.MockBlockInfo{
-		InfoHash:        refA.Hash,
-		InfoParentHash:  refA.ParentHash,
-		InfoCoinbase:    common.Address{},
-		InfoRoot:        common.Hash{},
-		InfoNum:         refA.Number,
-		InfoTime:        refA.Time,
-		InfoMixDigest:   [32]byte{},
-		InfoBaseFee:     big.NewInt(7),
-		InfoReceiptRoot: common.Hash{},
-		InfoGasUsed:     0,
-	}, 0)
+	attribHandler.err = nil
 
-	require.NoError(t, err)
-	payloadA1 := &eth.ExecutionPayload{
-		ParentHash:    refA1.ParentHash,
-		FeeRecipient:  attrs.SuggestedFeeRecipient,
-		StateRoot:     eth.Bytes32{},
-		ReceiptsRoot:  eth.Bytes32{},
-		LogsBloom:     eth.Bytes256{},
-		PrevRandao:    eth.Bytes32{},
-		BlockNumber:   eth.Uint64Quantity(refA1.Number),
-		GasLimit:      gasLimit,
-		GasUsed:       0,
-		Timestamp:     eth.Uint64Quantity(refA1.Time),
-		ExtraData:     nil,
-		BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
-		BlockHash:     refA1.Hash,
-		Transactions: []eth.Data{
-			a1InfoTx,
-		},
-	}
-	envelope := &eth.ExecutionPayloadEnvelope{ExecutionPayload: payloadA1}
-	eng.ExpectGetPayload(id, envelope, nil)
-	eng.ExpectNewPayload(payloadA1, nil, &eth.PayloadStatusV1{
-		Status:          eth.ExecutionValid,
-		LatestValidHash: &refA1.Hash,
-		ValidationError: nil,
-	}, nil)
-	postFc := &eth.ForkchoiceState{
-		HeadBlockHash:      refA1.Hash,
-		SafeBlockHash:      refA1.Hash,
-		FinalizedBlockHash: refA0.Hash,
-	}
-	postFcRes := &eth.ForkchoiceUpdatedResult{
-		PayloadStatus: eth.PayloadStatusV1{
-			Status:          eth.ExecutionValid,
-			LatestValidHash: &refA1.Hash,
-			ValidationError: nil,
-		},
-		PayloadID: &id,
-	}
-	eng.ExpectForkchoiceUpdate(postFc, nil, postFcRes, nil)
-
-	// Now complete the job, as external user of the engine
-	_, _, err = eq.ConfirmPayload(context.Background(), async.NoOpGossiper{}, &conductor.NoOpConductor{})
-	require.NoError(t, err)
-	require.Equal(t, refA1, ec.SafeL2Head(), "safe head should have changed")
-
-	require.NoError(t, eq.Step(context.Background()))
-	require.Nil(t, eq.safeAttributes, "attributes should now be invalidated")
+	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData, "next attributes")
 
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)
@@ -866,7 +828,7 @@ func TestResetLoop(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 
 	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled, noopFinality{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled, noopFinality{}, &fakeAttributesHandler{})
 	eq.ec.SetUnsafeHead(refA2)
 	eq.ec.SetSafeHead(refA1)
 	eq.ec.SetFinalizedHead(refA0)
@@ -879,10 +841,10 @@ func TestResetLoop(t *testing.T) {
 		FinalizedBlockHash: refA0.Hash,
 	}
 	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
-	require.Nil(t, eq.safeAttributes)
+	require.False(t, eq.attributesHandler.HasAttributes())
 	require.ErrorIs(t, eq.Step(context.Background()), nil)
 	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData)
-	require.NotNil(t, eq.safeAttributes)
+	require.True(t, eq.attributesHandler.HasAttributes())
 
 	// Perform the reset
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
