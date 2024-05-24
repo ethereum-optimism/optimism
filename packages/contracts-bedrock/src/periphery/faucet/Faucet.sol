@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IFaucetAuthModule } from "./authmodules/IFaucetAuthModule.sol";
+import { SafeCall } from "../../libraries/SafeCall.sol";
 
 /// @title  SafeSend
 /// @notice Sends ETH to a recipient account without triggering any code.
@@ -12,11 +13,6 @@ contract SafeSend {
     }
 }
 
-interface IL1StandardBridge {
-    // Declare the depositETHTo function as it is defined in L1StandardBridge
-    function depositETHTo(address to, uint32 minGasLimit, bytes calldata extraData) external payable;
-}
-
 /// @title  Faucet
 /// @notice Faucet contract that drips ETH to users.
 contract Faucet {
@@ -25,13 +21,14 @@ contract Faucet {
     /// @param userId     The id of the user that requested the drip.
     /// @param amount     The amount of funds sent.
     /// @param recipient  The recipient of the drip.
-    /// @param bridge     The destination chain's bridge of the drip.
-    event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient, address bridge);
+    event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient);
 
     /// @notice Parameters for a drip.
     struct DripParameters {
         address payable recipient;
+        bytes data;
         bytes32 nonce;
+        uint32 gasLimit;
     }
 
     /// @notice Parameters for authentication.
@@ -94,8 +91,7 @@ contract Faucet {
     /// @notice Drips ETH to a recipient account.
     /// @param _params Drip parameters.
     /// @param _auth   Authentication parameters.
-    /// @param _bridge Bridge address.
-    function drip(DripParameters memory _params, AuthParameters memory _auth, address _bridge) public {
+    function drip(DripParameters memory _params, AuthParameters memory _auth) public {
         // Grab the module config once.
         ModuleConfig memory config = modules[_auth.module];
 
@@ -120,22 +116,19 @@ contract Faucet {
             "Faucet: drip parameters could not be verified by security module"
         );
 
+        // Verify recepient is not the faucet address.
+        require(_params.recipient != address(this), "Faucet: cannot drip to itself");
+
         // Set the next timestamp at which this auth id can be used.
         timeouts[_auth.module][_auth.id] = block.timestamp + config.ttl;
 
         // Mark the nonce as used.
         nonces[_auth.id][_params.nonce] = true;
 
-        if (_bridge == address(0)) {
-            // Use SafeSend if no bridge address is provided
-            new SafeSend{ value: config.amount }(_params.recipient);
-        } else {
-            // Execute a bridging of ETH to the recipient account.
-            IL1StandardBridge l1Bridge = IL1StandardBridge(_bridge);
-            l1Bridge.depositETHTo{value: config.amount}(_params.recipient, 200000, "");
-        }
+        // Execute transfer of ETH to the recipient account.
+        SafeCall.call(_params.recipient, _params.gasLimit, config.amount, _params.data);
 
-        emit Drip(config.name, _auth.id, config.amount, _params.recipient, _bridge);
+        emit Drip(config.name, _auth.id, config.amount, _params.recipient);
     }
 
     /// @notice Returns the enable value of a given auth module.
