@@ -39,9 +39,19 @@ contract SystemConfigInterop_Test is CommonTest {
     )
         public
     {
-        vm.assume(_token != address(vm));
         vm.assume(_token != address(0));
         vm.assume(_token != Constants.ETHER);
+        // don't use vm's address
+        vm.assume(_token != address(vm));
+        // don't use console's address
+        vm.assume(_token != CONSOLE);
+        // don't use create2 deployer's address
+        vm.assume(_token != CREATE2_FACTORY);
+        // don't use default test's address
+        vm.assume(_token != DEFAULT_TEST_CONTRACT);
+        // don't use multicall3's address
+        vm.assume(_token != MULTICALL3_ADDRESS);
+
         vm.assume(bytes(_name).length <= 32);
         vm.assume(bytes(_symbol).length <= 32);
 
@@ -49,17 +59,19 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.mockCall(_token, abi.encodeWithSelector(ERC20.name.selector), abi.encode(_name));
         vm.mockCall(_token, abi.encodeWithSelector(ERC20.symbol.selector), abi.encode(_symbol));
 
-        vm.mockCall(
+        vm.expectCall(
             address(optimismPortal),
-            abi.encodeWithSelector(OptimismPortalInterop.setConfig.selector),
-            abi.encode(
-                ConfigType.GAS_PAYING_TOKEN,
-                StaticConfig.encodeSetGasPayingToken({
-                    _token: _token,
-                    _decimals: 18,
-                    _name: GasPayingToken.sanitize(_name),
-                    _symbol: GasPayingToken.sanitize(_symbol)
-                })
+            abi.encodeCall(
+                OptimismPortalInterop.setConfig,
+                (
+                    ConfigType.GAS_PAYING_TOKEN,
+                    StaticConfig.encodeSetGasPayingToken({
+                        _token: _token,
+                        _decimals: 18,
+                        _name: GasPayingToken.sanitize(_name),
+                        _symbol: GasPayingToken.sanitize(_symbol)
+                    })
+                )
             )
         );
 
@@ -68,10 +80,11 @@ contract SystemConfigInterop_Test is CommonTest {
 
     /// @dev Tests that a dependency can be added.
     function testFuzz_addDependency_succeeds(uint256 _chainId) public {
-        vm.mockCall(
+        vm.expectCall(
             address(optimismPortal),
-            abi.encodeWithSelector(OptimismPortalInterop.setConfig.selector),
-            abi.encode(ConfigType.GAS_PAYING_TOKEN, StaticConfig.encodeAddDependency(_chainId))
+            abi.encodeCall(
+                OptimismPortalInterop.setConfig, (ConfigType.ADD_DEPENDENCY, StaticConfig.encodeAddDependency(_chainId))
+            )
         );
 
         vm.prank(systemConfig.owner());
@@ -86,10 +99,12 @@ contract SystemConfigInterop_Test is CommonTest {
 
     /// @dev Tests that a dependency can be removed.
     function testFuzz_removeDependency_succeeds(uint256 _chainId) public {
-        vm.mockCall(
+        vm.expectCall(
             address(optimismPortal),
-            abi.encodeWithSelector(OptimismPortalInterop.setConfig.selector),
-            abi.encode(ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId))
+            abi.encodeCall(
+                OptimismPortalInterop.setConfig,
+                (ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId))
+            )
         );
 
         vm.prank(systemConfig.owner());
