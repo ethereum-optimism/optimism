@@ -142,7 +142,9 @@ type SimpleTxManager struct {
 	nonceLock sync.RWMutex
 
 	numPending atomic.Int64
-	pendingTxs map[uint64]*PendingTxWithCancel
+
+	pendingTxMu sync.RWMutex
+	pendingTxs  map[uint64]*PendingTxWithCancel
 
 	closed atomic.Bool
 }
@@ -261,14 +263,15 @@ func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*typ
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
-	m.pendingTxs[tx.Nonce()] = &PendingTxWithCancel{
+	m.addPendingTx(&PendingTxWithCancel{
 		tx:     tx,
 		cancel: cancel,
 		status: "crafted",
-	}
+	})
+
 	defer func() {
 		m.l.Info("removing pending tx", "nonce", tx.Nonce())
-		delete(m.pendingTxs, tx.Nonce())
+		m.removePendingTx(tx.Nonce())
 	}()
 
 	receipt, err := m.sendTx(ctx, tx)
@@ -296,18 +299,42 @@ type PendingTxRPC struct {
 }
 
 func (m *SimpleTxManager) CancelPendingNonce(nonce uint64) error {
+	m.pendingTxMu.Lock()
 	pendingTx, exists := m.pendingTxs[nonce]
+	m.pendingTxMu.Unlock()
 	if !exists {
-		return fmt.Errorf("nonce not found in pending tx: %d", nonce)
+		return fmt.Errorf("nonce not found in pendingTxs: %d", nonce)
 	}
 	pendingTx.cancel()
-	delete(m.pendingTxs, nonce)
+	m.removePendingTx(nonce)
 	return nil
+}
+
+func (m *SimpleTxManager) removePendingTx(nonce uint64) {
+	m.pendingTxMu.Lock()
+	defer m.pendingTxMu.Unlock()
+
+	if _, exists := m.pendingTxs[nonce]; exists {
+		delete(m.pendingTxs, nonce)
+		m.l.Info("removed pendingTx", "nonce", nonce)
+		return
+	}
+	m.l.Info("no pendingTx found", "nonce", nonce)
+}
+
+func (m *SimpleTxManager) addPendingTx(pendingTx *PendingTxWithCancel) {
+	m.pendingTxMu.Lock()
+	defer m.pendingTxMu.Unlock()
+
+	m.pendingTxs[pendingTx.tx.Nonce()] = pendingTx
 }
 
 // GetPendingTxs reformats each element in m.pendingTxs from a types.Transaction into a PendingTx
 func (m *SimpleTxManager) GetPendingTxs(includeData, includeEncodedBytes bool) ([]PendingTxRPC, error) {
 	txs := []PendingTxRPC{}
+	m.pendingTxMu.Lock()
+	defer m.pendingTxMu.Unlock()
+
 	for _, p := range m.pendingTxs {
 		pendingTx := PendingTxRPC{
 			Hash:      p.tx.Hash(),
@@ -548,10 +575,13 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 		wg.Add(1)
 		tx, published := m.publishTx(ctx, tx, sendState, bumpFees)
 		if published {
+			m.pendingTxMu.Lock()
 			if _, exists := m.pendingTxs[tx.Nonce()]; !exists {
+				m.pendingTxMu.Unlock()
 				return nil, fmt.Errorf("nonce does not exist in pendingTxs: %d", tx.Nonce())
 			}
 			m.pendingTxs[tx.Nonce()].tx = tx
+			m.pendingTxMu.Unlock()
 			go func() {
 				defer wg.Done()
 				m.waitForTx(ctx, tx, sendState, receiptChan)
