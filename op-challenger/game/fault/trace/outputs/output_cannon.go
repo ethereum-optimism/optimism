@@ -24,6 +24,7 @@ func NewOutputCannonTraceAccessor(
 	cfg *config.Config,
 	l2Client utils.L2HeaderSource,
 	prestateProvider types.PrestateProvider,
+	cannonPrestate string,
 	rollupClient OutputRollupClient,
 	dir string,
 	l1Head eth.BlockID,
@@ -39,7 +40,7 @@ func NewOutputCannonTraceAccessor(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 		}
-		provider := cannon.NewTraceProvider(logger, m, cfg, prestateProvider, localInputs, subdir, depth)
+		provider := cannon.NewTraceProvider(logger, m, cfg, prestateProvider, cannonPrestate, localInputs, subdir, depth)
 		return provider, nil
 	}
 

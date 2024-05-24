@@ -34,7 +34,7 @@ type Executor struct {
 	cmdExecutor      utils.CmdExecutor
 }
 
-func NewExecutor(logger log.Logger, m AsteriscMetricer, cfg *config.Config, inputs utils.LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m AsteriscMetricer, cfg *config.Config, prestate string, inputs utils.LocalGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
 		metrics:          m,
@@ -47,7 +47,7 @@ func NewExecutor(logger log.Logger, m AsteriscMetricer, cfg *config.Config, inpu
 		network:          cfg.AsteriscNetwork,
 		rollupConfig:     cfg.AsteriscRollupConfigPath,
 		l2Genesis:        cfg.AsteriscL2GenesisPath,
-		absolutePreState: cfg.AsteriscAbsolutePreState,
+		absolutePreState: prestate,
 		snapshotFreq:     cfg.AsteriscSnapshotFreq,
 		infoFreq:         cfg.AsteriscInfoFreq,
 		selectSnapshot:   utils.FindStartingSnapshot,

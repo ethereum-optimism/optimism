@@ -43,12 +43,12 @@ type AsteriscTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m AsteriscMetricer, cfg *config.Config, prestateProvider types.PrestateProvider, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
+func NewTraceProvider(logger log.Logger, m AsteriscMetricer, cfg *config.Config, prestateProvider types.PrestateProvider, asteriscPrestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
 	return &AsteriscTraceProvider{
 		logger:           logger,
 		dir:              dir,
-		prestate:         cfg.AsteriscAbsolutePreState,
-		generator:        NewExecutor(logger, m, cfg, localInputs),
+		prestate:         asteriscPrestate,
+		generator:        NewExecutor(logger, m, cfg, asteriscPrestate, localInputs),
 		gameDepth:        gameDepth,
 		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
@@ -185,7 +185,7 @@ func NewTraceProviderForTest(logger log.Logger, m AsteriscMetricer, cfg *config.
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.AsteriscAbsolutePreState,
-		generator:      NewExecutor(logger, m, cfg, localInputs),
+		generator:      NewExecutor(logger, m, cfg, cfg.AsteriscNetwork, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 	}
