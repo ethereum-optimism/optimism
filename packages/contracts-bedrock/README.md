@@ -23,6 +23,7 @@ High-level information about these contracts can be found within this README and
   - [Style Guide](#style-guide)
 - [Deployment](#deployment)
   - [Configuration](#configuration)
+    - [Custom Gas Token](#custom-gas-token)
   - [Execution](#execution)
   - [Deploying a single contract](#deploying-a-single-contract)
 - [Testing](#testing)
@@ -277,18 +278,22 @@ values are addresses. This works well with the JSON files in `superchain-ops`.
 ### Configuration
 
 Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./deploy-config/) folder.
-By default, the network name will be selected automatically based on the chainid. Alternatively, the `DEPLOYMENT_CONTEXT` env var can be used to override the network name.
-The spec for the deploy config is defined by the `deployConfigSpec` located inside of the [`hardhat.config.ts`](./hardhat.config.ts).
+Use the env var `DEPLOY_CONFIG_PATH` to use a particular deploy config file at runtime.
+
+#### Custom Gas Token
+
+The Custom Gas Token feature is a Beta feature of the MIT licensed OP Stack.
+While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.
 
 ### Execution
 
 Before deploying the contracts, you can verify the state diff produced by the deploy script using the `runWithStateDiff()` function signature which produces the outputs inside [`snapshots/state-diff/`](./snapshots/state-diff).
 Run the deployment with state diffs by executing: `forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'runWithStateDiff()' --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`.
 
-1. Set the env vars `ETH_RPC_URL`, `PRIVATE_KEY` and `ETHERSCAN_API_KEY` if contract verification is desired
+1. Set the env vars `ETH_RPC_URL`, `PRIVATE_KEY` and `ETHERSCAN_API_KEY` if contract verification is desired.
+1. Set the `DEPLOY_CONFIG_PATH` env var to a path on the filesystem that points to a deploy config.
 1. Deploy the contracts with `forge script -vvv scripts/Deploy.s.sol:Deploy --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
    Pass the `--verify` flag to verify the deployments automatically with Etherscan.
-1. Generate the hardhat deploy artifacts with `forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'sync()' --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
 
 ### Deploying a single contract
 
