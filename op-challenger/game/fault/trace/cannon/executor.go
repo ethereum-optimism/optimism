@@ -34,7 +34,7 @@ type Executor struct {
 	cmdExecutor      utils.CmdExecutor
 }
 
-func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs utils.LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, prestate string, inputs utils.LocalGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
 		metrics:          m,
@@ -47,7 +47,7 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs
 		network:          cfg.CannonNetwork,
 		rollupConfig:     cfg.CannonRollupConfigPath,
 		l2Genesis:        cfg.CannonL2GenesisPath,
-		absolutePreState: cfg.CannonAbsolutePreState,
+		absolutePreState: prestate,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
 		infoFreq:         cfg.CannonInfoFreq,
 		selectSnapshot:   utils.FindStartingSnapshot,

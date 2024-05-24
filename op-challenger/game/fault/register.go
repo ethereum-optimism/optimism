@@ -335,7 +335,11 @@ func registerCannon(
 		}
 		prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
-			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg, l2Client, prestateProvider, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
+			cannonPrestate, err := prestateSource.PrestatePath(requiredPrestatehash)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get cannon prestate: %w", err)
+			}
+			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg, l2Client, prestateProvider, cannonPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
