@@ -10,11 +10,17 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 da-server:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/da-server ./cmd/daserver
 
+avail-da-server:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/avail-da-server ./cmd/avail
+
 clean:
 	rm bin/da-server
 
 test:
 	go test -v ./...
+
+test-avail:
+	go test -v -tags avail
 
 .PHONY: \
 	op-batcher \
