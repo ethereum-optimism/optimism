@@ -62,7 +62,8 @@ contract DeployOwnership is Deploy {
         // The SuperchainConfig is needed as a constructor argument to the Deputy Guardian Module
         deploySuperchainConfig();
 
-        deployFoundationSafe();
+        deployFoundationOperationsSafe();
+        deployFoundationUpgradeSafe();
         deploySecurityCouncilSafe();
         deployGuardianSafe();
         configureGuardianSafe();
@@ -87,7 +88,7 @@ contract DeployOwnership is Deploy {
         guardianConfig_ = GuardianConfig({
             safeConfig: SafeConfig({ threshold: 1, owners: exampleGuardianOwners }),
             deputyGuardianModuleConfig: DeputyGuardianModuleConfig({
-                deputyGuardian: mustGetAddress("FoundationSafe"),
+                deputyGuardian: mustGetAddress("FoundationOperationsSafe"),
                 superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
             })
         });
@@ -103,24 +104,34 @@ contract DeployOwnership is Deploy {
         councilConfig_ = SecurityCouncilConfig({
             safeConfig: safeConfig,
             livenessModuleConfig: LivenessModuleConfig({
-                livenessInterval: 24 weeks,
+                livenessInterval: 14 weeks,
                 thresholdPercentage: 75,
                 minOwners: 8,
-                fallbackOwner: mustGetAddress("FoundationSafe")
+                fallbackOwner: mustGetAddress("FoundationUpgradeSafe")
             })
         });
     }
 
     /// @notice Deploys a Safe with a configuration similar to that of the Foundation Safe on Mainnet.
-    function deployFoundationSafe() public broadcast returns (address addr_) {
+    function deployFoundationOperationsSafe() public broadcast returns (address addr_) {
         SafeConfig memory exampleFoundationConfig = _getExampleFoundationConfig();
         addr_ = deploySafe({
-            _name: "FoundationSafe",
+            _name: "FoundationOperationsSafe",
             _owners: exampleFoundationConfig.owners,
             _threshold: exampleFoundationConfig.threshold,
             _keepDeployer: false
         });
-        console.log("Deployed and configured the Foundation Safe!");
+    }
+
+    /// @notice Deploys a Safe with a configuration similar to that of the Foundation Safe on Mainnet.
+    function deployFoundationUpgradeSafe() public broadcast returns (address addr_) {
+        SafeConfig memory exampleFoundationConfig = _getExampleFoundationConfig();
+        addr_ = deploySafe({
+            _name: "FoundationUpgradeSafe",
+            _owners: exampleFoundationConfig.owners,
+            _threshold: exampleFoundationConfig.threshold,
+            _keepDeployer: false
+        });
     }
 
     /// @notice Deploy a LivenessGuard for use on the Security Council Safe.

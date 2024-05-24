@@ -42,12 +42,20 @@ contract DeployOwnershipTest is Test, DeployOwnership {
         }
     }
 
-    /// @dev Test the example Foundation Safe configuration.
-    function test_exampleFoundationSafe() public {
-        Safe foundationSafe = Safe(payable(mustGetAddress("FoundationSafe")));
+    /// @dev Test the example Foundation Safe configurations, against the expected configuration, and
+    ///     check that they both have the same configuration.
+    function test_exampleFoundationSafes() public {
+        Safe upgradeSafe = Safe(payable(mustGetAddress("FoundationUpgradeSafe")));
+        Safe operationsSafe = Safe(payable(mustGetAddress("FoundationOperationsSafe")));
         SafeConfig memory exampleFoundationConfig = _getExampleFoundationConfig();
 
-        _checkSafeConfig(exampleFoundationConfig, foundationSafe);
+        // Ensure the safes both match the example configuration
+        _checkSafeConfig(exampleFoundationConfig, upgradeSafe);
+        _checkSafeConfig(exampleFoundationConfig, operationsSafe);
+
+        // Sanity check to ensure the safes match each other's configuration
+        assertEq(upgradeSafe.getThreshold(), operationsSafe.getThreshold());
+        assertEq(upgradeSafe.getOwners().length, operationsSafe.getOwners().length);
     }
 
     /// @dev Test the example Security Council Safe configuration.
@@ -72,7 +80,6 @@ contract DeployOwnershipTest is Test, DeployOwnership {
 
         // Module Checks
         address livenessModule = mustGetAddress("LivenessModule");
-        address deputyGuardianModule = mustGetAddress("DeputyGuardianModule");
         (address[] memory modules, address nextModule) =
             ModuleManager(securityCouncilSafe).getModulesPaginated(SENTINEL_MODULES, 2);
         assertEq(modules.length, 1);
@@ -91,7 +98,7 @@ contract DeployOwnershipTest is Test, DeployOwnership {
     }
 
     /// @dev Test the example Guardian Safe configuration.
-    function test_exampleGuardianSafe() public {
+    function test_exampleGuardianSafe() public view {
         Safe guardianSafe = Safe(payable(mustGetAddress("GuardianSafe")));
         address[] memory owners = new address[](1);
         owners[0] = mustGetAddress("SecurityCouncilSafe");
