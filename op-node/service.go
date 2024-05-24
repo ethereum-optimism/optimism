@@ -253,6 +253,10 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		ecotone := ctx.Uint64(opflags.EcotoneOverrideFlagName)
 		rollupConfig.EcotoneTime = &ecotone
 	}
+	if ctx.IsSet(opflags.FjordOverrideFlagName) {
+		fjord := ctx.Uint64(opflags.FjordOverrideFlagName)
+		rollupConfig.FjordTime = &fjord
+	}
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
@@ -271,7 +275,7 @@ func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 
 func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
 	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) && ctx.IsSet(flags.SyncModeFlag.Name) {
-		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time.")
+		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time")
 	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
 		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
 	}
