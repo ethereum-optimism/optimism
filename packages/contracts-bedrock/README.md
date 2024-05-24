@@ -283,7 +283,7 @@ Use the env var `DEPLOY_CONFIG_PATH` to use a particular deploy config file at r
 #### Custom Gas Token
 
 The Custom Gas Token feature is a Beta feature of the MIT licensed OP Stack.
-While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.
+While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues(e.g, it can't be enabled together with fault proofs at the moment).
 
 ### Execution
 
