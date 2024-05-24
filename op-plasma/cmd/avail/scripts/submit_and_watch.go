@@ -14,8 +14,8 @@ import (
 )
 
 func SubmitDataAndWatch(specs *types.AvailDASpecs, ctx context.Context, data []byte) (types.AvailBlockRef, error) {
-	data = []byte("string")
 	call, err := createDataAvailabilityCall(specs, data)
+
 	if err != nil {
 
 		return types.AvailBlockRef{}, fmt.Errorf("creating data availability call: %w", err)
