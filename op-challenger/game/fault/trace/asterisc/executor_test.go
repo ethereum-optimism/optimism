@@ -22,7 +22,7 @@ func TestGenerateProof(t *testing.T) {
 	dir := filepath.Join(tempDir, "gameDir")
 	cfg := config.NewConfig(common.Address{0xbb}, "http://localhost:8888", "http://localhost:9000", "http://localhost:9096", "http://localhost:9095", tempDir, config.TraceTypeAsterisc)
 	cfg.L2Rpc = "http://localhost:9999"
-	cfg.AsteriscAbsolutePreState = "pre.json"
+	prestate := "pre.json"
 	cfg.AsteriscBin = "./bin/asterisc"
 	cfg.AsteriscServer = "./bin/op-program"
 	cfg.AsteriscSnapshotFreq = 500
@@ -37,7 +37,7 @@ func TestGenerateProof(t *testing.T) {
 	}
 	captureExec := func(t *testing.T, cfg config.Config, proofAt uint64) (string, string, map[string]string) {
 		m := &asteriscDurationMetrics{}
-		executor := NewExecutor(testlog.Logger(t, log.LevelInfo), m, &cfg, inputs)
+		executor := NewExecutor(testlog.Logger(t, log.LevelInfo), m, &cfg, prestate, inputs)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 			return input, nil
 		}
