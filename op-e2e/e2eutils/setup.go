@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/stretchr/testify/require"
 
@@ -44,6 +45,7 @@ type TestParams struct {
 	SequencerWindowSize uint64
 	ChannelTimeout      uint64
 	L1BlockTime         uint64
+	UsePlasma           bool
 }
 
 func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
@@ -57,6 +59,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig.SequencerWindowSize = tp.SequencerWindowSize
 	deployConfig.ChannelTimeout = tp.ChannelTimeout
 	deployConfig.L1BlockTime = tp.L1BlockTime
+	deployConfig.UsePlasma = tp.UsePlasma
 	ApplyDeployConfigForks(deployConfig)
 
 	require.NoError(t, deployConfig.Check())
@@ -77,6 +80,7 @@ type SetupData struct {
 	L1Cfg         *core.Genesis
 	L2Cfg         *core.Genesis
 	RollupCfg     *rollup.Config
+	ChainSpec     *rollup.ChainSpec
 	DeploymentsL1 *genesis.L1Deployments
 }
 
@@ -84,8 +88,8 @@ type SetupData struct {
 // These allocations override existing allocations per account,
 // i.e. the allocations are merged with AllocParams having priority.
 type AllocParams struct {
-	L1Alloc          core.GenesisAlloc
-	L2Alloc          core.GenesisAlloc
+	L1Alloc          types.GenesisAlloc
+	L2Alloc          types.GenesisAlloc
 	PrefundTestUsers bool
 }
 
@@ -103,13 +107,13 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	require.NoError(t, deployConf.Check())
 
 	l1Deployments := config.L1Deployments.Copy()
-	require.NoError(t, l1Deployments.Check())
+	require.NoError(t, l1Deployments.Check(deployConf))
 
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(deployConf, config.L1Allocs, l1Deployments)
 	require.NoError(t, err, "failed to create l1 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
-			l1Genesis.Alloc[addr] = core.GenesisAccount{
+			l1Genesis.Alloc[addr] = types.Account{
 				Balance: Ether(1e12),
 			}
 		}
@@ -120,17 +124,32 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l1Block)
+	var allocsMode genesis.L2AllocsMode
+	allocsMode = genesis.L2AllocsDelta
+	if ecotoneTime := deployConf.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime == 0 {
+		allocsMode = genesis.L2AllocsEcotone
+	}
+	l2Allocs := config.L2Allocs(allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block)
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
-			l2Genesis.Alloc[addr] = core.GenesisAccount{
+			l2Genesis.Alloc[addr] = types.Account{
 				Balance: Ether(1e12),
 			}
 		}
 	}
 	for addr, val := range alloc.L2Alloc {
 		l2Genesis.Alloc[addr] = val
+	}
+
+	var plasma *rollup.PlasmaConfig
+	if deployConf.UsePlasma {
+		plasma = &rollup.PlasmaConfig{
+			DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
+			DAChallengeWindow:  deployConf.DAChallengeWindow,
+			DAResolveWindow:    deployConf.DAResolveWindow,
+		}
 	}
 
 	rollupCfg := &rollup.Config{
@@ -161,6 +180,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		PlasmaConfig:           plasma,
 	}
 
 	require.NoError(t, rollupCfg.Check())
@@ -174,6 +194,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L1Cfg:         l1Genesis,
 		L2Cfg:         l2Genesis,
 		RollupCfg:     rollupCfg,
+		ChainSpec:     rollup.NewChainSpec(rollupCfg),
 		DeploymentsL1: l1Deployments,
 	}
 }
@@ -182,7 +203,7 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 	return eth.SystemConfig{
 		BatcherAddr: deployConfig.BatchSenderAddress,
 		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleOverhead))),
-		Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleScalar))),
+		Scalar:      eth.Bytes32(deployConfig.FeeScalar()),
 		GasLimit:    uint64(deployConfig.L2GenesisBlockGasLimit),
 	}
 }
@@ -207,4 +228,8 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 
 func UseFPAC() bool {
 	return os.Getenv("OP_E2E_USE_FPAC") == "true"
+}
+
+func UsePlasma() bool {
+	return os.Getenv("OP_E2E_USE_PLASMA") == "true"
 }

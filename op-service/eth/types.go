@@ -152,11 +152,13 @@ type Uint256Quantity = hexutil.U256
 
 type Data = hexutil.Bytes
 
-type PayloadID = engine.PayloadID
-type PayloadInfo struct {
-	ID        PayloadID
-	Timestamp uint64
-}
+type (
+	PayloadID   = engine.PayloadID
+	PayloadInfo struct {
+		ID        PayloadID
+		Timestamp uint64
+	}
+)
 
 type ExecutionPayloadEnvelope struct {
 	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
@@ -287,6 +289,17 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 	return payload, nil
 }
 
+func BlockAsPayloadEnv(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayloadEnvelope, error) {
+	payload, err := BlockAsPayload(bl, canyonForkTime)
+	if err != nil {
+		return nil, err
+	}
+	return &ExecutionPayloadEnvelope{
+		ExecutionPayload:      payload,
+		ParentBeaconBlockRoot: bl.BeaconRoot(),
+	}, nil
+}
+
 type PayloadAttributes struct {
 	// value for the timestamp field of the new payload
 	Timestamp Uint64Quantity `json:"timestamp"`
@@ -296,14 +309,17 @@ type PayloadAttributes struct {
 	SuggestedFeeRecipient common.Address `json:"suggestedFeeRecipient"`
 	// Withdrawals to include into the block -- should be nil or empty depending on Shanghai enablement
 	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
+	// parentBeaconBlockRoot optional extension in Dencun
+	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
+
+	// Optimism additions
+
 	// Transactions to force into the block (always at the start of the transactions list).
 	Transactions []Data `json:"transactions,omitempty"`
 	// NoTxPool to disable adding any transactions from the transaction-pool.
 	NoTxPool bool `json:"noTxPool,omitempty"`
 	// GasLimit override
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
-	// parentBeaconBlockRoot optional extension in Dencun
-	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
 }
 
 type ExecutePayloadStatus string
@@ -377,25 +393,48 @@ const (
 	L1ScalarEcotone = byte(1)
 )
 
-func (sysCfg *SystemConfig) EcotoneScalars() (blobBaseFeeScalar, baseFeeScalar uint32, err error) {
+type EcotoneScalars struct {
+	BlobBaseFeeScalar uint32
+	BaseFeeScalar     uint32
+}
+
+func (sysCfg *SystemConfig) EcotoneScalars() (EcotoneScalars, error) {
 	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
 		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
 			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
 			// the padding area.
-			return 0, math.MaxUint32, nil
+			return EcotoneScalars{BlobBaseFeeScalar: 0, BaseFeeScalar: math.MaxUint32}, nil
 		}
-		return 0, 0, err
+		return EcotoneScalars{}, err
 	}
-	switch sysCfg.Scalar[0] {
+	return DecodeScalar(sysCfg.Scalar)
+}
+
+// DecodeScalar decodes the blobBaseFeeScalar and baseFeeScalar from a 32-byte scalar value.
+// It uses the first byte to determine the scalar format.
+func DecodeScalar(scalar [32]byte) (EcotoneScalars, error) {
+	switch scalar[0] {
 	case L1ScalarBedrock:
-		blobBaseFeeScalar = 0
-		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+		return EcotoneScalars{
+			BlobBaseFeeScalar: 0,
+			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
+		}, nil
 	case L1ScalarEcotone:
-		blobBaseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[24:28])
-		baseFeeScalar = binary.BigEndian.Uint32(sysCfg.Scalar[28:32])
+		return EcotoneScalars{
+			BlobBaseFeeScalar: binary.BigEndian.Uint32(scalar[24:28]),
+			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
+		}, nil
 	default:
-		err = fmt.Errorf("unexpected system config scalar: %s", sysCfg.Scalar)
+		return EcotoneScalars{}, fmt.Errorf("unexpected system config scalar: %x", scalar)
 	}
+}
+
+// EncodeScalar encodes the EcotoneScalars into a 32-byte scalar value
+// for the Ecotone serialization format.
+func EncodeScalar(scalars EcotoneScalars) (scalar [32]byte) {
+	scalar[0] = L1ScalarEcotone
+	binary.BigEndian.PutUint32(scalar[24:28], scalars.BlobBaseFeeScalar)
+	binary.BigEndian.PutUint32(scalar[28:32], scalars.BaseFeeScalar)
 	return
 }
 

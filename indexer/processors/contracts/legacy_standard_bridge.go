@@ -3,8 +3,8 @@ package contracts
 import (
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bindings"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 
 	"github.com/ethereum/go-ethereum/common"
 )

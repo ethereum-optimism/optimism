@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-ts",
-  "version": "0.17.0",
+  "version": "0.17.2",
   "description": "TypeScript interface for Contracts Bedrock",
   "license": "MIT",
   "repository": {
@@ -37,7 +37,6 @@
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf ./dist",
-    "preinstall": "npx only-allow pnpm",
     "generate": "wagmi generate && pnpm build && pnpm lint:fix",
     "generate:check": "pnpm generate && git diff --exit-code ./addresses.json && git diff --exit-code ./abis.json",
     "lint": "prettier --check .",
@@ -52,22 +51,22 @@
     "@testing-library/react-hooks": "^8.0.1",
     "@types/glob": "^8.1.0",
     "@vitest/coverage-istanbul": "^1.2.2",
-    "@wagmi/cli": "^2.1.1",
+    "@wagmi/cli": "^2.1.4",
     "@wagmi/core": "^2.6.3",
-    "abitype": "^1.0.0",
+    "abitype": "^1.0.2",
     "glob": "^10.3.10",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^24.0.0",
     "tsup": "^8.0.1",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.12",
-    "wagmi": "^2.5.5",
+    "typescript": "^5.4.5",
+    "vite": "^5.1.7",
+    "wagmi": "^2.5.19",
     "vitest": "^1.2.2"
   },
   "peerDependencies": {
     "@wagmi/core": "^2.6.3",
-    "wagmi": "^2.5.5"
+    "wagmi": "^2.5.19"
   },
   "peerDependenciesMeta": {
     "wagmi": {
@@ -83,6 +82,6 @@
     "change-case": "4.1.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "viem": "^2.7.6"
+    "viem": "^2.8.13"
   }
 }

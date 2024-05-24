@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/urfave/cli/v2"
 )
 
@@ -92,7 +92,7 @@ func main() {
 				Max:               uint64(0),
 			}
 
-			statedb, err := state.New(header.Root, state.NewDatabaseWithConfig(db, &trie.Config{Preimages: true}), nil)
+			statedb, err := state.New(header.Root, state.NewDatabaseWithConfig(db, &triedb.Config{Preimages: true}), nil)
 			if err != nil {
 				return err
 			}

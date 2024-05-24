@@ -7,36 +7,31 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // ErrNotFound is returned when the server could not find the input.
 var ErrNotFound = errors.New("not found")
-
-// ErrCommitmentMismatch is returned when the server returns the wrong input for the given commitment.
-var ErrCommitmentMismatch = errors.New("commitment mismatch")
 
 // ErrInvalidInput is returned when the input is not valid for posting to the DA storage.
 var ErrInvalidInput = errors.New("invalid input")
 
 // DAClient is an HTTP client to communicate with a DA storage service.
 // It creates commitments and retrieves input data + verifies if needed.
-// Currently only supports Keccak256 commitments but may be extended eventually.
 type DAClient struct {
 	url string
-	// VerifyOnRead sets the client to verify the commitment on read.
-	// SHOULD enable if the storage service is not trusted.
+	// verify sets the client to verify a Keccak256 commitment on read.
 	verify bool
+	// whether commitment is precomputable (only applicable to keccak256)
+	precompute bool
 }
 
-func NewDAClient(url string, verify bool) *DAClient {
-	return &DAClient{url, verify}
+func NewDAClient(url string, verify bool, pc bool) *DAClient {
+	return &DAClient{url, verify, pc}
 }
 
-// GetInput returns the input data for the given commitment bytes.
-func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x", c.url, key), nil)
+// GetInput returns the input data for the given encoded commitment bytes.
+func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x", c.url, comm.Encode()), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -47,28 +42,75 @@ func (c *DAClient) GetInput(ctx context.Context, key []byte) ([]byte, error) {
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrNotFound
 	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get preimage: %v", resp.StatusCode)
+	}
 	defer resp.Body.Close()
 	input, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+
 	if c.verify {
-		exp := crypto.Keccak256(input)
-		if !bytes.Equal(exp, key) {
-			return nil, ErrCommitmentMismatch
+		if err := comm.Verify(input); err != nil {
+			return nil, err
 		}
+
 	}
 	return input, nil
 }
 
-// SetInput sets the input data and returns the keccak256 hash commitment.
-func (c *DAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
+// SetInput sets the input data and returns the respective commitment.
+func (c *DAClient) SetInput(ctx context.Context, img []byte) (CommitmentData, error) {
 	if len(img) == 0 {
 		return nil, ErrInvalidInput
 	}
-	key := crypto.Keccak256(img)
+
+	if c.precompute { // precompute commitment (only applicable to keccak256)
+		comm := NewKeccak256Commitment(img)
+		if err := c.setInputWithCommit(ctx, comm, img); err != nil {
+			return nil, err
+		}
+
+		return comm, nil
+	}
+
+	// let DA server generate commitment
+	return c.setInput(ctx, img)
+
+}
+
+// setInputWithCommit sets a precomputed commitment for some pre-image data.
+func (c *DAClient) setInputWithCommit(ctx context.Context, comm CommitmentData, img []byte) error {
+	// encode with commitment type prefix
+	key := comm.Encode()
 	body := bytes.NewReader(img)
 	url := fmt.Sprintf("%s/put/0x%x", c.url, key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to store preimage: %v", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// setInput sets the input data and reads the respective DA generated commitment.
+func (c *DAClient) setInput(ctx context.Context, img []byte) (CommitmentData, error) {
+	if len(img) == 0 {
+		return nil, ErrInvalidInput
+	}
+
+	body := bytes.NewReader(img)
+	url := fmt.Sprintf("%s/put/", c.url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -80,7 +122,18 @@ func (c *DAClient) SetInput(ctx context.Context, img []byte) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to store preimage: %v", resp.StatusCode)
+		return nil, fmt.Errorf("failed to store data: %v", resp.StatusCode)
 	}
-	return key, nil
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	comm, err := DecodeGenericCommitment(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return comm, nil
 }

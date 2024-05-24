@@ -3,10 +3,10 @@ package derive
 import (
 	"context"
 	"io"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -31,7 +31,7 @@ type NextFrameProvider interface {
 // ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
 	log     log.Logger
-	cfg     *rollup.Config
+	spec    *rollup.ChainSpec
 	metrics Metrics
 
 	channels     map[ChannelID]*Channel // channels by ID
@@ -47,7 +47,7 @@ var _ ResettableStage = (*ChannelBank)(nil)
 func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher, m Metrics) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
-		cfg:          cfg,
+		spec:         rollup.NewChainSpec(cfg),
 		metrics:      m,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
@@ -67,7 +67,7 @@ func (cb *ChannelBank) prune() {
 		totalSize += ch.size
 	}
 	// prune until it is reasonable again. The high-priority channel failed to be read, so we start pruning there.
-	for totalSize > MaxChannelBankSize {
+	for totalSize > cb.spec.MaxChannelBankSize(cb.Origin().Time) {
 		id := cb.channelQueue[0]
 		ch := cb.channels[id]
 		cb.channelQueue = cb.channelQueue[1:]
@@ -98,7 +98,7 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 	}
 
 	// check if the channel is not timed out
-	if currentCh.OpenBlockNumber()+cb.cfg.ChannelTimeout < origin.Number {
+	if currentCh.OpenBlockNumber()+cb.spec.ChannelTimeout() < origin.Number {
 		log.Warn("channel is timed out, ignore frame")
 		return
 	}
@@ -125,7 +125,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	// channels at the head of the queue and we want to remove them all.
 	first := cb.channelQueue[0]
 	ch := cb.channels[first]
-	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
+	timedOut := ch.OpenBlockNumber()+cb.spec.ChannelTimeout() < cb.Origin().Number
 	if timedOut {
 		cb.log.Info("channel timed out", "channel", first, "frames", len(ch.inputs))
 		cb.metrics.RecordChannelTimedOut()
@@ -139,7 +139,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	// Post-Canyon we read the entire channelQueue for the first ready channel. If no channel is
 	// available, we return `nil, io.EOF`.
 	// Canyon is activated when the first L1 block whose time >= CanyonTime, not on the L2 timestamp.
-	if !cb.cfg.IsCanyon(cb.Origin().Time) {
+	if !cb.spec.IsCanyon(cb.Origin().Time) {
 		return cb.tryReadChannelAtIndex(0)
 	}
 
@@ -157,7 +157,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 func (cb *ChannelBank) tryReadChannelAtIndex(i int) (data []byte, err error) {
 	chanID := cb.channelQueue[i]
 	ch := cb.channels[chanID]
-	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
+	timedOut := ch.OpenBlockNumber()+cb.spec.ChannelTimeout() < cb.Origin().Number
 	if timedOut || !ch.IsReady() {
 		return nil, io.EOF
 	}

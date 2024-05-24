@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -20,29 +18,31 @@ type GameContract interface {
 	ResolveTx() (txmgr.TxCandidate, error)
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
 	ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error)
-	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
-	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
+	AttackTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error)
+	DefendTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
-	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
-	GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error)
-	ClaimCredit(receipient common.Address) (txmgr.TxCandidate, error)
+	ChallengeL2BlockNumberTx(challenge *types.InvalidL2BlockNumberChallenge) (txmgr.TxCandidate, error)
 }
 
 type Oracle interface {
 	GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error)
 }
 
+type TxSender interface {
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
+}
+
 // FaultResponder implements the [Responder] interface to send onchain transactions.
 type FaultResponder struct {
 	log      log.Logger
-	sender   gameTypes.TxSender
+	sender   TxSender
 	contract GameContract
 	uploader preimages.PreimageUploader
 	oracle   Oracle
 }
 
 // NewFaultResponder returns a new [FaultResponder].
-func NewFaultResponder(logger log.Logger, sender gameTypes.TxSender, contract GameContract, uploader preimages.PreimageUploader, oracle Oracle) (*FaultResponder, error) {
+func NewFaultResponder(logger log.Logger, sender TxSender, contract GameContract, uploader preimages.PreimageUploader, oracle Oracle) (*FaultResponder, error) {
 	return &FaultResponder{
 		log:      logger,
 		sender:   sender,
@@ -65,7 +65,7 @@ func (r *FaultResponder) Resolve() error {
 		return err
 	}
 
-	return r.sendTxAndWait("resolve game", candidate)
+	return r.sender.SendAndWaitSimple("resolve game", candidate)
 }
 
 // CallResolveClaim determines if the resolveClaim function on the fault dispute game contract
@@ -74,13 +74,17 @@ func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx uint64) 
 	return r.contract.CallResolveClaim(ctx, claimIdx)
 }
 
-// ResolveClaim executes a resolveClaim transaction to resolve a fault dispute game.
-func (r *FaultResponder) ResolveClaim(claimIdx uint64) error {
-	candidate, err := r.contract.ResolveClaimTx(claimIdx)
-	if err != nil {
-		return err
+// ResolveClaims executes resolveClaim transactions to resolve claims in a dispute game.
+func (r *FaultResponder) ResolveClaims(claimIdxs ...uint64) error {
+	txs := make([]txmgr.TxCandidate, 0, len(claimIdxs))
+	for _, claimIdx := range claimIdxs {
+		candidate, err := r.contract.ResolveClaimTx(claimIdx)
+		if err != nil {
+			return err
+		}
+		txs = append(txs, candidate)
 	}
-	return r.sendTxAndWait("resolve claim", candidate)
+	return r.sender.SendAndWaitSimple("resolve claim", txs...)
 }
 
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
@@ -95,7 +99,7 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 		}
 		// Always upload local preimages
 		if !preimageExists {
-			err := r.uploader.UploadPreimage(ctx, uint64(action.ParentIdx), action.OracleData)
+			err := r.uploader.UploadPreimage(ctx, uint64(action.ParentClaim.ContractIndex), action.OracleData)
 			if errors.Is(err, preimages.ErrChallengePeriodNotOver) {
 				r.log.Debug("Large Preimage Squeeze failed, challenge period not over")
 				return nil
@@ -108,32 +112,18 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 	var err error
 	switch action.Type {
 	case types.ActionTypeMove:
-		var movePos types.Position
 		if action.IsAttack {
-			movePos = action.ParentPosition.Attack()
-			candidate, err = r.contract.AttackTx(uint64(action.ParentIdx), action.Value)
+			candidate, err = r.contract.AttackTx(ctx, action.ParentClaim, action.Value)
 		} else {
-			movePos = action.ParentPosition.Defend()
-			candidate, err = r.contract.DefendTx(uint64(action.ParentIdx), action.Value)
+			candidate, err = r.contract.DefendTx(ctx, action.ParentClaim, action.Value)
 		}
-
-		bondValue, err := r.contract.GetRequiredBond(ctx, movePos)
-		if err != nil {
-			return err
-		}
-		candidate.Value = bondValue
 	case types.ActionTypeStep:
-		candidate, err = r.contract.StepTx(uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData)
+		candidate, err = r.contract.StepTx(uint64(action.ParentClaim.ContractIndex), action.IsAttack, action.PreState, action.ProofData)
+	case types.ActionTypeChallengeL2BlockNumber:
+		candidate, err = r.contract.ChallengeL2BlockNumberTx(action.InvalidL2BlockNumberChallenge)
 	}
 	if err != nil {
 		return err
 	}
-	return r.sendTxAndWait("perform action", candidate)
-}
-
-// sendTxAndWait sends a transaction through the [txmgr] and waits for a receipt.
-// This sets the tx GasLimit to 0, performing gas estimation online through the [txmgr].
-func (r *FaultResponder) sendTxAndWait(purpose string, candidate txmgr.TxCandidate) error {
-	_, err := r.sender.SendAndWait(purpose, candidate)
-	return err
+	return r.sender.SendAndWaitSimple("perform action", candidate)
 }

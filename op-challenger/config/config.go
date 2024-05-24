@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"runtime"
 	"slices"
 	"time"
@@ -16,24 +17,37 @@ import (
 )
 
 var (
-	ErrMissingTraceType              = errors.New("no supported trace types specified")
-	ErrMissingDatadir                = errors.New("missing datadir")
-	ErrMaxConcurrencyZero            = errors.New("max concurrency must not be 0")
-	ErrMissingCannonL2               = errors.New("missing cannon L2")
-	ErrMissingCannonBin              = errors.New("missing cannon bin")
-	ErrMissingCannonServer           = errors.New("missing cannon server")
-	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
-	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
-	ErrMissingL1Beacon               = errors.New("missing l1 beacon url")
-	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
-	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
-	ErrMissingCannonInfoFreq         = errors.New("missing cannon info freq")
-	ErrMissingCannonRollupConfig     = errors.New("missing cannon network or rollup config path")
-	ErrMissingCannonL2Genesis        = errors.New("missing cannon network or l2 genesis path")
-	ErrCannonNetworkAndRollupConfig  = errors.New("only specify one of network or rollup config path")
-	ErrCannonNetworkAndL2Genesis     = errors.New("only specify one of network or l2 genesis path")
-	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
-	ErrMissingRollupRpc              = errors.New("missing rollup rpc url")
+	ErrMissingTraceType                 = errors.New("no supported trace types specified")
+	ErrMissingDatadir                   = errors.New("missing datadir")
+	ErrMaxConcurrencyZero               = errors.New("max concurrency must not be 0")
+	ErrMissingL2Rpc                     = errors.New("missing L2 rpc url")
+	ErrMissingCannonBin                 = errors.New("missing cannon bin")
+	ErrMissingCannonServer              = errors.New("missing cannon server")
+	ErrMissingCannonAbsolutePreState    = errors.New("missing cannon absolute pre-state")
+	ErrCannonAbsolutePreStateAndBaseURL = errors.New("only specify one of cannon absolute pre-state and cannon absolute pre-state base URL")
+	ErrMissingL1EthRPC                  = errors.New("missing l1 eth rpc url")
+	ErrMissingL1Beacon                  = errors.New("missing l1 beacon url")
+	ErrMissingGameFactoryAddress        = errors.New("missing game factory address")
+	ErrMissingCannonSnapshotFreq        = errors.New("missing cannon snapshot freq")
+	ErrMissingCannonInfoFreq            = errors.New("missing cannon info freq")
+	ErrMissingCannonRollupConfig        = errors.New("missing cannon network or rollup config path")
+	ErrMissingCannonL2Genesis           = errors.New("missing cannon network or l2 genesis path")
+	ErrCannonNetworkAndRollupConfig     = errors.New("only specify one of network or rollup config path")
+	ErrCannonNetworkAndL2Genesis        = errors.New("only specify one of network or l2 genesis path")
+	ErrCannonNetworkUnknown             = errors.New("unknown cannon network")
+	ErrMissingRollupRpc                 = errors.New("missing rollup rpc url")
+
+	ErrMissingAsteriscBin                 = errors.New("missing asterisc bin")
+	ErrMissingAsteriscServer              = errors.New("missing asterisc server")
+	ErrMissingAsteriscAbsolutePreState    = errors.New("missing asterisc absolute pre-state")
+	ErrAsteriscAbsolutePreStateAndBaseURL = errors.New("only specify one of asterisc absolute pre-state and asterisc absolute pre-state base URL")
+	ErrMissingAsteriscSnapshotFreq        = errors.New("missing asterisc snapshot freq")
+	ErrMissingAsteriscInfoFreq            = errors.New("missing asterisc info freq")
+	ErrMissingAsteriscRollupConfig        = errors.New("missing asterisc network or rollup config path")
+	ErrMissingAsteriscL2Genesis           = errors.New("missing asterisc network or l2 genesis path")
+	ErrAsteriscNetworkAndRollupConfig     = errors.New("only specify one of network or rollup config path")
+	ErrAsteriscNetworkAndL2Genesis        = errors.New("only specify one of network or l2 genesis path")
+	ErrAsteriscNetworkUnknown             = errors.New("unknown asterisc network")
 )
 
 type TraceType string
@@ -41,10 +55,11 @@ type TraceType string
 const (
 	TraceTypeAlphabet     TraceType = "alphabet"
 	TraceTypeCannon       TraceType = "cannon"
+	TraceTypeAsterisc     TraceType = "asterisc"
 	TraceTypePermissioned TraceType = "permissioned"
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc}
 
 func (t TraceType) String() string {
 	return string(t)
@@ -74,14 +89,16 @@ func ValidTraceType(value TraceType) bool {
 }
 
 const (
-	DefaultPollInterval       = time.Second * 12
-	DefaultCannonSnapshotFreq = uint(1_000_000_000)
-	DefaultCannonInfoFreq     = uint(10_000_000)
+	DefaultPollInterval         = time.Second * 12
+	DefaultCannonSnapshotFreq   = uint(1_000_000_000)
+	DefaultCannonInfoFreq       = uint(10_000_000)
+	DefaultAsteriscSnapshotFreq = uint(1_000_000_000)
+	DefaultAsteriscInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
-	// The default value is 11 days, which is a 4 day resolution buffer
+	// The default value is 15 days, which is an 8 day resolution buffer
 	// and bond claiming buffer plus the 7 day game finalization window.
-	DefaultGameWindow   = time.Duration(11 * 24 * time.Hour)
+	DefaultGameWindow   = time.Duration(15 * 24 * time.Hour)
 	DefaultMaxPendingTx = 10
 )
 
@@ -99,21 +116,37 @@ type Config struct {
 	PollInterval         time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 	AllowInvalidPrestate bool             // Whether to allow responding to games where the prestate does not match
 
+	AdditionalBondClaimants []common.Address // List of addresses to claim bonds for in addition to the tx manager sender
+
+	SelectiveClaimResolution bool // Whether to only resolve claims for the claimants in AdditionalBondClaimants union [TxSender.From()]
+
 	TraceTypes []TraceType // Type of traces supported
 
-	// Specific to the output cannon trace type
-	RollupRpc string
+	RollupRpc string // L2 Rollup RPC Url
+
+	L2Rpc string // L2 RPC Url
 
 	// Specific to the cannon trace provider
-	CannonBin              string // Path to the cannon executable to run when generating trace data
-	CannonServer           string // Path to the op-program executable that provides the pre-image oracle server
-	CannonAbsolutePreState string // File to load the absolute pre-state for Cannon traces from
-	CannonNetwork          string
-	CannonRollupConfigPath string
-	CannonL2GenesisPath    string
-	CannonL2               string // L2 RPC Url
-	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
-	CannonInfoFreq         uint   // Frequency of cannon progress log messages (in VM instructions)
+	CannonBin                     string   // Path to the cannon executable to run when generating trace data
+	CannonServer                  string   // Path to the op-program executable that provides the pre-image oracle server
+	CannonAbsolutePreState        string   // File to load the absolute pre-state for Cannon traces from
+	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
+	CannonNetwork                 string
+	CannonRollupConfigPath        string
+	CannonL2GenesisPath           string
+	CannonSnapshotFreq            uint // Frequency of snapshots to create when executing cannon (in VM instructions)
+	CannonInfoFreq                uint // Frequency of cannon progress log messages (in VM instructions)
+
+	// Specific to the asterisc trace provider
+	AsteriscBin                     string   // Path to the asterisc executable to run when generating trace data
+	AsteriscServer                  string   // Path to the op-program executable that provides the pre-image oracle server
+	AsteriscAbsolutePreState        string   // File to load the absolute pre-state for Asterisc traces from
+	AsteriscAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
+	AsteriscNetwork                 string
+	AsteriscRollupConfigPath        string
+	AsteriscL2GenesisPath           string
+	AsteriscSnapshotFreq            uint // Frequency of snapshots to create when executing asterisc (in VM instructions)
+	AsteriscInfoFreq                uint // Frequency of asterisc progress log messages (in VM instructions)
 
 	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
 
@@ -126,12 +159,16 @@ func NewConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
 	l1BeaconApi string,
+	l2RollupRpc string,
+	l2EthRpc string,
 	datadir string,
 	supportedTraceTypes ...TraceType,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
 		L1Beacon:           l1BeaconApi,
+		RollupRpc:          l2RollupRpc,
+		L2Rpc:              l2EthRpc,
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
 		PollInterval:       DefaultPollInterval,
@@ -146,9 +183,11 @@ func NewConfig(
 
 		Datadir: datadir,
 
-		CannonSnapshotFreq: DefaultCannonSnapshotFreq,
-		CannonInfoFreq:     DefaultCannonInfoFreq,
-		GameWindow:         DefaultGameWindow,
+		CannonSnapshotFreq:   DefaultCannonSnapshotFreq,
+		CannonInfoFreq:       DefaultCannonInfoFreq,
+		AsteriscSnapshotFreq: DefaultAsteriscSnapshotFreq,
+		AsteriscInfoFreq:     DefaultAsteriscInfoFreq,
+		GameWindow:           DefaultGameWindow,
 	}
 }
 
@@ -165,6 +204,9 @@ func (c Config) Check() error {
 	}
 	if c.RollupRpc == "" {
 		return ErrMissingRollupRpc
+	}
+	if c.L2Rpc == "" {
+		return ErrMissingL2Rpc
 	}
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
@@ -203,17 +245,55 @@ func (c Config) Check() error {
 				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
 			}
 		}
-		if c.CannonAbsolutePreState == "" {
+		if c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
 			return ErrMissingCannonAbsolutePreState
 		}
-		if c.CannonL2 == "" {
-			return ErrMissingCannonL2
+		if c.CannonAbsolutePreState != "" && c.CannonAbsolutePreStateBaseURL != nil {
+			return ErrCannonAbsolutePreStateAndBaseURL
 		}
 		if c.CannonSnapshotFreq == 0 {
 			return ErrMissingCannonSnapshotFreq
 		}
 		if c.CannonInfoFreq == 0 {
 			return ErrMissingCannonInfoFreq
+		}
+	}
+	if c.TraceTypeEnabled(TraceTypeAsterisc) {
+		if c.AsteriscBin == "" {
+			return ErrMissingAsteriscBin
+		}
+		if c.AsteriscServer == "" {
+			return ErrMissingAsteriscServer
+		}
+		if c.AsteriscNetwork == "" {
+			if c.AsteriscRollupConfigPath == "" {
+				return ErrMissingAsteriscRollupConfig
+			}
+			if c.AsteriscL2GenesisPath == "" {
+				return ErrMissingAsteriscL2Genesis
+			}
+		} else {
+			if c.AsteriscRollupConfigPath != "" {
+				return ErrAsteriscNetworkAndRollupConfig
+			}
+			if c.AsteriscL2GenesisPath != "" {
+				return ErrAsteriscNetworkAndL2Genesis
+			}
+			if ch := chaincfg.ChainByName(c.AsteriscNetwork); ch == nil {
+				return fmt.Errorf("%w: %v", ErrAsteriscNetworkUnknown, c.AsteriscNetwork)
+			}
+		}
+		if c.AsteriscAbsolutePreState == "" && c.AsteriscAbsolutePreStateBaseURL == nil {
+			return ErrMissingAsteriscAbsolutePreState
+		}
+		if c.AsteriscAbsolutePreState != "" && c.AsteriscAbsolutePreStateBaseURL != nil {
+			return ErrAsteriscAbsolutePreStateAndBaseURL
+		}
+		if c.AsteriscSnapshotFreq == 0 {
+			return ErrMissingAsteriscSnapshotFreq
+		}
+		if c.AsteriscInfoFreq == 0 {
+			return ErrMissingAsteriscInfoFreq
 		}
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {

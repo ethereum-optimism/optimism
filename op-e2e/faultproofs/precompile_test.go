@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -122,7 +123,7 @@ func TestPrecompiles(t *testing.T) {
 			require.NoError(t, err, "get l1 head block")
 			l1Head := l1HeadBlock.Hash()
 
-			inputs := cannon.LocalGameInputs{
+			inputs := utils.LocalGameInputs{
 				L1Head:        l1Head,
 				L2Head:        l2Head,
 				L2Claim:       common.Hash(l2Claim),
@@ -134,13 +135,15 @@ func TestPrecompiles(t *testing.T) {
 	}
 }
 
-func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs cannon.LocalGameInputs, l2Node string) {
+func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, l2Node string) {
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l1Beacon := sys.L1BeaconEndpoint()
-	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis(), sys.RollupEndpoint(l2Node), sys.NodeEndpoint(l2Node))
+	rollupEndpoint := sys.RollupEndpoint("sequencer")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis())
 	dir := t.TempDir()
 	proofsDir := filepath.Join(dir, "cannon-proofs")
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, dir)
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, rollupEndpoint, l2Endpoint, dir)
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")

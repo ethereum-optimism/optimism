@@ -1,5 +1,38 @@
 # @eth-optimism/drippie-mon
 
+## 0.6.4
+
+### Patch Changes
+
+- [#9964](https://github.com/ethereum-optimism/optimism/pull/9964) [`8241220898128e1f61064f22dcb6fdd0a5f043c3`](https://github.com/ethereum-optimism/optimism/commit/8241220898128e1f61064f22dcb6fdd0a5f043c3) Thanks [@roninjin10](https://github.com/roninjin10)! - Removed only-allow command from package.json
+
+- Updated dependencies [[`8241220898128e1f61064f22dcb6fdd0a5f043c3`](https://github.com/ethereum-optimism/optimism/commit/8241220898128e1f61064f22dcb6fdd0a5f043c3), [`ac5b061dfce6a9817b928a8703be9252daaeeca7`](https://github.com/ethereum-optimism/optimism/commit/ac5b061dfce6a9817b928a8703be9252daaeeca7), [`87093b0e9144a4709f11c7fbd631828847d891f9`](https://github.com/ethereum-optimism/optimism/commit/87093b0e9144a4709f11c7fbd631828847d891f9), [`372bca2257764be33797d67ddca9b53c3dd3c295`](https://github.com/ethereum-optimism/optimism/commit/372bca2257764be33797d67ddca9b53c3dd3c295)]:
+  - @eth-optimism/common-ts@0.8.9
+  - @eth-optimism/contracts-bedrock@0.17.2
+  - @eth-optimism/core-utils@0.13.2
+  - @eth-optimism/sdk@3.3.0
+
+## 0.6.3
+
+### Patch Changes
+
+- Updated dependencies [[`5fe797f183e502c1c7e91fc1e74dd3cc664ba22e`](https://github.com/ethereum-optimism/optimism/commit/5fe797f183e502c1c7e91fc1e74dd3cc664ba22e), [`3dc129fade77ddf9d45bb4c2ecd34360d1aa838a`](https://github.com/ethereum-optimism/optimism/commit/3dc129fade77ddf9d45bb4c2ecd34360d1aa838a)]:
+  - @eth-optimism/sdk@3.2.3
+
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [[`3ccd12fe5c8c4c5a6acbf370d474ffa8db816562`](https://github.com/ethereum-optimism/optimism/commit/3ccd12fe5c8c4c5a6acbf370d474ffa8db816562)]:
+  - @eth-optimism/sdk@3.2.2
+
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`a1329f21f33ecafe409990964d3af7bf05a8a756`](https://github.com/ethereum-optimism/optimism/commit/a1329f21f33ecafe409990964d3af7bf05a8a756)]:
+  - @eth-optimism/sdk@3.2.1
+
 ## 0.6.0
 
 ### Minor Changes

@@ -10,11 +10,6 @@
         "internalType": "uint256",
         "name": "_challengePeriod",
         "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_cancunActivation",
-        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -317,19 +312,6 @@
   {
     "inputs": [
       {
-        "internalType": "bytes",
-        "name": "_input",
-        "type": "bytes"
-      }
-    ],
-    "name": "loadKZGPointEvaluationPreimage",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint256",
         "name": "_partOffset",
         "type": "uint256"
@@ -381,6 +363,29 @@
         "type": "bytes32"
       }
     ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_partOffset",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_precompile",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_input",
+        "type": "bytes"
+      }
+    ],
+    "name": "loadPrecompilePreimagePart",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -787,6 +792,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -823,11 +841,6 @@
   {
     "inputs": [],
     "name": "BondTransferFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "CancunNotActive",
     "type": "error"
   },
   {

@@ -273,7 +273,7 @@
               },
               {
                 "internalType": "address",
-                "name": "l2OutputOracle",
+                "name": "disputeGameFactory",
                 "type": "address"
               },
               {
@@ -284,6 +284,11 @@
               {
                 "internalType": "address",
                 "name": "optimismMintableERC20Factory",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "gasPayingToken",
                 "type": "address"
               }
             ],
@@ -626,7 +631,7 @@
                   },
                   {
                     "internalType": "address",
-                    "name": "l2OutputOracle",
+                    "name": "disputeGameFactory",
                     "type": "address"
                   },
                   {
@@ -637,6 +642,11 @@
                   {
                     "internalType": "address",
                     "name": "optimismMintableERC20Factory",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "gasPayingToken",
                     "type": "address"
                   }
                 ],

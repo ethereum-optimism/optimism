@@ -30,9 +30,11 @@ on:
           - op-program
           - op-dispute-mon
           - op-ufm
+          - da-server
           - proxyd
           - ufm-metamask
           - op-contracts
+          - op-conductor
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false

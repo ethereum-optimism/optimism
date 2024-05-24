@@ -13,8 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/exp/slog"
 	"golang.org/x/sync/semaphore"
 )
+
+func SetLogLevel(logLevel slog.Leveler) {
+	log.SetDefault(log.NewLogger(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+}
 
 func Start(config *Config) (*Server, func(), error) {
 	if len(config.Backends) == 0 {
@@ -235,7 +241,11 @@ func Start(config *Config) (*Server, func(), error) {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		} else {
-			cache = newRedisCache(redisClient, config.Redis.Namespace)
+			ttl := defaultCacheTtl
+			if config.Cache.TTL != 0 {
+				ttl = time.Duration(config.Cache.TTL)
+			}
+			cache = newRedisCache(redisClient, config.Redis.Namespace, ttl)
 		}
 		rpcCache = newRPCCache(newCacheWithCompression(cache))
 	}
@@ -260,6 +270,14 @@ func Start(config *Config) (*Server, func(), error) {
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating server: %w", err)
+	}
+
+	// Enable to support browser websocket connections.
+	// See https://pkg.go.dev/github.com/gorilla/websocket#hdr-Origin_Considerations
+	if config.Server.AllowAllOrigins {
+		srv.upgrader.CheckOrigin = func(r *http.Request) bool {
+			return true
+		}
 	}
 
 	if config.Metrics.Enabled {
@@ -328,20 +346,28 @@ func Start(config *Config) (*Server, func(), error) {
 			if bgcfg.ConsensusMaxBlockRange > 0 {
 				copts = append(copts, WithMaxBlockRange(bgcfg.ConsensusMaxBlockRange))
 			}
+			if bgcfg.ConsensusPollerInterval > 0 {
+				copts = append(copts, WithPollerInterval(time.Duration(bgcfg.ConsensusPollerInterval)))
+			}
 
 			var tracker ConsensusTracker
 			if bgcfg.ConsensusHA {
-				if redisClient == nil {
-					log.Crit("cant start - consensus high availability requires redis")
+				if bgcfg.ConsensusHARedis.URL == "" {
+					log.Crit("must specify a consensus_ha_redis config when consensus_ha is true")
 				}
 				topts := make([]RedisConsensusTrackerOpt, 0)
 				if bgcfg.ConsensusHALockPeriod > 0 {
 					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHALockPeriod)))
 				}
 				if bgcfg.ConsensusHAHeartbeatInterval > 0 {
-					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHAHeartbeatInterval)))
+					topts = append(topts, WithHeartbeatInterval(time.Duration(bgcfg.ConsensusHAHeartbeatInterval)))
 				}
-				tracker = NewRedisConsensusTracker(context.Background(), redisClient, bg, bg.Name, topts...)
+				consensusHARedisClient, err := NewRedisClient(bgcfg.ConsensusHARedis.URL)
+				if err != nil {
+					return nil, nil, err
+				}
+				ns := fmt.Sprintf("%s:%s", bgcfg.ConsensusHARedis.Namespace, bg.Name)
+				tracker = NewRedisConsensusTracker(context.Background(), consensusHARedisClient, bg, ns, topts...)
 				copts = append(copts, WithTracker(tracker))
 			}
 

@@ -10,6 +10,7 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -33,6 +34,11 @@ var (
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
 	// Optional Flags
+	HonestActorsFlag = &cli.StringSliceFlag{
+		Name:    "honest-actors",
+		Usage:   "List of honest actors that are monitored for any claims that are resolved against them.",
+		EnvVars: prefixEnvVars("HONEST_ACTORS"),
+	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
 		Usage:   "HTTP provider URL for the rollup node",
@@ -51,6 +57,17 @@ var (
 		EnvVars: prefixEnvVars("GAME_WINDOW"),
 		Value:   config.DefaultGameWindow,
 	}
+	IgnoredGamesFlag = &cli.StringSliceFlag{
+		Name:    "ignored-games",
+		Usage:   "List of game addresses to exclude from monitoring.",
+		EnvVars: prefixEnvVars("IGNORED_GAMES"),
+	}
+	MaxConcurrencyFlag = &cli.UintFlag{
+		Name:    "max-concurrency",
+		Usage:   "Maximum number of threads to use when fetching game data",
+		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
+		Value:   config.DefaultMaxConcurrency,
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -62,8 +79,11 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	RollupRpcFlag,
+	HonestActorsFlag,
 	MonitorIntervalFlag,
 	GameWindowFlag,
+	IgnoredGamesFlag,
+	MaxConcurrencyFlag,
 }
 
 func init() {
@@ -96,6 +116,28 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		return nil, err
 	}
 
+	var actors []common.Address
+	if ctx.IsSet(HonestActorsFlag.Name) {
+		for _, addrStr := range ctx.StringSlice(HonestActorsFlag.Name) {
+			actor, err := opservice.ParseAddress(addrStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid honest actor address: %w", err)
+			}
+			actors = append(actors, actor)
+		}
+	}
+
+	var ignoredGames []common.Address
+	if ctx.IsSet(IgnoredGamesFlag.Name) {
+		for _, addrStr := range ctx.StringSlice(IgnoredGamesFlag.Name) {
+			game, err := opservice.ParseAddress(addrStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid ignored game address: %w", err)
+			}
+			ignoredGames = append(ignoredGames, game)
+		}
+	}
+
 	metricsConfig := opmetrics.ReadCLIConfig(ctx)
 	pprofConfig := oppprof.ReadCLIConfig(ctx)
 
@@ -103,9 +145,12 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
 
+		HonestActors:    actors,
 		RollupRpc:       ctx.String(RollupRpcFlag.Name),
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),
 		GameWindow:      ctx.Duration(GameWindowFlag.Name),
+		IgnoredGames:    ignoredGames,
+		MaxConcurrency:  ctx.Uint(MaxConcurrencyFlag.Name),
 
 		MetricsConfig: metricsConfig,
 		PprofConfig:   pprofConfig,

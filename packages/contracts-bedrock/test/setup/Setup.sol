@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { console2 as console } from "forge-std/console2.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
@@ -20,9 +22,12 @@ import { FeeVault } from "src/universal/FeeVault.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
+import { L2Genesis, L1Dependencies, OutputMode } from "scripts/L2Genesis.s.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -33,6 +38,8 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
+import { WETH } from "src/L2/WETH.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -40,6 +47,8 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 ///      up behind proxies. In the future we will migrate to importing the genesis JSON
 ///      file that is created to set up the L2 contracts instead of setting them up manually.
 contract Setup {
+    error FfiFailed(string);
+
     /// @notice The address of the foundry Vm contract.
     Vm private constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
@@ -47,9 +56,16 @@ contract Setup {
     ///         mutating any nonces. MUST not have constructor logic.
     Deploy internal constant deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
 
+    L2Genesis internal constant l2Genesis =
+        L2Genesis(address(uint160(uint256(keccak256(abi.encode("optimism.l2genesis"))))));
+
+    // @notice Allows users of Setup to override what L2 genesis is being created.
+    OutputMode l2OutputMode = OutputMode.LOCAL_LATEST;
+
     OptimismPortal optimismPortal;
     OptimismPortal2 optimismPortal2;
     DisputeGameFactory disputeGameFactory;
+    DelayedWETH delayedWeth;
     L2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
@@ -59,6 +75,8 @@ contract Setup {
     OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     ProtocolVersions protocolVersions;
     SuperchainConfig superchainConfig;
+    DataAvailabilityChallenge dataAvailabilityChallenge;
+    AnchorStateRegistry anchorStateRegistry;
 
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
@@ -74,6 +92,7 @@ contract Setup {
     L1Block l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
     LegacyMessagePasser legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
+    WETH weth = WETH(payable(Predeploys.WETH));
     LegacyERC20ETH legacyERC20ETH = LegacyERC20ETH(Predeploys.LEGACY_ERC20_ETH);
 
     /// @dev Deploys the Deploy contract without including its bytecode in the bytecode
@@ -83,13 +102,22 @@ contract Setup {
     ///      will also need to include the bytecode for the Deploy contract.
     ///      This is a hack as we are pushing solidity to the edge.
     function setUp() public virtual {
+        console.log("L1 setup start!");
         vm.etch(address(deploy), vm.getDeployedCode("Deploy.s.sol:Deploy"));
         vm.allowCheatcodes(address(deploy));
         deploy.setUp();
+        console.log("L1 setup done!");
+
+        console.log("L2 setup start!");
+        vm.etch(address(l2Genesis), vm.getDeployedCode("L2Genesis.s.sol:L2Genesis"));
+        vm.allowCheatcodes(address(l2Genesis));
+        l2Genesis.setUp();
+        console.log("L2 setup done!");
     }
 
     /// @dev Sets up the L1 contracts.
     function L1() public {
+        console.log("Setup: creating L1 deployments");
         // Set the deterministic deployer in state to ensure that it is there
         vm.etch(
             0x4e59b44847b379578588920cA78FbF26c0B4956C,
@@ -97,10 +125,12 @@ contract Setup {
         );
 
         deploy.run();
+        console.log("Setup: completed L1 deployment, registering addresses now");
 
         optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
         optimismPortal2 = OptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
         disputeGameFactory = DisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
+        delayedWeth = DelayedWETH(deploy.mustGetAddress("DelayedWETHProxy"));
         l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
@@ -111,6 +141,7 @@ contract Setup {
             OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
         protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
+        anchorStateRegistry = AnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
@@ -118,6 +149,8 @@ contract Setup {
         vm.label(deploy.mustGetAddress("OptimismPortalProxy"), "OptimismPortalProxy");
         vm.label(address(disputeGameFactory), "DisputeGameFactory");
         vm.label(deploy.mustGetAddress("DisputeGameFactoryProxy"), "DisputeGameFactoryProxy");
+        vm.label(address(delayedWeth), "DelayedWETH");
+        vm.label(deploy.mustGetAddress("DelayedWETHProxy"), "DelayedWETHProxy");
         vm.label(address(systemConfig), "SystemConfig");
         vm.label(deploy.mustGetAddress("SystemConfigProxy"), "SystemConfigProxy");
         vm.label(address(l1StandardBridge), "L1StandardBridge");
@@ -134,45 +167,73 @@ contract Setup {
         vm.label(address(superchainConfig), "SuperchainConfig");
         vm.label(deploy.mustGetAddress("SuperchainConfigProxy"), "SuperchainConfigProxy");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
+
+        if (deploy.cfg().usePlasma()) {
+            dataAvailabilityChallenge =
+                DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
+            vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallengeProxy");
+            vm.label(deploy.mustGetAddress("DataAvailabilityChallenge"), "DataAvailabilityChallenge");
+        }
+        console.log("Setup: registered L1 deployments");
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2() public {
-        string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis.json");
-        if (vm.isFile(allocsPath) == false) {
-            string[] memory args = new string[](3);
-            args[0] = Executables.bash;
-            args[1] = "-c";
-            args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
-            vm.ffi(args);
-        }
-
-        // Prevent race condition where the genesis.json file is not yet created
-        while (vm.isFile(allocsPath) == false) {
-            vm.sleep(1);
-        }
-
-        vm.loadAllocs(allocsPath);
+        console.log("Setup: creating L2 genesis, with output mode %d", uint256(l2OutputMode));
+        l2Genesis.runWithOptions(
+            l2OutputMode,
+            L1Dependencies({
+                l1CrossDomainMessengerProxy: payable(address(l1CrossDomainMessenger)),
+                l1StandardBridgeProxy: payable(address(l1StandardBridge)),
+                l1ERC721BridgeProxy: payable(address(l1ERC721Bridge)),
+                l1BobaToken: address(0)
+            })
+        );
 
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = deploy.cfg().finalSystemOwner();
-        vm.prank(governanceToken.owner());
+        vm.startPrank(governanceToken.owner());
         governanceToken.transferOwnership(finalSystemOwner);
+        vm.stopPrank();
 
-        vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
-        vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
-        vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
-        vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
-        vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
-        vm.label(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
-        vm.label(Predeploys.L2_ERC721_BRIDGE, "L2ERC721Bridge");
-        vm.label(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
-        vm.label(Predeploys.L1_FEE_VAULT, "L1FeeVault");
-        vm.label(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
-        vm.label(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
-        vm.label(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
-        vm.label(Predeploys.GOVERNANCE_TOKEN, "GovernanceToken");
-        vm.label(Predeploys.EAS, "EAS");
-        vm.label(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
+        // L2 predeploys
+        labelPredeploy(Predeploys.L2_STANDARD_BRIDGE);
+        labelPredeploy(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        labelPredeploy(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+        labelPredeploy(Predeploys.SEQUENCER_FEE_WALLET);
+        labelPredeploy(Predeploys.L2_ERC721_BRIDGE);
+        labelPredeploy(Predeploys.BASE_FEE_VAULT);
+        labelPredeploy(Predeploys.L1_FEE_VAULT);
+        labelPredeploy(Predeploys.L1_BLOCK_ATTRIBUTES);
+        labelPredeploy(Predeploys.GAS_PRICE_ORACLE);
+        labelPredeploy(Predeploys.LEGACY_MESSAGE_PASSER);
+        labelPredeploy(Predeploys.GOVERNANCE_TOKEN);
+        labelPredeploy(Predeploys.EAS);
+        labelPredeploy(Predeploys.SCHEMA_REGISTRY);
+        labelPredeploy(Predeploys.WETH);
+
+        // L2 Preinstalls
+        labelPreinstall(Preinstalls.MultiCall3);
+        labelPreinstall(Preinstalls.Create2Deployer);
+        labelPreinstall(Preinstalls.Safe_v130);
+        labelPreinstall(Preinstalls.SafeL2_v130);
+        labelPreinstall(Preinstalls.MultiSendCallOnly_v130);
+        labelPreinstall(Preinstalls.SafeSingletonFactory);
+        labelPreinstall(Preinstalls.DeterministicDeploymentProxy);
+        labelPreinstall(Preinstalls.MultiSend_v130);
+        labelPreinstall(Preinstalls.Permit2);
+        labelPreinstall(Preinstalls.SenderCreator);
+        labelPreinstall(Preinstalls.EntryPoint);
+        labelPreinstall(Preinstalls.BeaconBlockRoots);
+
+        console.log("Setup: completed L2 genesis");
+    }
+
+    function labelPredeploy(address _addr) internal {
+        vm.label(_addr, Predeploys.getName(_addr));
+    }
+
+    function labelPreinstall(address _addr) internal {
+        vm.label(_addr, Preinstalls.getName(_addr));
     }
 }

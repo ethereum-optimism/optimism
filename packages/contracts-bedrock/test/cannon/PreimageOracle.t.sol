@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test, console2 as console } from "forge-std/Test.sol";
+import { Test, Vm, console2 as console } from "forge-std/Test.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
@@ -15,12 +15,12 @@ contract PreimageOracle_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle(0, 0, 0);
+        oracle = new PreimageOracle(0, 0);
         vm.label(address(oracle), "PreimageOracle");
     }
 
     /// @notice Test the pre-image key computation with a known pre-image.
-    function test_keccak256PreimageKey_succeeds() public {
+    function test_keccak256PreimageKey_succeeds() public pure {
         bytes memory preimage = hex"deadbeef";
         bytes32 key = PreimageKeyLib.keccak256PreimageKey(preimage);
         bytes32 known = 0x02fd4e189132273036449fc9e11198c739161b4c0116a9a2dccdfa1c492006f1;
@@ -171,6 +171,95 @@ contract PreimageOracle_Test is Test {
         vm.expectRevert("pre-image must exist");
         oracle.readPreimage(key, offset);
     }
+
+    /// @notice Tests that a precompile pre-image result is correctly set.
+    function test_loadPrecompilePreimagePart_succeeds() public {
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 0;
+        address precompile = address(bytes20(uint160(0x02))); // sha256
+        bytes32 key = precompilePreimageKey(precompile, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+
+        bytes32 part = oracle.preimageParts(key, offset);
+        // size prefix - 1-byte result + 32-byte sha return data
+        assertEq(hex"0000000000000021", bytes8(part));
+        // precompile result
+        assertEq(bytes1(0x01), bytes1(part << 64));
+        // precompile call return data
+        assertEq(bytes23(sha256(input)), bytes23(part << 72));
+
+        // Validate the local data length
+        uint256 length = oracle.preimageLengths(key);
+        assertEq(length, 1 + 32);
+
+        // Validate that the first local data part is set
+        bool ok = oracle.preimagePartOk(key, offset);
+        assertTrue(ok);
+    }
+
+    /// @notice Tests that a precompile pre-image result is correctly set at its return data offset.
+    function test_loadPrecompilePreimagePart_atReturnOffset_succeeds() public {
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 9;
+        address precompile = address(bytes20(uint160(0x02))); // sha256
+        bytes32 key = precompilePreimageKey(precompile, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+
+        bytes32 part = oracle.preimageParts(key, offset);
+        // 32-byte sha return data
+        assertEq(sha256(input), part);
+
+        // Validate the local data length
+        uint256 length = oracle.preimageLengths(key);
+        assertEq(length, 1 + 32);
+
+        // Validate that the first local data part is set
+        bool ok = oracle.preimagePartOk(key, offset);
+        assertTrue(ok);
+    }
+
+    /// @notice Tests that a failed precompile call has a zero status byte in preimage
+    function test_loadPrecompilePreimagePart_failedCall_succeeds() public {
+        bytes memory input = new bytes(193); // invalid input to induce a failed precompile call
+        uint256 offset = 0;
+        address precompile = address(bytes20(uint160(0x08))); // bn256Pairing
+        bytes32 key = precompilePreimageKey(precompile, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+
+        bytes32 part = oracle.preimageParts(key, offset);
+        // size prefix - 1-byte result + 0-byte sha return data
+        assertEq(hex"0000000000000001", bytes8(part));
+        // precompile result
+        assertEq(bytes1(0x00), bytes1(part << 64));
+        // precompile call return data
+        assertEq(bytes23(0), bytes23(part << 72));
+
+        // Validate the local data length
+        uint256 length = oracle.preimageLengths(key);
+        assertEq(length, 1);
+
+        // Validate that the first local data part is set
+        bool ok = oracle.preimagePartOk(key, offset);
+        assertTrue(ok);
+    }
+
+    /// @notice Tests that adding a global precompile result at the part boundary reverts.
+    function test_loadPrecompilePreimagePart_partBoundary_reverts() public {
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 41; // 8-byte prefix + 1-byte result + 32-byte sha return data
+        address precompile = address(bytes20(uint160(0x02))); // sha256
+        vm.expectRevert(PartOffsetOOB.selector);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+    }
+
+    /// @notice Tests that a global precompile result cannot be set with an out-of-bounds offset.
+    function test_loadPrecompilePreimagePart_outOfBoundsOffset_reverts() public {
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 42;
+        address precompile = address(bytes20(uint160(0x02))); // sha256
+        vm.expectRevert(PartOffsetOOB.selector);
+        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+    }
 }
 
 contract PreimageOracle_LargePreimageProposals_Test is Test {
@@ -182,11 +271,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Sets up the testing suite.
     function setUp() public {
-        oracle = new PreimageOracle({
-            _minProposalSize: MIN_SIZE_BYTES,
-            _challengePeriod: CHALLENGE_PERIOD,
-            _cancunActivation: 0
-        });
+        oracle = new PreimageOracle({ _minProposalSize: MIN_SIZE_BYTES, _challengePeriod: CHALLENGE_PERIOD });
         vm.label(address(oracle), "PreimageOracle");
 
         // Set `tx.origin` and `msg.sender` to `address(this)` so that it may behave like an EOA for `addLeavesLPP`.
@@ -212,8 +297,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Tests that the `initLPP` function reverts when the part offset is out of bounds of the full preimage.
     function test_initLPP_sizeTooSmall_reverts() public {
-        oracle =
-            new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD, _cancunActivation: 0 });
+        oracle = new PreimageOracle({ _minProposalSize: 1000, _challengePeriod: CHALLENGE_PERIOD });
 
         // Allocate the preimage data.
         bytes memory data = new bytes(136);
@@ -245,10 +329,18 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         // Allocate the calldata so it isn't included in the gas measurement.
         bytes memory cd = abi.encodeCall(oracle.addLeavesLPP, (TEST_UUID, 0, data, stateCommitments, true));
 
+        // Record logs from the call. `expectEmit` does not capture assembly logs.
+        bytes memory expectedLog = abi.encodePacked(address(this), cd);
+        vm.recordLogs();
+
         uint256 gas = gasleft();
         (bool success,) = address(oracle).call(cd);
         uint256 gasUsed = gas - gasleft();
         assertTrue(success);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs[0].data, expectedLog);
+        assertEq(logs[0].emitter, address(oracle));
 
         console.log("Gas used: %d", gasUsed);
         console.log("Gas per byte (%d bytes streamed): %d", data.length, gasUsed / data.length);
@@ -1266,5 +1358,16 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 function _setStatusByte(bytes32 _hash, uint8 _status) pure returns (bytes32 out_) {
     assembly {
         out_ := or(and(not(shl(248, 0xFF)), _hash), shl(248, _status))
+    }
+}
+
+/// @notice Computes a precompile key for a given precompile address and input.
+function precompilePreimageKey(address _precompile, bytes memory _input) pure returns (bytes32 key_) {
+    bytes memory p = abi.encodePacked(_precompile, _input);
+    uint256 sz = 20 + _input.length;
+    assembly {
+        let h := keccak256(add(0x20, p), sz)
+        // Mask out prefix byte, replace with type 6 byte
+        key_ := or(and(h, not(shl(248, 0xFF))), shl(248, 6))
     }
 }

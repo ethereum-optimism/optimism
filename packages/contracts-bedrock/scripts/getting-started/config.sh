@@ -65,7 +65,7 @@ config=$(cat << EOL
   "l1FeeVaultWithdrawalNetwork": 0,
   "sequencerFeeVaultWithdrawalNetwork": 0,
 
-  "gasPriceOracleOverhead": 2100,
+  "gasPriceOracleOverhead": 0,
   "gasPriceOracleScalar": 1000000,
 
   "enableGovernance": true,
@@ -81,7 +81,8 @@ config=$(cat << EOL
   "eip1559DenominatorCanyon": 250,
   "eip1559Elasticity": 6,
 
-  "l2GenesisDeltaTimeOffset": null,
+  "l2GenesisEcotoneTimeOffset": "0x0",
+  "l2GenesisDeltaTimeOffset": "0x0",
   "l2GenesisCanyonTimeOffset": "0x0",
 
   "systemConfigStartBlock": 0,
@@ -91,14 +92,14 @@ config=$(cat << EOL
 
   "faultGameAbsolutePrestate": "0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98",
   "faultGameMaxDepth": 44,
-  "faultGameMaxDuration": 1200,
+  "faultGameClockExtension": 0,
+  "faultGameMaxClockDuration": 600,
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 14,
 
   "preimageOracleMinProposalSize": 1800000,
-  "preimageOracleChallengePeriod": 86400,
-  "preimageOracleCancunActivationTimestamp": 0
+  "preimageOracleChallengePeriod": 86400
 }
 EOL
 )

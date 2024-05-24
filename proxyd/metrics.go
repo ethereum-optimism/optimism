@@ -2,6 +2,8 @@ package proxyd
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -262,6 +264,14 @@ var (
 		"backend_group_name",
 	})
 
+	consensusHAError = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_ha_error",
+		Help:      "Consensus HA error count",
+	}, []string{
+		"error",
+	})
+
 	consensusHALatestBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: MetricsNamespace,
 		Name:      "group_consensus_ha_latest_block",
@@ -463,6 +473,16 @@ func RecordCacheError(method string) {
 
 func RecordBatchSize(size int) {
 	batchSizeHistogram.Observe(float64(size))
+}
+
+var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z ]+`)
+
+func RecordGroupConsensusError(group *BackendGroup, label string, err error) {
+	errClean := nonAlphanumericRegex.ReplaceAllString(err.Error(), "")
+	errClean = strings.ReplaceAll(errClean, " ", "_")
+	errClean = strings.ReplaceAll(errClean, "__", "_")
+	label = fmt.Sprintf("%s.%s", label, errClean)
+	consensusHAError.WithLabelValues(label).Inc()
 }
 
 func RecordGroupConsensusHALatestBlock(group *BackendGroup, leader string, blockNumber hexutil.Uint64) {

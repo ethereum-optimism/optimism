@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
 import "src/cannon/libraries/CannonErrors.sol";
@@ -11,14 +12,11 @@ import "src/cannon/libraries/CannonTypes.sol";
 /// @notice A contract for storing permissioned pre-images.
 /// @custom:attribution Solady <https://github.com/Vectorized/solady/blob/main/src/utils/MerkleProofLib.sol#L13-L43>
 /// @custom:attribution Beacon Deposit Contract <0x00000000219ab540356cbb839cbe05303d7705fa>
-contract PreimageOracle is IPreimageOracle {
+contract PreimageOracle is IPreimageOracle, ISemver {
     ////////////////////////////////////////////////////////////////
     //                   Constants & Immutables                   //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice The timestamp of Cancun activation on the current chain.
-    /// @custom:network-specific
-    uint256 internal immutable CANCUN_ACTIVATION;
     /// @notice The duration of the large preimage proposal challenge period.
     uint256 internal immutable CHALLENGE_PERIOD;
     /// @notice The minimum size of a preimage that can be proposed in the large preimage path.
@@ -29,6 +27,10 @@ contract PreimageOracle is IPreimageOracle {
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
+
+    /// @notice The semantic version of the Preimage Oracle contract.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -84,10 +86,9 @@ contract PreimageOracle is IPreimageOracle {
     //                        Constructor                         //
     ////////////////////////////////////////////////////////////////
 
-    constructor(uint256 _minProposalSize, uint256 _challengePeriod, uint256 _cancunActivation) {
+    constructor(uint256 _minProposalSize, uint256 _challengePeriod) {
         MIN_LPP_SIZE_BYTES = _minProposalSize;
         CHALLENGE_PERIOD = _challengePeriod;
-        CANCUN_ACTIVATION = _cancunActivation;
 
         // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {
@@ -249,9 +250,6 @@ contract PreimageOracle is IPreimageOracle {
     )
         external
     {
-        // Prior to Cancun activation, the blob preimage precompile is not available.
-        if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
-
         bytes32 key;
         bytes32 part;
         assembly {
@@ -334,42 +332,60 @@ contract PreimageOracle is IPreimageOracle {
     }
 
     /// @inheritdoc IPreimageOracle
-    function loadKZGPointEvaluationPreimage(bytes calldata _input) external {
-        // Prior to Cancun activation, the blob preimage precompile is not available.
-        if (block.timestamp < CANCUN_ACTIVATION) revert CancunNotActive();
-
+    function loadPrecompilePreimagePart(uint256 _partOffset, address _precompile, bytes calldata _input) external {
+        bytes32 res;
         bytes32 key;
         bytes32 part;
+        uint256 size;
         assembly {
             // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
 
-            // copy input into memory
-            calldatacopy(ptr, _input.offset, _input.length)
+            // copy precompile address and input into memory
+            // len(sig) + len(_partOffset) + address-offset-in-slot
+            calldatacopy(ptr, 48, 20)
+            calldatacopy(add(20, ptr), _input.offset, _input.length)
             // compute the hash
-            let h := keccak256(ptr, _input.length)
+            let h := keccak256(ptr, add(20, _input.length))
             // mask out prefix byte, replace with type 6 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
 
-            // Verify the KZG proof by calling the point evaluation precompile.
-            // Capture the verification result
-            part :=
+            // Call the precompile to get the result.
+            res :=
                 staticcall(
                     gas(), // forward all gas
-                    0x0A, // point evaluation precompile address
-                    ptr, // input ptr
-                    _input.length, // we may want to load differently sized point-evaluation calls in the future
-                    0x00, // output ptr
-                    0x00 // output size
+                    _precompile,
+                    add(20, ptr), // input ptr
+                    _input.length,
+                    0x0, // Unused as we don't copy anything
+                    0x00 // don't copy anything
                 )
-            // "part" will be 0 on error, and 1 on success, of the KZG Point-evaluation precompile call
-            // We do have to shift it to the left-most byte of the bytes32 however, since we only read that byte.
-            part := shl(248, part)
+
+            size := add(1, returndatasize())
+            // revert if part offset >= size+8 (i.e. parts must be within bounds)
+            if iszero(lt(_partOffset, add(size, 8))) {
+                // Store "PartOffsetOOB()"
+                mstore(0, 0xfe254987)
+                // Revert with "PartOffsetOOB()"
+                revert(0x1c, 4)
+            }
+
+            // Reuse the `ptr` to store the preimage part: <sizePrefix ++ precompileStatus ++ returrnData>
+            // put size as big-endian uint64 at start of pre-image
+            mstore(ptr, shl(192, size))
+            ptr := add(ptr, 0x08)
+
+            // write precompile result status to the first byte of `ptr`
+            mstore8(ptr, res)
+            // write precompile return data to the rest of `ptr`
+            returndatacopy(add(ptr, 0x01), 0x0, returndatasize())
+
+            // compute part given ofset
+            part := mload(add(sub(ptr, 0x08), _partOffset))
         }
-        // the part offset is always 0
-        preimagePartOk[key][0] = true;
-        preimageParts[key][0] = part;
-        preimageLengths[key] = 1;
+        preimagePartOk[key][_partOffset] = true;
+        preimageParts[key][_partOffset] = part;
+        preimageLengths[key] = size;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -444,6 +460,8 @@ contract PreimageOracle is IPreimageOracle {
         uint256 blocksProcessed = metaData.blocksProcessed();
 
         // The caller of `addLeavesLPP` must be an EOA.
+        // Note: This check may break if EIPs like EIP-3074 are introduced. We may query the data in the logs if this
+        // is the case.
         if (msg.sender != tx.origin) revert NotEOA();
 
         // Revert if the proposal has not been initialized. 0-size preimages are *not* allowed.
@@ -536,6 +554,14 @@ contract PreimageOracle is IPreimageOracle {
         proposalBlocks[msg.sender][_uuid].push(uint64(block.number));
         // Persist the updated metadata to storage.
         proposalMetadata[msg.sender][_uuid] = metaData;
+
+        // Clobber memory and `log0` all calldata. This is safe because there is no execution afterwards within
+        // this callframe.
+        assembly {
+            mstore(0x00, shl(96, caller()))
+            calldatacopy(0x14, 0x00, calldatasize())
+            log0(0x00, add(0x14, calldatasize()))
+        }
     }
 
     /// @notice Challenge a keccak256 block that was committed to in the merkle tree.

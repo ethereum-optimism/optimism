@@ -14,7 +14,7 @@ type Mode int
 //     It will consolidate the chain as usual. This allows execution clients to snap sync if they are capable of it.
 const (
 	CLSync Mode = iota
-	ELSync Mode = iota
+	ELSync
 )
 
 const (

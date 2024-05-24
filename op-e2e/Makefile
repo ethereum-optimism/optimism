@@ -1,6 +1,7 @@
 # Generally, JUNIT_FILE is set in CI but may be specified to an arbitrary file location to emulate CI locally
+# If JUNIT_FILE is set, JSON_LOG_FILE should also be set
 ifdef JUNIT_FILE
-	go_test = OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false gotestsum --format=standard-verbose --junitfile=$(JUNIT_FILE) -- -failfast
+	go_test = OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false gotestsum --format=testname --junitfile=$(JUNIT_FILE) --jsonfile=$(JSON_LOG_FILE) -- -failfast
   # Note: -parallel must be set to match the number of cores in the resource class
 	go_test_flags = -timeout=60m -parallel=8
 else
@@ -63,3 +64,9 @@ clean:
 	rm -r ../.devnet
 	rm -r ../op-program/bin
 .PHONY: clean
+
+fuzz:
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLzGethSolidity ./
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLzCgo ./
+

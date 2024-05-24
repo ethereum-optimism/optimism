@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	con "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	conrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
@@ -26,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -38,7 +38,11 @@ const (
 	VerifierName   = "verifier"
 
 	localhost = "127.0.0.1"
+
+	maxSetupRetries = 5
 )
+
+var retryStrategy = &retry.FixedStrategy{Dur: 50 * time.Millisecond}
 
 type conductor struct {
 	service       *con.OpConductor
@@ -55,47 +59,21 @@ func (c *conductor) RPCEndpoint() string {
 	return fmt.Sprintf("http://%s:%d", localhost, c.rpcPort)
 }
 
-func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
+func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor, func()) {
 	InitParallel(t)
 	ctx := context.Background()
 
-	conductorRpcPorts := map[string]int{
-		Sequencer1Name: findAvailablePort(t),
-		Sequencer2Name: findAvailablePort(t),
-		Sequencer3Name: findAvailablePort(t),
-	}
-
-	// 3 sequencers, 1 verifier, 1 active sequencer.
-	cfg := sequencerFailoverSystemConfig(t, conductorRpcPorts)
-	sys, err := cfg.Start(t)
-	require.NoError(t, err)
-
-	// 3 conductors that connects to 1 sequencer each.
-	conductors := make(map[string]*conductor)
-
-	// initialize all conductors in paused mode
-	conductorCfgs := []struct {
-		name      string
-		port      int
-		bootstrap bool
-	}{
-		{Sequencer1Name, conductorRpcPorts[Sequencer1Name], true}, // one in bootstrap mode so that we can form a cluster.
-		{Sequencer2Name, conductorRpcPorts[Sequencer2Name], false},
-		{Sequencer3Name, conductorRpcPorts[Sequencer3Name], false},
-	}
-	for _, cfg := range conductorCfgs {
-		cfg := cfg
-		nodePRC := sys.RollupNodes[cfg.name].HTTPEndpoint()
-		engineRPC := sys.EthInstances[cfg.name].HTTPEndpoint()
-		conductors[cfg.name] = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.port, cfg.bootstrap, *sys.RollupConfig)
-	}
+	sys, conductors, err := retry.Do2(ctx, maxSetupRetries, retryStrategy, func() (*System, map[string]*conductor, error) {
+		return setupHAInfra(t, ctx)
+	})
+	require.NoError(t, err, "Expected to successfully setup sequencers and conductors after retry")
 
 	// form a cluster
 	c1 := conductors[Sequencer1Name]
 	c2 := conductors[Sequencer2Name]
 	c3 := conductors[Sequencer3Name]
 
-	require.NoError(t, waitForLeadershipChange(t, c1, true))
+	require.NoError(t, waitForLeadership(t, c1))
 	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint()))
 	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint()))
 	require.True(t, leader(t, ctx, c1))
@@ -125,7 +103,7 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 		return healthy(t, ctx, c1) &&
 			healthy(t, ctx, c2) &&
 			healthy(t, ctx, c3)
-	}, 30*time.Second, 500*time.Millisecond, "Expected sequencers to become healthy")
+	}, 50*time.Second, 500*time.Millisecond, "Expected sequencers to become healthy")
 
 	// unpause all conductors
 	require.NoError(t, c1.client.Resume(ctx))
@@ -133,6 +111,12 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	require.NoError(t, c3.client.Resume(ctx))
 
 	// final check, make sure everything is in the right place
+	require.True(t, conductorResumed(t, ctx, c1))
+	require.True(t, conductorResumed(t, ctx, c2))
+	require.True(t, conductorResumed(t, ctx, c3))
+	require.False(t, conductorStopped(t, ctx, c1))
+	require.False(t, conductorStopped(t, ctx, c2))
+	require.False(t, conductorStopped(t, ctx, c3))
 	require.True(t, conductorActive(t, ctx, c1))
 	require.True(t, conductorActive(t, ctx, c2))
 	require.True(t, conductorActive(t, ctx, c3))
@@ -145,7 +129,74 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor) {
 	require.True(t, healthy(t, ctx, c2))
 	require.True(t, healthy(t, ctx, c3))
 
-	return sys, conductors
+	return sys, conductors, func() {
+		sys.Close()
+		for _, c := range conductors {
+			_ = c.service.Stop(ctx)
+		}
+	}
+}
+
+func setupHAInfra(t *testing.T, ctx context.Context) (*System, map[string]*conductor, error) {
+	startTime := time.Now()
+
+	var sys *System
+	var conductors map[string]*conductor
+	var err error
+
+	// clean up if setup fails due to port in use.
+	defer func() {
+		if err != nil {
+			if sys != nil {
+				sys.Close()
+			}
+
+			for _, c := range conductors {
+				if c == nil || c.service == nil {
+					// pass. Sometimes we can get nil in this map
+				} else if serr := c.service.Stop(ctx); serr != nil {
+					t.Log("Failed to stop conductor", "error", serr)
+				}
+			}
+		}
+		t.Logf("setupHAInfra took %s\n", time.Since(startTime))
+	}()
+
+	conductorRpcPorts := map[string]int{
+		Sequencer1Name: findAvailablePort(t),
+		Sequencer2Name: findAvailablePort(t),
+		Sequencer3Name: findAvailablePort(t),
+	}
+
+	// 3 sequencers, 1 verifier, 1 active sequencer.
+	cfg := sequencerFailoverSystemConfig(t, conductorRpcPorts)
+	if sys, err = cfg.Start(t); err != nil {
+		return nil, nil, err
+	}
+
+	// 3 conductors that connects to 1 sequencer each.
+	conductors = make(map[string]*conductor)
+
+	// initialize all conductors in paused mode
+	conductorCfgs := []struct {
+		name      string
+		port      int
+		bootstrap bool
+	}{
+		{Sequencer1Name, conductorRpcPorts[Sequencer1Name], true}, // one in bootstrap mode so that we can form a cluster.
+		{Sequencer2Name, conductorRpcPorts[Sequencer2Name], false},
+		{Sequencer3Name, conductorRpcPorts[Sequencer3Name], false},
+	}
+	for _, cfg := range conductorCfgs {
+		cfg := cfg
+		nodePRC := sys.RollupNodes[cfg.name].HTTPEndpoint()
+		engineRPC := sys.EthInstances[cfg.name].HTTPEndpoint()
+		if conductors[cfg.name], err = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.port, cfg.bootstrap, *sys.RollupConfig); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return sys, conductors, nil
 }
 
 func setupConductor(
@@ -154,9 +205,7 @@ func setupConductor(
 	rpcPort int,
 	bootstrap bool,
 	rollupCfg rollup.Config,
-) *conductor {
-	// it's unfortunate that it is not possible to pass 0 as consensus port and get back the actual assigned port from raft implementation.
-	// So we find an available port and pass it in to avoid test flakiness (avoid port already in use error).
+) (*conductor, error) {
 	consensusPort := findAvailablePort(t)
 	cfg := con.Config{
 		ConsensusAddr:  localhost,
@@ -190,12 +239,19 @@ func setupConductor(
 
 	ctx := context.Background()
 	service, err := con.New(ctx, &cfg, testlog.Logger(t, log.LevelInfo), "0.0.1")
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
+
 	err = service.Start(ctx)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
 	rawClient, err := rpc.DialContext(ctx, service.HTTPEndpoint())
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 	client := conrpc.NewAPIClient(rawClient)
 
 	return &conductor{
@@ -203,7 +259,7 @@ func setupConductor(
 		client:        client,
 		consensusPort: consensusPort,
 		rpcPort:       rpcPort,
-	}
+	}, nil
 }
 
 func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
@@ -226,15 +282,12 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		RollupRpc:              rollupRpc,
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
-		MaxL1TxSize:            240_000,
-		CompressorConfig: compressor.CLIConfig{
-			TargetL1TxSizeBytes: sys.Cfg.BatcherTargetL1TxSizeBytes,
-			TargetNumFrames:     1,
-			ApproxComprRatio:    0.4,
-		},
-		SubSafetyMargin: 4,
-		PollInterval:    1 * time.Second,
-		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), sys.Cfg.Secrets.Batcher),
+		MaxL1TxSize:            120_000,
+		TargetNumFrames:        1,
+		ApproxComprRatio:       0.4,
+		SubSafetyMargin:        4,
+		PollInterval:           1 * time.Second,
+		TxMgrConfig:            newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), sys.Cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelDebug,
 			Format: oplog.FormatText,
@@ -243,6 +296,7 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		BatchType:                    derive.SpanBatchType,
 		DataAvailabilityType:         batcherFlags.CalldataType,
 		ActiveSequencerCheckDuration: 0,
+		CompressionAlgo:              derive.Zlib,
 	}
 
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])
@@ -301,24 +355,56 @@ func sequencerCfg(rpcPort int) *rollupNode.Config {
 	}
 }
 
-func waitForLeadershipChange(t *testing.T, c *conductor, leader bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			isLeader, err := c.client.Leader(ctx)
-			if err != nil {
-				return err
-			}
-			if isLeader == leader {
-				return nil
-			}
-			time.Sleep(500 * time.Millisecond)
+func waitForLeadership(t *testing.T, c *conductor) error {
+	condition := func() (bool, error) {
+		isLeader, err := c.client.Leader(context.Background())
+		if err != nil {
+			return false, err
 		}
+		return isLeader, nil
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return wait.For(ctx, 1*time.Second, condition)
+}
+
+func waitForLeadershipChange(t *testing.T, prev *conductor, prevID string, conductors map[string]*conductor, sys *System) string {
+	condition := func() (bool, error) {
+		isLeader, err := prev.client.Leader(context.Background())
+		if err != nil {
+			return false, err
+		}
+		return !isLeader, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := wait.For(ctx, 1*time.Second, condition)
+	require.NoError(t, err)
+
+	ensureOnlyOneLeader(t, sys, conductors)
+	newLeader, err := prev.client.LeaderWithID(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, newLeader.ID)
+	require.NotEqual(t, prevID, newLeader.ID, "Expected a new leader")
+	require.NoError(t, waitForSequencerStatusChange(t, sys.RollupClient(newLeader.ID), true))
+
+	return newLeader.ID
+}
+
+func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClient, active bool) error {
+	condition := func() (bool, error) {
+		isActive, err := rollupClient.SequencerActive(context.Background())
+		if err != nil {
+			return false, err
+		}
+		return isActive == active, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return wait.For(ctx, 1*time.Second, condition)
 }
 
 func leader(t *testing.T, ctx context.Context, con *conductor) bool {
@@ -337,6 +423,18 @@ func conductorActive(t *testing.T, ctx context.Context, con *conductor) bool {
 	active, err := con.client.Active(ctx)
 	require.NoError(t, err)
 	return active
+}
+
+func conductorResumed(t *testing.T, ctx context.Context, con *conductor) bool {
+	paused, err := con.client.Paused(ctx)
+	require.NoError(t, err)
+	return !paused
+}
+
+func conductorStopped(t *testing.T, ctx context.Context, con *conductor) bool {
+	stopped, err := con.client.Stopped(ctx)
+	require.NoError(t, err)
+	return stopped
 }
 
 func sequencerActive(t *testing.T, ctx context.Context, rollupClient *sources.RollupClient) bool {
@@ -372,4 +470,39 @@ func findLeader(t *testing.T, conductors map[string]*conductor) (string, *conduc
 		}
 	}
 	return "", nil
+}
+
+func findFollower(t *testing.T, conductors map[string]*conductor) (string, *conductor) {
+	for id, con := range conductors {
+		if !leader(t, context.Background(), con) {
+			return id, con
+		}
+	}
+	return "", nil
+}
+
+func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*conductor) {
+	condition := func() (bool, error) {
+		leaders := 0
+		ctx := context.Background()
+		for name, con := range conductors {
+			leader, err := con.client.Leader(ctx)
+			if err != nil {
+				continue
+			}
+			active, err := sys.RollupClient(name).SequencerActive(ctx)
+			if err != nil {
+				continue
+			}
+
+			if leader && active {
+				leaders++
+			}
+		}
+		return leaders == 1, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	require.NoError(t, wait.For(ctx, 1*time.Second, condition))
 }

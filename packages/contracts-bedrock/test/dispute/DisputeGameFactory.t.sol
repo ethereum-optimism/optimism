@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "src/libraries/DisputeTypes.sol";
-import "src/libraries/DisputeErrors.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory, IDisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
@@ -32,7 +32,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `create` function succeeds when creating a new dispute game
     ///      with a `GameType` that has an implementation set.
     function testFuzz_create_succeeds(
-        uint8 gameType,
+        uint32 gameType,
         Claim rootClaim,
         bytes calldata extraData,
         uint256 _value
@@ -72,9 +72,9 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         assertEq(address(proxy).balance, _value);
     }
 
-    /// @dev Tests that the `create` function reverts when creating a new dispute game with an insufficient bond.
-    function testFuzz_create_insufficientBond_reverts(
-        uint8 gameType,
+    /// @dev Tests that the `create` function reverts when creating a new dispute game with an incorrect bond amount.
+    function testFuzz_create_incorrectBondAmount_reverts(
+        uint32 gameType,
         Claim rootClaim,
         bytes calldata extraData
     )
@@ -92,7 +92,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
             disputeGameFactory.setInitBond(lgt, 1 ether);
         }
 
-        vm.expectRevert(InsufficientBond.selector);
+        vm.expectRevert(IncorrectBondAmount.selector);
         disputeGameFactory.create(gt, rootClaim, extraData);
     }
 
@@ -110,7 +110,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     }
 
     /// @dev Tests that the `create` function reverts when there exists a dispute game with the same UUID.
-    function testFuzz_create_sameUUID_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
+    function testFuzz_create_sameUUID_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
@@ -195,7 +195,7 @@ contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
 contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `getGameUUID` function returns the correct hash when comparing
     ///      against the keccak256 hash of the abi-encoded parameters.
-    function testDiff_getGameUUID_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
+    function testDiff_getGameUUID_succeeds(uint32 gameType, Claim rootClaim, bytes calldata extraData) public view {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
@@ -208,7 +208,7 @@ contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
 
 contract DisputeGameFactory_Owner_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `owner` function returns the correct address after deployment.
-    function test_owner_succeeds() public {
+    function test_owner_succeeds() public view {
         assertEq(disputeGameFactory.owner(), address(this));
     }
 }
@@ -272,7 +272,7 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
         games = disputeGameFactory.findLatestGames(GameType.wrap(0), gameCount - 1, 1);
         assertEq(games.length, 1);
         assertEq(games[0].index, 30);
-        (GameType gameType, Timestamp createdAt, IDisputeGame game) = games[0].metadata.unpack();
+        (GameType gameType, Timestamp createdAt, address game) = games[0].metadata.unpack();
         assertEq(gameType.raw(), 0);
         assertEq(createdAt.raw(), block.timestamp);
 
@@ -328,7 +328,7 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
 
         // Create `_numGames` dispute games, with at least `_numSearchedGames` games.
         for (uint256 i; i < _numGames; i++) {
-            uint8 gameType = i < _numSearchedGames ? 0 : 1;
+            uint32 gameType = i < _numSearchedGames ? 0 : 1;
             disputeGameFactory.create(GameType.wrap(gameType), Claim.wrap(bytes32(i)), abi.encode(i));
         }
 

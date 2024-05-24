@@ -144,7 +144,7 @@ func entrypoint(ctx *cli.Context) error {
 			contracts["L2OutputOracle"] = Contract{Version: versions.L2OutputOracle, Address: addresses.L2OutputOracleProxy}
 			contracts["OptimismMintableERC20Factory"] = Contract{Version: versions.OptimismMintableERC20Factory, Address: addresses.OptimismMintableERC20FactoryProxy}
 			contracts["OptimismPortal"] = Contract{Version: versions.OptimismPortal, Address: addresses.OptimismPortalProxy}
-			contracts["SystemConfig"] = Contract{Version: versions.SystemConfig, Address: chainConfig.SystemConfigAddr}
+			contracts["SystemConfig"] = Contract{Version: versions.SystemConfig, Address: addresses.SystemConfigProxy}
 			contracts["ProxyAdmin"] = Contract{Version: "null", Address: addresses.ProxyAdmin}
 
 			output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: l2ChainID, Contracts: contracts})

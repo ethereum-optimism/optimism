@@ -515,7 +515,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		sequencer.ActL2EndBlock(t)
 		for batcher.l2BufferedBlock.Number < sequencer.SyncStatus().UnsafeL2.Number {
 			// if we run out of space, close the channel and submit all the txs
-			if err := batcher.Buffer(t); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.CompressorFullErr) {
+			if err := batcher.Buffer(t); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
 				log.Info("flushing filled channel to batch txs", "id", batcher.l2ChannelOut.ID())
 				batcher.ActL2ChannelClose(t)
 				for batcher.l2ChannelOut != nil {

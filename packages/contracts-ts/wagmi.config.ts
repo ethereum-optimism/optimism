@@ -9,7 +9,7 @@ import { camelCase, constantCase } from 'change-case'
 /**
  * Predeployed contract addresses
  * In future it would be nice to have a json file in contracts bedrock be generated as source of truth
- * Keep this in sync with op-bindings/predeploys/addresses.go in meantime
+ * Keep this in sync with op-service/predeploys/addresses.go in meantime
  */
 const predeployContracts = {
   LegacyMessagePasser: {

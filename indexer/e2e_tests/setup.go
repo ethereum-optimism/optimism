@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
-	"github.com/ethereum-optimism/optimism/indexer/client"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 
@@ -38,8 +37,8 @@ type E2ETestSuite struct {
 	MetricsRegistry *prometheus.Registry
 
 	// API
-	Client *client.Client
-	API    *api.APIService
+	API       *api.APIService
+	ApiClient *api.Client
 
 	// Indexer
 	DB      *database.DB
@@ -54,6 +53,8 @@ type E2ETestSuite struct {
 	L2Client *ethclient.Client
 }
 
+type ConfigOpts func(*config.Config) *config.Config
+
 func init() {
 	// Disable the global logger. Ideally we'd like to dump geth
 	// logs per-test but that's possible when running tests in
@@ -62,9 +63,11 @@ func init() {
 }
 
 // createE2ETestSuite ... Create a new E2E test suite
-func createE2ETestSuite(t *testing.T) E2ETestSuite {
+func createE2ETestSuite(t *testing.T, cfgOpt ...ConfigOpts) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
+
+	require.LessOrEqual(t, len(cfgOpt), 1)
 
 	// E2E tests can run on the order of magnitude of minutes.
 	// We mark the test as parallel before starting the devnet
@@ -114,6 +117,11 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
+	// apply any settings
+	for _, opt := range cfgOpt {
+		indexerCfg = opt(indexerCfg)
+	}
+
 	indexerLog := testlog.Logger(t, log.LevelInfo).New("role", "indexer")
 	ix, err := indexer.NewIndexer(context.Background(), indexerLog, indexerCfg, func(cause error) {
 		if cause != nil {
@@ -147,13 +155,13 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	// Wait for the API to start listening
 	time.Sleep(1 * time.Second)
 
-	client, err := client.NewClient(&client.Config{PaginationLimit: 100, BaseURL: "http://" + apiService.Addr()})
+	apiClient, err := api.NewClient(&api.ClientConfig{PaginationLimit: 100, BaseURL: "http://" + apiService.Addr()})
 	require.NoError(t, err, "must open indexer API client")
 
 	return E2ETestSuite{
 		t:               t,
 		MetricsRegistry: metrics.NewRegistry(),
-		Client:          client,
+		ApiClient:       apiClient,
 		DB:              db,
 		Indexer:         ix,
 		OpCfg:           &opCfg,

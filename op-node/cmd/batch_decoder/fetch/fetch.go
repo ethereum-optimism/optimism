@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/sync/errgroup"
@@ -28,8 +31,8 @@ type TransactionWithMetadata struct {
 	Sender      common.Address     `json:"sender"`
 	ValidSender bool               `json:"valid_sender"`
 	Frames      []derive.Frame     `json:"frames"`
-	FrameErr    string             `json:"frame_parse_error"`
-	ValidFrames bool               `json:"valid_data"`
+	FrameErrs   []string           `json:"frame_parse_error"`
+	ValidFrames []bool             `json:"valid_data"`
 	Tx          *types.Transaction `json:"tx"`
 }
 
@@ -45,7 +48,7 @@ type Config struct {
 // Batches fetches & stores all transactions sent to the batch inbox address in
 // the given block range (inclusive to exclusive).
 // The transactions & metadata are written to the out directory.
-func Batches(client *ethclient.Client, config Config) (totalValid, totalInvalid uint64) {
+func Batches(client *ethclient.Client, beacon *sources.L1BeaconClient, config Config) (totalValid, totalInvalid uint64) {
 	if err := os.MkdirAll(config.OutDirectory, 0750); err != nil {
 		log.Fatal(err)
 	}
@@ -61,7 +64,7 @@ func Batches(client *ethclient.Client, config Config) (totalValid, totalInvalid 
 		}
 		number := i
 		g.Go(func() error {
-			valid, invalid, err := fetchBatchesPerBlock(ctx, client, number, signer, config)
+			valid, invalid, err := fetchBatchesPerBlock(ctx, client, beacon, number, signer, config)
 			if err != nil {
 				return fmt.Errorf("error occurred while fetching block %d: %w", number, err)
 			}
@@ -77,7 +80,7 @@ func Batches(client *ethclient.Client, config Config) (totalValid, totalInvalid 
 }
 
 // fetchBatchesPerBlock gets a block & the parses all of the transactions in the block.
-func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, number uint64, signer types.Signer, config Config) (uint64, uint64, error) {
+func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, beacon *sources.L1BeaconClient, number uint64, signer types.Signer, config Config) (uint64, uint64, error) {
 	validBatchCount := uint64(0)
 	invalidBatchCount := uint64(0)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -87,6 +90,7 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, number 
 		return 0, 0, err
 	}
 	fmt.Println("Fetched block: ", number)
+	blobIndex := 0 // index of each blob in the block's blob sidecar
 	for i, tx := range block.Transactions() {
 		if tx.To() != nil && *tx.To() == config.BatchInbox {
 			sender, err := signer.Sender(tx)
@@ -99,22 +103,66 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, number 
 				invalidBatchCount += 1
 				validSender = false
 			}
-
-			validFrames := true
-			frameError := ""
-			frames, err := derive.ParseFrames(tx.Data())
-			if err != nil {
-				fmt.Printf("Found a transaction (%s) with invalid data: %v\n", tx.Hash().String(), err)
-				validFrames = false
-				frameError = err.Error()
+			var datas []hexutil.Bytes
+			if tx.Type() != types.BlobTxType {
+				datas = append(datas, tx.Data())
+				// no need to increment blobIndex because no blobs
+			} else {
+				if beacon == nil {
+					fmt.Printf("Unable to handle blob transaction (%s) because L1 Beacon API not provided\n", tx.Hash().String())
+					blobIndex += len(tx.BlobHashes())
+					continue
+				}
+				var hashes []eth.IndexedBlobHash
+				for _, h := range tx.BlobHashes() {
+					idh := eth.IndexedBlobHash{
+						Index: uint64(blobIndex),
+						Hash:  h,
+					}
+					hashes = append(hashes, idh)
+					blobIndex += 1
+				}
+				blobs, err := beacon.GetBlobs(ctx, eth.L1BlockRef{
+					Hash:       block.Hash(),
+					Number:     block.Number().Uint64(),
+					ParentHash: block.ParentHash(),
+					Time:       block.Time(),
+				}, hashes)
+				if err != nil {
+					log.Fatal(fmt.Errorf("failed to fetch blobs: %w", err))
+				}
+				for _, blob := range blobs {
+					data, err := blob.ToData()
+					if err != nil {
+						log.Fatal(fmt.Errorf("failed to parse blobs: %w", err))
+					}
+					datas = append(datas, data)
+				}
 			}
-
-			if validSender && validFrames {
+			var frameErrors []string
+			var frames []derive.Frame
+			var validFrames []bool
+			validBatch := true
+			for _, data := range datas {
+				validFrame := true
+				frameError := ""
+				framesPerData, err := derive.ParseFrames(data)
+				if err != nil {
+					fmt.Printf("Found a transaction (%s) with invalid data: %v\n", tx.Hash().String(), err)
+					validFrame = false
+					validBatch = false
+					frameError = err.Error()
+				} else {
+					frames = append(frames, framesPerData...)
+				}
+				frameErrors = append(frameErrors, frameError)
+				validFrames = append(validFrames, validFrame)
+			}
+			if validSender && validBatch {
 				validBatchCount += 1
 			} else {
 				invalidBatchCount += 1
 			}
-
 			txm := &TransactionWithMetadata{
 				Tx:          tx,
 				Sender:      sender,
@@ -126,7 +174,7 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, number 
 				ChainId:     config.ChainID.Uint64(),
 				InboxAddr:   config.BatchInbox,
 				Frames:      frames,
-				FrameErr:    frameError,
+				FrameErrs:   frameErrors,
 				ValidFrames: validFrames,
 			}
 			filename := path.Join(config.OutDirectory, fmt.Sprintf("%s.json", tx.Hash().String()))
@@ -134,11 +182,14 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, number 
 			if err != nil {
 				return 0, 0, err
 			}
-			defer file.Close()
 			enc := json.NewEncoder(file)
 			if err := enc.Encode(txm); err != nil {
+				file.Close()
 				return 0, 0, err
 			}
+			file.Close()
+		} else {
+			blobIndex += len(tx.BlobHashes())
 		}
 	}
 	return validBatchCount, invalidBatchCount, nil

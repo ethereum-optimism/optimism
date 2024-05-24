@@ -1081,53 +1081,10 @@ func ParseDelegateBySig(calldata []byte) (*DelegateBySigParams, error) {
 // Solidity: function increaseAllowance(address spender, uint256 addedValue) returns(bool)
 
 // PermitParams is an auto generated read-only Go binding of transcaction calldata params
-type PermitParams struct {
-	Param_owner    libcommon.Address
-	Param_spender  libcommon.Address
-	Param_value    *big.Int
-	Param_deadline *big.Int
-	Param_v        uint8
-	Param_r        [32]byte
-	Param_s        [32]byte
-}
 
 // Parse Permit method from calldata of a transaction
 //
 // Solidity: function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func ParsePermit(calldata []byte) (*PermitParams, error) {
-	if len(calldata) <= 4 {
-		return nil, fmt.Errorf("invalid calldata input")
-	}
-
-	_abi, err := abi.JSON(strings.NewReader(BOBAABI))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
-	}
-
-	out, err := _abi.Methods["permit"].Inputs.Unpack(calldata[4:])
-	if err != nil {
-		return nil, fmt.Errorf("failed to unpack permit params data: %w", err)
-	}
-
-	var paramsResult = new(PermitParams)
-	value := reflect.ValueOf(paramsResult).Elem()
-
-	if value.NumField() != len(out) {
-		return nil, fmt.Errorf("failed to match calldata with param field number")
-	}
-
-	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
-	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
-	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
-	out3 := *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
-	out4 := *abi.ConvertType(out[4], new(uint8)).(*uint8)
-	out5 := *abi.ConvertType(out[5], new([32]byte)).(*[32]byte)
-	out6 := *abi.ConvertType(out[6], new([32]byte)).(*[32]byte)
-
-	return &PermitParams{
-		Param_owner: out0, Param_spender: out1, Param_value: out2, Param_deadline: out3, Param_v: out4, Param_r: out5, Param_s: out6,
-	}, nil
-}
 
 // TransferParams is an auto generated read-only Go binding of transcaction calldata params
 

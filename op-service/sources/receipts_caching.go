@@ -80,3 +80,7 @@ func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo e
 	p.deleteFetchingLock(block.Hash)
 	return r, nil
 }
+
+func (p *CachingReceiptsProvider) isInnerNil() bool {
+	return p.inner == nil
+}

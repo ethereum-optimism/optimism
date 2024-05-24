@@ -1,5 +1,43 @@
 # @eth-optimism/sdk
 
+## 3.3.0
+
+### Minor Changes
+
+- [#9951](https://github.com/ethereum-optimism/optimism/pull/9951) [`ac5b061dfce6a9817b928a8703be9252daaeeca7`](https://github.com/ethereum-optimism/optimism/commit/ac5b061dfce6a9817b928a8703be9252daaeeca7) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Updates SDK for FPAC proven withdrawals mapping.
+
+### Patch Changes
+
+- [#9964](https://github.com/ethereum-optimism/optimism/pull/9964) [`8241220898128e1f61064f22dcb6fdd0a5f043c3`](https://github.com/ethereum-optimism/optimism/commit/8241220898128e1f61064f22dcb6fdd0a5f043c3) Thanks [@roninjin10](https://github.com/roninjin10)! - Removed only-allow command from package.json
+
+- [#9973](https://github.com/ethereum-optimism/optimism/pull/9973) [`87093b0e9144a4709f11c7fbd631828847d891f9`](https://github.com/ethereum-optimism/optimism/commit/87093b0e9144a4709f11c7fbd631828847d891f9) Thanks [@raffaele-oplabs](https://github.com/raffaele-oplabs)! - Added support for MODE sepolia and MODE mainnet
+
+- [#9969](https://github.com/ethereum-optimism/optimism/pull/9969) [`372bca2257764be33797d67ddca9b53c3dd3c295`](https://github.com/ethereum-optimism/optimism/commit/372bca2257764be33797d67ddca9b53c3dd3c295) Thanks [@roninjin10](https://github.com/roninjin10)! - Fixed bug where replayable transactions would fail `finalize` if they previously were marked as errors but replayable.
+
+- Updated dependencies [[`8241220898128e1f61064f22dcb6fdd0a5f043c3`](https://github.com/ethereum-optimism/optimism/commit/8241220898128e1f61064f22dcb6fdd0a5f043c3)]:
+  - @eth-optimism/contracts-bedrock@0.17.2
+  - @eth-optimism/core-utils@0.13.2
+
+## 3.2.3
+
+### Patch Changes
+
+- [#9907](https://github.com/ethereum-optimism/optimism/pull/9907) [`5fe797f183e502c1c7e91fc1e74dd3cc664ba22e`](https://github.com/ethereum-optimism/optimism/commit/5fe797f183e502c1c7e91fc1e74dd3cc664ba22e) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Minor optimizations and improvements to FPAC functions.
+
+- [#9919](https://github.com/ethereum-optimism/optimism/pull/9919) [`3dc129fade77ddf9d45bb4c2ecd34360d1aa838a`](https://github.com/ethereum-optimism/optimism/commit/3dc129fade77ddf9d45bb4c2ecd34360d1aa838a) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Sets the address of the DisputeGameFactory contract for OP Sepolia.
+
+## 3.2.2
+
+### Patch Changes
+
+- [#9805](https://github.com/ethereum-optimism/optimism/pull/9805) [`3ccd12fe5c8c4c5a6acbf370d474ffa8db816562`](https://github.com/ethereum-optimism/optimism/commit/3ccd12fe5c8c4c5a6acbf370d474ffa8db816562) Thanks [@alecananian](https://github.com/alecananian)! - Fixed an issue where Vercel builds were failing due to the `preinstall` command.
+
+## 3.2.1
+
+### Patch Changes
+
+- [#9663](https://github.com/ethereum-optimism/optimism/pull/9663) [`a1329f21f33ecafe409990964d3af7bf05a8a756`](https://github.com/ethereum-optimism/optimism/commit/a1329f21f33ecafe409990964d3af7bf05a8a756) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Fixes a bug in the SDK that would sometimes cause proof submission reverts.
+
 ## 3.2.0
 
 ### Minor Changes

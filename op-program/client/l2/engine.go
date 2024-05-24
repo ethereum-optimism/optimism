@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -94,14 +94,7 @@ func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*et
 	if block == nil {
 		return nil, ErrNotFound
 	}
-	payload, err := eth.BlockAsPayload(block, o.rollupCfg.CanyonTime)
-	if err != nil {
-		return nil, err
-	}
-	return &eth.ExecutionPayloadEnvelope{
-		ParentBeaconBlockRoot: block.BeaconRoot(),
-		ExecutionPayload:      payload,
-	}, nil
+	return eth.BlockAsPayloadEnv(block, o.rollupCfg.CanyonTime)
 }
 
 func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayloadEnvelope, error) {

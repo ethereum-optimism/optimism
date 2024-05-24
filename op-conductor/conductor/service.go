@@ -176,6 +176,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		c.cfg.HealthCheck.UnsafeInterval,
 		c.cfg.HealthCheck.SafeInterval,
 		c.cfg.HealthCheck.MinPeerCount,
+		c.cfg.HealthCheck.SafeEnabled,
 		&c.cfg.RollupCfg,
 		node,
 		p2p,
@@ -290,6 +291,10 @@ func (s *state) Equal(other *state) bool {
 	return s.leader == other.leader && s.healthy == other.healthy && s.active == other.active
 }
 
+func (s *state) String() string {
+	return fmt.Sprintf("leader: %t, healthy: %t, active: %t", s.leader, s.healthy, s.active)
+}
+
 var _ cliapp.Lifecycle = (*OpConductor)(nil)
 
 // Start implements cliapp.Lifecycle.
@@ -365,6 +370,7 @@ func (oc *OpConductor) Pause(ctx context.Context) error {
 	select {
 	case oc.pauseCh <- struct{}{}:
 		<-oc.pauseDoneCh
+		oc.log.Info("OpConductor has been paused")
 		return nil
 	case <-ctx.Done():
 		return ErrPauseTimeout
@@ -381,6 +387,7 @@ func (oc *OpConductor) Resume(ctx context.Context) error {
 	select {
 	case oc.resumeCh <- struct{}{}:
 		<-oc.resumeDoneCh
+		oc.log.Info("OpConductor has been resumed")
 		return nil
 	case <-ctx.Done():
 		return ErrResumeTimeout
@@ -405,7 +412,7 @@ func (oc *OpConductor) Leader(_ context.Context) bool {
 }
 
 // LeaderWithID returns the current leader's server ID and address.
-func (oc *OpConductor) LeaderWithID(_ context.Context) (string, string) {
+func (oc *OpConductor) LeaderWithID(_ context.Context) *consensus.ServerInfo {
 	return oc.cons.LeaderWithID()
 }
 
@@ -442,6 +449,16 @@ func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.Execu
 // SequencerHealthy returns true if sequencer is healthy.
 func (oc *OpConductor) SequencerHealthy(_ context.Context) bool {
 	return oc.healthy.Load()
+}
+
+// ClusterMembership returns current cluster's membership information.
+func (oc *OpConductor) ClusterMembership(_ context.Context) ([]*consensus.ServerInfo, error) {
+	return oc.cons.ClusterMembership()
+}
+
+// LatestUnsafePayload returns the latest unsafe payload envelope from FSM.
+func (oc *OpConductor) LatestUnsafePayload(_ context.Context) *eth.ExecutionPayloadEnvelope {
+	return oc.cons.LatestUnsafePayload()
 }
 
 func (oc *OpConductor) loop() {
@@ -565,7 +582,7 @@ func (oc *OpConductor) action() {
 			break
 		}
 
-		// 2. we're here becasuse an healthy leader became unhealthy itself
+		// 2. we're here because an healthy leader became unhealthy itself
 		//    then we should try to stop sequencing locally and transfer leadership.
 		var result *multierror.Error
 		// Try to stop sequencer first, but since sequencer is not healthy, we may not be able to stop it.
@@ -593,7 +610,7 @@ func (oc *OpConductor) action() {
 
 	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
-		oc.log.Error("failed to execute step, queueing another one to retry", "err", err)
+		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
 		// randomly sleep for 0-200ms to avoid excessive retry
 		time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
 		oc.queueAction()

@@ -1,58 +1,268 @@
-# Optimism Smart Contracts (Bedrock)
+# OP Stack Smart Contracts
 
-[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=contracts-bedrock-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+This package contains the L1 and L2 smart contracts for the OP Stack.
+Detailed specifications for the contracts contained within this package can be found at [specs.optimism.io](https://specs.optimism.io).
+High-level information about these contracts can be found within this README and within the [Optimism Developer Docs](https://docs.optimism.io).
 
-This package contains the smart contracts that compose the on-chain component of Optimism's upcoming Bedrock upgrade.
-We've tried to maintain 100% backwards compatibility with the existing system while also introducing new useful features.
-You can find detailed specifications for the contracts contained within this package [here](../../specs).
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Table of Contents
 
-A style guide we follow for writing contracts can be found [here](./STYLE_GUIDE.md).
+- [Architecture Overview](#architecture-overview)
+  - [Core L1 Smart Contracts](#core-l1-smart-contracts)
+    - [Notes for Core L1 Smart Contracts](#notes-for-core-l1-smart-contracts)
+  - [Core L2 Smart Contracts](#core-l2-smart-contracts)
+    - [Notes for Core L2 Smart Contracts](#notes-for-core-l2-smart-contracts)
+  - [Smart Contract Proxies](#smart-contract-proxies)
+- [External Usage](#external-usage)
+  - [Using OP Stack Contracts in Solidity](#using-op-stack-contracts-in-solidity)
+  - [Using OP Stack Contracts in JavaScript](#using-op-stack-contracts-in-javascript)
+  - [Deployed Addresses](#deployed-addresses)
+- [Contributing](#contributing)
+  - [Contributing Guide](#contributing-guide)
+  - [Style Guide](#style-guide)
+- [Deployment](#deployment)
+  - [Configuration](#configuration)
+  - [Execution](#execution)
+  - [Deploying a single contract](#deploying-a-single-contract)
+- [Testing](#testing)
+  - [Test Setup](#test-setup)
+  - [Static Analysis](#static-analysis)
 
-## Contracts Overview
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-### Contracts deployed to L1
+## Architecture Overview
 
-| Name                                                                                     | Proxy Type                                                              | Description                                                                                         |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [`L1CrossDomainMessenger`](../../specs/messengers.md)                                    | [`ResolvedDelegateProxy`](./contracts/legacy/ResolvedDelegateProxy.sol) | High-level interface for sending messages to and receiving messages from Optimism                   |
-| [`L1StandardBridge`](../../specs/bridges.md)                                             | [`L1ChugSplashProxy`](./contracts/legacy/L1ChugSplashProxy.sol)         | Standardized system for transferring ERC20 tokens to/from Optimism                                   |
-| [`L2OutputOracle`](../../specs/proposals.md#l2-output-oracle-smart-contract)             | [`Proxy`](./contracts/universal/Proxy.sol)                              | Stores commitments to the state of Optimism which can be used by contracts on L1 to access L2 state |
-| [`OptimismPortal`](../../specs/deposits.md#deposit-contract)                             | [`Proxy`](./contracts/universal/Proxy.sol)                              | Low-level message passing interface                                                                 |
-| [`OptimismMintableERC20Factory`](../../specs/predeploys.md#optimismmintableerc20factory) | [`Proxy`](./contracts/universal/Proxy.sol)                              | Deploys standard `OptimismMintableERC20` tokens that are compatible with either `StandardBridge`    |
-| [`ProxyAdmin`](../../specs/TODO)                                                         | -                                                                       | Contract that can upgrade L1 contracts                                                              |
+> **NOTE**: Smart contract names in the architecture diagrams below are links to source code. Click them!
 
-### Contracts deployed to L2
+### Core L1 Smart Contracts
 
-| Name                                                                                     | Proxy Type                                 | Description                                                                                      |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| [`GasPriceOracle`](../../specs/predeploys.md#ovm_gaspriceoracle)                         | [`Proxy`](./contracts/universal/Proxy.sol) | Stores L2 gas price configuration values                                                         |
-| [`L1Block`](../../specs/predeploys.md#l1block)                                           | [`Proxy`](./contracts/universal/Proxy.sol) | Stores L1 block context information (e.g., latest known L1 block hash)                           |
-| [`L2CrossDomainMessenger`](../../specs/predeploys.md#l2crossdomainmessenger)             | [`Proxy`](./contracts/universal/Proxy.sol) | High-level interface for sending messages to and receiving messages from L1                      |
-| [`L2StandardBridge`](../../specs/predeploys.md#l2standardbridge)                         | [`Proxy`](./contracts/universal/Proxy.sol) | Standardized system for transferring ERC20 tokens to/from L1                                     |
-| [`L2ToL1MessagePasser`](../../specs/predeploys.md#ovm_l2tol1messagepasser)               | [`Proxy`](./contracts/universal/Proxy.sol) | Low-level message passing interface                                                              |
-| [`SequencerFeeVault`](../../specs/predeploys.md#sequencerfeevault)                       | [`Proxy`](./contracts/universal/Proxy.sol) | Vault for L2 transaction fees                                                                    |
-| [`OptimismMintableERC20Factory`](../../specs/predeploys.md#optimismmintableerc20factory) | [`Proxy`](./contracts/universal/Proxy.sol) | Deploys standard `OptimismMintableERC20` tokens that are compatible with either `StandardBridge` |
-| [`L2ProxyAdmin`](../../specs/TODO)                                                       | -                                          | Contract that can upgrade L2 contracts when sent a transaction from L1                           |
+Below you'll find an architecture diagram describing the core L1 smart contracts for the OP Stack.
+Smart contracts that are considered "peripheral" and not core to the operation of the OP Stack system are described separately.
 
-### Legacy and deprecated contracts
+```mermaid
+graph LR
+    subgraph "External Contracts"
+        ExternalERC20(External ERC20 Contracts)
+        ExternalERC721(External ERC721 Contracts)
+    end
 
-| Name                                                            | Location | Proxy Type                                 | Description                                                                           |
-| --------------------------------------------------------------- | -------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| [`AddressManager`](./contracts/legacy/AddressManager.sol)       | L1       | -                                          | Legacy upgrade mechanism (unused in Bedrock)                                          |
-| [`DeployerWhitelist`](./contracts/legacy/DeployerWhitelist.sol) | L2       | [`Proxy`](./contracts/universal/Proxy.sol) | Legacy contract for managing allowed deployers (unused since EVM Equivalence upgrade) |
-| [`L1BlockNumber`](./contracts/legacy/L1BlockNumber.sol)         | L2       | [`Proxy`](./contracts/universal/Proxy.sol) | Legacy contract for accessing latest known L1 block number, replaced by `L1Block`     |
+    subgraph "L1 Smart Contracts"
+        BatchDataEOA(<a href="https://etherscan.io/address/0xff00000000000000000000000000000000000010">Batch Inbox Address</a>)
+        L1StandardBridge(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol">L1StandardBridge</a>)
+        L1ERC721Bridge(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol">L1ERC721Bridge</a>)
+        L1CrossDomainMessenger(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol">L1CrossDomainMessenger</a>)
+        L2OutputOracle(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/L2OutputOracle.sol">L2OutputOracle</a>)
+        OptimismPortal(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/OptimismPortal.sol">OptimismPortal</a>)
+        SuperchainConfig(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/SuperchainConfig.sol">SuperchainConfig</a>)
+        SystemConfig(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/SystemConfig.sol">SystemConfig</a>)
+    end
 
-## Installation
+    subgraph "User Interactions"
+        Users(Users)
+    end
 
-We export contract ABIs, contract source code, and contract deployment information for this package via `npm`:
+    subgraph "System Interactions"
+        Batcher(Batcher)
+        Proposer(Proposer)
+        Guardian(Guardian)
+    end
 
-```shell
-npm install @eth-optimism/contracts-bedrock
+    subgraph "Layer 2 Interactions"
+        L2Nodes(Layer 2 Nodes)
+    end
+
+    Batcher -->|publish transaction batches| BatchDataEOA
+    Proposer -->|propose state outputs| L2OutputOracle
+    Guardian -->|remove invalid state outputs| L2OutputOracle
+
+    ExternalERC20 <-->|mint/burn/transfer| L1StandardBridge
+    ExternalERC721 <-->|mint/burn/transfer| L1ERC721Bridge
+
+    L1StandardBridge <-->|send/receive message| L1CrossDomainMessenger
+    L1ERC721Bridge <-->|send/receive message| L1CrossDomainMessenger
+    L1CrossDomainMessenger <-->|package/send/receive message| OptimismPortal
+    L1StandardBridge -.->|query pause state| SuperchainConfig
+    L1ERC721Bridge -.->|query pause state| SuperchainConfig
+    L1CrossDomainMessenger -.->|query pause state| SuperchainConfig
+    OptimismPortal -.->|query pause state| SuperchainConfig
+
+    OptimismPortal -.->|query config| SystemConfig
+    OptimismPortal -.->|query proposed states| L2OutputOracle
+
+    Users <-->|deposit/withdraw ETH/ERC20| L1StandardBridge
+    Users <-->|deposit/withdraw ERC721| L1ERC721Bridge
+    Users -->|prove/execute withdrawal transactions| OptimismPortal
+
+    L2Nodes -.->|fetch transaction batches| BatchDataEOA
+    L2Nodes -.->|verify output roots| L2OutputOracle
+    L2Nodes -.->|fetch deposit events| OptimismPortal
+
+    classDef extContracts stroke:#ff9,stroke-width:2px;
+    classDef l1Contracts stroke:#bbf,stroke-width:2px;
+    classDef l1EOA stroke:#bbb,stroke-width:2px;
+    classDef userInt stroke:#f9a,stroke-width:2px;
+    classDef systemUser stroke:#f9a,stroke-width:2px;
+    classDef l2Nodes stroke:#333,stroke-width:2px
+    class ExternalERC20,ExternalERC721 extContracts;
+    class L1StandardBridge,L1ERC721Bridge,L1CrossDomainMessenger,L2OutputOracle,OptimismPortal,SuperchainConfig,SystemConfig l1Contracts;
+    class BatchDataEOA l1EOA;
+    class Users userInt;
+    class Batcher,Proposer,Guardian systemUser;
+    class L2Nodes l2Nodes;
 ```
+
+#### Notes for Core L1 Smart Contracts
+
+- The `Batch Data Address` described above (**highlighted in GREY**) is *not* a smart contract and is instead simply an arbitrarily chosen account that is assumed to have no known private key. This account is typically chosen as the account `0xFF0000....<L2 chain ID>` where `<L2 chain ID>` is chain ID of the Layer 2 network for which the data is being posted. For instance, for OP Mainnet, this account is chosen as `0xFF00000000000000000000000000000000000010`. However, this is not a strict requirement and some OP Stack chains may not follow this convention.
+- Smart contracts that sit behind `Proxy` contracts are **highlighted in BLUE**. Refer to the [Smart Contract Proxies](#smart-contract-proxies) section below to understand how these proxies are designed.
+  - The `L1CrossDomainMessenger` contract sits behind the [`ResolvedDelegateProxy`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/legacy/ResolvedDelegateProxy.sol) contract, a legacy proxy contract type used within older versions of the OP Stack. This proxy type is used exclusively for the `L1CrossDomainMessenger` to maintain backwards compatibility.
+  - The `L1StandardBridge` contract sits behind the [`L1ChugSplashProxy`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol) contract, a legacy proxy contract type used within older versions of the OP Stack. This proxy type is used exclusively for the `L1StandardBridge` contract to maintain backwards compatibility.
+
+### Core L2 Smart Contracts
+
+Here you'll find an architecture diagram describing the core OP Stack smart contracts that exist natively on the L2 chain itself.
+
+```mermaid
+graph LR
+    subgraph "Layer 1 (Ethereum)"
+        L1SmartContracts(L1 Smart Contracts)
+    end
+
+    subgraph "L2 Client"
+        L2Node(L2 Node)
+    end
+
+    subgraph "L2 System Contracts"
+        L1Block(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/L1Block.sol">L1Block</a>)
+        GasPriceOracle(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/GasPriceOracle.sol">GasPriceOracle</a>)
+        L1FeeVault(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/L1FeeVault.sol">L1FeeVault</a>)
+        BaseFeeVault(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/BaseFeeVault.sol">BaseFeeVault</a>)
+        SequencerFeeVault(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/SequencerFeeVault.sol">SequencerFeeVault</a>)
+    end
+
+    subgraph "L2 Bridge Contracts"
+        L2CrossDomainMessenger(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/L2CrossDomainMessenger.sol">L2CrossDomainMessenger</a>)
+        L2ToL1MessagePasser(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/L2ToL1MessagePasser.sol">L2ToL1MessagePasser</a>)
+        L2StandardBridge(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/L2StandardBridge.sol">L2StandardBridge</a>)
+        L2ERC721Bridge(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L2/L2ERC721Bridge.sol">L2ERC721Bridge</a>)
+    end
+
+    subgraph "Transactions"
+        DepositTransaction(Deposit Transaction)
+        UserTransaction(User Transaction)
+    end
+
+    subgraph "External Contracts"
+        ExternalERC20(External ERC20 Contracts)
+        ExternalERC721(External ERC721 Contracts)
+    end
+
+    subgraph "Remaining L2 Universe"
+        OtherContracts(Any Contracts and Addresses)
+    end
+
+    L2Node -.->|derives chain from| L1SmartContracts
+    L2Node -->|updates| L1Block
+    L2Node -->|distributes fees to| L1FeeVault
+    L2Node -->|distributes fees to| BaseFeeVault
+    L2Node -->|distributes fees to| SequencerFeeVault
+    L2Node -->|derives from deposits| DepositTransaction
+    L2Node -->|derives from chain data| UserTransaction
+
+    UserTransaction -->|can trigger| OtherContracts
+    DepositTransaction -->|maybe triggers| L2CrossDomainMessenger
+    DepositTransaction -->|can trigger| OtherContracts
+
+    ExternalERC20 <-->|mint/burn/transfer| L2StandardBridge
+    ExternalERC721 <-->|mint/burn/transfer| L2ERC721Bridge
+
+    L2StandardBridge <-->|sends/receives messages| L2CrossDomainMessenger
+    L2ERC721Bridge <-->|sends/receives messages| L2CrossDomainMessenger
+    GasPriceOracle -.->|queries| L1Block
+    L2CrossDomainMessenger -->|sends messages| L2ToL1MessagePasser
+
+    classDef extContracts stroke:#ff9,stroke-width:2px;
+    classDef l2Contracts stroke:#bbf,stroke-width:2px;
+    classDef transactions stroke:#fba,stroke-width:2px;
+    classDef l2Node stroke:#f9a,stroke-width:2px;
+
+    class ExternalERC20,ExternalERC721 extContracts;
+    class L2CrossDomainMessenger,L2ToL1MessagePasser,L2StandardBridge,L2ERC721Bridge l2Contracts;
+    class L1Block,L1FeeVault,BaseFeeVault,SequencerFeeVault,GasPriceOracle l2Contracts;
+    class UserTransaction,DepositTransaction transactions;
+    class L2Node l2Node;
+```
+
+#### Notes for Core L2 Smart Contracts
+
+- Contracts highlighted as "L2 System Contracts" are updated or mutated automatically as part of the chain derivation process. Users typically do not mutate these contracts directly, except in the case of the `FeeVault` contracts where any user may trigger a withdrawal of collected fees to the pre-determined withdrawal address.
+- Smart contracts that sit behind `Proxy` contracts are **highlighted in BLUE**. Refer to the [Smart Contract Proxies](#smart-contract-proxies) section below to understand how these proxies are designed.
+- User interactions for the "L2 Bridge Contracts" have been omitted from this diagram but largely follow the same user interactions described in the architecture diagram for the [Core L1 Smart Contracts](#core-l1-smart-contracts).
+
+### Smart Contract Proxies
+
+Most L1 and L2 smart contracts for OP Stack chains today sit behind `Proxy` contracts that themselves are managed by a `ProxyAdmin` contract.
+The `ProxyAdmin` contract is controlled by some `owner` address that can be any EOA or smart contract.
+Below you'll find a diagram that explains the behavior of the typical proxy contract.
+
+```mermaid
+graph LR
+    ProxyAdminOwner(Proxy Admin Owner)
+    ProxyAdmin(<a href="https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/ProxyAdmin.sol">ProxyAdmin</a>)
+
+    subgraph "Logical Smart Contract"
+        Proxy(<a href="https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/Proxy.sol">Proxy</a>)
+        Implementation(Implementation)
+    end
+
+    ProxyAdminOwner -->|manages| ProxyAdmin
+    ProxyAdmin -->|upgrades| Proxy
+    Proxy -->|delegatecall| Implementation
+
+    classDef l1Contracts stroke:#bbf,stroke-width:2px;
+    classDef systemUser stroke:#f9a,stroke-width:2px;
+    class Proxy l1Contracts;
+    class ProxyAdminOwner systemUser;
+```
+
+## External Usage
+
+### Using OP Stack Contracts in Solidity
+
+OP Stack smart contracts are published to NPM and can be installed via:
+
+```sh
+npm install @eth-optimism/contracts-bedrock.
+```
+
+Refer to the [Optimism Developer Docs](https://docs.optimism.io/builders/dapp-developers/contracts/system-contracts#using-system-contracts-in-solidity) for additional information about how to use this package.
+
+### Using OP Stack Contracts in JavaScript
+
+Contract ABIs and addresses are published to NPM in a separate package and can be installed via:
+
+```sh
+npm install @eth-optimism/contracts-ts
+```
+
+Refer to the [Optimism Developer Docs](https://docs.optimism.io/builders/dapp-developers/contracts/system-contracts#using-system-contracts-in-javascript) for additional information about how to use this package.
+
+### Deployed Addresses
+
+See the [Optimism Developer Docs](https://docs.optimism.io/chain/addresses) for the deployed addresses of these smart contracts for OP Mainnet and OP Sepolia.
 
 ## Contributing
 
-For all information about working on and contributing to Optimism's smart contracts, please see [CONTRIBUTING.md](./CONTRIBUTING.md)
+### Contributing Guide
+
+Contributions to the OP Stack are always welcome.
+Please refer to the [CONTRIBUTING.md](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/CONTRIBUTING.md) for more information about how to contribute to the OP Stack smart contracts.
+
+### Style Guide
+
+OP Stack smart contracts should be written according to the [STYLE_GUIDE.md](./STYLE_GUIDE.md) found within this repository.
+Maintaining a consistent code style makes code easier to review and maintain, ultimately making the development process safer.
 
 ## Deployment
 
@@ -84,6 +294,8 @@ Run the deployment with state diffs by executing: `forge script -vvv scripts/Dep
 
 All of the functions for deploying a single contract are `public` meaning that the `--sig` argument to `forge script` can be used to
 target the deployment of a single contract.
+
+## Testing
 
 ### Test Setup
 

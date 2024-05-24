@@ -46,6 +46,12 @@ func TestIsRootPosition(t *testing.T) {
 			position: NewPositionFromGIndex(big.NewInt(2)),
 			expected: false,
 		},
+		{
+			// Mostly to avoid nil dereferences in tests which may not set a real Position
+			name:     "DefaultValue",
+			position: Position{},
+			expected: true,
+		},
 	}
 
 	for _, test := range tests {

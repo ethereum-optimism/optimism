@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -43,8 +44,8 @@ type L2Sequencer struct {
 }
 
 func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc derive.L1BlobsFetcher,
-	eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
-	ver := NewL2Verifier(t, log, l1, blobSrc, eng, cfg, &sync.Config{})
+	plasmaSrc derive.PlasmaInputFetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
+	ver := NewL2Verifier(t, log, l1, blobSrc, plasmaSrc, eng, cfg, &sync.Config{}, safedb.Disabled)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
 	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.l1State.L1Head, l1)
 	l1OriginSelector := &MockL1OriginSelector{
@@ -170,6 +171,13 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 func (s *L2Sequencer) ActBuildL2ToEcotone(t Testing) {
 	require.NotNil(t, s.rollupCfg.EcotoneTime, "cannot activate Ecotone when it is not scheduled")
 	for s.L2Unsafe().Time < *s.rollupCfg.EcotoneTime {
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
+func (s *L2Sequencer) ActBuildL2ToFjord(t Testing) {
+	require.NotNil(t, s.rollupCfg.FjordTime, "cannot activate FjordTime when it is not scheduled")
+	for s.L2Unsafe().Time < *s.rollupCfg.FjordTime {
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
 	}

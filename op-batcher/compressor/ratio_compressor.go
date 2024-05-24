@@ -1,9 +1,6 @@
 package compressor
 
 import (
-	"bytes"
-	"compress/zlib"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
@@ -11,8 +8,7 @@ type RatioCompressor struct {
 	config Config
 
 	inputBytes int
-	buf        bytes.Buffer
-	compress   *zlib.Writer
+	compressor derive.ChannelCompressor
 }
 
 // NewRatioCompressor creates a new derive.Compressor implementation that uses the target
@@ -25,11 +21,11 @@ func NewRatioCompressor(config Config) (derive.Compressor, error) {
 		config: config,
 	}
 
-	compress, err := zlib.NewWriterLevel(&c.buf, zlib.BestCompression)
+	compressor, err := derive.NewChannelCompressor(config.CompressionAlgo)
 	if err != nil {
 		return nil, err
 	}
-	c.compress = compress
+	c.compressor = compressor
 
 	return c, nil
 }
@@ -39,34 +35,33 @@ func (t *RatioCompressor) Write(p []byte) (int, error) {
 		return 0, err
 	}
 	t.inputBytes += len(p)
-	return t.compress.Write(p)
+	return t.compressor.Write(p)
 }
 
 func (t *RatioCompressor) Close() error {
-	return t.compress.Close()
+	return t.compressor.Close()
 }
 
 func (t *RatioCompressor) Read(p []byte) (int, error) {
-	return t.buf.Read(p)
+	return t.compressor.Read(p)
 }
 
 func (t *RatioCompressor) Reset() {
-	t.buf.Reset()
-	t.compress.Reset(&t.buf)
+	t.compressor.Reset()
 	t.inputBytes = 0
 }
 
 func (t *RatioCompressor) Len() int {
-	return t.buf.Len()
+	return t.compressor.Len()
 }
 
 func (t *RatioCompressor) Flush() error {
-	return t.compress.Flush()
+	return t.compressor.Flush()
 }
 
 func (t *RatioCompressor) FullErr() error {
 	if t.inputTargetReached() {
-		return derive.CompressorFullErr
+		return derive.ErrCompressorFull
 	}
 	return nil
 }
@@ -74,7 +69,7 @@ func (t *RatioCompressor) FullErr() error {
 // InputThreshold calculates the input data threshold in bytes from the given
 // parameters.
 func (t *RatioCompressor) InputThreshold() uint64 {
-	return uint64(float64(t.config.TargetNumFrames) * float64(t.config.TargetFrameSize) / t.config.ApproxComprRatio)
+	return uint64(float64(t.config.TargetOutputSize) / t.config.ApproxComprRatio)
 }
 
 // inputTargetReached says whether the target amount of input data has been

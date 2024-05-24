@@ -25,7 +25,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the proxy is initialized correctly.
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         assertEq(address(l1OptimismMintableERC20Factory.BRIDGE()), address(l1StandardBridge));
         assertEq(address(l1OptimismMintableERC20Factory.bridge()), address(l1StandardBridge));
     }

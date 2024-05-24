@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -17,18 +18,15 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm/runtime"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 var (
-	pk, _                  = crypto.GenerateKey()
-	addr                   = common.Address{0x42, 0xff}
-	opts, _                = bind.NewKeyedTransactorWithChainID(pk, common.Big1)
-	from                   = crypto.PubkeyToAddress(pk.PublicKey)
-	portalContract, _      = bindings.NewOptimismPortal(addr, nil)
-	l1BlockInfoContract, _ = bindings.NewL1Block(addr, nil)
+	pk, _   = crypto.GenerateKey()
+	opts, _ = bind.NewKeyedTransactorWithChainID(pk, common.Big1)
+	from    = crypto.PubkeyToAddress(pk.PublicKey)
 )
 
 func cap_byte_slice(b []byte, c int) []byte {
@@ -103,6 +101,9 @@ func FuzzL1InfoEcotoneRoundTrip(f *testing.F) {
 // bindings. Note that we don't test setL1BlockValuesEcotone since it accepts only custom packed
 // calldata and cannot be invoked using the generated bindings.
 func FuzzL1InfoBedrockAgainstContract(f *testing.F) {
+	l1BlockInfoContract, err := bindings.NewL1Block(common.Address{0x42, 0xff}, nil)
+	require.NoError(f, err)
+
 	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, hash []byte, seqNumber uint64, batcherHash []byte, l1FeeOverhead []byte, l1FeeScalar []byte) {
 		expected := L1BlockInfo{
 			Number:         number,
@@ -230,6 +231,23 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		f.Add(c.to.Bytes(), b(c.mint), b(c.value), []byte(c.data), c.gasLimit, c.isCreation)
 	}
 
+	// Set the EVM state up once to fuzz against
+	state, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	require.NoError(f, err)
+	state.SetBalance(from, uint256.MustFromBig(BytesToBigInt([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})))
+	_, addr, _, err := runtime.Create(common.FromHex(bindings.OptimismPortalMetaData.Bin), &runtime.Config{
+		Origin:   from,
+		State:    state,
+		GasLimit: 20_000_000,
+	})
+	require.NoError(f, err)
+
+	_, err = state.Commit(0, false)
+	require.NoError(f, err)
+
+	portalContract, err := bindings.NewOptimismPortal(addr, nil)
+	require.NoError(f, err)
+
 	f.Fuzz(func(t *testing.T, _to, _mint, _value, data []byte, l2GasLimit uint64, isCreation bool) {
 		to := common.BytesToAddress(_to)
 		mint := BytesToBigInt(_mint)
@@ -243,20 +261,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		opts.Nonce = common.Big0
 		// Create the deposit transaction
 		tx, err := portalContract.DepositTransaction(opts, to, value, l2GasLimit, isCreation, data)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		state, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		state.SetBalance(from, BytesToBigInt([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}))
-		state.SetCode(addr, common.FromHex(bindings.OptimismPortalDeployedBin))
-		_, err = state.Commit(0, false)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		cfg := runtime.Config{
 			Origin:   from,
