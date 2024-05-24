@@ -93,8 +93,8 @@ func (t *TxmgrApi) GetPendingTxs(ctx context.Context, includeData, includeEncode
 	return t.mgr.GetPendingTxs(includeData, includeEncodedBytes)
 }
 
-func (t *TxmgrApi) CancelPendingNonce(ctx context.Context, nonce uint64) error {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_cancelPendingNonce")
+func (t *TxmgrApi) CancelPendingTx(ctx context.Context, nonce uint64) error {
+	recordDur := t.m.RecordRPCServerRequest("txmgr_cancelPendingTx")
 	defer recordDur()
-	return t.mgr.CancelPendingNonce(nonce)
+	return t.mgr.CancelPendingTx(nonce)
 }

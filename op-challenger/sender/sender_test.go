@@ -175,7 +175,7 @@ func (s *stubTxMgr) GetPendingTxs(bool, bool) ([]txmgr.PendingTxRPC, error) {
 	panic("unsupported")
 }
 
-func (s *stubTxMgr) CancelPendingNonce(uint64) error {
+func (s *stubTxMgr) CancelPendingTx(uint64) error {
 	panic("unsupported")
 }
 

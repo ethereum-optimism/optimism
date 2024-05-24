@@ -71,8 +71,8 @@ type TxManager interface {
 
 	// GetPendingTxs returns all tx that have been initiated via Send(), but have not been mined yet
 	GetPendingTxs(bool, bool) ([]PendingTxRPC, error)
-	// CancelPendingNonce calls the ctx.cancel() func on a pending tx with the provided nonce
-	CancelPendingNonce(uint64) error
+	// CancelPendingTx calls the ctx.cancel() func on a pending tx with the provided nonce
+	CancelPendingTx(uint64) error
 
 	GetMinBaseFee() *big.Int
 	SetMinBaseFee(*big.Int)
@@ -298,7 +298,7 @@ type PendingTxRPC struct {
 	GasFeeCap    *big.Int        `json:"gas_fee_cap"`
 }
 
-func (m *SimpleTxManager) CancelPendingNonce(nonce uint64) error {
+func (m *SimpleTxManager) CancelPendingTx(nonce uint64) error {
 	m.pendingTxMu.Lock()
 	pendingTx, exists := m.pendingTxs[nonce]
 	m.pendingTxMu.Unlock()

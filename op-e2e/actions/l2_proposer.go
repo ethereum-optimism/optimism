@@ -69,7 +69,7 @@ func (f fakeTxMgr) GetPendingTxs(bool, bool) ([]txmgr.PendingTxRPC, error) {
 	panic("unimplemented")
 }
 
-func (f fakeTxMgr) CancelPendingNonce(uint64) error {
+func (f fakeTxMgr) CancelPendingTx(uint64) error {
 	panic("unsupported")
 }
 

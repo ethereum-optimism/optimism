@@ -46,8 +46,8 @@ func (_m *TxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return r0, r1
 }
 
-// CancelPendingNonce provides a mock function with given fields: _a0
-func (_m *TxManager) CancelPendingNonce(_a0 uint64) error {
+// CancelPendingTx provides a mock function with given fields: _a0
+func (_m *TxManager) CancelPendingTx(_a0 uint64) error {
 	ret := _m.Called(_a0)
 
 	var r0 error

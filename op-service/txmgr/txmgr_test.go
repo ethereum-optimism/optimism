@@ -407,7 +407,7 @@ func TestTxMgrPendingTxs(t *testing.T) {
 	t.Run("CancelPendingTx", func(t *testing.T) {
 		// After cancelling a tx, it should be removed from the pendingTxs
 		cancelledNonce := uint64(2)
-		err = h.mgr.CancelPendingNonce(cancelledNonce)
+		err = h.mgr.CancelPendingTx(cancelledNonce)
 		require.NoError(t, err)
 		time.Sleep(time.Millisecond * 100)
 		numTxs--
