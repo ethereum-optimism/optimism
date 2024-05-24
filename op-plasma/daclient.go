@@ -103,7 +103,7 @@ func (c *DAClient) setInputWithCommit(ctx context.Context, comm CommitmentData, 
 	return nil
 }
 
-// setInput sets the input data and reads the respective DA generated commitment.
+// setInputs sets the input data and reads the respective DA generated commitment.
 func (c *DAClient) setInput(ctx context.Context, img []byte) (CommitmentData, error) {
 	if len(img) == 0 {
 		return nil, ErrInvalidInput
@@ -131,6 +131,7 @@ func (c *DAClient) setInput(ctx context.Context, img []byte) (CommitmentData, er
 	}
 
 	comm, err := DecodeGenericCommitment(b)
+
 	if err != nil {
 		return nil, err
 	}
