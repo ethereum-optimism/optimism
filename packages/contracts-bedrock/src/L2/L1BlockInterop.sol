@@ -7,12 +7,12 @@ import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import "src/libraries/L1BlockErrors.sol";
 
-/// @notice Enum representing different types of configurations that can be set on L1Block.
-/// @custom:value GAS_PAYING_TOKEN   Represents the config type for the gas paying token.
-/// @custom:value ADD_DEPENDENCY     Represents the config type for adding a chain to the interchain dependency set.
-/// @custom:value REMOVE_DEPENDENCY  Represents the config type for removing a chain from the interchain dependency set.
+/// @notice Enum representing different types of configurations that can be set on L1BlockInterop.
+/// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
+/// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
+/// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency set.
 enum ConfigType {
-    GAS_PAYING_TOKEN,
+    SET_GAS_PAYING_TOKEN,
     ADD_DEPENDENCY,
     REMOVE_DEPENDENCY
 }
@@ -59,7 +59,7 @@ contract L1BlockInterop is L1Block {
     function setConfig(ConfigType _type, bytes calldata _value) external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
-        if (_type == ConfigType.GAS_PAYING_TOKEN) {
+        if (_type == ConfigType.SET_GAS_PAYING_TOKEN) {
             _setGasPayingToken(_value);
         } else if (_type == ConfigType.ADD_DEPENDENCY) {
             _addDependency(_value);
