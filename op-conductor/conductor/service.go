@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
+	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -25,6 +26,8 @@ import (
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -38,7 +41,7 @@ var (
 
 // New creates a new OpConductor instance.
 func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
-	return NewOpConductor(ctx, cfg, log, version, nil, nil, nil)
+	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil)
 }
 
 // NewOpConductor creates a new OpConductor instance.
@@ -46,6 +49,7 @@ func NewOpConductor(
 	ctx context.Context,
 	cfg *Config,
 	log log.Logger,
+	m metrics.Metricer,
 	version string,
 	ctrl client.SequencerControl,
 	cons consensus.Consensus,
@@ -59,6 +63,7 @@ func NewOpConductor(
 		log:          log,
 		version:      version,
 		cfg:          cfg,
+		metrics:      m,
 		pauseCh:      make(chan struct{}),
 		pauseDoneCh:  make(chan struct{}),
 		resumeCh:     make(chan struct{}),
@@ -172,6 +177,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
+		c.metrics,
 		c.cfg.HealthCheck.Interval,
 		c.cfg.HealthCheck.UnsafeInterval,
 		c.cfg.HealthCheck.SafeInterval,
@@ -245,6 +251,7 @@ type OpConductor struct {
 	log     log.Logger
 	version string
 	cfg     *Config
+	metrics metrics.Metricer
 
 	ctrl client.SequencerControl
 	cons consensus.Consensus
@@ -271,7 +278,8 @@ type OpConductor struct {
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 
-	rpcServer *oprpc.Server
+	rpcServer     *oprpc.Server
+	metricsServer *httputil.HTTPServer
 }
 
 type state struct {
@@ -310,8 +318,24 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 		return errors.Wrap(err, "failed to start JSON-RPC server")
 	}
 
+	if oc.cfg.MetricsConfig.Enabled {
+		oc.log.Info("starting metrics server")
+		m, ok := oc.metrics.(opmetrics.RegistryMetricer)
+		if !ok {
+			return fmt.Errorf("metrics were enabled, but metricer %T does not expose registry for metrics-server", oc.metrics)
+		}
+		metricsServer, err := opmetrics.StartServer(m.Registry(), oc.cfg.MetricsConfig.ListenAddr, oc.cfg.MetricsConfig.ListenPort)
+		if err != nil {
+			return errors.Wrap(err, "failed to start metrics server")
+		}
+		oc.metricsServer = metricsServer
+	}
+
 	oc.wg.Add(1)
 	go oc.loop()
+
+	oc.metrics.RecordInfo(oc.version)
+	oc.metrics.RecordUp()
 
 	oc.log.Info("OpConductor started")
 	return nil
@@ -347,6 +371,12 @@ func (oc *OpConductor) Stop(ctx context.Context) error {
 	if oc.cons != nil {
 		if err := oc.cons.Shutdown(); err != nil {
 			result = multierror.Append(result, errors.Wrap(err, "failed to shutdown consensus"))
+		}
+	}
+
+	if oc.metricsServer != nil {
+		if err := oc.metricsServer.Shutdown(ctx); err != nil {
+			result = multierror.Append(result, errors.Wrap(err, "failed to stop metrics server"))
 		}
 	}
 
@@ -465,12 +495,14 @@ func (oc *OpConductor) loop() {
 	defer oc.wg.Done()
 
 	for {
+		startTime := time.Now()
 		select {
 		case <-oc.shutdownCtx.Done():
 			return
 		default:
 			oc.loopActionFn()
 		}
+		oc.metrics.RecordLoopExecutionTime(time.Since(startTime).Seconds())
 	}
 }
 
@@ -619,6 +651,7 @@ func (oc *OpConductor) action() {
 	if !status.Equal(oc.prevState) {
 		oc.log.Info("state changed", "prev_state", oc.prevState, "new_state", status)
 		oc.prevState = status
+		oc.metrics.RecordStateChange(status.leader, status.healthy, status.active)
 	}
 }
 
@@ -627,6 +660,7 @@ func (oc *OpConductor) transferLeader() error {
 	// TransferLeader here will do round robin to try to transfer leadership to the next healthy node.
 	oc.log.Info("transferring leadership", "server", oc.cons.ServerID())
 	err := oc.cons.TransferLeader()
+	oc.metrics.RecordLeaderTransfer(err == nil)
 	if err == nil {
 		oc.leader.Store(false)
 		return nil // success
@@ -654,6 +688,7 @@ func (oc *OpConductor) stopSequencer() error {
 			return errors.Wrap(err, "failed to stop sequencer")
 		}
 	}
+	oc.metrics.RecordStopSequencer(err == nil)
 
 	oc.seqActive.Store(false)
 	return nil
@@ -684,7 +719,8 @@ func (oc *OpConductor) startSequencer() error {
 	}
 
 	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
-	if err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash); err != nil {
+	err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash)
+	if err != nil {
 		// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
 		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
 			return fmt.Errorf("failed to start sequencer: %w", err)
@@ -692,6 +728,7 @@ func (oc *OpConductor) startSequencer() error {
 			oc.log.Warn("sequencer already started.", "err", err)
 		}
 	}
+	oc.metrics.RecordStartSequencer(err == nil)
 
 	oc.seqActive.Store(true)
 	return nil

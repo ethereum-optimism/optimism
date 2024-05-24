@@ -19,6 +19,7 @@ import (
 	consensusmocks "github.com/ethereum-optimism/optimism/op-conductor/consensus/mocks"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	healthmocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
+	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -88,6 +89,7 @@ type OpConductorTestSuite struct {
 	err     error
 	log     log.Logger
 	cfg     Config
+	metrics metrics.Metricer
 	version string
 	ctrl    *clientmocks.SequencerControl
 	cons    *consensusmocks.Consensus
@@ -101,6 +103,7 @@ type OpConductorTestSuite struct {
 func (s *OpConductorTestSuite) SetupSuite() {
 	s.ctx = context.Background()
 	s.log = testlog.Logger(s.T(), log.LevelDebug)
+	s.metrics = &metrics.NoopMetricsImpl{}
 	s.cfg = mockConfig(s.T())
 	s.version = "v0.0.1"
 	s.next = make(chan struct{}, 1)
@@ -113,7 +116,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.hmon = &healthmocks.HealthMonitor{}
 	s.cons.EXPECT().ServerID().Return("SequencerA")
 
-	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.version, s.ctrl, s.cons, s.hmon)
+	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
 	s.conductor = conductor
 
