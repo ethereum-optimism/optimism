@@ -49,10 +49,10 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "workspace:*",
+    "@eth-optimism/common-ts": "^0.8.9",
     "@eth-optimism/contracts-bedrock": "workspace:*",
     "@eth-optimism/contracts-periphery": "1.0.8",
-    "@eth-optimism/core-utils": "workspace:*",
+    "@eth-optimism/core-utils": "^0.13.2",
     "@eth-optimism/sdk": "^3.3.1",
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",

@@ -39,7 +39,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
 	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240516202831-8117b611dc3c // indirect
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240522134500-19555bdbdc95 // indirect
 	github.com/ethereum/c-kzg-4844 v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gballet/go-verkle v0.1.1-0.20231031103413-a67434b50f46 // indirect
@@ -98,6 +98,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.1-rc.4
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.1-rc.5
 
 replace github.com/ethereum-optimism/optimism => ../.
