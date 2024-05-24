@@ -110,11 +110,6 @@ contract SystemConfigInterop_Test is CommonTest {
         _systemConfigInterop().removeDependency(_chainId);
     }
 
-    /// @dev Returns the SystemConfigInterop instance.
-    function _systemConfigInterop() internal view returns (SystemConfigInterop) {
-        return SystemConfigInterop(address(systemConfig));
-    }
-
     /// @dev Helper to clean storage and then initialize the system config with an arbitrary gas token address.
     function _cleanStorageAndInit(address _token) internal {
         // Wipe out the initialized slot so the proxy can be initialized again
@@ -142,5 +137,10 @@ contract SystemConfigInterop_Test is CommonTest {
                 gasPayingToken: _token
             })
         });
+    }
+
+    /// @dev Returns the SystemConfigInterop instance.
+    function _systemConfigInterop() internal view returns (SystemConfigInterop) {
+        return SystemConfigInterop(address(systemConfig));
     }
 }
