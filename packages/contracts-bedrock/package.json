@@ -48,7 +48,25 @@
     "lint:ts:fix": "eslint --fix .",
     "lint:contracts:fix": "forge fmt",
     "lint:fix": "pnpm lint:contracts:fix && pnpm lint:ts:fix",
-    "lint": "pnpm lint:fix && pnpm lint:check"
+    "lint": "pnpm lint:fix && pnpm lint:
+    "lint:contracts:fix": "yarn solhint --fix 'contracts/**/*.sol' && yarn prettier --write 'contracts/**/*.sol'",
+    "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'",
+    "echidna:aliasing": "echidna-test --contract EchidnaFuzzAddressAliasing --config ./echidna.yaml .",
+    "echidna:burn:gas": "echidna-test --contract EchidnaFuzzBurnGas --config ./echidna.yaml .",
+    "echidna:burn:eth": "echidna-test --contract EchidnaFuzzBurnEth --config ./echidna.yaml .",
+    "echidna:encoding": "echidna-test --contract EchidnaFuzzEncoding --config ./echidna.yaml .",
+    "echidna:portal": "echidna-test --contract EchidnaFuzzOptimismPortal --config ./echidna.yaml .",
+    "echidna:hashing": "echidna-test --contract EchidnaFuzzHashing --config ./echidna.yaml .",
+    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --config ./echidna.yaml ."
+  },
+  "dependencies": {
+    "@eth-optimism/core-utils": "^0.12.0",
+    "@openzeppelin/contracts": "4.7.3",
+    "@openzeppelin/contracts-upgradeable": "4.7.3",
+    "ethers": "^5.7.0",
+    "hardhat": "^2.9.8"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.13.2",
