@@ -10,8 +10,6 @@ namespace = "proxyd"
 
 [cache]
 enabled = true
-block_sync_rpc_url = "$GOOD_BACKEND_RPC_URL"
-
 
 [backends]
 [backends.good]
@@ -35,3 +33,4 @@ eth_getTransactionByHash = "main"
 eth_getTransactionByBlockHashAndIndex = "main"
 eth_getUncleByBlockHashAndIndex = "main"
 eth_getTransactionReceipt = "main"
+debug_getRawReceipts = "main"

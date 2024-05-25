@@ -1,0 +1,37 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1536",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256[48]"
+  },
+  {
+    "bytes": "32",
+    "label": "deposits",
+    "offset": 0,
+    "slot": "49",
+    "type": "mapping(address => mapping(address => mapping(uint256 => bool)))"
+  },
+  {
+    "bytes": "20",
+    "label": "superchainConfig",
+    "offset": 0,
+    "slot": "50",
+    "type": "contract SuperchainConfig"
+  }
+]

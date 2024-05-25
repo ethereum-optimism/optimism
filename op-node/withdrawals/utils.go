@@ -6,14 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -21,105 +19,6 @@ import (
 )
 
 var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"))
-
-// WaitForFinalizationPeriod waits until there is OutputProof for an L2 block number larger than the supplied l2BlockNumber
-// and that the output is finalized.
-// This functions polls and can block for a very long time if used on mainnet.
-// This returns the block number to use for the proof generation.
-func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, portalAddr common.Address, l2BlockNumber *big.Int) (uint64, error) {
-	l2BlockNumber = new(big.Int).Set(l2BlockNumber) // Don't clobber caller owned l2BlockNumber
-	opts := &bind.CallOpts{Context: ctx}
-
-	portal, err := bindings.NewOptimismPortalCaller(portalAddr, client)
-	if err != nil {
-		return 0, err
-	}
-	l2OOAddress, err := portal.L2ORACLE(opts)
-	if err != nil {
-		return 0, err
-	}
-	l2OO, err := bindings.NewL2OutputOracleCaller(l2OOAddress, client)
-	if err != nil {
-		return 0, err
-	}
-	submissionInterval, err := l2OO.SUBMISSIONINTERVAL(opts)
-	if err != nil {
-		return 0, err
-	}
-	// Convert blockNumber to submission interval boundary
-	rem := new(big.Int)
-	l2BlockNumber, rem = l2BlockNumber.DivMod(l2BlockNumber, submissionInterval, rem)
-	if rem.Cmp(common.Big0) != 0 {
-		l2BlockNumber = l2BlockNumber.Add(l2BlockNumber, common.Big1)
-	}
-	l2BlockNumber = l2BlockNumber.Mul(l2BlockNumber, submissionInterval)
-
-	finalizationPeriod, err := l2OO.FINALIZATIONPERIODSECONDS(opts)
-	if err != nil {
-		return 0, err
-	}
-
-	latest, err := l2OO.LatestBlockNumber(opts)
-	if err != nil {
-		return 0, err
-	}
-
-	// Now poll for the output to be submitted on chain
-	var ticker *time.Ticker
-	diff := new(big.Int).Sub(l2BlockNumber, latest)
-	if diff.Cmp(big.NewInt(10)) > 0 {
-		ticker = time.NewTicker(time.Minute)
-	} else {
-		ticker = time.NewTicker(time.Second)
-	}
-
-loop:
-	for {
-		select {
-		case <-ticker.C:
-			latest, err = l2OO.LatestBlockNumber(opts)
-			if err != nil {
-				return 0, err
-			}
-			// Already passed the submitted block (likely just equals rather than >= here).
-			if latest.Cmp(l2BlockNumber) >= 0 {
-				break loop
-			}
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		}
-	}
-
-	// Now wait for it to be finalized
-	output, err := l2OO.GetL2OutputAfter(opts, l2BlockNumber)
-	if err != nil {
-		return 0, err
-	}
-	if output.OutputRoot == [32]byte{} {
-		return 0, errors.New("empty output root. likely no proposal at timestamp")
-	}
-	targetTimestamp := new(big.Int).Add(output.Timestamp, finalizationPeriod)
-	targetTime := time.Unix(targetTimestamp.Int64(), 0)
-	// Assume clock is relatively correct
-	time.Sleep(time.Until(targetTime))
-	// Poll for L1 Block to have a time greater than the target time
-	ticker = time.NewTicker(time.Second)
-	for {
-		select {
-		case <-ticker.C:
-			header, err := client.HeaderByNumber(ctx, nil)
-			if err != nil {
-				return 0, err
-			}
-			if header.Time > targetTimestamp.Uint64() {
-				return l2BlockNumber.Uint64(), nil
-			}
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		}
-	}
-
-}
 
 type ProofClient interface {
 	GetProof(context.Context, common.Address, []string, *big.Int) (*gethclient.AccountResult, error)

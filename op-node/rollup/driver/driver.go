@@ -7,9 +7,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type Metrics interface {
@@ -21,7 +22,12 @@ type Metrics interface {
 
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
-	RecordChannelInputBytes(inputCompresedBytes int)
+	RecordChannelInputBytes(inputCompressedBytes int)
+	RecordHeadChannelOpened()
+	RecordChannelTimedOut()
+	RecordFrame()
+
+	RecordDerivedBatches(batchType string)
 
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 
@@ -56,8 +62,10 @@ type DerivationPipeline interface {
 	Finalized() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
+	PendingSafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	EngineReady() bool
+	EngineSyncTarget() eth.L2BlockRef
 }
 
 type L1StateIface interface {
@@ -76,6 +84,7 @@ type SequencerIface interface {
 	PlanNextSequencerAction() time.Duration
 	RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error)
 	BuildingOnto() eth.L2BlockRef
+	CancelBuildingBlock(ctx context.Context)
 }
 
 type Network interface {
@@ -102,19 +111,24 @@ type AltSync interface {
 	RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error
 }
 
+type SequencerStateListener interface {
+	SequencerStarted() error
+	SequencerStopped() error
+}
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics, sequencerStateListener SequencerStateListener, syncCfg *sync.Config) *Driver {
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics, syncCfg)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	engine := derivationPipeline
 	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
-
+	driverCtx, driverCancel := context.WithCancel(context.Background())
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
@@ -122,9 +136,12 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, al
 		forceReset:       make(chan chan struct{}, 10),
 		startSequencer:   make(chan hashAndErrorChannel, 10),
 		stopSequencer:    make(chan chan hashAndError, 10),
+		sequencerActive:  make(chan chan bool, 10),
+		sequencerNotifs:  sequencerStateListener,
 		config:           cfg,
 		driverConfig:     driverCfg,
-		done:             make(chan struct{}),
+		driverCtx:        driverCtx,
+		driverCancel:     driverCancel,
 		log:              log,
 		snapshotLog:      snapshotLog,
 		l1:               l1,

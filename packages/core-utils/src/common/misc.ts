@@ -48,3 +48,14 @@ export const reqenv = (name: string): string => {
 export const getenv = (name: string, fallback?: string): string | undefined => {
   return process.env[name] || fallback
 }
+
+/**
+ * Returns true if the given string is a valid address.
+ *
+ * @param a First address to check.
+ * @param b Second address to check.
+ * @returns True if the given addresses match.
+ */
+export const compareAddrs = (a: string, b: string): boolean => {
+  return a.toLowerCase() === b.toLowerCase()
+}

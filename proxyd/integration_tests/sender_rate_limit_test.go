@@ -20,12 +20,10 @@ const txHex1 = "0x02f8b28201a406849502f931849502f931830147f9948f3ddd0fbf3e78ca1d
 	"1145d2f3e759d49209fe96011ac012884ec5b017a0763b58f6fa6096e6ba28ee" +
 	"08bfac58f58fb3b8bcef5af98578bdeaddf40bde42"
 
-const txHex2 = "0xf8aa82afd2830f4240830493e094464959ad46e64046b891f562cff202a465d5" +
-	"22f380b844d5bade070000000000000000000000004200000000000000000000" +
-	"0000000000000000060000000000000000000000000000000000000000000000" +
-	"0000000025ef43fc0038a05d8ea9837ea81469bda4dadbe852fdd37fcfbcd666" +
-	"5641a35e4726fbc04364e7a0107e20bb34aea53c695a551204a11d42fe465055" +
-	"510ee240e8f884fb70289be6"
+const txHex2 = "0x02f8758201a48217fd84773594008504a817c80082520894be53e587975603" +
+	"a13d0923d0aa6d37c5233dd750865af3107a400080c080a04aefbd5819c35729" +
+	"138fe26b6ae1783ebf08d249b356c2f920345db97877f3f7a008d5ae92560a3c" +
+	"65f723439887205713af7ce7d7f6b24fba198f2afa03435867"
 
 const dummyRes = `{"id": 123, "jsonrpc": "2.0", "result": "dummy"}`
 
@@ -81,10 +79,10 @@ func TestSenderRateLimitLimiting(t *testing.T) {
 	// should be rate limited.
 	res1, code1, err := client.SendRequest(makeSendRawTransaction(txHex1))
 	require.NoError(t, err)
-	res2, code2, err := client.SendRequest(makeSendRawTransaction(txHex1))
-	require.NoError(t, err)
 	RequireEqualJSON(t, []byte(dummyRes), res1)
 	require.Equal(t, 200, code1)
+	res2, code2, err := client.SendRequest(makeSendRawTransaction(txHex1))
+	require.NoError(t, err)
 	RequireEqualJSON(t, []byte(limRes), res2)
 	require.Equal(t, 429, code2)
 

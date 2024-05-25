@@ -6,7 +6,7 @@ const expect = chai.expect
 import { Logger, LegacyMetrics, createMetricsServer } from '../src'
 
 describe('Metrics', () => {
-  it('shoud serve metrics', async () => {
+  it('should serve metrics', async () => {
     const metrics = new LegacyMetrics({
       prefix: 'test_metrics',
     })

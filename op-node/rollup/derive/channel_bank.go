@@ -6,9 +6,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"golang.org/x/exp/slices"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type NextFrameProvider interface {
@@ -29,8 +30,9 @@ type NextFrameProvider interface {
 
 // ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
-	log log.Logger
-	cfg *rollup.Config
+	log     log.Logger
+	cfg     *rollup.Config
+	metrics Metrics
 
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
@@ -39,13 +41,14 @@ type ChannelBank struct {
 	fetcher L1Fetcher
 }
 
-var _ ResetableStage = (*ChannelBank)(nil)
+var _ ResettableStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher, m Metrics) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
+		metrics:      m,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
 		prev:         prev,
@@ -74,7 +77,7 @@ func (cb *ChannelBank) prune() {
 	}
 }
 
-// IngestData adds new L1 data to the channel bank.
+// IngestFrame adds new L1 data to the channel bank.
 // Read() should be called repeatedly first, until everything has been read, before adding new data.
 func (cb *ChannelBank) IngestFrame(f Frame) {
 	origin := cb.Origin()
@@ -83,6 +86,10 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 
 	currentCh, ok := cb.channels[f.ID]
 	if !ok {
+		// Only record a head channel if it can immediately be active.
+		if len(cb.channelQueue) == 0 {
+			cb.metrics.RecordHeadChannelOpened()
+		}
 		// create new channel if it doesn't exist yet
 		currentCh = NewChannel(f.ID, origin)
 		cb.channels[f.ID] = currentCh
@@ -101,6 +108,7 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 		log.Warn("failed to ingest frame into channel", "err", err)
 		return
 	}
+	cb.metrics.RecordFrame()
 
 	// Prune after the frame is loaded.
 	cb.prune()
@@ -109,25 +117,55 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 // Read the raw data of the first channel, if it's timed-out or closed.
 // Read returns io.EOF if there is nothing new to read.
 func (cb *ChannelBank) Read() (data []byte, err error) {
+	// Common Code pre/post canyon. Return io.EOF if no channels
 	if len(cb.channelQueue) == 0 {
 		return nil, io.EOF
 	}
+	// Return nil,nil on the first channel if it is timed out. There may be more timed out
+	// channels at the head of the queue and we want to remove them all.
 	first := cb.channelQueue[0]
 	ch := cb.channels[first]
 	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
 	if timedOut {
 		cb.log.Info("channel timed out", "channel", first, "frames", len(ch.inputs))
+		cb.metrics.RecordChannelTimedOut()
 		delete(cb.channels, first)
 		cb.channelQueue = cb.channelQueue[1:]
 		return nil, nil // multiple different channels may all be timed out
 	}
-	if !ch.IsReady() {
+
+	// At the point we have removed all timed out channels from the front of the channelQueue.
+	// Pre-Canyon we simply check the first index.
+	// Post-Canyon we read the entire channelQueue for the first ready channel. If no channel is
+	// available, we return `nil, io.EOF`.
+	// Canyon is activated when the first L1 block whose time >= CanyonTime, not on the L2 timestamp.
+	if !cb.cfg.IsCanyon(cb.Origin().Time) {
+		return cb.tryReadChannelAtIndex(0)
+	}
+
+	for i := 0; i < len(cb.channelQueue); i++ {
+		if data, err := cb.tryReadChannelAtIndex(i); err == nil {
+			return data, nil
+		}
+	}
+	return nil, io.EOF
+}
+
+// tryReadChannelAtIndex attempts to read the channel at the specified index. If the channel is
+// not ready (or timed out), it will return io.EOF.
+// If the channel read was successful, it will remove the channel from the channelQueue.
+func (cb *ChannelBank) tryReadChannelAtIndex(i int) (data []byte, err error) {
+	chanID := cb.channelQueue[i]
+	ch := cb.channels[chanID]
+	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
+	if timedOut || !ch.IsReady() {
 		return nil, io.EOF
 	}
-	cb.log.Info("Reading channel", "channel", first, "frames", len(ch.inputs))
+	cb.log.Info("Reading channel", "channel", chanID, "frames", len(ch.inputs))
 
-	delete(cb.channels, first)
-	cb.channelQueue = cb.channelQueue[1:]
+	delete(cb.channels, chanID)
+	cb.channelQueue = slices.Delete(cb.channelQueue, i, i+1)
+	cb.metrics.RecordHeadChannelOpened()
 	r := ch.Reader()
 	// Suppress error here. io.ReadAll does return nil instead of io.EOF though.
 	data, _ = io.ReadAll(r)

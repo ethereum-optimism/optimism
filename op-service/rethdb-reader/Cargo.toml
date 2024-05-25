@@ -1,0 +1,26 @@
+[package]
+name = "rethdb-reader"
+description = "A simple library for reading data through Reth's DB abstractions."
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rethdbreader"
+crate-type = ["cdylib"]
+
+[dependencies]
+# reth
+reth-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "b58bfe6" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth.git", rev = "b58bfe6" }
+reth-db = { git = "https://github.com/paradigmxyz/reth.git", rev = "b58bfe6" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth.git", rev = "b58bfe6" }
+reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth.git", rev = "b58bfe6" }
+
+# misc
+serde = "1.0.190"
+serde_json = "1.0.107"
+anyhow = "1.0.75"
+
+[dev-dependencies]
+reth-revm = { git = "https://github.com/paradigmxyz/reth.git", rev = "b58bfe6" }
+alloy-rlp = "0.3.3"

@@ -1,10 +1,12 @@
 package l1
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // Cache size is quite high as retrieving data from the pre-image oracle can be quite expensive

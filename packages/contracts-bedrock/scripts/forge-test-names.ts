@@ -1,14 +1,17 @@
 import fs from 'fs'
+import path from 'path'
+import { execSync } from 'child_process'
 
-import { glob } from 'glob'
+type Check = (parts: string[]) => boolean
+type Checks = Array<{
+  check: Check
+  error: string
+}>
 
 /**
  * Series of function name checks.
  */
-const checks: Array<{
-  check: (parts: string[]) => boolean
-  error: string
-}> = [
+const checks: Checks = [
   {
     error: 'test name parts should be in camelCase',
     check: (parts: string[]): boolean => {
@@ -59,27 +62,67 @@ const checks: Array<{
  * Script for checking that all test functions are named correctly.
  */
 const main = async () => {
-  const errors: string[] = []
-  const files = glob.sync('./forge-artifacts/**/*.t.sol/*Test*.json')
-  for (const file of files) {
-    const artifact = JSON.parse(fs.readFileSync(file, 'utf8'))
-    for (const element of artifact.abi) {
-      // Skip non-functions and functions that don't start with "test".
-      if (element.type !== 'function' || !element.name.startsWith('test')) {
-        continue
-      }
+  const result = execSync('forge config --json')
+  const config = JSON.parse(result.toString())
+  const out = config.out || 'out'
 
-      // Check the rest.
-      for (const { check, error } of checks) {
-        if (!check(element.name.split('_'))) {
-          errors.push(`in ${file} function ${element.name}: ${error}`)
+  const paths = []
+
+  const readFilesRecursively = (dir: string) => {
+    const files = fs.readdirSync(dir)
+
+    for (const file of files) {
+      const filePath = path.join(dir, file)
+      const fileStat = fs.statSync(filePath)
+
+      if (fileStat.isDirectory()) {
+        readFilesRecursively(filePath)
+      } else {
+        paths.push(filePath)
+      }
+    }
+  }
+
+  readFilesRecursively(out)
+
+  console.log('Success:')
+  const errors: string[] = []
+
+  for (const filepath of paths) {
+    const artifact = JSON.parse(fs.readFileSync(filepath, 'utf8'))
+
+    let isTest = false
+    for (const element of artifact.abi) {
+      if (element.name === 'IS_TEST') {
+        isTest = true
+        break
+      }
+    }
+
+    if (isTest) {
+      let success = true
+      for (const element of artifact.abi) {
+        // Skip non-functions and functions that don't start with "test".
+        if (element.type !== 'function' || !element.name.startsWith('test')) {
+          continue
         }
+
+        // Check the rest.
+        for (const { check, error } of checks) {
+          if (!check(element.name.split('_'))) {
+            errors.push(`${filepath}#${element.name}: ${error}`)
+            success = false
+          }
+        }
+      }
+      if (success) {
+        console.log(` - ${path.parse(filepath).name}`)
       }
     }
   }
 
   if (errors.length > 0) {
-    console.error(...errors)
+    console.error(errors.join('\n'))
     process.exit(1)
   }
 }

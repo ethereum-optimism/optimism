@@ -2,10 +2,13 @@ package proxyd
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -75,7 +78,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	start := time.Now()
-	err := c.rdb.SetEX(ctx, c.namespaced(key), value, redisTTL).Err()
+	err := c.rdb.SetEx(ctx, c.namespaced(key), value, redisTTL).Err()
 	redisCacheDurationSumm.WithLabelValues("SETEX").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err != nil {
@@ -124,16 +127,38 @@ type rpcCache struct {
 
 func newRPCCache(cache Cache) RPCCache {
 	staticHandler := &StaticMethodHandler{cache: cache}
+	debugGetRawReceiptsHandler := &StaticMethodHandler{cache: cache,
+		filterGet: func(req *RPCReq) bool {
+			// cache only if the request is for a block hash
+
+			var p []rpc.BlockNumberOrHash
+			err := json.Unmarshal(req.Params, &p)
+			if err != nil {
+				return false
+			}
+			if len(p) != 1 {
+				return false
+			}
+			return p[0].BlockHash != nil
+		},
+		filterPut: func(req *RPCReq, res *RPCRes) bool {
+			// don't cache if response contains 0 receipts
+			rawReceipts, ok := res.Result.([]interface{})
+			if !ok {
+				return false
+			}
+			return len(rawReceipts) > 0
+		},
+	}
 	handlers := map[string]RPCMethodHandler{
 		"eth_chainId":                           staticHandler,
 		"net_version":                           staticHandler,
 		"eth_getBlockTransactionCountByHash":    staticHandler,
 		"eth_getUncleCountByBlockHash":          staticHandler,
 		"eth_getBlockByHash":                    staticHandler,
-		"eth_getTransactionByHash":              staticHandler,
 		"eth_getTransactionByBlockHashAndIndex": staticHandler,
 		"eth_getUncleByBlockHashAndIndex":       staticHandler,
-		"eth_getTransactionReceipt":             staticHandler,
+		"debug_getRawReceipts":                  debugGetRawReceiptsHandler,
 	}
 	return &rpcCache{
 		cache:    cache,

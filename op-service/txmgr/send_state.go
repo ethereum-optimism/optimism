@@ -26,6 +26,9 @@ type SendState struct {
 	// Counts of the different types of errors
 	successFullPublishCount   uint64 // nil error => tx made it to the mempool
 	safeAbortNonceTooLowCount uint64 // nonce too low error
+
+	// Miscellaneous tracking
+	bumpCount int // number of times we have bumped the gas price
 }
 
 // NewSendStateWithNow creates a new send state with the provided clock.

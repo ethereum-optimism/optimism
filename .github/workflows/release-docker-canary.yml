@@ -1,0 +1,282 @@
+name: Publish Docker images (canary)
+
+on:
+  # enable users to manually trigger with workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      customImageName:
+        description: 'Custom Docker Image Tag (keep empty for git hash)'
+        required: false
+        default: '0.0.0-rc-0'
+
+jobs:
+  canary-publish:
+    name: Publish Packages (canary)
+    runs-on: ubuntu-latest
+    # map the step outputs to job outputs
+    outputs:
+      balance-mon: ${{ steps.packages.outputs.balance-mon }}
+      drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
+      fault-mon: ${{ steps.packages.outputs.fault-mon }}
+      multisig-mon: ${{ steps.packages.outputs.multisig-mon }}
+      replica-mon: ${{ steps.packages.outputs.replica-mon }}
+      wd-mon: ${{ steps.packages.outputs.wd-mon }}
+      canary-docker-tag: ${{ steps.docker-image-name.outputs.canary-docker-tag }}
+      op-exporter: ${{ steps.packages.outputs.op-exporter }}
+      endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
+
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v4
+        with:
+          # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
+          fetch-depth: 0
+
+      - name: Docker Image Name
+        id: docker-image-name
+        run: |
+          if [ ${CUSTOM_IMAGE_NAME} == '' ]
+          then
+              echo "::set-output name=canary-docker-tag::${GITHUB_SHA::8}"
+          else
+              echo "::set-output name=canary-docker-tag::prerelease-${CUSTOM_IMAGE_NAME}"
+          fi
+        env:
+          CUSTOM_IMAGE_NAME: ${{ github.event.inputs.customImageName }}
+
+  fault-mon:
+    name: Publish fault-mon Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.fault-mon != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: fault-mon
+          push: true
+          tags: ethereumoptimism/fault-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+
+  balance-mon:
+    name: Publish Balance Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.balance-mon != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: balance-mon
+          push: true
+          tags: ethereumoptimism/balance-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+
+  multisig-mon:
+    name: Publish Multisig Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.multisig-mon != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: multisig-mon
+          push: true
+          tags: ethereumoptimism/multisig-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+
+  drippie-mon:
+    name: Publish Drippie Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.drippie-mon != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: drippie-mon
+          push: true
+          tags: ethereumoptimism/drippie-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+
+  wd-mon:
+    name: Publish Withdrawal Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.wd-mon != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: wd-mon
+          push: true
+          tags: ethereumoptimism/wd-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+
+  replica-mon:
+    name: Publish replica-mon Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.replica-mon != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: replica-mon
+          push: true
+          tags: ethereumoptimism/replica-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+
+  op-exporter:
+    name: Publish op-exporter Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.op-exporter != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set build args
+        id: build_args
+        run: |
+          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
+          echo ::set-output name=GITVERSION::$(jq -r .version ./op-exporter/package.json)
+          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./op-exporter/Dockerfile=
+          push: true
+          tags: ethereumoptimism/op-exporter:${{ needs.canary-publish.outputs.op-exporter }}
+          build-args: |
+            GITDATE=${{ steps.build_args.outputs.GITDATE }}
+            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
+            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
+
+  endpoint-monitor:
+    name: Publish endpoint-monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.endpoint-monitor != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set build args
+        id: build_args
+        run: |
+          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
+          echo ::set-output name=GITVERSION::$(jq -r .version ./endpoint-monitor/package.json)
+          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./endpoint-monitor/Dockerfile
+          push: true
+          tags: ethereumoptimism/endpoint-monitor:${{ needs.canary-publish.outputs.endpoint-monitor }}
+          build-args: |
+            GITDATE=${{ steps.build_args.outputs.GITDATE }}
+            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
+            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}

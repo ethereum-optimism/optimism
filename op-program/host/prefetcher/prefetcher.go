@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -29,6 +29,7 @@ type L2Source interface {
 	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
 	CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
+	OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error)
 }
 
 type Prefetcher struct {
@@ -57,14 +58,18 @@ func (p *Prefetcher) Hint(hint string) error {
 func (p *Prefetcher) GetPreimage(ctx context.Context, key common.Hash) ([]byte, error) {
 	p.logger.Trace("Pre-image requested", "key", key)
 	pre, err := p.kvStore.Get(key)
-	if errors.Is(err, kvstore.ErrNotFound) && p.lastHint != "" {
+	// Use a loop to keep retrying the prefetch as long as the key is not found
+	// This handles the case where the prefetch downloads a preimage, but it is then deleted unexpectedly
+	// before we get to read it.
+	for errors.Is(err, kvstore.ErrNotFound) && p.lastHint != "" {
 		hint := p.lastHint
-		p.lastHint = ""
 		if err := p.prefetch(ctx, hint); err != nil {
 			return nil, fmt.Errorf("prefetch failed: %w", err)
 		}
-		// Should now be available
-		return p.kvStore.Get(key)
+		pre, err = p.kvStore.Get(key)
+		if err != nil {
+			p.logger.Error("Fetched pre-images for last hint but did not find required key", "hint", hint, "key", key)
+		}
 	}
 	return pre, err
 }
@@ -98,7 +103,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L1 block %s receipts: %w", hash, err)
 		}
 		return p.storeReceipts(receipts)
-	case l2.HintL2BlockHeader:
+	case l2.HintL2BlockHeader, l2.HintL2Transactions:
 		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L2 block %s: %w", hash, err)
@@ -124,6 +129,12 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hash, err)
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), code)
+	case l2.HintL2Output:
+		output, err := p.l2Fetcher.OutputByRoot(ctx, hash)
+		if err != nil {
+			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
+		}
+		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
 	}
 	return fmt.Errorf("unknown hint type: %v", hintType)
 }
@@ -148,10 +159,7 @@ func (p *Prefetcher) storeTrieNodes(values []hexutil.Bytes) error {
 	_, nodes := mpt.WriteTrie(values)
 	for _, node := range nodes {
 		key := preimage.Keccak256Key(crypto.Keccak256Hash(node)).PreimageKey()
-		if err := p.kvStore.Put(key, node); errors.Is(err, kvstore.ErrAlreadyExists) {
-			// It's not uncommon for different tries to contain common nodes (esp for receipts)
-			continue
-		} else if err != nil {
+		if err := p.kvStore.Put(key, node); err != nil {
 			return fmt.Errorf("failed to store node: %w", err)
 		}
 	}

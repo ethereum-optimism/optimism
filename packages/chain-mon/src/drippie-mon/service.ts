@@ -7,7 +7,7 @@ import {
 } from '@eth-optimism/common-ts'
 import { Provider } from '@ethersproject/abstract-provider'
 import { ethers } from 'ethers'
-import * as DrippieArtifact from '@eth-optimism/contracts-periphery/artifacts/contracts/universal/drippie/Drippie.sol/Drippie.json'
+import * as DrippieArtifact from '@eth-optimism/contracts-bedrock/forge-artifacts/Drippie.sol/Drippie.json'
 
 import { version } from '../../package.json'
 

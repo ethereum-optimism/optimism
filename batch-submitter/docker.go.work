@@ -1,7 +1,0 @@
-go 1.18
-
-use (
-	./batch-submitter
-	./bss-core
-	./l2geth
-)

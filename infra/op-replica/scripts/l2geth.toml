@@ -1,5 +1,0 @@
-# l2geth configs go here
-[Node.HTTPTimeouts]
-ReadTimeout = 120000000000
-WriteTimeout = 120000000000
-IdleTimeout = 120000000000

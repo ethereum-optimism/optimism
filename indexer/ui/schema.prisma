@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model l1_bridged_tokens {
+  address           String              @id @db.VarChar
+  bridge_address    String              @db.VarChar
+  name              String              @db.VarChar
+  symbol            String              @db.VarChar
+  decimals          Int
+  l2_bridged_tokens l2_bridged_tokens[]
+}
+
+model l2_bridged_tokens {
+  address           String             @id @db.VarChar
+  bridge_address    String             @db.VarChar
+  l1_token_address  String?            @db.VarChar
+  name              String             @db.VarChar
+  symbol            String             @db.VarChar
+  decimals          Int
+  l1_bridged_tokens l1_bridged_tokens? @relation(fields: [l1_token_address], references: [address], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l1_block_headers {
+  hash               String               @id @db.VarChar
+  parent_hash        String               @unique @db.VarChar
+  number             Decimal              @unique @db.Decimal
+  timestamp          Int                  @unique
+  rlp_bytes          String               @db.VarChar
+  l1_contract_events l1_contract_events[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l1_bridge_deposits {
+  transaction_source_hash   String                  @id @db.VarChar
+  cross_domain_message_hash String                  @unique @db.VarChar
+  from_address              String                  @db.VarChar
+  to_address                String                  @db.VarChar
+  local_token_address       String                  @db.VarChar
+  remote_token_address      String                  @db.VarChar
+  amount                    Decimal                 @db.Decimal
+  data                      String                  @db.VarChar
+  timestamp                 Int
+  l1_bridge_messages        l1_bridge_messages      @relation(fields: [cross_domain_message_hash], references: [message_hash], onDelete: Cascade, onUpdate: NoAction)
+  l1_transaction_deposits   l1_transaction_deposits @relation(fields: [transaction_source_hash], references: [source_hash], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l1_bridge_messages {
+  message_hash               String                  @id @db.VarChar
+  nonce                      Decimal                 @unique @db.Decimal
+  transaction_source_hash    String                  @unique @db.VarChar
+  sent_message_event_guid    String                  @unique @db.VarChar
+  relayed_message_event_guid String?                 @unique @db.VarChar
+  from_address               String                  @db.VarChar
+  to_address                 String                  @db.VarChar
+  amount                     Decimal                 @db.Decimal
+  gas_limit                  Decimal                 @db.Decimal
+  data                       String                  @db.VarChar
+  timestamp                  Int
+  l1_bridge_deposits         l1_bridge_deposits?
+  l2_contract_events         l2_contract_events?     @relation(fields: [relayed_message_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+  l1_contract_events         l1_contract_events      @relation(fields: [sent_message_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+  l1_transaction_deposits    l1_transaction_deposits @relation(fields: [transaction_source_hash], references: [source_hash], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l1_contract_events {
+  guid                                                                                              String                      @id @db.VarChar
+  block_hash                                                                                        String                      @db.VarChar
+  contract_address                                                                                  String                      @db.VarChar
+  transaction_hash                                                                                  String                      @db.VarChar
+  log_index                                                                                         Int
+  event_signature                                                                                   String                      @db.VarChar
+  timestamp                                                                                         Int
+  rlp_bytes                                                                                         String                      @db.VarChar
+  l1_bridge_messages                                                                                l1_bridge_messages?
+  l1_block_headers                                                                                  l1_block_headers            @relation(fields: [block_hash], references: [hash], onDelete: Cascade, onUpdate: NoAction)
+  l1_transaction_deposits                                                                           l1_transaction_deposits?
+  l2_bridge_messages                                                                                l2_bridge_messages?
+  l2_transaction_withdrawals_l2_transaction_withdrawals_finalized_l1_event_guidTol1_contract_events l2_transaction_withdrawals? @relation("l2_transaction_withdrawals_finalized_l1_event_guidTol1_contract_events")
+  l2_transaction_withdrawals_l2_transaction_withdrawals_proven_l1_event_guidTol1_contract_events    l2_transaction_withdrawals? @relation("l2_transaction_withdrawals_proven_l1_event_guidTol1_contract_events")
+  legacy_state_batches                                                                              legacy_state_batches?
+  output_proposals                                                                                  output_proposals?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l1_transaction_deposits {
+  source_hash             String              @id @db.VarChar
+  l2_transaction_hash     String              @unique @db.VarChar
+  initiated_l1_event_guid String              @unique @db.VarChar
+  from_address            String              @db.VarChar
+  to_address              String              @db.VarChar
+  amount                  Decimal             @db.Decimal
+  gas_limit               Decimal             @db.Decimal
+  data                    String              @db.VarChar
+  timestamp               Int
+  l1_bridge_deposits      l1_bridge_deposits?
+  l1_bridge_messages      l1_bridge_messages?
+  l1_contract_events      l1_contract_events  @relation(fields: [initiated_l1_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l2_block_headers {
+  hash               String               @id @db.VarChar
+  parent_hash        String               @unique @db.VarChar
+  number             Decimal              @unique @db.Decimal
+  timestamp          Int
+  rlp_bytes          String               @db.VarChar
+  l2_contract_events l2_contract_events[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l2_bridge_messages {
+  message_hash                String                     @id @db.VarChar
+  nonce                       Decimal                    @unique @db.Decimal
+  transaction_withdrawal_hash String                     @unique @db.VarChar
+  sent_message_event_guid     String                     @unique @db.VarChar
+  relayed_message_event_guid  String?                    @unique @db.VarChar
+  from_address                String                     @db.VarChar
+  to_address                  String                     @db.VarChar
+  amount                      Decimal                    @db.Decimal
+  gas_limit                   Decimal                    @db.Decimal
+  data                        String                     @db.VarChar
+  timestamp                   Int
+  l1_contract_events          l1_contract_events?        @relation(fields: [relayed_message_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+  l2_contract_events          l2_contract_events         @relation(fields: [sent_message_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+  l2_transaction_withdrawals  l2_transaction_withdrawals @relation(fields: [transaction_withdrawal_hash], references: [withdrawal_hash], onDelete: Cascade, onUpdate: NoAction)
+  l2_bridge_withdrawals       l2_bridge_withdrawals?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l2_bridge_withdrawals {
+  transaction_withdrawal_hash String                     @id @db.VarChar
+  cross_domain_message_hash   String                     @unique @db.VarChar
+  from_address                String                     @db.VarChar
+  to_address                  String                     @db.VarChar
+  local_token_address         String                     @db.VarChar
+  remote_token_address        String                     @db.VarChar
+  amount                      Decimal                    @db.Decimal
+  data                        String                     @db.VarChar
+  timestamp                   Int
+  l2_bridge_messages          l2_bridge_messages         @relation(fields: [cross_domain_message_hash], references: [message_hash], onDelete: Cascade, onUpdate: NoAction)
+  l2_transaction_withdrawals  l2_transaction_withdrawals @relation(fields: [transaction_withdrawal_hash], references: [withdrawal_hash], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l2_contract_events {
+  guid                       String                      @id @db.VarChar
+  block_hash                 String                      @db.VarChar
+  contract_address           String                      @db.VarChar
+  transaction_hash           String                      @db.VarChar
+  log_index                  Int
+  event_signature            String                      @db.VarChar
+  timestamp                  Int
+  rlp_bytes                  String                      @db.VarChar
+  l1_bridge_messages         l1_bridge_messages?
+  l2_bridge_messages         l2_bridge_messages?
+  l2_block_headers           l2_block_headers            @relation(fields: [block_hash], references: [hash], onDelete: Cascade, onUpdate: NoAction)
+  l2_transaction_withdrawals l2_transaction_withdrawals?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model l2_transaction_withdrawals {
+  withdrawal_hash                                                                           String                 @id @db.VarChar
+  nonce                                                                                     Decimal                @unique @db.Decimal
+  initiated_l2_event_guid                                                                   String                 @unique @db.VarChar
+  proven_l1_event_guid                                                                      String?                @unique @db.VarChar
+  finalized_l1_event_guid                                                                   String?                @unique @db.VarChar
+  succeeded                                                                                 Boolean?
+  from_address                                                                              String                 @db.VarChar
+  to_address                                                                                String                 @db.VarChar
+  amount                                                                                    Decimal                @db.Decimal
+  gas_limit                                                                                 Decimal                @db.Decimal
+  data                                                                                      String                 @db.VarChar
+  timestamp                                                                                 Int
+  l2_bridge_messages                                                                        l2_bridge_messages?
+  l2_bridge_withdrawals                                                                     l2_bridge_withdrawals?
+  l1_contract_events_l2_transaction_withdrawals_finalized_l1_event_guidTol1_contract_events l1_contract_events?    @relation("l2_transaction_withdrawals_finalized_l1_event_guidTol1_contract_events", fields: [finalized_l1_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+  l2_contract_events                                                                        l2_contract_events     @relation(fields: [initiated_l2_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+  l1_contract_events_l2_transaction_withdrawals_proven_l1_event_guidTol1_contract_events    l1_contract_events?    @relation("l2_transaction_withdrawals_proven_l1_event_guidTol1_contract_events", fields: [proven_l1_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model legacy_state_batches {
+  index                     Int                @id
+  root                      String             @unique @db.VarChar
+  size                      Int
+  prev_total                Int
+  state_batch_appended_guid String             @unique @db.VarChar
+  l1_contract_events        l1_contract_events @relation(fields: [state_batch_appended_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model output_proposals {
+  output_root          String             @id @db.VarChar
+  l2_output_index      Decimal            @unique @db.Decimal
+  l2_block_number      Decimal            @unique @db.Decimal
+  output_proposed_guid String             @unique @db.VarChar
+  l1_contract_events   l1_contract_events @relation(fields: [output_proposed_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+}

@@ -21,13 +21,14 @@
   - [Main content](#main-content)
   - [Epilogue](#epilogue)
   - [Pre-image hinting routes](#pre-image-hinting-routes)
-    - [`l1-header <blockhash>`](#l1-header-blockhash)
+    - [`l1-block-header <blockhash>`](#l1-block-header-blockhash)
     - [`l1-transactions <blockhash>`](#l1-transactions-blockhash)
     - [`l1-receipts <blockhash>`](#l1-receipts-blockhash)
-    - [`l2-header <blockhash>`](#l2-header-blockhash)
+    - [`l2-block-header <blockhash>`](#l2-block-header-blockhash)
     - [`l2-transactions <blockhash>`](#l2-transactions-blockhash)
     - [`l2-code <codehash>`](#l2-code-codehash)
     - [`l2-state-node <nodehash>`](#l2-state-node-nodehash)
+    - [`l2-output <outputroot>`](#l2-output-outputroot)
 - [Fault Proof VM](#fault-proof-vm)
 - [Fault Proof Interactive Dispute Game](#fault-proof-interactive-dispute-game)
 
@@ -62,7 +63,7 @@ The program uses the pre-image oracle to query any input data that is understood
 - External data not already part of the program code. See [Pre-image hinting routes](#pre-image-hinting-routes).
 
 The communication happens over a simple request-response wire protocol,
-see [Pre-image communcation](#pre-image-communication).
+see [Pre-image communication](#pre-image-communication).
 
 ### Pre-image key types
 
@@ -94,7 +95,7 @@ and avoids unnecessary contract redeployments per dispute.
 
 This global store contract should be non-upgradeable.
 
-Since `keccak256` is a safe 32-byte hash input, the first bit is overwritten with a `2` to derive the key,
+Since `keccak256` is a safe 32-byte hash input, the first byte is overwritten with a `2` to derive the key,
 while keeping the rest of the key "readable" (matching the original hash).
 
 #### Type `3`: Global generic key
@@ -130,7 +131,7 @@ as there is no way to revert it to the original commitment without knowing said 
 
 #### Type `4-128`: reserved range
 
-Range start and and both inclusive.
+Range start and end both inclusive.
 
 This range of key types is reserved for future usage by the core protocol.
 E.g. version changes, contract migrations, chain-data, additional core features, etc.
@@ -171,7 +172,7 @@ and the latest hint may be buffered for lazy execution, or dropped entirely when
 
 When the pre-image oracle serves a request, and the request cannot be served from an existing collection of pre-images
 (e.g. a local pre-image cache) then the VM can execute the hint to retrieve the missing pre-image(s).
-It is the responsiblity of the program to provide sufficient hinting for every pre-image request.
+It is the responsibility of the program to provide sufficient hinting for every pre-image request.
 Some hints may have to be repeated: the VM only has to execute the last hint when handling a missing pre-image.
 
 Note that hints may produce multiple pre-images:
@@ -183,7 +184,7 @@ Hinting is implemented with a request-acknowledgement wire-protocol over a block
 ```text
 <request> := <length prefix> <hint bytes>
 
-<repsonse> := <ack>
+<response> := <ack>
 
 <length prefix> := big-endian uint32  # length of <hint bytes>
 <hint bytes> := byte sequence
@@ -302,7 +303,7 @@ Using these data-sources, the derivation pipeline is processed till we hit one o
 
 - `EOF`: when we run out of L1 data, the L2 chain will not change further, and the epilogue can start.
 - Eager epilogue condition: depending on the type of claim to verify,
-  if the L2 result irreversible (i.e. no later L1 inputs can override it),
+  if the L2 result is irreversible (i.e. no later L1 inputs can override it),
   the processing may end early when the result is ready.
   E.g. when asserting state at a specific L2 block, rather than the very tip of the L2 chain.
 
@@ -341,7 +342,7 @@ This can be exposed via a CLI, or alternative inter-process API.
 
 Every instance of `<blockhash>` in the below routes is `0x`-prefixed, lowercase, hex-encoded.
 
-#### `l1-header <blockhash>`
+#### `l1-block-header <blockhash>`
 
 Requests the host to prepare the L1 block header RLP pre-image of the block `<blockhash>`.
 
@@ -355,7 +356,7 @@ prepare the RLP pre-images of each of them, including transactions-list MPT node
 Requests the host to prepare the list of receipts of the L1 block with `<blockhash>`:
 prepare the RLP pre-images of each of them, including receipts-list MPT nodes.
 
-#### `l2-header <blockhash>`
+#### `l2-block-header <blockhash>`
 
 Requests the host to prepare the L2 block header RLP pre-image of the block `<blockhash>`.
 
@@ -371,6 +372,11 @@ Requests the host to prepare the L2 smart-contract code with the given `<codehas
 #### `l2-state-node <nodehash>`
 
 Requests the host to prepare the L2 MPT node preimage with the given `<nodehash>`.
+
+#### `l2-output <outputroot>`
+
+Requests the host to prepare the L2 Output at the l2 output root `<outputroot>`.
+The L2 Output is the preimage of a [computed output root](./proposals.md#l2-output-commitment-construction).
 
 ## Fault Proof VM
 
@@ -412,5 +418,5 @@ The allocated response time is limited by the dispute-game window,
 and any additional time necessary based on L1 fee changes when bonds are insufficient.
 
 > Note: the timed, bonded, bisection dispute game is in development.
-> Also see [dispute-game specs](./dispute-game.md) for general dispute game system specifications,
+> Also see [fault dispute-game specs](./fault-dispute-game.md) for fault dispute game system specifications,
 > And [dispute-game-interface specs](./dispute-game-interface.md) for dispute game interface specifications.

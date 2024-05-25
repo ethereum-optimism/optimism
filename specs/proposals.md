@@ -11,14 +11,11 @@
 
 - [Proposing L2 Output Commitments](#proposing-l2-output-commitments)
   - [L2OutputOracle v1.0.0](#l2outputoracle-v100)
-  - [L2OutputOracle v2.0.0](#l2outputoracle-v200)
 - [L2 Output Commitment Construction](#l2-output-commitment-construction)
 - [L2 Output Oracle Smart Contract](#l2-output-oracle-smart-contract)
   - [Configuration](#configuration)
 - [Security Considerations](#security-considerations)
   - [L1 Reorgs](#l1-reorgs)
-- [Summary of Definitions](#summary-of-definitions)
-  - [Constants](#constants)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -46,13 +43,13 @@ submits it to the `L2OutputOracle` contract on the settlement layer (L1).
 ### L2OutputOracle v1.0.0
 
 The submission of output proposals is permissioned to a single account. It is expected that this
-account continues to submit output proposals over time to ensure that user withdrawals do not halt.
+account will continue to submit output proposals over time to ensure that user withdrawals do not halt.
 
 The [L2 output proposer](../op-proposer) is expected to submit output roots on a deterministic
 interval based on the configured `SUBMISSION_INTERVAL` in the `L2OutputOracle`. The larger
 the `SUBMISSION_INTERVAL`, the less often L1 transactions need to be sent to the `L2OutputOracle`
 contract, but L2 users will need to wait a bit longer for an output root to be included in L1 (the settlement layer)
-that includes their intention to withdrawal from the system.
+that includes their intention to withdraw from the system.
 
 The honest `op-proposer` algorithm assumes a connection to the `L2OutputOracle` contract to know
 the L2 block number that corresponds to the next output proposal that must be submitted. It also
@@ -72,54 +69,6 @@ while True:
 
 A `CHALLENGER` account can delete multiple output roots by calling the `deleteL2Outputs()` function
 and specifying the index of the first output to delete, this will also delete all subsequent outputs.
-
-### L2OutputOracle v2.0.0
-
-The submission of output proposals is permissionless and there is no interval at which output
-proposals must be submitted at. It is expected that users will "just in time" propose an output
-proposal to facilitate their own withdrawal. A bond must be placed with an output proposal to
-disincentivize the proposal of malicious outputs. If it can be proven that the output is malicious,
-either via fault proof or by an attestation proof, then the bond can be slashed and used as a
-payment to the users who paid for gas to remove the malicious output.
-
-The `op-proposer` can still be used to submit output proposals. A naive implementation of the
-`op-proposer` will submit output proposals on an interval. However, this is not required, and other
-proposer implementations may submit valid outputs at any time. A more ideal implementation
-will use heuristics such as time of last submission or number of pending withdrawals that have
-yet to be included in an output proposal.
-
-A single iteration of this proposer (posting one output root to L1) is depicted below:
-
-```mermaid
-sequenceDiagram
-    participant L1
-    participant Rollup Node
-    participant Proposer
-
-    L1->>L1: L1 block finalized
-    L1->>Rollup Node: L1 block finalized
-    Proposer->>Rollup Node: optimism_syncStatus
-    Rollup Node->>Proposer: sync status { finalized L1 block num }
-    Proposer->>Rollup Node: optimism_outputAtBlock
-    Rollup Node->>Proposer: output root
-    Proposer->>L1: Query L2OutputOracle for this output root
-    L1->>Proposer: output root or nil
-    Proposer->>Proposer: stop if the current output is already proposed
-    Proposer->>L1: L2OutputOracle.proposeOutputRoot
-```
-
-Since there may be multiple proposers running simultaneously when permissionless output proposals are enabled,
-the [op-proposer](../op-proposer/) will check that it's output root has not been posted for the given L2 block
-number before sending the proposal transaction. This is shown in the sequence diagram above when the `Proposer`
-queries the `L2OutputOracle` for the output root. If it receives an output root that is equal to the one it
-received from the rollup node, it will **not** send this output root in a transaction to the `L2OutputOracle`.
-
-Also note, while the [op-proposer](../op-proposer/) implementation submits outputs _only_ based on finalized
-or safe L2 blocks, other proposer implementations may submit outputs corresponding to unsafe (non-finalized)
-L2 blocks. This comes with risk as it will be possible for [batchers](./batcher.md) to submit L2 blocks that
-do not correspond to the output that have already been made available (implying those outputs are now _invalid_).
-
-Version `v2.0.0` includes breaking changes to the `L2OutputOracle` ABI.
 
 ## L2 Output Commitment Construction
 
@@ -225,12 +174,3 @@ If the L1 has a reorg after an output has been generated and submitted, the L2 s
 leading to a faulty proposal. This is mitigated against by allowing the proposer to submit an
 L1 block number and hash to the Output Oracle when appending a new output; in the event of a reorg, the block hash
 will not match that of the block with that number and the call will revert.
-
-## Summary of Definitions
-
-### Constants
-
-| Name                  | Value   | Unit    |
-| --------------------- | ------- | ------- |
-| `SUBMISSION_INTERVAL` | `120`   | blocks  |
-| `L2_BLOCK_TIME`       | `2`     | seconds |

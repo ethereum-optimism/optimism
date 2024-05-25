@@ -1,21 +1,24 @@
 package config
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	validRollupConfig    = &chaincfg.Goerli
-	validL2Genesis       = params.GoerliChainConfig
+	validRollupConfig    = chaincfg.Goerli
+	validL2Genesis       = chainconfig.OPGoerliChainConfig
 	validL1Head          = common.Hash{0xaa}
 	validL2Head          = common.Hash{0xbb}
 	validL2Claim         = common.Hash{0xcc}
+	validL2OutputRoot    = common.Hash{0xdd}
 	validL2ClaimBlockNum = uint64(15)
 )
 
@@ -53,6 +56,13 @@ func TestL2HeadRequired(t *testing.T) {
 	config.L2Head = common.Hash{}
 	err := config.Check()
 	require.ErrorIs(t, err, ErrInvalidL2Head)
+}
+
+func TestL2OutputRootRequired(t *testing.T) {
+	config := validConfig()
+	config.L2OutputRoot = common.Hash{}
+	err := config.Check()
+	require.ErrorIs(t, err, ErrInvalidL2OutputRoot)
 }
 
 func TestL2ClaimRequired(t *testing.T) {
@@ -150,8 +160,21 @@ func TestRejectExecAndServerMode(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoExecInServerMode)
 }
 
+func TestIsCustomChainConfig(t *testing.T) {
+	t.Run("nonCustom", func(t *testing.T) {
+		cfg := validConfig()
+		require.Equal(t, cfg.IsCustomChainConfig, false)
+	})
+	t.Run("custom", func(t *testing.T) {
+		customChainConfig := &params.ChainConfig{ChainID: big.NewInt(0x1212121212)}
+		cfg := NewConfig(validRollupConfig, customChainConfig, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
+		require.Equal(t, cfg.IsCustomChainConfig, true)
+	})
+
+}
+
 func validConfig() *Config {
-	cfg := NewConfig(validRollupConfig, validL2Genesis, validL1Head, validL2Head, validL2Claim, validL2ClaimBlockNum)
+	cfg := NewConfig(validRollupConfig, validL2Genesis, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
 	cfg.DataDir = "/tmp/configTest"
 	return cfg
 }

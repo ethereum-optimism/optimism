@@ -1,0 +1,37 @@
+# Chain configures l1 chain addresses
+# Can configure them manually or use a preset L2 ChainId for known chains
+#  - i.e OP Mainnet, OP Goerli, Base, Base Goerli, Zora, Zora Goerli, etc
+[chain]
+preset = $INDEXER_CHAIN_PRESET
+
+# L1 Config
+l1-polling-interval = 0
+l1-header-buffer-size = 0
+l1-confirmation-depth = 0
+l1-starting-height = 0
+
+# L2 Config
+l2-polling-interval = 0
+l2-header-buffer-size = 0
+l2-confirmation-depth = 0
+
+[rpcs]
+l1-rpc = "${INDEXER_RPC_URL_L1}"
+l2-rpc = "${INDEXER_RPC_URL_L2}"
+
+[db]
+host = "$INDEXER_DB_HOST"
+port = $INDEXER_DB_PORT
+user = "$INDEXER_DB_USER"
+password = "$INDEXER_DB_PASS"
+name = "$INDEXER_DB_NAME"
+
+[http]
+host = "127.0.0.1"
+port = 8080
+timeout = 10
+
+[metrics]
+host = "127.0.0.1"
+port = 7300
+

@@ -13,11 +13,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
-func PrefixEnvVar(prefix, suffix string) string {
-	return prefix + "_" + suffix
+// PrefixEnvVar adds a prefix to the environment variable,
+// and returns the env-var wrapped in a slice for usage with urfave CLI v2.
+func PrefixEnvVar(prefix, suffix string) []string {
+	return []string{prefix + "_" + suffix}
 }
 
 // ValidateEnvVars logs all env vars that are found where the env var is
@@ -33,8 +35,9 @@ func ValidateEnvVars(prefix string, flags []cli.Flag, log log.Logger) {
 func cliFlagsToEnvVars(flags []cli.Flag) map[string]struct{} {
 	definedEnvVars := make(map[string]struct{})
 	for _, flag := range flags {
-		envVarField := reflect.ValueOf(flag).FieldByName("EnvVar")
-		if envVarField.IsValid() {
+		envVars := reflect.ValueOf(flag).Elem().FieldByName("EnvVars")
+		for i := 0; i < envVars.Len(); i++ {
+			envVarField := envVars.Index(i)
 			definedEnvVars[envVarField.String()] = struct{}{}
 		}
 	}
@@ -57,6 +60,15 @@ func validateEnvVars(prefix string, providedEnvVars []string, definedEnvVars map
 		}
 	}
 	return out
+}
+
+// WarnOnDeprecatedFlags iterates through the provided deprecatedFlags and logs a warning for each that is set.
+func WarnOnDeprecatedFlags(ctx *cli.Context, deprecatedFlags []cli.Flag, log log.Logger) {
+	for _, flag := range deprecatedFlags {
+		if ctx.IsSet(flag.Names()[0]) {
+			log.Warn("Found a deprecated flag which will be removed in a future version", "flag_name", flag.Names()[0])
+		}
+	}
 }
 
 // ParseAddress parses an ETH address from a hex string. This method will fail if

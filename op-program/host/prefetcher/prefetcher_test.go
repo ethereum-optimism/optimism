@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -13,13 +12,14 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestNoHint(t *testing.T) {
@@ -180,6 +180,31 @@ func TestFetchL2Block(t *testing.T) {
 	})
 }
 
+func TestFetchL2Transactions(t *testing.T) {
+	rng := rand.New(rand.NewSource(123))
+	block, rcpts := testutils.RandomBlock(rng, 10)
+	hash := block.Hash()
+
+	t.Run("AlreadyKnown", func(t *testing.T) {
+		prefetcher, _, _, kv := createPrefetcher(t)
+		storeBlock(t, kv, block, rcpts)
+
+		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		result := oracle.LoadTransactions(hash, block.TxHash())
+		assertTransactionsEqual(t, block.Transactions(), result)
+	})
+
+	t.Run("Unknown", func(t *testing.T) {
+		prefetcher, _, l2Cl, _ := createPrefetcher(t)
+		l2Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
+		defer l2Cl.MockL2Client.AssertExpectations(t)
+
+		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		result := oracle.LoadTransactions(hash, block.TxHash())
+		assertTransactionsEqual(t, block.Transactions(), result)
+	})
+}
+
 func TestFetchL2Node(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 	node := testutils.RandomData(rng, 30)
@@ -281,9 +306,53 @@ func TestBadHints(t *testing.T) {
 	})
 }
 
+func TestRetryWhenNotAvailableAfterPrefetching(t *testing.T) {
+	rng := rand.New(rand.NewSource(123))
+	node := testutils.RandomData(rng, 30)
+	hash := crypto.Keccak256Hash(node)
+
+	_, l1Source, l2Cl, kv := createPrefetcher(t)
+	putsToIgnore := 2
+	kv = &unreliableKvStore{KV: kv, putsToIgnore: putsToIgnore}
+	prefetcher := NewPrefetcher(testlog.Logger(t, log.LvlInfo), l1Source, l2Cl, kv)
+
+	// Expect one call for each ignored put, plus one more request for when the put succeeds
+	for i := 0; i < putsToIgnore+1; i++ {
+		l2Cl.ExpectNodeByHash(hash, node, nil)
+	}
+	defer l2Cl.MockDebugClient.AssertExpectations(t)
+
+	oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+	result := oracle.NodeByHash(hash)
+	require.EqualValues(t, node, result)
+}
+
+type unreliableKvStore struct {
+	kvstore.KV
+	putsToIgnore int
+}
+
+func (s *unreliableKvStore) Put(k common.Hash, v []byte) error {
+	if s.putsToIgnore > 0 {
+		s.putsToIgnore--
+		return nil
+	}
+	println("storing")
+	return s.KV.Put(k, v)
+}
+
 type l2Client struct {
 	*testutils.MockL2Client
 	*testutils.MockDebugClient
+}
+
+func (m *l2Client) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
+	out := m.Mock.MethodCalled("OutputByRoot", root)
+	return out[0].(eth.Output), *out[1].(*error)
+}
+
+func (m *l2Client) ExpectOutputByRoot(root common.Hash, output eth.Output, err error) {
+	m.Mock.On("OutputByRoot", root).Once().Return(output, &err)
 }
 
 func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *l2Client, kvstore.KV) {

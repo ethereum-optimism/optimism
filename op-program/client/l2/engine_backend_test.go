@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi/test"
 	l2test "github.com/ethereum-optimism/optimism/op-program/client/l2/test"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
@@ -18,6 +19,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -199,7 +202,8 @@ func setupOracleBackedChainWithLowerHead(t *testing.T, blockCount int, headBlock
 	logger := testlog.Logger(t, log.LvlDebug)
 	chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber)
 	head := blocks[headBlockNumber].Hash()
-	chain, err := NewOracleBackedL2Chain(logger, oracle, chainCfg, head)
+	stubOutput := eth.OutputV0{BlockHash: head}
+	chain, err := NewOracleBackedL2Chain(logger, oracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
 	require.NoError(t, err)
 	return blocks, chain
 }
@@ -227,12 +231,18 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	chainCfg := l2Genesis.Config
 	consensus := beacon.New(nil)
 	db := rawdb.NewMemoryDatabase()
+	trieDB := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
 
 	// Set minimal amount of stuff to avoid nil references later
-	genesisBlock := l2Genesis.MustCommit(db)
+	genesisBlock := l2Genesis.MustCommit(db, trieDB)
 	blocks, _ := core.GenerateChain(chainCfg, genesisBlock, consensus, db, blockCount, func(i int, gen *core.BlockGen) {})
 	blocks = append([]*types.Block{genesisBlock}, blocks...)
-	oracle := l2test.NewStubOracleWithBlocks(t, blocks[:headBlockNumber+1], db)
+
+	var outputs []eth.Output
+	for _, block := range blocks {
+		outputs = append(outputs, &eth.OutputV0{BlockHash: block.Hash()})
+	}
+	oracle := l2test.NewStubOracleWithBlocks(t, blocks[:headBlockNumber+1], outputs, db)
 	return chainCfg, blocks, oracle
 }
 

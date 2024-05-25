@@ -160,7 +160,7 @@ Different transaction types can contain different payloads, and be handled diffe
 
 [fork-choice-rule]: glossary.md#fork-choice-rule
 
-The fork choice rule is the rule used to determined which block is to be considered as the head of a blockchain. On L1,
+The fork choice rule is the rule used to determine which block is to be considered as the head of a blockchain. On L1,
 this is determined by the proof of stake rules.
 
 L2 also has a fork choice rule, although the rules vary depending on whether we want the [safe L2 head][safe-l2-head],
@@ -195,7 +195,7 @@ pre-confirm the transactions before the L1 confirms the data.
 
 A sequencer is either a [rollup node][rollup-node] ran in sequencer mode, or the operator of this rollup node.
 
-The sequencer is a priviledged actor, which receives L2 transactions from L2 users, creates L2 blocks using them, which
+The sequencer is a privileged actor, which receives L2 transactions from L2 users, creates L2 blocks using them, which
 it then submits to [data availability provider][avail-provider] (via a [batcher]). It also submits [output
 roots][l2-output] to L1.
 
@@ -208,7 +208,7 @@ A sequencing window is a range of L1 blocks from which a [sequencing epoch][sequ
 A sequencing window whose first L1 block has number `N` contains [batcher transactions][batcher-transaction] for epoch
 `N`. The window contains blocks `[N, N + SWS)` where `SWS` is the sequencer window size.
 
-> **TODO** specify sequencer window size
+The current default `sws` is 3600 epochs.
 
 Additionally, the first block in the window defines the [depositing transactions][depositing-tx] which determine the
 [deposits] to be included in the first L2 block of the epoch.
@@ -392,7 +392,7 @@ proof][fault-proof].
 
 Data availability is the guarantee that some data will be "available" (i.e. *retrievable*) during a reasonably long time
 window. In Optimism's case, the data in question are [sequencer batches][sequencer-batch] that [validators][validator]
-needs in order to verify the sequencer's work and validate the L2 chain.
+need in order to verify the sequencer's work and validate the L2 chain.
 
 The [finalization period][finalization-period] should be taken as the lower bound on the availability window, since
 that is when data availability is the most crucial, as it is needed to perform a [fault proof][fault-proof].
@@ -455,7 +455,7 @@ batcher transaction.
 
 [batcher]: glossary.md#batcher
 
-A batcher is a software component (independant program) that is responsible to make channels available on a data
+A batcher is a software component (independent program) that is responsible to make channels available on a data
 availability provider. The batcher communicates with the rollup node in order to retrieve the channels. The channels are
 then made available using [batcher transactions][batcher-transaction].
 
@@ -471,9 +471,8 @@ channels available. These transactions carry one or more full frames, which may 
 channel's frame may be split between multiple batcher transactions.
 
 When submitted to Ethereum calldata, the batcher transaction's receiver must be the sequencer inbox address. The
-transaction must also be signed by a recognized batch submitter account.
-
-> **TODO** specify where these recognized batch submitter accounts are stored
+transaction must also be signed by a recognized batch submitter account. The recognized batch submitter account
+is stored in the [System Configuration][system-config].
 
 ## Channel Timeout
 
@@ -484,7 +483,7 @@ The channel timeout is a duration (in L1 blocks) during which [channel frames][c
 
 The acceptable time range for the frames of a [channel][channel] is `[channel_id.timestamp, channel_id.timestamp +
 CHANNEL_TIMEOUT]`. The acceptable L1 block range for these frames are any L1 block whose timestamp falls inside this
-time range. (Note that `channel_id.timetamp` must be lower than the L1 block timestamp of any L1 block in which frames
+time range. (Note that `channel_id.timestamp` must be lower than the L1 block timestamp of any L1 block in which frames
 of the channel are seen, or else these frames are ignored.)
 
 The purpose of channel timeouts is dual:
@@ -493,7 +492,7 @@ The purpose of channel timeouts is dual:
   sent).
 - Bound the number of L1 blocks we have to look back in order to decode [sequencer batches][sequencer-batch] from
   channels. This is particularly relevant during L1 re-orgs, see the [Resetting Channel Buffering][reset-channel-buffer]
-  section of the L2 Chain Derivation specifiction for more information.
+  section of the L2 Chain Derivation specification for more information.
 
 [reset-channel-buffer]: derivation.md#resetting-channel-buffering
 
@@ -565,7 +564,7 @@ The state of the L2 genesis block comprises:
     how native ETH balances were stored in the storage trie.
 - [Predeployed contracts][predeploy]
 
-The timestap of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
+The timestamp of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
 block time is 2 seconds).
 
 When updating the rollup protocol to a new version, we may perform a *squash fork*, a process that entails the creation
@@ -591,8 +590,8 @@ In the current implementation, this is the L1 block number at which the output o
 
 [safe-l2-block]: glossary.md#safe-l2-block
 
-A safe L2 block is an L2 block can be derived entirely from L1 by a [rollup node][rollup-node]. This can vary between
-different nodes, based on their view of the L1 chain.
+A safe L2 block is an L2 block that can be derived entirely from L1 by a [rollup node][rollup-node]. This can vary
+between different nodes, based on their view of the L1 chain.
 
 ## Safe L2 Head
 
@@ -645,7 +644,7 @@ blocks older than two L1 epochs (64 L1 [time slots][time-slot]).
 
 [address-aliasing]: glossary.md#address-aliasing
 
-When a contract submits a [deposit][deposits] from L1 to L2, it's address (as returned by `ORIGIN` and `CALLER`) will be
+When a contract submits a [deposit][deposits] from L1 to L2, its address (as returned by `ORIGIN` and `CALLER`) will be
 aliased with a modified representation of the address of a contract.
 
 - cf. [Deposit Specification](deposits.md#address-aliasing)
@@ -750,7 +749,7 @@ of even benign consensus issues.
 
 The L2 block time is 2 second, meaning there is an L2 block at every 2s [time slot][time-slot].
 
-Post-[merge], it could be said the that L1 block time is 12s as that is the L1 [time slot][time-slot]. However, in
+Post-[merge], it could be said that the L1 block time is 12s as that is the L1 [time slot][time-slot]. However, in
 reality the block time is variable as some time slots might be skipped.
 
 Pre-merge, the L1 block time is variable, though it is on average 13s.
@@ -798,7 +797,7 @@ In these specifications, "execution engine" always refer to the L2 execution eng
 [Solidity events]: https://docs.soliditylang.org/en/latest/contracts.html?highlight=events#events
 [nano-header]: https://github.com/norswap/nanoeth/blob/cc5d94a349c90627024f3cd629a2d830008fec72/src/com/norswap/nanoeth/blocks/BlockHeader.java#L22-L156
 [yellow]: https://ethereum.github.io/yellowpaper/paper.pdf
-[engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#PayloadAttributesV1
+[engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/shanghai.md#PayloadAttributesV2
 [merge]: https://ethereum.org/en/eth2/merge/
 [mempool]: https://www.quicknode.com/guides/defi/how-to-access-ethereum-mempool
 [L1 consensus layer]: https://github.com/ethereum/consensus-specs/#readme

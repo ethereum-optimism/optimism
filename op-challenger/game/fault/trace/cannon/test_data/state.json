@@ -1,0 +1,14 @@
+{
+  "memory": [],
+  "preimageKey": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "preimageOffset": 0,
+  "pc": 0,
+  "nextPC": 1,
+  "lo": 0,
+  "hi": 0,
+  "heap": 0,
+  "exit": 0,
+  "exited": false,
+  "step": 0,
+  "registers": []
+}

@@ -2,301 +2,258 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
-	"net/http"
-	"os"
 	"strconv"
-	"time"
+	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/indexer/services"
-	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/ethereum-optimism/optimism/indexer/metrics"
-	"github.com/ethereum-optimism/optimism/indexer/server"
-	"github.com/rs/cors"
-
-	database "github.com/ethereum-optimism/optimism/indexer/db"
-	"github.com/ethereum-optimism/optimism/indexer/services/l1"
-	"github.com/ethereum-optimism/optimism/indexer/services/l2"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/gorilla/mux"
-	"github.com/urfave/cli"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/ethereum-optimism/optimism/indexer/config"
+	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/etl"
+	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/indexer/processors"
+	"github.com/ethereum-optimism/optimism/indexer/processors/bridge"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 )
 
-const (
-	// defaultDialTimeout is default duration the service will wait on
-	// startup to make a connection to either the L1 or L2 backends.
-	defaultDialTimeout = 5 * time.Second
-)
-
-// Main is the entrypoint into the indexer service. This method returns
-// a closure that executes the service and blocks until the service exits. The
-// use of a closure allows the parameters bound to the top-level main package,
-// e.g. GitVersion, to be captured and used once the function is executed.
-func Main(gitVersion string) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		cfg, err := NewConfig(ctx)
-		if err != nil {
-			return err
-		}
-
-		log.Info("Initializing indexer")
-
-		indexer, err := NewIndexer(cfg)
-		if err != nil {
-			log.Error("Unable to create indexer", "error", err)
-			return err
-		}
-
-		log.Info("Starting indexer")
-
-		if err := indexer.Start(); err != nil {
-			return err
-		}
-		defer indexer.Stop()
-
-		log.Info("Indexer started")
-
-		<-(chan struct{})(nil)
-
-		return nil
-	}
-}
-
-// Indexer is a service that configures the necessary resources for
-// running the Sync and BlockHandler sub-services.
+// Indexer contains the necessary resources for
+// indexing the configured L1 and L2 chains
 type Indexer struct {
-	ctx      context.Context
-	cfg      Config
-	l1Client *ethclient.Client
-	l2Client *ethclient.Client
+	log log.Logger
+	DB  *database.DB
 
-	l1IndexingService *l1.Service
-	l2IndexingService *l2.Service
-	airdropService    *services.Airdrop
+	l1Client node.EthClient
+	l2Client node.EthClient
 
-	router  *mux.Router
-	metrics *metrics.Metrics
-	db      *database.Database
-	server  *http.Server
+	// api server only really serves a /health endpoint here, but this may change in the future
+	apiServer *httputil.HTTPServer
+
+	metricsServer *httputil.HTTPServer
+
+	metricsRegistry *prometheus.Registry
+
+	L1ETL           *etl.L1ETL
+	L2ETL           *etl.L2ETL
+	BridgeProcessor *processors.BridgeProcessor
+
+	// shutdown requests the service that maintains the indexer to shut down,
+	// and provides the error-cause of the critical failure (if any).
+	shutdown context.CancelCauseFunc
+
+	stopped atomic.Bool
 }
 
-// NewIndexer initializes the Indexer, gathering any resources
-// that will be needed by the TxIndexer and StateIndexer
-// sub-services.
-func NewIndexer(cfg Config) (*Indexer, error) {
-	ctx := context.Background()
-
-	var logHandler log.Handler
-	if cfg.LogTerminal {
-		logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
-	} else {
-		logHandler = log.StreamHandler(os.Stdout, log.JSONFormat())
+// NewIndexer initializes an instance of the Indexer
+func NewIndexer(ctx context.Context, log log.Logger, cfg *config.Config, shutdown context.CancelCauseFunc) (*Indexer, error) {
+	out := &Indexer{
+		log:             log,
+		metricsRegistry: metrics.NewRegistry(),
+		shutdown:        shutdown,
 	}
-
-	logLevel, err := log.LvlFromString(cfg.LogLevel)
-	if err != nil {
-		return nil, err
+	if err := out.initFromConfig(ctx, cfg); err != nil {
+		return nil, errors.Join(err, out.Stop(ctx))
 	}
-
-	log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
-
-	// Connect to L1 and L2 providers. Perform these last since they are the
-	// most expensive.
-	l1Client, rawl1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
-	if err != nil {
-		return nil, err
-	}
-
-	l2Client, l2RPC, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
-	if err != nil {
-		return nil, err
-	}
-
-	m := metrics.NewMetrics(nil)
-
-	if cfg.MetricsServerEnable {
-		go func() {
-			_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)
-			if err != nil {
-				log.Error("metrics server failed to start", "err", err)
-			}
-		}()
-		log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
-	}
-
-	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable",
-		cfg.DBHost, cfg.DBPort, cfg.DBName)
-	if cfg.DBUser != "" {
-		dsn += fmt.Sprintf(" user=%s", cfg.DBUser)
-	}
-	if cfg.DBPassword != "" {
-		dsn += fmt.Sprintf(" password=%s", cfg.DBPassword)
-	}
-	db, err := database.NewDatabase(dsn)
-	if err != nil {
-		return nil, err
-	}
-
-	var addrManager services.AddressManager
-	if cfg.Bedrock {
-		addrManager, err = services.NewBedrockAddresses(
-			l1Client,
-			cfg.BedrockL1StandardBridgeAddress,
-			cfg.BedrockOptimismPortalAddress,
-		)
-	} else {
-		addrManager, err = services.NewLegacyAddresses(l1Client, common.HexToAddress(cfg.L1AddressManagerAddress))
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	l1IndexingService, err := l1.NewService(l1.ServiceConfig{
-		Context:            ctx,
-		Metrics:            m,
-		L1Client:           l1Client,
-		RawL1Client:        rawl1Client,
-		ChainID:            new(big.Int).SetUint64(cfg.ChainID),
-		AddressManager:     addrManager,
-		DB:                 db,
-		ConfDepth:          cfg.L1ConfDepth,
-		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
-		StartBlockNumber:   cfg.L1StartBlockNumber,
-		Bedrock:            cfg.Bedrock,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	l2IndexingService, err := l2.NewService(l2.ServiceConfig{
-		Context:            ctx,
-		Metrics:            m,
-		L2RPC:              l2RPC,
-		L2Client:           l2Client,
-		DB:                 db,
-		ConfDepth:          cfg.L2ConfDepth,
-		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
-		StartBlockNumber:   uint64(0),
-		Bedrock:            cfg.Bedrock,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &Indexer{
-		ctx:               ctx,
-		cfg:               cfg,
-		l1Client:          l1Client,
-		l2Client:          l2Client,
-		l1IndexingService: l1IndexingService,
-		l2IndexingService: l2IndexingService,
-		airdropService:    services.NewAirdrop(db, m),
-		router:            mux.NewRouter(),
-		metrics:           m,
-		db:                db,
-	}, nil
+	return out, nil
 }
 
-// Serve spins up a REST API server at the given hostname and port.
-func (b *Indexer) Serve() error {
-	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"*"},
-	})
+func (ix *Indexer) Start(ctx context.Context) error {
+	// If any of these services has a critical failure,
+	// the service can request a shutdown, while providing the error cause.
+	if err := ix.L1ETL.Start(); err != nil {
+		return fmt.Errorf("failed to start L1 ETL: %w", err)
+	}
+	if err := ix.L2ETL.Start(); err != nil {
+		return fmt.Errorf("failed to start L2 ETL: %w", err)
+	}
+	if err := ix.BridgeProcessor.Start(); err != nil {
+		return fmt.Errorf("failed to start bridge processor: %w", err)
+	}
+	return nil
+}
 
-	b.router.HandleFunc("/v1/l1/status", b.l1IndexingService.GetIndexerStatus).Methods("GET")
-	b.router.HandleFunc("/v1/l2/status", b.l2IndexingService.GetIndexerStatus).Methods("GET")
-	b.router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", b.l1IndexingService.GetDeposits).Methods("GET")
-	b.router.HandleFunc("/v1/withdrawal/0x{hash:[a-fA-F0-9]{64}}", b.l2IndexingService.GetWithdrawalBatch).Methods("GET")
-	b.router.HandleFunc("/v1/withdrawals/0x{address:[a-fA-F0-9]{40}}", b.l2IndexingService.GetWithdrawals).Methods("GET")
-	b.router.HandleFunc("/v1/airdrops/0x{address:[a-fA-F0-9]{40}}", b.airdropService.GetAirdrop)
-	b.router.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		_, err := w.Write([]byte("OK"))
-		if err != nil {
-			log.Error("Error handling /healthz", "error", err)
+func (ix *Indexer) Stop(ctx context.Context) error {
+	var result error
+
+	if ix.L1ETL != nil {
+		if err := ix.L1ETL.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close L1 ETL: %w", err))
 		}
-	})
-
-	middleware := server.LoggingMiddleware(b.metrics, log.New("service", "server"))
-
-	port := strconv.FormatUint(b.cfg.RESTPort, 10)
-	addr := net.JoinHostPort(b.cfg.RESTHostname, port)
-
-	b.server = &http.Server{
-		Addr:    addr,
-		Handler: middleware(c.Handler(b.router)),
 	}
 
-	errCh := make(chan error, 1)
+	if ix.L2ETL != nil {
+		if err := ix.L2ETL.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close L2 ETL: %w", err))
+		}
+	}
 
-	go func() {
-		errCh <- b.server.ListenAndServe()
-	}()
+	if ix.BridgeProcessor != nil {
+		if err := ix.BridgeProcessor.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close bridge processor: %w", err))
+		}
+	}
 
-	// Capture server startup errors
-	<-time.After(10 * time.Millisecond)
+	// Now that the ETLs are closed, we can stop the RPC clients
+	if ix.l1Client != nil {
+		ix.l1Client.Close()
+	}
+	if ix.l2Client != nil {
+		ix.l2Client.Close()
+	}
 
-	select {
-	case err := <-errCh:
+	if ix.apiServer != nil {
+		if err := ix.apiServer.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close indexer API server: %w", err))
+		}
+	}
+
+	// DB connection can be closed last, after all its potential users have shut down
+	if ix.DB != nil {
+		if err := ix.DB.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close DB: %w", err))
+		}
+	}
+
+	if ix.metricsServer != nil {
+		if err := ix.metricsServer.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close metrics server: %w", err))
+		}
+	}
+
+	ix.stopped.Store(true)
+
+	ix.log.Info("indexer stopped")
+
+	return result
+}
+
+func (ix *Indexer) Stopped() bool {
+	return ix.stopped.Load()
+}
+
+func (ix *Indexer) initFromConfig(ctx context.Context, cfg *config.Config) error {
+	if err := ix.initRPCClients(ctx, cfg.RPCs); err != nil {
+		return fmt.Errorf("failed to start RPC clients: %w", err)
+	}
+	if err := ix.initDB(ctx, cfg.DB); err != nil {
+		return fmt.Errorf("failed to init DB: %w", err)
+	}
+	if err := ix.initL1ETL(cfg.Chain); err != nil {
+		return fmt.Errorf("failed to init L1 ETL: %w", err)
+	}
+	if err := ix.initL2ETL(cfg.Chain); err != nil {
+		return fmt.Errorf("failed to init L2 ETL: %w", err)
+	}
+	if err := ix.initBridgeProcessor(cfg.Chain); err != nil {
+		return fmt.Errorf("failed to init Bridge-Processor: %w", err)
+	}
+	if err := ix.startHttpServer(ctx, cfg.HTTPServer); err != nil {
+		return fmt.Errorf("failed to start HTTP server: %w", err)
+	}
+	if err := ix.startMetricsServer(ctx, cfg.MetricsServer); err != nil {
+		return fmt.Errorf("failed to start Metrics server: %w", err)
+	}
+	return nil
+}
+
+func (ix *Indexer) initRPCClients(ctx context.Context, rpcsConfig config.RPCsConfig) error {
+	l1EthClient, err := node.DialEthClient(ctx, rpcsConfig.L1RPC, node.NewMetrics(ix.metricsRegistry, "l1"))
+	if err != nil {
+		return fmt.Errorf("failed to dial L1 client: %w", err)
+	}
+	ix.l1Client = l1EthClient
+
+	l2EthClient, err := node.DialEthClient(ctx, rpcsConfig.L2RPC, node.NewMetrics(ix.metricsRegistry, "l2"))
+	if err != nil {
+		return fmt.Errorf("failed to dial L2 client: %w", err)
+	}
+	ix.l2Client = l2EthClient
+	return nil
+}
+
+func (ix *Indexer) initDB(ctx context.Context, cfg config.DBConfig) error {
+	db, err := database.NewDB(ctx, ix.log, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	ix.DB = db
+	return nil
+}
+
+func (ix *Indexer) initL1ETL(chainConfig config.ChainConfig) error {
+	l1Cfg := etl.Config{
+		LoopIntervalMsec:  chainConfig.L1PollingInterval,
+		HeaderBufferSize:  chainConfig.L1HeaderBufferSize,
+		ConfirmationDepth: big.NewInt(int64(chainConfig.L1ConfirmationDepth)),
+		StartHeight:       big.NewInt(int64(chainConfig.L1StartingHeight)),
+	}
+	l1Etl, err := etl.NewL1ETL(l1Cfg, ix.log, ix.DB, etl.NewMetrics(ix.metricsRegistry, "l1"),
+		ix.l1Client, chainConfig.L1Contracts, ix.shutdown)
+	if err != nil {
 		return err
-	default:
-		log.Info("indexer REST server listening on", "addr", addr)
-		return nil
 	}
+	ix.L1ETL = l1Etl
+	return nil
 }
 
-// Start starts the starts the indexing service on L1 and L2 chains and also
-// starts the REST server.
-func (b *Indexer) Start() error {
-	if b.cfg.DisableIndexer {
-		log.Info("indexer disabled, only serving data")
-	} else {
-		err := b.l1IndexingService.Start()
-		if err != nil {
-			return err
-		}
-		err = b.l2IndexingService.Start()
-		if err != nil {
-			return err
-		}
+func (ix *Indexer) initL2ETL(chainConfig config.ChainConfig) error {
+	// L2 (defaults to predeploy contracts)
+	l2Cfg := etl.Config{
+		LoopIntervalMsec:  chainConfig.L2PollingInterval,
+		HeaderBufferSize:  chainConfig.L2HeaderBufferSize,
+		ConfirmationDepth: big.NewInt(int64(chainConfig.L2ConfirmationDepth)),
 	}
-
-	return b.Serve()
-}
-
-// Stop stops the indexing service on L1 and L2 chains.
-func (b *Indexer) Stop() {
-	b.db.Close()
-
-	if b.server != nil {
-		// background context here so it waits for
-		// conns to close
-		_ = b.server.Shutdown(context.Background())
-	}
-
-	if !b.cfg.DisableIndexer {
-		b.l1IndexingService.Stop()
-		b.l2IndexingService.Stop()
-	}
-}
-
-// dialL1EthClientWithTimeout attempts to dial the L1 provider using the
-// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
-// this method will return an error.
-func dialEthClientWithTimeout(ctx context.Context, url string) (
-	*ethclient.Client, *rpc.Client, error) {
-
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
-	defer cancel()
-
-	c, err := rpc.DialContext(ctxt, url)
+	l2Etl, err := etl.NewL2ETL(l2Cfg, ix.log, ix.DB, etl.NewMetrics(ix.metricsRegistry, "l2"),
+		ix.l2Client, chainConfig.L2Contracts, ix.shutdown)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	return ethclient.NewClient(c), c, nil
+	ix.L2ETL = l2Etl
+	return nil
+}
+
+func (ix *Indexer) initBridgeProcessor(chainConfig config.ChainConfig) error {
+	bridgeProcessor, err := processors.NewBridgeProcessor(
+		ix.log, ix.DB, bridge.NewMetrics(ix.metricsRegistry), ix.L1ETL, ix.L2ETL, chainConfig, ix.shutdown)
+	if err != nil {
+		return err
+	}
+	ix.BridgeProcessor = bridgeProcessor
+	return nil
+}
+
+func (ix *Indexer) startHttpServer(ctx context.Context, cfg config.ServerConfig) error {
+	ix.log.Debug("starting http server...", "port", cfg.Port)
+
+	r := chi.NewRouter()
+	r.Use(middleware.Heartbeat("/healthz"))
+
+	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
+	srv, err := httputil.StartHTTPServer(addr, r)
+	if err != nil {
+		return fmt.Errorf("http server failed to start: %w", err)
+	}
+	ix.apiServer = srv
+	ix.log.Info("http server started", "addr", srv.Addr())
+	return nil
+}
+
+func (ix *Indexer) startMetricsServer(ctx context.Context, cfg config.ServerConfig) error {
+	ix.log.Debug("starting metrics server...", "port", cfg.Port)
+	srv, err := metrics.StartServer(ix.metricsRegistry, cfg.Host, cfg.Port)
+	if err != nil {
+		return fmt.Errorf("metrics server failed to start: %w", err)
+	}
+	ix.metricsServer = srv
+	ix.log.Info("metrics server started", "addr", srv.Addr())
+	return nil
 }

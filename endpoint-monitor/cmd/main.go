@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	endpointMonitor "github.com/ethereum-optimism/optimism/endpoint-monitor"
 )
@@ -22,7 +22,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Flags = endpointMonitor.CLIFlags("ENDPOINT_MONITOR")
-	app.Version = fmt.Sprintf("%s-%s-%s", Version, GitCommit, GitDate)
+	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Name = "endpoint-monitor"
 	app.Usage = "Endpoint Monitoring Service"
 	app.Description = ""

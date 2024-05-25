@@ -4,16 +4,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 func TestCLIFlagsToEnvVars(t *testing.T) {
 	flags := []cli.Flag{
-		cli.StringFlag{
-			Name:   "test",
-			EnvVar: "OP_NODE_TEST_VAR",
+		&cli.StringFlag{
+			Name:    "test",
+			EnvVars: []string{"OP_NODE_TEST_VAR"},
 		},
-		cli.IntFlag{
+		&cli.IntFlag{
 			Name: "no env var",
 		},
 	}

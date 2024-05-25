@@ -10,11 +10,17 @@ import semver
 
 # Minimum version numbers for packages migrating from legacy versioning.
 MIN_VERSIONS = {
+    'ci-builder': '0.6.0',
+    'chain-mon': '0.2.2',
+    'indexer': '0.5.0',
     'op-node': '0.10.14',
     'op-batcher': '0.10.14',
+    'op-challenger': '0.0.4',
     'op-proposer': '0.10.14',
+    'op-ufm': '0.1.0',
     'proxyd': '3.16.0',
-    'indexer': '0.5.0'
+    'op-heartbeat': '0.1.0',
+    'ufm-metamask': '0.1.0',
 }
 
 VALID_BUMPS = ('major', 'minor', 'patch', 'prerelease', 'finalize-prerelease')

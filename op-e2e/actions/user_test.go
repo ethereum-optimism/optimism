@@ -10,13 +10,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-type regolithScheduledTest struct {
+type hardforkScheduledTest struct {
 	name             string
 	regolithTime     *hexutil.Uint64
+	deltaTime        *hexutil.Uint64
 	activateRegolith bool
+	activateDelta    bool
 }
 
 // TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various regolith configurations:
@@ -31,11 +33,18 @@ func TestCrossLayerUser(t *testing.T) {
 	zeroTime := hexutil.Uint64(0)
 	futureTime := hexutil.Uint64(20)
 	farFutureTime := hexutil.Uint64(2000)
-	tests := []regolithScheduledTest{
-		{name: "NoRegolith", regolithTime: nil, activateRegolith: false},
-		{name: "NotYetRegolith", regolithTime: &farFutureTime, activateRegolith: false},
-		{name: "RegolithAtGenesis", regolithTime: &zeroTime, activateRegolith: true},
-		{name: "RegolithAfterGenesis", regolithTime: &futureTime, activateRegolith: true},
+	tests := []hardforkScheduledTest{
+		{name: "NoRegolith", regolithTime: nil, activateRegolith: false, deltaTime: nil, activateDelta: false},
+		{name: "NotYetRegolith", regolithTime: &farFutureTime, activateRegolith: false, deltaTime: nil, activateDelta: false},
+		{name: "RegolithAtGenesis", regolithTime: &zeroTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
+		{name: "RegolithAfterGenesis", regolithTime: &futureTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
+		{name: "NoDelta", regolithTime: &zeroTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
+		{name: "NotYetDelta", regolithTime: &zeroTime, activateRegolith: true,
+			deltaTime: &farFutureTime, activateDelta: false},
+		{name: "DeltaAtGenesis", regolithTime: &zeroTime, activateRegolith: true,
+			deltaTime: &zeroTime, activateDelta: true},
+		{name: "DeltaAfterGenesis", regolithTime: &zeroTime, activateRegolith: true,
+			deltaTime: &futureTime, activateDelta: true},
 	}
 	for _, test := range tests {
 		test := test // Use a fixed reference as the tests run in parallel
@@ -45,19 +54,23 @@ func TestCrossLayerUser(t *testing.T) {
 	}
 }
 
-func runCrossLayerUserTest(gt *testing.T, test regolithScheduledTest) {
+func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = test.deltaTime
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
+
+	require.Equal(t, dp.Secrets.Addresses().Batcher, dp.DeployConfig.BatchSenderAddress)
+	require.Equal(t, dp.Secrets.Addresses().Proposer, dp.DeployConfig.L2OutputOracleProposer)
 
 	miner, seqEngine, seq := setupSequencerTest(t, sd, log)
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, seq.RollupClient(), miner.EthClient(), seqEngine.EthClient())
+	}, seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 	proposer := NewL2Proposer(t, log, &ProposerCfg{
 		OutputOracleAddr:  sd.DeploymentsL1.L2OutputOracleProxy,
 		ProposerKey:       dp.Secrets.Proposer,
@@ -77,7 +90,7 @@ func runCrossLayerUserTest(gt *testing.T, test regolithScheduledTest) {
 		EthCl:          l1Cl,
 		Signer:         types.LatestSigner(sd.L1Cfg.Config),
 		AddressCorpora: addresses,
-		Bindings:       NewL1Bindings(t, l1Cl, &sd.DeploymentsL1),
+		Bindings:       NewL1Bindings(t, l1Cl),
 	}
 	l2UserEnv := &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2Cl,

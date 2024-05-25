@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -144,7 +144,9 @@ func (ch *Channel) Reader() io.Reader {
 
 // BatchReader provides a function that iteratively consumes batches from the reader.
 // The L1Inclusion block is also provided at creation time.
-func BatchReader(r io.Reader, l1InclusionBlock eth.L1BlockRef) (func() (BatchWithL1InclusionBlock, error), error) {
+// Warning: the batch reader can read every batch-type.
+// The caller of the batch-reader should filter the results.
+func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	// Setup decompressor stage + RLP reader
 	zr, err := zlib.NewReader(r)
 	if err != nil {
@@ -152,11 +154,11 @@ func BatchReader(r io.Reader, l1InclusionBlock eth.L1BlockRef) (func() (BatchWit
 	}
 	rlpReader := rlp.NewStream(zr, MaxRLPBytesPerChannel)
 	// Read each batch iteratively
-	return func() (BatchWithL1InclusionBlock, error) {
-		ret := BatchWithL1InclusionBlock{
-			L1InclusionBlock: l1InclusionBlock,
+	return func() (*BatchData, error) {
+		var batchData BatchData
+		if err = rlpReader.Decode(&batchData); err != nil {
+			return nil, err
 		}
-		err := rlpReader.Decode(&ret.Batch)
-		return ret, err
+		return &batchData, nil
 	}, nil
 }

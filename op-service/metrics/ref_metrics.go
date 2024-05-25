@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,7 +34,7 @@ type RefMetrics struct {
 var _ RefMetricer = (*RefMetrics)(nil)
 
 // MakeRefMetrics returns a new RefMetrics, initializing its prometheus fields
-// using factory. It is supposed to be used inside the construtors of metrics
+// using factory. It is supposed to be used inside the constructors of metrics
 // structs for any op service after the full namespace and factory have been
 // setup.
 //

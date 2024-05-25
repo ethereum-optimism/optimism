@@ -1,33 +1,25 @@
 # op-chain-ops
 
-This package performs state surgery. It takes the following input:
+This package contains utilities for working with chain state.
 
-1. A v0 database
-2. A partial `genesis.json`
-3. A list of addresses that transacted on the network prior to this past regenesis.
-4. A list of addresses that performed approvals on prior versions of the OVM ETH contract.
+## check-l2
 
-It creates an initialized Bedrock Geth database as output. It does this by performing the following steps:
+The `check-l2` binary is used for verifying that an OP Stack L2
+has been configured correctly. It iterates over all 2048 predeployed
+proxies to make sure they are configured correctly with the correct
+proxy admin address. After that, it checks that all [predeploys](../op-bindings/predeploys/addresses.go)
+are configured and aliased correctly. Additional contract-specific
+checks ensure configuration like ownership, version, and storage
+is set correctly for the predeploys.
 
-1. Iterates over the old state.
-2. For each account in the old state, add that account and its storage to the new state after copying its balance from the OVM_ETH contract.
-3. Iterates over the pre-allocated accounts in the genesis file and adds them to the new state.
-4. Imports any accounts that have OVM ETH balances but aren't in state.
-5. Configures a genesis block in the new state using `genesis.json`.
+#### Usage
 
-It performs the following integrity checks:
+It can be built and run using the [Makefile](./Makefile) `check-l2` target.
+Run `make check-l2` to create a binary in [./bin/check-l2](./bin/check-l2)
+that can be executed by providing the `--l1-rpc-url` and `--l2-rpc-url` flags.
 
-1. OVM ETH storage slots must be completely accounted for.
-2. The total supply of OVM ETH migrated must match the total supply of the OVM ETH contract.
-
-This process takes about two hours on mainnet.
-
-Unlike previous iterations of our state surgery scripts, this one does not write results to a `genesis.json` file. This is for the following reasons:
-
-1. **Performance**. It's much faster to write binary to LevelDB than it is to write strings to a JSON file.
-2. **State Size**. There are nearly 1MM accounts on mainnet, which would create a genesis file several gigabytes in size. This is impossible for Geth to import without a large amount of memory, since the entire JSON gets buffered into memory. Importing the entire state database will be much faster, and can be done with fewer resources.
-
-## Compilation
-
-Run `make op-migrate`.
-
+```sh
+./bin/check-l2 \
+  --l2-rpc-url http://localhost:9545 \
+  --l1-rpc-url http://localhost:8545
+```

@@ -1,0 +1,167 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=db_username
+      - POSTGRES_PASSWORD=db_password
+      - POSTGRES_DB=db_name
+      - PGDATA=/data/postgres
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -q -U db_username -d db_name" ]
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/data/postgres
+      - ./migrations:/docker-entrypoint-initdb.d/
+
+  migrations:
+    build:
+      context: ..
+      dockerfile: indexer/Dockerfile
+    command: ["indexer", "migrate"]
+    environment:
+      - INDEXER_RPC_URL_L1=$INDEXER_RPC_URL_L1
+      - INDEXER_RPC_URL_L2=$INDEXER_RPC_URL_L2
+      - INDEXER_CONFIG=/indexer/indexer.toml
+      - INDEXER_CHAIN_PRESET=$INDEXER_CHAIN_PRESET
+      - INDEXER_DB_PORT=5432
+      - INDEXER_DB_HOST=postgres
+      - INDEXER_DB_USER=db_username 
+      - INDEXER_DB_PASS=db_password 
+      - INDEXER_DB_NAME=db_name
+    volumes:
+      - ./indexer.toml:/indexer/indexer.toml
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  indexer:
+    build:
+      context: ..
+      dockerfile: indexer/Dockerfile
+    command: ["indexer", "index"]
+    environment:
+      - INDEXER_RPC_URL_L1=$INDEXER_RPC_URL_L1
+      - INDEXER_RPC_URL_L2=$INDEXER_RPC_URL_L2
+      - INDEXER_CONFIG=/indexer/indexer.toml
+      - INDEXER_CHAIN_PRESET=$INDEXER_CHAIN_PRESET
+      - INDEXER_DB_PORT=5432
+      - INDEXER_DB_HOST=postgres
+      - INDEXER_DB_USER=db_username 
+      - INDEXER_DB_PASS=db_password 
+      - INDEXER_DB_NAME=db_name
+    volumes:
+      - ./indexer.toml:/indexer/indexer.toml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_started
+
+
+  api:
+    build:
+      context: ..
+      dockerfile: indexer/Dockerfile
+    command: ["indexer", "api"]
+    healthcheck:
+      test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
+    environment:
+      # Note that you must index goerli with INDEXER_BEDROCK=false first, then
+      # reindex with INDEXER_BEDROCK=true or seed the database
+      - INDEXER_RPC_URL_L1=$INDEXER_RPC_URL_L1
+      - INDEXER_RPC_URL_L2=$INDEXER_RPC_URL_L2
+      - INDEXER_CONFIG=/indexer/indexer.toml
+      - INDEXER_CHAIN_PRESET=$INDEXER_CHAIN_PRESET
+      - INDEXER_DB_HOST=postgres
+      - INDEXER_DB_PORT=5432
+      - INDEXER_DB_USER=db_username 
+      - INDEXER_DB_PASS=db_password 
+      - INDEXER_DB_NAME=db_name
+    volumes:
+      - ./indexer.toml:/indexer/indexer.toml
+    ports:
+      - 8080:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+        
+  ui:
+    build:
+      context: ..
+      dockerfile: indexer/ui/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://db_username:db_password@postgres:5432/db_name}
+    ports:
+      - 5555:5555
+    healthcheck:
+      test: wget localhost:5555 -q -O - > /dev/null 2>&1
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  prisma-check: 
+    restart: "no"
+    build:
+      context: ..
+      dockerfile: indexer/ui/Dockerfile
+    command: ./prisma.sh --check
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://db_username:db_password@postgres:5432/db_name}
+    depends_on:
+      indexer:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  backend-goerli:
+    image: ethereumoptimism/gateway-backend:latest
+    platform: linux/amd64
+    environment:
+      # this enables the backend to proxy history requests to the indexer
+      - BRIDGE_INDEXER_URI=http://api
+      - HOST=0.0.0.0
+      - PORT=7300
+      - MIGRATE_APP_DB_USER=${MIGRATE_APP_DB_USER:-postgres}
+      - MIGRATE_APP_DB_PASSWORD=${MIGRATE_APP_DB_PASSWORD:-db_password}
+      - APP_DB_HOST=${APP_DB_HOST:-postgres-app}
+      - APP_DB_USER=${APP_DB_USER:-gateway-backend-goerli@oplabs-local-web.iam}
+      - APP_DB_NAME=${APP_DB_NAME:-gateway}
+      - APP_DB_PORT=${APP_DB_PORT:-5432}
+      - INDEXER_DB_HOST=${INDEXER_DB_HOST_GOERLI:-postgres-goerli}
+      - INDEXER_DB_USER=${INDEXER_DB_USER_GOERLI:-db_username}
+      - INDEXER_DB_PASS=${INDEXER_DB_PASSWORD_GOERLI:-db_password}
+      - INDEXER_DB_NAME=${INDEXER_DB_NAME_GOERLI:-db_name}
+      - INDEXER_DB_PORT=${INDEXER_DB_PORT_GOERLI:-5432}
+      - DATABASE_URL=${DATABASE_URL_GOERLI:-postgres://db_username:db_password@postgres-goerli:5432/db_name}
+      - JSON_RPC_URLS_L1=$JSON_RPC_URLS_L1_GOERLI
+      - JSON_RPC_URLS_L2=$JSON_RPC_URLS_L2_GOERLI
+      - JSON_RPC_URLS_L2_GOERLI=$JSON_RPC_URLS_L2_GOERLI
+      - FAUCET_AUTH_ADMIN_WALLET_PRIVATE_KEY=$FAUCET_AUTH_ADMIN_WALLET_PRIVATE_KEY
+      - IRON_SESSION_SECRET=${IRON_SESSION_SECRET:-UNKNOWN_IRON_SESSION_PASSWORD_32}
+      - CHAIN_ID_L1=5
+      - CHAIN_ID_L2=420
+      - FLEEK_BUCKET_ADDRESS=34a609661-6774-441f-9fdb-453fdbb89931-bucket
+      - FLEEK_API_SECRET=$FLEEK_API_SECRET
+      - FLEEK_API_KEY=$FLEEK_API_KEY
+      - MOCK_MERKLE_PROOF=true
+      - LOOP_INTERVAL_MINUTES=.1
+      - GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
+      - GITHUB_SECRET=$GITHUB_SECRET
+      - MAINNET_BEDROCK=true
+      - TRM_API_KEY=$TRM_API_KEY
+      - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=oplabs-dev-web-content
+      # Recommend to uncomment for local dev unless you need it
+      #- BYPASS_EVENT_LOG_POLLER_BOOTSTRAP=true
+    ports:
+      - 7422:7300
+    # overrides command in Dockerfile so we can hot reload the server in docker while developing
+    #command: ['pnpm', 'nx', 'run', '@gateway/backend:docker:watch']
+    healthcheck:
+      test: curl http://0.0.0.0:7300/api/v0/healthz
+
+volumes:
+  postgres_data:

@@ -1,15 +1,17 @@
 package metrics
 
 import (
-	"context"
+	"io"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -26,10 +28,16 @@ type Metricer interface {
 	// Record Tx metrics
 	txmetrics.TxMetricer
 
+	opmetrics.RPCMetricer
+
+	StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer
+
 	RecordLatestL1Block(l1ref eth.L1BlockRef)
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
 	RecordChannelOpened(id derive.ChannelID, numPendingBlocks int)
 	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int)
+	RecordL2BlockInPendingQueue(block *types.Block)
+	RecordL2BlockInChannel(block *types.Block)
 	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
@@ -48,15 +56,18 @@ type Metrics struct {
 
 	opmetrics.RefMetrics
 	txmetrics.TxMetrics
+	opmetrics.RPCMetrics
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
-	// label by openend, closed, fully_submitted, timed_out
+	// label by opened, closed, fully_submitted, timed_out
 	channelEvs opmetrics.EventVec
 
-	pendingBlocksCount prometheus.GaugeVec
-	blocksAddedCount   prometheus.Gauge
+	pendingBlocksCount        prometheus.GaugeVec
+	pendingBlocksBytesTotal   prometheus.Counter
+	pendingBlocksBytesCurrent prometheus.Gauge
+	blocksAddedCount          prometheus.Gauge
 
 	channelInputBytes       prometheus.GaugeVec
 	channelReadyBytes       prometheus.Gauge
@@ -71,6 +82,9 @@ type Metrics struct {
 }
 
 var _ Metricer = (*Metrics)(nil)
+
+// implements the Registry getter, for metrics HTTP server to hook into
+var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
 
 func NewMetrics(procName string) *Metrics {
 	if procName == "" {
@@ -88,6 +102,7 @@ func NewMetrics(procName string) *Metrics {
 
 		RefMetrics: opmetrics.MakeRefMetrics(ns, factory),
 		TxMetrics:  txmetrics.MakeTxMetrics(ns, factory),
+		RPCMetrics: opmetrics.MakeRPCMetrics(ns, factory),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -109,6 +124,16 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "pending_blocks_count",
 			Help:      "Number of pending blocks, not added to a channel yet.",
 		}, []string{"stage"}),
+		pendingBlocksBytesTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "pending_blocks_bytes_total",
+			Help:      "Total size of transactions in pending blocks as they are fetched from L2",
+		}),
+		pendingBlocksBytesCurrent: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pending_blocks_bytes_current",
+			Help:      "Current size of transactions in the pending (fetched from L2 but not in a channel) stage.",
+		}),
 		blocksAddedCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "blocks_added_count",
@@ -161,17 +186,16 @@ func NewMetrics(procName string) *Metrics {
 	}
 }
 
-func (m *Metrics) Serve(ctx context.Context, host string, port int) error {
-	return opmetrics.ListenAndServe(ctx, m.registry, host, port)
+func (m *Metrics) Registry() *prometheus.Registry {
+	return m.registry
 }
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
-func (m *Metrics) StartBalanceMetrics(ctx context.Context,
-	l log.Logger, client *ethclient.Client, account common.Address) {
-	opmetrics.LaunchBalanceMetrics(ctx, l, m.registry, m.ns, client, account)
+func (m *Metrics) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {
+	return opmetrics.LaunchBalanceMetrics(l, m.registry, m.ns, client, account)
 }
 
 // RecordInfo sets a pseudo-metric that contains versioning and
@@ -243,6 +267,18 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 	m.channelClosedReason.Set(float64(ClosedReasonToNum(reason)))
 }
 
+func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
+	size := float64(estimateBatchSize(block))
+	m.pendingBlocksBytesTotal.Add(size)
+	m.pendingBlocksBytesCurrent.Add(size)
+}
+
+func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
+	size := float64(estimateBatchSize(block))
+	m.pendingBlocksBytesCurrent.Add(-1 * size)
+	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
+}
+
 func ClosedReasonToNum(reason error) int {
 	// CLI-3640
 	return 0
@@ -266,4 +302,18 @@ func (m *Metrics) RecordBatchTxSuccess() {
 
 func (m *Metrics) RecordBatchTxFailed() {
 	m.batcherTxEvs.Record(TxStageFailed)
+}
+
+// estimateBatchSize estimates the size of the batch
+func estimateBatchSize(block *types.Block) uint64 {
+	size := uint64(70) // estimated overhead of batch metadata
+	for _, tx := range block.Transactions() {
+		// Don't include deposit transactions in the batch.
+		if tx.IsDepositTx() {
+			continue
+		}
+		// Add 2 for the overhead of encoding the tx bytes in a RLP list
+		size += tx.Size() + 2
+	}
+	return size
 }

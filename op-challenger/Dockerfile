@@ -1,29 +1,17 @@
-FROM --platform=$BUILDPLATFORM golang:1.19.0-alpine3.15 as builder
+ARG OP_STACK_GO_BUILDER=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
+FROM $OP_STACK_GO_BUILDER as builder
+# See "make golang-docker" and /ops/docker/op-stack-go
 
-ARG VERSION=v0.0.0
+FROM alpine:3.18
 
-RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
+# Make the bundled op-program the default cannon server
+COPY --from=builder /usr/local/bin/op-program /usr/local/bin/op-program
+ENV OP_CHALLENGER_CANNON_SERVER /usr/local/bin/op-program
 
-# build op-challenger with the shared go.mod & go.sum files
-COPY ./op-challenger /app/op-challenger
-COPY ./op-bindings /app/op-bindings
-COPY ./op-node /app/op-node
-COPY ./op-service /app/op-service
-COPY ./op-signer /app/op-signer
-COPY ./go.mod /app/go.mod
-COPY ./go.sum /app/go.sum
-COPY ./.git /app/.git
+# Make the bundled cannon the default cannon executable
+COPY --from=builder /usr/local/bin/cannon /usr/local/bin/cannon
+ENV OP_CHALLENGER_CANNON_BIN /usr/local/bin/cannon
 
-WORKDIR /app/op-challenger
-
-RUN go mod download
-
-ARG TARGETOS TARGETARCH
-
-RUN make op-challenger VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
-
-FROM alpine:3.15
-
-COPY --from=builder /app/op-challenger/bin/op-challenger /usr/local/bin
+COPY --from=builder /usr/local/bin/op-challenger /usr/local/bin/op-challenger
 
 CMD ["op-challenger"]

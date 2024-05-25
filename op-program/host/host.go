@@ -10,8 +10,7 @@ import (
 	"os/exec"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	cl "github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
@@ -19,14 +18,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	oppio "github.com/ethereum-optimism/optimism/op-program/io"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type L2Source struct {
-	*sources.L2Client
+	*L2Client
 	*sources.DebugClient
 }
 
@@ -35,7 +35,7 @@ func Main(logger log.Logger, cfg *config.Config) error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, logger)
-	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkName)
+	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkDisplayName)
 
 	ctx := context.Background()
 	if cfg.ServerMode {
@@ -174,7 +174,7 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 
 	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
 	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
-	preimageGetter := splitter.Get
+	preimageGetter := preimage.WithVerification(splitter.Get)
 
 	serverDone = launchOracleServer(logger, preimageChannel, preimageGetter)
 	hinterDone = routeHints(logger, hintChannel, hinter)
@@ -188,13 +188,13 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 
 func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL)
+	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialBackoff(10))
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup L1 RPC: %w", err)
 	}
 
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL)
+	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL, client.WithDialBackoff(10))
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
 	}
@@ -205,7 +205,7 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 client: %w", err)
 	}
-	l2Cl, err := sources.NewL2Client(l2RPC, logger, nil, l2ClCfg)
+	l2Cl, err := NewL2Client(l2RPC, logger, nil, &L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2 client: %w", err)
 	}

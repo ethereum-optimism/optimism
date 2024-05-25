@@ -1,0 +1,19 @@
+# All the files we depend on. We are using a negative pattern to not include anything by accident.
+# node_modules, packages (contains git submodules and node modules etc.), devnet dirs etc. all add up a lot.
+*
+
+!/cannon
+!/op-batcher
+!/op-bindings
+!/op-bootnode
+!/op-chain-ops
+!/op-challenger
+!/op-heartbeat
+!/op-node
+!/op-preimage
+!/op-program
+!/op-proposer
+!/op-service
+!/op-wheel
+!/go.mod
+!/go.sum

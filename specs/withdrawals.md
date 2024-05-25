@@ -48,8 +48,7 @@ finalization.
 - [Security Considerations](#security-considerations)
   - [Key Properties of Withdrawal Verification](#key-properties-of-withdrawal-verification)
   - [Handling Successfully Verified Messages That Fail When Relayed](#handling-successfully-verified-messages-that-fail-when-relayed)
-- [Summary of Definitions](#summary-of-definitions)
-  - [Constants](#constants)
+  - [OptimismPortal can send arbitrary messages on L1](#optimismportal-can-send-arbitrary-messages-on-l1)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -216,15 +215,17 @@ whether or not it was 'supposed' to fail, and whether or not it should be 'repla
 minimize complexity, we have not provided any replay functionality, this may be implemented in external utility
 contracts if desired.
 
-## Summary of Definitions
+[`WithdrawalTransaction` type]: https://github.com/ethereum-optimism/optimism/blob/08daf8dbd38c9ffdbd18fc9a211c227606cdb0ad/packages/contracts-bedrock/src/libraries/Types.sol#L62-L69
+[`OutputRootProof` type]: https://github.com/ethereum-optimism/optimism/blob/08daf8dbd38c9ffdbd18fc9a211c227606cdb0ad/packages/contracts-bedrock/src/libraries/Types.sol#L25-L30
 
-### Constants
+### OptimismPortal can send arbitrary messages on L1
 
-| Name                  | Value     | Unit    |
-| --------------------- | --------- | ------- |
-| `FINALIZATION_PERIOD` | `604_800` | seconds |
+The `L2ToL1MessagePasser` contract's `initiateWithdrawal` function accepts a `_target` address and `_data` bytes,
+which is passed to a `CALL` opcode on L1 when `finalizeWithdrawalTransaction` is called after the challenge
+period. This means that, by design, the `OptimismPortal` contract can be used to send arbitrary transactions on
+the L1, with the `OptimismPortal` as the `msg.sender`.
 
-This `FINALIZATION_PERIOD` value is equivalent to 7 days.
-
-[`WithdrawalTransaction` type]: https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L76-L83
-[`OutputRootProof` type]: https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L33-L38
+This means users of the `OptimismPortal` contract should be careful what permissions they grant to the portal.
+For example, any ERC20 tokens mistakenly sent to the `OptimismPortal` contract are essentially lost, as they can
+be claimed by anybody that pre-approves transfers of this token out of the portal, using the L2 to initiate the
+approval and the L1 to prove and finalize the approval (after the challenge period).

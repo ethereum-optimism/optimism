@@ -1,5 +1,107 @@
 # @eth-optimism/sdk
 
+## 3.1.6
+
+### Patch Changes
+
+- [#8212](https://github.com/ethereum-optimism/optimism/pull/8212) [`dd0e46986`](https://github.com/ethereum-optimism/optimism/commit/dd0e46986f19dcceb304fc48f2bd410685ecd179) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Simplifies getMessageStatus to use an O(1) lookup instead of an event query
+
+## 3.1.5
+
+### Patch Changes
+
+- [#8155](https://github.com/ethereum-optimism/optimism/pull/8155) [`2534eabb5`](https://github.com/ethereum-optimism/optimism/commit/2534eabb50afe76f176407f83cc1f1c606e6de69) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Fixed bug with tokenBridge checks throwing
+
+## 3.1.4
+
+### Patch Changes
+
+- [#7450](https://github.com/ethereum-optimism/optimism/pull/7450) [`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated dev dependencies related to testing that is causing audit tooling to report failures
+
+- Updated dependencies [[`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e)]:
+  - @eth-optimism/contracts-bedrock@0.16.2
+  - @eth-optimism/core-utils@0.13.1
+
+## 3.1.3
+
+### Patch Changes
+
+- [#7244](https://github.com/ethereum-optimism/optimism/pull/7244) [`679207751`](https://github.com/ethereum-optimism/optimism/commit/6792077510fd76553c179d8b8d068262cda18db6) Thanks [@nitaliano](https://github.com/nitaliano)! - Adds Sepolia & OP Sepolia support to SDK
+
+- Updated dependencies [[`210b2c81d`](https://github.com/ethereum-optimism/optimism/commit/210b2c81dd383bad93480aa876b283d9a0c991c2), [`2440f5e7a`](https://github.com/ethereum-optimism/optimism/commit/2440f5e7ab6577f2d2e9c8b0c78c014290dde8e7)]:
+  - @eth-optimism/core-utils@0.13.0
+  - @eth-optimism/contracts-bedrock@0.16.1
+
+## 3.1.2
+
+### Patch Changes
+
+- [#6886](https://github.com/ethereum-optimism/optimism/pull/6886) [`9c3a03855`](https://github.com/ethereum-optimism/optimism/commit/9c3a03855dc982f0b4e1d664e83271883536632b) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated npm dependencies to latest
+
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [[`dfa309e34`](https://github.com/ethereum-optimism/optimism/commit/dfa309e3430ebc8790b932554dde120aafc4161e)]:
+  - @eth-optimism/core-utils@0.12.3
+
+## 3.1.0
+
+### Minor Changes
+
+- [#6053](https://github.com/ethereum-optimism/optimism/pull/6053) [`ff577455f`](https://github.com/ethereum-optimism/optimism/commit/ff577455f196b5f5b8a889339b845561ca6c538a) Thanks [@roninjin10](https://github.com/roninjin10)! - Add support for claiming multicall3 withdrawals
+
+- [#6042](https://github.com/ethereum-optimism/optimism/pull/6042) [`89ca741a6`](https://github.com/ethereum-optimism/optimism/commit/89ca741a63c5e07f9d691bb6f7a89f7718fc49ca) Thanks [@roninjin10](https://github.com/roninjin10)! - Fixes issue with legacy withdrawal message status detection
+
+- [#6332](https://github.com/ethereum-optimism/optimism/pull/6332) [`639163253`](https://github.com/ethereum-optimism/optimism/commit/639163253a5e2128f1c21c446b68d358d38cbd30) Thanks [@wilsoncusack](https://github.com/wilsoncusack)! - Added to and from block filters to several methods in CrossChainMessenger
+
+### Patch Changes
+
+- [#6254](https://github.com/ethereum-optimism/optimism/pull/6254) [`a666c4f20`](https://github.com/ethereum-optimism/optimism/commit/a666c4f2082253abbb68c0678e5a0a1ed0c00f4b) Thanks [@roninjin10](https://github.com/roninjin10)! - Fixed missing indexes for multicall support
+
+- [#6164](https://github.com/ethereum-optimism/optimism/pull/6164) [`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a) Thanks [@pengin7384](https://github.com/pengin7384)! - fix typo
+
+- [#6198](https://github.com/ethereum-optimism/optimism/pull/6198) [`77da6edc6`](https://github.com/ethereum-optimism/optimism/commit/77da6edc643e0b5e39f7b6bb41c3c7ead418a876) Thanks [@tremarkley](https://github.com/tremarkley)! - Delete dead typescript https://github.com/ethereum-optimism/optimism/pull/6148.
+
+- [#6182](https://github.com/ethereum-optimism/optimism/pull/6182) [`3f13fd0bb`](https://github.com/ethereum-optimism/optimism/commit/3f13fd0bbea051a4550f1df6def1a53a616aa6f6) Thanks [@tremarkley](https://github.com/tremarkley)! - Update the addresses of the bridges on optimism and optimism goerli for the ECO bridge adapter
+
+- Updated dependencies [[`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a), [`72d184854`](https://github.com/ethereum-optimism/optimism/commit/72d184854ebad8b2025641f126ed76573b1f0ac3), [`77da6edc6`](https://github.com/ethereum-optimism/optimism/commit/77da6edc643e0b5e39f7b6bb41c3c7ead418a876)]:
+  - @eth-optimism/contracts-bedrock@0.16.0
+  - @eth-optimism/core-utils@0.12.2
+
+## 3.0.0
+
+### Major Changes
+
+- 119754c2f: Make optimism/sdk default to bedrock mode
+
+### Patch Changes
+
+- Updated dependencies [8d7dcc70c]
+- Updated dependencies [d6388be4a]
+- Updated dependencies [af292562f]
+  - @eth-optimism/core-utils@0.12.1
+  - @eth-optimism/contracts-bedrock@0.15.0
+
+## 2.1.0
+
+### Minor Changes
+
+- 5063a69fb: Update sdk contract addresses for bedrock
+
+### Patch Changes
+
+- a1b7ff9e3: add eco bridge adapter
+- 8133872ed: Fix firefox bug with getTokenPair
+- afc2ab8c9: Update the migrated withdrawal gas limit for non goerli networks
+- aa854bdd8: Add warning if bedrock is not turned on
+- Updated dependencies [f1e867177]
+- Updated dependencies [197884eae]
+- Updated dependencies [6eb05430d]
+- Updated dependencies [5063a69fb]
+  - @eth-optimism/contracts-bedrock@0.14.0
+  - @eth-optimism/contracts@0.6.0
+
 ## 2.0.2
 
 ### Patch Changes

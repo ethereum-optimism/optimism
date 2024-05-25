@@ -4,10 +4,8 @@
     "outDir": "./dist"
   },
   "include": [
-    "src/**/*",
     "deploy-config/**/*",
     "deploy-config/**/*.json",
-    "tasks/**/*",
     "scripts/**/*"
   ]
 }

@@ -10,8 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
@@ -75,7 +78,13 @@ func (ch *Cheater) Close() error {
 	return ch.DB.Close()
 }
 
-type HeadFn func(headState *state.StateDB) error
+func openStorageTrie(s *state.StateDB, addr common.Address) (state.Trie, error) {
+	stateRoot := s.IntermediateRoot(true)
+	storageRoot := s.GetStorageRoot(addr)
+	return s.Database().OpenStorageTrie(stateRoot, addr, storageRoot)
+}
+
+type HeadFn func(header *types.Header, headState *state.StateDB) error
 
 // RunAndClose runs the given function on the head-state, and then persists any changes (if not ReadOnly),
 // and updates the blockchain headers indexes to reflect the new state-root, so geth will believe the cheat
@@ -90,7 +99,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 		_ = ch.Close()
 		return fmt.Errorf("failed to look up head state: %w", err)
 	}
-	if err := fn(state); err != nil {
+	if err := fn(preHeader, state); err != nil {
 		_ = ch.Close()
 		return fmt.Errorf("failed to run state change: %w", err)
 	}
@@ -99,12 +108,12 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	}
 
 	// commit the changes, and then update the state-root
-	stateRoot, err := state.Commit(true)
+	stateRoot, err := state.Commit(preHeader.Number.Uint64()+1, true)
 	if err != nil {
 		_ = ch.Close()
 		return fmt.Errorf("failed to commit state change: %w", err)
 	}
-	header := preHeader // copy the header
+	header := types.CopyHeader(preHeader) // copy the header
 	header.Root = stateRoot
 	blockHash := header.Hash()
 
@@ -136,7 +145,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	rawdb.WriteTd(batch, blockHash, preID.Number, ch.Blockchain.GetTd(preID.Hash, preID.Number))
 
 	// Need to copy over receipts since they are keyed by block hash.
-	receipts := rawdb.ReadReceipts(ch.DB, preID.Hash, preID.Number, ch.Blockchain.Config())
+	receipts := rawdb.ReadReceipts(ch.DB, preID.Hash, preID.Number, preHeader.Time, ch.Blockchain.Config())
 	rawdb.WriteReceipts(batch, blockHash, preID.Number, receipts)
 
 	// Geth maintains an internal mapping between block bodies and their hashes. None of the database
@@ -168,7 +177,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 
 // StorageSet modifies the storage of the given address at the given key to the given value.
 func StorageSet(address common.Address, key common.Hash, value common.Hash) HeadFn {
-	return func(headState *state.StateDB) error {
+	return func(_ *types.Header, headState *state.StateDB) error {
 		headState.SetState(address, key, value)
 		return nil
 	}
@@ -176,7 +185,7 @@ func StorageSet(address common.Address, key common.Hash, value common.Hash) Head
 
 // StorageGet just reads the storage of the given address at the given key.
 func StorageGet(address common.Address, key common.Hash, w io.Writer) HeadFn {
-	return func(headState *state.StateDB) error {
+	return func(_ *types.Header, headState *state.StateDB) error {
 		value := headState.GetState(address, key)
 		_, err := io.WriteString(w, value.Hex())
 		return err
@@ -188,15 +197,19 @@ func StorageGet(address common.Address, key common.Hash, w io.Writer) HeadFn {
 // Combined with StoragePatch this allows for quick surgery of 1 account in one database,
 // to another account (maybe even in a different database!).
 func StorageReadAll(address common.Address, w io.Writer) HeadFn {
-	return func(headState *state.StateDB) error {
-		storage, err := headState.StorageTrie(address)
+	return func(_ *types.Header, headState *state.StateDB) error {
+		storage, err := openStorageTrie(headState, address)
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr %s: %w", address, err)
 		}
 		if storage == nil {
 			return fmt.Errorf("no storage trie in state for account %s", address)
 		}
-		iter := trie.NewIterator(storage.NodeIterator(nil))
+		nodeIter, err := storage.NodeIterator(nil)
+		if err != nil {
+			return fmt.Errorf("failed to create node iterator for storage of %s: %w", address, err)
+		}
+		iter := trie.NewIterator(nodeIter)
 		for iter.Next() {
 			if _, err := fmt.Fprintf(w, "+ %x = %x\n", iter.Key, dbValueToHash(iter.Value)); err != nil {
 				return err
@@ -221,23 +234,31 @@ func dbValueToHash(enc []byte) common.Hash {
 // StorageDiff compares the storage of two different accounts, and writes a patch with differences.
 // Each difference is expressed with 1 character + or - to indicate the change from a to b, followed by key = value.
 func StorageDiff(out io.Writer, addressA, addressB common.Address) HeadFn {
-	return func(headState *state.StateDB) error {
-		aStorage, err := headState.StorageTrie(addressA)
+	return func(_ *types.Header, headState *state.StateDB) error {
+		aStorage, err := openStorageTrie(headState, addressA)
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr A %s: %w", addressA, err)
 		}
 		if aStorage == nil {
 			return fmt.Errorf("no storage trie in state for account A %s", addressA)
 		}
-		bStorage, err := headState.StorageTrie(addressB)
+		bStorage, err := openStorageTrie(headState, addressB)
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr B %s: %w", addressB, err)
 		}
 		if bStorage == nil {
 			return fmt.Errorf("no storage trie in state for account B %s", addressB)
 		}
-		aIter := trie.NewIterator(aStorage.NodeIterator(nil))
-		bIter := trie.NewIterator(bStorage.NodeIterator(nil))
+		aNodeIter, err := aStorage.NodeIterator(nil)
+		if err != nil {
+			return fmt.Errorf("failed to create node iterator for storage of %s (A): %w", addressA, err)
+		}
+		bNodeIter, err := bStorage.NodeIterator(nil)
+		if err != nil {
+			return fmt.Errorf("failed to create node iterator for storage of %s (b): %w", addressB, err)
+		}
+		aIter := trie.NewIterator(aNodeIter)
+		bIter := trie.NewIterator(bNodeIter)
 		hasA := aIter.Next()
 		hasB := bIter.Next()
 		for {
@@ -281,7 +302,7 @@ func StorageDiff(out io.Writer, addressA, addressB common.Address) HeadFn {
 // Deletions are prefixed with (-) and overwrite it to a zero value.
 // Comments (#) and empty lines are ignored.
 func StoragePatch(patch io.Reader, address common.Address) HeadFn {
-	return func(headState *state.StateDB) error {
+	return func(head *types.Header, headState *state.StateDB) error {
 		s := bufio.NewScanner(patch)
 		i := 0
 		for s.Scan() {
@@ -309,7 +330,7 @@ func StoragePatch(patch io.Reader, address common.Address) HeadFn {
 			}
 			i += 1
 			if i%1000 == 0 { // for every 1000 values, commit to disk
-				if _, err := headState.Commit(true); err != nil {
+				if _, err := headState.Commit(head.Number.Uint64(), true); err != nil {
 					return fmt.Errorf("failed to commit state to disk after patching %d entries: %w", i, err)
 				}
 			}
@@ -326,7 +347,7 @@ type OvmOwnersConfig struct {
 }
 
 func OvmOwners(conf *OvmOwnersConfig) HeadFn {
-	return func(headState *state.StateDB) error {
+	return func(_ *types.Header, headState *state.StateDB) error {
 		var addressManager common.Address // Lib_AddressManager
 		var l1SBProxy common.Address      // Proxy__OVM_L1StandardBridge
 		var l1XDMProxy common.Address     // Proxy__OVM_L1CrossDomainMessenger
@@ -350,19 +371,19 @@ func OvmOwners(conf *OvmOwnersConfig) HeadFn {
 
 		// Address manager owner
 		// Ownable, first storage slot
-		headState.SetState(addressManager, common.Hash{}, conf.Owner.Hash())
+		headState.SetState(addressManager, common.Hash{}, eth.AddressAsLeftPaddedHash(conf.Owner))
 		// L1SB proxy owner
-		headState.SetState(l1SBProxy, ownerSlot, conf.Owner.Hash())
+		headState.SetState(l1SBProxy, ownerSlot, eth.AddressAsLeftPaddedHash(conf.Owner))
 		// L1XDM owner
 		// 0x33 = 51. L1CrossDomainMessenger is L1CrossDomainMessenger (0) Lib_AddressResolver (1) OwnableUpgradeable (1, but covered by gap) + ContextUpgradeable (special gap of 50) and then _owner
-		headState.SetState(l1XDMProxy, common.Hash{31: 0x33}, conf.Owner.Hash())
+		headState.SetState(l1XDMProxy, common.Hash{31: 0x33}, eth.AddressAsLeftPaddedHash(conf.Owner))
 		// L1 ERC721 bridge owner
-		headState.SetState(l1ERC721BridgeProxy, ownerSlot, conf.Owner.Hash())
+		headState.SetState(l1ERC721BridgeProxy, ownerSlot, eth.AddressAsLeftPaddedHash(conf.Owner))
 		// Legacy sequencer/proposer addresses
 		// See AddressManager.sol "addresses" mapping(bytes32 => address), at slot position 1
 		addressesSlot := common.BigToHash(big.NewInt(1))
-		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Sequencer")), addressesSlot.Bytes()), conf.Sequencer.Hash())
-		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Proposer")), addressesSlot.Bytes()), conf.Proposer.Hash())
+		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Sequencer")), addressesSlot.Bytes()), eth.AddressAsLeftPaddedHash(conf.Sequencer))
+		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Proposer")), addressesSlot.Bytes()), eth.AddressAsLeftPaddedHash(conf.Proposer))
 		// Fund sequencer and proposer with 100 ETH
 		headState.SetBalance(conf.Sequencer, HundredETH)
 		headState.SetBalance(conf.Proposer, HundredETH)
@@ -371,14 +392,21 @@ func OvmOwners(conf *OvmOwnersConfig) HeadFn {
 }
 
 func SetBalance(addr common.Address, amount *big.Int) HeadFn {
-	return func(headState *state.StateDB) error {
+	return func(_ *types.Header, headState *state.StateDB) error {
 		headState.SetBalance(addr, amount)
 		return nil
 	}
 }
 
+func SetCode(addr common.Address, code hexutil.Bytes) HeadFn {
+	return func(_ *types.Header, headState *state.StateDB) error {
+		headState.SetCode(addr, code)
+		return nil
+	}
+}
+
 func SetNonce(addr common.Address, nonce uint64) HeadFn {
-	return func(headState *state.StateDB) error {
+	return func(_ *types.Header, headState *state.StateDB) error {
 		headState.SetNonce(addr, nonce)
 		return nil
 	}

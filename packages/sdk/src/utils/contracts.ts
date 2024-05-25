@@ -1,6 +1,19 @@
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
-import { getContractInterface as getContractInterfaceBedrock } from '@eth-optimism/contracts-bedrock'
 import { ethers, Contract } from 'ethers'
+import l1StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1StandardBridge.sol/L1StandardBridge.json'
+import l2StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2StandardBridge.sol/L2StandardBridge.json'
+import optimismMintableERC20 from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismMintableERC20.sol/OptimismMintableERC20.json'
+import optimismPortal from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal.sol/OptimismPortal.json'
+import l1CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L1CrossDomainMessenger.sol/L1CrossDomainMessenger.json'
+import l2CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L2CrossDomainMessenger.sol/L2CrossDomainMessenger.json'
+import optimismMintableERC20Factory from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismMintableERC20Factory.sol/OptimismMintableERC20Factory.json'
+import proxyAdmin from '@eth-optimism/contracts-bedrock/forge-artifacts/ProxyAdmin.sol/ProxyAdmin.json'
+import l2OutputOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/L2OutputOracle.sol/L2OutputOracle.json'
+import l1ERC721Bridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1ERC721Bridge.sol/L1ERC721Bridge.json'
+import l2ERC721Bridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ERC721Bridge.sol/L2ERC721Bridge.json'
+import l1Block from '@eth-optimism/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.json'
+import l2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json'
+import gasPriceOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/GasPriceOracle.sol/GasPriceOracle.json'
 
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -30,6 +43,59 @@ const NAME_REMAPPING = {
   OVM_L1BlockNumber: 'iOVM_L1BlockNumber' as const,
   WETH: 'WETH9' as const,
   BedrockMessagePasser: 'L2ToL1MessagePasser' as const,
+}
+
+const getContractInterfaceBedrock = (name: string): ethers.utils.Interface => {
+  let artifact: any = ''
+  switch (name) {
+    case 'Lib_AddressManager':
+    case 'AddressManager':
+      artifact = ''
+      break
+    case 'L1CrossDomainMessenger':
+      artifact = l1CrossDomainMessenger
+      break
+    case 'L1ERC721Bridge':
+      artifact = l1ERC721Bridge
+      break
+    case 'L2OutputOracle':
+      artifact = l2OutputOracle
+      break
+    case 'OptimismMintableERC20Factory':
+      artifact = optimismMintableERC20Factory
+      break
+    case 'ProxyAdmin':
+      artifact = proxyAdmin
+      break
+    case 'L1StandardBridge':
+      artifact = l1StandardBridge
+      break
+    case 'L2StandardBridge':
+      artifact = l2StandardBridge
+      break
+    case 'OptimismPortal':
+      artifact = optimismPortal
+      break
+    case 'L2CrossDomainMessenger':
+      artifact = l2CrossDomainMessenger
+      break
+    case 'OptimismMintableERC20':
+      artifact = optimismMintableERC20
+      break
+    case 'L2ERC721Bridge':
+      artifact = l2ERC721Bridge
+      break
+    case 'L1Block':
+      artifact = l1Block
+      break
+    case 'L2ToL1MessagePasser':
+      artifact = l2ToL1MessagePasser
+      break
+    case 'GasPriceOracle':
+      artifact = gasPriceOracle
+      break
+  }
+  return new ethers.utils.Interface(artifact.abi)
 }
 
 /**

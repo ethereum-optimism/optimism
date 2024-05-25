@@ -5,33 +5,43 @@ import (
 	"math"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 const (
 	EnabledFlagName    = "pprof.enabled"
 	ListenAddrFlagName = "pprof.addr"
 	PortFlagName       = "pprof.port"
+	defaultListenAddr  = "0.0.0.0"
+	defaultListenPort  = 6060
 )
+
+func DefaultCLIConfig() CLIConfig {
+	return CLIConfig{
+		Enabled:    false,
+		ListenAddr: defaultListenAddr,
+		ListenPort: defaultListenPort,
+	}
+}
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
-		cli.BoolFlag{
-			Name:   EnabledFlagName,
-			Usage:  "Enable the pprof server",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "PPROF_ENABLED"),
+		&cli.BoolFlag{
+			Name:    EnabledFlagName,
+			Usage:   "Enable the pprof server",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ENABLED"),
 		},
-		cli.StringFlag{
-			Name:   ListenAddrFlagName,
-			Usage:  "pprof listening address",
-			Value:  "0.0.0.0",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
+		&cli.StringFlag{
+			Name:    ListenAddrFlagName,
+			Usage:   "pprof listening address",
+			Value:   defaultListenAddr, // TODO(CLI-4159): Switch to 127.0.0.1
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
 		},
-		cli.IntFlag{
-			Name:   PortFlagName,
-			Usage:  "pprof listening port",
-			Value:  6060,
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "PPROF_PORT"),
+		&cli.IntFlag{
+			Name:    PortFlagName,
+			Usage:   "pprof listening port",
+			Value:   defaultListenPort,
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_PORT"),
 		},
 	}
 }
@@ -56,8 +66,8 @@ func (m CLIConfig) Check() error {
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		Enabled:    ctx.GlobalBool(EnabledFlagName),
-		ListenAddr: ctx.GlobalString(ListenAddrFlagName),
-		ListenPort: ctx.GlobalInt(PortFlagName),
+		Enabled:    ctx.Bool(EnabledFlagName),
+		ListenAddr: ctx.String(ListenAddrFlagName),
+		ListenPort: ctx.Int(PortFlagName),
 	}
 }

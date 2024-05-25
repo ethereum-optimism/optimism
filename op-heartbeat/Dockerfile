@@ -1,19 +1,9 @@
-FROM golang:1.18.0-alpine3.15 as builder
+ARG OP_STACK_GO_BUILDER=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
+FROM $OP_STACK_GO_BUILDER as builder
+# See "make golang-docker" and /ops/docker/op-stack-go
 
-RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
+FROM alpine:3.18
 
-# build op-heartbeat with local monorepo go modules
-COPY ./op-heartbeat /app/op-heartbeat
-COPY ./.git /app/.git
-COPY ./op-heartbeat/go.mod /app/go.mod
-COPY ./op-heartbeat/go.sum /app/go.sum
-
-WORKDIR /app/op-heartbeat
-
-RUN make op-heartbeat
-
-FROM alpine:3.15
-
-COPY --from=builder /app/op-heartbeat/bin/op-heartbeat /usr/local/bin
+COPY --from=builder /usr/local/bin/op-heartbeat /usr/local/bin/op-heartbeat
 
 CMD ["op-heartbeat"]

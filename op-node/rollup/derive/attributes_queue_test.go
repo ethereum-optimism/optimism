@@ -12,10 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 // TestAttributesQueue checks that it properly uses the PreparePayloadAttributes function
@@ -42,13 +42,13 @@ func TestAttributesQueue(t *testing.T) {
 	safeHead.L1Origin = l1Info.ID()
 	safeHead.Time = l1Info.InfoTime
 
-	batch := &BatchData{BatchV1{
+	batch := SingularBatch{
 		ParentHash:   safeHead.Hash,
 		EpochNum:     rollup.Epoch(l1Info.InfoNum),
 		EpochHash:    l1Info.InfoHash,
 		Timestamp:    safeHead.Time + cfg.BlockTime,
 		Transactions: []eth.Data{eth.Data("foobar"), eth.Data("example")},
-	}}
+	}
 
 	parentL1Cfg := eth.SystemConfig{
 		BatcherAddr: common.Address{42},
@@ -80,7 +80,7 @@ func TestAttributesQueue(t *testing.T) {
 
 	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, attrBuilder, nil)
 
-	actual, err := aq.createNextAttributes(context.Background(), batch, safeHead)
+	actual, err := aq.createNextAttributes(context.Background(), &batch, safeHead)
 
 	require.NoError(t, err)
 	require.Equal(t, attrs, *actual)

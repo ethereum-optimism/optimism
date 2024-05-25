@@ -11,17 +11,30 @@ volumes:
 
 
 services:
+  op_stack_go_builder:  # Not an actual service, but builds the prerequisite go images
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      args:
+        GIT_COMMIT: "dev"
+        GIT_DATE: "0"
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+    entrypoint: ["echo", "build complete"]
+
   l1:
     build:
       context: .
       dockerfile: Dockerfile.l1
     ports:
       - "8545:8545"
+      - "8546:8546"
       - "7060:6060"
     volumes:
       - "l1_data:/db"
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+    environment:
+      GETH_MINER_RECOMMIT: 100ms
 
   l2:
     build:
@@ -38,14 +51,20 @@ services:
       - "/bin/sh"
       - "/entrypoint.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+    environment:
+      GETH_MINER_RECOMMIT: 100ms
 
   op-node:
     depends_on:
+      - op_stack_go_builder
       - l1
       - l2
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
     command: >
       op-node
       --l1=ws://l1:8546
@@ -84,15 +103,20 @@ services:
 
   op-proposer:
     depends_on:
+      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
     ports:
       - "6062:6060"
       - "7302:7300"
+      - "6546:8545"
     environment:
       OP_PROPOSER_L1_ETH_RPC: http://l1:8545
       OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
@@ -104,15 +128,20 @@ services:
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
       OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
+      OP_PROPOSER_RPC_ENABLE_ADMIN: "true"
 
   op-batcher:
     depends_on:
+      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
     ports:
       - "6061:6060"
       - "7301:7300"
@@ -130,17 +159,29 @@ services:
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
+      OP_BATCHER_BATCH_TYPE: 0
 
-  stateviz:
-    build:
-      context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.stateviz
-    command:
-      - stateviz
-      - -addr=0.0.0.0:8080
-      - -snapshot=/op_log/snapshot.log
-      - -refresh=10s
+  artifact-server:
+    depends_on:
+      - l1
+    image: nginx:1.25-alpine
     ports:
-      - "9090:8080"
+      - "8080:80"
     volumes:
-      - op_log:/op_log:ro
+      - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
+    security_opt:
+      - "no-new-privileges:true"
+
+#  stateviz:
+#    build:
+#      context: ../
+#      dockerfile: ./ops-bedrock/Dockerfile.stateviz
+#    command:
+#      - stateviz
+#      - -addr=0.0.0.0:8080
+#      - -snapshot=/op_log/snapshot.log
+#      - -refresh=10s
+#    ports:
+#      - "9090:8080"
+#    volumes:
+#      - op_log:/op_log:ro

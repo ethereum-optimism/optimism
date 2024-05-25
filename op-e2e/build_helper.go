@@ -2,8 +2,8 @@ package op_e2e
 
 import (
 	"context"
-	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,9 +17,10 @@ func BuildOpProgramClient(t *testing.T) string {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "make", "op-program-client")
 	cmd.Dir = "../op-program"
-	cmd.Stdout = os.Stdout // for debugging
-	cmd.Stderr = os.Stderr // for debugging
-	require.NoError(t, cmd.Run(), "Failed to build op-program-client")
+	var out strings.Builder
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	require.NoErrorf(t, cmd.Run(), "Failed to build op-program-client: %v", &out)
 	t.Log("Built op-program-client successfully")
 	return "../op-program/bin/op-program-client"
 }

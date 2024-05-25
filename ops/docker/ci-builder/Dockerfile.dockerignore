@@ -1,0 +1,6 @@
+*
+!/.foundryrc
+!/.abigenrc
+!/.gethrc
+!/.nvmrc
+!/ops/scripts/install-foundry.sh

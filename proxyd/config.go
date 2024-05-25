@@ -2,6 +2,7 @@ package proxyd
 
 import (
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -21,14 +22,14 @@ type ServerConfig struct {
 
 	MaxUpstreamBatchSize int `toml:"max_upstream_batch_size"`
 
-	EnableRequestLog     bool `toml:"enable_request_log"`
-	MaxRequestBodyLogLen int  `toml:"max_request_body_log_len"`
+	EnableRequestLog      bool `toml:"enable_request_log"`
+	MaxRequestBodyLogLen  int  `toml:"max_request_body_log_len"`
+	EnablePprof           bool `toml:"enable_pprof"`
+	EnableXServedByHeader bool `toml:"enable_served_by_header"`
 }
 
 type CacheConfig struct {
-	Enabled               bool   `toml:"enabled"`
-	BlockSyncRPCURL       string `toml:"block_sync_rpc_url"`
-	NumBlockConfirmations int    `toml:"num_block_confirmations"`
+	Enabled bool `toml:"enabled"`
 }
 
 type RedisConfig struct {
@@ -50,6 +51,7 @@ type RateLimitConfig struct {
 	ExemptUserAgents []string                            `toml:"exempt_user_agents"`
 	ErrorMessage     string                              `toml:"error_message"`
 	MethodOverrides  map[string]*RateLimitMethodOverride `toml:"method_overrides"`
+	IPHeaderOverride string                              `toml:"ip_header_override"`
 }
 
 type RateLimitMethodOverride struct {
@@ -81,18 +83,24 @@ type BackendOptions struct {
 }
 
 type BackendConfig struct {
-	Username           string `toml:"username"`
-	Password           string `toml:"password"`
-	RPCURL             string `toml:"rpc_url"`
-	WSURL              string `toml:"ws_url"`
-	WSPort             int    `toml:"ws_port"`
-	MaxRPS             int    `toml:"max_rps"`
-	MaxWSConns         int    `toml:"max_ws_conns"`
-	CAFile             string `toml:"ca_file"`
-	ClientCertFile     string `toml:"client_cert_file"`
-	ClientKeyFile      string `toml:"client_key_file"`
-	StripTrailingXFF   bool   `toml:"strip_trailing_xff"`
-	SkipPeerCountCheck bool   `toml:"consensus_skip_peer_count"`
+	Username         string            `toml:"username"`
+	Password         string            `toml:"password"`
+	RPCURL           string            `toml:"rpc_url"`
+	WSURL            string            `toml:"ws_url"`
+	WSPort           int               `toml:"ws_port"`
+	MaxRPS           int               `toml:"max_rps"`
+	MaxWSConns       int               `toml:"max_ws_conns"`
+	CAFile           string            `toml:"ca_file"`
+	ClientCertFile   string            `toml:"client_cert_file"`
+	ClientKeyFile    string            `toml:"client_key_file"`
+	StripTrailingXFF bool              `toml:"strip_trailing_xff"`
+	Headers          map[string]string `toml:"headers"`
+
+	Weight int `toml:"weight"`
+
+	ConsensusSkipPeerCountCheck bool   `toml:"consensus_skip_peer_count"`
+	ConsensusForcedCandidate    bool   `toml:"consensus_forced_candidate"`
+	ConsensusReceiptsTarget     string `toml:"consensus_receipts_target"`
 }
 
 type BackendsConfig map[string]*BackendConfig
@@ -100,13 +108,20 @@ type BackendsConfig map[string]*BackendConfig
 type BackendGroupConfig struct {
 	Backends []string `toml:"backends"`
 
+	WeightedRouting bool `toml:"weighted_routing"`
+
 	ConsensusAware        bool   `toml:"consensus_aware"`
 	ConsensusAsyncHandler string `toml:"consensus_handler"`
 
 	ConsensusBanPeriod          TOMLDuration `toml:"consensus_ban_period"`
 	ConsensusMaxUpdateThreshold TOMLDuration `toml:"consensus_max_update_threshold"`
 	ConsensusMaxBlockLag        uint64       `toml:"consensus_max_block_lag"`
+	ConsensusMaxBlockRange      uint64       `toml:"consensus_max_block_range"`
 	ConsensusMinPeerCount       int          `toml:"consensus_min_peer_count"`
+
+	ConsensusHA                  bool         `toml:"consensus_ha"`
+	ConsensusHAHeartbeatInterval TOMLDuration `toml:"consensus_ha_heartbeat_interval"`
+	ConsensusHALockPeriod        TOMLDuration `toml:"consensus_ha_lock_period"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig
@@ -120,10 +135,12 @@ type BatchConfig struct {
 
 // SenderRateLimitConfig configures the sender-based rate limiter
 // for eth_sendRawTransaction requests.
+// To enable pre-eip155 transactions, add '0' to allowed_chain_ids.
 type SenderRateLimitConfig struct {
-	Enabled  bool
-	Interval TOMLDuration
-	Limit    int
+	Enabled         bool
+	Interval        TOMLDuration
+	Limit           int
+	AllowedChainIds []*big.Int `toml:"allowed_chain_ids"`
 }
 
 type Config struct {

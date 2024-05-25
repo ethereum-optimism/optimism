@@ -1,7 +1,6 @@
 package crossdomain
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -9,14 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-)
-
-var (
-	abiTrue                      = common.Hash{31: 0x01}
-	errLegacyStorageSlotNotFound = errors.New("cannot find storage slot")
 )
 
 // Constants used by `CrossDomainMessenger.baseGas`
@@ -29,43 +21,6 @@ var (
 	RelayReservedGas                 uint64 = 40_000
 	RelayGasCheckBuffer              uint64 = 5_000
 )
-
-// MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
-func MigrateWithdrawals(
-	withdrawals SafeFilteredWithdrawals,
-	db vm.StateDB,
-	l1CrossDomainMessenger *common.Address,
-	noCheck bool,
-	chainID *big.Int,
-) error {
-	for i, legacy := range withdrawals {
-		legacySlot, err := legacy.StorageSlot()
-		if err != nil {
-			return err
-		}
-
-		if !noCheck {
-			legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
-			if legacyValue != abiTrue {
-				return fmt.Errorf("%w: %s", errLegacyStorageSlotNotFound, legacySlot)
-			}
-		}
-
-		withdrawal, err := MigrateWithdrawal(legacy, l1CrossDomainMessenger, chainID)
-		if err != nil {
-			return err
-		}
-
-		slot, err := withdrawal.StorageSlot()
-		if err != nil {
-			return fmt.Errorf("cannot compute withdrawal storage slot: %w", err)
-		}
-
-		db.SetState(predeploys.L2ToL1MessagePasserAddr, slot, abiTrue)
-		log.Info("Migrated withdrawal", "number", i, "slot", slot)
-	}
-	return nil
-}
 
 // MigrateWithdrawal will turn a LegacyWithdrawal into a bedrock
 // style Withdrawal.

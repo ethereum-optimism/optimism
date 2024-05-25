@@ -2,12 +2,13 @@ package op_e2e
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,6 +38,7 @@ func TestMissingGasLimit(t *testing.T) {
 	attrs.GasLimit = nil
 
 	res, err := opGeth.StartBlockBuilding(ctx, attrs)
+	require.Error(t, err)
 	require.ErrorIs(t, err, eth.InputError{})
 	require.Equal(t, eth.InvalidPayloadAttributes, err.(eth.InputError).Code)
 	require.Nil(t, res)
@@ -46,11 +49,11 @@ func TestMissingGasLimit(t *testing.T) {
 func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	ethPrivKey := sys.cfg.Secrets.Alice
+	ethPrivKey := sys.Cfg.Secrets.Alice
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
 		ChainID: cfg.L2ChainIDBig(),
 		Gas:     29_999_999,
@@ -98,6 +101,122 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	balance, err = opGeth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 	require.Equal(t, 0, balance.Cmp(common.Big0))
+}
+
+// TestGethOnlyPendingBlockIsLatest walks through an engine-API block building job,
+// and asserts that the pending block is set to match the latest block at every stage,
+// for stability and tx-privacy.
+func TestGethOnlyPendingBlockIsLatest(t *testing.T) {
+	InitParallel(t)
+	cfg := DefaultSystemConfig(t)
+	cfg.DeployConfig.FundDevAccounts = true
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
+
+	checkPending := func(stage string, number uint64) {
+		// TODO(CLI-4044): pending-block ID change
+		pendingBlock, err := opGeth.L2Client.BlockByNumber(ctx, big.NewInt(-1))
+		require.NoError(t, err, "failed to fetch pending block at stage "+stage)
+		require.Equal(t, number, pendingBlock.NumberU64(), "pending block must have expected number")
+		latestBlock, err := opGeth.L2Client.BlockByNumber(ctx, nil)
+		require.NoError(t, err, "failed to fetch latest block at stage "+stage)
+		require.Equal(t, pendingBlock.Hash(), latestBlock.Hash(), "pending and latest do not match at stage "+stage)
+	}
+
+	checkPending("genesis", 0)
+
+	amount := big.NewInt(42) // send 42 wei
+
+	aliceStartBalance, err := opGeth.L2Client.PendingBalanceAt(ctx, cfg.Secrets.Addresses().Alice)
+	require.NoError(t, err)
+	require.True(t, aliceStartBalance.Cmp(big.NewInt(0)) > 0, "alice must be funded")
+
+	checkPendingBalance := func() {
+		pendingBalance, err := opGeth.L2Client.PendingBalanceAt(ctx, cfg.Secrets.Addresses().Alice)
+		require.NoError(t, err)
+		require.Equal(t, pendingBalance, aliceStartBalance, "pending balance must still be the same")
+	}
+
+	startBlock, err := opGeth.L2Client.BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+
+	signer := types.LatestSigner(opGeth.L2ChainConfig)
+	tip := big.NewInt(7_000_000_000) // 7 gwei tip
+	tx := types.MustSignNewTx(cfg.Secrets.Alice, signer, &types.DynamicFeeTx{
+		ChainID:   big.NewInt(int64(cfg.DeployConfig.L2ChainID)),
+		Nonce:     0,
+		GasTipCap: tip,
+		GasFeeCap: new(big.Int).Add(startBlock.BaseFee(), tip),
+		Gas:       1_000_000,
+		To:        &cfg.Secrets.Addresses().Bob,
+		Value:     amount,
+		Data:      nil,
+	})
+	require.NoError(t, opGeth.L2Client.SendTransaction(ctx, tx), "send tx to make pending work different")
+	checkPending("prepared", 0)
+
+	// Wait for tx to be in tx-pool, for it to be picked up in block building
+	var txPoolStatus struct {
+		Pending hexutil.Uint64 `json:"pending"`
+	}
+	for i := 0; i < 5; i++ {
+		require.NoError(t, opGeth.L2Client.Client().Call(&txPoolStatus, "txpool_status"))
+		if txPoolStatus.Pending == 0 {
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
+	}
+	require.NotZero(t, txPoolStatus.Pending, "must have pending tx in pool")
+
+	checkPending("in-pool", 0)
+	checkPendingBalance()
+
+	// start building a block
+	attrs, err := opGeth.CreatePayloadAttributes()
+	require.NoError(t, err)
+	attrs.NoTxPool = false // we want to include a tx
+	fc := eth.ForkchoiceState{
+		HeadBlockHash: opGeth.L2Head.BlockHash,
+		SafeBlockHash: opGeth.L2Head.BlockHash,
+	}
+	res, err := opGeth.l2Engine.ForkchoiceUpdate(ctx, &fc, attrs)
+	require.NoError(t, err)
+
+	checkPending("building", 0)
+	checkPendingBalance()
+
+	// Now we have to wait until the block-building job picks up the tx from the tx-pool.
+	// See go routine that spins up in buildPayload() func in payload_building.go in miner package.
+	// We can't check it, we don't want to finish block-building prematurely, and so we have to wait.
+	time.Sleep(time.Second * 4) // conservatively wait 4 seconds, CI might lag during block building.
+
+	// retrieve the block
+	payload, err := opGeth.l2Engine.GetPayload(ctx, *res.PayloadID)
+	require.NoError(t, err)
+	checkPending("retrieved", 0)
+	require.Len(t, payload.Transactions, 2, "must include L1 info tx and tx from alice")
+	checkPendingBalance()
+
+	// process the block
+	status, err := opGeth.l2Engine.NewPayload(ctx, payload)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, status.Status)
+	checkPending("processed", 0)
+	checkPendingBalance()
+
+	// make the block canonical
+	fc = eth.ForkchoiceState{
+		HeadBlockHash: payload.BlockHash,
+		SafeBlockHash: payload.BlockHash,
+	}
+	res, err = opGeth.l2Engine.ForkchoiceUpdate(ctx, &fc, nil)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
+	checkPending("canonical", 1)
 }
 
 func TestPreregolith(t *testing.T) {
@@ -597,6 +716,148 @@ func TestRegolith(t *testing.T) {
 			require.Equal(t, types.ReceiptStatusSuccessful, rezeroReceipt.Status, "rezeroing storage value should succeed")
 
 			require.Greater(t, rezeroReceipt.GasUsed, zeroReceipt.GasUsed, "rezero should use more gas due to not getting gas refund for clearing slot")
+		})
+	}
+}
+
+func TestPreCanyon(t *testing.T) {
+	InitParallel(t)
+	futureTimestamp := hexutil.Uint64(4)
+
+	tests := []struct {
+		name       string
+		canyonTime *hexutil.Uint64
+	}{
+		{name: "CanyonNotScheduled"},
+		{name: "CanyonNotYetActive", canyonTime: &futureTimestamp},
+	}
+	for _, test := range tests {
+		test := test
+
+		t.Run(fmt.Sprintf("ReturnsNilWithdrawals_%s", test.name), func(t *testing.T) {
+			InitParallel(t)
+			cfg := DefaultSystemConfig(t)
+			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.canyonTime
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			opGeth, err := NewOpGeth(t, ctx, &cfg)
+			require.NoError(t, err)
+			defer opGeth.Close()
+
+			b, err := opGeth.AddL2Block(ctx)
+			require.NoError(t, err)
+			assert.Nil(t, b.Withdrawals, "should not have withdrawals")
+
+			l1Block, err := opGeth.L2Client.BlockByNumber(ctx, nil)
+			require.Nil(t, err)
+			assert.Equal(t, types.Withdrawals(nil), l1Block.Withdrawals())
+		})
+
+		t.Run(fmt.Sprintf("RejectPushZeroTx_%s", test.name), func(t *testing.T) {
+			InitParallel(t)
+			cfg := DefaultSystemConfig(t)
+			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.canyonTime
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			opGeth, err := NewOpGeth(t, ctx, &cfg)
+			require.NoError(t, err)
+			defer opGeth.Close()
+
+			pushZeroContractCreateTxn := types.NewTx(&types.DepositTx{
+				From:  cfg.Secrets.Addresses().Alice,
+				Value: big.NewInt(params.Ether),
+				Gas:   1000001,
+				Data: []byte{
+					byte(vm.PUSH0),
+				},
+				IsSystemTransaction: false,
+			})
+
+			_, err = opGeth.AddL2Block(ctx, pushZeroContractCreateTxn)
+			require.NoError(t, err)
+
+			receipt, err := opGeth.L2Client.TransactionReceipt(ctx, pushZeroContractCreateTxn.Hash())
+			require.NoError(t, err)
+			assert.Equal(t, types.ReceiptStatusFailed, receipt.Status)
+		})
+	}
+
+}
+
+func TestCanyon(t *testing.T) {
+	InitParallel(t)
+
+	tests := []struct {
+		name         string
+		canyonTime   hexutil.Uint64
+		activeCanyon func(ctx context.Context, opGeth *OpGeth)
+	}{
+		{name: "ActivateAtGenesis", canyonTime: 0, activeCanyon: func(ctx context.Context, opGeth *OpGeth) {}},
+		{name: "ActivateAfterGenesis", canyonTime: 2, activeCanyon: func(ctx context.Context, opGeth *OpGeth) {
+			// Adding this block advances us to the fork time.
+			_, err := opGeth.AddL2Block(ctx)
+			require.NoError(t, err)
+		}},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("ReturnsEmptyWithdrawals_%s", test.name), func(t *testing.T) {
+			InitParallel(t)
+			cfg := DefaultSystemConfig(t)
+			s := hexutil.Uint64(0)
+			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &s
+			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &test.canyonTime
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			opGeth, err := NewOpGeth(t, ctx, &cfg)
+			require.NoError(t, err)
+			defer opGeth.Close()
+
+			test.activeCanyon(ctx, opGeth)
+
+			b, err := opGeth.AddL2Block(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, *b.Withdrawals, types.Withdrawals{})
+
+			l1Block, err := opGeth.L2Client.BlockByNumber(ctx, nil)
+			require.Nil(t, err)
+			assert.Equal(t, l1Block.Withdrawals(), types.Withdrawals{})
+		})
+
+		t.Run(fmt.Sprintf("AcceptsPushZeroTxn_%s", test.name), func(t *testing.T) {
+			InitParallel(t)
+			cfg := DefaultSystemConfig(t)
+			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &test.canyonTime
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			opGeth, err := NewOpGeth(t, ctx, &cfg)
+			require.NoError(t, err)
+			defer opGeth.Close()
+
+			pushZeroContractCreateTxn := types.NewTx(&types.DepositTx{
+				From:  cfg.Secrets.Addresses().Alice,
+				Value: big.NewInt(params.Ether),
+				Gas:   1000001,
+				Data: []byte{
+					byte(vm.PUSH0),
+				},
+				IsSystemTransaction: false,
+			})
+
+			_, err = opGeth.AddL2Block(ctx, pushZeroContractCreateTxn)
+			require.NoError(t, err)
+
+			receipt, err := opGeth.L2Client.TransactionReceipt(ctx, pushZeroContractCreateTxn.Hash())
+			require.NoError(t, err)
+			assert.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 		})
 	}
 }

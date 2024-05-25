@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -19,10 +19,10 @@ import (
 // setupL2OutputOracle deploys the L2 Output Oracle contract to a simulated backend
 func setupL2OutputOracle() (common.Address, *bind.TransactOpts, *backends.SimulatedBackend, *bindings.L2OutputOracle, error) {
 	privateKey, err := crypto.GenerateKey()
-	from := crypto.PubkeyToAddress(privateKey.PublicKey)
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}
+	from := crypto.PubkeyToAddress(privateKey.PublicKey)
 	opts, err := bind.NewKeyedTransactorWithChainID(privateKey, big.NewInt(1337))
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err

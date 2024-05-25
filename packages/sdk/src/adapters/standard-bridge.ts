@@ -13,8 +13,10 @@ import {
   BlockTag,
 } from '@ethersproject/abstract-provider'
 import { predeploys } from '@eth-optimism/contracts'
-import { getContractInterface } from '@eth-optimism/contracts-bedrock'
 import { hexStringEquals } from '@eth-optimism/core-utils'
+import l1StandardBridgeArtifact from '@eth-optimism/contracts-bedrock/forge-artifacts/L1StandardBridge.sol/L1StandardBridge.json'
+import l2StandardBridgeArtifact from '@eth-optimism/contracts-bedrock/forge-artifacts/L2StandardBridge.sol/L2StandardBridge.json'
+import optimismMintableERC20 from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismMintableERC20.sol/OptimismMintableERC20.json'
 
 import { CrossChainMessenger } from '../cross-chain-messenger'
 import {
@@ -50,12 +52,12 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     this.messenger = opts.messenger
     this.l1Bridge = new Contract(
       toAddress(opts.l1Bridge),
-      getContractInterface('L1StandardBridge'),
+      l1StandardBridgeArtifact.abi,
       this.messenger.l1Provider
     )
     this.l2Bridge = new Contract(
       toAddress(opts.l2Bridge),
-      getContractInterface('L2StandardBridge'),
+      l2StandardBridgeArtifact.abi,
       this.messenger.l2Provider
     )
   }
@@ -154,46 +156,33 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     l1Token: AddressLike,
     l2Token: AddressLike
   ): Promise<boolean> {
-    try {
-      const contract = new Contract(
-        toAddress(l2Token),
-        getContractInterface('OptimismMintableERC20'),
-        this.messenger.l2Provider
-      )
-      // Don't support ETH deposits or withdrawals via this bridge.
-      if (
-        hexStringEquals(toAddress(l1Token), ethers.constants.AddressZero) ||
-        hexStringEquals(toAddress(l2Token), predeploys.OVM_ETH)
-      ) {
-        return false
-      }
-
-      // Make sure the L1 token matches.
-      const remoteL1Token = await contract.l1Token()
-
-      if (!hexStringEquals(remoteL1Token, toAddress(l1Token))) {
-        return false
-      }
-
-      // Make sure the L2 bridge matches.
-      const remoteL2Bridge = await contract.l2Bridge()
-      if (!hexStringEquals(remoteL2Bridge, this.l2Bridge.address)) {
-        return false
-      }
-
-      return true
-    } catch (err) {
-      // If the L2 token is not an L2StandardERC20, it may throw an error. If there's a call
-      // exception then we assume that the token is not supported. Other errors are thrown. Since
-      // the JSON-RPC API is not well-specified, we need to handle multiple possible error codes.
-      if (
-        !err?.message?.toString().includes('CALL_EXCEPTION') &&
-        !err?.stack?.toString().includes('execution reverted')
-      ) {
-        console.error('Unexpected error when checking bridge', err)
-      }
+    const contract = new Contract(
+      toAddress(l2Token),
+      optimismMintableERC20.abi,
+      this.messenger.l2Provider
+    )
+    // Don't support ETH deposits or withdrawals via this bridge.
+    if (
+      hexStringEquals(toAddress(l1Token), ethers.constants.AddressZero) ||
+      hexStringEquals(toAddress(l2Token), predeploys.OVM_ETH)
+    ) {
       return false
     }
+
+    // Make sure the L1 token matches.
+    const remoteL1Token = await contract.l1Token()
+
+    if (!hexStringEquals(remoteL1Token, toAddress(l1Token))) {
+      return false
+    }
+
+    // Make sure the L2 bridge matches.
+    const remoteL2Bridge = await contract.l2Bridge()
+    if (!hexStringEquals(remoteL2Bridge, this.l2Bridge.address)) {
+      return false
+    }
+
+    return true
   }
 
   public async approval(
@@ -207,7 +196,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
 
     const token = new Contract(
       toAddress(l1Token),
-      getContractInterface('OptimismMintableERC20'), // Any ERC20 will do
+      optimismMintableERC20.abi,
       this.messenger.l1Provider
     )
 
@@ -274,7 +263,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
 
       const token = new Contract(
         toAddress(l1Token),
-        getContractInterface('OptimismMintableERC20'), // Any ERC20 will do
+        optimismMintableERC20.abi,
         this.messenger.l1Provider
       )
 

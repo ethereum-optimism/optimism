@@ -6,7 +6,6 @@ import {
   validators,
 } from '@eth-optimism/common-ts'
 import { Provider } from '@ethersproject/abstract-provider'
-import { ethers } from 'ethers'
 
 import { version } from '../../package.json'
 
@@ -45,7 +44,7 @@ export class BalanceMonService extends BaseServiceV2<
         },
         accounts: {
           validator: validators.str,
-          desc: 'JSON array of [{ address, nickname }] to monitor balances of',
+          desc: 'JSON array of [{ address, nickname, safe }] to monitor balances and nonces of',
           public: true,
         },
       },
@@ -70,9 +69,21 @@ export class BalanceMonService extends BaseServiceV2<
 
   protected async main(): Promise<void> {
     for (const account of this.state.accounts) {
-      let balance: ethers.BigNumber
       try {
-        balance = await this.options.rpc.getBalance(account.address)
+        const balance = await this.options.rpc.getBalance(account.address)
+        this.logger.info(`got balance`, {
+          address: account.address,
+          nickname: account.nickname,
+          balance: balance.toString(),
+        })
+
+        // Parse the balance as an integer instead of via toNumber() to avoid ethers throwing an
+        // an error. We might get rounding errors but we don't need perfect precision here, just a
+        // generally accurate sense for what the current balance is.
+        this.metrics.balances.set(
+          { address: account.address, nickname: account.nickname },
+          parseInt(balance.toString(), 10)
+        )
       } catch (err) {
         this.logger.info(`got unexpected RPC error`, {
           section: 'balances',
@@ -83,22 +94,7 @@ export class BalanceMonService extends BaseServiceV2<
           section: 'balances',
           name: 'getBalance',
         })
-        continue
       }
-
-      this.logger.info(`got balance`, {
-        address: account.address,
-        nickname: account.nickname,
-        balance: balance.toString(),
-      })
-
-      // Parse the balance as an integer instead of via toNumber() to avoid ethers throwing an
-      // an error. We might get rounding errors but we don't need perfect precision here, just a
-      // generally accurate sense for what the current balance is.
-      this.metrics.balances.set(
-        { address: account.address, nickname: account.nickname },
-        parseInt(balance.toString(), 10)
-      )
     }
   }
 }

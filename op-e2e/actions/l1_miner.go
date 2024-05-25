@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -67,14 +67,21 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			MixDigest:  common.Hash{}, // TODO: maybe randomize this (prev-randao value)
 		}
 		if s.l1Cfg.Config.IsLondon(header.Number) {
-			header.BaseFee = misc.CalcBaseFee(s.l1Cfg.Config, parent)
+			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent, header.Time)
 			// At the transition, double the gas limit so the gas target is equal to the old gas limit.
 			if !s.l1Cfg.Config.IsLondon(parent.Number) {
 				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
 			}
 		}
-		if s.l1Cfg.Config.IsShanghai(header.Time) {
+		if s.l1Cfg.Config.IsShanghai(header.Number, header.Time) {
 			header.WithdrawalsHash = &types.EmptyWithdrawalsHash
+		}
+		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
+			var root common.Hash
+			var zero uint64
+			header.BlobGasUsed = &zero
+			header.ExcessBlobGas = &zero
+			header.ParentBeaconRoot = &root
 		}
 
 		s.l1Building = true
@@ -95,21 +102,19 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			t.InvalidAction("no tx inclusion when not building l1 block")
 			return
 		}
-		i := s.pendingIndices[from]
-		txs, q := s.eth.TxPool().ContentFrom(from)
-		if uint64(len(txs)) <= i {
-			t.Fatalf("no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
+		getPendingIndex := func(from common.Address) uint64 {
+			return s.pendingIndices[from]
 		}
-		tx := txs[i]
+		tx := firstValidTx(t, from, getPendingIndex, s.eth.TxPool().ContentFrom, s.EthClient().NonceAt)
 		s.IncludeTx(t, tx)
-		s.pendingIndices[from] = i + 1 // won't retry the tx
+		s.pendingIndices[from] = s.pendingIndices[from] + 1 // won't retry the tx
 	}
 }
 
 func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 	from, err := s.l1Signer.Sender(tx)
 	require.NoError(t, err)
-	s.log.Info("including tx", "nonce", tx.Nonce(), "from", from)
+	s.log.Info("including tx", "nonce", tx.Nonce(), "from", from, "to", tx.To())
 	if tx.Gas() > s.l1BuildingHeader.GasLimit {
 		t.Fatalf("tx consumes %d gas, more than available in L1 block %d", tx.Gas(), s.l1BuildingHeader.GasLimit)
 	}
@@ -146,12 +151,12 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - uint64(*s.l1GasPool)
 	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
 	block := types.NewBlock(s.l1BuildingHeader, s.l1Transactions, nil, s.l1Receipts, trie.NewStackTrie(nil))
-	if s.l1Cfg.Config.IsShanghai(s.l1BuildingHeader.Time) {
+	if s.l1Cfg.Config.IsShanghai(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
 		block = block.WithWithdrawals(make([]*types.Withdrawal, 0))
 	}
 
 	// Write state changes to db
-	root, err := s.l1BuildingState.Commit(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
+	root, err := s.l1BuildingState.Commit(s.l1BuildingHeader.Number.Uint64(), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
 	if err != nil {
 		t.Fatalf("l1 state write error: %v", err)
 	}

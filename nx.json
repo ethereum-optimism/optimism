@@ -1,0 +1,86 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "develop",
+  "neverConnectToCloud": true,
+  "affected": {
+    "defaultBase": "develop"
+  },
+  "implicitDependencies": {
+    "nx.json": "*",
+    "tsconfig.json": "*",
+    ".foundryrc": "*",
+    "pnpm.lock.yaml": "*",
+    ".npmrc": "*",
+    ".nvmrc": "*"
+  },
+  "tasksRunnerOptions": {
+    "default": {
+      "runner": "nx-cloud",
+      "options": {
+        "accessToken": "MDdkNmQwZWEtOGYwNy00ZjhkLWI5NGMtNjBiNGExY2Q5MzI2fHJlYWQ=",
+        "cacheableOperations": [
+          "lint",
+          "build",
+          "test",
+          "build:contracts",
+          "autogen:artifacts"
+        ]
+      }
+    }
+  },
+  "namedInputs": {
+    "configsWorkspace": [
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/tsconfig.json"
+    ],
+    "configsProject": [
+      "{projectRoot}/foundry.toml",
+      "{projectRoot}/tsconfig.json",
+      "{projectRoot}/package.json"
+    ],
+    "default": ["{projectRoot}/**/*", "configsWorkspace"],
+    "srcGenerated": [
+      "{projectRoot}/src/contract-artifacts.ts",
+      "{projectRoot}/src/contract-deployed-artifacts.ts"
+    ],
+    "productionSrc": [
+      "{projectRoot}/src/**/*",
+      "!{projectRoot}/src/**/*.spec.ts"
+    ],
+    "productionContracts": ["{projectRoot}/contracts/**/*"],
+    "production": ["productionSrc", "productionContracts"],
+    "testing": ["configsWorkspace", "default"]
+  },
+  "targetDefaults": {
+    "lint": {
+      "inputs": ["{workspaceRoot}/.markdownlint.json", "default"]
+    },
+    "test": {
+      "inputs": ["default", "testing", "^production"],
+      "dependsOn": ["^build"]
+    },
+    "generate": {
+      "dependsOn": ["^build"]
+    },
+    "build:contracts": {
+      "inputs": [
+        "configsProject",
+        "productionContracts",
+        "^productionContracts"
+      ],
+      "dependsOn": ["^build"],
+      "outputs": ["{projectRoot}/artifacts", "{projectRoot}/forge-artifacts"]
+    },
+    "build": {
+      "inputs": [
+        "configsWorkspace",
+        "configsProject",
+        "production",
+        "^production"
+      ],
+      "dependsOn": ["^build", "build:contracts"],
+      "outputs": ["{projectRoot}/dist"]
+    }
+  },
+  "$schema": "./node_modules/nx/schemas/nx-schema.json"
+}

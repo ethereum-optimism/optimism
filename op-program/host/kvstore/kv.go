@@ -9,13 +9,9 @@ import (
 // ErrNotFound is returned when a pre-image cannot be found in the KV store.
 var ErrNotFound = errors.New("not found")
 
-// ErrAlreadyExists is returned when a pre-image already exists in the KV store.
-var ErrAlreadyExists = errors.New("already exists")
-
 // KV is a Key-Value store interface for pre-image data.
 type KV interface {
 	// Put puts the pre-image value v in the key-value store with key k.
-	// It returns ErrAlreadyExists when the key already exists.
 	// KV store implementations may return additional errors specific to the KV storage.
 	Put(k common.Hash, v []byte) error
 

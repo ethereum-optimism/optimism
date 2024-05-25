@@ -5,6 +5,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -28,6 +29,8 @@ type PeerInfo struct {
 	Latency       time.Duration         `json:"latency"`
 
 	GossipBlocks bool `json:"gossipBlocks"` // if the peer is in our gossip topic
+
+	PeerScores store.PeerScores `json:"scores"`
 }
 
 type PeerDump struct {

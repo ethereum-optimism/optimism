@@ -1,5 +1,5 @@
-GITCOMMIT := $(shell git rev-parse HEAD)
-GITDATE := $(shell git show -s --format='%ct')
+GITCOMMIT ?= $(shell git rev-parse HEAD)
+GITDATE ?= $(shell git show -s --format='%ct')
 VERSION := v0.0.0
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
@@ -17,13 +17,7 @@ clean:
 test:
 	go test -v ./...
 
-lint:
-	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is"
-
 fuzz:
-	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzExecutionPayloadUnmarshal ./eth
-	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzExecutionPayloadMarshalUnmarshal ./eth
-	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzOBP01 ./eth
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzL1InfoRoundTrip ./rollup/derive
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzL1InfoAgainstContract ./rollup/derive
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzUnmarshallLogEvent ./rollup/derive
@@ -37,10 +31,13 @@ fuzz:
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzRejectCreateBlockBadTimestamp ./rollup/driver
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzDecodeDepositTxDataToL1Info ./rollup/driver
 
+generate-mocks:
+	go generate ./...
 
 .PHONY: \
 	op-node \
 	clean \
 	test \
 	lint \
-	fuzz
+	fuzz \
+	generate-mocks

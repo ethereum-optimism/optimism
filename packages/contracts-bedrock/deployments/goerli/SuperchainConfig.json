@@ -1,0 +1,317 @@
+{
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "enum SuperchainConfig.UpdateType",
+          "name": "updateType",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "ConfigUpdate",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "version",
+          "type": "uint8"
+        }
+      ],
+      "name": "Initialized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "identifier",
+          "type": "string"
+        }
+      ],
+      "name": "Paused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [],
+      "name": "Unpaused",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "GUARDIAN_SLOT",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PAUSED_SLOT",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "guardian",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "guardian_",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_guardian",
+          "type": "address"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_identifier",
+          "type": "string"
+        }
+      ],
+      "name": "pause",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "paused",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "paused_",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "unpause",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "address": "0xE4268D9E82DfD3cf280170A14829262C513c9459",
+  "args": [],
+  "bytecode": "0x608060405234801561001057600080fd5b5061001b6000610020565b610273565b600054610100900460ff16158080156100405750600054600160ff909116105b8061006b57506100593061014860201b6106221760201c565b15801561006b575060005460ff166001145b6100d25760405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201526d191e481a5b9a5d1a585b1a5e995960921b606482015260840160405180910390fd5b6000805460ff1916600117905580156100f5576000805461ff0019166101001790555b6100fe82610157565b8015610144576000805461ff0019169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050565b6001600160a01b03163b151590565b61019861018560017fd30e835d3f35624761057ff5b27d558f97bd5be034621e62240e5c0b784abe696101f9565b60001b826101f560201b61063e1760201c565b6000604080516001600160a01b03841660208201527f7b743789cff01dafdeae47739925425aab5dfd02d0c8229e4a508bcd2b9f42bb910160408051601f19818403018152908290526101ea9161021e565b60405180910390a250565b9055565b60008282101561021957634e487b7160e01b600052601160045260246000fd5b500390565b600060208083528351808285015260005b8181101561024b5785810183015185820160400152820161022f565b8181111561025d576000604083870101525b50601f01601f1916929092016040019392505050565b610901806102826000396000f3fe608060405234801561001057600080fd5b50600436106100885760003560e01c80636da663551161005b5780636da663551461012a5780637fbf7b6a1461013d578063c23a451a14610153578063c4d66de81461015b57600080fd5b80633f4ba83a1461008d578063452a93201461009757806354fd4d50146100c95780635c975abb14610112575b600080fd5b61009561016e565b005b61009f610294565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6101056040518060400160405280600581526020017f312e302e3000000000000000000000000000000000000000000000000000000081525081565b6040516100c09190610768565b61011a6102cd565b60405190151581526020016100c0565b6100956101383660046107b1565b610305565b610145610435565b6040519081526020016100c0565b610145610463565b610095610169366004610880565b61048e565b610176610294565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610235576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f5375706572636861696e436f6e6669673a206f6e6c7920677561726469616e2060448201527f63616e20756e706175736500000000000000000000000000000000000000000060648201526084015b60405180910390fd5b61026961026360017f54176ff9944c4784e5857ec4e5ef560a462c483bf534eda43f91bb01a470b1b76108b6565b60009055565b6040517fa45f47fdea8a1efdd9029a5691c7f759c32b7c698632b563573e155625d1693390600090a1565b60006102c86102c460017fd30e835d3f35624761057ff5b27d558f97bd5be034621e62240e5c0b784abe696108b6565b5490565b905090565b60006102fd6102c460017f54176ff9944c4784e5857ec4e5ef560a462c483bf534eda43f91bb01a470b1b76108b6565b600114905090565b61030d610294565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146103c7576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602960248201527f5375706572636861696e436f6e6669673a206f6e6c7920677561726469616e2060448201527f63616e2070617573650000000000000000000000000000000000000000000000606482015260840161022c565b6103fb6103f560017f54176ff9944c4784e5857ec4e5ef560a462c483bf534eda43f91bb01a470b1b76108b6565b60019055565b7fc32e6d5d6d1de257f64eac19ddb1f700ba13527983849c9486b1ab007ea283818160405161042a9190610768565b60405180910390a150565b61046060017f54176ff9944c4784e5857ec4e5ef560a462c483bf534eda43f91bb01a470b1b76108b6565b81565b61046060017fd30e835d3f35624761057ff5b27d558f97bd5be034621e62240e5c0b784abe696108b6565b600054610100900460ff16158080156104ae5750600054600160ff909116105b806104c85750303b1580156104c8575060005460ff166001145b610554576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a6564000000000000000000000000000000000000606482015260840161022c565b600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117905580156105b257600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b6105bb82610642565b801561061e57600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050565b73ffffffffffffffffffffffffffffffffffffffff163b151590565b9055565b61067561067060017fd30e835d3f35624761057ff5b27d558f97bd5be034621e62240e5c0b784abe696108b6565b829055565b60006040805173ffffffffffffffffffffffffffffffffffffffff841660208201527f7b743789cff01dafdeae47739925425aab5dfd02d0c8229e4a508bcd2b9f42bb9101604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0818403018152908290526106f291610768565b60405180910390a250565b6000815180845260005b8181101561072357602081850181015186830182015201610707565b81811115610735576000602083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061077b60208301846106fd565b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000602082840312156107c357600080fd5b813567ffffffffffffffff808211156107db57600080fd5b818401915084601f8301126107ef57600080fd5b81358181111561080157610801610782565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190838211818310171561084757610847610782565b8160405282815287602084870101111561086057600080fd5b826020860160208301376000928101602001929092525095945050505050565b60006020828403121561089257600080fd5b813573ffffffffffffffffffffffffffffffffffffffff8116811461077b57600080fd5b6000828210156108ef577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b50039056fea164736f6c634300080f000a",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100885760003560e01c80636da663551161005b5780636da663551461012a5780637fbf7b6a1461013d578063c23a451a14610153578063c4d66de81461015b57600080fd5b80633f4ba83a1461008d578063452a93201461009757806354fd4d50146100c95780635c975abb14610112575b600080fd5b61009561016e565b005b61009f610294565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6101056040518060400160405280600581526020017f312e302e3000000000000000000000000000000000000000000000000000000081525081565b6040516100c09190610768565b61011a6102cd565b60405190151581526020016100c0565b6100956101383660046107b1565b610305565b610145610435565b6040519081526020016100c0565b610145610463565b610095610169366004610880565b61048e565b610176610294565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610235576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f5375706572636861696e436f6e6669673a206f6e6c7920677561726469616e2060448201527f63616e20756e706175736500000000000000000000000000000000000000000060648201526084015b60405180910390fd5b61026961026360017f54176ff9944c4784e5857ec4e5ef560a462c483bf534eda43f91bb01a470b1b76108b6565b60009055565b6040517fa45f47fdea8a1efdd9029a5691c7f759c32b7c698632b563573e155625d1693390600090a1565b60006102c86102c460017fd30e835d3f35624761057ff5b27d558f97bd5be034621e62240e5c0b784abe696108b6565b5490565b905090565b60006102fd6102c460017f54176ff9944c4784e5857ec4e5ef560a462c483bf534eda43f91bb01a470b1b76108b6565b600114905090565b61030d610294565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146103c7576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602960248201527f5375706572636861696e436f6e6669673a206f6e6c7920677561726469616e2060448201527f63616e2070617573650000000000000000000000000000000000000000000000606482015260840161022c565b6103fb6103f560017f54176ff9944c4784e5857ec4e5ef560a462c483bf534eda43f91bb01a470b1b76108b6565b60019055565b7fc32e6d5d6d1de257f64eac19ddb1f700ba13527983849c9486b1ab007ea283818160405161042a9190610768565b60405180910390a150565b61046060017f54176ff9944c4784e5857ec4e5ef560a462c483bf534eda43f91bb01a470b1b76108b6565b81565b61046060017fd30e835d3f35624761057ff5b27d558f97bd5be034621e62240e5c0b784abe696108b6565b600054610100900460ff16158080156104ae5750600054600160ff909116105b806104c85750303b1580156104c8575060005460ff166001145b610554576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a6564000000000000000000000000000000000000606482015260840161022c565b600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117905580156105b257600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b6105bb82610642565b801561061e57600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050565b73ffffffffffffffffffffffffffffffffffffffff163b151590565b9055565b61067561067060017fd30e835d3f35624761057ff5b27d558f97bd5be034621e62240e5c0b784abe696108b6565b829055565b60006040805173ffffffffffffffffffffffffffffffffffffffff841660208201527f7b743789cff01dafdeae47739925425aab5dfd02d0c8229e4a508bcd2b9f42bb9101604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0818403018152908290526106f291610768565b60405180910390a250565b6000815180845260005b8181101561072357602081850181015186830182015201610707565b81811115610735576000602083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061077b60208301846106fd565b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000602082840312156107c357600080fd5b813567ffffffffffffffff808211156107db57600080fd5b818401915084601f8301126107ef57600080fd5b81358181111561080157610801610782565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190838211818310171561084757610847610782565b8160405282815287602084870101111561086057600080fd5b826020860160208301376000928101602001929092525095945050505050565b60006020828403121561089257600080fd5b813573ffffffffffffffffffffffffffffffffffffffff8116811461077b57600080fd5b6000828210156108ef577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b50039056fea164736f6c634300080f000a",
+  "devdoc": {
+    "version": 1,
+    "kind": "dev",
+    "methods": {
+      "initialize(address)": {
+        "params": {
+          "_guardian": "Address of the guardian, can pause the OptimismPortal."
+        }
+      },
+      "pause(string)": {
+        "params": {
+          "_identifier": "(Optional) A string to identify provenance of the pause transaction."
+        }
+      }
+    },
+    "events": {
+      "ConfigUpdate(uint8,bytes)": {
+        "params": {
+          "data": "Encoded update data.",
+          "updateType": "Type of update."
+        }
+      },
+      "Paused(string)": {
+        "params": {
+          "identifier": "A string helping to identify provenance of the pause transaction."
+        }
+      }
+    },
+    "title": "SuperchainConfig"
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"enum SuperchainConfig.UpdateType\",\"name\":\"updateType\",\"type\":\"uint8\",\"indexed\":true},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\",\"indexed\":false}],\"type\":\"event\",\"name\":\"ConfigUpdate\",\"anonymous\":false},{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\",\"indexed\":false}],\"type\":\"event\",\"name\":\"Initialized\",\"anonymous\":false},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"identifier\",\"type\":\"string\",\"indexed\":false}],\"type\":\"event\",\"name\":\"Paused\",\"anonymous\":false},{\"inputs\":[],\"type\":\"event\",\"name\":\"Unpaused\",\"anonymous\":false},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"GUARDIAN_SLOT\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}]},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"PAUSED_SLOT\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}]},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"guardian\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"guardian_\",\"type\":\"address\"}]},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_guardian\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"initialize\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_identifier\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"pause\"},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"paused\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"paused_\",\"type\":\"bool\"}]},{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"unpause\"},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}]}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"initialize(address)\":{\"params\":{\"_guardian\":\"Address of the guardian, can pause the OptimismPortal.\"}},\"pause(string)\":{\"params\":{\"_identifier\":\"(Optional) A string to identify provenance of the pause transaction.\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"GUARDIAN_SLOT()\":{\"notice\":\"The address of the guardian, which can pause withdrawals from the System.         It can only be modified by an upgrade.\"},\"PAUSED_SLOT()\":{\"notice\":\"Whether or not the Superchain is paused.\"},\"constructor\":{\"notice\":\"Constructs the SuperchainConfig contract.\"},\"guardian()\":{\"notice\":\"Getter for the guardian address.\"},\"initialize(address)\":{\"notice\":\"Initializer.\"},\"pause(string)\":{\"notice\":\"Pauses withdrawals.\"},\"paused()\":{\"notice\":\"Getter for the current paused status.\"},\"unpause()\":{\"notice\":\"Unpauses withdrawals.\"},\"version()\":{\"notice\":\"Semantic version.\"}},\"version\":1}},\"settings\":{\"remappings\":[\"@cwia/=lib/clones-with-immutable-args/src/\",\"@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/\",\"@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/\",\"@rari-capital/solmate/=lib/solmate/\",\"clones-with-immutable-args/=lib/clones-with-immutable-args/src/\",\"ds-test/=lib/forge-std/lib/ds-test/src/\",\"forge-std/=lib/forge-std/src/\",\"openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/\",\"openzeppelin-contracts/=lib/openzeppelin-contracts/\",\"safe-contracts/=lib/safe-contracts/contracts/\",\"solmate/=lib/solmate/src/\"],\"optimizer\":{\"enabled\":true,\"runs\":999999},\"metadata\":{\"bytecodeHash\":\"none\"},\"compilationTarget\":{\"src/L1/SuperchainConfig.sol\":\"SuperchainConfig\"},\"libraries\":{}},\"sources\":{\"lib/openzeppelin-contracts/contracts/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x2a21b14ff90012878752f230d3ffd5c3405e5938d06c97a7d89c0a64561d0d66\",\"urls\":[\"bzz-raw://3313a8f9bb1f9476857c9050067b31982bf2140b83d84f3bc0cec1f62bbe947f\",\"dweb:/ipfs/Qma17Pk8NRe7aB4UD3jjVxk7nSFaov3eQyv86hcyqkwJRV\"],\"license\":\"MIT\"},\"lib/openzeppelin-contracts/contracts/utils/Address.sol\":{\"keccak256\":\"0xd6153ce99bcdcce22b124f755e72553295be6abcd63804cfdffceb188b8bef10\",\"urls\":[\"bzz-raw://35c47bece3c03caaa07fab37dd2bb3413bfbca20db7bd9895024390e0a469487\",\"dweb:/ipfs/QmPGWT2x3QHcKxqe6gRmAkdakhbaRgx3DLzcakHz5M4eXG\"],\"license\":\"MIT\"},\"src/L1/SuperchainConfig.sol\":{\"keccak256\":\"0x9d6e33ea5d12b78fd3cb024ed5863c8c14cb55977cbab56fd9ce5c309918afc6\",\"urls\":[\"bzz-raw://d8545d6255ed4428b168a3547d6935043e5b680344d650fd090293ba36b59897\",\"dweb:/ipfs/QmPLVma7kqTTgbAHtxog2MGD7S2Wr8nd42MhBcfJ5yyF4W\"],\"license\":\"MIT\"},\"src/libraries/Storage.sol\":{\"keccak256\":\"0x902a0a815272a5b76c647d9e82101aca765e9835a6624d0857088b9da0f58afd\",\"urls\":[\"bzz-raw://9c39a697aacb0a2eac0bf1fbd7790d835a685c61006f6d3464e19cbc96a24480\",\"dweb:/ipfs/QmV3T8ZTRWPB5CNuZjxwWQNoENd7W4SoBMnFG6Y6g6xYV4\"],\"license\":\"MIT\"},\"src/universal/ISemver.sol\":{\"keccak256\":\"0xba34562a8026f59886d2e07d1d58d90b9691d00e0788c6263cef6c22740cab44\",\"urls\":[\"bzz-raw://0826f998632f83c103c3085bf2e872db79a69022b6d2e0444c83a64ca5283c2a\",\"dweb:/ipfs/QmcJ7PNqkAfKqbjFGRordtAg1v9DvcBSKvdTkVvciLyvQR\"],\"license\":\"MIT\"}},\"version\":1}",
+  "numDeployments": 1,
+  "receipt": {
+    "transactionHash": "0x8303ba7f8a872f0e031c3489978ca94bc1100ca5c7db98fe1700fa4a641be5e5",
+    "transactionIndex": "0x1e",
+    "blockHash": "0x619e583c5d1d2aead1a8243ad552f2dbff0a52409c24b7036267a5c7b8e5c6e7",
+    "blockNumber": "0x9b04b9",
+    "from": "0x354F3f4ECdcA5E0A7acE08d71348cdC1Dab48960",
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "cumulativeGasUsed": "0x473df9",
+    "gasUsed": "0x8fa4b",
+    "contractAddress": "0xE4268D9E82DfD3cf280170A14829262C513c9459",
+    "logs": [
+      {
+        "address": "0xE4268D9E82DfD3cf280170A14829262C513c9459",
+        "topics": [
+          "0x7b743789cff01dafdeae47739925425aab5dfd02d0c8229e4a508bcd2b9f42bb",
+          "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "data": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000",
+        "blockHash": "0x619e583c5d1d2aead1a8243ad552f2dbff0a52409c24b7036267a5c7b8e5c6e7",
+        "blockNumber": "0x9b04b9",
+        "transactionHash": "0x8303ba7f8a872f0e031c3489978ca94bc1100ca5c7db98fe1700fa4a641be5e5",
+        "transactionIndex": "0x1e",
+        "logIndex": "0xd",
+        "removed": false
+      },
+      {
+        "address": "0xE4268D9E82DfD3cf280170A14829262C513c9459",
+        "topics": [
+          "0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498"
+        ],
+        "data": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "blockHash": "0x619e583c5d1d2aead1a8243ad552f2dbff0a52409c24b7036267a5c7b8e5c6e7",
+        "blockNumber": "0x9b04b9",
+        "transactionHash": "0x8303ba7f8a872f0e031c3489978ca94bc1100ca5c7db98fe1700fa4a641be5e5",
+        "transactionIndex": "0x1e",
+        "logIndex": "0xe",
+        "removed": false
+      }
+    ],
+    "status": "0x1",
+    "logsBloom": "0x00000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000800000000000000000000000040000000000000000000000000020000000000000000000800000000000000000000000000000000000000000000000000000000000000002000000000000080000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000040000000000000040000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000000",
+    "type": "0x2",
+    "effectiveGasPrice": "0xb2d05e10"
+  },
+  "solcInputHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 45395,
+        "contract": "src/L1/SuperchainConfig.sol:SuperchainConfig",
+        "label": "_initialized",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      {
+        "astId": 45398,
+        "contract": "src/L1/SuperchainConfig.sol:SuperchainConfig",
+        "label": "_initializing",
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      }
+    ],
+    "types": {
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_uint8": {
+        "encoding": "inplace",
+        "label": "uint8",
+        "numberOfBytes": "1"
+      }
+    }
+  },
+  "transactionHash": "0x8303ba7f8a872f0e031c3489978ca94bc1100ca5c7db98fe1700fa4a641be5e5",
+  "userdoc": {
+    "version": 1,
+    "kind": "user",
+    "methods": {
+      "GUARDIAN_SLOT()": {
+        "notice": "The address of the guardian, which can pause withdrawals from the System.         It can only be modified by an upgrade."
+      },
+      "PAUSED_SLOT()": {
+        "notice": "Whether or not the Superchain is paused."
+      },
+      "constructor": {
+        "notice": "Constructs the SuperchainConfig contract."
+      },
+      "guardian()": {
+        "notice": "Getter for the guardian address."
+      },
+      "initialize(address)": {
+        "notice": "Initializer."
+      },
+      "pause(string)": {
+        "notice": "Pauses withdrawals."
+      },
+      "paused()": {
+        "notice": "Getter for the current paused status."
+      },
+      "unpause()": {
+        "notice": "Unpauses withdrawals."
+      },
+      "version()": {
+        "notice": "Semantic version."
+      }
+    },
+    "events": {
+      "ConfigUpdate(uint8,bytes)": {
+        "notice": "Emitted when configuration is updated."
+      },
+      "Paused(string)": {
+        "notice": "Emitted when the pause is triggered."
+      },
+      "Unpaused()": {
+        "notice": "Emitted when the pause is lifted."
+      }
+    },
+    "notice": "The SuperchainConfig contract is used to manage configuration of global superchain values."
+  }
+}

@@ -96,3 +96,6 @@ var ErrCritical = NewCriticalError(nil)
 // NotEnoughData implies that the function currently does not have enough data to progress
 // but if it is retried enough times, it will eventually return a real value or io.EOF
 var NotEnoughData = errors.New("not enough data")
+
+// EngineELSyncing implies that the execution engine is currently in progress of syncing.
+var EngineELSyncing = errors.New("engine is performing EL sync")

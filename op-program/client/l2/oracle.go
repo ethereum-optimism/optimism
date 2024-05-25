@@ -7,9 +7,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // StateOracle defines the high-level API used to retrieve L2 state data pre-images
@@ -32,6 +32,8 @@ type Oracle interface {
 
 	// BlockByHash retrieves the block with the given hash.
 	BlockByHash(blockHash common.Hash) *types.Block
+
+	OutputByRoot(root common.Hash) eth.Output
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -62,9 +64,15 @@ func (p *PreimageOracle) headerByBlockHash(blockHash common.Hash) *types.Header 
 
 func (p *PreimageOracle) BlockByHash(blockHash common.Hash) *types.Block {
 	header := p.headerByBlockHash(blockHash)
+	txs := p.LoadTransactions(blockHash, header.TxHash)
+
+	return types.NewBlockWithHeader(header).WithBody(txs, nil)
+}
+
+func (p *PreimageOracle) LoadTransactions(blockHash common.Hash, txHash common.Hash) []*types.Transaction {
 	p.hint.Hint(TransactionsHint(blockHash))
 
-	opaqueTxs := mpt.ReadTrie(header.TxHash, func(key common.Hash) []byte {
+	opaqueTxs := mpt.ReadTrie(txHash, func(key common.Hash) []byte {
 		return p.oracle.Get(preimage.Keccak256Key(key))
 	})
 
@@ -72,8 +80,7 @@ func (p *PreimageOracle) BlockByHash(blockHash common.Hash) *types.Block {
 	if err != nil {
 		panic(fmt.Errorf("failed to decode list of txs: %w", err))
 	}
-
-	return types.NewBlockWithHeader(header).WithBody(txs, nil)
+	return txs
 }
 
 func (p *PreimageOracle) NodeByHash(nodeHash common.Hash) []byte {
@@ -84,4 +91,14 @@ func (p *PreimageOracle) NodeByHash(nodeHash common.Hash) []byte {
 func (p *PreimageOracle) CodeByHash(codeHash common.Hash) []byte {
 	p.hint.Hint(CodeHint(codeHash))
 	return p.oracle.Get(preimage.Keccak256Key(codeHash))
+}
+
+func (p *PreimageOracle) OutputByRoot(l2OutputRoot common.Hash) eth.Output {
+	p.hint.Hint(L2OutputHint(l2OutputRoot))
+	data := p.oracle.Get(preimage.Keccak256Key(l2OutputRoot))
+	output, err := eth.UnmarshalOutput(data)
+	if err != nil {
+		panic(fmt.Errorf("invalid L2 output data for root %s: %w", l2OutputRoot, err))
+	}
+	return output
 }

@@ -1,0 +1,40 @@
+{
+  "name": "@eth-optimism/ufm-test-service-metamask",
+  "version": "0.1.0",
+  "description": "A User facing monitoring Test Service for MetaMask",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git",
+    "directory": "ufm-test-services/metamask"
+  },
+  "homepage": "https://optimism.io",
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf node_modules packages/*/node_modules && echo 'Finished cleaning'",
+    "lint": "prettier --check .",
+    "lint:fix": "prettier --write .",
+    "start:metamask-dapp": "npx serve -l 9011 node_modules/@metamask/test-dapp/dist",
+    "test": "npx playwright test"
+  },
+  "devDependencies": {
+    "@metamask/test-dapp": "^8.1.0",
+    "@playwright/test": "1.40.1",
+    "@synthetixio/synpress": "3.7.2-beta.9",
+    "dotenv": "^16.3.1",
+    "serve": "^14.2.1",
+    "typescript": "^5.3.3",
+    "viem": "^1.20.0"
+  },
+  "dependencies": {
+    "prom-client": "^15.0.0",
+    "zod": "^3.22.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "@cypress/request": "^3.0.1",
+      "axios": "^1.6.2",
+      "got": "^11.8.6"
+    }
+  }
+}

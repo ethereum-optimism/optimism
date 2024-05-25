@@ -8,28 +8,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestingConfig(t *testing.T) *Config {
@@ -54,10 +54,6 @@ func TestingConfig(t *testing.T) *Config {
 		TimeoutAccept:       time.Second * 2,
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
-		ConnGater: func(conf *Config) (connmgr.ConnectionGater, error) {
-			return tswarm.DefaultMockConnectionGater(), nil
-		},
-		ConnMngr: DefaultConnManager,
 	}
 }
 
@@ -65,10 +61,10 @@ func TestingConfig(t *testing.T) *Config {
 func TestP2PSimple(t *testing.T) {
 	confA := TestingConfig(t)
 	confB := TestingConfig(t)
-	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"), nil)
+	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"), nil, metrics.NoopMetrics)
 	require.NoError(t, err, "failed to launch host A")
 	defer hostA.Close()
-	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"), nil)
+	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"), nil, metrics.NoopMetrics)
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
@@ -113,8 +109,6 @@ func TestP2PFull(t *testing.T) {
 		TimeoutAccept:       time.Second * 2,
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
-		ConnGater:           DefaultConnGater,
-		ConnMngr:            DefaultConnManager,
 	}
 	// copy config A, and change the settings for B
 	confB := confA
@@ -126,7 +120,7 @@ func TestP2PFull(t *testing.T) {
 	runCfgB := &testutils.MockRuntimeConfig{P2PSeqAddress: common.Address{0x42}}
 
 	logA := testlog.Logger(t, log.LvlError).New("host", "A")
-	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics)
+	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics, false)
 	require.NoError(t, err)
 	defer nodeA.Close()
 
@@ -147,12 +141,22 @@ func TestP2PFull(t *testing.T) {
 	confB.StaticPeers, err = peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostA.ID(), Addrs: hostA.Addrs()})
 	require.NoError(t, err)
 
+	// Add address of host B itself, it shouldn't connect or cause issues.
+	idB, err := peer.IDFromPublicKey(confB.Priv.GetPublic())
+	require.NoError(t, err)
+	altAddrB, err := ma.NewMultiaddr("/ip4/127.0.0.1/tcp/12345/p2p/" + idB.String())
+	require.NoError(t, err)
+	confB.StaticPeers = append(confB.StaticPeers, altAddrB)
+
 	logB := testlog.Logger(t, log.LvlError).New("host", "B")
 
-	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics)
+	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics, false)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
+
+	require.True(t, nodeB.IsStatic(hostA.ID()), "node A must be static peer of node B")
+	require.False(t, nodeB.IsStatic(hostB.ID()), "node B must not be static peer of node B itself")
 
 	select {
 	case <-time.After(time.Second):
@@ -262,8 +266,6 @@ func TestDiscovery(t *testing.T) {
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
 		DiscoveryDB:         discDBA,
-		ConnGater:           DefaultConnGater,
-		ConnMngr:            DefaultConnManager,
 	}
 	// copy config A, and change the settings for B
 	confB := confA
@@ -278,7 +280,7 @@ func TestDiscovery(t *testing.T) {
 	resourcesCtx, resourcesCancel := context.WithCancel(context.Background())
 	defer resourcesCancel()
 
-	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics)
+	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics, false)
 	require.NoError(t, err)
 	defer nodeA.Close()
 	hostA := nodeA.Host()
@@ -293,7 +295,7 @@ func TestDiscovery(t *testing.T) {
 	confB.DiscoveryDB = discDBC
 
 	// Start B
-	nodeB, err := NewNodeP2P(context.Background(), rollupCfg, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics)
+	nodeB, err := NewNodeP2P(context.Background(), rollupCfg, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics, false)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
@@ -308,7 +310,7 @@ func TestDiscovery(t *testing.T) {
 		}})
 
 	// Start C
-	nodeC, err := NewNodeP2P(context.Background(), rollupCfg, logC, &confC, &mockGossipIn{}, nil, runCfgC, metrics.NoopMetrics)
+	nodeC, err := NewNodeP2P(context.Background(), rollupCfg, logC, &confC, &mockGossipIn{}, nil, runCfgC, metrics.NoopMetrics, false)
 	require.NoError(t, err)
 	defer nodeC.Close()
 	hostC := nodeC.Host()
@@ -332,6 +334,23 @@ func TestDiscovery(t *testing.T) {
 			peersOfB = append(peersOfB, c.RemotePeer())
 		}
 	}
+
+	// For each node, check that they have recorded metadata about the other nodes during discovery
+	for _, n1 := range []*NodeP2P{nodeA, nodeB, nodeC} {
+		eps, ok := n1.Host().Peerstore().(store.ExtendedPeerstore)
+		require.True(t, ok)
+		for _, n2 := range []*NodeP2P{nodeA, nodeB, nodeC} {
+			if n1 == n2 {
+				continue
+			}
+			md, err := eps.GetPeerMetadata(n2.Host().ID())
+			require.NoError(t, err)
+			// we don't scrutinize the ENR itself, just that it exists
+			require.NotEmpty(t, md.ENR)
+			require.Equal(t, uint64(901), md.OPStackID)
+		}
+	}
+
 }
 
 // Most tests should use mocknets instead of using the actual local host network

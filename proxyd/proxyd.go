@@ -1,6 +1,7 @@
 package proxyd
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -9,10 +10,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/go-redis/redis/v8"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -130,6 +130,18 @@ func Start(config *Config) (*Server, func(), error) {
 			}
 			opts = append(opts, WithBasicAuth(cfg.Username, passwordVal))
 		}
+
+		headers := map[string]string{}
+		for headerName, headerValue := range cfg.Headers {
+			headerValue, err := ReadFromEnvOrConfig(headerValue)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			headers[headerName] = headerValue
+		}
+		opts = append(opts, WithHeaders(headers))
+
 		tlsConfig, err := configureBackendTLS(cfg)
 		if err != nil {
 			return nil, nil, err
@@ -142,7 +154,19 @@ func Start(config *Config) (*Server, func(), error) {
 			opts = append(opts, WithStrippedTrailingXFF())
 		}
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
-		opts = append(opts, WithSkipPeerCountCheck(cfg.SkipPeerCountCheck))
+		opts = append(opts, WithConsensusSkipPeerCountCheck(cfg.ConsensusSkipPeerCountCheck))
+		opts = append(opts, WithConsensusForcedCandidate(cfg.ConsensusForcedCandidate))
+		opts = append(opts, WithWeight(cfg.Weight))
+
+		receiptsTarget, err := ReadFromEnvOrConfig(cfg.ConsensusReceiptsTarget)
+		if err != nil {
+			return nil, nil, err
+		}
+		receiptsTarget, err = validateReceiptsTarget(receiptsTarget)
+		if err != nil {
+			return nil, nil, err
+		}
+		opts = append(opts, WithConsensusReceiptTarget(receiptsTarget))
 
 		back := NewBackend(name, rpcURL, wsURL, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
@@ -163,11 +187,12 @@ func Start(config *Config) (*Server, func(), error) {
 			}
 			backends = append(backends, backendsByName[bName])
 		}
-		group := &BackendGroup{
-			Name:     bgName,
-			Backends: backends,
+
+		backendGroups[bgName] = &BackendGroup{
+			Name:            bgName,
+			Backends:        backends,
+			WeightedRouting: bg.WeightedRouting,
 		}
-		backendGroups[bgName] = group
 	}
 
 	var wsBackendGroup *BackendGroup
@@ -206,27 +231,12 @@ func Start(config *Config) (*Server, func(), error) {
 		rpcCache RPCCache
 	)
 	if config.Cache.Enabled {
-		if config.Cache.BlockSyncRPCURL == "" {
-			return nil, nil, fmt.Errorf("block sync node required for caching")
-		}
-		blockSyncRPCURL, err := ReadFromEnvOrConfig(config.Cache.BlockSyncRPCURL)
-		if err != nil {
-			return nil, nil, err
-		}
-
 		if redisClient == nil {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		} else {
 			cache = newRedisCache(redisClient, config.Redis.Namespace)
 		}
-		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
-		ethClient, err := ethclient.Dial(blockSyncRPCURL)
-		if err != nil {
-			return nil, nil, err
-		}
-		defer ethClient.Close()
-
 		rpcCache = newRPCCache(newCacheWithCompression(cache))
 	}
 
@@ -239,6 +249,7 @@ func Start(config *Config) (*Server, func(), error) {
 		resolvedAuth,
 		secondsToDuration(config.Server.TimeoutSeconds),
 		config.Server.MaxUpstreamBatchSize,
+		config.Server.EnableXServedByHeader,
 		rpcCache,
 		config.RateLimit,
 		config.SenderRateLimit,
@@ -314,9 +325,32 @@ func Start(config *Config) (*Server, func(), error) {
 			if bgcfg.ConsensusMinPeerCount > 0 {
 				copts = append(copts, WithMinPeerCount(uint64(bgcfg.ConsensusMinPeerCount)))
 			}
+			if bgcfg.ConsensusMaxBlockRange > 0 {
+				copts = append(copts, WithMaxBlockRange(bgcfg.ConsensusMaxBlockRange))
+			}
+
+			var tracker ConsensusTracker
+			if bgcfg.ConsensusHA {
+				if redisClient == nil {
+					log.Crit("cant start - consensus high availability requires redis")
+				}
+				topts := make([]RedisConsensusTrackerOpt, 0)
+				if bgcfg.ConsensusHALockPeriod > 0 {
+					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHALockPeriod)))
+				}
+				if bgcfg.ConsensusHAHeartbeatInterval > 0 {
+					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHAHeartbeatInterval)))
+				}
+				tracker = NewRedisConsensusTracker(context.Background(), redisClient, bg, bg.Name, topts...)
+				copts = append(copts, WithTracker(tracker))
+			}
 
 			cp := NewConsensusPoller(bg, copts...)
 			bg.Consensus = cp
+
+			if bgcfg.ConsensusHA {
+				tracker.(*RedisConsensusTracker).Init()
+			}
 		}
 	}
 
@@ -330,6 +364,21 @@ func Start(config *Config) (*Server, func(), error) {
 	}
 
 	return srv, shutdownFunc, nil
+}
+
+func validateReceiptsTarget(val string) (string, error) {
+	if val == "" {
+		val = ReceiptsTargetDebugGetRawReceipts
+	}
+	switch val {
+	case ReceiptsTargetDebugGetRawReceipts,
+		ReceiptsTargetAlchemyGetTransactionReceipts,
+		ReceiptsTargetEthGetTransactionReceipts,
+		ReceiptsTargetParityGetTransactionReceipts:
+		return val, nil
+	default:
+		return "", fmt.Errorf("invalid receipts target: %s", val)
+	}
 }
 
 func secondsToDuration(seconds int) time.Duration {

@@ -4,7 +4,7 @@ The endpoint-monitor runs websocket checks on edge-proxyd endpoints and downstre
 
 ## Setup
 
-Install go1.18
+Install go1.19
 
 ```bash
 make build

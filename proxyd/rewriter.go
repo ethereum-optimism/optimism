@@ -9,7 +9,10 @@ import (
 )
 
 type RewriteContext struct {
-	latest hexutil.Uint64
+	latest        hexutil.Uint64
+	safe          hexutil.Uint64
+	finalized     hexutil.Uint64
+	maxBlockRange uint64
 }
 
 type RewriteResult uint8
@@ -30,6 +33,7 @@ const (
 
 var (
 	ErrRewriteBlockOutOfRange = errors.New("block is out of range")
+	ErrRewriteRangeTooLarge   = errors.New("block range is too large")
 )
 
 // RewriteTags modifies the request and the response based on block tags
@@ -61,37 +65,73 @@ func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResul
 	case "eth_getLogs",
 		"eth_newFilter":
 		return rewriteRange(rctx, req, res, 0)
+	case "debug_getRawReceipts", "consensus_getReceipts":
+		return rewriteParam(rctx, req, res, 0, true, false)
 	case "eth_getBalance",
 		"eth_getCode",
 		"eth_getTransactionCount",
 		"eth_call":
-		return rewriteParam(rctx, req, res, 1)
-	case "eth_getStorageAt":
-		return rewriteParam(rctx, req, res, 2)
+		return rewriteParam(rctx, req, res, 1, false, true)
+	case "eth_getStorageAt",
+		"eth_getProof":
+		return rewriteParam(rctx, req, res, 2, false, true)
 	case "eth_getBlockTransactionCountByNumber",
 		"eth_getUncleCountByBlockNumber",
 		"eth_getBlockByNumber",
 		"eth_getTransactionByBlockNumberAndIndex",
 		"eth_getUncleByBlockNumberAndIndex":
-		return rewriteParam(rctx, req, res, 0)
+		return rewriteParam(rctx, req, res, 0, false, false)
 	}
 	return RewriteNone, nil
 }
 
-func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteResult, error) {
+func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int, required bool, blockNrOrHash bool) (RewriteResult, error) {
 	var p []interface{}
 	err := json.Unmarshal(req.Params, &p)
 	if err != nil {
 		return RewriteOverrideError, err
 	}
 
-	if len(p) <= pos {
+	// we assume latest if the param is missing,
+	// and we don't rewrite if there is not enough params
+	if len(p) == pos && !required {
 		p = append(p, "latest")
+	} else if len(p) <= pos {
+		return RewriteNone, nil
 	}
 
-	val, rw, err := rewriteTag(rctx, p[pos].(string))
-	if err != nil {
-		return RewriteOverrideError, err
+	// support for https://eips.ethereum.org/EIPS/eip-1898
+	var val interface{}
+	var rw bool
+	if blockNrOrHash {
+		bnh, err := remarshalBlockNumberOrHash(p[pos])
+		if err != nil {
+			// fallback to string
+			s, ok := p[pos].(string)
+			if ok {
+				val, rw, err = rewriteTag(rctx, s)
+				if err != nil {
+					return RewriteOverrideError, err
+				}
+			} else {
+				return RewriteOverrideError, errors.New("expected BlockNumberOrHash or string")
+			}
+		} else {
+			val, rw, err = rewriteTagBlockNumberOrHash(rctx, bnh)
+			if err != nil {
+				return RewriteOverrideError, err
+			}
+		}
+	} else {
+		s, ok := p[pos].(string)
+		if !ok {
+			return RewriteOverrideError, errors.New("expected string")
+		}
+
+		val, rw, err = rewriteTag(rctx, s)
+		if err != nil {
+			return RewriteOverrideError, err
+		}
 	}
 
 	if rw {
@@ -113,6 +153,15 @@ func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 		return RewriteOverrideError, err
 	}
 
+	// if either fromBlock or toBlock is defined, default the other to "latest" if unset
+	_, hasFrom := p[pos]["fromBlock"]
+	_, hasTo := p[pos]["toBlock"]
+	if hasFrom && !hasTo {
+		p[pos]["toBlock"] = "latest"
+	} else if hasTo && !hasFrom {
+		p[pos]["fromBlock"] = "latest"
+	}
+
 	modifiedFrom, err := rewriteTagMap(rctx, p[pos], "fromBlock")
 	if err != nil {
 		return RewriteOverrideError, err
@@ -121,6 +170,20 @@ func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 	modifiedTo, err := rewriteTagMap(rctx, p[pos], "toBlock")
 	if err != nil {
 		return RewriteOverrideError, err
+	}
+
+	if rctx.maxBlockRange > 0 && (hasFrom || hasTo) {
+		from, err := blockNumber(p[pos], "fromBlock", uint64(rctx.latest))
+		if err != nil {
+			return RewriteOverrideError, err
+		}
+		to, err := blockNumber(p[pos], "toBlock", uint64(rctx.latest))
+		if err != nil {
+			return RewriteOverrideError, err
+		}
+		if to-from > rctx.maxBlockRange {
+			return RewriteOverrideError, ErrRewriteRangeTooLarge
+		}
 	}
 
 	// if any of the fields the request have been changed, re-marshal the params
@@ -134,6 +197,21 @@ func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 	}
 
 	return RewriteNone, nil
+}
+
+func blockNumber(m map[string]interface{}, key string, latest uint64) (uint64, error) {
+	current, ok := m[key].(string)
+	if !ok {
+		return 0, errors.New("expected string")
+	}
+	// the latest/safe/finalized tags are already replaced by rewriteTag
+	if current == "earliest" {
+		return 0, nil
+	}
+	if current == "pending" {
+		return latest + 1, nil
+	}
+	return hexutil.DecodeUint64(current)
 }
 
 func rewriteTagMap(rctx RewriteContext, m map[string]interface{}, key string) (bool, error) {
@@ -158,24 +236,75 @@ func rewriteTagMap(rctx RewriteContext, m map[string]interface{}, key string) (b
 	return false, nil
 }
 
-func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
+func remarshalBlockNumberOrHash(current interface{}) (*rpc.BlockNumberOrHash, error) {
 	jv, err := json.Marshal(current)
 	if err != nil {
-		return "", false, err
+		return nil, err
 	}
 
 	var bnh rpc.BlockNumberOrHash
 	err = bnh.UnmarshalJSON(jv)
 	if err != nil {
+		return nil, err
+	}
+
+	return &bnh, nil
+}
+
+func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
+	bnh, err := remarshalBlockNumberOrHash(current)
+	if err != nil {
 		return "", false, err
 	}
 
-	if bnh.BlockNumber != nil && *bnh.BlockNumber == rpc.LatestBlockNumber {
+	// this is a hash, not a block
+	if bnh.BlockNumber == nil {
+		return current, false, nil
+	}
+
+	switch *bnh.BlockNumber {
+	case rpc.PendingBlockNumber,
+		rpc.EarliestBlockNumber:
+		return current, false, nil
+	case rpc.FinalizedBlockNumber:
+		return rctx.finalized.String(), true, nil
+	case rpc.SafeBlockNumber:
+		return rctx.safe.String(), true, nil
+	case rpc.LatestBlockNumber:
 		return rctx.latest.String(), true, nil
-	} else if bnh.BlockNumber != nil {
-		if hexutil.Uint64(bnh.BlockNumber.Int64()) > rctx.latest {
+	default:
+		if bnh.BlockNumber.Int64() > int64(rctx.latest) {
 			return "", false, ErrRewriteBlockOutOfRange
 		}
 	}
+
+	return current, false, nil
+}
+
+func rewriteTagBlockNumberOrHash(rctx RewriteContext, current *rpc.BlockNumberOrHash) (*rpc.BlockNumberOrHash, bool, error) {
+	// this is a hash, not a block number
+	if current.BlockNumber == nil {
+		return current, false, nil
+	}
+
+	switch *current.BlockNumber {
+	case rpc.PendingBlockNumber,
+		rpc.EarliestBlockNumber:
+		return current, false, nil
+	case rpc.FinalizedBlockNumber:
+		bn := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(rctx.finalized))
+		return &bn, true, nil
+	case rpc.SafeBlockNumber:
+		bn := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(rctx.safe))
+		return &bn, true, nil
+	case rpc.LatestBlockNumber:
+		bn := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(rctx.latest))
+		return &bn, true, nil
+	default:
+		if current.BlockNumber.Int64() > int64(rctx.latest) {
+			return nil, false, ErrRewriteBlockOutOfRange
+		}
+	}
+
 	return current, false, nil
 }

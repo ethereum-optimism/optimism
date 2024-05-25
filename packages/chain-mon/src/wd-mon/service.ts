@@ -13,6 +13,7 @@ import { Event } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../../package.json'
+import { getLastFinalizedBlock as getLastFinalizedBlock } from './helpers'
 
 type Options = {
   l1RpcProvider: Provider
@@ -30,7 +31,7 @@ type Metrics = {
 type State = {
   messenger: CrossChainMessenger
   highestUncheckedBlockNumber: number
-  finalizationWindow: number
+  faultProofWindow: number
   forgeryDetected: boolean
 }
 
@@ -103,15 +104,26 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
       l2SignerOrProvider: this.options.l2RpcProvider,
       l1ChainId: await getChainId(this.options.l1RpcProvider),
       l2ChainId: await getChainId(this.options.l2RpcProvider),
+      bedrock: true,
     })
 
     // Not detected by default.
     this.state.forgeryDetected = false
 
-    // For now we'll just start take it from the env or the tip of the chain
+    this.state.faultProofWindow =
+      await this.state.messenger.getChallengePeriodSeconds()
+    this.logger.info(
+      `fault proof window is ${this.state.faultProofWindow} seconds`
+    )
+
+    // Set the start block number.
     if (this.options.startBlockNumber === -1) {
-      this.state.highestUncheckedBlockNumber =
-        await this.options.l1RpcProvider.getBlockNumber()
+      // We default to starting from the last finalized block.
+      this.state.highestUncheckedBlockNumber = await getLastFinalizedBlock(
+        this.options.l1RpcProvider,
+        this.state.faultProofWindow,
+        this.logger
+      )
     } else {
       this.state.highestUncheckedBlockNumber = this.options.startBlockNumber
     }
@@ -191,16 +203,14 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
         await this.state.messenger.contracts.l2.BedrockMessagePasser.sentMessages(
           proofEvent.args.withdrawalHash
         )
-      const provenAt = `${
-        (dateformat(
-          new Date(
-            (await this.options.l1RpcProvider.getBlock(proofEvent.blockHash))
-              .timestamp * 1000
-          )
-        ),
+      const block = await proofEvent.getBlock()
+      const now = new Date(block.timestamp * 1000)
+      const dateString = dateformat(
+        now,
         'mmmm dS, yyyy, h:MM:ss TT',
-        true)
-      } UTC`
+        true // use UTC time
+      )
+      const provenAt = `${dateString} UTC`
       if (exists) {
         this.metrics.withdrawalsValidated.inc()
         this.logger.info(`valid withdrawal`, {

@@ -1,7 +1,6 @@
 package pprof
 
 import (
-	"context"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -10,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 )
 
-func ListenAndServe(ctx context.Context, hostname string, port int) error {
+func StartServer(hostname string, port int) (*httputil.HTTPServer, error) {
 	mux := http.NewServeMux()
 
 	// have to do below to support multiple servers, since the
@@ -22,9 +21,5 @@ func ListenAndServe(ctx context.Context, hostname string, port int) error {
 	mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 
 	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
-	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
-	return httputil.ListenAndServeContext(ctx, server)
+	return httputil.StartHTTPServer(addr, mux)
 }

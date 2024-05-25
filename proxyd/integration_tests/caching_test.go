@@ -27,6 +27,7 @@ func TestCaching(t *testing.T) {
 	hdlr.SetRoute("eth_getTransactionByBlockHashAndIndex", "999", "eth_getTransactionByBlockHashAndIndex")
 	hdlr.SetRoute("eth_getUncleByBlockHashAndIndex", "999", "eth_getUncleByBlockHashAndIndex")
 	hdlr.SetRoute("eth_getTransactionReceipt", "999", "eth_getTransactionReceipt")
+	hdlr.SetRoute("debug_getRawReceipts", "999", "debug_getRawReceipts")
 	/* not cacheable */
 	hdlr.SetRoute("eth_getBlockByNumber", "999", "eth_getBlockByNumber")
 	hdlr.SetRoute("eth_blockNumber", "999", "eth_blockNumber")
@@ -78,12 +79,6 @@ func TestCaching(t *testing.T) {
 			1,
 		},
 		{
-			"eth_getTransactionByHash",
-			[]interface{}{"0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b"},
-			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionByHash\", \"id\": 999}",
-			1,
-		},
-		{
 			"eth_getTransactionByBlockHashAndIndex",
 			[]interface{}{"0xe670ec64341771606e55d6b4ca35a1a6b75ee3d5145a99d05921026d1527331", "0x55"},
 			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionByBlockHashAndIndex\", \"id\": 999}",
@@ -95,12 +90,6 @@ func TestCaching(t *testing.T) {
 			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getUncleByBlockHashAndIndex\", \"id\": 999}",
 			1,
 		},
-		{
-			"eth_getTransactionReceipt",
-			[]interface{}{"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c5"},
-			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionReceipt\", \"id\": 999}",
-			1,
-		},
 		/* not cacheable */
 		{
 			"eth_getBlockByNumber",
@@ -109,6 +98,18 @@ func TestCaching(t *testing.T) {
 				true,
 			},
 			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getBlockByNumber\", \"id\": 999}",
+			2,
+		},
+		{
+			"eth_getTransactionReceipt",
+			[]interface{}{"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c5"},
+			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionReceipt\", \"id\": 999}",
+			2,
+		},
+		{
+			"eth_getTransactionByHash",
+			[]interface{}{"0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b"},
+			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionByHash\", \"id\": 999}",
 			2,
 		},
 		{
@@ -179,6 +180,30 @@ func TestCaching(t *testing.T) {
 		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":null}"), resRaw)
 		RequireEqualJSON(t, resRaw, resCache)
 		require.Equal(t, 2, countRequests(backend, "eth_getBlockByHash"))
+	})
+
+	t.Run("debug_getRawReceipts with 0 receipts should not be cached", func(t *testing.T) {
+		backend.Reset()
+		hdlr.SetRoute("debug_getRawReceipts", "999", []string{})
+		resRaw, _, err := client.SendRPC("debug_getRawReceipts", []interface{}{"0x88420081ab9c6d50dc57af36b541c6b8a7b3e9c0d837b0414512c4c5883560ff"})
+		require.NoError(t, err)
+		resCache, _, err := client.SendRPC("debug_getRawReceipts", []interface{}{"0x88420081ab9c6d50dc57af36b541c6b8a7b3e9c0d837b0414512c4c5883560ff"})
+		require.NoError(t, err)
+		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":[]}"), resRaw)
+		RequireEqualJSON(t, resRaw, resCache)
+		require.Equal(t, 2, countRequests(backend, "debug_getRawReceipts"))
+	})
+
+	t.Run("debug_getRawReceipts with more than 0 receipts should be cached", func(t *testing.T) {
+		backend.Reset()
+		hdlr.SetRoute("debug_getRawReceipts", "999", []string{"a"})
+		resRaw, _, err := client.SendRPC("debug_getRawReceipts", []interface{}{"0x88420081ab9c6d50dc57af36b541c6b8a7b3e9c0d837b0414512c4c5883560bb"})
+		require.NoError(t, err)
+		resCache, _, err := client.SendRPC("debug_getRawReceipts", []interface{}{"0x88420081ab9c6d50dc57af36b541c6b8a7b3e9c0d837b0414512c4c5883560bb"})
+		require.NoError(t, err)
+		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":[\"a\"]}"), resRaw)
+		RequireEqualJSON(t, resRaw, resCache)
+		require.Equal(t, 1, countRequests(backend, "debug_getRawReceipts"))
 	})
 }
 

@@ -7,7 +7,7 @@ by looking at what batches were submitted on L1.
 
 The `batch_decoder` tool is designed to be simple & flexible. It offloads as much data analysis
 as possible to other tools. It is built around manipulating JSON on disk. The first stage is to
-fetch all transaction which are sent to a batch inbox address. Those transactions are decoded into
+fetch all transactions which are sent to a batch inbox address. Those transactions are decoded into
 frames in that step & information about them is recorded. After transactions are fetched the frames
 are re-assembled into channels in a second step that does not touch the network.
 
@@ -24,13 +24,18 @@ the transaction hash.
 
 `batch_decoder reassemble` goes through all of the found frames in the cache & then turns them
 into channels. It then stores the channels with metadata on disk where the file name is the Channel ID.
+Each channel can contain multiple batches.
 
+If the batch is span batch, `batch_decoder` derives span batch using `L2BlockTime`, `L2GenesisTime`, and `L2ChainID`.
+These arguments can be provided to the binary using flags.
+
+If the batch is a singular batch, `batch_decoder` does not derive and stores the batch as is.
 
 ### Force Close
 
 `batch_decoder force-close` will create a transaction data that can be sent from the batcher address to
 the batch inbox address which will force close the given channels. This will allow future channels to
-be read without waiting for the channel timeout. It uses uses the results from `batch_decoder fetch` to
+be read without waiting for the channel timeout. It uses the results from `batch_decoder fetch` to
 create the close transaction because the transaction it creates for a specific channel requires information
 about if the channel has been closed or not. If it has been closed already but is missing specific frames
 those frames need to be generated differently than simply closing the channel.
@@ -45,7 +50,7 @@ those frames need to be generated differently than simply closing the channel.
 jq . $JSON_FILE
 
 # Print the number of valid & invalid transactions
-jq .valid_data $TX_DIR/* | sort | uniq -c  
+jq .valid_data $TX_DIR/* | sort | uniq -c
 
 # Select all transactions that have invalid data & then print the transaction hash
 jq "select(.valid_data == false)|.tx.hash" $TX_DIR
@@ -63,7 +68,6 @@ jq '.batches|del(.[]|.Transactions)' $CHANNEL_FILE
 
 ## Roadmap
 
-- Parallel transaction fetching (CLI-3563)
 - Pull the batches out of channels & store that information inside the ChannelWithMetadata (CLI-3565)
 	- Transaction Bytes used
 	- Total uncompressed (different from tx bytes) + compressed bytes

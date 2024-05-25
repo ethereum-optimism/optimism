@@ -17,12 +17,15 @@ import (
 	"sync"
 	"time"
 
-	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
-
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/xaionaro-go/weightedshuffle"
 	"golang.org/x/sync/semaphore"
+
+	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 )
 
 const (
@@ -96,7 +99,22 @@ var (
 		HTTPErrorCode: 400,
 	}
 
+	ErrRequestBodyTooLarge = &RPCErr{
+		Code:          JSONRPCErrorInternal - 21,
+		Message:       "request body too large",
+		HTTPErrorCode: 413,
+	}
+
+	ErrBackendResponseTooLarge = &RPCErr{
+		Code:          JSONRPCErrorInternal - 20,
+		Message:       "backend response too large",
+		HTTPErrorCode: 500,
+	}
+
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
+
+	ErrConsensusGetReceiptsCantBeBatched = errors.New("consensus_getReceipts cannot be batched")
+	ErrConsensusGetReceiptsInvalidTarget = errors.New("unsupported consensus_receipts_target")
 )
 
 func ErrInvalidRequest(msg string) *RPCErr {
@@ -118,9 +136,11 @@ func ErrInvalidParams(msg string) *RPCErr {
 type Backend struct {
 	Name                 string
 	rpcURL               string
+	receiptsTarget       string
 	wsURL                string
 	authUsername         string
 	authPassword         string
+	headers              map[string]string
 	client               *LimitedHTTPClient
 	dialer               *websocket.Dialer
 	maxRetries           int
@@ -132,6 +152,7 @@ type Backend struct {
 	proxydIP             string
 
 	skipPeerCountCheck bool
+	forcedCandidate    bool
 
 	maxDegradedLatencyThreshold time.Duration
 	maxLatencyThreshold         time.Duration
@@ -140,6 +161,8 @@ type Backend struct {
 	latencySlidingWindow         *sw.AvgSlidingWindow
 	networkRequestsSlidingWindow *sw.AvgSlidingWindow
 	networkErrorsSlidingWindow   *sw.AvgSlidingWindow
+
+	weight int
 }
 
 type BackendOpt func(b *Backend)
@@ -148,6 +171,12 @@ func WithBasicAuth(username, password string) BackendOpt {
 	return func(b *Backend) {
 		b.authUsername = username
 		b.authPassword = password
+	}
+}
+
+func WithHeaders(headers map[string]string) BackendOpt {
+	return func(b *Backend) {
+		b.headers = headers
 	}
 }
 
@@ -208,9 +237,21 @@ func WithProxydIP(ip string) BackendOpt {
 	}
 }
 
-func WithSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
+func WithConsensusSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
 	return func(b *Backend) {
 		b.skipPeerCountCheck = skipPeerCountCheck
+	}
+}
+
+func WithConsensusForcedCandidate(forcedCandidate bool) BackendOpt {
+	return func(b *Backend) {
+		b.forcedCandidate = forcedCandidate
+	}
+}
+
+func WithWeight(weight int) BackendOpt {
+	return func(b *Backend) {
+		b.weight = weight
 	}
 }
 
@@ -232,10 +273,34 @@ func WithMaxErrorRateThreshold(maxErrorRateThreshold float64) BackendOpt {
 	}
 }
 
+func WithConsensusReceiptTarget(receiptsTarget string) BackendOpt {
+	return func(b *Backend) {
+		b.receiptsTarget = receiptsTarget
+	}
+}
+
 type indexedReqRes struct {
 	index int
 	req   *RPCReq
 	res   *RPCRes
+}
+
+const ConsensusGetReceiptsMethod = "consensus_getReceipts"
+
+const ReceiptsTargetDebugGetRawReceipts = "debug_getRawReceipts"
+const ReceiptsTargetAlchemyGetTransactionReceipts = "alchemy_getTransactionReceipts"
+const ReceiptsTargetParityGetTransactionReceipts = "parity_getBlockReceipts"
+const ReceiptsTargetEthGetTransactionReceipts = "eth_getBlockReceipts"
+
+type ConsensusGetReceiptsResult struct {
+	Method string      `json:"method"`
+	Result interface{} `json:"result"`
+}
+
+// BlockHashOrNumberParameter is a non-conventional wrapper used by alchemy_getTransactionReceipts
+type BlockHashOrNumberParameter struct {
+	BlockHash   *common.Hash     `json:"blockHash"`
+	BlockNumber *rpc.BlockNumber `json:"blockNumber"`
 }
 
 func NewBackend(
@@ -266,15 +331,19 @@ func NewBackend(
 		networkErrorsSlidingWindow:   sw.NewSlidingWindow(),
 	}
 
-	for _, opt := range opts {
-		opt(backend)
-	}
+	backend.Override(opts...)
 
 	if !backend.stripTrailingXFF && backend.proxydIP == "" {
 		log.Warn("proxied requests' XFF header will not contain the proxyd ip address")
 	}
 
 	return backend
+}
+
+func (b *Backend) Override(opts ...BackendOpt) {
+	for _, opt := range opts {
+		opt(b)
+	}
 }
 
 func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
@@ -298,6 +367,28 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		res, err := b.doForward(ctx, reqs, isBatch)
 		switch err {
 		case nil: // do nothing
+		case ErrBackendResponseTooLarge:
+			log.Warn(
+				"backend response too large",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"max", b.maxResponseSize,
+			)
+			RecordBatchRPCError(ctx, b.Name, reqs, err)
+		case ErrConsensusGetReceiptsCantBeBatched:
+			log.Warn(
+				"Received unsupported batch request for consensus_getReceipts",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
+		case ErrConsensusGetReceiptsInvalidTarget:
+			log.Error(
+				"Unsupported consensus_receipts_target for consensus_getReceipts",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
 		// ErrBackendUnexpectedJSONRPC occurs because infura responds with a single JSON-RPC object
 		// to a batch request whenever any Request Object in the batch would induce a partial error.
 		// We don't label the backend offline in this case. But the error is still returned to
@@ -375,11 +466,63 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	// we are concerned about network error rates, so we record 1 request independently of how many are in the batch
 	b.networkRequestsSlidingWindow.Incr()
 
+	translatedReqs := make(map[string]*RPCReq, len(rpcReqs))
+	// translate consensus_getReceipts to receipts target
+	// right now we only support non-batched
+	if isBatch {
+		for _, rpcReq := range rpcReqs {
+			if rpcReq.Method == ConsensusGetReceiptsMethod {
+				return nil, ErrConsensusGetReceiptsCantBeBatched
+			}
+		}
+	} else {
+		for _, rpcReq := range rpcReqs {
+			if rpcReq.Method == ConsensusGetReceiptsMethod {
+				translatedReqs[string(rpcReq.ID)] = rpcReq
+				rpcReq.Method = b.receiptsTarget
+				var reqParams []rpc.BlockNumberOrHash
+				err := json.Unmarshal(rpcReq.Params, &reqParams)
+				if err != nil {
+					return nil, ErrInvalidRequest("invalid request")
+				}
+
+				var translatedParams []byte
+				switch rpcReq.Method {
+				case ReceiptsTargetDebugGetRawReceipts,
+					ReceiptsTargetEthGetTransactionReceipts,
+					ReceiptsTargetParityGetTransactionReceipts:
+					// conventional methods use an array of strings having either block number or block hash
+					// i.e. ["0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"]
+					params := make([]string, 1)
+					if reqParams[0].BlockNumber != nil {
+						params[0] = reqParams[0].BlockNumber.String()
+					} else {
+						params[0] = reqParams[0].BlockHash.Hex()
+					}
+					translatedParams = mustMarshalJSON(params)
+				case ReceiptsTargetAlchemyGetTransactionReceipts:
+					// alchemy uses an array of object with either block number or block hash
+					// i.e. [{ blockHash: "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b" }]
+					params := make([]BlockHashOrNumberParameter, 1)
+					if reqParams[0].BlockNumber != nil {
+						params[0].BlockNumber = reqParams[0].BlockNumber
+					} else {
+						params[0].BlockHash = reqParams[0].BlockHash
+					}
+					translatedParams = mustMarshalJSON(params)
+				default:
+					return nil, ErrConsensusGetReceiptsInvalidTarget
+				}
+
+				rpcReq.Params = translatedParams
+			}
+		}
+	}
+
 	isSingleElementBatch := len(rpcReqs) == 1
 
 	// Single element batches are unwrapped before being sent
 	// since Alchemy handles single requests better than batches.
-
 	var body []byte
 	if isSingleElementBatch {
 		body = mustMarshalJSON(rpcReqs[0])
@@ -390,6 +533,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.rpcURL, bytes.NewReader(body))
 	if err != nil {
 		b.networkErrorsSlidingWindow.Incr()
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, wrapErr(err, "error creating backend request")
 	}
 
@@ -407,10 +551,15 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	httpReq.Header.Set("content-type", "application/json")
 	httpReq.Header.Set("X-Forwarded-For", xForwardedFor)
 
+	for name, value := range b.headers {
+		httpReq.Header.Set(name, value)
+	}
+
 	start := time.Now()
 	httpRes, err := b.client.DoLimited(httpReq)
 	if err != nil {
 		b.networkErrorsSlidingWindow.Incr()
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, wrapErr(err, "error in backend request")
 	}
 
@@ -429,63 +578,81 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	// Alchemy returns a 400 on bad JSONs, so handle that case
 	if httpRes.StatusCode != 200 && httpRes.StatusCode != 400 {
 		b.networkErrorsSlidingWindow.Incr()
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, fmt.Errorf("response code %d", httpRes.StatusCode)
 	}
 
 	defer httpRes.Body.Close()
-	resB, err := io.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
+	resB, err := io.ReadAll(LimitReader(httpRes.Body, b.maxResponseSize))
+	if errors.Is(err, ErrLimitReaderOverLimit) {
+		return nil, ErrBackendResponseTooLarge
+	}
 	if err != nil {
 		b.networkErrorsSlidingWindow.Incr()
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, wrapErr(err, "error reading response body")
 	}
 
-	var res []*RPCRes
+	var rpcRes []*RPCRes
 	if isSingleElementBatch {
 		var singleRes RPCRes
 		if err := json.Unmarshal(resB, &singleRes); err != nil {
 			return nil, ErrBackendBadResponse
 		}
-		res = []*RPCRes{
+		rpcRes = []*RPCRes{
 			&singleRes,
 		}
 	} else {
-		if err := json.Unmarshal(resB, &res); err != nil {
+		if err := json.Unmarshal(resB, &rpcRes); err != nil {
 			// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
 			if responseIsNotBatched(resB) {
 				b.networkErrorsSlidingWindow.Incr()
+				RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 				return nil, ErrBackendUnexpectedJSONRPC
 			}
 			b.networkErrorsSlidingWindow.Incr()
+			RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 			return nil, ErrBackendBadResponse
 		}
 	}
 
-	if len(rpcReqs) != len(res) {
+	if len(rpcReqs) != len(rpcRes) {
 		b.networkErrorsSlidingWindow.Incr()
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, ErrBackendUnexpectedJSONRPC
 	}
 
 	// capture the HTTP status code in the response. this will only
 	// ever be 400 given the status check on line 318 above.
 	if httpRes.StatusCode != 200 {
-		for _, res := range res {
+		for _, res := range rpcRes {
 			res.Error.HTTPErrorCode = httpRes.StatusCode
 		}
 	}
 	duration := time.Since(start)
 	b.latencySlidingWindow.Add(float64(duration))
+	RecordBackendNetworkLatencyAverageSlidingWindow(b, time.Duration(b.latencySlidingWindow.Avg()))
+	RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 
-	sortBatchRPCResponse(rpcReqs, res)
-	return res, nil
+	// enrich the response with the actual request method
+	for _, res := range rpcRes {
+		translatedReq, exist := translatedReqs[string(res.ID)]
+		if exist {
+			res.Result = ConsensusGetReceiptsResult{
+				Method: translatedReq.Method,
+				Result: res.Result,
+			}
+		}
+	}
+
+	sortBatchRPCResponse(rpcReqs, rpcRes)
+
+	return rpcRes, nil
 }
 
 // IsHealthy checks if the backend is able to serve traffic, based on dynamic parameters
 func (b *Backend) IsHealthy() bool {
-	errorRate := float64(0)
-	// avoid division-by-zero when the window is empty
-	if b.networkRequestsSlidingWindow.Sum() >= 10 {
-		errorRate = b.networkErrorsSlidingWindow.Sum() / b.networkRequestsSlidingWindow.Sum()
-	}
+	errorRate := b.ErrorRate()
 	avgLatency := time.Duration(b.latencySlidingWindow.Avg())
 	if errorRate >= b.maxErrorRateThreshold {
 		return false
@@ -494,6 +661,16 @@ func (b *Backend) IsHealthy() bool {
 		return false
 	}
 	return true
+}
+
+// ErrorRate returns the instant error rate of the backend
+func (b *Backend) ErrorRate() (errorRate float64) {
+	// we only really start counting the error rate after a minimum of 10 requests
+	// this is to avoid false positives when the backend is just starting up
+	if b.networkRequestsSlidingWindow.Sum() >= 10 {
+		errorRate = b.networkErrorsSlidingWindow.Sum() / b.networkRequestsSlidingWindow.Sum()
+	}
+	return errorRate
 }
 
 // IsDegraded checks if the backend is serving traffic in a degraded state (i.e. used as a last resource)
@@ -526,17 +703,18 @@ func sortBatchRPCResponse(req []*RPCReq, res []*RPCRes) {
 }
 
 type BackendGroup struct {
-	Name      string
-	Backends  []*Backend
-	Consensus *ConsensusPoller
+	Name            string
+	Backends        []*Backend
+	WeightedRouting bool
+	Consensus       *ConsensusPoller
 }
 
-func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
+func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, string, error) {
 	if len(rpcReqs) == 0 {
-		return nil, nil
+		return nil, "", nil
 	}
 
-	backends := bg.Backends
+	backends := bg.orderedBackendsForRequest()
 
 	overriddenResponses := make([]*indexedReqRes, 0)
 	rewrittenReqs := make([]*RPCReq, 0, len(rpcReqs))
@@ -544,10 +722,14 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 	if bg.Consensus != nil {
 		// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
 		// serving traffic from any backend that agrees in the consensus group
-		backends = bg.loadBalancedConsensusGroup()
 
 		// We also rewrite block tags to enforce compliance with consensus
-		rctx := RewriteContext{latest: bg.Consensus.GetConsensusBlockNumber()}
+		rctx := RewriteContext{
+			latest:        bg.Consensus.GetLatestBlockNumber(),
+			safe:          bg.Consensus.GetSafeBlockNumber(),
+			finalized:     bg.Consensus.GetFinalizedBlockNumber(),
+			maxBlockRange: bg.Consensus.maxBlockRange,
+		}
 
 		for i, req := range rpcReqs {
 			res := RPCRes{JSONRPC: JSONRPCVersion, ID: req.ID}
@@ -561,6 +743,10 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 				})
 				if errors.Is(err, ErrRewriteBlockOutOfRange) {
 					res.Error = ErrBlockOutOfRange
+				} else if errors.Is(err, ErrRewriteRangeTooLarge) {
+					res.Error = ErrInvalidParams(
+						fmt.Sprintf("block range greater than %d max", rctx.maxBlockRange),
+					)
 				} else {
 					res.Error = ErrParseErr
 				}
@@ -583,10 +769,17 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 		res := make([]*RPCRes, 0)
 		var err error
 
+		servedBy := fmt.Sprintf("%s/%s", bg.Name, back.Name)
+
 		if len(rpcReqs) > 0 {
 			res, err = back.Forward(ctx, rpcReqs, isBatch)
-			if errors.Is(err, ErrMethodNotWhitelisted) {
-				return nil, err
+			if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
+				errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) ||
+				errors.Is(err, ErrMethodNotWhitelisted) {
+				return nil, "", err
+			}
+			if errors.Is(err, ErrBackendResponseTooLarge) {
+				return nil, servedBy, err
 			}
 			if errors.Is(err, ErrBackendOffline) {
 				log.Warn(
@@ -628,11 +821,11 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 			}
 		}
 
-		return res, nil
+		return res, servedBy, nil
 	}
 
 	RecordUnserviceableRequest(ctx, RPCRequestSourceHTTP)
-	return nil, ErrNoBackends
+	return nil, "", ErrNoBackends
 }
 
 func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
@@ -672,6 +865,27 @@ func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn,
 	return nil, ErrNoBackends
 }
 
+func weightedShuffle(backends []*Backend) {
+	weight := func(i int) float64 {
+		return float64(backends[i].weight)
+	}
+
+	weightedshuffle.ShuffleInplace(backends, weight, nil)
+}
+
+func (bg *BackendGroup) orderedBackendsForRequest() []*Backend {
+	if bg.Consensus != nil {
+		return bg.loadBalancedConsensusGroup()
+	} else if bg.WeightedRouting {
+		result := make([]*Backend, len(bg.Backends))
+		copy(result, bg.Backends)
+		weightedShuffle(result)
+		return result
+	} else {
+		return bg.Backends
+	}
+}
+
 func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	cg := bg.Consensus.GetConsensusGroup()
 
@@ -699,6 +913,10 @@ func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 		backendsDegraded[i], backendsDegraded[j] = backendsDegraded[j], backendsDegraded[i]
 	})
 
+	if bg.WeightedRouting {
+		weightedShuffle(backendsHealthy)
+	}
+
 	// healthy are put into a priority position
 	// degraded backends are used as fallback
 	backendsHealthy = append(backendsHealthy, backendsDegraded...)
@@ -721,9 +939,12 @@ func calcBackoff(i int) time.Duration {
 type WSProxier struct {
 	backend         *Backend
 	clientConn      *websocket.Conn
-	backendConn     *websocket.Conn
-	methodWhitelist *StringSet
 	clientConnMu    sync.Mutex
+	backendConn     *websocket.Conn
+	backendConnMu   sync.Mutex
+	methodWhitelist *StringSet
+	readTimeout     time.Duration
+	writeTimeout    time.Duration
 }
 
 func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn, methodWhitelist *StringSet) *WSProxier {
@@ -732,6 +953,8 @@ func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn, met
 		clientConn:      clientConn,
 		backendConn:     backendConn,
 		methodWhitelist: methodWhitelist,
+		readTimeout:     defaultWSReadTimeout,
+		writeTimeout:    defaultWSWriteTimeout,
 	}
 }
 
@@ -749,11 +972,11 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 		// Block until we get a message.
 		msgType, msg, err := w.clientConn.ReadMessage()
 		if err != nil {
-			errC <- err
-			if err := w.backendConn.WriteMessage(websocket.CloseMessage, formatWSError(err)); err != nil {
+			if err := w.writeBackendConn(websocket.CloseMessage, formatWSError(err)); err != nil {
 				log.Error("error writing backendConn message", "err", err)
+				errC <- err
+				return
 			}
-			return
 		}
 
 		RecordWSMessage(ctx, w.backend.Name, SourceClient)
@@ -761,7 +984,7 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 		// Route control messages to the backend. These don't
 		// count towards the total RPC requests count.
 		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
-			err := w.backendConn.WriteMessage(msgType, msg)
+			err := w.writeBackendConn(msgType, msg)
 			if err != nil {
 				errC <- err
 				return
@@ -819,7 +1042,7 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 			"req_id", GetReqID(ctx),
 		)
 
-		err = w.backendConn.WriteMessage(msgType, msg)
+		err = w.writeBackendConn(msgType, msg)
 		if err != nil {
 			errC <- err
 			return
@@ -832,11 +1055,11 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 		// Block until we get a message.
 		msgType, msg, err := w.backendConn.ReadMessage()
 		if err != nil {
-			errC <- err
 			if err := w.writeClientConn(websocket.CloseMessage, formatWSError(err)); err != nil {
 				log.Error("error writing clientConn message", "err", err)
+				errC <- err
+				return
 			}
-			return
 		}
 
 		RecordWSMessage(ctx, w.backend.Name, SourceBackend)
@@ -917,8 +1140,23 @@ func (w *WSProxier) parseBackendMsg(msg []byte) (*RPCRes, error) {
 
 func (w *WSProxier) writeClientConn(msgType int, msg []byte) error {
 	w.clientConnMu.Lock()
+	defer w.clientConnMu.Unlock()
+	if err := w.clientConn.SetWriteDeadline(time.Now().Add(w.writeTimeout)); err != nil {
+		log.Error("ws client write timeout", "err", err)
+		return err
+	}
 	err := w.clientConn.WriteMessage(msgType, msg)
-	w.clientConnMu.Unlock()
+	return err
+}
+
+func (w *WSProxier) writeBackendConn(msgType int, msg []byte) error {
+	w.backendConnMu.Lock()
+	defer w.backendConnMu.Unlock()
+	if err := w.backendConn.SetWriteDeadline(time.Now().Add(w.writeTimeout)); err != nil {
+		log.Error("ws backend write timeout", "err", err)
+		return err
+	}
+	err := w.backendConn.WriteMessage(msgType, msg)
 	return err
 }
 
@@ -1004,6 +1242,6 @@ func RecordBatchRPCForward(ctx context.Context, backendName string, reqs []*RPCR
 }
 
 func stripXFF(xff string) string {
-	ipList := strings.Split(xff, ", ")
+	ipList := strings.Split(xff, ",")
 	return strings.TrimSpace(ipList[0])
 }

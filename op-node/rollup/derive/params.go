@@ -19,6 +19,11 @@ func frameSize(frame Frame) uint64 {
 
 const DerivationVersion0 = 0
 
+// MaxSpanBatchSize is the maximum amount of bytes that will be needed
+// to decode every span batch field. This value cannot be larger than
+// MaxRLPBytesPerChannel because single batch cannot be larger than channel size.
+const MaxSpanBatchSize = MaxRLPBytesPerChannel
+
 // MaxChannelBankSize is the amount of memory space, in number of bytes,
 // till the bank is pruned by removing channels,
 // starting with the oldest channel.

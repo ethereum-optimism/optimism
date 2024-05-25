@@ -86,7 +86,7 @@ func init() {
 	if err := readStateDiffs(); err != nil {
 		panic(err)
 	}
-	// Initialze the message passer ABI
+	// Initialize the message passer ABI
 	var err error
 	passMessage, err = abi.JSON(strings.NewReader(passMessageABI))
 	if err != nil {

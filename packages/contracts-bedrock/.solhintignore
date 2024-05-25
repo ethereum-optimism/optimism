@@ -1,5 +1,0 @@
-# Deps and test files
-node_modules
-lib
-contracts/test/*.t.sol
-contracts/vendor/*.sol

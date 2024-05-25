@@ -1,0 +1,167 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "internalType": "contract LivenessGuard",
+        "name": "_livenessGuard",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_livenessInterval",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minOwners",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_fallbackOwner",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      }
+    ],
+    "name": "canRemove",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "canRemove_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "fallbackOwner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "fallbackOwner_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_numOwners",
+        "type": "uint256"
+      }
+    ],
+    "name": "get75PercentThreshold",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "threshold_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "livenessGuard",
+    "outputs": [
+      {
+        "internalType": "contract LivenessGuard",
+        "name": "livenessGuard_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "livenessInterval",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "livenessInterval_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minOwners",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "minOwners_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_previousOwners",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_ownersToRemove",
+        "type": "address[]"
+      }
+    ],
+    "name": "removeOwners",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "safe",
+    "outputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "safe_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

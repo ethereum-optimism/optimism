@@ -7,7 +7,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
+
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-testing/netutil"
 	"github.com/libp2p/go-libp2p/core/connmgr"
@@ -47,7 +50,7 @@ type Node interface {
 	// GossipOut returns the gossip output/info control
 	GossipOut() GossipOut
 	// ConnectionGater returns the connection gater, to ban/unban peers with, may be nil
-	ConnectionGater() ConnectionGater
+	ConnectionGater() gating.BlockingConnectionGater
 	// ConnectionManager returns the connection manager, to protect peers with, may be nil
 	ConnectionManager() connmgr.ConnManager
 }
@@ -108,6 +111,15 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 			info.NodeID = enode.PubkeyToIDV4((*decredSecp.PublicKey)(typedPub).ToECDSA())
 		}
 	}
+	if eps, ok := pstore.(store.ExtendedPeerstore); ok {
+		if dat, err := eps.GetPeerScores(id); err == nil {
+			info.PeerScores = dat
+		}
+		if md, err := eps.GetPeerMetadata(id); err == nil {
+			info.ENR = md.ENR
+			info.ChainID = md.OPStackID
+		}
+	}
 	if dat, err := pstore.Get(id, "ProtocolVersion"); err == nil {
 		protocolVersion, ok := dat.(string)
 		if ok {
@@ -118,12 +130,6 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 		agentVersion, ok := dat.(string)
 		if ok {
 			info.UserAgent = agentVersion
-		}
-	}
-	if dat, err := pstore.Get(id, "ENR"); err == nil {
-		enodeData, ok := dat.(*enode.Node)
-		if ok {
-			info.ENR = enodeData.String()
 		}
 	}
 	// include the /p2p/ address component in all of the addresses for convenience of the API user.
@@ -143,12 +149,6 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 	for _, c := range nw.ConnsToPeer(id) {
 		info.Direction = c.Stat().Direction
 		break
-	}
-	if dat, err := pstore.Get(id, "optimismChainID"); err == nil {
-		chID, ok := dat.(uint64)
-		if ok {
-			info.ChainID = chID
-		}
 	}
 	info.Latency = pstore.LatencyEWMA(id)
 	if connMgr != nil {
@@ -186,7 +186,7 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 			dump.TotalConnected += 1
 		}
 	}
-	for _, id := range s.node.GossipOut().BlocksTopicPeers() {
+	for _, id := range s.node.GossipOut().AllBlockTopicsPeers() {
 		if p, ok := dump.Peers[id.String()]; ok {
 			p.GossipBlocks = true
 		}
@@ -200,11 +200,12 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 }
 
 type PeerStats struct {
-	Connected   uint `json:"connected"`
-	Table       uint `json:"table"`
-	BlocksTopic uint `json:"blocksTopic"`
-	Banned      uint `json:"banned"`
-	Known       uint `json:"known"`
+	Connected     uint `json:"connected"`
+	Table         uint `json:"table"`
+	BlocksTopic   uint `json:"blocksTopic"`
+	BlocksTopicV2 uint `json:"blocksTopicV2"`
+	Banned        uint `json:"banned"`
+	Known         uint `json:"known"`
 }
 
 func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
@@ -215,11 +216,12 @@ func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
 	pstore := h.Peerstore()
 
 	stats := &PeerStats{
-		Connected:   uint(len(nw.Peers())),
-		Table:       0,
-		BlocksTopic: uint(len(s.node.GossipOut().BlocksTopicPeers())),
-		Banned:      0,
-		Known:       uint(len(pstore.Peers())),
+		Connected:     uint(len(nw.Peers())),
+		Table:         0,
+		BlocksTopic:   uint(len(s.node.GossipOut().BlocksTopicV1Peers())),
+		BlocksTopicV2: uint(len(s.node.GossipOut().BlocksTopicV2Peers())),
+		Banned:        0,
+		Known:         uint(len(pstore.Peers())),
 	}
 	if gater := s.node.ConnectionGater(); gater != nil {
 		stats.Banned = uint(len(gater.ListBlockedPeers()))

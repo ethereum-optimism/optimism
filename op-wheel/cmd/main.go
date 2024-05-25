@@ -2,10 +2,10 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
 
-	"github.com/urfave/cli"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -21,7 +21,7 @@ var (
 
 func main() {
 	app := cli.NewApp()
-	app.Version = fmt.Sprintf("%s-%s-%s", Version, GitCommit, GitDate)
+	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Name = "op-wheel"
 	app.Usage = "Optimism Wheel is a CLI tool for the execution engine"
 	app.Description = "Optimism Wheel is a CLI tool to direct the engine one way or the other with DB cheats and Engine API routines."
@@ -29,7 +29,7 @@ func main() {
 	app.Before = func(c *cli.Context) error {
 		log.Root().SetHandler(
 			log.LvlFilterHandler(
-				oplog.Level(c.GlobalString(wheel.GlobalGethLogLvlFlag.Name)),
+				c.Generic(wheel.GlobalGethLogLvlFlag.Name).(*oplog.LvlFlagValue).LogLvl(),
 				log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
 			),
 		)
@@ -40,7 +40,7 @@ func main() {
 	})
 	app.Writer = os.Stdout
 	app.ErrWriter = os.Stderr
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		wheel.CheatCmd,
 		wheel.EngineCmd,
 	}

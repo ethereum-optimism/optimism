@@ -1,5 +1,38 @@
 # @eth-optimism/core-utils
 
+## 0.13.1
+
+### Patch Changes
+
+- [#7450](https://github.com/ethereum-optimism/optimism/pull/7450) [`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated dev dependencies related to testing that is causing audit tooling to report failures
+
+## 0.13.0
+
+### Minor Changes
+
+- [#7336](https://github.com/ethereum-optimism/optimism/pull/7336) [`210b2c81d`](https://github.com/ethereum-optimism/optimism/commit/210b2c81dd383bad93480aa876b283d9a0c991c2) Thanks [@tynes](https://github.com/tynes)! - Delete unmaintained geth types
+
+## 0.12.3
+
+### Patch Changes
+
+- [#6797](https://github.com/ethereum-optimism/optimism/pull/6797) [`dfa309e34`](https://github.com/ethereum-optimism/optimism/commit/dfa309e3430ebc8790b932554dde120aafc4161e) Thanks [@roninjin10](https://github.com/roninjin10)! - Upgraded npm dependencies to latest
+
+## 0.12.2
+
+### Patch Changes
+
+- [#6164](https://github.com/ethereum-optimism/optimism/pull/6164) [`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a) Thanks [@pengin7384](https://github.com/pengin7384)! - fix typo
+
+- [#6198](https://github.com/ethereum-optimism/optimism/pull/6198) [`77da6edc6`](https://github.com/ethereum-optimism/optimism/commit/77da6edc643e0b5e39f7b6bb41c3c7ead418a876) Thanks [@tremarkley](https://github.com/tremarkley)! - Delete dead typescript https://github.com/ethereum-optimism/optimism/pull/6148.
+
+## 0.12.1
+
+### Patch Changes
+
+- 8d7dcc70c: Delete legacy core-utils
+- d6388be4a: Added a new service wallet-mon to identify unexpected transfers from key accounts
+
 ## 0.12.0
 
 ### Minor Changes

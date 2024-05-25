@@ -1,0 +1,31 @@
+name: Setup
+description: Common setup steps used by our workflows
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8.6.5
+    - name: Setup node 16.x
+      uses: actions/setup-node@v3
+      with:
+        node-version-file: .nvmrc
+        registry-url: https://registry.npmjs.org
+        cache: pnpm
+
+    - name: Setup foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Install node dependencies
+      shell: bash
+      run: pnpm install:ci
+    - name: Derive appropriate SHAs for base and head for `nx affected` commands
+      uses: nrwl/nx-set-shas@v3
+      with:
+        main-branch-name: "develop"
+    - run: |
+        echo "nx using following shas:"
+        echo "BASE: ${{ env.NX_BASE }}"
+        echo "HEAD: ${{ env.NX_HEAD }}"
+      shell: bash

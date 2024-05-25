@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var (
@@ -75,6 +75,26 @@ type Config struct {
 	// Active if RegolithTime != nil && L2 block timestamp >= *RegolithTime, inactive otherwise.
 	RegolithTime *uint64 `json:"regolith_time,omitempty"`
 
+	// CanyonTime sets the activation time of the Canyon network upgrade.
+	// Active if CanyonTime != nil && L2 block timestamp >= *CanyonTime, inactive otherwise.
+	CanyonTime *uint64 `json:"canyon_time,omitempty"`
+
+	// DeltaTime sets the activation time of the Delta network upgrade.
+	// Active if DeltaTime != nil && L2 block timestamp >= *DeltaTime, inactive otherwise.
+	DeltaTime *uint64 `json:"delta_time,omitempty"`
+
+	// EclipseTime sets the activation time of the Eclipse network upgrade.
+	// Active if EclipseTime != nil && L2 block timestamp >= *EclipseTime, inactive otherwise.
+	EclipseTime *uint64 `json:"eclipse_time,omitempty"`
+
+	// FjordTime sets the activation time of the Fjord network upgrade.
+	// Active if FjordTime != nil && L2 block timestamp >= *FjordTime, inactive otherwise.
+	FjordTime *uint64 `json:"fjord_time,omitempty"`
+
+	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
+	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
+	InteropTime *uint64 `json:"interop_time,omitempty"`
+
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 
@@ -84,6 +104,9 @@ type Config struct {
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
 	// L1 System Config Address
 	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
+
+	// L1 address that declares the protocol versions, optional (Beta feature)
+	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -116,6 +139,10 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client) error 
 	return nil
 }
 
+func (cfg *Config) TimestampForBlock(blockNumber uint64) uint64 {
+	return cfg.Genesis.L2Time + ((blockNumber - cfg.Genesis.L2.Number) * cfg.BlockTime)
+}
+
 func (cfg *Config) TargetBlockNumber(timestamp uint64) (num uint64, err error) {
 	// subtract genesis time from timestamp to get the time elapsed since genesis, and then divide that
 	// difference by the block time to get the expected L2 block number at the current time. If the
@@ -139,10 +166,10 @@ type L1Client interface {
 func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
 	id, err := client.ChainID(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get L1 chain ID: %w", err)
 	}
 	if cfg.L1ChainID.Cmp(id) != 0 {
-		return fmt.Errorf("incorrect L1 RPC chain id %d, expected %d", cfg.L1ChainID, id)
+		return fmt.Errorf("incorrect L1 RPC chain id %d, expected %d", id, cfg.L1ChainID)
 	}
 	return nil
 }
@@ -151,10 +178,10 @@ func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
 func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, client L1Client) error {
 	l1GenesisBlockRef, err := client.L1BlockRefByNumber(ctx, cfg.Genesis.L1.Number)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get L1 genesis blockhash: %w", err)
 	}
 	if l1GenesisBlockRef.Hash != cfg.Genesis.L1.Hash {
-		return fmt.Errorf("incorrect L1 genesis block hash %d, expected %d", cfg.Genesis.L1.Hash, l1GenesisBlockRef.Hash)
+		return fmt.Errorf("incorrect L1 genesis block hash %s, expected %s", l1GenesisBlockRef.Hash, cfg.Genesis.L1.Hash)
 	}
 	return nil
 }
@@ -168,10 +195,10 @@ type L2Client interface {
 func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 	id, err := client.ChainID(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get L2 chain ID: %w", err)
 	}
 	if cfg.L2ChainID.Cmp(id) != 0 {
-		return fmt.Errorf("incorrect L2 RPC chain id, expected from config %d, obtained from client %d", cfg.L2ChainID, id)
+		return fmt.Errorf("incorrect L2 RPC chain id %d, expected %d", id, cfg.L2ChainID)
 	}
 	return nil
 }
@@ -180,10 +207,10 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client) error {
 	l2GenesisBlockRef, err := client.L2BlockRefByNumber(ctx, cfg.Genesis.L2.Number)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get L2 genesis blockhash: %w", err)
 	}
 	if l2GenesisBlockRef.Hash != cfg.Genesis.L2.Hash {
-		return fmt.Errorf("incorrect L2 genesis block hash %d, expected %d", cfg.Genesis.L2.Hash, l2GenesisBlockRef.Hash)
+		return fmt.Errorf("incorrect L2 genesis block hash %s, expected %s", l2GenesisBlockRef.Hash, cfg.Genesis.L2.Hash)
 	}
 	return nil
 }
@@ -256,6 +283,31 @@ func (c *Config) IsRegolith(timestamp uint64) bool {
 	return c.RegolithTime != nil && timestamp >= *c.RegolithTime
 }
 
+// IsCanyon returns true if the Canyon hardfork is active at or past the given timestamp.
+func (c *Config) IsCanyon(timestamp uint64) bool {
+	return c.CanyonTime != nil && timestamp >= *c.CanyonTime
+}
+
+// IsDelta returns true if the Delta hardfork is active at or past the given timestamp.
+func (c *Config) IsDelta(timestamp uint64) bool {
+	return c.DeltaTime != nil && timestamp >= *c.DeltaTime
+}
+
+// IsEclipse returns true if the Eclipse hardfork is active at or past the given timestamp.
+func (c *Config) IsEclipse(timestamp uint64) bool {
+	return c.EclipseTime != nil && timestamp >= *c.EclipseTime
+}
+
+// IsFjord returns true if the Fjord hardfork is active at or past the given timestamp.
+func (c *Config) IsFjord(timestamp uint64) bool {
+	return c.FjordTime != nil && timestamp >= *c.FjordTime
+}
+
+// IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
+func (c *Config) IsInterop(timestamp uint64) bool {
+	return c.InteropTime != nil && timestamp >= *c.InteropTime
+}
+
 // Description outputs a banner describing the important parts of rollup configuration in a human-readable form.
 // Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
 // The config should be config.Check()-ed before creating a description.
@@ -283,10 +335,17 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	// Report the upgrade configuration
 	banner += "Post-Bedrock Network Upgrades (timestamp based):\n"
 	banner += fmt.Sprintf("  - Regolith: %s\n", fmtForkTimeOrUnset(c.RegolithTime))
+	banner += fmt.Sprintf("  - Canyon: %s\n", fmtForkTimeOrUnset(c.CanyonTime))
+	banner += fmt.Sprintf("  - Delta: %s\n", fmtForkTimeOrUnset(c.DeltaTime))
+	banner += fmt.Sprintf("  - Eclipse: %s\n", fmtForkTimeOrUnset(c.EclipseTime))
+	banner += fmt.Sprintf("  - Fjord: %s\n", fmtForkTimeOrUnset(c.FjordTime))
+	banner += fmt.Sprintf("  - Interop: %s\n", fmtForkTimeOrUnset(c.InteropTime))
+	// Report the protocol version
+	banner += fmt.Sprintf("Node supports up to OP-Stack Protocol Version: %s\n", OPStackSupport)
 	return banner
 }
 
-// Description outputs a banner describing the important parts of rollup configuration in a log format.
+// LogDescription outputs a banner describing the important parts of rollup configuration in a log format.
 // Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
 // The config should be config.Check()-ed before creating a description.
 func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
@@ -305,7 +364,13 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	log.Info("Rollup Config", "l2_chain_id", c.L2ChainID, "l2_network", networkL2, "l1_chain_id", c.L1ChainID,
 		"l1_network", networkL1, "l2_start_time", c.Genesis.L2Time, "l2_block_hash", c.Genesis.L2.Hash.String(),
 		"l2_block_number", c.Genesis.L2.Number, "l1_block_hash", c.Genesis.L1.Hash.String(),
-		"l1_block_number", c.Genesis.L1.Number, "regolith_time", fmtForkTimeOrUnset(c.RegolithTime))
+		"l1_block_number", c.Genesis.L1.Number, "regolith_time", fmtForkTimeOrUnset(c.RegolithTime),
+		"canyon_time", fmtForkTimeOrUnset(c.CanyonTime),
+		"delta_time", fmtForkTimeOrUnset(c.DeltaTime),
+		"eclipse_time", fmtForkTimeOrUnset(c.EclipseTime),
+		"fjord_time", fmtForkTimeOrUnset(c.FjordTime),
+		"interop_time", fmtForkTimeOrUnset(c.InteropTime),
+	)
 }
 
 func fmtForkTimeOrUnset(v *uint64) string {

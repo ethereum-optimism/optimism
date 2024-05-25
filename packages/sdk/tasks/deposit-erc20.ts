@@ -2,14 +2,21 @@ import { promises as fs } from 'fs'
 
 import { task, types } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
-import { Event, Contract, Wallet, providers, utils } from 'ethers'
-import {
-  predeploys,
-  getContractDefinition,
-} from '@eth-optimism/contracts-bedrock'
-import { sleep } from '@eth-optimism/core-utils'
+import { Event, Contract, Wallet, providers, utils, ethers } from 'ethers'
+import { predeploys, sleep } from '@eth-optimism/core-utils'
+import Artifact__WETH9 from '@eth-optimism/contracts-bedrock/forge-artifacts/WETH9.sol/WETH9.json'
+import Artifact__OptimismMintableERC20TokenFactory from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismMintableERC20Factory.sol/OptimismMintableERC20Factory.json'
+import Artifact__OptimismMintableERC20Token from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismMintableERC20.sol/OptimismMintableERC20.json'
+import Artifact__L2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json'
+import Artifact__L2CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L2CrossDomainMessenger.sol/L2CrossDomainMessenger.json'
+import Artifact__L2StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2StandardBridge.sol/L2StandardBridge.json'
+import Artifact__OptimismPortal from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal.sol/OptimismPortal.json'
+import Artifact__L1CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L1CrossDomainMessenger.sol/L1CrossDomainMessenger.json'
+import Artifact__L1StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1StandardBridge.sol/L1StandardBridge.json'
+import Artifact__L2OutputOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/L2OutputOracle.sol/L2OutputOracle.json'
 
 import {
   CrossChainMessenger,
@@ -21,15 +28,12 @@ import {
 
 const deployWETH9 = async (
   hre: HardhatRuntimeEnvironment,
+  signer: SignerWithAddress,
   wrap: boolean
 ): Promise<Contract> => {
-  const signers = await hre.ethers.getSigners()
-  const signer = signers[0]
-
-  const Artifact__WETH9 = await getContractDefinition('WETH9')
   const Factory__WETH9 = new hre.ethers.ContractFactory(
     Artifact__WETH9.abi,
-    Artifact__WETH9.bytecode,
+    Artifact__WETH9.bytecode.object,
     signer
   )
 
@@ -54,13 +58,6 @@ const createOptimismMintableERC20 = async (
   L1ERC20: Contract,
   l2Signer: Wallet
 ): Promise<Contract> => {
-  const Artifact__OptimismMintableERC20Token = await getContractDefinition(
-    'OptimismMintableERC20'
-  )
-
-  const Artifact__OptimismMintableERC20TokenFactory =
-    await getContractDefinition('OptimismMintableERC20Factory')
-
   const OptimismMintableERC20TokenFactory = new Contract(
     predeploys.OptimismMintableERC20Factory,
     Artifact__OptimismMintableERC20TokenFactory.abi,
@@ -119,13 +116,16 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     '',
     types.string
   )
+  .addOptionalParam('signerIndex', 'Index of signer to use', 0, types.int)
   .setAction(async (args, hre) => {
     const signers = await hre.ethers.getSigners()
     if (signers.length === 0) {
       throw new Error('No configured signers')
     }
-    // Use the first configured signer for simplicity
-    const signer = signers[0]
+    if (args.signerIndex < 0 || signers.length <= args.signerIndex) {
+      throw new Error('Invalid signer index')
+    }
+    const signer = signers[args.signerIndex]
     const address = await signer.getAddress()
     console.log(`Using signer ${address}`)
 
@@ -139,7 +139,7 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     const l2Provider = new providers.StaticJsonRpcProvider(args.l2ProviderUrl)
 
     const l2Signer = new hre.ethers.Wallet(
-      hre.network.config.accounts[0],
+      hre.network.config.accounts[args.signerIndex],
       l2Provider
     )
 
@@ -147,51 +147,48 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     let contractAddrs = CONTRACT_ADDRESSES[l2ChainId]
     if (args.l1ContractsJsonPath) {
       const data = await fs.readFile(args.l1ContractsJsonPath)
+      const json = JSON.parse(data.toString())
       contractAddrs = {
-        l1: JSON.parse(data.toString()),
+        l1: {
+          AddressManager: json.AddressManager,
+          L1CrossDomainMessenger: json.L1CrossDomainMessengerProxy,
+          L1StandardBridge: json.L1StandardBridgeProxy,
+          StateCommitmentChain: ethers.constants.AddressZero,
+          CanonicalTransactionChain: ethers.constants.AddressZero,
+          BondManager: ethers.constants.AddressZero,
+          OptimismPortal: json.OptimismPortalProxy,
+          L2OutputOracle: json.L2OutputOracleProxy,
+        },
         l2: DEFAULT_L2_CONTRACT_ADDRESSES,
       } as OEContractsLike
     }
 
-    const Artifact__L2ToL1MessagePasser = await getContractDefinition(
-      'L2ToL1MessagePasser'
-    )
-
-    const Artifact__L2CrossDomainMessenger = await getContractDefinition(
-      'L2CrossDomainMessenger'
-    )
-
-    const Artifact__L2StandardBridge = await getContractDefinition(
-      'L2StandardBridge'
-    )
-
-    const Artifact__OptimismPortal = await getContractDefinition(
-      'OptimismPortal'
-    )
-
-    const Artifact__L1CrossDomainMessenger = await getContractDefinition(
-      'L1CrossDomainMessenger'
-    )
-
-    const Artifact__L1StandardBridge = await getContractDefinition(
-      'L1StandardBridge'
-    )
-
+    console.log(`OptimismPortal: ${contractAddrs.l1.OptimismPortal}`)
     const OptimismPortal = new hre.ethers.Contract(
       contractAddrs.l1.OptimismPortal,
       Artifact__OptimismPortal.abi,
       signer
     )
 
+    console.log(
+      `L1CrossDomainMessenger: ${contractAddrs.l1.L1CrossDomainMessenger}`
+    )
     const L1CrossDomainMessenger = new hre.ethers.Contract(
       contractAddrs.l1.L1CrossDomainMessenger,
       Artifact__L1CrossDomainMessenger.abi,
       signer
     )
 
+    console.log(`L1StandardBridge: ${contractAddrs.l1.L1StandardBridge}`)
     const L1StandardBridge = new hre.ethers.Contract(
       contractAddrs.l1.L1StandardBridge,
       Artifact__L1StandardBridge.abi,
+      signer
+    )
+
+    const L2OutputOracle = new hre.ethers.Contract(
+      contractAddrs.l1.L2OutputOracle,
+      Artifact__L2OutputOracle.abi,
       signer
     )
 
@@ -219,8 +216,12 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
       contracts: contractAddrs,
     })
 
+    const params = await OptimismPortal.params()
+    console.log('Intial OptimismPortal.params:')
+    console.log(params)
+
     console.log('Deploying WETH9 to L1')
-    const WETH9 = await deployWETH9(hre, true)
+    const WETH9 = await deployWETH9(hre, signer, true)
     console.log(`Deployed to ${WETH9.address}`)
 
     console.log('Creating L2 WETH9')
@@ -248,33 +249,37 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     await depositTx.wait()
     console.log(`ERC20 deposited - ${depositTx.hash}`)
 
-    // Deposit might get reorged, wait 30s and also log for reorgs.
+    console.log('Checking to make sure deposit was successful')
+    // Deposit might get reorged, wait and also log for reorgs.
     let prevBlockHash: string = ''
-    for (let i = 0; i < 30; i++) {
-      const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
-      if (messageReceipt.receiptStatus !== 1) {
+    for (let i = 0; i < 12; i++) {
+      const messageReceipt = await signer.provider!.getTransactionReceipt(
+        depositTx.hash
+      )
+      if (messageReceipt.status !== 1) {
         console.log(`Deposit failed, retrying...`)
       }
 
-      if (
-        prevBlockHash !== '' &&
-        messageReceipt.transactionReceipt.blockHash !== prevBlockHash
-      ) {
+      // Wait for stability, we want some amount of time after any reorg
+      if (prevBlockHash !== '' && messageReceipt.blockHash !== prevBlockHash) {
         console.log(
-          `Block hash changed from ${prevBlockHash} to ${messageReceipt.transactionReceipt.blockHash}`
+          `Block hash changed from ${prevBlockHash} to ${messageReceipt.blockHash}`
         )
-
-        // Wait for stability, we want at least 30 seconds after any reorg
         i = 0
+      } else if (prevBlockHash !== '') {
+        console.log(`No reorg detected: ${i}`)
       }
 
-      prevBlockHash = messageReceipt.transactionReceipt.blockHash
+      prevBlockHash = messageReceipt.blockHash
       await sleep(1000)
     }
+    console.log(`Deposit confirmed`)
 
     const l2Balance = await OptimismMintableERC20.balanceOf(address)
     if (l2Balance.lt(utils.parseEther('1'))) {
-      throw new Error('bad deposit')
+      throw new Error(
+        `bad deposit. recipient balance on L2: ${utils.formatEther(l2Balance)}`
+      )
     }
     console.log(`Deposit success`)
 
@@ -318,6 +323,12 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     setInterval(async () => {
       const currentStatus = await messenger.getMessageStatus(withdraw)
       console.log(`Message status: ${MessageStatus[currentStatus]}`)
+      const latest = await L2OutputOracle.latestBlockNumber()
+      console.log(
+        `Latest L2OutputOracle commitment number: ${latest.toString()}`
+      )
+      const tip = await signer.provider!.getBlockNumber()
+      console.log(`L1 chain tip: ${tip.toString()}`)
     }, 3000)
 
     const now = Math.floor(Date.now() / 1000)

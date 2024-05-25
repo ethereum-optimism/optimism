@@ -1,14 +1,20 @@
+codecov:
+  require_ci_to_pass: false
 comment:
-  layout: "reach, diff, flags, files"
+  layout: "diff, flags, files"
   behavior: default
-  require_changes: true    # only post the comment if coverage changes
+  require_changes: true
+  flags:
+    - contracts-bedrock-tests
+
 ignore:
-  - "l2geth"
   - "op-e2e"
-  - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
+  - "**/*.t.sol"
+  - "packages/contracts-bedrock/test/**/*.sol"
+  - "packages/contracts-bedrock/scripts/**/*.sol"
   - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
-  - "packages/contracts-bedrock/contracts/echidna"
+  - 'packages/contracts-bedrock/contracts/EAS/**/*.sol'
 coverage:
   status:
     patch:
@@ -17,6 +23,7 @@ coverage:
         threshold: 0% # coverage is not allowed to reduce vs. the PR base
         base: auto
         informational: true
+        enabled: true
     project:
       default:
         informational: true
@@ -26,7 +33,7 @@ flag_management:
   individual_flags:
     - name: contracts-bedrock-tests
       paths:
-        - packages/contracts-bedrock/contracts
+        - packages/contracts-bedrock/src
       statuses:
         - type: patch
           target: 100%
@@ -34,11 +41,5 @@ flag_management:
     - name: common-ts-tests
     - name: contracts-tests
     - name: core-utils-tests
-    - name: actor-tests-tests
-    - name: contracts-periphery-tests
-    - name: dtl-tests
     - name: chain-mon-tests
-    - name: fault-detector-tests
-    - name: message-relayer-tests
-    - name: replica-healthcheck-tests
     - name: sdk-tests

@@ -1,0 +1,38 @@
+name: Release snapshot
+
+# Releases a snapshot release when new commits merge to develop
+# This ensures the release process is working as expected as well as always gives us a release
+# we should move to a single branch in near future
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+
+jobs:
+  snapshot-snapshot:
+    name: Publish snapshot release to npm
+    if: github.repository == 'ethereum-optimism/optimism'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Set deployment token
+        run: npm config set '//registry.npmjs.org/:_authToken' "${NPM_TOKEN}"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish snapshots
+        uses: seek-oss/changesets-snapshot@v0
+        with:
+          pre-publish: pnpm nx run-many --target=build --skip-nx-cache
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

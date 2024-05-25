@@ -28,7 +28,7 @@ type MemoryStateDB struct {
 
 func NewMemoryStateDB(genesis *core.Genesis) *MemoryStateDB {
 	if genesis == nil {
-		genesis = core.DeveloperGenesisBlock(15, 15_000_000, common.Address{})
+		genesis = core.DeveloperGenesisBlock(15_000_000, common.Address{})
 	}
 
 	return &MemoryStateDB{
@@ -61,6 +61,10 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
+	db.createAccount(addr)
+}
+
+func (db *MemoryStateDB) createAccount(addr common.Address) {
 	if _, ok := db.genesis.Alloc[addr]; !ok {
 		db.genesis.Alloc[addr] = core.GenesisAccount{
 			Code:    []byte{},
@@ -69,7 +73,6 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 			Nonce:   0,
 		}
 	}
-
 }
 
 func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {
@@ -165,6 +168,8 @@ func (db *MemoryStateDB) SetCode(addr common.Address, code []byte) {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
+	db.createAccount(addr)
+
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {
 		return
@@ -226,12 +231,25 @@ func (db *MemoryStateDB) SetState(addr common.Address, key, value common.Hash) {
 	db.genesis.Alloc[addr] = account
 }
 
-func (db *MemoryStateDB) Suicide(common.Address) bool {
-	panic("Suicide unimplemented")
+func (db *MemoryStateDB) DeleteState(addr common.Address, key common.Hash) {
+	account, ok := db.genesis.Alloc[addr]
+	if !ok {
+		panic(fmt.Sprintf("%s not in state", addr))
+	}
+	delete(account.Storage, key)
+	db.genesis.Alloc[addr] = account
 }
 
-func (db *MemoryStateDB) HasSuicided(common.Address) bool {
-	panic("HasSuicided unimplemented")
+func (db *MemoryStateDB) SelfDestruct(common.Address) {
+	panic("SelfDestruct unimplemented")
+}
+
+func (db *MemoryStateDB) HasSelfDestructed(common.Address) bool {
+	panic("HasSelfDestructed unimplemented")
+}
+
+func (db *MemoryStateDB) Selfdestruct6780(common.Address) {
+	panic("Selfdestruct6780 unimplemented")
 }
 
 // Exist reports whether the given account exists in state.

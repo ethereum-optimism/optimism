@@ -11,7 +11,7 @@ export const logLevels = [
   'error',
   'fatal',
 ] as const
-export type LogLevel = typeof logLevels[number]
+export type LogLevel = (typeof logLevels)[number]
 
 export interface LoggerOptions {
   name: string

@@ -17,8 +17,10 @@ type RPCMethodHandler interface {
 }
 
 type StaticMethodHandler struct {
-	cache Cache
-	m     sync.RWMutex
+	cache     Cache
+	m         sync.RWMutex
+	filterGet func(*RPCReq) bool
+	filterPut func(*RPCReq, *RPCRes) bool
 }
 
 func (e *StaticMethodHandler) key(req *RPCReq) string {
@@ -33,6 +35,10 @@ func (e *StaticMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*R
 	if e.cache == nil {
 		return nil, nil
 	}
+	if e.filterGet != nil && !e.filterGet(req) {
+		return nil, nil
+	}
+
 	e.m.RLock()
 	defer e.m.RUnlock()
 
@@ -60,6 +66,14 @@ func (e *StaticMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*R
 
 func (e *StaticMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	if e.cache == nil {
+		return nil
+	}
+	// if there is a filter on get, we don't want to cache it because its irretrievable
+	if e.filterGet != nil && !e.filterGet(req) {
+		return nil
+	}
+	// response filter
+	if e.filterPut != nil && !e.filterPut(req, res) {
 		return nil
 	}
 

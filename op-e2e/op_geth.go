@@ -9,13 +9,15 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -36,7 +38,7 @@ var (
 // OpGeth is an actor that functions as a l2 op-geth node
 // It provides useful functions for advancing and querying the chain
 type OpGeth struct {
-	node          *gn.Node
+	node          EthInstance
 	l2Engine      *sources.EngineClient
 	L2Client      *ethclient.Client
 	SystemConfig  eth.SystemConfig
@@ -45,15 +47,17 @@ type OpGeth struct {
 	L1Head        eth.BlockInfo
 	L2Head        *eth.ExecutionPayload
 	sequenceNum   uint64
+	lgr           log.Logger
 }
 
 func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
 	logger := testlog.Logger(t, log.LvlCrit)
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
+
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments, true)
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
 	require.Nil(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
@@ -70,9 +74,21 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
-	require.Nil(t, err)
-	require.Nil(t, node.Start())
+	var node EthInstance
+	if cfg.ExternalL2Shim == "" {
+		gethNode, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+		require.Nil(t, err)
+		require.Nil(t, gethNode.Start())
+		node = gethNode
+	} else {
+		externalNode := (&ExternalRunner{
+			Name:    "l2",
+			BinPath: cfg.ExternalL2Shim,
+			Genesis: l2Genesis,
+			JWTPath: cfg.JWTFilePath,
+		}).Run(t)
+		node = externalNode
+	}
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
@@ -87,10 +103,10 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	)
 	require.Nil(t, err)
 
-	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
+	l2Client, err := ethclient.Dial(selectEndpoint(node))
 	require.Nil(t, err)
 
-	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock)
+	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock, cfg.DeployConfig.CanyonTime(l2GenesisBlock.Time()))
 
 	require.Nil(t, err)
 	return &OpGeth{
@@ -102,11 +118,14 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		L2ChainConfig: l2Genesis.Config,
 		L1Head:        eth.BlockToInfo(l1Block),
 		L2Head:        genesisPayload,
+		lgr:           logger,
 	}, nil
 }
 
 func (d *OpGeth) Close() {
-	_ = d.node.Close()
+	if err := d.node.Close(); err != nil {
+		d.lgr.Error("error closing node", "err", err)
+	}
 	d.l2Engine.Close()
 	d.L2Client.Close()
 }
@@ -194,11 +213,18 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		}
 		txBytes = append(txBytes, bin)
 	}
+
+	var withdrawals *types.Withdrawals
+	if d.L2ChainConfig.IsCanyon(uint64(timestamp)) {
+		withdrawals = &types.Withdrawals{}
+	}
+
 	attrs := eth.PayloadAttributes{
 		Timestamp:    timestamp,
 		Transactions: txBytes,
 		NoTxPool:     true,
 		GasLimit:     (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
+		Withdrawals:  withdrawals,
 	}
 	return &attrs, nil
 }

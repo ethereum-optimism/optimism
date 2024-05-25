@@ -30,8 +30,8 @@ var (
 
 // SequencerFeeVaultMetaData contains all meta data concerning the SequencerFeeVault contract.
 var SequencerFeeVaultMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_recipient\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"}],\"name\":\"Withdrawal\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"MIN_WITHDRAWAL_AMOUNT\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"RECIPIENT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"l1FeeWallet\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"totalProcessed\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
-	Bin: "0x61012060405234801561001157600080fd5b5060405161092a38038061092a8339810160408190526100309161005d565b678ac7230489e800006080526001600160a01b031660a052600160c081905260e05260006101005261008d565b60006020828403121561006f57600080fd5b81516001600160a01b038116811461008657600080fd5b9392505050565b60805160a05160c05160e0516101005161083e6100ec6000396000610411015260006103e8015260006103bf0152600081816087015281816101730152818161029501526103570152600081816101420152610199015261083e6000f3fe6080604052600436106100695760003560e01c806384411d651161004357806384411d651461010c578063d3e5792b14610130578063d4ff92181461016457600080fd5b80630d9019e1146100755780633ccfd60b146100d357806354fd4d50146100ea57600080fd5b3661007057005b600080fd5b34801561008157600080fd5b506100a97f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b3480156100df57600080fd5b506100e8610197565b005b3480156100f657600080fd5b506100ff6103b8565b6040516100ca9190610612565b34801561011857600080fd5b5061012260005481565b6040519081526020016100ca565b34801561013c57600080fd5b506101227f000000000000000000000000000000000000000000000000000000000000000081565b34801561017057600080fd5b507f00000000000000000000000000000000000000000000000000000000000000006100a9565b7f0000000000000000000000000000000000000000000000000000000000000000471015610271576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604a60248201527f4665655661756c743a207769746864726177616c20616d6f756e74206d75737460448201527f2062652067726561746572207468616e206d696e696d756d207769746864726160648201527f77616c20616d6f756e7400000000000000000000000000000000000000000000608482015260a40160405180910390fd5b600047905080600080828254610287919061065b565b9091555050604080518281527f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff166020820152338183015290517fc8a211cc64b6ed1b50595a9fcb1932b6d1e5a6e8ef15b60e5b1f988ea9086bba9181900360600190a1604080516020810182526000815290517fe11013dd0000000000000000000000000000000000000000000000000000000081527342000000000000000000000000000000000000109163e11013dd918491610383917f0000000000000000000000000000000000000000000000000000000000000000916188b891600401610673565b6000604051808303818588803b15801561039c57600080fd5b505af11580156103b0573d6000803e3d6000fd5b505050505050565b60606103e37f000000000000000000000000000000000000000000000000000000000000000061045b565b61040c7f000000000000000000000000000000000000000000000000000000000000000061045b565b6104357f000000000000000000000000000000000000000000000000000000000000000061045b565b604051602001610447939291906106b7565b604051602081830303815290604052905090565b60608160000361049e57505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b81156104c857806104b28161072d565b91506104c19050600a83610794565b91506104a2565b60008167ffffffffffffffff8111156104e3576104e36107a8565b6040519080825280601f01601f19166020018201604052801561050d576020820181803683370190505b5090505b8415610590576105226001836107d7565b915061052f600a866107ee565b61053a90603061065b565b60f81b81838151811061054f5761054f610802565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a905350610589600a86610794565b9450610511565b949350505050565b60005b838110156105b357818101518382015260200161059b565b838111156105c2576000848401525b50505050565b600081518084526105e0816020860160208601610598565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061062560208301846105c8565b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000821982111561066e5761066e61062c565b500190565b73ffffffffffffffffffffffffffffffffffffffff8416815263ffffffff831660208201526060604082015260006106ae60608301846105c8565b95945050505050565b600084516106c9818460208901610598565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551610705816001850160208a01610598565b60019201918201528351610720816002840160208801610598565b0160020195945050505050565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361075e5761075e61062c565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b6000826107a3576107a3610765565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000828210156107e9576107e961062c565b500390565b6000826107fd576107fd610765565b500690565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080f000a",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"_recipient\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_minWithdrawalAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_withdrawalNetwork\",\"type\":\"uint8\",\"internalType\":\"enumFeeVault.WithdrawalNetwork\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"receive\",\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"MIN_WITHDRAWAL_AMOUNT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"RECIPIENT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"WITHDRAWAL_NETWORK\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"enumFeeVault.WithdrawalNetwork\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"l1FeeWallet\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"totalProcessed\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"withdraw\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"Withdrawal\",\"inputs\":[{\"name\":\"value\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"to\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"from\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Withdrawal\",\"inputs\":[{\"name\":\"value\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"to\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"from\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"withdrawalNetwork\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"enumFeeVault.WithdrawalNetwork\"}],\"anonymous\":false}]",
+	Bin: "0x60e060405234801561001057600080fd5b5060405161091638038061091683398101604081905261002f91610079565b6001600160a01b03831660a0526080829052828282806001811115610056576100566100cc565b60c081600181111561006a5761006a6100cc565b815250505050505050506100e2565b60008060006060848603121561008e57600080fd5b83516001600160a01b03811681146100a557600080fd5b602085015160408601519194509250600281106100c157600080fd5b809150509250925092565b634e487b7160e01b600052602160045260246000fd5b60805160a05160c0516107ce61014860003960008181610181015281816103c701526104020152600081816092015281816101f301528181610316015281816103a50152818161043b01526105a20152600081816101c2015261021901526107ce6000f3fe6080604052600436106100745760003560e01c806384411d651161004e57806384411d651461014b578063d0e12f901461016f578063d3e5792b146101b0578063d4ff9218146101e457600080fd5b80630d9019e1146100805780633ccfd60b146100de57806354fd4d50146100f557600080fd5b3661007b57005b600080fd5b34801561008c57600080fd5b506100b47f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b3480156100ea57600080fd5b506100f3610217565b005b34801561010157600080fd5b5061013e6040518060400160405280600581526020017f312e342e3100000000000000000000000000000000000000000000000000000081525081565b6040516100d5919061066e565b34801561015757600080fd5b5061016160005481565b6040519081526020016100d5565b34801561017b57600080fd5b506101a37f000000000000000000000000000000000000000000000000000000000000000081565b6040516100d591906106f2565b3480156101bc57600080fd5b506101617f000000000000000000000000000000000000000000000000000000000000000081565b3480156101f057600080fd5b507f00000000000000000000000000000000000000000000000000000000000000006100b4565b7f00000000000000000000000000000000000000000000000000000000000000004710156102f2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604a60248201527f4665655661756c743a207769746864726177616c20616d6f756e74206d75737460448201527f2062652067726561746572207468616e206d696e696d756d207769746864726160648201527f77616c20616d6f756e7400000000000000000000000000000000000000000000608482015260a4015b60405180910390fd5b6000479050806000808282546103089190610706565b9091555050604080518281527f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff166020820152338183015290517fc8a211cc64b6ed1b50595a9fcb1932b6d1e5a6e8ef15b60e5b1f988ea9086bba9181900360600190a17f38e04cbeb8c10f8f568618aa75be0f10b6729b8b4237743b4de20cbcde2839ee817f0000000000000000000000000000000000000000000000000000000000000000337f00000000000000000000000000000000000000000000000000000000000000006040516103f69493929190610745565b60405180910390a160017f0000000000000000000000000000000000000000000000000000000000000000600181111561043257610432610688565b0361054b5760007f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff168260405160006040518083038185875af1925050503d80600081146104b1576040519150601f19603f3d011682016040523d82523d6000602084013e6104b6565b606091505b5050905080610547576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603060248201527f4665655661756c743a206661696c656420746f2073656e642045544820746f2060448201527f4c322066656520726563697069656e740000000000000000000000000000000060648201526084016102e9565b5050565b604080516020810182526000815290517fe11013dd0000000000000000000000000000000000000000000000000000000081527342000000000000000000000000000000000000109163e11013dd9184916105ce917f0000000000000000000000000000000000000000000000000000000000000000916188b891600401610786565b6000604051808303818588803b1580156105e757600080fd5b505af11580156105fb573d6000803e3d6000fd5b505050505050565b6000815180845260005b818110156106295760208185018101518683018201520161060d565b8181111561063b576000602083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b6020815260006106816020830184610603565b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fd5b600281106106ee577f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fd5b9052565b6020810161070082846106b7565b92915050565b60008219821115610740577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b500190565b84815273ffffffffffffffffffffffffffffffffffffffff8481166020830152831660408201526080810161077d60608301846106b7565b95945050505050565b73ffffffffffffffffffffffffffffffffffffffff8416815263ffffffff8316602082015260606040820152600061077d606083018461060356fea164736f6c634300080f000a",
 }
 
 // SequencerFeeVaultABI is the input ABI used to generate the binding from.
@@ -43,7 +43,7 @@ var SequencerFeeVaultABI = SequencerFeeVaultMetaData.ABI
 var SequencerFeeVaultBin = SequencerFeeVaultMetaData.Bin
 
 // DeploySequencerFeeVault deploys a new Ethereum contract, binding an instance of SequencerFeeVault to it.
-func DeploySequencerFeeVault(auth *bind.TransactOpts, backend bind.ContractBackend, _recipient common.Address) (common.Address, *types.Transaction, *SequencerFeeVault, error) {
+func DeploySequencerFeeVault(auth *bind.TransactOpts, backend bind.ContractBackend, _recipient common.Address, _minWithdrawalAmount *big.Int, _withdrawalNetwork uint8) (common.Address, *types.Transaction, *SequencerFeeVault, error) {
 	parsed, err := SequencerFeeVaultMetaData.GetAbi()
 	if err != nil {
 		return common.Address{}, nil, nil, err
@@ -52,7 +52,7 @@ func DeploySequencerFeeVault(auth *bind.TransactOpts, backend bind.ContractBacke
 		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
 	}
 
-	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(SequencerFeeVaultBin), backend, _recipient)
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(SequencerFeeVaultBin), backend, _recipient, _minWithdrawalAmount, _withdrawalNetwork)
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
@@ -261,6 +261,37 @@ func (_SequencerFeeVault *SequencerFeeVaultSession) RECIPIENT() (common.Address,
 // Solidity: function RECIPIENT() view returns(address)
 func (_SequencerFeeVault *SequencerFeeVaultCallerSession) RECIPIENT() (common.Address, error) {
 	return _SequencerFeeVault.Contract.RECIPIENT(&_SequencerFeeVault.CallOpts)
+}
+
+// WITHDRAWALNETWORK is a free data retrieval call binding the contract method 0xd0e12f90.
+//
+// Solidity: function WITHDRAWAL_NETWORK() view returns(uint8)
+func (_SequencerFeeVault *SequencerFeeVaultCaller) WITHDRAWALNETWORK(opts *bind.CallOpts) (uint8, error) {
+	var out []interface{}
+	err := _SequencerFeeVault.contract.Call(opts, &out, "WITHDRAWAL_NETWORK")
+
+	if err != nil {
+		return *new(uint8), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint8)).(*uint8)
+
+	return out0, err
+
+}
+
+// WITHDRAWALNETWORK is a free data retrieval call binding the contract method 0xd0e12f90.
+//
+// Solidity: function WITHDRAWAL_NETWORK() view returns(uint8)
+func (_SequencerFeeVault *SequencerFeeVaultSession) WITHDRAWALNETWORK() (uint8, error) {
+	return _SequencerFeeVault.Contract.WITHDRAWALNETWORK(&_SequencerFeeVault.CallOpts)
+}
+
+// WITHDRAWALNETWORK is a free data retrieval call binding the contract method 0xd0e12f90.
+//
+// Solidity: function WITHDRAWAL_NETWORK() view returns(uint8)
+func (_SequencerFeeVault *SequencerFeeVaultCallerSession) WITHDRAWALNETWORK() (uint8, error) {
+	return _SequencerFeeVault.Contract.WITHDRAWALNETWORK(&_SequencerFeeVault.CallOpts)
 }
 
 // L1FeeWallet is a free data retrieval call binding the contract method 0xd4ff9218.
@@ -528,6 +559,143 @@ func (_SequencerFeeVault *SequencerFeeVaultFilterer) WatchWithdrawal(opts *bind.
 func (_SequencerFeeVault *SequencerFeeVaultFilterer) ParseWithdrawal(log types.Log) (*SequencerFeeVaultWithdrawal, error) {
 	event := new(SequencerFeeVaultWithdrawal)
 	if err := _SequencerFeeVault.contract.UnpackLog(event, "Withdrawal", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// SequencerFeeVaultWithdrawal0Iterator is returned from FilterWithdrawal0 and is used to iterate over the raw logs and unpacked data for Withdrawal0 events raised by the SequencerFeeVault contract.
+type SequencerFeeVaultWithdrawal0Iterator struct {
+	Event *SequencerFeeVaultWithdrawal0 // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *SequencerFeeVaultWithdrawal0Iterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(SequencerFeeVaultWithdrawal0)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(SequencerFeeVaultWithdrawal0)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *SequencerFeeVaultWithdrawal0Iterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *SequencerFeeVaultWithdrawal0Iterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// SequencerFeeVaultWithdrawal0 represents a Withdrawal0 event raised by the SequencerFeeVault contract.
+type SequencerFeeVaultWithdrawal0 struct {
+	Value             *big.Int
+	To                common.Address
+	From              common.Address
+	WithdrawalNetwork uint8
+	Raw               types.Log // Blockchain specific contextual infos
+}
+
+// FilterWithdrawal0 is a free log retrieval operation binding the contract event 0x38e04cbeb8c10f8f568618aa75be0f10b6729b8b4237743b4de20cbcde2839ee.
+//
+// Solidity: event Withdrawal(uint256 value, address to, address from, uint8 withdrawalNetwork)
+func (_SequencerFeeVault *SequencerFeeVaultFilterer) FilterWithdrawal0(opts *bind.FilterOpts) (*SequencerFeeVaultWithdrawal0Iterator, error) {
+
+	logs, sub, err := _SequencerFeeVault.contract.FilterLogs(opts, "Withdrawal0")
+	if err != nil {
+		return nil, err
+	}
+	return &SequencerFeeVaultWithdrawal0Iterator{contract: _SequencerFeeVault.contract, event: "Withdrawal0", logs: logs, sub: sub}, nil
+}
+
+// WatchWithdrawal0 is a free log subscription operation binding the contract event 0x38e04cbeb8c10f8f568618aa75be0f10b6729b8b4237743b4de20cbcde2839ee.
+//
+// Solidity: event Withdrawal(uint256 value, address to, address from, uint8 withdrawalNetwork)
+func (_SequencerFeeVault *SequencerFeeVaultFilterer) WatchWithdrawal0(opts *bind.WatchOpts, sink chan<- *SequencerFeeVaultWithdrawal0) (event.Subscription, error) {
+
+	logs, sub, err := _SequencerFeeVault.contract.WatchLogs(opts, "Withdrawal0")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(SequencerFeeVaultWithdrawal0)
+				if err := _SequencerFeeVault.contract.UnpackLog(event, "Withdrawal0", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseWithdrawal0 is a log parse operation binding the contract event 0x38e04cbeb8c10f8f568618aa75be0f10b6729b8b4237743b4de20cbcde2839ee.
+//
+// Solidity: event Withdrawal(uint256 value, address to, address from, uint8 withdrawalNetwork)
+func (_SequencerFeeVault *SequencerFeeVaultFilterer) ParseWithdrawal0(log types.Log) (*SequencerFeeVaultWithdrawal0, error) {
+	event := new(SequencerFeeVaultWithdrawal0)
+	if err := _SequencerFeeVault.contract.UnpackLog(event, "Withdrawal0", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

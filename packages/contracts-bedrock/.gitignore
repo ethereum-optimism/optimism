@@ -1,15 +1,35 @@
+# Artifacts and Cache
 artifacts
 forge-artifacts
 cache
-typechain
-coverage.out
-.deps
 broadcast
-genesis.json
-src/contract-artifacts.ts
-tmp-artifacts
-deployments/mainnet-forked
-deploy-config/mainnet-forked.json
-test-case-generator/fuzz
+kout
+test/kontrol/kontrol/logs
+
+# Metrics
+coverage.out
 .resource-metering.csv
-scripts/differential-testing/differential-testing
+
+# Testing State
+.testdata
+
+# Scripts
+scripts/go-ffi/go-ffi
+
+# Environment Variables
+.envrc
+!.envrc.example
+
+# Deployments
+deployments/900
+deployments/901
+deployments/hardhat
+deployments/getting-started
+deployments/*/.deploy
+deployments/1337
+
+# Devnet config which changes with each 'make devnet-up'
+deploy-config/devnetL1.json
+
+# Getting Started guide deploy config
+deploy-config/getting-started.json

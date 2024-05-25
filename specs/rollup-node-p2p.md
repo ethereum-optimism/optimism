@@ -51,7 +51,8 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
     - [Topic configuration](#topic-configuration)
     - [Topic validation](#topic-validation)
 - [Gossip Topics](#gossip-topics)
-  - [`blocks`](#blocks)
+  - [`blocksv1`](#blocksv1)
+  - [`blocksv2`](#blocksv2)
     - [Block encoding](#block-encoding)
     - [Block signatures](#block-signatures)
     - [Block validation](#block-validation)
@@ -131,7 +132,7 @@ The default is to maintain a peer count with a tide-system based on active peer 
   except those that are marked as trusted or have a grace period.
 
 Peers will have a grace period for a configurable amount of time after joining.
-In emergency, when memory runs low, the node should start pruning more aggressively.
+In an emergency, when memory runs low, the node should start pruning more aggressively.
 
 Peer records can be persisted to disk to quickly reconnect with known peers after restarting the rollup node.
 
@@ -147,7 +148,7 @@ TODO: the connection gater does currently not gate by IP address on the dial Acc
 
 #### Transport security
 
-[Libp2p-noise][libp2p-noise], `XX` handshake, with the the `secp256k1` P2P identity, as popularized in Eth2.
+[Libp2p-noise][libp2p-noise], `XX` handshake, with the `secp256k1` P2P identity, as popularized in Eth2.
 The TLS option is available as well, but `noise` should be prioritized in negotiation.
 
 #### Protocol negotiation
@@ -247,9 +248,15 @@ The extended validator emits one of the following validation signals:
 
 ## Gossip Topics
 
-### `blocks`
+There are two topics for distributing blocks to other nodes faster than proxying through L1 would. These are:
 
-The primary topic of the L2, to distribute blocks to other nodes faster than proxying through L1 would.
+### `blocksv1`
+
+Pre-Canyon/Shanghai blocks are broadcast on `/optimism/<chainId>/0/blocks`.
+
+### `blocksv2`
+
+Post-Canyon/Shanghai blocks are broadcast on `/optimism/<chainId>/1/blocks`.
 
 #### Block encoding
 
@@ -282,6 +289,9 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
   (graceful boundary for worst-case propagation and clock skew)
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
+- `[REJECT]` if the block is on the V1 topic and has withdrawals
+- `[REJECT]` if the block is on the V2 topic and does not have withdrawals
+- `[REJECT]` if the block is on the V2 topic and has a non-zero amount of withdrawals
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
 - `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid
@@ -301,7 +311,7 @@ A node may apply the block to their local engine ahead of L1 availability, if it
 
 - The application of the block is reversible, in case of a conflict with delayed L1 information
 - The subsequent forkchoice-update ensures this block is recognized as "unsafe"
-  (see [`engine_forkchoiceUpdatedV1`](./exec-engine.md#engine_forkchoiceupdatedv1))
+  (see [`engine_forkchoiceUpdatedV2`](./exec-engine.md#engine_forkchoiceupdatedv2))
 
 ##### Block topic scoring parameters
 
@@ -388,7 +398,7 @@ A `res = 0` response should be verified to:
       override any previous chain, until the final L2 chain can be reproduced from L1 data.
 
 A `res > 0` response code should not be accepted. The result code is helpful for debugging,
-but the client should regard any error like any any other unanswered request, as the responding peer cannot be trusted.
+but the client should regard any error like any other unanswered request, as the responding peer cannot be trusted.
 
 ----
 
