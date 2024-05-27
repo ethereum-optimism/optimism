@@ -169,12 +169,12 @@ contract DeployOwnership is Deploy {
     /// @notice Deploy a DeputyGuardianModule for use on the Security Council Safe.
     ///         Note this function does not have the broadcast modifier.
     function deployDeputyGuardianModule() public returns (address addr_) {
-        Safe councilSafe = Safe(payable(mustGetAddress("SecurityCouncilSafe")));
+        Safe guardianSafe = Safe(payable(mustGetAddress("GuardianSafe")));
         DeputyGuardianModuleConfig memory deputyGuardianModuleConfig =
             _getExampleGuardianConfig().deputyGuardianModuleConfig;
         addr_ = address(
             new DeputyGuardianModule({
-                _safe: councilSafe,
+                _safe: guardianSafe,
                 _superchainConfig: deputyGuardianModuleConfig.superchainConfig,
                 _deputyGuardian: deputyGuardianModuleConfig.deputyGuardian
             })
