@@ -18,7 +18,7 @@ func GetBlockExtrinsicData(specs types.AvailDASpecs, avail_blk_ref types.AvailBl
 
 	avail_blk, err := fetchBlock(specs.Api, Hash)
 	if err != nil {
-		panic(fmt.Sprintf("cannot fetch block: %v", err))
+		panic(fmt.Errorf("cannot fetch block: %w", err))
 	}
 
 	return extractExtrinsic(Address, Hash, Nonce, avail_blk)
@@ -29,12 +29,12 @@ func fetchBlock(api *gsrpc.SubstrateAPI, Hash string) (*gsrpc_types.SignedBlock,
 	blk_hash, err := gsrpc_types.NewHashFromHexString(Hash)
 
 	if err != nil {
-		return &gsrpc_types.SignedBlock{}, fmt.Errorf("unable to convert string hash into types.hash, error:%v", err)
+		return &gsrpc_types.SignedBlock{}, fmt.Errorf("unable to convert string hash into types.hash, error:%w", err)
 	}
 
 	avail_blk, err := api.RPC.Chain.GetBlock(blk_hash)
 	if err != nil {
-		return &gsrpc_types.SignedBlock{}, fmt.Errorf("cannot get block for hash:%v and getting error:%v", Hash, err)
+		return &gsrpc_types.SignedBlock{}, fmt.Errorf("cannot get block for hash:%v and getting error:%w", Hash, err)
 	}
 
 	return avail_blk, nil

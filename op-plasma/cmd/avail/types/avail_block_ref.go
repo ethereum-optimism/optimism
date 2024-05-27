@@ -22,7 +22,7 @@ type AvailBlockRef struct {
 func (a *AvailBlockRef) MarshalToBinary() ([]byte, error) {
 	ref_bytes, err := json.Marshal(a)
 	if err != nil {
-		return []byte{}, fmt.Errorf("unable to covert the avail block referece into array of bytes and getting error:%v", err)
+		return []byte{}, fmt.Errorf("unable to covert the avail block referece into array of bytes and getting error:%w", err)
 	}
 	return ref_bytes, nil
 }
@@ -30,7 +30,7 @@ func (a *AvailBlockRef) MarshalToBinary() ([]byte, error) {
 func (a *AvailBlockRef) UnmarshalFromBinary(avail_blk_Ref []byte) error {
 	err := json.Unmarshal(avail_blk_Ref, a)
 	if err != nil {
-		return fmt.Errorf("unable to convert avail_blk_Ref bytes to AvailBlockRef Struct and getting error:%v", err)
+		return fmt.Errorf("unable to convert avail_blk_Ref bytes to AvailBlockRef Struct and getting error:%w", err)
 	}
 	return nil
 }
@@ -52,7 +52,7 @@ func NewAvailDASpecs(ApiURL string, AppID int, Seed string, Timeout time.Duratio
 
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		log.Warn("⚠️ cannot get metadata: error:%v", err)
+		log.Warn("⚠️ cannot get metadata: error:%w", err)
 		return nil, err
 	}
 
@@ -63,13 +63,13 @@ func NewAvailDASpecs(ApiURL string, AppID int, Seed string, Timeout time.Duratio
 
 	keyringPair, err := signature.KeyringPairFromSecret(Seed, 42)
 	if err != nil {
-		log.Warn("⚠️ cannot create LeyPair: error:%v", err)
+		log.Warn("⚠️ cannot create LeyPair: error:%w", err)
 		return nil, err
 	}
 
 	storageKey, err := gsrpc_types.CreateStorageKey(meta, "System", "Account", keyringPair.PublicKey)
 	if err != nil {
-		log.Warn("⚠️ cannot create storage key: error:%v", err)
+		log.Warn("⚠️ cannot create storage key: error:%w", err)
 		return nil, err
 	}
 
