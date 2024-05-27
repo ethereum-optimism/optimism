@@ -365,27 +365,59 @@ abstract contract Deployer is Script {
 
     /// @notice Returns the json of the deployment transaction given a contract address.
     function _getDeployTransactionByContractAddress(address _addr) internal returns (string memory) {
+        // Convert address to lowercase
+        string memory addressStr = vm.toString(_addr);
+        string memory lowerAddressStr = LibString.lower(addressStr);
+        console.log("Fetching transaction for address: %s", lowerAddressStr);
+
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(
             Executables.jq,
-            " -r '.transactions[] | select(.contractAddress == ",
+            " -r '.transactions[] | select(.contractAddress | ascii_downcase == ",
             '"',
-            vm.toString(_addr),
+            lowerAddressStr,
             '"',
             ') | select(.transactionType == "CREATE"',
             ' or .transactionType == "CREATE2"',
             ")' < ",
             deployPath
         );
+
         bytes memory res = vm.ffi(cmd);
-        return string(res);
+        string memory result = string(res);
+
+        return result;
     }
 
     /// @notice Returns the contract name from a deploy transaction.
     function _getContractNameFromDeployTransaction(string memory _deployTx) internal pure returns (string memory) {
-        return stdJson.readString(_deployTx, ".contractName");
+        string memory contractName = stdJson.readString(_deployTx, ".contractName");
+        return _stripVersion(contractName); // Normalize the contract name by stripping the version
+    }
+
+    /// @notice Strips the version from the contract name.
+    function _stripVersion(string memory _name) internal pure returns (string memory) {
+        bytes memory nameBytes = bytes(_name);
+        int256 firstDotPos=-1;
+        for (uint256 i = 0; i < nameBytes.length; i++) {
+            if (nameBytes[i] == ".") {
+                firstDotPos = int256(i);
+                break;
+            }
+        }
+
+        if (firstDotPos == -1) {
+            return _name;
+        }
+
+        bytes memory strippedName = new bytes(uint256(firstDotPos));
+        for (uint256 i = 0; i < uint256(firstDotPos); i++) {
+            strippedName[i] = nameBytes[i];
+        }
+
+        return string(strippedName);
     }
 
     /// @notice Wrapper for vm.getCode that handles semver in the name.
@@ -478,6 +510,9 @@ abstract contract Deployer is Script {
 
     /// @notice Returns the receipt of a deployment transaction.
     function _getDeployReceiptByContractAddress(address _addr) internal returns (string memory receipt_) {
+        string memory addressStr = vm.toString(_addr);
+        string memory lowerAddressStr = LibString.lower(addressStr);
+
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
@@ -485,7 +520,7 @@ abstract contract Deployer is Script {
             Executables.jq,
             " -r '.receipts[] | select(.contractAddress == ",
             '"',
-            vm.toString(_addr),
+            lowerAddressStr,
             '"',
             ")' < ",
             deployPath
