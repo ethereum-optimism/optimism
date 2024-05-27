@@ -660,7 +660,7 @@ func TestGameWindow(t *testing.T) {
 	})
 
 	t.Run("ParsesDefault", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=360h"))
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=672h"))
 		require.Equal(t, config.DefaultGameWindow, cfg.GameWindow)
 	})
 }
