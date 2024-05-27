@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,11 +118,13 @@ func TestCustomGasToken(t *testing.T) {
 			_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
 			require.NoError(t, err)
 
-			// check for balance increase on L2
-			newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
-			require.NoError(t, err)
-			l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
-			require.Equal(t, amountToBridge, l2BalanceIncrease)
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				// check for balance increase on L2
+				newL2Balance, err := l2Client.BalanceAt(context.Background(), recipient, nil)
+				require.NoError(t, err)
+				l2BalanceIncrease := big.NewInt(0).Sub(newL2Balance, previousL2Balance)
+				require.Equal(t, amountToBridge, l2BalanceIncrease)
+			}, 10*time.Second, 1*time.Second)
 		} else {
 			require.Error(t, err)
 		}
@@ -129,7 +133,6 @@ func TestCustomGasToken(t *testing.T) {
 	// Function to prepare and execute withdrawal flow for CGTs
 	// and assert token balance is increased on L1.
 	checkWithdrawal := func(t *testing.T) {
-
 		l2Seq := l2Client
 		l2Verif := sys.Clients["verifier"]
 		fromAddr := aliceOpts.From
