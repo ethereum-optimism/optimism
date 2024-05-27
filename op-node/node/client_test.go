@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -57,6 +58,35 @@ func TestParseHTTPHeader(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.expHdr, h)
 			}
+		})
+	}
+}
+
+func TestL1BeaconEndpointConfig_Setup(t *testing.T) {
+	for _, test := range []struct {
+		desc string
+		baa  string
+		len  int
+	}{
+		{
+			desc: "empty",
+		},
+		{
+			desc: "one",
+			baa:  "http://foo.bar",
+			len:  1,
+		},
+		{
+			desc: "three",
+			baa:  "http://foo.bar,http://op.ti,http://ba.se",
+			len:  3,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			cfg := L1BeaconEndpointConfig{BeaconArchiverAddr: test.baa}
+			_, fb, err := cfg.Setup(context.TODO(), nil)
+			require.NoError(t, err)
+			require.Len(t, fb, test.len)
 		})
 	}
 }

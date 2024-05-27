@@ -197,11 +197,15 @@ func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (c
 		opts = append(opts, client.WithHeader(hdr))
 	}
 
-	a := client.NewBasicHTTPClient(cfg.BeaconAddr, log, opts...)
 	if cfg.BeaconArchiverAddr != "" {
-		b := client.NewBasicHTTPClient(cfg.BeaconArchiverAddr, log)
-		fb = append(fb, sources.NewBeaconHTTPClient(b))
+		addrs := strings.Split(cfg.BeaconArchiverAddr, ",")
+		for _, addr := range addrs {
+			b := client.NewBasicHTTPClient(addr, log)
+			fb = append(fb, sources.NewBeaconHTTPClient(b))
+		}
 	}
+
+	a := client.NewBasicHTTPClient(cfg.BeaconAddr, log, opts...)
 	return sources.NewBeaconHTTPClient(a), fb, nil
 }
 
