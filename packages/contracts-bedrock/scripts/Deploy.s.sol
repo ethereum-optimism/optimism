@@ -445,7 +445,8 @@ contract Deploy is Deployer {
         public
         returns (address addr_)
     {
-        console.log("Deploying safe: %s ", _name);
+        bytes32 salt = keccak256(abi.encode(_name, _implSalt()));
+        console.log("Deploying safe: %s with salt %s", _name, vm.toString(salt));
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
         address[] memory expandedOwners = new address[](_owners.length + 1);
@@ -462,11 +463,7 @@ contract Deploy is Deployer {
         bytes memory initData = abi.encodeCall(
             Safe.setup, (_owners, _threshold, address(0), hex"", address(0), address(0), 0, payable(address(0)))
         );
-        addr_ = address(
-            safeProxyFactory.createProxyWithNonce(
-                address(safeSingleton), initData, uint256(keccak256(abi.encode(_name)))
-            )
-        );
+        addr_ = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, uint256(salt)));
 
         save(_name, addr_);
         console.log("New safe: %s deployed at %s\n    Note that this safe is owned by the deployer key", _name, addr_);
