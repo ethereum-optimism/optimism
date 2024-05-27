@@ -90,6 +90,11 @@ func (p *SimpleAsyncGossiper) Clear() {
 // Stop is a synchronous function to stop the async routine
 // it blocks until the async routine accepts the signal
 func (p *SimpleAsyncGossiper) Stop() {
+	// if the gossiping isn't running, nothing to do
+	if !p.running.Load() {
+		return
+	}
+
 	p.stop <- struct{}{}
 }
 
