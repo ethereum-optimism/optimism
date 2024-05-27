@@ -289,6 +289,22 @@ var (
 		"origin",
 	})
 
+	consensusBlockUpdateRetries = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_block_update_retries",
+		Help:      "Consensus block update retries",
+	}, []string{
+		"origin",
+	})
+
+	consensusBlockUpdateTotalSleepMs = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_block_update_total_sleep_ms",
+		Help:      "Consensus block update total sleep millis",
+	}, []string{
+		"origin",
+	})
+
 	consensusHAError = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "group_consensus_ha_error",
@@ -628,6 +644,14 @@ func RecordConsensusRequestedBlock(origin string, blockNumber hexutil.Uint64) {
 
 func RecordConsensusCurrentConsensusBlock(origin string, blockNumber hexutil.Uint64) {
 	consensusCurrentConsensusBlock.WithLabelValues(origin).Set(float64(blockNumber))
+}
+
+func RecordConsensusBlockUpdateRetries(origin string, retries hexutil.Uint64) {
+	consensusBlockUpdateRetries.WithLabelValues(origin).Set(float64(retries))
+}
+
+func RecordConsensusBlockUpdateTotalSleepMs(origin string, totalSleepMs hexutil.Uint64) {
+	consensusBlockUpdateTotalSleepMs.WithLabelValues(origin).Set(float64(totalSleepMs))
 }
 
 func boolToFloat64(b bool) float64 {

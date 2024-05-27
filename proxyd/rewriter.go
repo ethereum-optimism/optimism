@@ -319,16 +319,23 @@ func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *Con
 		if !consensusPollerRetry {
 			return ErrRewriteBlockOutOfRange
 		}
+
 		// check if consensus has a newer block already
 		// increase the sleep time in each iteration by 10ms
 		// this will sleep at most 2100ms in total (20*21/2*10)
-		for i := 1; i < 21; i++ {
+		i := 1
+		totalSleepMs := 0
+		for ; i < 21; i++ {
 			consensusBlock = int64(cp.GetLatestBlockNumber())
 			if requestedBlock <= consensusBlock {
 				break
 			}
-			time.Sleep(time.Duration(i*10) * time.Millisecond)
+			sleepIterationMs := i * 10
+			totalSleepMs += sleepIterationMs
+			time.Sleep(time.Duration(sleepIterationMs) * time.Millisecond)
 		}
+		RecordConsensusBlockUpdateRetries("rewriteTag", hexutil.Uint64(i))
+		RecordConsensusBlockUpdateTotalSleepMs("rewriteTag", hexutil.Uint64(totalSleepMs))
 	}
 
 	// track requested values
