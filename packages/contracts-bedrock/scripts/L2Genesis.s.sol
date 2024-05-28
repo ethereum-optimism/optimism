@@ -591,7 +591,7 @@ contract L2Genesis is Deployer {
         setCeloFeeCurrencyWhitelist();
         setCeloMentoFeeHandlerSeller();
         setCeloUniswapFeeHandlerSeller();
-        setCeloSortedOracles();
+        // setCeloSortedOracles();
         // setCeloAddressSortedLinkedListWithMedian();
         setCeloFeeCurrency();
     }
