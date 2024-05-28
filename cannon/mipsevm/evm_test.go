@@ -419,13 +419,21 @@ func TestEVMSysWriteHint(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			oracle := hintTrackingOracle{}
-			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+			thread := ThreadContext{
+				State: &ThreadState{
+					FutexAddr: ^uint32(0),
+					PC:        0,
+					NextPC:    4,
+				},
+			}
+			state := &State{Threads: []ThreadContext{thread}, Memory: NewMemory()}
 
 			state.LastHint = tt.lastHint
-			state.Registers[2] = sysWrite
-			state.Registers[4] = fdHintWrite
-			state.Registers[5] = uint32(tt.memOffset)
-			state.Registers[6] = uint32(tt.bytesToWrite)
+			threadState := thread.State
+			threadState.Registers[2] = sysWrite
+			threadState.Registers[4] = fdHintWrite
+			threadState.Registers[5] = uint32(tt.memOffset)
+			threadState.Registers[6] = uint32(tt.bytesToWrite)
 
 			err := state.Memory.SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
 			require.NoError(t, err)

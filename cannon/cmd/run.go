@@ -363,16 +363,16 @@ func Run(ctx *cli.Context) error {
 			delta := time.Since(start)
 			l.Info("processing",
 				"step", step,
-				"pc", mipsevm.HexU32(state.PC),
-				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.PC)),
+				"pc", mipsevm.HexU32(state.Thread().State.PC),
+				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.Thread().State.PC)),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
 				"pages", state.Memory.PageCount(),
 				"mem", state.Memory.Usage(),
-				"name", meta.LookupSymbol(state.PC),
+				"name", meta.LookupSymbol(state.Thread().State.PC),
 			)
 		}
 
-		if sleepCheck(state.PC) { // don't loop forever when we get stuck because of an unexpected bad program
+		if sleepCheck(state.Thread().State.PC) { // don't loop forever when we get stuck because of an unexpected bad program
 			return fmt.Errorf("got stuck in Go sleep at step %d", step)
 		}
 
@@ -394,7 +394,7 @@ func Run(ctx *cli.Context) error {
 			}
 			witness, err := stepFn(true)
 			if err != nil {
-				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.PC, err)
+				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.Thread().State.PC, err)
 			}
 			postStateHash, err := state.EncodeWitness().StateHash()
 			if err != nil {
@@ -418,7 +418,7 @@ func Run(ctx *cli.Context) error {
 		} else {
 			_, err = stepFn(false)
 			if err != nil {
-				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.PC, err)
+				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.Thread().State.PC, err)
 			}
 		}
 

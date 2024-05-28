@@ -366,7 +366,7 @@ func FuzzStateHintRead(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
-		require.Equal(t, expectedRegisters, state.Registers)
+		require.Equal(t, expectedRegisters, threadState.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
@@ -502,7 +502,7 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
-		require.Equal(t, expectedRegisters, state.Registers)
+		require.Equal(t, expectedRegisters, threadState.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
@@ -562,7 +562,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, uint32(0), state.PreimageOffset)
-		require.Equal(t, expectedRegisters, state.Registers)
+		require.Equal(t, expectedRegisters, threadState.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)

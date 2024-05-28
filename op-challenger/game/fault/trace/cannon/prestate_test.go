@@ -41,18 +41,25 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 		actual, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
 		state := mipsevm.State{
+			Threads: []mipsevm.ThreadContext{
+				{
+					State: &mipsevm.ThreadState{
+						PC:        0,
+						NextPC:    1,
+						LO:        0,
+						HI:        0,
+						Registers: [32]uint32{},
+					},
+				},
+			},
 			Memory:         mipsevm.NewMemory(),
 			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 			PreimageOffset: 0,
-			PC:             0,
-			NextPC:         1,
-			LO:             0,
-			HI:             0,
-			Heap:           0,
-			ExitCode:       0,
-			Exited:         false,
-			Step:           0,
-			Registers:      [32]uint32{},
+
+			Heap:     0,
+			ExitCode: 0,
+			Exited:   false,
+			Step:     0,
 		}
 		expected, err := state.EncodeWitness().StateHash()
 		require.NoError(t, err)
