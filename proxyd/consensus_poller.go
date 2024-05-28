@@ -42,6 +42,7 @@ type ConsensusPoller struct {
 	maxBlockRange        uint64
 	interval             time.Duration
 	consensusPollerRetry bool
+	consensusHA          bool
 }
 
 type backendState struct {

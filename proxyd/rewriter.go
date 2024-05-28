@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/redis/go-redis/v9"
 )
 
 type RewriteContext struct {
@@ -320,6 +322,24 @@ func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *Con
 	if requestedBlock > consensusBlock {
 		if !consensusPollerRetry {
 			return ErrRewriteBlockOutOfRange
+		}
+
+		// consensusHA mode
+		// try to re-read the current state from redis and update in-memory
+		if cp.consensusHA {
+			ct := cp.tracker.(*RedisConsensusTracker)
+			// nothing to do if this is the leader
+			if ct.leader {
+				return ErrRewriteBlockOutOfRange
+			}
+
+			key := ct.key("mutex")
+			val, err := ct.client.Get(ct.ctx, key).Result()
+			if err != nil && err != redis.Nil {
+				log.Error("failed to read the lock", "err", err)
+				RecordGroupConsensusError(ct.backendGroup, "read_lock", err)
+			}
+			ct.updateRemote(val)
 		}
 
 		// check if consensus has a newer block already

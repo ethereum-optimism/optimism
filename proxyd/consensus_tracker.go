@@ -233,27 +233,7 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 			}
 			ct.leaderName = leaderName
 			log.Debug("following", "val", val, "leader", leaderName)
-			// retrieve payload
-			val, err := ct.client.Get(ct.ctx, ct.key(fmt.Sprintf("state:%s", val))).Result()
-			if err != nil && err != redis.Nil {
-				log.Error("failed to read the remote state", "err", err)
-				RecordGroupConsensusError(ct.backendGroup, "read_state", err)
-				return
-			}
-			if val == "" {
-				log.Error("remote state is missing (recent leader election maybe?)")
-				RecordGroupConsensusError(ct.backendGroup, "read_state_missing", err)
-				return
-			}
-			state := &ConsensusTrackerState{}
-			err = json.Unmarshal([]byte(val), state)
-			if err != nil {
-				log.Error("failed to unmarshal the remote state", "err", err)
-				RecordGroupConsensusError(ct.backendGroup, "read_unmarshal_state", err)
-				return
-			}
-
-			ct.remote.update(state)
+			ct.updateRemote(val)
 			log.Debug("updated state from remote", "state", val, "leader", leaderName)
 
 			RecordGroupConsensusHALatestBlock(ct.backendGroup, leaderName, ct.remote.state.Latest)
@@ -290,6 +270,29 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 		ct.leader = true
 		ct.postPayload(mutex.Value())
 	}
+}
+
+func (ct *RedisConsensusTracker) updateRemote(val string) {
+	// retrieve payload
+	val, err := ct.client.Get(ct.ctx, ct.key(fmt.Sprintf("state:%s", val))).Result()
+	if err != nil && err != redis.Nil {
+		log.Error("failed to read the remote state", "err", err)
+		RecordGroupConsensusError(ct.backendGroup, "read_state", err)
+		return
+	}
+	if val == "" {
+		log.Error("remote state is missing (recent leader election maybe?)")
+		RecordGroupConsensusError(ct.backendGroup, "read_state_missing", err)
+		return
+	}
+	state := &ConsensusTrackerState{}
+	err = json.Unmarshal([]byte(val), state)
+	if err != nil {
+		log.Error("failed to unmarshal the remote state", "err", err)
+		RecordGroupConsensusError(ct.backendGroup, "read_unmarshal_state", err)
+		return
+	}
+	ct.remote.update(state)
 }
 
 func (ct *RedisConsensusTracker) key(tag string) string {
