@@ -245,7 +245,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // `finalizeWithdrawalTransaction`.
         if (_tx.target == address(this)) revert BadTarget();
 
-        // Get the output root and load onto the stack to prevent multiple mloads. This will
+        // Get the output root and load onto the stack to prevent multiple sloads. This will
         // revert if there is no output root for the given block number.
         bytes32 outputRoot = l2Oracle.getL2Output(_l2OutputIndex).outputRoot;
 
