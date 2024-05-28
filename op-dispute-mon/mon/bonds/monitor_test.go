@@ -69,6 +69,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	// Game has not reached max duration
 	game1 := &monTypes.EnrichedGameData{
 		MaxClockDuration: 50000,
+		WETHDelay:        30 * time.Minute,
 		GameMetadata: gameTypes.GameMetadata{
 			Proxy:     common.Address{0x11},
 			Timestamp: uint64(frozen.Unix()),
@@ -141,6 +142,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	// Max duration has been reached
 	game2 := &monTypes.EnrichedGameData{
 		MaxClockDuration: 5,
+		WETHDelay:        5 * time.Second,
 		GameMetadata: gameTypes.GameMetadata{
 			Proxy:     common.Address{0x22},
 			Timestamp: uint64(frozen.Unix()) - 11,
@@ -215,6 +217,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	// Game has not reached max duration
 	game3 := &monTypes.EnrichedGameData{
 		MaxClockDuration: 50000,
+		WETHDelay:        10 * time.Hour,
 		GameMetadata: gameTypes.GameMetadata{
 			Proxy:     common.Address{0x33},
 			Timestamp: uint64(frozen.Unix()) - 11,
@@ -268,6 +271,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	// Game has not reached max duration
 	game4 := &monTypes.EnrichedGameData{
 		MaxClockDuration: 10,
+		WETHDelay:        10 * time.Second,
 		GameMetadata: gameTypes.GameMetadata{
 			Proxy:     common.Address{44},
 			Timestamp: uint64(frozen.Unix()) - 22,
