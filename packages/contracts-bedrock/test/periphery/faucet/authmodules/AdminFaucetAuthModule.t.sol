@@ -98,7 +98,7 @@ contract AdminFaucetAuthModuleTest is Test {
         vm.prank(nonAdmin);
         assertEq(
             adminFam.verify(
-                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit), keccak256(abi.encodePacked(fundsReceiver)), proof
+                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit), keccak256(abi.encodePacked(randomAddress)), proof
             ),
             true
         );
@@ -124,7 +124,7 @@ contract AdminFaucetAuthModuleTest is Test {
         vm.prank(admin);
         assertEq(
             adminFam.verify(
-                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit), keccak256(abi.encodePacked(fundsReceiver)), proof
+                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit), keccak256(abi.encodePacked(randomAddress)), proof
             ),
             false
         );
