@@ -35,6 +35,8 @@ export enum L2ChainID {
   BASE_MAINNET = 8453,
   ZORA_GOERLI = 999,
   ZORA_MAINNET = 7777777,
+  MODE_SEPOLIA = 919,
+  MODE_MAINNET = 34443,
 }
 
 /**
@@ -53,6 +55,7 @@ export interface OEL1Contracts {
   // FPAC
   OptimismPortal2?: Contract
   DisputeGameFactory?: Contract
+  FaultDisputeGame?: Contract
 }
 
 /**
@@ -258,13 +261,27 @@ export interface MessageReceipt {
 }
 
 /**
- * ProvenWithdrawal in OptimismPortal
+ * ProvenWithdrawal in OptimismPortal.
  */
-export interface ProvenWithdrawal {
+export interface LegacyProvenWithdrawal {
   outputRoot: string
   timestamp: BigNumber
   l2BlockNumber: BigNumber
 }
+
+/**
+ * ProvenWithdrawal in OptimismPortal (FPAC).
+ */
+export interface FPACProvenWithdrawal {
+  proofSubmitter: string
+  disputeGameProxy: string
+  timestamp: BigNumber
+}
+
+/**
+ * ProvenWithdrawal in OptimismPortal (FPAC or Legacy).
+ */
+export type ProvenWithdrawal = LegacyProvenWithdrawal | FPACProvenWithdrawal
 
 /**
  * Header for a state root batch.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -29,6 +30,7 @@ import (
 
 type EndpointProvider interface {
 	NodeEndpoint(name string) string
+	RollupEndpoint(name string) string
 	L1BeaconEndpoint() string
 }
 
@@ -38,6 +40,18 @@ type Helper struct {
 	require *require.Assertions
 	dir     string
 	chl     cliapp.Lifecycle
+	metrics *CapturingMetrics
+}
+
+func NewHelper(log log.Logger, t *testing.T, require *require.Assertions, dir string, chl cliapp.Lifecycle, m *CapturingMetrics) *Helper {
+	return &Helper{
+		log:     log,
+		t:       t,
+		require: require,
+		dir:     dir,
+		chl:     chl,
+		metrics: m,
+	}
 }
 
 type Option func(config2 *config.Config)
@@ -66,9 +80,9 @@ func WithPollInterval(pollInterval time.Duration) Option {
 	}
 }
 
-// findMonorepoRoot finds the relative path to the monorepo root
+// FindMonorepoRoot finds the relative path to the monorepo root
 // Different tests might be nested in subdirectories of the op-e2e dir.
-func findMonorepoRoot(t *testing.T) string {
+func FindMonorepoRoot(t *testing.T) string {
 	path := "./"
 	// Only search up 5 directories
 	// Avoids infinite recursion if the root isn't found for some reason
@@ -85,16 +99,9 @@ func findMonorepoRoot(t *testing.T) string {
 	return ""
 }
 
-func applyCannonConfig(
-	c *config.Config,
-	t *testing.T,
-	rollupCfg *rollup.Config,
-	l2Genesis *core.Genesis,
-	l2Endpoint string,
-) {
+func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) {
 	require := require.New(t)
-	c.CannonL2 = l2Endpoint
-	root := findMonorepoRoot(t)
+	root := FindMonorepoRoot(t)
 	c.CannonBin = root + "cannon/bin/cannon"
 	c.CannonServer = root + "op-program/bin/op-program"
 	c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
@@ -113,49 +120,37 @@ func applyCannonConfig(
 	c.CannonRollupConfigPath = rollupFile
 }
 
-func WithCannon(
-	t *testing.T,
-	rollupCfg *rollup.Config,
-	l2Genesis *core.Genesis,
-	rollupEndpoint string,
-	l2Endpoint string,
-) Option {
+func WithCannon(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
-		c.RollupRpc = rollupEndpoint
-		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
+		applyCannonConfig(c, t, rollupCfg, l2Genesis)
 	}
 }
 
-func WithAlphabet(rollupEndpoint string) Option {
+func WithAlphabet() Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
-		c.RollupRpc = rollupEndpoint
 	}
 }
 
 func NewChallenger(t *testing.T, ctx context.Context, sys EndpointProvider, name string, options ...Option) *Helper {
 	log := testlog.Logger(t, log.LevelDebug).New("role", name)
 	log.Info("Creating challenger")
-	cfg := NewChallengerConfig(t, sys, options...)
-	chl, err := challenger.Main(ctx, log, cfg)
+	cfg := NewChallengerConfig(t, sys, "sequencer", options...)
+	cfg.MetricsConfig.Enabled = false // Don't start the metrics server
+	m := NewCapturingMetrics()
+	chl, err := challenger.Main(ctx, log, cfg, m)
 	require.NoError(t, err, "must init challenger")
 	require.NoError(t, chl.Start(ctx), "must start challenger")
 
-	return &Helper{
-		log:     log,
-		t:       t,
-		require: require.New(t),
-		dir:     cfg.Datadir,
-		chl:     chl,
-	}
+	return NewHelper(log, t, require.New(t), cfg.Datadir, chl, m)
 }
 
-func NewChallengerConfig(t *testing.T, sys EndpointProvider, options ...Option) *config.Config {
+func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l1Beacon := sys.L1BeaconEndpoint()
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, t.TempDir())
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName), sys.NodeEndpoint(l2NodeName), t.TempDir())
 	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
 	// before the L2 genesis is known.
 	cfg.AllowInvalidPrestate = true
@@ -237,4 +232,22 @@ func (h *Helper) WaitForGameDataDeletion(ctx context.Context, games ...GameAddr)
 
 func (h *Helper) gameDataDir(addr common.Address) string {
 	return filepath.Join(h.dir, "game-"+addr.Hex())
+}
+
+func (h *Helper) WaitL1HeadActedOn(ctx context.Context, client *ethclient.Client) {
+	l1Head, err := client.BlockNumber(ctx)
+	h.require.NoError(err)
+	h.WaitForHighestActedL1Block(ctx, l1Head)
+}
+
+func (h *Helper) WaitForHighestActedL1Block(ctx context.Context, head uint64) {
+	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	var actual uint64
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		actual = h.metrics.HighestActedL1Block.Load()
+		h.log.Info("Waiting for highest acted L1 block", "target", head, "actual", actual)
+		return actual >= head, nil
+	})
+	h.require.NoErrorf(err, "Highest acted L1 block did not reach %v, was: %v", head, actual)
 }

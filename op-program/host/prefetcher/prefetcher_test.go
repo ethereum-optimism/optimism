@@ -7,8 +7,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -158,38 +156,29 @@ func TestFetchL1Receipts(t *testing.T) {
 	})
 }
 
-// Globally initialize a kzgCtx for blob tests.
-var kzgCtx, _ = gokzg4844.NewContext4096Secure()
-
-// Returns a serialized random field element in big-endian
-func GetRandFieldElement(seed int64) [32]byte {
-	var r fr.Element
-	_, _ = r.SetRandom()
-	return gokzg4844.SerializeScalar(r)
-}
-
-func GetRandBlob(seed int64) gokzg4844.Blob {
-	var blob gokzg4844.Blob
-	bytesPerBlob := gokzg4844.ScalarsPerBlob * gokzg4844.SerializedScalarSize
-	for i := 0; i < bytesPerBlob; i += gokzg4844.SerializedScalarSize {
-		fieldElementBytes := GetRandFieldElement(seed + int64(i))
-		copy(blob[i:i+gokzg4844.SerializedScalarSize], fieldElementBytes[:])
+func GetRandBlob(t *testing.T, seed int64) eth.Blob {
+	r := rand.New(rand.NewSource(seed))
+	bigData := eth.Data(make([]byte, eth.MaxBlobDataSize))
+	for i := range bigData {
+		bigData[i] = byte(r.Intn(256))
 	}
-	return blob
+	var b eth.Blob
+	err := b.FromData(bigData)
+	require.NoError(t, err)
+	return b
 }
 
 func TestFetchL1Blob(t *testing.T) {
-	blob := GetRandBlob(0xf00f00)
-	commitment, err := kzgCtx.BlobToKZGCommitment(blob, 0)
+	blob := GetRandBlob(t, 0xf00f00)
+	commitment, err := blob.ComputeKZGCommitment()
 	require.NoError(t, err)
-	versionedHash := sha256.Sum256(commitment[:])
-	versionedHash[0] = params.BlobTxHashVersion
+	versionedHash := eth.KZGToVersionedHash(commitment)
 	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
 	l1Ref := eth.L1BlockRef{Time: 0}
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
 		prefetcher, _, blobFetcher, _, kv := createPrefetcher(t)
-		storeBlob(t, kv, (eth.Bytes48)(commitment), (*eth.Blob)(&blob))
+		storeBlob(t, kv, (eth.Bytes48)(commitment), &blob)
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
 		defer blobFetcher.AssertExpectations(t)
@@ -207,7 +196,7 @@ func TestFetchL1Blob(t *testing.T) {
 			l1Ref,
 			[]eth.IndexedBlobHash{blobHash},
 			(eth.Bytes48)(commitment),
-			[]*eth.Blob{(*eth.Blob)(&blob)},
+			[]*eth.Blob{&blob},
 			nil,
 		)
 		defer blobFetcher.AssertExpectations(t)
@@ -231,43 +220,90 @@ func TestFetchL1Blob(t *testing.T) {
 	})
 }
 
-func TestFetchKZGPointEvaluation(t *testing.T) {
-	runTest := func(name string, input []byte, expected bool) {
-		t.Run(name, func(t *testing.T) {
+func TestFetchPrecompileResult(t *testing.T) {
+	ecRecoverInput := common.FromHex("18c547e4f7b0f325ad1e56f57e26c745b09a3e503d86e00e5255ff7f715d3d1c000000000000000000000000000000000000000000000000000000000000001c73b1693892219d736caba55bdb67216e485557ea6b6af75f37096c9aa6a5a75feeb940b1d03b21e36b0e47e79769f095fe2ab855bd91e3a38756b7d75a9c4549")
+	kzgPointEvalInput := common.FromHex("01e798154708fe7789429634053cbf9f99b619f9f084048927333fce637f549b564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d3630624d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a18f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a")
+
+	failure := []byte{0}
+	success := []byte{1}
+
+	tests := []struct {
+		name   string
+		addr   common.Address
+		input  []byte
+		result []byte
+	}{
+		{
+			name:   "EcRecover-Valid",
+			addr:   common.BytesToAddress([]byte{0x1}),
+			input:  ecRecoverInput,
+			result: append(success, common.FromHex("000000000000000000000000a94f5374fce5edbc8e2a8697c15331677e6ebf0b")...),
+		},
+		{
+			name:   "Bn256Pairing-Valid",
+			addr:   common.BytesToAddress([]byte{0x8}),
+			input:  []byte{}, // empty is valid
+			result: append(success, common.FromHex("0000000000000000000000000000000000000000000000000000000000000001")...),
+		},
+		{
+			name:   "Bn256Pairing-Invalid",
+			addr:   common.BytesToAddress([]byte{0x8}),
+			input:  []byte{0x1},
+			result: failure,
+		},
+		{
+			name:   "KzgPointEvaluation-Valid",
+			addr:   common.BytesToAddress([]byte{0xa}),
+			input:  kzgPointEvalInput,
+			result: append(success, common.FromHex("000000000000000000000000000000000000000000000000000000000000100073eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001")...),
+		},
+		{
+			name:   "KzgPointEvaluation-Invalid",
+			addr:   common.BytesToAddress([]byte{0xa}),
+			input:  []byte{0x0},
+			result: failure,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
 			prefetcher, _, _, _, _ := createPrefetcher(t)
 			oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
 
-			result := oracle.KZGPointEvaluation(input)
-			require.Equal(t, expected, result)
+			result, ok := oracle.Precompile(test.addr, test.input)
+			require.Equal(t, test.result[0] == 1, ok)
+			require.EqualValues(t, test.result[1:], result)
 
-			val, err := prefetcher.kvStore.Get(preimage.Keccak256Key(crypto.Keccak256Hash(input)).PreimageKey())
+			key := crypto.Keccak256Hash(append(test.addr.Bytes(), test.input...))
+			val, err := prefetcher.kvStore.Get(preimage.Keccak256Key(key).PreimageKey())
 			require.NoError(t, err)
-			require.EqualValues(t, input, val)
+			require.NotEmpty(t, val)
 
-			key := preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input)).PreimageKey()
-			val, err = prefetcher.kvStore.Get(key)
+			val, err = prefetcher.kvStore.Get(preimage.PrecompileKey(key).PreimageKey())
 			require.NoError(t, err)
-			if expected {
-				require.EqualValues(t, kzgPointEvaluationSuccess[:], val)
-			} else {
-				require.EqualValues(t, kzgPointEvaluationFailure[:], val)
-			}
+			require.EqualValues(t, test.result, val)
 		})
 	}
-	validInput := common.FromHex("01e798154708fe7789429634053cbf9f99b619f9f084048927333fce637f549b564c0a11a0f704f4fc3e8acfe0f8245f0ad1347b378fbf96e206da11a5d3630624d25032e67a7e6a4910df5834b8fe70e6bcfeeac0352434196bdf4b2485d5a18f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7873033e038326e87ed3e1276fd140253fa08e9fc25fb2d9a98527fc22a2c9612fbeafdad446cbc7bcdbdcd780af2c16a")
-	runTest("Valid input", validInput, true)
-	runTest("Invalid input", []byte{0x00}, false)
 
 	t.Run("Already Known", func(t *testing.T) {
 		input := []byte("test input")
+		addr := common.BytesToAddress([]byte{0x1})
+		result := []byte{0x1}
 		prefetcher, _, _, _, kv := createPrefetcher(t)
-		err := kv.Put(preimage.KZGPointEvaluationKey(crypto.Keccak256Hash(input)).PreimageKey(), kzgPointEvaluationSuccess[:])
+		err := kv.Put(preimage.PrecompileKey(crypto.Keccak256Hash(append(addr.Bytes(), input...))).PreimageKey(), append([]byte{1}, result...))
 		require.NoError(t, err)
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
-		result := oracle.KZGPointEvaluation(input)
-		require.True(t, result)
+		actualResult, status := oracle.Precompile(addr, input)
+		require.EqualValues(t, actualResult, result)
+		require.True(t, status)
 	})
+}
+
+func TestRestrictedPrecompileContracts(t *testing.T) {
+	for _, addr := range acceleratedPrecompiles {
+		require.NotNil(t, getPrecompiledContract(addr))
+	}
 }
 
 func TestFetchL2Block(t *testing.T) {

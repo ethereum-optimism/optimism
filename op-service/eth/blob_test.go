@@ -44,6 +44,7 @@ func TestSmallBlobEncoding(t *testing.T) {
 	require.Equal(t, data, decoded)
 
 	// only 10 bytes of data
+	data = Data(make([]byte, 10))
 	data[9] = 0xFF
 	err = b.FromData(data)
 	require.NoError(t, err)
@@ -157,8 +158,6 @@ func FuzzDetectNonBijectivity(f *testing.F) {
 	})
 }
 
-// TODO(optimism#8872): Create more test vectors to implement one-way tests confirming that
-// specific inputs yield desired outputs.
 func TestDecodeTestVectors(t *testing.T) {
 	cases := []struct {
 		input, output string
@@ -185,6 +184,21 @@ func TestDecodeTestVectors(t *testing.T) {
 			input: "\x00\x00\x01\xFB\xFD",
 			err:   ErrBlobInvalidLength,
 		},
+		{
+			// encode len=10
+			input:  "\x00\x00\x00\x00\x0a\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff",
+			output: "\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff",
+		},
+		{
+			// decode what should be 27 0xFF bytes
+			input:  "\x00\x00\x00\x00\x1b\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",
+			output: "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",
+		},
+		{
+			// decode what should be 32 0xFF bytes
+			input:  "\x3f\x00\x00\x00\x20\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x30\xff\xff\xff\xff",
+			output: "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",
+		},
 	}
 
 	var b Blob
@@ -198,6 +212,53 @@ func TestDecodeTestVectors(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, len(c.output), len(decoded))
 			require.Equal(t, c.output, string(decoded))
+		}
+	}
+}
+
+func TestEncodeTestVectors(t *testing.T) {
+	cases := []struct {
+		input, output string
+		err           error
+	}{
+		{
+			// empty (all zeros) blob should decode as empty string
+			input:  "",
+			output: "",
+		},
+		{
+			// max input data
+			input:  string(make([]byte, MaxBlobDataSize)),
+			output: "\x00\x00\x01\xfb\xfc",
+		},
+		{
+			// input data too big
+			input:  string(make([]byte, MaxBlobDataSize+1)),
+			output: "",
+			err:    ErrBlobInputTooLarge,
+		},
+		{
+			// 27 bytes each with high order bits set (should cleanly fit in the first FE along with the version+length)
+			input:  "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",
+			output: "\x00\x00\x00\x00\x1b\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",
+		},
+		{
+			// 28 bytes each with high order bits set, requires high bits spilling into byte 0 and last byte
+			input:  "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",
+			output: "\x3f\x00\x00\x00\x1c\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x30",
+		},
+	}
+
+	var b, testBlob Blob
+	for _, c := range cases {
+		err := b.FromData(Data(c.input))
+		if c.err != nil {
+			require.ErrorIs(t, err, c.err)
+		} else {
+			require.NoError(t, err)
+			testBlob.Clear()
+			copy(testBlob[:], []byte(c.output))
+			require.Equal(t, testBlob, b)
 		}
 	}
 }

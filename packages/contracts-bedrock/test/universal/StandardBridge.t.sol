@@ -5,6 +5,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { OptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title StandardBridgeTester
 /// @notice Simple wrapper around the StandardBridge contract that exposes
@@ -18,6 +19,10 @@ contract StandardBridgeTester is StandardBridge {
 
     function isCorrectTokenPair(address _mintableToken, address _otherToken) external view returns (bool) {
         return _isCorrectTokenPair(_mintableToken, _otherToken);
+    }
+
+    function gasPayingToken() internal pure override returns (address, uint8) {
+        return (Constants.ETHER, 18);
     }
 
     receive() external payable override { }
@@ -78,7 +83,7 @@ contract StandardBridge_Stateless_Test is CommonTest {
     ///         This function should return true for both modern and legacy
     ///         OptimismMintableERC20 tokens and false for any accounts that
     ///         do not implement the interface.
-    function test_isOptimismMintableERC20_succeeds() external {
+    function test_isOptimismMintableERC20_succeeds() external view {
         // Both the modern and legacy mintable tokens should return true
         assertTrue(bridge.isOptimismMintableERC20(address(mintable)));
         assertTrue(bridge.isOptimismMintableERC20(address(legacy)));
@@ -111,7 +116,7 @@ contract StandardBridge_Stateless_Test is CommonTest {
     }
 
     /// @notice The bridge by default should be unpaused.
-    function test_paused_succeeds() external {
+    function test_paused_succeeds() external view {
         assertFalse(bridge.paused());
     }
 }

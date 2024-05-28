@@ -6,9 +6,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -110,7 +110,7 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 }
 
 // ForWithdrawalCheck waits until the withdrawal check in the portal succeeds.
-func ForWithdrawalCheck(ctx context.Context, client *ethclient.Client, withdrawal crossdomain.Withdrawal, optimismPortalAddr common.Address) error {
+func ForWithdrawalCheck(ctx context.Context, client *ethclient.Client, withdrawal crossdomain.Withdrawal, optimismPortalAddr common.Address, proofSubmitter common.Address) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	opts := &bind.CallOpts{Context: ctx}
@@ -125,7 +125,7 @@ func ForWithdrawalCheck(ctx context.Context, client *ethclient.Client, withdrawa
 			return false, fmt.Errorf("hash withdrawal: %w", err)
 		}
 
-		err = portal.CheckWithdrawal(opts, wdHash)
+		err = portal.CheckWithdrawal(opts, wdHash, proofSubmitter)
 		return err == nil, nil
 	})
 }

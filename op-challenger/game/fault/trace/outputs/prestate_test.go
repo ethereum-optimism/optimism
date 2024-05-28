@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/source"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
 
 func newOutputPrestateProvider(t *testing.T, prestateBlock uint64) (*OutputPrestateProvider, *stubRollupClient) {
-	rollupClient := stubRollupClient{
+	rollupClient := &stubRollupClient{
 		outputs: map[uint64]*eth.OutputResponse{
 			prestateBlock: {
 				OutputRoot: eth.Bytes32(prestateOutputRoot),
@@ -24,9 +23,9 @@ func newOutputPrestateProvider(t *testing.T, prestateBlock uint64) (*OutputPrest
 		},
 	}
 	return &OutputPrestateProvider{
-		rollupClient:  source.NewUnrestrictedOutputSource(&rollupClient),
+		rollupClient:  rollupClient,
 		prestateBlock: prestateBlock,
-	}, &rollupClient
+	}, rollupClient
 }
 
 func TestAbsolutePreStateCommitment(t *testing.T) {

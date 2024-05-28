@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -52,9 +53,34 @@ type CLIConfig struct {
 	MaxPendingTransactions uint64
 
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
+	// If using blobs, this setting is ignored and the max blob size is used.
 	MaxL1TxSize uint64
 
+	// The target number of frames to create per channel. Controls number of blobs
+	// per blob tx, if using Blob DA.
+	TargetNumFrames int
+
+	// ApproxComprRatio to assume (only [compressor.RatioCompressor]).
+	// Should be slightly smaller than average from experiments to avoid the
+	// chances of creating a small additional leftover frame.
+	ApproxComprRatio float64
+
+	// Type of compressor to use. Must be one of [compressor.KindKeys].
+	Compressor string
+
+	// Type of compression algorithm to use. Must be one of [zlib, brotli, brotli[9-11]]
+	CompressionAlgo derive.CompressionAlgo
+
+	// If Stopped is true, the batcher starts stopped and won't start batching right away.
+	// Batching needs to be started via an admin RPC.
 	Stopped bool
+
+	// Whether to wait for the sequencer to sync to a recent block at startup.
+	WaitNodeSync bool
+
+	// How many blocks back to look for recent batcher transactions during node sync at startup.
+	// If 0, the batcher will just use the current head.
+	CheckRecentTxsDepth int
 
 	BatchType uint
 
@@ -62,16 +88,19 @@ type CLIConfig struct {
 	// the data availability type to use for posting batches, e.g. blobs vs calldata.
 	DataAvailabilityType flags.DataAvailabilityType
 
+	// TestUseMaxTxSizeForBlobs allows to set the blob size with MaxL1TxSize.
+	// Should only be used for testing purposes.
+	TestUseMaxTxSizeForBlobs bool
+
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
 
-	TxMgrConfig      txmgr.CLIConfig
-	LogConfig        oplog.CLIConfig
-	MetricsConfig    opmetrics.CLIConfig
-	PprofConfig      oppprof.CLIConfig
-	CompressorConfig compressor.CLIConfig
-	RPC              oprpc.CLIConfig
-	PlasmaDA         plasma.CLIConfig
+	TxMgrConfig   txmgr.CLIConfig
+	LogConfig     oplog.CLIConfig
+	MetricsConfig opmetrics.CLIConfig
+	PprofConfig   oppprof.CLIConfig
+	RPC           oprpc.CLIConfig
+	PlasmaDA      plasma.CLIConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -91,10 +120,25 @@ func (c *CLIConfig) Check() error {
 		return errors.New("must set PollInterval")
 	}
 	if c.MaxL1TxSize <= 1 {
-		return errors.New("MaxL1TxSize must be greater than 0")
+		return errors.New("MaxL1TxSize must be greater than 1")
+	}
+	if c.TargetNumFrames < 1 {
+		return errors.New("TargetNumFrames must be at least 1")
+	}
+	if c.Compressor == compressor.RatioKind && (c.ApproxComprRatio <= 0 || c.ApproxComprRatio > 1) {
+		return fmt.Errorf("invalid ApproxComprRatio %v for ratio compressor", c.ApproxComprRatio)
+	}
+	if !derive.ValidCompressionAlgoType(c.CompressionAlgo) {
+		return fmt.Errorf("invalid compression algo %v", c.CompressionAlgo)
 	}
 	if c.BatchType > 1 {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)
+	}
+	if c.CheckRecentTxsDepth > 128 {
+		return fmt.Errorf("CheckRecentTxsDepth cannot be set higher than 128: %v", c.CheckRecentTxsDepth)
+	}
+	if c.DataAvailabilityType == flags.BlobsType && c.TargetNumFrames > 6 {
+		return errors.New("too many frames for blob transactions, max 6")
 	}
 	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {
 		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
@@ -128,7 +172,13 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MaxPendingTransactions:       ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
 		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
+		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
+		Compressor:                   ctx.String(flags.CompressorFlag.Name),
+		CompressionAlgo:              derive.CompressionAlgo(ctx.String(flags.CompressionAlgoFlag.Name)),
 		Stopped:                      ctx.Bool(flags.StoppedFlag.Name),
+		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
+		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
 		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
 		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
@@ -136,7 +186,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		LogConfig:                    oplog.ReadCLIConfig(ctx),
 		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
-		CompressorConfig:             compressor.ReadCLIConfig(ctx),
 		RPC:                          oprpc.ReadCLIConfig(ctx),
 		PlasmaDA:                     plasma.ReadCLIConfig(ctx),
 	}

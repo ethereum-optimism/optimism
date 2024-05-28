@@ -16,7 +16,7 @@ contract DeployerWhitelist_Test is Test {
     }
 
     /// @dev Tests that `owner` is initialized to the zero address.
-    function test_owner_succeeds() external {
+    function test_owner_succeeds() external view {
         assertEq(list.owner(), address(0));
     }
 

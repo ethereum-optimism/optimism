@@ -101,7 +101,7 @@ func TestWS(t *testing.T) {
 		{
 			"blacklisted RPC",
 			"}",
-			"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32001,\"message\":\"rpc method is not whitelisted\"},\"id\":1}",
+			"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32601,\"message\":\"rpc method is not whitelisted\"},\"id\":1}",
 			"{\"id\": 1, \"method\": \"eth_whatever\", \"params\": []}",
 		},
 		{

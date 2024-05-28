@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -20,37 +21,11 @@ var (
 	mockErr = errors.New("mock error")
 )
 
-func TestMonitor_MinGameTimestamp(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ZeroGameWindow", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
-		monitor.gameWindow = time.Duration(0)
-		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
-	})
-
-	t.Run("ZeroClock", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
-		monitor.gameWindow = time.Minute
-		monitor.clock = clock.NewDeterministicClock(time.Unix(0, 0))
-		require.Equal(t, uint64(0), monitor.minGameTimestamp())
-	})
-
-	t.Run("ValidArithmetic", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
-		monitor.gameWindow = time.Minute
-		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
-		monitor.clock = clock.NewDeterministicClock(frozen)
-		expected := uint64(frozen.Add(-time.Minute).Unix())
-		require.Equal(t, monitor.minGameTimestamp(), expected)
-	})
-}
-
 func TestMonitor_MonitorGames(t *testing.T) {
 	t.Parallel()
 
 	t.Run("FailedFetchBlocknumber", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
+		monitor, _, _, _, _, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockNumber = func(ctx context.Context) (uint64, error) {
 			return 0, boom
@@ -60,7 +35,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 
 	t.Run("FailedFetchBlockHash", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
+		monitor, _, _, _, _, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchBlockHash = func(ctx context.Context, number *big.Int) (common.Hash, error) {
 			return common.Hash{}, boom
@@ -69,20 +44,30 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		require.ErrorIs(t, err, boom)
 	})
 
-	t.Run("DetectsWithNoGames", func(t *testing.T) {
-		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []monTypes.EnrichedGameData{}
+	t.Run("MonitorsWithNoGames", func(t *testing.T) {
+		monitor, factory, forecast, bonds, withdrawals, resolutions, claims, l2Challenges := setupMonitorTest(t)
+		factory.games = []*monTypes.EnrichedGameData{}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
-		require.Equal(t, 1, detector.calls)
+		require.Equal(t, 1, forecast.calls)
+		require.Equal(t, 1, bonds.calls)
+		require.Equal(t, 1, resolutions.calls)
+		require.Equal(t, 1, claims.calls)
+		require.Equal(t, 1, withdrawals.calls)
+		require.Equal(t, 1, l2Challenges.calls)
 	})
 
-	t.Run("DetectsMultipleGames", func(t *testing.T) {
-		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []monTypes.EnrichedGameData{{}, {}, {}}
+	t.Run("MonitorsMultipleGames", func(t *testing.T) {
+		monitor, factory, forecast, bonds, withdrawals, resolutions, claims, l2Challenges := setupMonitorTest(t)
+		factory.games = []*monTypes.EnrichedGameData{{}, {}, {}}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
-		require.Equal(t, 1, detector.calls)
+		require.Equal(t, 1, forecast.calls)
+		require.Equal(t, 1, bonds.calls)
+		require.Equal(t, 1, resolutions.calls)
+		require.Equal(t, 1, claims.calls)
+		require.Equal(t, 1, withdrawals.calls)
+		require.Equal(t, 1, l2Challenges.calls)
 	})
 }
 
@@ -90,20 +75,20 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	t.Run("MonitorsGames", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, factory, detector, _ := setupMonitorTest(t)
-		factory.games = []monTypes.EnrichedGameData{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		monitor, factory, forecaster, _, _, _, _, _ := setupMonitorTest(t)
+		factory.games = []*monTypes.EnrichedGameData{newEnrichedGameData(addr1, 9999), newEnrichedGameData(addr2, 9999)}
 		factory.maxSuccess = len(factory.games) // Only allow two successful fetches
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return detector.calls >= 2
+			return forecaster.calls >= 2
 		}, time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
-		require.Equal(t, len(factory.games), detector.calls) // Each game's status is recorded twice
+		require.Equal(t, len(factory.games), forecaster.calls) // Each game's status is recorded twice
 	})
 
 	t.Run("FailsToFetchGames", func(t *testing.T) {
-		monitor, factory, detector, _ := setupMonitorTest(t)
+		monitor, factory, forecaster, _, _, _, _, _ := setupMonitorTest(t)
 		factory.fetchErr = errors.New("boom")
 
 		monitor.StartMonitoring()
@@ -111,12 +96,12 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 			return factory.calls > 0
 		}, time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
-		require.Equal(t, 0, detector.calls)
+		require.Equal(t, 0, forecaster.calls)
 	})
 }
 
-func newFDG(proxy common.Address, timestamp uint64) monTypes.EnrichedGameData {
-	return monTypes.EnrichedGameData{
+func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.EnrichedGameData {
+	return &monTypes.EnrichedGameData{
 		GameMetadata: types.GameMetadata{
 			Proxy:     proxy,
 			Timestamp: timestamp,
@@ -125,7 +110,7 @@ func newFDG(proxy common.Address, timestamp uint64) monTypes.EnrichedGameData {
 	}
 }
 
-func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockDetector, *mockForecast) {
+func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, *mockBonds, *mockMonitor, *mockResolutionMonitor, *mockMonitor, *mockMonitor) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1, nil
@@ -133,61 +118,88 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockDetector
 	fetchBlockHash := func(ctx context.Context, number *big.Int) (common.Hash, error) {
 		return common.Hash{}, nil
 	}
-	monitorInterval := time.Duration(100 * time.Millisecond)
+	monitorInterval := 100 * time.Millisecond
 	cl := clock.NewAdvancingClock(10 * time.Millisecond)
 	cl.Start()
 	extractor := &mockExtractor{}
-	detect := &mockDetector{}
 	forecast := &mockForecast{}
+	bonds := &mockBonds{}
+	resolutions := &mockResolutionMonitor{}
+	claims := &mockMonitor{}
+	withdrawals := &mockMonitor{}
+	l2Challenges := &mockMonitor{}
 	monitor := newGameMonitor(
 		context.Background(),
 		logger,
 		cl,
+		metrics.NoopMetrics,
 		monitorInterval,
-		time.Duration(10*time.Second),
-		detect.Detect,
+		10*time.Second,
 		forecast.Forecast,
+		bonds.CheckBonds,
+		resolutions.CheckResolutions,
+		claims.Check,
+		withdrawals.Check,
+		l2Challenges.Check,
 		extractor.Extract,
 		fetchBlockNum,
 		fetchBlockHash,
 	)
-	return monitor, extractor, detect, forecast
+	return monitor, extractor, forecast, bonds, withdrawals, resolutions, claims, l2Challenges
+}
+
+type mockResolutionMonitor struct {
+	calls int
+}
+
+func (m *mockResolutionMonitor) CheckResolutions(games []*monTypes.EnrichedGameData) {
+	m.calls++
+}
+
+type mockMonitor struct {
+	calls int
+}
+
+func (m *mockMonitor) Check(games []*monTypes.EnrichedGameData) {
+	m.calls++
 }
 
 type mockForecast struct {
 	calls int
 }
 
-func (m *mockForecast) Forecast(ctx context.Context, games []monTypes.EnrichedGameData) {
+func (m *mockForecast) Forecast(_ []*monTypes.EnrichedGameData, _, _ int) {
 	m.calls++
 }
 
-type mockDetector struct {
+type mockBonds struct {
 	calls int
 }
 
-func (m *mockDetector) Detect(ctx context.Context, games []monTypes.EnrichedGameData) {
+func (m *mockBonds) CheckBonds(_ []*monTypes.EnrichedGameData) {
 	m.calls++
 }
 
 type mockExtractor struct {
-	fetchErr   error
-	calls      int
-	maxSuccess int
-	games      []monTypes.EnrichedGameData
+	fetchErr     error
+	calls        int
+	maxSuccess   int
+	games        []*monTypes.EnrichedGameData
+	ignoredCount int
+	failedCount  int
 }
 
 func (m *mockExtractor) Extract(
 	_ context.Context,
 	_ common.Hash,
 	_ uint64,
-) ([]monTypes.EnrichedGameData, error) {
+) ([]*monTypes.EnrichedGameData, int, int, error) {
 	m.calls++
 	if m.fetchErr != nil {
-		return nil, m.fetchErr
+		return nil, 0, 0, m.fetchErr
 	}
 	if m.calls > m.maxSuccess && m.maxSuccess != 0 {
-		return nil, mockErr
+		return nil, 0, 0, mockErr
 	}
-	return m.games, nil
+	return m.games, m.ignoredCount, m.failedCount, nil
 }

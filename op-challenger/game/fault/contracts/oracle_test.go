@@ -8,14 +8,15 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +32,7 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 	t.Run("Keccak256", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
 		data := types.NewPreimageOracleData(common.Hash{byte(preimage.Keccak256KeyType), 0xcc}.Bytes(), make([]byte, 20), uint32(545))
-		stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
+		stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, rpcblock.Latest, []interface{}{
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 			data.GetPreimageWithoutSize(),
 		}, nil)
@@ -44,7 +45,7 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 	t.Run("Sha256", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
 		data := types.NewPreimageOracleData(common.Hash{byte(preimage.Sha256KeyType), 0xcc}.Bytes(), make([]byte, 20), uint32(545))
-		stubRpc.SetResponse(oracleAddr, methodLoadSha256PreimagePart, batching.BlockLatest, []interface{}{
+		stubRpc.SetResponse(oracleAddr, methodLoadSha256PreimagePart, rpcblock.Latest, []interface{}{
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 			data.GetPreimageWithoutSize(),
 		}, nil)
@@ -58,7 +59,7 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
 		fieldData := testutils.RandomData(rand.New(rand.NewSource(23)), 32)
 		data := types.NewPreimageOracleData(common.Hash{byte(preimage.BlobKeyType), 0xcc}.Bytes(), fieldData, uint32(545))
-		stubRpc.SetResponse(oracleAddr, methodLoadBlobPreimagePart, batching.BlockLatest, []interface{}{
+		stubRpc.SetResponse(oracleAddr, methodLoadBlobPreimagePart, rpcblock.Latest, []interface{}{
 			new(big.Int).SetUint64(data.BlobFieldIndex),
 			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
 			data.BlobCommitment,
@@ -71,12 +72,14 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 		stubRpc.VerifyTxCandidate(tx)
 	})
 
-	t.Run("KZGPointEvaluation", func(t *testing.T) {
+	t.Run("Precompile", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
 		input := testutils.RandomData(rand.New(rand.NewSource(23)), 200)
-		data := types.NewPreimageOracleKZGPointEvaluationData(common.Hash{byte(preimage.KZGPointEvaluationKeyType), 0xcc}.Bytes(), input)
-		stubRpc.SetResponse(oracleAddr, methodLoadKZGPointEvaluationPreimage, batching.BlockLatest, []interface{}{
-			data.GetPreimageWithoutSize(),
+		data := types.NewPreimageOracleData(common.Hash{byte(preimage.PrecompileKeyType), 0xcc}.Bytes(), input, uint32(545))
+		stubRpc.SetResponse(oracleAddr, methodLoadPrecompilePreimagePart, rpcblock.Latest, []interface{}{
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetPrecompileAddress(),
+			data.GetPrecompileInput(),
 		}, nil)
 
 		tx, err := oracle.AddGlobalDataTx(data)
@@ -87,7 +90,7 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 
 func TestPreimageOracleContract_ChallengePeriod(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
-	stubRpc.SetResponse(oracleAddr, methodChallengePeriod, batching.BlockLatest,
+	stubRpc.SetResponse(oracleAddr, methodChallengePeriod, rpcblock.Latest,
 		[]interface{}{},
 		[]interface{}{big.NewInt(123)},
 	)
@@ -96,7 +99,7 @@ func TestPreimageOracleContract_ChallengePeriod(t *testing.T) {
 	require.Equal(t, uint64(123), challengePeriod)
 
 	// Should cache responses
-	stubRpc.ClearResponses(methodChallengePeriod)
+	stubRpc.ClearResponses()
 	challengePeriod, err = oracle.ChallengePeriod(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, uint64(123), challengePeriod)
@@ -104,7 +107,7 @@ func TestPreimageOracleContract_ChallengePeriod(t *testing.T) {
 
 func TestPreimageOracleContract_MinLargePreimageSize(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
-	stubRpc.SetResponse(oracleAddr, methodMinProposalSize, batching.BlockLatest,
+	stubRpc.SetResponse(oracleAddr, methodMinProposalSize, rpcblock.Latest,
 		[]interface{}{},
 		[]interface{}{big.NewInt(123)},
 	)
@@ -115,7 +118,7 @@ func TestPreimageOracleContract_MinLargePreimageSize(t *testing.T) {
 
 func TestPreimageOracleContract_MinBondSizeLPP(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
-	stubRpc.SetResponse(oracleAddr, methodMinBondSizeLPP, batching.BlockLatest,
+	stubRpc.SetResponse(oracleAddr, methodMinBondSizeLPP, rpcblock.Latest,
 		[]interface{}{},
 		[]interface{}{big.NewInt(123)},
 	)
@@ -124,7 +127,7 @@ func TestPreimageOracleContract_MinBondSizeLPP(t *testing.T) {
 	require.Equal(t, big.NewInt(123), minBond)
 
 	// Should cache responses
-	stubRpc.ClearResponses(methodMinBondSizeLPP)
+	stubRpc.ClearResponses()
 	minBond, err = oracle.GetMinBondLPP(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(123), minBond)
@@ -134,7 +137,7 @@ func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	t.Run("exists", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
 		data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
-		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, batching.BlockLatest,
+		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, rpcblock.Latest,
 			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
 			[]interface{}{true},
 		)
@@ -145,7 +148,7 @@ func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	t.Run("does not exist", func(t *testing.T) {
 		stubRpc, oracle := setupPreimageOracleTest(t)
 		data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), make([]byte, 20), 545)
-		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, batching.BlockLatest,
+		stubRpc.SetResponse(oracleAddr, methodPreimagePartOk, rpcblock.Latest,
 			[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
 			[]interface{}{false},
 		)
@@ -161,7 +164,7 @@ func TestPreimageOracleContract_InitLargePreimage(t *testing.T) {
 	uuid := big.NewInt(123)
 	partOffset := uint32(1)
 	claimedSize := uint32(2)
-	stubRpc.SetResponse(oracleAddr, methodInitLPP, batching.BlockLatest, []interface{}{
+	stubRpc.SetResponse(oracleAddr, methodInitLPP, rpcblock.Latest, []interface{}{
 		uuid,
 		partOffset,
 		claimedSize,
@@ -180,7 +183,7 @@ func TestPreimageOracleContract_AddLeaves(t *testing.T) {
 	input := []byte{0x12}
 	commitments := []common.Hash{{0x34}}
 	finalize := true
-	stubRpc.SetResponse(oracleAddr, methodAddLeavesLPP, batching.BlockLatest, []interface{}{
+	stubRpc.SetResponse(oracleAddr, methodAddLeavesLPP, rpcblock.Latest, []interface{}{
 		uuid,
 		startingBlockIndex,
 		input,
@@ -211,7 +214,7 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 		StateCommitment: common.Hash{0x56},
 	}
 	postStateProof := merkle.Proof{{0x56}}
-	stubRpc.SetResponse(oracleAddr, methodSqueezeLPP, batching.BlockLatest, []interface{}{
+	stubRpc.SetResponse(oracleAddr, methodSqueezeLPP, rpcblock.Latest, []interface{}{
 		claimant,
 		uuid,
 		abiEncodeSnapshot(preStateMatrix),
@@ -228,7 +231,7 @@ func TestPreimageOracleContract_Squeeze(t *testing.T) {
 
 func TestGetActivePreimages(t *testing.T) {
 	blockHash := common.Hash{0xaa}
-	_, oracle, proposals := setupPreimageOracleTestWithProposals(t, batching.BlockByHash(blockHash))
+	_, oracle, proposals := setupPreimageOracleTestWithProposals(t, rpcblock.ByHash(blockHash))
 	preimages, err := oracle.GetActivePreimages(context.Background(), blockHash)
 	require.NoError(t, err)
 	require.Equal(t, proposals, preimages)
@@ -236,7 +239,7 @@ func TestGetActivePreimages(t *testing.T) {
 
 func TestGetProposalMetadata(t *testing.T) {
 	blockHash := common.Hash{0xaa}
-	block := batching.BlockByHash(blockHash)
+	block := rpcblock.ByHash(blockHash)
 	stubRpc, oracle, proposals := setupPreimageOracleTestWithProposals(t, block)
 	preimages, err := oracle.GetProposalMetadata(
 		context.Background(),
@@ -257,7 +260,7 @@ func TestGetProposalMetadata(t *testing.T) {
 		block,
 		[]interface{}{ident.Claimant, ident.UUID},
 		[]interface{}{meta})
-	preimages, err = oracle.GetProposalMetadata(context.Background(), batching.BlockByHash(blockHash), ident)
+	preimages, err = oracle.GetProposalMetadata(context.Background(), rpcblock.ByHash(blockHash), ident)
 	require.NoError(t, err)
 	require.Equal(t, []keccakTypes.LargePreimageMetaData{{LargePreimageIdent: ident}}, preimages)
 }
@@ -267,15 +270,15 @@ func TestGetProposalTreeRoot(t *testing.T) {
 	expectedRoot := common.Hash{0xbb}
 	ident := keccakTypes.LargePreimageIdent{Claimant: common.Address{0x12}, UUID: big.NewInt(123)}
 	stubRpc, oracle := setupPreimageOracleTest(t)
-	stubRpc.SetResponse(oracleAddr, methodGetTreeRootLPP, batching.BlockByHash(blockHash),
+	stubRpc.SetResponse(oracleAddr, methodGetTreeRootLPP, rpcblock.ByHash(blockHash),
 		[]interface{}{ident.Claimant, ident.UUID},
 		[]interface{}{expectedRoot})
-	actualRoot, err := oracle.GetProposalTreeRoot(context.Background(), batching.BlockByHash(blockHash), ident)
+	actualRoot, err := oracle.GetProposalTreeRoot(context.Background(), rpcblock.ByHash(blockHash), ident)
 	require.NoError(t, err)
 	require.Equal(t, expectedRoot, actualRoot)
 }
 
-func setupPreimageOracleTestWithProposals(t *testing.T, block batching.Block) (*batchingTest.AbiBasedRpc, *PreimageOracleContract, []keccakTypes.LargePreimageMetaData) {
+func setupPreimageOracleTestWithProposals(t *testing.T, block rpcblock.Block) (*batchingTest.AbiBasedRpc, *PreimageOracleContract, []keccakTypes.LargePreimageMetaData) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
 	stubRpc.SetResponse(
 		oracleAddr,
@@ -352,12 +355,10 @@ func setupPreimageOracleTestWithProposals(t *testing.T, block batching.Block) (*
 }
 
 func setupPreimageOracleTest(t *testing.T) (*batchingTest.AbiBasedRpc, *PreimageOracleContract) {
-	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
-	require.NoError(t, err)
+	oracleAbi := snapshots.LoadPreimageOracleABI()
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, oracleAddr, oracleAbi)
-	oracleContract, err := NewPreimageOracleContract(oracleAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
-	require.NoError(t, err)
+	oracleContract := NewPreimageOracleContract(oracleAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
 
 	return stubRpc, oracleContract
 }
@@ -425,7 +426,7 @@ func TestMetadata_Countered(t *testing.T) {
 
 func TestGetInputDataBlocks(t *testing.T) {
 	stubRpc, oracle := setupPreimageOracleTest(t)
-	block := batching.BlockByHash(common.Hash{0xaa})
+	block := rpcblock.ByHash(common.Hash{0xaa})
 
 	preimage := keccakTypes.LargePreimageIdent{
 		Claimant: common.Address{0xbb},
@@ -587,10 +588,10 @@ func TestChallenge_First(t *testing.T) {
 		},
 		PoststateProof: merkle.Proof{common.Hash{0x01}, common.Hash{0x02}},
 	}
-	stubRpc.SetResponse(oracleAddr, methodChallengeFirstLPP, batching.BlockLatest,
+	stubRpc.SetResponse(oracleAddr, methodChallengeFirstLPP, rpcblock.Latest,
 		[]interface{}{
 			ident.Claimant, ident.UUID,
-			bindings.PreimageOracleLeaf{
+			preimageOracleLeaf{
 				Input:           challenge.Poststate.Input[:],
 				Index:           new(big.Int).SetUint64(challenge.Poststate.Index),
 				StateCommitment: challenge.Poststate.StateCommitment,
@@ -625,17 +626,17 @@ func TestChallenge_NotFirst(t *testing.T) {
 		},
 		PoststateProof: merkle.Proof{common.Hash{0x03}, common.Hash{0x04}},
 	}
-	stubRpc.SetResponse(oracleAddr, methodChallengeLPP, batching.BlockLatest,
+	stubRpc.SetResponse(oracleAddr, methodChallengeLPP, rpcblock.Latest,
 		[]interface{}{
 			ident.Claimant, ident.UUID,
-			bindings.LibKeccakStateMatrix{State: challenge.StateMatrix},
-			bindings.PreimageOracleLeaf{
+			libKeccakStateMatrix{State: challenge.StateMatrix},
+			preimageOracleLeaf{
 				Input:           challenge.Prestate.Input[:],
 				Index:           new(big.Int).SetUint64(challenge.Prestate.Index),
 				StateCommitment: challenge.Prestate.StateCommitment,
 			},
 			challenge.PrestateProof,
-			bindings.PreimageOracleLeaf{
+			preimageOracleLeaf{
 				Input:           challenge.Poststate.Input[:],
 				Index:           new(big.Int).SetUint64(challenge.Poststate.Index),
 				StateCommitment: challenge.Poststate.StateCommitment,

@@ -2,7 +2,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract Safe",
+        "internalType": "contract GnosisSafe",
         "name": "_safe",
         "type": "address"
       },
@@ -19,6 +19,11 @@
       {
         "internalType": "uint256",
         "name": "_minOwners",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_thresholdPercentage",
         "type": "uint256"
       },
       {
@@ -70,7 +75,7 @@
         "type": "uint256"
       }
     ],
-    "name": "get75PercentThreshold",
+    "name": "getRequiredThreshold",
     "outputs": [
       {
         "internalType": "uint256",
@@ -78,7 +83,7 @@
         "type": "uint256"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -121,6 +126,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "ownershipTransferredToFallback",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address[]",
@@ -143,9 +161,22 @@
     "name": "safe",
     "outputs": [
       {
-        "internalType": "contract Safe",
+        "internalType": "contract GnosisSafe",
         "name": "safe_",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "thresholdPercentage",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "thresholdPercentage_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -163,5 +194,35 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "OwnershipTransferredToFallback",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "RemovedOwner",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "OwnerRemovalFailed",
+    "type": "error"
   }
 ]

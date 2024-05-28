@@ -6,16 +6,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var ErrNotLeader = errors.New("refusing to proxy request to non-leader sequencer")
-
-type ServerInfo struct {
-	ID   string `json:"id"`
-	Addr string `json:"addr"`
-}
 
 // API defines the interface for the op-conductor API.
 type API interface {
@@ -23,6 +19,10 @@ type API interface {
 	Pause(ctx context.Context) error
 	// Resume resumes op-conductor.
 	Resume(ctx context.Context) error
+	// Paused returns true if op-conductor is paused.
+	Paused(ctx context.Context) (bool, error)
+	// Stopped returns true if op-conductor is stopped.
+	Stopped(ctx context.Context) (bool, error)
 	// SequencerHealthy returns true if the sequencer is healthy.
 	SequencerHealthy(ctx context.Context) (bool, error)
 
@@ -30,7 +30,7 @@ type API interface {
 	// Leader returns true if the server is the leader.
 	Leader(ctx context.Context) (bool, error)
 	// LeaderWithID returns the current leader's server info.
-	LeaderWithID(ctx context.Context) (*ServerInfo, error)
+	LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error)
 	// AddServerAsVoter adds a server as a voter to the cluster.
 	AddServerAsVoter(ctx context.Context, id string, addr string) error
 	// AddServerAsNonvoter adds a server as a non-voter to the cluster. non-voter will not participate in leader election.
@@ -41,9 +41,11 @@ type API interface {
 	TransferLeader(ctx context.Context) error
 	// TransferLeaderToServer transfers leadership to a specific server.
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
+	// ClusterMembership returns the current cluster membership configuration.
+	ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error)
 
 	// APIs called by op-node
-	// Active returns true if op-conductor is active.
+	// Active returns true if op-conductor is active (not paused or stopped).
 	Active(ctx context.Context) (bool, error)
 	// CommitUnsafePayload commits a unsafe payload (latest head) to the consensus layer.
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
@@ -58,7 +60,7 @@ type ExecutionProxyAPI interface {
 // NodeProxyAPI defines the methods proxied to the node rpc backend
 // This should include all methods that are called by op-batcher or op-proposer
 type NodeProxyAPI interface {
-	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+	OutputAtBlock(ctx context.Context, blockNumString string) (*eth.OutputResponse, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	RollupConfig(ctx context.Context) (*rollup.Config, error)
 }

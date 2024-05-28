@@ -19,24 +19,17 @@ contract L1CrossDomainMessengerKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(superchainConfigProxyAddress);
     }
 
-    /// TODO: Replace struct parameters and workarounds with the appropriate
-    /// types once Kontrol supports symbolic `bytes` and `bytes[]`
-    /// Tracking issue: https://github.com/runtimeverification/kontrol/issues/272
     function prove_relayMessage_paused(
         uint256 _nonce,
         address _sender,
         address _target,
         uint256 _value,
-        uint256 _gas
+        uint256 _gas,
+        bytes calldata _message
     )
         external
     {
         setUpInlined();
-
-        // ASSUME: Conservative upper bound on the `_message` length. Most contract calls will have
-        // a message length less than 600 bytes. This assumption can be removed once Kontrol
-        // supports symbolic `bytes`: https://github.com/runtimeverification/kontrol/issues/272
-        bytes memory _message = freshBigBytes(600);
 
         // Pause System
         vm.prank(superchainConfig.guardian());

@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/holiman/uint256"
 )
 
 func InjectState(transitionState *core.Genesis, db ethdb.Database, deployConfig *genesis.DeployConfig, hardforkBlock int) error {
@@ -27,7 +29,7 @@ func InjectState(transitionState *core.Genesis, db ethdb.Database, deployConfig 
 	}
 	header := rawdb.ReadHeader(db, hash, *num)
 
-	statedb, err := state.New(header.Root, state.NewDatabaseWithConfig(db, &trie.Config{Preimages: true}), nil)
+	statedb, err := state.New(header.Root, state.NewDatabaseWithConfig(db, &triedb.Config{Preimages: true}), nil)
 	if err != nil {
 		return err
 	}
@@ -43,7 +45,7 @@ func InjectState(transitionState *core.Genesis, db ethdb.Database, deployConfig 
 	// Reset all acounts
 	for address := range state.Accounts {
 		statedb.SetNonce(common.HexToAddress(address), 0)
-		statedb.SetBalance(common.HexToAddress(address), common.Big0)
+		statedb.SetBalance(common.HexToAddress(address), uint256.NewInt(0))
 		statedb.SetCode(common.HexToAddress(address), nil)
 		for k := range state.Accounts[address].Storage {
 			statedb.SetState(common.HexToAddress(address), k, common.Hash{})
@@ -52,7 +54,7 @@ func InjectState(transitionState *core.Genesis, db ethdb.Database, deployConfig 
 	// Add new accounts
 	for addr, account := range transitionState.Alloc {
 		statedb.SetNonce(addr, account.Nonce)
-		statedb.SetBalance(addr, account.Balance)
+		statedb.SetBalance(addr, uint256.MustFromBig(account.Balance))
 		statedb.SetCode(addr, account.Code)
 		for k, v := range account.Storage {
 			statedb.SetState(addr, k, v)

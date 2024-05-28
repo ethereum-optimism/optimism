@@ -168,7 +168,7 @@ contract L2OutputOracle_getter_Test is CommonTest {
     }
 
     /// @dev Tests that `nextBlockNumber` returns the correct value.
-    function test_nextBlockNumber_succeeds() external {
+    function test_nextBlockNumber_succeeds() external view {
         assertEq(
             l2OutputOracle.nextBlockNumber(),
             // The return value should match this arithmetic

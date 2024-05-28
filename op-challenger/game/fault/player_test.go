@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -16,7 +17,7 @@ import (
 var mockValidatorError = fmt.Errorf("mock validator error")
 
 func TestProgressGame_LogErrorFromAct(t *testing.T) {
-	handler, game, actor := setupProgressGameTest(t)
+	handler, game, actor, _ := setupProgressGameTest(t)
 	actor.actErr = errors.New("boom")
 	status := game.ProgressGame(context.Background())
 	require.Equal(t, types.GameStatusInProgress, status)
@@ -60,7 +61,7 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			handler, game, gameState := setupProgressGameTest(t)
+			handler, game, gameState, _ := setupProgressGameTest(t)
 			gameState.status = test.status
 
 			status := game.ProgressGame(context.Background())
@@ -78,7 +79,7 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 func TestDoNotActOnCompleteGame(t *testing.T) {
 	for _, status := range []types.GameStatus{types.GameStatusChallengerWon, types.GameStatusDefenderWon} {
 		t.Run(status.String(), func(t *testing.T) {
-			_, game, gameState := setupProgressGameTest(t)
+			_, game, gameState, _ := setupProgressGameTest(t)
 			gameState.status = status
 
 			fetched := game.ProgressGame(context.Background())
@@ -91,6 +92,17 @@ func TestDoNotActOnCompleteGame(t *testing.T) {
 			require.Equal(t, status, fetched)
 		})
 	}
+}
+
+func TestValidateLocalNodeSync(t *testing.T) {
+	_, game, gameState, syncValidator := setupProgressGameTest(t)
+
+	game.ProgressGame(context.Background())
+	require.Equal(t, 1, gameState.callCount, "acts when in sync")
+
+	syncValidator.result = errors.New("boom")
+	game.ProgressGame(context.Background())
+	require.Equal(t, 1, gameState.callCount, "does not act when not in sync")
 }
 
 func TestValidatePrestate(t *testing.T) {
@@ -142,22 +154,36 @@ type mockValidator struct {
 	err bool
 }
 
-func (m *mockValidator) Validate(ctx context.Context) error {
+func (m *mockValidator) Validate(_ context.Context) error {
 	if m.err {
 		return mockValidatorError
 	}
 	return nil
 }
 
-func setupProgressGameTest(t *testing.T) (*testlog.CapturingHandler, *GamePlayer, *stubGameState) {
+func setupProgressGameTest(t *testing.T) (*testlog.CapturingHandler, *GamePlayer, *stubGameState, *stubSyncValidator) {
 	logger, logs := testlog.CaptureLogger(t, log.LevelDebug)
 	gameState := &stubGameState{claimCount: 1}
+	syncValidator := &stubSyncValidator{}
 	game := &GamePlayer{
-		act:    gameState.Act,
-		loader: gameState,
-		logger: logger,
+		act:           gameState.Act,
+		loader:        gameState,
+		logger:        logger,
+		syncValidator: syncValidator,
+		gameL1Head: eth.BlockID{
+			Hash:   common.Hash{0x1a},
+			Number: 32,
+		},
 	}
-	return logs, game, gameState
+	return logs, game, gameState, syncValidator
+}
+
+type stubSyncValidator struct {
+	result error
+}
+
+func (s *stubSyncValidator) ValidateNodeSynced(_ context.Context, _ eth.BlockID) error {
+	return s.result
 }
 
 type stubGameState struct {

@@ -10,24 +10,42 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/holiman/uint256"
+	"golang.org/x/exp/maps"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
+	// MaximumBaseFee represents the max base fee for deposits, since
+	// there is an on chain EIP-1559 curve for deposits purchasing L2 gas.
+	// It is type(uint128).max in solidity.
+	MaximumBaseFee, _ = new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
+)
+
+const (
+	// MaxResourceLimit represents the maximum amount of L2 gas that a single deposit can use.
+	MaxResourceLimit = 20_000_000
+	// ElasticityMultiplier represents the elasticity of the deposit EIP-1559 fee market.
+	ElasticityMultiplier = 10
+	// BaseFeeMaxChangeDenominator represents the maximum change in base fee per block.
+	BaseFeeMaxChangeDenominator = 8
+	// MinimumBaseFee represents the minimum base fee for deposits.
+	MinimumBaseFee = params.GWei
+	// SystemTxMaxGas represents the maximum gas that a system transaction can use
+	// when it is included with user deposits.
+	SystemTxMaxGas = 1_000_000
 )
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
@@ -171,9 +189,15 @@ type DeployConfig struct {
 	// as part of the derivation pipeline.
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
 	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
+	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
+	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
+	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
+	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
+	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
+	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar"`
 	// EnableGovernance configures whether or not include governance token predeploy.
 	EnableGovernance bool `json:"enableGovernance"`
 	// GovernanceTokenSymbol represents the  ERC20 symbol of the GovernanceToken.
@@ -205,22 +229,24 @@ type DeployConfig struct {
 	// supports. Ideally, this should be conservatively set so that there is always enough
 	// room for a full Cannon trace.
 	FaultGameMaxDepth uint64 `json:"faultGameMaxDepth"`
-	// FaultGameMaxDuration is the maximum amount of time (in seconds) that the fault dispute
-	// game can run for before it is ready to be resolved. Each side receives half of this value
-	// on their chess clock at the inception of the dispute.
-	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// FaultGameClockExtension is the amount of time that the dispute game will set the potential grandchild claim's,
+	// clock to, if the remaining time is less than this value at the time of a claim's creation.
+	FaultGameClockExtension uint64 `json:"faultGameClockExtension"`
+	// FaultGameMaxClockDuration is the maximum amount of time that may accumulate on a team's chess clock before they
+	// may no longer respond.
+	FaultGameMaxClockDuration uint64 `json:"faultGameMaxClockDuration"`
 	// FaultGameGenesisBlock is the block number for genesis.
 	FaultGameGenesisBlock uint64 `json:"faultGameGenesisBlock"`
 	// FaultGameGenesisOutputRoot is the output root for the genesis block.
 	FaultGameGenesisOutputRoot common.Hash `json:"faultGameGenesisOutputRoot"`
 	// FaultGameSplitDepth is the depth at which the fault dispute game splits from output roots to execution trace claims.
 	FaultGameSplitDepth uint64 `json:"faultGameSplitDepth"`
+	// FaultGameWithdrawalDelay is the number of seconds that users must wait before withdrawing ETH from a fault game.
+	FaultGameWithdrawalDelay uint64 `json:"faultGameWithdrawalDelay"`
 	// PreimageOracleMinProposalSize is the minimum number of bytes that a large preimage oracle proposal can be.
 	PreimageOracleMinProposalSize uint64 `json:"preimageOracleMinProposalSize"`
 	// PreimageOracleChallengePeriod is the number of seconds that challengers have to challenge a large preimage proposal.
 	PreimageOracleChallengePeriod uint64 `json:"preimageOracleChallengePeriod"`
-	// PreimageOracleCancunActivationTimestamp is the timestamp at which blob preimages are able to be loaded into the preimage oracle.
-	PreimageOracleCancunActivationTimestamp uint64 `json:"preimageOracleCancunActivationTimestamp"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
@@ -246,9 +272,30 @@ type DeployConfig struct {
 	// UseFaultProofs is a flag that indicates if the system is using fault
 	// proofs instead of the older output oracle mechanism.
 	UseFaultProofs bool `json:"useFaultProofs"`
+	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
+	UseCustomGasToken bool `json:"useCustomGasToken"`
+	// CustomGasTokenAddress is the address of the ERC20 token to be used to pay for gas on L2.
+	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
+	// UsePlasma is a flag that indicates if the system is using op-plasma
+	UsePlasma bool `json:"usePlasma"`
+	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
+	DAChallengeWindow uint64 `json:"daChallengeWindow"`
+	// DAResolveWindow represents the block interval during which a data availability challenge can be resolved.
+	DAResolveWindow uint64 `json:"daResolveWindow"`
+	// DABondSize represents the required bond size to initiate a data availability challenge.
+	DABondSize uint64 `json:"daBondSize"`
+	// DAResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
+	// such as 100 means 100% refund.
+	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
+
+	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
+	DAChallengeProxy common.Address `json:"daChallengeProxy"`
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
+
+	// UseInterop is a flag that indicates if the system is using interop
+	UseInterop bool `json:"useInterop,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -347,7 +394,13 @@ func (d *DeployConfig) Check() error {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
 	if d.GasPriceOracleScalar == 0 {
-		return fmt.Errorf("%w: GasPriceOracleScalar cannot be 0", ErrInvalidDeployConfig)
+		log.Warn("GasPriceOracleScalar is 0")
+	}
+	if d.GasPriceOracleBaseFeeScalar == 0 {
+		log.Warn("GasPriceOracleBaseFeeScalar is 0")
+	}
+	if d.GasPriceOracleBlobBaseFeeScalar == 0 {
+		log.Warn("GasPriceOracleBlobBaseFeeScalar is 0")
 	}
 	if d.EIP1559Denominator == 0 {
 		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
@@ -363,7 +416,7 @@ func (d *DeployConfig) Check() error {
 	}
 	// When the initial resource config is made to be configurable by the DeployConfig, ensure
 	// that this check is updated to use the values from the DeployConfig instead of the defaults.
-	if uint64(d.L2GenesisBlockGasLimit) < uint64(DefaultResourceConfig.MaxResourceLimit+DefaultResourceConfig.SystemTxMaxGas) {
+	if uint64(d.L2GenesisBlockGasLimit) < uint64(MaxResourceLimit+SystemTxMaxGas) {
 		return fmt.Errorf("%w: L2 genesis block gas limit is too small", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
@@ -396,6 +449,20 @@ func (d *DeployConfig) Check() error {
 	if d.DisputeGameFinalityDelaySeconds == 0 {
 		log.Warn("DisputeGameFinalityDelaySeconds is 0")
 	}
+	if d.UsePlasma {
+		if d.DAChallengeWindow == 0 {
+			return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+		}
+		if d.DAResolveWindow == 0 {
+			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+		}
+	}
+	if d.UseCustomGasToken {
+		if d.CustomGasTokenAddress == (common.Address{}) {
+			return fmt.Errorf("%w: CustomGasTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
+		}
+		log.Info("Using custom gas token", "address", d.CustomGasTokenAddress)
+	}
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
 		if a == nil && b == nil {
@@ -427,6 +494,18 @@ func (d *DeployConfig) Check() error {
 	return nil
 }
 
+// FeeScalar returns the raw serialized fee scalar. Uses pre-Ecotone if legacy config is present,
+// otherwise uses the post-Ecotone scalar serialization.
+func (d *DeployConfig) FeeScalar() [32]byte {
+	if d.GasPriceOracleScalar != 0 {
+		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
+	}
+	return eth.EncodeScalar(eth.EcotoneScalars{
+		BlobBaseFeeScalar: d.GasPriceOracleBlobBaseFeeScalar,
+		BaseFeeScalar:     d.GasPriceOracleBaseFeeScalar,
+	})
+}
+
 // CheckAddresses will return an error if the addresses are not set.
 // These values are required to create the L2 genesis state and are present in the deploy config
 // even though the deploy config is required to deploy the contracts on L1. This creates a
@@ -447,6 +526,10 @@ func (d *DeployConfig) CheckAddresses() error {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
+	if d.UsePlasma && d.DAChallengeProxy == (common.Address{}) {
+		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using plasma mode", ErrInvalidDeployConfig)
+
+	}
 	return nil
 }
 
@@ -457,6 +540,7 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
 	d.SystemConfigProxy = deployments.SystemConfigProxy
 	d.OptimismPortalProxy = deployments.OptimismPortalProxy
+	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
 }
 
 func (d *DeployConfig) GovernanceEnabled() bool {
@@ -537,6 +621,14 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	if d.SystemConfigProxy == (common.Address{}) {
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
+	var plasma *rollup.PlasmaConfig
+	if d.UsePlasma {
+		plasma = &rollup.PlasmaConfig{
+			DAChallengeAddress: d.DAChallengeProxy,
+			DAChallengeWindow:  d.DAChallengeWindow,
+			DAResolveWindow:    d.DAResolveWindow,
+		}
+	}
 
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -552,7 +644,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 			SystemConfig: eth.SystemConfig{
 				BatcherAddr: d.BatchSenderAddress,
 				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
+				Scalar:      eth.Bytes32(d.FeeScalar()),
 				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 			},
 		},
@@ -571,6 +663,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
+		PlasmaConfig:           plasma,
 	}, nil
 }
 
@@ -636,6 +729,8 @@ type L1Deployments struct {
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
 	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
+	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
+	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
 }
 
 // GetName will return the name of the contract given an address.
@@ -653,7 +748,7 @@ func (d *L1Deployments) GetName(addr common.Address) string {
 }
 
 // Check will ensure that the L1Deployments are sane
-func (d *L1Deployments) Check() error {
+func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 	val := reflect.ValueOf(d)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -661,7 +756,14 @@ func (d *L1Deployments) Check() error {
 	for i := 0; i < val.NumField(); i++ {
 		name := val.Type().Field(i).Name
 		// Skip the non production ready contracts
-		if name == "DisputeGameFactory" || name == "DisputeGameFactoryProxy" || name == "BlockOracle" {
+		if name == "DisputeGameFactory" ||
+			name == "DisputeGameFactoryProxy" ||
+			name == "BlockOracle" {
+			continue
+		}
+		if !deployConfig.UsePlasma &&
+			(name == "DataAvailabilityChallenge" ||
+				name == "DataAvailabilityChallengeProxy") {
 			continue
 		}
 		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
@@ -712,247 +814,40 @@ func NewL1Deployments(path string) (*L1Deployments, error) {
 	return &deployments, nil
 }
 
-// NewStateDump will read a Dump JSON file from disk
-func NewStateDump(path string) (*gstate.Dump, error) {
-	file, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("dump at %s not found: %w", path, err)
-	}
-
-	var fdump ForgeDump
-	if err := json.Unmarshal(file, &fdump); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal dump: %w", err)
-	}
-	dump := (gstate.Dump)(fdump)
-	return &dump, nil
+type ForgeAllocs struct {
+	Accounts types.GenesisAlloc
 }
 
-// ForgeDump is a simple alias for state.Dump that can read "nonce" as a hex string.
-// It appears as if updates to foundry have changed the serialization of the state dump.
-type ForgeDump gstate.Dump
+func (d *ForgeAllocs) Copy() *ForgeAllocs {
+	out := make(types.GenesisAlloc, len(d.Accounts))
+	maps.Copy(out, d.Accounts)
+	return &ForgeAllocs{Accounts: out}
+}
 
-func (d *ForgeDump) UnmarshalJSON(b []byte) error {
-	type forgeDumpAccount struct {
-		Balance     string                 `json:"balance"`
-		Nonce       hexutil.Uint64         `json:"nonce"`
-		Root        hexutil.Bytes          `json:"root"`
-		CodeHash    hexutil.Bytes          `json:"codeHash"`
-		Code        hexutil.Bytes          `json:"code,omitempty"`
-		Storage     map[common.Hash]string `json:"storage,omitempty"`
-		Address     *common.Address        `json:"address,omitempty"`
-		AddressHash hexutil.Bytes          `json:"key,omitempty"`
+func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
+	// forge, since integrating Alloy, likes to hex-encode everything.
+	type forgeAllocAccount struct {
+		Balance hexutil.U256                `json:"balance"`
+		Nonce   hexutil.Uint64              `json:"nonce"`
+		Code    hexutil.Bytes               `json:"code,omitempty"`
+		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
 	}
-	type forgeDump struct {
-		Root     string                              `json:"root"`
-		Accounts map[common.Address]forgeDumpAccount `json:"accounts"`
-	}
-	var dump forgeDump
-	if err := json.Unmarshal(b, &dump); err != nil {
+	var allocs map[common.Address]forgeAllocAccount
+	if err := json.Unmarshal(b, &allocs); err != nil {
 		return err
 	}
-
-	d.Root = dump.Root
-	d.Accounts = make(map[string]gstate.DumpAccount)
-	for addr, acc := range dump.Accounts {
-		d.Accounts[addr.String()] = gstate.DumpAccount{
-			Balance:     acc.Balance,
-			Nonce:       (uint64)(acc.Nonce),
-			Root:        acc.Root,
-			CodeHash:    acc.CodeHash,
-			Code:        acc.Code,
-			Storage:     acc.Storage,
-			Address:     acc.Address,
-			AddressHash: acc.AddressHash,
+	d.Accounts = make(types.GenesisAlloc, len(allocs))
+	for addr, acc := range allocs {
+		acc := acc
+		d.Accounts[addr] = types.Account{
+			Code:       acc.Code,
+			Storage:    acc.Storage,
+			Balance:    (*uint256.Int)(&acc.Balance).ToBig(),
+			Nonce:      (uint64)(acc.Nonce),
+			PrivateKey: nil,
 		}
 	}
 	return nil
-}
-
-// NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
-// DeployConfig and a block.
-func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables.PredeploysImmutableConfig, error) {
-	if config.L1StandardBridgeProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1ERC721BridgeProxy == (common.Address{}) {
-		return nil, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.SequencerFeeVaultRecipient == (common.Address{}) {
-		return nil, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.BaseFeeVaultRecipient == (common.Address{}) {
-		return nil, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.L1FeeVaultRecipient == (common.Address{}) {
-		return nil, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	if config.ProxyAdminOwner == (common.Address{}) {
-		return nil, fmt.Errorf("ProxyAdminOwner cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-
-	l1BobaTokenAddress, err := config.GetL1BobaTokenAddress()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get L1BobaTokenAddress: %w", err)
-	}
-
-	cfg := immutables.PredeploysImmutableConfig{
-		L2ToL1MessagePasser:    struct{}{},
-		DeployerWhitelist:      struct{}{},
-		WETH9:                  struct{}{},
-		L2CrossDomainMessenger: struct{}{},
-		L2StandardBridge:       struct{}{},
-		SequencerFeeVault: struct {
-			Recipient           common.Address
-			MinWithdrawalAmount *big.Int
-			WithdrawalNetwork   uint8
-		}{
-			Recipient:           config.SequencerFeeVaultRecipient,
-			MinWithdrawalAmount: (*big.Int)(config.SequencerFeeVaultMinimumWithdrawalAmount),
-			WithdrawalNetwork:   config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
-		},
-		L1BlockNumber:       struct{}{},
-		GasPriceOracle:      struct{}{},
-		L1Block:             struct{}{},
-		GovernanceToken:     struct{}{},
-		LegacyMessagePasser: struct{}{},
-		L2ERC721Bridge:      struct{}{},
-		OptimismMintableERC721Factory: struct {
-			Bridge        common.Address
-			RemoteChainId *big.Int
-		}{
-			Bridge:        predeploys.L2ERC721BridgeAddr,
-			RemoteChainId: new(big.Int).SetUint64(config.L1ChainID),
-		},
-		OptimismMintableERC20Factory: struct{}{},
-		ProxyAdmin:                   struct{}{},
-		BaseFeeVault: struct {
-			Recipient           common.Address
-			MinWithdrawalAmount *big.Int
-			WithdrawalNetwork   uint8
-		}{
-			Recipient:           config.BaseFeeVaultRecipient,
-			MinWithdrawalAmount: (*big.Int)(config.BaseFeeVaultMinimumWithdrawalAmount),
-			WithdrawalNetwork:   config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
-		},
-		L1FeeVault: struct {
-			Recipient           common.Address
-			MinWithdrawalAmount *big.Int
-			WithdrawalNetwork   uint8
-		}{
-			Recipient:           config.L1FeeVaultRecipient,
-			MinWithdrawalAmount: (*big.Int)(config.L1FeeVaultMinimumWithdrawalAmount),
-			WithdrawalNetwork:   config.L1FeeVaultWithdrawalNetwork.ToUint8(),
-		},
-		SchemaRegistry: struct{}{},
-		EAS: struct {
-			Name string
-		}{
-			Name: "EAS",
-		},
-		Create2Deployer: struct{}{},
-		BobaL2: struct {
-			L2Bridge common.Address
-			L1Token  common.Address
-			Name     string
-			Symbol   string
-			Decimals uint8
-		}{
-			L2Bridge: predeploys.L2StandardBridgeAddr,
-			L1Token:  *l1BobaTokenAddress,
-			Name:     "Boba Token",
-			Symbol:   "BOBA",
-			Decimals: uint8(18),
-		},
-	}
-
-	if err := cfg.Check(); err != nil {
-		return nil, err
-	}
-	return &cfg, nil
-}
-
-// NewL2StorageConfig will create a StorageConfig given an instance of a DeployConfig and genesis block.
-func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
-	storage := make(state.StorageConfig)
-
-	if block.Number() == nil {
-		return storage, errors.New("block number not set")
-	}
-	if block.BaseFee() == nil {
-		return storage, errors.New("block base fee not set")
-	}
-
-	storage["L2ToL1MessagePasser"] = state.StorageValues{
-		"msgNonce": 0,
-	}
-	storage["L2CrossDomainMessenger"] = state.StorageValues{
-		"_initialized":     1,
-		"_initializing":    false,
-		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
-		"msgNonce":         0,
-		"otherMessenger":   config.L1CrossDomainMessengerProxy,
-	}
-	storage["L2StandardBridge"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"otherBridge":   config.L1StandardBridgeProxy,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-	}
-	storage["L2ERC721Bridge"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"otherBridge":   config.L1ERC721BridgeProxy,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-	}
-	storage["OptimismMintableERC20Factory"] = state.StorageValues{
-		"_initialized":  1,
-		"_initializing": false,
-		"bridge":        predeploys.L2StandardBridgeAddr,
-	}
-	storage["L1Block"] = state.StorageValues{
-		"number":         block.Number(),
-		"timestamp":      block.Time(),
-		"basefee":        block.BaseFee(),
-		"hash":           block.Hash(),
-		"sequenceNumber": 0,
-		"batcherHash":    eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
-		"l1FeeOverhead":  config.GasPriceOracleOverhead,
-		"l1FeeScalar":    config.GasPriceOracleScalar,
-	}
-	storage["LegacyERC20ETH"] = state.StorageValues{
-		"_name":   "Ether",
-		"_symbol": "ETH",
-	}
-	storage["WETH9"] = state.StorageValues{
-		"name":     "Wrapped Ether",
-		"symbol":   "WETH",
-		"decimals": 18,
-	}
-	if config.EnableGovernance {
-		storage["GovernanceToken"] = state.StorageValues{
-			"_name":   config.GovernanceTokenName,
-			"_symbol": config.GovernanceTokenSymbol,
-			"_owner":  config.GovernanceTokenOwner,
-		}
-	}
-	storage["ProxyAdmin"] = state.StorageValues{
-		"_owner": config.ProxyAdminOwner,
-	}
-	l1TokenAddr, err := config.GetL1BobaTokenAddress()
-	if err != nil {
-		return storage, err
-	}
-	storage["BobaL2"] = state.StorageValues{
-		"l2Bridge":  predeploys.L2StandardBridgeAddr,
-		"l1Token":   l1TokenAddr,
-		"_name":     "Boba Token",
-		"_symbol":   "BOBA",
-		"_decimals": uint8(18),
-	}
-	return storage, nil
 }
 
 type MarshalableRPCBlockNumberOrHash rpc.BlockNumberOrHash

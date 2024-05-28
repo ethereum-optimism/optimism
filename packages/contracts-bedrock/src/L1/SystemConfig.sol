@@ -6,12 +6,15 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, ISemver {
+contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
@@ -26,14 +29,16 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
-    ///         proxies and are network specific.
+    ///         contracts that users interact with (not implementations for proxied contracts)
+    ///         and are network specific.
     struct Addresses {
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
         address l1StandardBridge;
-        address l2OutputOracle;
+        address disputeGameFactory;
         address optimismPortal;
         address optimismMintableERC20Factory;
+        address gasPayingToken;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -59,9 +64,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot that the L1StandardBridge address is stored at.
     bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
 
-    /// @notice Storage slot that the L2OutputOracle address is stored at.
-    bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
-
     /// @notice Storage slot that the OptimismPortal address is stored at.
     bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
 
@@ -74,6 +76,18 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
+
+    /// @notice Storage slot for the DisputeGameFactory address.
+    bytes32 public constant DISPUTE_GAME_FACTORY_SLOT =
+        bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+
+    /// @notice The number of decimals that the gas paying token has.
+    uint8 internal constant GAS_PAYING_TOKEN_DECIMALS = 18;
+
+    /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
+    ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
+    ///         optimizations and improvements are made to the system at large.
+    uint64 internal constant MAX_GAS_LIMIT = 200_000_000;
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
@@ -101,8 +115,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.12.0
-    string public constant version = "1.12.0";
+    /// @custom:semver 2.2.0
+    string public constant version = "2.2.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -131,9 +145,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                l2OutputOracle: address(0),
+                disputeGameFactory: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: address(0)
             })
         });
     }
@@ -177,11 +192,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
         Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
-        Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
+        Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, _addresses.disputeGameFactory);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
         _setStartBlock();
+        _setGasPayingToken(_addresses.gasPayingToken);
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -195,6 +211,14 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @return uint64 Minimum gas limit.
     function minimumGasLimit() public view returns (uint64) {
         return uint64(_resourceConfig.maxResourceLimit) + uint64(_resourceConfig.systemTxMaxGas);
+    }
+
+    /// @notice Returns the maximum L2 gas limit that can be safely set for the system to
+    ///         operate. This bound is used to prevent the gas limit from being set too high
+    ///         and causing the system to be unable to process and/or prove L2 blocks.
+    /// @return uint64 Maximum gas limit.
+    function maximumGasLimit() public pure returns (uint64) {
+        return MAX_GAS_LIMIT;
     }
 
     /// @notice High level getter for the unsafe block signer address.
@@ -220,13 +244,13 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         addr_ = Storage.getAddress(L1_STANDARD_BRIDGE_SLOT);
     }
 
-    /// @notice Getter for the L2OutputOracle address.
-    function l2OutputOracle() external view returns (address addr_) {
-        addr_ = Storage.getAddress(L2_OUTPUT_ORACLE_SLOT);
+    /// @notice Getter for the DisputeGameFactory address.
+    function disputeGameFactory() external view returns (address addr_) {
+        addr_ = Storage.getAddress(DISPUTE_GAME_FACTORY_SLOT);
     }
 
     /// @notice Getter for the OptimismPortal address.
-    function optimismPortal() external view returns (address addr_) {
+    function optimismPortal() public view returns (address addr_) {
         addr_ = Storage.getAddress(OPTIMISM_PORTAL_SLOT);
     }
 
@@ -243,6 +267,52 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Getter for the StartBlock number.
     function startBlock() external view returns (uint256 startBlock_) {
         startBlock_ = Storage.getUint(START_BLOCK_SLOT);
+    }
+
+    /// @notice Getter for the gas paying asset address.
+    function gasPayingToken() public view returns (address addr_, uint8 decimals_) {
+        (addr_, decimals_) = GasPayingToken.getToken();
+    }
+
+    /// @notice Getter for custom gas token paying networks. Returns true if the
+    ///         network uses a custom gas token.
+    function isCustomGasToken() public view returns (bool) {
+        (address token,) = gasPayingToken();
+        return token != Constants.ETHER;
+    }
+
+    /// @notice Getter for the gas paying token name.
+    function gasPayingTokenName() external view returns (string memory name_) {
+        name_ = GasPayingToken.getName();
+    }
+
+    /// @notice Getter for the gas paying token symbol.
+    function gasPayingTokenSymbol() external view returns (string memory symbol_) {
+        symbol_ = GasPayingToken.getSymbol();
+    }
+
+    /// @notice Internal setter for the gas paying token address, includes validation.
+    ///         The token must not already be set and must be non zero and not the ether address
+    ///         to set the token address. This prevents the token address from being changed
+    ///         and makes it explicitly opt-in to use custom gas token.
+    /// @param _token Address of the gas paying token.
+    function _setGasPayingToken(address _token) internal {
+        if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
+            require(
+                ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
+            );
+            bytes32 name = GasPayingToken.sanitize(ERC20(_token).name());
+            bytes32 symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
+
+            // Set the gas paying token in storage and in the OptimismPortal.
+            GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
+            OptimismPortal(payable(optimismPortal())).setGasPayingToken({
+                _token: _token,
+                _decimals: GAS_PAYING_TOKEN_DECIMALS,
+                _name: name,
+                _symbol: symbol
+            });
+        }
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
@@ -303,6 +373,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _gasLimit New gas limit.
     function _setGasLimit(uint64 _gasLimit) internal {
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
+        require(_gasLimit <= maximumGasLimit(), "SystemConfig: gas limit too high");
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);
@@ -331,16 +402,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         return _resourceConfig;
     }
 
-    /// @notice An external setter for the resource config.
-    ///         In the future, this method may emit an event that the `op-node` picks up
-    ///         for when the resource config is changed.
-    /// @param _config The new resource config values.
-    function setResourceConfig(ResourceMetering.ResourceConfig memory _config) external onlyOwner {
-        _setResourceConfig(_config);
-    }
-
     /// @notice An internal setter for the resource config.
     ///         Ensures that the config is sane before storing it by checking for invariants.
+    ///         In the future, this method may emit an event that the `op-node` picks up
+    ///         for when the resource config is changed.
     /// @param _config The new resource config.
     function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
         // Min base fee must be less than or equal to max base fee.

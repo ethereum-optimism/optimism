@@ -21,8 +21,13 @@ func LoadJSON[X any](inputPath string) (*X, error) {
 	}
 	defer f.Close()
 	var state X
-	if err := json.NewDecoder(f).Decode(&state); err != nil {
+	decoder := json.NewDecoder(f)
+	if err := decoder.Decode(&state); err != nil {
 		return nil, fmt.Errorf("failed to decode file %q: %w", inputPath, err)
+	}
+	// We are only expecting 1 JSON object - confirm there is no trailing data
+	if _, err := decoder.Token(); err != io.EOF {
+		return nil, fmt.Errorf("unexpected trailing data in file %q", inputPath)
 	}
 	return &state, nil
 }

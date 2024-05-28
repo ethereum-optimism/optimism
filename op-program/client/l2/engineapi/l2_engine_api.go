@@ -80,20 +80,20 @@ var (
 )
 
 // computePayloadId computes a pseudo-random payloadid, based on the parameters.
-func computePayloadId(headBlockHash common.Hash, params *eth.PayloadAttributes) engine.PayloadID {
+func computePayloadId(headBlockHash common.Hash, attrs *eth.PayloadAttributes) engine.PayloadID {
 	// Hash
 	hasher := sha256.New()
 	hasher.Write(headBlockHash[:])
-	_ = binary.Write(hasher, binary.BigEndian, params.Timestamp)
-	hasher.Write(params.PrevRandao[:])
-	hasher.Write(params.SuggestedFeeRecipient[:])
-	_ = binary.Write(hasher, binary.BigEndian, params.NoTxPool)
-	_ = binary.Write(hasher, binary.BigEndian, uint64(len(params.Transactions)))
-	for _, tx := range params.Transactions {
+	_ = binary.Write(hasher, binary.BigEndian, attrs.Timestamp)
+	hasher.Write(attrs.PrevRandao[:])
+	hasher.Write(attrs.SuggestedFeeRecipient[:])
+	_ = binary.Write(hasher, binary.BigEndian, attrs.NoTxPool)
+	_ = binary.Write(hasher, binary.BigEndian, uint64(len(attrs.Transactions)))
+	for _, tx := range attrs.Transactions {
 		_ = binary.Write(hasher, binary.BigEndian, uint64(len(tx))) // length-prefix to avoid collisions
 		hasher.Write(tx)
 	}
-	_ = binary.Write(hasher, binary.BigEndian, *params.GasLimit)
+	_ = binary.Write(hasher, binary.BigEndian, *attrs.GasLimit)
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
 	return out
@@ -140,22 +140,22 @@ func (ea *L2EngineAPI) IncludeTx(tx *types.Transaction, from common.Address) err
 	return nil
 }
 
-func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttributes) error {
+func (ea *L2EngineAPI) startBlock(parent common.Hash, attrs *eth.PayloadAttributes) error {
 	if ea.blockProcessor != nil {
 		ea.log.Warn("started building new block without ending previous block", "previous", ea.blockProcessor.header, "prev_payload_id", ea.payloadID)
 	}
 
-	processor, err := NewBlockProcessorFromPayloadAttributes(ea.backend, parent, params)
+	processor, err := NewBlockProcessorFromPayloadAttributes(ea.backend, parent, attrs)
 	if err != nil {
 		return err
 	}
 	ea.blockProcessor = processor
 	ea.pendingIndices = make(map[common.Address]uint64)
-	ea.l2ForceEmpty = params.NoTxPool
-	ea.payloadID = computePayloadId(parent, params)
+	ea.l2ForceEmpty = attrs.NoTxPool
+	ea.payloadID = computePayloadId(parent, attrs)
 
 	// pre-process the deposits
-	for i, otx := range params.Transactions {
+	for i, otx := range attrs.Transactions {
 		var tx types.Transaction
 		if err := tx.UnmarshalBinary(otx); err != nil {
 			return fmt.Errorf("transaction %d is not valid: %w", i, err)
@@ -304,7 +304,7 @@ func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPa
 	return ea.newPayload(ctx, params, versionedHashes, beaconRoot)
 }
 
-func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+func (ea *L2EngineAPI) getPayload(_ context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	ea.log.Trace("L2Engine API request received", "method", "GetPayload", "id", payloadId)
 	if ea.payloadID != payloadId {
 		ea.log.Warn("unexpected payload ID requested for block building", "expected", ea.payloadID, "got", payloadId)
@@ -316,15 +316,10 @@ func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) 
 		return nil, engine.UnknownPayload
 	}
 
-	payload, err := eth.BlockAsPayload(bl, ea.config().CanyonTime)
-	if err != nil {
-		return nil, err
-	}
-
-	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload, ParentBeaconBlockRoot: bl.BeaconRoot()}, nil
+	return eth.BlockAsPayloadEnv(bl, ea.config().CanyonTime)
 }
 
-func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+func (ea *L2EngineAPI) forkchoiceUpdated(_ context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ForkchoiceUpdated", "head", state.HeadBlockHash, "finalized", state.FinalizedBlockHash, "safe", state.SafeBlockHash)
 	if state.HeadBlockHash == (common.Hash{}) {
 		ea.log.Warn("Forkchoice requested update to zero hash")
@@ -443,7 +438,7 @@ func toGethWithdrawals(payload *eth.ExecutionPayload) []*types.Withdrawal {
 	return result
 }
 
-func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPayload, hashes []common.Hash, root *common.Hash) (*eth.PayloadStatusV1, error) {
+func (ea *L2EngineAPI) newPayload(_ context.Context, payload *eth.ExecutionPayload, hashes []common.Hash, root *common.Hash) (*eth.PayloadStatusV1, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ExecutePayload", "number", payload.BlockNumber, "hash", payload.BlockHash)
 	txs := make([][]byte, len(payload.Transactions))
 	for i, tx := range payload.Transactions {

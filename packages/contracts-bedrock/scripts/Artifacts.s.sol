@@ -6,7 +6,12 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Chains } from "scripts/Chains.sol";
+import { Config } from "scripts/Config.sol";
+import { StorageSlot } from "scripts/ForgeArtifacts.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { LibString } from "@solady/utils/LibString.sol";
+import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
+import { IAddressManager } from "scripts/interfaces/IAddressManager.sol";
 
 /// @notice Represents a deployment. Is serialized to JSON as a key/value
 ///         pair. Can be accessed from within scripts.
@@ -17,6 +22,8 @@ struct Deployment {
 
 /// @title Artifacts
 /// @notice Useful for accessing deployment artifacts from within scripts.
+///         When a contract is deployed, call the `save` function to write its name and
+///         contract address to disk. Inspired by `forge-deploy`.
 abstract contract Artifacts {
     /// @notice Foundry cheatcode VM.
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -33,37 +40,22 @@ abstract contract Artifacts {
     /// @notice Path to the directory containing the hh deploy style artifacts
     string internal deploymentsDir;
     /// @notice The path to the deployment artifact that is being written to.
-    string internal deployArtifactPath;
+    string internal deploymentOutfile;
     /// @notice The namespace for the deployment. Can be set with the env var DEPLOYMENT_CONTEXT.
     string internal deploymentContext;
 
     /// @notice Setup function. The arguments here
     function setUp() public virtual {
-        string memory root = vm.projectRoot();
+        deploymentOutfile = Config.deploymentOutfile();
+        console.log("Writing artifact to %s", deploymentOutfile);
+        ForgeArtifacts.ensurePath(deploymentOutfile);
 
-        // The `deploymentContext` should match the name of the deploy-config file.
-        deploymentContext = _getDeploymentContext();
-        deploymentsDir = string.concat(root, "/deployments/", deploymentContext);
-
-        if (!vm.isDir(deploymentsDir)) {
-            vm.createDir(deploymentsDir, true);
-        }
-
-        deployArtifactPath = vm.envOr("DEPLOYMENT_OUTFILE", string.concat(deploymentsDir, "/.deploy"));
-        try vm.readFile(deployArtifactPath) returns (string memory) { }
-        catch {
-            vm.writeJson("{}", deployArtifactPath);
-        }
-        console.log("Using deploy artifact %s", deployArtifactPath);
-
-        try vm.createDir(deploymentsDir, true) { } catch (bytes memory) { }
-
-        uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
+        uint256 chainId = Config.chainID();
         console.log("Connected to network with chainid %s", chainId);
 
         // Load addresses from a JSON file if the CONTRACT_ADDRESSES_PATH environment variable
         // is set. Great for loading addresses from `superchain-registry`.
-        string memory addresses = vm.envOr("CONTRACT_ADDRESSES_PATH", string(""));
+        string memory addresses = Config.contractAddressesPath();
         if (bytes(addresses).length > 0) {
             console.log("Loading addresses from %s", addresses);
             _loadAddresses(addresses);
@@ -98,10 +90,7 @@ abstract contract Artifacts {
     /// @return Whether the deployment exists or not.
     function has(string memory _name) public view returns (bool) {
         Deployment memory existing = _namedDeployments[_name];
-        if (existing.addr != address(0)) {
-            return bytes(existing.name).length > 0;
-        }
-        return _getExistingDeploymentAddress(_name) != address(0);
+        return bytes(existing.name).length > 0;
     }
 
     /// @notice Returns the address of a deployment. Also handles the predeploys.
@@ -116,8 +105,6 @@ abstract contract Artifacts {
             }
             return existing.addr;
         }
-        address addr = _getExistingDeploymentAddress(_name);
-        if (addr != address(0)) return payable(addr);
 
         bytes32 digest = keccak256(bytes(_name));
         if (digest == keccak256(bytes("L2CrossDomainMessenger"))) {
@@ -142,8 +129,8 @@ abstract contract Artifacts {
             return payable(Predeploys.L1_MESSAGE_SENDER);
         } else if (digest == keccak256(bytes("DeployerWhitelist"))) {
             return payable(Predeploys.DEPLOYER_WHITELIST);
-        } else if (digest == keccak256(bytes("WETH9"))) {
-            return payable(Predeploys.WETH9);
+        } else if (digest == keccak256(bytes("WETH"))) {
+            return payable(Predeploys.WETH);
         } else if (digest == keccak256(bytes("LegacyERC20ETH"))) {
             return payable(Predeploys.LEGACY_ERC20_ETH);
         } else if (digest == keccak256(bytes("L1BlockNumber"))) {
@@ -181,12 +168,7 @@ abstract contract Artifacts {
     /// @param _name The name of the deployment.
     /// @return The deployment.
     function get(string memory _name) public view returns (Deployment memory) {
-        Deployment memory deployment = _namedDeployments[_name];
-        if (deployment.addr != address(0)) {
-            return deployment;
-        } else {
-            return _getExistingDeployment(_name);
-        }
+        return _namedDeployments[_name];
     }
 
     /// @notice Appends a deployment to disk as a JSON deploy artifact.
@@ -211,7 +193,7 @@ abstract contract Artifacts {
     ///         by the deploy script.
     /// @return An array of deployments.
     function _getDeployments() internal returns (Deployment[] memory) {
-        string memory json = vm.readFile(deployArtifactPath);
+        string memory json = vm.readFile(deploymentOutfile);
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
@@ -230,27 +212,7 @@ abstract contract Artifacts {
 
     /// @notice Adds a deployment to the temp deployments file
     function _appendDeployment(string memory _name, address _deployed) internal {
-        vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: deployArtifactPath });
-    }
-
-    /// @notice Reads the artifact from the filesystem by name and returns the address.
-    /// @param _name The name of the artifact to read.
-    /// @return The address of the artifact.
-    function _getExistingDeploymentAddress(string memory _name) internal view returns (address payable) {
-        return _getExistingDeployment(_name).addr;
-    }
-
-    /// @notice Reads the artifact from the filesystem by name and returns the Deployment.
-    /// @param _name The name of the artifact to read.
-    /// @return The deployment corresponding to the name.
-    function _getExistingDeployment(string memory _name) internal view returns (Deployment memory) {
-        string memory path = string.concat(deploymentsDir, "/", _name, ".json");
-        try vm.readFile(path) returns (string memory json) {
-            address addr = stdJson.readAddress(json, "$.address");
-            return Deployment({ addr: payable(addr), name: _name });
-        } catch {
-            return Deployment({ addr: payable(address(0)), name: "" });
-        }
+        vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: deploymentOutfile });
     }
 
     /// @notice Stubs a deployment retrieved through `get`.
@@ -265,34 +227,24 @@ abstract contract Artifacts {
         _namedDeployments[_name] = deployment;
     }
 
-    /// @notice The context of the deployment is used to namespace the artifacts.
-    ///         An unknown context will use the chainid as the context name.
-    ///         This is legacy code and should be removed in the future.
-    function _getDeploymentContext() private view returns (string memory) {
-        string memory context = vm.envOr("DEPLOYMENT_CONTEXT", string(""));
-        if (bytes(context).length > 0) {
-            return context;
-        }
-
-        uint256 chainid = vm.envOr("CHAIN_ID", block.chainid);
-        if (chainid == Chains.Mainnet) {
-            return "mainnet";
-        } else if (chainid == Chains.Goerli) {
-            return "goerli";
-        } else if (chainid == Chains.OPGoerli) {
-            return "optimism-goerli";
-        } else if (chainid == Chains.OPMainnet) {
-            return "optimism-mainnet";
-        } else if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
-            return "devnetL1";
-        } else if (chainid == Chains.Hardhat) {
-            return "hardhat";
-        } else if (chainid == Chains.Sepolia) {
-            return "sepolia";
-        } else if (chainid == Chains.OPSepolia) {
-            return "optimism-sepolia";
+    /// @notice Returns the value of the internal `_initialized` storage slot for a given contract.
+    function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
+        address contractAddress;
+        // Check if the contract name ends with `Proxy` and, if so, get the implementation address
+        if (LibString.endsWith(_contractName, "Proxy")) {
+            contractAddress = EIP1967Helper.getImplementation(getAddress(_contractName));
+            _contractName = LibString.slice(_contractName, 0, bytes(_contractName).length - 5);
+            // If the EIP1967 implementation address is 0, we try to get the implementation address from legacy
+            // AddressManager, which would work if the proxy is ResolvedDelegateProxy like L1CrossDomainMessengerProxy.
+            if (contractAddress == address(0)) {
+                contractAddress =
+                    IAddressManager(mustGetAddress("AddressManager")).getAddress(string.concat("OVM_", _contractName));
+            }
         } else {
-            return vm.toString(chainid);
+            contractAddress = mustGetAddress(_contractName);
         }
+        StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(_contractName);
+        bytes32 slotVal = vm.load(contractAddress, bytes32(vm.parseUint(slot.slot)));
+        initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
     }
 }

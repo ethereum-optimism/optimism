@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/solabi"
 )
 
@@ -42,7 +42,7 @@ var (
 )
 
 func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
-	upgradeTxns := make([]hexutil.Bytes, 0, 5)
+	upgradeTxns := make([]hexutil.Bytes, 0, 6)
 
 	deployL1BlockTransaction, err := types.NewTx(&types.DepositTx{
 		SourceHash:          deployL1BlockSource.SourceHash(),

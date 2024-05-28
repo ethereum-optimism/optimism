@@ -7,7 +7,7 @@ import (
 	"reflect"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -100,7 +100,7 @@ type ChainConfig struct {
 	L1Contracts L1Contracts `toml:"l1-contracts"`
 	L2Contracts L2Contracts `toml:"-"`
 
-	// Bedrock starting heights only applicable for OP-Mainnet & OP-Goerli
+	// Bedrock starting heights only applicable for OP-Mainnet
 	L1BedrockStartingHeight uint `toml:"-"`
 	L2BedrockStartingHeight uint `toml:"-"`
 
@@ -114,6 +114,9 @@ type ChainConfig struct {
 
 	L1HeaderBufferSize uint `toml:"l1-header-buffer-size"`
 	L2HeaderBufferSize uint `toml:"l2-header-buffer-size"`
+
+	// Inactivity allowed before a block is indexed by the ETL. Default 0 value disables this feature
+	ETLAllowedInactivityWindowSeconds uint `toml:"etl-allowed-inactivity-window-seconds"`
 }
 
 // RPCsConfig configures the RPC urls

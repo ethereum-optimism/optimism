@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/trie"
-	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -60,7 +60,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	genesisBlock := sd.L1Cfg.ToBlock()
 	consensus := beacon.New(ethash.NewFaker())
 	db := rawdb.NewMemoryDatabase()
-	tdb := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	sd.L1Cfg.MustCommit(db, tdb)
 
 	chainA, _ := core.GenerateChain(sd.L1Cfg.Config, genesisBlock, consensus, db, 10, func(n int, g *core.BlockGen) {

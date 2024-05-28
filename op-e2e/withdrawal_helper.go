@@ -7,15 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -123,13 +124,10 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	factory, err := bindings.NewDisputeGameFactoryCaller(config.L1Deployments.DisputeGameFactoryProxy, l1Client)
 	require.Nil(t, err)
 
-	portal1, err := bindings.NewOptimismPortalCaller(config.L1Deployments.OptimismPortalProxy, l1Client)
-	require.Nil(t, err)
-
 	portal2, err := bindingspreview.NewOptimismPortal2Caller(config.L1Deployments.OptimismPortalProxy, l1Client)
 	require.Nil(t, err)
 
-	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, l2WithdrawalReceipt.TxHash, header, oracle, factory, portal1, portal2)
+	params, err := ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, l2WithdrawalReceipt.TxHash, header, oracle, factory, portal2)
 	require.Nil(t, err)
 
 	portal, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Client)
@@ -162,6 +160,14 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	return params, proveReceipt
 }
 
+func ProveWithdrawalParameters(ctx context.Context, proofCl withdrawals.ProofClient, l2ReceiptCl withdrawals.ReceiptClient, l2BlockCl withdrawals.BlockClient, txHash common.Hash, header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (withdrawals.ProvenWithdrawalParameters, error) {
+	if e2eutils.UseFPAC() {
+		return withdrawals.ProveWithdrawalParametersFPAC(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, disputeGameFactoryContract, optimismPortal2Contract)
+	} else {
+		return withdrawals.ProveWithdrawalParameters(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, header, l2OutputOracleContract)
+	}
+}
+
 func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, privKey *ecdsa.PrivateKey, withdrawalProofReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters) (*types.Receipt, *types.Receipt, *types.Receipt) {
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
@@ -188,18 +194,18 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		wdHash, err := wd.Hash()
 		require.Nil(t, err)
 
-		game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash)
+		game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash, opts.From)
 		require.Nil(t, err)
 		require.NotNil(t, game, "withdrawal should be proven")
 
-		proxy, err := bindings.NewFaultDisputeGame(game.DisputeGameProxy, l1Client)
+		proxy, err := legacybindings.NewFaultDisputeGame(game.DisputeGameProxy, l1Client)
 		require.Nil(t, err)
 
-		expiry, err := proxy.GameDuration(&bind.CallOpts{})
+		expiry, err := proxy.MaxClockDuration(&bind.CallOpts{})
 		require.Nil(t, err)
 
 		time.Sleep(time.Duration(expiry) * time.Second)
-		resolveClaimTx, err := proxy.ResolveClaim(opts, common.Big0)
+		resolveClaimTx, err := proxy.ResolveClaim(opts, common.Big0, common.Big0)
 		require.Nil(t, err)
 
 		resolveClaimReceipt, err = wait.ForReceiptOK(ctx, l1Client, resolveClaimTx.Hash())
@@ -215,7 +221,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 	}
 
 	if e2eutils.UseFPAC() {
-		err := wait.ForWithdrawalCheck(ctx, l1Client, wd, config.L1Deployments.OptimismPortalProxy)
+		err := wait.ForWithdrawalCheck(ctx, l1Client, wd, config.L1Deployments.OptimismPortalProxy, opts.From)
 		require.Nil(t, err)
 	} else {
 		err := wait.ForFinalizationPeriod(ctx, l1Client, withdrawalProofReceipt.BlockNumber, config.L1Deployments.L2OutputOracleProxy)

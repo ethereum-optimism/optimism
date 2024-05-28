@@ -21,7 +21,7 @@ contract OptimismMintableERC721Factory_Test is Bridge_Initializer {
         vm.label(address(factory), "OptimismMintableERC721Factory");
     }
 
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() external view {
         assertEq(factory.BRIDGE(), address(l2ERC721Bridge));
         assertEq(factory.REMOTE_CHAIN_ID(), 1);
     }

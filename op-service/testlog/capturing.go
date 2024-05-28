@@ -62,6 +62,34 @@ func NewLevelFilter(level slog.Level) LogFilter {
 	}
 }
 
+func NewAttributesFilter(key, value string) LogFilter {
+	return func(r *slog.Record) bool {
+		found := false
+		r.Attrs(func(a slog.Attr) bool {
+			if a.Key == key && a.Value.String() == value {
+				found = true
+				return false
+			}
+			return true // try next
+		})
+		return found
+	}
+}
+
+func NewAttributesContainsFilter(key, value string) LogFilter {
+	return func(r *slog.Record) bool {
+		found := false
+		r.Attrs(func(a slog.Attr) bool {
+			if a.Key == key && strings.Contains(a.Value.String(), value) {
+				found = true
+				return false
+			}
+			return true // try next
+		})
+		return found
+	}
+}
+
 func NewMessageFilter(message string) LogFilter {
 	return func(r *slog.Record) bool {
 		return r.Message == message

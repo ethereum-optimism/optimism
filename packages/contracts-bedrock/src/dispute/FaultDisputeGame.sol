@@ -1,18 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
-import { Clone } from "src/libraries/Clone.sol";
+import { Clone } from "@solady/utils/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { LibClock } from "src/dispute/lib/LibUDT.sol";
 
-import "src/libraries/DisputeTypes.sol";
-import "src/libraries/DisputeErrors.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
@@ -32,26 +38,39 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ///         this depth, execution trace bisection begins.
     uint256 internal immutable SPLIT_DEPTH;
 
-    /// @notice The duration of the game.
-    Duration internal immutable GAME_DURATION;
+    /// @notice The maximum duration that may accumulate on a team's chess clock before they may no longer respond.
+    Duration internal immutable MAX_CLOCK_DURATION;
 
     /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
     IBigStepper internal immutable VM;
 
-    /// @notice The genesis block number
-    uint256 internal immutable GENESIS_BLOCK_NUMBER;
-
-    /// @notice The genesis output root
-    Hash internal immutable GENESIS_OUTPUT_ROOT;
-
-    /// @notice The game type ID
+    /// @notice The game type ID.
     GameType internal immutable GAME_TYPE;
+
+    /// @notice WETH contract for holding ETH.
+    IDelayedWETH internal immutable WETH;
+
+    /// @notice The anchor state registry.
+    IAnchorStateRegistry internal immutable ANCHOR_STATE_REGISTRY;
+
+    /// @notice The chain ID of the L2 network this contract argues about.
+    uint256 internal immutable L2_CHAIN_ID;
+
+    /// @notice The duration of the clock extension. Will be doubled if the grandchild is the root claim of an execution
+    ///         trace bisection subgame.
+    Duration internal immutable CLOCK_EXTENSION;
 
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
-    /// @notice The flag set in the `bond` field of a `ClaimData` struct to indicate that the bond has been claimed.
-    uint128 internal constant CLAIMED_BOND_FLAG = type(uint128).max;
+    /// @notice The index of the block number in the RLP-encoded block header.
+    /// @dev Consensus encoding reference:
+    /// https://github.com/paradigmxyz/reth/blob/5f82993c23164ce8ccdc7bf3ae5085205383a5c8/crates/primitives/src/header.rs#L368
+    uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
+
+    /// @notice Semantic version.
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -62,58 +81,149 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @inheritdoc IDisputeGame
     GameStatus public status;
 
+    /// @notice Flag for the `initialize` function to prevent re-initialization.
+    bool internal initialized;
+
+    /// @notice Flag for whether or not the L2 block number claim has been invalidated via `challengeRootL2Block`.
+    bool public l2BlockNumberChallenged;
+
+    /// @notice The challenger of the L2 block number claim. Should always be `address(0)` if `l2BlockNumberChallenged`
+    ///         is `false`. Should be the address of the challenger if `l2BlockNumberChallenged` is `true`.
+    address public l2BlockNumberChallenger;
+
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
 
     /// @notice Credited balances for winning participants.
     mapping(address => uint256) public credit;
 
-    /// @notice An internal mapping to allow for constant-time lookups of existing claims.
-    mapping(ClaimHash => bool) internal claims;
+    /// @notice A mapping to allow for constant-time lookups of existing claims.
+    mapping(Hash => bool) public claims;
 
-    /// @notice An internal mapping of subgames rooted at a claim index to other claim indices in the subgame.
-    mapping(uint256 => uint256[]) internal subgames;
+    /// @notice A mapping of subgames rooted at a claim index to other claim indices in the subgame.
+    mapping(uint256 => uint256[]) public subgames;
 
-    /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
-    bool internal subgameAtRootResolved;
+    /// @notice A mapping of resolved subgames rooted at a claim index.
+    mapping(uint256 => bool) public resolvedSubgames;
 
-    /// @notice Flag for the `initialize` function to prevent re-initialization.
-    bool internal initialized;
+    /// @notice A mapping of claim indices to resolution checkpoints.
+    mapping(uint256 => ResolutionCheckpoint) public resolutionCheckpoints;
 
-    /// @notice Semantic version.
-    /// @custom:semver 0.5.0
-    string public constant version = "0.5.0";
+    /// @notice The latest finalized output root, serving as the anchor for output bisection.
+    OutputRoot public startingOutputRoot;
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
-    /// @param _genesisBlockNumber The block number of the genesis block.
-    /// @param _genesisOutputRoot The output root of the genesis block.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
-    /// @param _gameDuration The duration of the game.
-    /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
-    ///            trace.
+    /// @param _clockExtension The clock extension to perform when the remaining duration is less than the extension.
+    /// @param _maxClockDuration The maximum amount of time that may accumulate on a team's chess clock.
+    /// @param _vm An onchain VM that performs single instruction steps on an FPP trace.
+    /// @param _weth WETH contract for holding ETH.
+    /// @param _anchorStateRegistry The contract that stores the anchor state for each game type.
+    /// @param _l2ChainId Chain ID of the L2 network this contract argues about.
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
-        uint256 _genesisBlockNumber,
-        Hash _genesisOutputRoot,
         uint256 _maxGameDepth,
         uint256 _splitDepth,
-        Duration _gameDuration,
-        IBigStepper _vm
+        Duration _clockExtension,
+        Duration _maxClockDuration,
+        IBigStepper _vm,
+        IDelayedWETH _weth,
+        IAnchorStateRegistry _anchorStateRegistry,
+        uint256 _l2ChainId
     ) {
+        // The max game depth may not be greater than `LibPosition.MAX_POSITION_BITLEN - 1`.
+        if (_maxGameDepth > LibPosition.MAX_POSITION_BITLEN - 1) revert MaxDepthTooLarge();
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
+        // The clock extension may not be greater than the max clock duration.
+        if (_clockExtension.raw() > _maxClockDuration.raw()) revert InvalidClockExtension();
 
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
-        GENESIS_BLOCK_NUMBER = _genesisBlockNumber;
-        GENESIS_OUTPUT_ROOT = _genesisOutputRoot;
         MAX_GAME_DEPTH = _maxGameDepth;
         SPLIT_DEPTH = _splitDepth;
-        GAME_DURATION = _gameDuration;
+        CLOCK_EXTENSION = _clockExtension;
+        MAX_CLOCK_DURATION = _maxClockDuration;
         VM = _vm;
+        WETH = _weth;
+        ANCHOR_STATE_REGISTRY = _anchorStateRegistry;
+        L2_CHAIN_ID = _l2ChainId;
+    }
+
+    /// @inheritdoc IInitializable
+    function initialize() public payable virtual {
+        // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
+        // prevent the game from being created.
+        //
+        // Implicit assumptions:
+        // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
+        // - The dispute game factory will enforce the required bond to initialize the game.
+        //
+        // Explicit checks:
+        // - The game must not have already been initialized.
+        // - An output root cannot be proposed at or before the starting block number.
+
+        // INVARIANT: The game must not have already been initialized.
+        if (initialized) revert AlreadyInitialized();
+
+        // Grab the latest anchor root.
+        (Hash root, uint256 rootBlockNumber) = ANCHOR_STATE_REGISTRY.anchors(GAME_TYPE);
+
+        // Should only happen if this is a new game type that hasn't been set up yet.
+        if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
+
+        // Set the starting output root.
+        startingOutputRoot = OutputRoot({ l2BlockNumber: rootBlockNumber, root: root });
+
+        // Revert if the calldata size is not the expected length.
+        //
+        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
+        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
+        // output proposal to be created.
+        //
+        // Expected length: 0x7A
+        // - 0x04 selector
+        // - 0x14 creator address
+        // - 0x20 root claim
+        // - 0x20 l1 head
+        // - 0x20 extraData
+        // - 0x02 CWIA bytes
+        assembly {
+            if iszero(eq(calldatasize(), 0x7A)) {
+                // Store the selector for `BadExtraData()` & revert
+                mstore(0x00, 0x9824bdab)
+                revert(0x1C, 0x04)
+            }
+        }
+
+        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
+        // configured starting block number.
+        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
+
+        // Set the root claim
+        claimData.push(
+            ClaimData({
+                parentIndex: type(uint32).max,
+                counteredBy: address(0),
+                claimant: gameCreator(),
+                bond: uint128(msg.value),
+                claim: rootClaim(),
+                position: ROOT_POSITION,
+                clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp)))
+            })
+        );
+
+        // Set the game as initialized.
+        initialized = true;
+
+        // Deposit the bond.
+        WETH.deposit{ value: msg.value }();
+
+        // Set the game's starting timestamp
+        createdAt = Timestamp.wrap(uint64(block.timestamp));
     }
 
     ////////////////////////////////////////////////////////////////
@@ -193,21 +303,28 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 
+        // INVARIANT: A step cannot be made against a claim for a second time.
+        if (parent.counteredBy != address(0)) revert DuplicateStep();
+
         // Set the parent claim as countered. We do not need to append a new claim to the game;
         // instead, we can just set the existing parent as countered.
         parent.counteredBy = msg.sender;
     }
 
     /// @notice Generic move function, used for both `attack` and `defend` moves.
+    /// @param _disputed The disputed `Claim`.
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
-    function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable virtual {
+    function move(Claim _disputed, uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable virtual {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData memory parent = claimData[_challengeIndex];
+
+        // INVARIANT: The claim at the _challengeIndex must be the disputed claim.
+        if (Claim.unwrap(parent.claim) != Claim.unwrap(_disputed)) revert InvalidDisputedClaimIndex();
 
         // Compute the position that the claim commits to. Because the parent's position is already
         // known, we can compute the next position by moving left or right depending on whether
@@ -223,6 +340,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             revert CannotDefendRootClaim();
         }
 
+        // INVARIANT: No moves against the root claim can be made after it has been challenged with
+        //            `challengeRootL2Block`.`
+        if (l2BlockNumberChallenged && _challengeIndex == 0) revert L2BlockNumberChallenged();
+
         // INVARIANT: A move can never surpass the `MAX_GAME_DEPTH`. The only option to counter a
         //            claim at this depth is to perform a single instruction step on-chain via
         //            the `step` function to prove that the state transition produces an unexpected
@@ -235,32 +356,30 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             _verifyExecBisectionRoot(_claim, _challengeIndex, parentPos, _isAttack);
         }
 
-        // INVARIANT: The `msg.value` must be sufficient to cover the required bond.
-        if (getRequiredBond(nextPosition) > msg.value) revert InsufficientBond();
-
-        // Fetch the grandparent clock, if it exists.
-        // The grandparent clock should always exist unless the parent is the root claim.
-        Clock grandparentClock;
-        if (parent.parentIndex != type(uint32).max) {
-            grandparentClock = claimData[parent.parentIndex].clock;
-        }
+        // INVARIANT: The `msg.value` must exactly equal the required bond.
+        if (getRequiredBond(nextPosition) != msg.value) revert IncorrectBondAmount();
 
         // Compute the duration of the next clock. This is done by adding the duration of the
         // grandparent claim to the difference between the current block timestamp and the
         // parent's clock timestamp.
-        Duration nextDuration = Duration.wrap(
-            uint64(
-                // First, fetch the duration of the grandparent claim.
-                grandparentClock.duration().raw()
-                // Second, add the difference between the current block timestamp and the
-                // parent's clock timestamp.
-                + block.timestamp - parent.clock.timestamp().raw()
-            )
-        );
+        Duration nextDuration = getChallengerDuration(_challengeIndex);
 
-        // INVARIANT: A move can never be made once its clock has exceeded `GAME_DURATION / 2`
+        // INVARIANT: A move can never be made once its clock has exceeded `MAX_CLOCK_DURATION`
         //            seconds of time.
-        if (nextDuration.raw() > GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
+        if (nextDuration.raw() == MAX_CLOCK_DURATION.raw()) revert ClockTimeExceeded();
+
+        // If the remaining clock time has less than `CLOCK_EXTENSION` seconds remaining, grant the potential
+        // grandchild's clock `CLOCK_EXTENSION` seconds. This is to ensure that, even if a player has to inherit another
+        // team's clock to counter a freeloader claim, they will always have enough time to to respond. This extension
+        // is bounded by the depth of the tree. If the potential grandchild is an execution trace bisection root, the
+        // clock extension is doubled. This is to allow for extra time for the off-chain challenge agent to generate
+        // the initial instruction trace on the native FPVM.
+        if (nextDuration.raw() > MAX_CLOCK_DURATION.raw() - CLOCK_EXTENSION.raw()) {
+            // If the potential grandchild is an execution trace bisection root, double the clock extension.
+            uint64 extensionPeriod =
+                nextPositionDepth == SPLIT_DEPTH - 1 ? CLOCK_EXTENSION.raw() * 2 : CLOCK_EXTENSION.raw();
+            nextDuration = Duration.wrap(MAX_CLOCK_DURATION.raw() - extensionPeriod);
+        }
 
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
@@ -268,7 +387,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
         //            claims at the same position may dispute the same challengeIndex. However, they must have different
         //            values.
-        ClaimHash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
+        Hash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
         if (claims[claimHash]) revert ClaimAlreadyExists();
         claims[claimHash] = true;
 
@@ -289,18 +408,21 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Update the subgame rooted at the parent claim.
         subgames[_challengeIndex].push(claimData.length - 1);
 
+        // Deposit the bond.
+        WETH.deposit{ value: msg.value }();
+
         // Emit the appropriate event for the attack or defense.
         emit Move(_challengeIndex, _claim, msg.sender);
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function attack(uint256 _parentIndex, Claim _claim) external payable {
-        move(_parentIndex, _claim, true);
+    function attack(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable {
+        move(_disputed, _parentIndex, _claim, true);
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function defend(uint256 _parentIndex, Claim _claim) external payable {
-        move(_parentIndex, _claim, false);
+    function defend(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable {
+        move(_disputed, _parentIndex, _claim, false);
     }
 
     /// @inheritdoc IFaultDisputeGame
@@ -322,33 +444,93 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         } else if (_ident == LocalPreimageKey.DISPUTED_OUTPUT_ROOT) {
             // Load the disputed proposal's output root
             oracle.loadLocalData(_ident, uuid.raw(), disputed.raw(), 32, _partOffset);
-        } else if (_ident == LocalPreimageKey.STARTING_L2_BLOCK_NUMBER) {
-            // Load the starting proposal's L2 block number as a big-endian uint64 in the
+        } else if (_ident == LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER) {
+            // Load the disputed proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
 
-            // If the starting position is 0 (invalid), the starting output root is genesis. Otherwise,
-            // we add the index at depth + 1 to the genesis block number to get the L2 block number.
-            uint256 l2Number = startingPos.raw() == 0
-                ? GENESIS_BLOCK_NUMBER
-                : GENESIS_BLOCK_NUMBER + startingPos.traceIndex(SPLIT_DEPTH) + 1;
+            // We add the index at depth + 1 to the starting block number to get the disputed L2
+            // block number.
+            uint256 l2Number = startingOutputRoot.l2BlockNumber + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
 
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
-            oracle.loadLocalData(_ident, uuid.raw(), bytes32(block.chainid << 0xC0), 8, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), bytes32(L2_CHAIN_ID << 0xC0), 8, _partOffset);
         } else {
             revert InvalidLocalIdent();
         }
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function l1Head() public pure returns (Hash l1Head_) {
-        l1Head_ = Hash.wrap(_getArgFixedBytes(0x20));
+    function getNumToResolve(uint256 _claimIndex) public view returns (uint256 numRemainingChildren_) {
+        ResolutionCheckpoint storage checkpoint = resolutionCheckpoints[_claimIndex];
+        uint256[] storage challengeIndices = subgames[_claimIndex];
+        uint256 challengeIndicesLen = challengeIndices.length;
+
+        numRemainingChildren_ = challengeIndicesLen - checkpoint.subgameIndex;
     }
 
     /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(0x40);
+        l2BlockNumber_ = _getArgUint256(0x54);
+    }
+
+    /// @inheritdoc IFaultDisputeGame
+    function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
+        startingBlockNumber_ = startingOutputRoot.l2BlockNumber;
+    }
+
+    /// @inheritdoc IFaultDisputeGame
+    function startingRootHash() external view returns (Hash startingRootHash_) {
+        startingRootHash_ = startingOutputRoot.root;
+    }
+
+    /// @notice Challenges the root L2 block number by providing the preimage of the output root and the L2 block header
+    ///         and showing that the committed L2 block number is incorrect relative to the claimed L2 block number.
+    /// @param _outputRootProof The output root proof.
+    /// @param _headerRLP The RLP-encoded L2 block header.
+    function challengeRootL2Block(
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes calldata _headerRLP
+    )
+        external
+    {
+        // INVARIANT: Moves cannot be made unless the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
+
+        // The root L2 block claim can only be challenged once.
+        if (l2BlockNumberChallenged) revert L2BlockNumberChallenged();
+
+        // Verify the output root preimage.
+        if (Hashing.hashOutputRootProof(_outputRootProof) != rootClaim().raw()) revert InvalidOutputRootProof();
+
+        // Verify the block hash preimage.
+        if (keccak256(_headerRLP) != _outputRootProof.latestBlockhash) revert InvalidHeaderRLP();
+
+        // Decode the header RLP to find the number of the block. In the consensus encoding, the timestamp
+        // is the 9th element in the list that represents the block header.
+        RLPReader.RLPItem[] memory headerContents = RLPReader.readList(RLPReader.toRLPItem(_headerRLP));
+        bytes memory rawBlockNumber = RLPReader.readBytes(headerContents[HEADER_BLOCK_NUMBER_INDEX]);
+
+        // Sanity check the block number string length.
+        if (rawBlockNumber.length > 32) revert InvalidHeaderRLP();
+
+        // Convert the raw, left-aligned block number to a uint256 by aligning it as a big-endian
+        // number in the low-order bytes of a 32-byte word.
+        //
+        // SAFETY: The length of `rawBlockNumber` is checked above to ensure it is at most 32 bytes.
+        uint256 blockNumber;
+        assembly {
+            blockNumber := shr(shl(0x03, sub(0x20, mload(rawBlockNumber))), mload(add(rawBlockNumber, 0x20)))
+        }
+
+        // Ensure the block number does not match the block number claimed in the dispute game.
+        if (blockNumber == l2BlockNumber()) revert BlockNumberMatches();
+
+        // Issue a special counter to the root claim. This counter will always win the root claim subgame, and receive
+        // the bond from the root claimant.
+        l2BlockNumberChallenger = msg.sender;
+        l2BlockNumberChallenged = true;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -356,46 +538,42 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IDisputeGame
-    function gameType() public view override returns (GameType gameType_) {
-        gameType_ = GAME_TYPE;
-    }
-
-    /// @inheritdoc IDisputeGame
     function resolve() external returns (GameStatus status_) {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // INVARIANT: Resolution cannot occur unless the absolute root subgame has been resolved.
-        if (!subgameAtRootResolved) revert OutOfOrderResolution();
+        if (!resolvedSubgames[0]) revert OutOfOrderResolution();
 
         // Update the global game status; The dispute has concluded.
         status_ = claimData[0].counteredBy == address(0) ? GameStatus.DEFENDER_WINS : GameStatus.CHALLENGER_WINS;
         resolvedAt = Timestamp.wrap(uint64(block.timestamp));
 
+        // Update the status and emit the resolved event, note that we're performing an assignment here.
         emit Resolved(status = status_);
+
+        // Try to update the anchor state, this should not revert.
+        ANCHOR_STATE_REGISTRY.tryUpdateAnchorState();
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function resolveClaim(uint256 _claimIndex) external payable {
+    function resolveClaim(uint256 _claimIndex, uint256 _numToResolve) external {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-        ClaimData storage parent = claimData[_claimIndex];
+        ClaimData storage subgameRootClaim = claimData[_claimIndex];
+        Duration challengeClockDuration = getChallengerDuration(_claimIndex);
 
-        // INVARIANT: Cannot resolve a subgame unless the clock of its root has expired
-        uint64 parentClockDuration = parent.clock.duration().raw();
-        uint64 timeSinceParentMove = uint64(block.timestamp) - parent.clock.timestamp().raw();
-        if (parentClockDuration + timeSinceParentMove <= GAME_DURATION.raw() >> 1) {
-            revert ClockNotExpired();
-        }
+        // INVARIANT: Cannot resolve a subgame unless the clock of its would-be counter has expired
+        // INVARIANT: Assuming ordered subgame resolution, challengeClockDuration is always >= MAX_CLOCK_DURATION if all
+        // descendant subgames are resolved
+        if (challengeClockDuration.raw() < MAX_CLOCK_DURATION.raw()) revert ClockNotExpired();
+
+        // INVARIANT: Cannot resolve a subgame twice.
+        if (resolvedSubgames[_claimIndex]) revert ClaimAlreadyResolved();
 
         uint256[] storage challengeIndices = subgames[_claimIndex];
         uint256 challengeIndicesLen = challengeIndices.length;
-
-        // INVARIANT: Cannot resolve subgames twice
-        if (_claimIndex == 0 && subgameAtRootResolved) {
-            revert ClaimAlreadyResolved();
-        }
 
         // Uncontested claims are resolved implicitly unless they are the root claim. Pay out the bond to the claimant
         // and return early.
@@ -404,20 +582,33 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // `counteredBy` field is set and there are no subgames, this implies that the parent claim was successfully
             // stepped against. In this case, we pay out the bond to the party that stepped against the parent claim.
             // Otherwise, the parent claim is uncontested, and the bond is returned to the claimant.
-            address counteredBy = parent.counteredBy;
-            address recipient = counteredBy == address(0) ? parent.claimant : counteredBy;
-            _distributeBond(recipient, parent);
+            address counteredBy = subgameRootClaim.counteredBy;
+            address recipient = counteredBy == address(0) ? subgameRootClaim.claimant : counteredBy;
+            _distributeBond(recipient, subgameRootClaim);
+            resolvedSubgames[_claimIndex] = true;
             return;
         }
 
+        // Fetch the resolution checkpoint from storage.
+        ResolutionCheckpoint memory checkpoint = resolutionCheckpoints[_claimIndex];
+
+        // If the checkpoint does not currently exist, initialize the current left most position as max u128.
+        if (!checkpoint.initialCheckpointComplete) {
+            checkpoint.leftmostPosition = Position.wrap(type(uint128).max);
+            checkpoint.initialCheckpointComplete = true;
+
+            // If `_numToResolve == 0`, assume that we can check all child subgames in this one callframe.
+            if (_numToResolve == 0) _numToResolve = challengeIndicesLen;
+        }
+
         // Assume parent is honest until proven otherwise
-        address countered = address(0);
-        Position leftmostCounter = Position.wrap(type(uint128).max);
-        for (uint256 i = 0; i < challengeIndicesLen; ++i) {
+        uint256 lastToResolve = checkpoint.subgameIndex + _numToResolve;
+        uint256 finalCursor = lastToResolve > challengeIndicesLen ? challengeIndicesLen : lastToResolve;
+        for (uint256 i = checkpoint.subgameIndex; i < finalCursor; i++) {
             uint256 challengeIndex = challengeIndices[i];
 
             // INVARIANT: Cannot resolve a subgame containing an unresolved claim
-            if (subgames[challengeIndex].length != 0) revert OutOfOrderResolution();
+            if (!resolvedSubgames[challengeIndex]) revert OutOfOrderResolution();
 
             ClaimData storage claim = claimData[challengeIndex];
 
@@ -427,39 +618,71 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // from countering invalid subgame roots via an invalid defense position. As such positions
             // cannot be correctly countered.
             // Note that correctly positioned defense, but invalid claimes can still be successfully countered.
-            if (claim.counteredBy == address(0) && leftmostCounter.raw() > claim.position.raw()) {
-                countered = claim.claimant;
-                leftmostCounter = claim.position;
+            if (claim.counteredBy == address(0) && checkpoint.leftmostPosition.raw() > claim.position.raw()) {
+                checkpoint.counteredBy = claim.claimant;
+                checkpoint.leftmostPosition = claim.position;
             }
         }
 
-        // If the parent was not successfully countered, pay out the parent's bond to the claimant.
-        // If the parent was successfully countered, pay out the parent's bond to the challenger.
-        _distributeBond(countered == address(0) ? parent.claimant : countered, parent);
+        // Increase the checkpoint's cursor position by the number of children that were checked.
+        checkpoint.subgameIndex = uint32(finalCursor);
 
-        // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
-        // resolveClaim will not need to traverse this subgame.
-        parent.counteredBy = countered;
+        // Persist the checkpoint and allow for continuing in a separate transaction, if resolution is not already
+        // complete.
+        resolutionCheckpoints[_claimIndex] = checkpoint;
 
-        // Resolved subgames have no entries
-        delete subgames[_claimIndex];
+        // If all children have been traversed in the above loop, the subgame may be resolved. Otherwise, persist the
+        // checkpoint and allow for continuation in a separate transaction.
+        if (checkpoint.subgameIndex == challengeIndicesLen) {
+            address countered = checkpoint.counteredBy;
 
-        // Indicate the game is ready to be resolved globally.
-        if (_claimIndex == 0) {
-            subgameAtRootResolved = true;
+            // Mark the subgame as resolved.
+            resolvedSubgames[_claimIndex] = true;
+
+            // Distribute the bond to the appropriate party.
+            if (_claimIndex == 0 && l2BlockNumberChallenged) {
+                // Special case: If the root claim has been challenged with the `challengeRootL2Block` function,
+                // the bond is always paid out to the issuer of that challenge.
+                address challenger = l2BlockNumberChallenger;
+                _distributeBond(challenger, subgameRootClaim);
+                subgameRootClaim.counteredBy = challenger;
+            } else {
+                // If the parent was not successfully countered, pay out the parent's bond to the claimant.
+                // If the parent was successfully countered, pay out the parent's bond to the challenger.
+                _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
+
+                // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
+                // resolveClaim will not need to traverse this subgame.
+                subgameRootClaim.counteredBy = countered;
+            }
         }
     }
 
     /// @inheritdoc IDisputeGame
+    function gameType() public view override returns (GameType gameType_) {
+        gameType_ = GAME_TYPE;
+    }
+
+    /// @inheritdoc IDisputeGame
+    function gameCreator() public pure returns (address creator_) {
+        creator_ = _getArgAddress(0x00);
+    }
+
+    /// @inheritdoc IDisputeGame
     function rootClaim() public pure returns (Claim rootClaim_) {
-        rootClaim_ = Claim.wrap(_getArgFixedBytes(0x00));
+        rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
+    }
+
+    /// @inheritdoc IDisputeGame
+    function l1Head() public pure returns (Hash l1Head_) {
+        l1Head_ = Hash.wrap(_getArgBytes32(0x34));
     }
 
     /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
-        extraData_ = _getArgDynBytes(0x40, 0x20);
+        extraData_ = _getArgBytes(0x54, 0x20);
     }
 
     /// @inheritdoc IDisputeGame
@@ -473,71 +696,50 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     //                       MISC EXTERNAL                        //
     ////////////////////////////////////////////////////////////////
 
-    /// @inheritdoc IInitializable
-    function initialize() public payable virtual {
-        // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
-        // prevent the game from being created.
-        //
-        // Implicit assumptions:
-        // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
-        // - The dispute game factory will enforce the required bond to initialize the game.
-        //
-        // Explicit checks:
-        // - The game must not have already been initialized.
-        // - An output root cannot be proposed at or before the genesis block.
-
-        // INVARIANT: The game must not have already been initialized.
-        if (initialized) revert AlreadyInitialized();
-
-        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
-        // configured genesis block number.
-        if (l2BlockNumber() <= GENESIS_BLOCK_NUMBER) revert UnexpectedRootClaim(rootClaim());
-
-        // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
-        // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
-        // but are not used by the game, which would allow for multiple dispute games for the same output proposal to
-        // be created.
-        // Expected length: 0x66 (0x04 selector + 0x20 root claim + 0x20 l1 head + 0x20 extraData + 0x02 CWIA bytes)
-        assembly {
-            if gt(calldatasize(), 0x66) {
-                // Store the selector for `ExtraDataTooLong()` & revert
-                mstore(0x00, 0xc407e025)
-                revert(0x1C, 0x04)
-            }
-        }
-
-        // Set the root claim
-        claimData.push(
-            ClaimData({
-                parentIndex: type(uint32).max,
-                counteredBy: address(0),
-                claimant: tx.origin,
-                bond: uint128(msg.value),
-                claim: rootClaim(),
-                position: ROOT_POSITION,
-                clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp)))
-            })
-        );
-
-        // Set the game's starting timestamp
-        createdAt = Timestamp.wrap(uint64(block.timestamp));
-
-        // Set the game as initialized.
-        initialized = true;
-    }
-
-    /// @notice Returns the length of the `claimData` array.
-    function claimDataLen() external view returns (uint256 len_) {
-        len_ = claimData.length;
-    }
-
     /// @notice Returns the required bond for a given move kind.
     /// @param _position The position of the bonded interaction.
     /// @return requiredBond_ The required ETH bond for the given move, in wei.
-    function getRequiredBond(Position _position) public pure returns (uint256 requiredBond_) {
-        // TODO(client-pod#551): For now use a non-zero bond amount to unblock functional tests.
-        _position;
-        requiredBond_ = 0.01 ether;
+    function getRequiredBond(Position _position) public view returns (uint256 requiredBond_) {
+        uint256 depth = uint256(_position.depth());
+        if (depth > MAX_GAME_DEPTH) revert GameDepthExceeded();
+
+        // Values taken from Big Bonds v1.5 (TM) spec.
+        uint256 assumedBaseFee = 200 gwei;
+        uint256 baseGasCharged = 400_000;
+        uint256 highGasCharged = 300_000_000;
+
+        // Goal here is to compute the fixed multiplier that will be applied to the base gas
+        // charged to get the required gas amount for the given depth. We apply this multiplier
+        // some `n` times where `n` is the depth of the position. We are looking for some number
+        // that, when multiplied by itself `MAX_GAME_DEPTH` times and then multiplied by the base
+        // gas charged, will give us the maximum gas that we want to charge.
+        // We want to solve for (highGasCharged/baseGasCharged) ** (1/MAX_GAME_DEPTH).
+        // We know that a ** (b/c) is equal to e ** (ln(a) * (b/c)).
+        // We can compute e ** (ln(a) * (b/c)) quite easily with FixedPointMathLib.
+
+        // Set up a, b, and c.
+        uint256 a = highGasCharged / baseGasCharged;
+        uint256 b = FixedPointMathLib.WAD;
+        uint256 c = MAX_GAME_DEPTH * FixedPointMathLib.WAD;
+
+        // Compute ln(a).
+        // slither-disable-next-line divide-before-multiply
+        uint256 lnA = uint256(FixedPointMathLib.lnWad(int256(a * FixedPointMathLib.WAD)));
+
+        // Computes (b / c) with full precision using WAD = 1e18.
+        uint256 bOverC = FixedPointMathLib.divWad(b, c);
+
+        // Compute e ** (ln(a) * (b/c))
+        // sMulWad can be used here since WAD = 1e18 maintains the same precision.
+        uint256 numerator = FixedPointMathLib.mulWad(lnA, bOverC);
+        int256 base = FixedPointMathLib.expWad(int256(numerator));
+
+        // Compute the required gas amount.
+        int256 rawGas = FixedPointMathLib.powWad(base, int256(depth * FixedPointMathLib.WAD));
+        uint256 requiredGas = FixedPointMathLib.mulWad(baseGasCharged, uint256(rawGas));
+
+        // Compute the required bond.
+        requiredBond_ = assumedBaseFee * requiredGas;
     }
 
     /// @notice Claim the credit belonging to the recipient address.
@@ -547,15 +749,45 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         uint256 recipientCredit = credit[_recipient];
         credit[_recipient] = 0;
 
+        // Revert if the recipient has no credit to claim.
+        if (recipientCredit == 0) revert NoCreditToClaim();
+
+        // Try to withdraw the WETH amount so it can be used here.
+        WETH.withdraw(_recipient, recipientCredit);
+
         // Transfer the credit to the recipient.
         (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
         if (!success) revert BondTransferFailed();
     }
 
-    /// @notice Returns the flag set in the `bond` field of a `ClaimData` struct to indicate that the bond has been
-    ///         claimed.
-    function claimedBondFlag() external pure returns (uint128 claimedBondFlag_) {
-        claimedBondFlag_ = CLAIMED_BOND_FLAG;
+    /// @notice Returns the amount of time elapsed on the potential challenger to `_claimIndex`'s chess clock. Maxes
+    ///         out at `MAX_CLOCK_DURATION`.
+    /// @param _claimIndex The index of the subgame root claim.
+    /// @return duration_ The time elapsed on the potential challenger to `_claimIndex`'s chess clock.
+    function getChallengerDuration(uint256 _claimIndex) public view returns (Duration duration_) {
+        // INVARIANT: The game must be in progress to query the remaining time to respond to a given claim.
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
+        // Fetch the subgame root claim.
+        ClaimData storage subgameRootClaim = claimData[_claimIndex];
+
+        // Fetch the parent of the subgame root's clock, if it exists.
+        Clock parentClock;
+        if (subgameRootClaim.parentIndex != type(uint32).max) {
+            parentClock = claimData[subgameRootClaim.parentIndex].clock;
+        }
+
+        // Compute the duration elapsed of the potential challenger's clock.
+        uint64 challengeDuration =
+            uint64(parentClock.duration().raw() + (block.timestamp - subgameRootClaim.clock.timestamp().raw()));
+        duration_ = challengeDuration > MAX_CLOCK_DURATION.raw() ? MAX_CLOCK_DURATION : Duration.wrap(challengeDuration);
+    }
+
+    /// @notice Returns the length of the `claimData` array.
+    function claimDataLen() external view returns (uint256 len_) {
+        len_ = claimData.length;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -577,9 +809,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         splitDepth_ = SPLIT_DEPTH;
     }
 
-    /// @notice Returns the game duration.
-    function gameDuration() external view returns (Duration gameDuration_) {
-        gameDuration_ = GAME_DURATION;
+    /// @notice Returns the max clock duration.
+    function maxClockDuration() external view returns (Duration maxClockDuration_) {
+        maxClockDuration_ = MAX_CLOCK_DURATION;
+    }
+
+    /// @notice Returns the clock extension constant.
+    function clockExtension() external view returns (Duration clockExtension_) {
+        clockExtension_ = CLOCK_EXTENSION;
     }
 
     /// @notice Returns the address of the VM.
@@ -587,14 +824,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         vm_ = VM;
     }
 
-    /// @notice Returns the genesis block number.
-    function genesisBlockNumber() external view returns (uint256 genesisBlockNumber_) {
-        genesisBlockNumber_ = GENESIS_BLOCK_NUMBER;
+    /// @notice Returns the WETH contract for holding ETH.
+    function weth() external view returns (IDelayedWETH weth_) {
+        weth_ = WETH;
     }
 
-    /// @notice Returns the genesis output root.
-    function genesisOutputRoot() external view returns (Hash genesisOutputRoot_) {
-        genesisOutputRoot_ = GENESIS_OUTPUT_ROOT;
+    /// @notice Returns the anchor state registry contract.
+    function anchorStateRegistry() external view returns (IAnchorStateRegistry registry_) {
+        registry_ = ANCHOR_STATE_REGISTRY;
+    }
+
+    /// @notice Returns the chain ID of the L2 network this contract argues about.
+    function l2ChainId() external view returns (uint256 l2ChainId_) {
+        l2ChainId_ = L2_CHAIN_ID;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -607,11 +849,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     function _distributeBond(address _recipient, ClaimData storage _bonded) internal {
         // Set all bits in the bond value to indicate that the bond has been paid out.
         uint256 bond = _bonded.bond;
-        if (bond == CLAIMED_BOND_FLAG) revert ClaimAlreadyResolved();
-        _bonded.bond = CLAIMED_BOND_FLAG;
 
         // Increase the recipient's credit.
         credit[_recipient] += bond;
+
+        // Unlock the bond.
+        WETH.unlock(_recipient, bond);
     }
 
     /// @notice Verifies the integrity of an execution bisection subgame's root claim. Reverts if the claim
@@ -729,14 +972,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // 2. If it was a defense, the starting output root is `claim`, and the disputed output root is
         //    elsewhere in the DAG (it must commit to the block # index at depth of `outputPos + 1`).
         if (wasAttack) {
-            // If this is an attack on the first output root (the block directly after genesis), the
-            // starting claim nor position exists in the tree. We leave these as 0, which can be easily
-            // identified due to 0 being an invalid Gindex.
+            // If this is an attack on the first output root (the block directly after the starting
+            // block number), the starting claim nor position exists in the tree. We leave these as
+            // 0, which can be easily identified due to 0 being an invalid Gindex.
             if (outputPos.indexAtDepth() > 0) {
                 ClaimData storage starting = _findTraceAncestor(Position.wrap(outputPos.raw() - 1), claimIdx, true);
                 (startingClaim_, startingPos_) = (starting.claim, starting.position);
             } else {
-                startingClaim_ = Claim.wrap(GENESIS_OUTPUT_ROOT.raw());
+                startingClaim_ = Claim.wrap(startingOutputRoot.root.raw());
             }
             (disputedClaim_, disputedPos_) = (claim.claim, claim.position);
         } else {
@@ -773,10 +1016,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     {
         // A position of 0 indicates that the starting claim is the absolute prestate. In this special case,
         // we do not include the starting claim within the local context hash.
-        if (_startingPos.raw() == 0) {
-            uuid_ = Hash.wrap(keccak256(abi.encode(_disputed, _disputedPos)));
-        } else {
-            uuid_ = Hash.wrap(keccak256(abi.encode(_starting, _startingPos, _disputed, _disputedPos)));
-        }
+        uuid_ = _startingPos.raw() == 0
+            ? Hash.wrap(keccak256(abi.encode(_disputed, _disputedPos)))
+            : Hash.wrap(keccak256(abi.encode(_starting, _startingPos, _disputed, _disputedPos)));
     }
 }

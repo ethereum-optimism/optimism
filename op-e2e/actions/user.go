@@ -18,14 +18,16 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 type L1Bindings struct {
@@ -442,13 +444,13 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 
 	header, err := s.L2.env.EthCl.HeaderByNumber(t.Ctx(), l2OutputBlockNr)
 	require.NoError(t, err)
-	params, err := withdrawals.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header, &s.L1.env.Bindings.L2OutputOracle.L2OutputOracleCaller, &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal.OptimismPortalCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
+	params, err := e2e.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header, &s.L1.env.Bindings.L2OutputOracle.L2OutputOracleCaller, &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
 	require.NoError(t, err)
 
 	return &params, nil
 }
 
-func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWithdrawalParameters) (*bindings.FaultDisputeGame, error) {
+func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWithdrawalParameters) (*legacybindings.FaultDisputeGame, error) {
 	wd := crossdomain.Withdrawal{
 		Nonce:    params.Nonce,
 		Sender:   &params.Sender,
@@ -464,11 +466,11 @@ func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWith
 	wdHash, err := wd.Hash()
 	require.Nil(t, err)
 
-	game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash)
+	game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash, s.L1.address)
 	require.Nil(t, err)
 	require.NotNil(t, game, "withdrawal should be proven")
 
-	proxy, err := bindings.NewFaultDisputeGame(game.DisputeGameProxy, s.L1.env.EthCl)
+	proxy, err := legacybindings.NewFaultDisputeGame(game.DisputeGameProxy, s.L1.env.EthCl)
 	require.Nil(t, err)
 
 	return proxy, nil
@@ -563,11 +565,11 @@ func (s *CrossLayerUser) ResolveClaim(t Testing, l2TxHash common.Hash) common.Ha
 	game, err := s.getDisputeGame(t, *params)
 	require.NoError(t, err)
 
-	expiry, err := game.GameDuration(&bind.CallOpts{})
+	expiry, err := game.MaxClockDuration(&bind.CallOpts{})
 	require.Nil(t, err)
 
 	time.Sleep(time.Duration(expiry) * time.Second)
-	resolveClaimTx, err := game.ResolveClaim(&s.L1.txOpts, common.Big0)
+	resolveClaimTx, err := game.ResolveClaim(&s.L1.txOpts, common.Big0, common.Big0)
 	require.Nil(t, err)
 
 	err = s.L1.env.EthCl.SendTransaction(t.Ctx(), resolveClaimTx)

@@ -6,13 +6,13 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ func simulatedBackend() (privateKey *ecdsa.PrivateKey, address common.Address, o
 	if err != nil {
 		return nil, common.Address{}, nil, nil, err
 	}
-	backend = backends.NewSimulatedBackend(core.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000)
+	backend = backends.NewSimulatedBackend(types.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000) // nolint:staticcheck
 
 	return privateKey, from, opts, backend, nil
 }
@@ -80,7 +80,7 @@ func TestManualABIPacking(t *testing.T) {
 	txData, err := proposeL2OutputTxData(l2ooAbi, output)
 	require.NoError(t, err)
 
-	// set a gas limit to disable gas estimation. The invariantes that the L2OO tries to uphold
+	// set a gas limit to disable gas estimation. The invariants that the L2OO tries to uphold
 	// are not maintained in this test.
 	opts.GasLimit = 100_000
 	tx, err := l2oo.ProposeL2Output(

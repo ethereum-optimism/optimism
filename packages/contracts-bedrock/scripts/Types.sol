@@ -8,6 +8,8 @@ library Types {
         address L1StandardBridge;
         address L2OutputOracle;
         address DisputeGameFactory;
+        address DelayedWETH;
+        address AnchorStateRegistry;
         address OptimismMintableERC20Factory;
         address OptimismPortal;
         address OptimismPortal2;

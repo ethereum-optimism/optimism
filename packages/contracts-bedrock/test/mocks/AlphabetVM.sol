@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { PreimageOracle, PreimageKeyLib } from "src/cannon/PreimageOracle.sol";
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title AlphabetVM
 /// @dev A mock VM for the purpose of testing the dispute game infrastructure. Note that this only works
@@ -32,9 +32,9 @@ contract AlphabetVM is IBigStepper {
         if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
             // If the state data is empty, then the absolute prestate is the claim.
             (bytes32 dat,) = oracle.readPreimage(
-                PreimageKeyLib.localizeIdent(LocalPreimageKey.STARTING_L2_BLOCK_NUMBER, _localContext), 0
+                PreimageKeyLib.localizeIdent(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, _localContext), 0
             );
-            uint256 startingL2BlockNumber = (uint256(dat) >> 128) & 0xFFFFFFFF;
+            uint256 startingL2BlockNumber = ((uint256(dat) >> 128) & 0xFFFFFFFF) - 1;
             traceIndex = startingL2BlockNumber << 4;
             (uint256 absolutePrestateClaim) = abi.decode(_stateData, (uint256));
             claim = absolutePrestateClaim + traceIndex;

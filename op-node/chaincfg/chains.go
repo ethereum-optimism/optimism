@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-var Mainnet, Goerli, Sepolia *rollup.Config
+var Mainnet, Sepolia *rollup.Config
 
 func init() {
 	mustCfg := func(name string) *rollup.Config {
@@ -20,7 +20,6 @@ func init() {
 		return cfg
 	}
 	Mainnet = mustCfg("op-mainnet")
-	Goerli = mustCfg("op-goerli")
 	Sepolia = mustCfg("op-sepolia")
 }
 
@@ -43,23 +42,10 @@ func AvailableNetworks() []string {
 
 func handleLegacyName(name string) string {
 	switch name {
-	case "goerli":
-		return "op-goerli"
 	case "mainnet":
 		return "op-mainnet"
 	case "sepolia":
 		return "op-sepolia"
-	default:
-		return name
-	}
-}
-
-func handleBobaSuperchainName(name string) string {
-	switch name {
-	case "boba-sepolia":
-		return "boba-boba-sepolia"
-	case "boba-mainnet":
-		return "boba-boba-mainnet"
 	default:
 		return name
 	}
@@ -70,8 +56,6 @@ func handleBobaSuperchainName(name string) string {
 func ChainByName(name string) *superchain.ChainConfig {
 	// Handle legacy name aliases
 	name = handleLegacyName(name)
-	// Handle boba superchain name
-	name = handleBobaSuperchainName(name)
 	for _, chainCfg := range superchain.OPChains {
 		if strings.EqualFold(chainCfg.Chain+"-"+chainCfg.Superchain, name) {
 			return chainCfg

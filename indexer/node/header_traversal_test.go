@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
-	"github.com/stretchr/testify/mock"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -34,7 +34,8 @@ func makeHeaders(numHeaders uint64, prevHeader *types.Header) []types.Header {
 }
 
 func TestHeaderTraversalNextHeadersNoOp(t *testing.T) {
-	client := new(MockEthClient)
+	client := &testutils.MockClient{}
+	t.Cleanup(func() { client.AssertExpectations(t) })
 
 	// start from block 10 as the latest fetched block
 	LastTraversedHeader := &types.Header{Number: big.NewInt(10)}
@@ -44,7 +45,7 @@ func TestHeaderTraversalNextHeadersNoOp(t *testing.T) {
 	require.NotNil(t, headerTraversal.LastTraversedHeader())
 
 	// no new headers when matched with head
-	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(LastTraversedHeader, nil)
+	client.ExpectHeaderByNumber(nil, LastTraversedHeader, nil)
 	headers, err := headerTraversal.NextHeaders(100)
 	require.NoError(t, err)
 	require.Empty(t, headers)
@@ -55,16 +56,25 @@ func TestHeaderTraversalNextHeadersNoOp(t *testing.T) {
 }
 
 func TestHeaderTraversalNextHeadersCursored(t *testing.T) {
-	client := new(MockEthClient)
+	client := &testutils.MockClient{}
+	t.Cleanup(func() { client.AssertExpectations(t) })
 
-	// start from genesis
+	rpc := &testutils.MockRPC{}
+	client.Mock.On("RPC").Return(rpc)
+	t.Cleanup(func() { rpc.AssertExpectations(t) })
+
+	// start from genesis, 7 available headers
 	headerTraversal := NewHeaderTraversal(client, nil, bigint.Zero)
+	client.ExpectHeaderByNumber(nil, &types.Header{Number: big.NewInt(7)}, nil)
 
 	headers := makeHeaders(10, nil)
+	rpcElems := makeHeaderRpcElems(headers[0].Number, headers[9].Number)
+	for i := 0; i < len(rpcElems); i++ {
+		rpcElems[i].Result = &headers[i]
+	}
 
-	// blocks [0..4]. Latest reported is 7
-	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&headers[7], nil).Times(1) // Times so that we can override next
-	client.On("BlockHeadersByRange", mock.MatchedBy(bigint.Matcher(0)), mock.MatchedBy(bigint.Matcher(4))).Return(headers[:5], nil)
+	// traverse blocks [0..4]. Latest reported is 7
+	rpc.ExpectBatchCallContext(rpcElems[:5], nil)
 	_, err := headerTraversal.NextHeaders(5)
 	require.NoError(t, err)
 
@@ -72,8 +82,8 @@ func TestHeaderTraversalNextHeadersCursored(t *testing.T) {
 	require.Equal(t, uint64(4), headerTraversal.LastTraversedHeader().Number.Uint64())
 
 	// blocks [5..9]. Latest Reported is 9
-	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&headers[9], nil)
-	client.On("BlockHeadersByRange", mock.MatchedBy(bigint.Matcher(5)), mock.MatchedBy(bigint.Matcher(9))).Return(headers[5:], nil)
+	client.ExpectHeaderByNumber(nil, &headers[9], nil)
+	rpc.ExpectBatchCallContext(rpcElems[5:], nil)
 	_, err = headerTraversal.NextHeaders(5)
 	require.NoError(t, err)
 
@@ -82,17 +92,25 @@ func TestHeaderTraversalNextHeadersCursored(t *testing.T) {
 }
 
 func TestHeaderTraversalNextHeadersMaxSize(t *testing.T) {
-	client := new(MockEthClient)
+	client := &testutils.MockClient{}
+	t.Cleanup(func() { client.AssertExpectations(t) })
 
-	// start from genesis
+	rpc := &testutils.MockRPC{}
+	client.Mock.On("RPC").Return(rpc)
+	t.Cleanup(func() { rpc.AssertExpectations(t) })
+
+	// start from genesis, 100 available headers
 	headerTraversal := NewHeaderTraversal(client, nil, bigint.Zero)
+	client.ExpectHeaderByNumber(nil, &types.Header{Number: big.NewInt(100)}, nil)
 
-	// 100 "available" headers
-	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(100)}, nil)
-
-	// clamped by the supplied size
 	headers := makeHeaders(5, nil)
-	client.On("BlockHeadersByRange", mock.MatchedBy(bigint.Matcher(0)), mock.MatchedBy(bigint.Matcher(4))).Return(headers, nil)
+	rpcElems := makeHeaderRpcElems(headers[0].Number, headers[4].Number)
+	for i := 0; i < len(rpcElems); i++ {
+		rpcElems[i].Result = &headers[i]
+	}
+
+	// traverse only 5 headers [0..4]
+	rpc.ExpectBatchCallContext(rpcElems, nil)
 	headers, err := headerTraversal.NextHeaders(5)
 	require.NoError(t, err)
 	require.Len(t, headers, 5)
@@ -101,8 +119,14 @@ func TestHeaderTraversalNextHeadersMaxSize(t *testing.T) {
 	require.Equal(t, uint64(4), headerTraversal.LastTraversedHeader().Number.Uint64())
 
 	// clamped by the supplied size. FinalizedHeight == 100
+	client.ExpectHeaderByNumber(nil, &types.Header{Number: big.NewInt(100)}, nil)
 	headers = makeHeaders(10, &headers[len(headers)-1])
-	client.On("BlockHeadersByRange", mock.MatchedBy(bigint.Matcher(5)), mock.MatchedBy(bigint.Matcher(14))).Return(headers, nil)
+	rpcElems = makeHeaderRpcElems(headers[0].Number, headers[9].Number)
+	for i := 0; i < len(rpcElems); i++ {
+		rpcElems[i].Result = &headers[i]
+	}
+
+	rpc.ExpectBatchCallContext(rpcElems, nil)
 	headers, err = headerTraversal.NextHeaders(10)
 	require.NoError(t, err)
 	require.Len(t, headers, 10)
@@ -112,24 +136,43 @@ func TestHeaderTraversalNextHeadersMaxSize(t *testing.T) {
 }
 
 func TestHeaderTraversalMismatchedProviderStateError(t *testing.T) {
-	client := new(MockEthClient)
+	client := &testutils.MockClient{}
+	t.Cleanup(func() { client.AssertExpectations(t) })
+
+	rpc := &testutils.MockRPC{}
+	client.Mock.On("RPC").Return(rpc)
+	t.Cleanup(func() { rpc.AssertExpectations(t) })
 
 	// start from genesis
 	headerTraversal := NewHeaderTraversal(client, nil, bigint.Zero)
 
 	// blocks [0..4]
 	headers := makeHeaders(5, nil)
-	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&headers[4], nil).Times(1) // Times so that we can override next
-	client.On("BlockHeadersByRange", mock.MatchedBy(bigint.Matcher(0)), mock.MatchedBy(bigint.Matcher(4))).Return(headers, nil)
+	rpcElems := makeHeaderRpcElems(headers[0].Number, headers[4].Number)
+	for i := 0; i < len(rpcElems); i++ {
+		rpcElems[i].Result = &headers[i]
+	}
+
+	client.ExpectHeaderByNumber(nil, &headers[4], nil)
+	rpc.ExpectBatchCallContext(rpcElems, nil)
 	headers, err := headerTraversal.NextHeaders(5)
 	require.NoError(t, err)
 	require.Len(t, headers, 5)
 
-	// blocks [5..9]. Next batch is not chained correctly (starts again from genesis)
-	headers = makeHeaders(5, nil)
-	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(9)}, nil)
-	client.On("BlockHeadersByRange", mock.MatchedBy(bigint.Matcher(5)), mock.MatchedBy(bigint.Matcher(9))).Return(headers, nil)
-	headers, err = headerTraversal.NextHeaders(5)
+	// Build on the wrong previous header, corrupting hashes
+	prevHeader := headers[len(headers)-2]
+	prevHeader.Number = headers[len(headers)-1].Number
+	headers = makeHeaders(5, &prevHeader)
+	rpcElems = makeHeaderRpcElems(headers[0].Number, headers[4].Number)
+	for i := 0; i < len(rpcElems); i++ {
+		rpcElems[i].Result = &headers[i]
+	}
+
+	// More headers are available (Latest == 9), but the mismatches will the last
+	// traversed header
+	client.ExpectHeaderByNumber(nil, &types.Header{Number: big.NewInt(9)}, nil)
+	rpc.ExpectBatchCallContext(rpcElems[:2], nil)
+	headers, err = headerTraversal.NextHeaders(2)
 	require.Nil(t, headers)
 	require.Equal(t, ErrHeaderTraversalAndProviderMismatchedState, err)
 }

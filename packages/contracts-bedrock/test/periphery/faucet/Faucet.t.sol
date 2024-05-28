@@ -99,7 +99,7 @@ contract Faucet_Initializer is Test {
 }
 
 contract FaucetTest is Faucet_Initializer {
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         assertEq(faucet.ADMIN(), faucetContractAdmin);
     }
 

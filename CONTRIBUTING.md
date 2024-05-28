@@ -37,19 +37,6 @@ Once ready for review, make sure to include a thorough PR description to help re
 ### Response time:
 We aim to provide a meaningful response to all PRs and issues from external contributors within 2 business days.
 
-### Changesets
-
-We use [changesets](https://github.com/atlassian/changesets) to manage releases of our various packages.
-You *must* include a `changeset` file in your PR when making a change that would require a new package release.
-
-Adding a `changeset` file is easy:
-
-1. Navigate to the root of the monorepo.
-2. Run `pnpm changeset`. You'll be prompted to select packages to include in the changeset. Use the arrow keys to move the cursor up and down, hit the `spacebar` to select a package, and hit `enter` to confirm your selection. Select *all* packages that require a new release as a result of your PR.
-3. Once you hit `enter` you'll be prompted to decide whether your selected packages need a `major`, `minor`, or `patch` release. We follow the [Semantic Versioning](https://semver.org/) scheme. Please avoid using `major` releases for any packages that are still in version `0.y.z`.
-4. Commit your changeset and push it into your PR. The changeset bot will notice your changeset file and leave a little comment to this effect on GitHub.
-5. Voilà, c'est fini!
-
 ### Rebasing
 
 We use the `git rebase` command to keep our commit history tidy.

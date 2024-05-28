@@ -1,10 +1,10 @@
 package node
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/ethereum/go-ethereum/params"
 )

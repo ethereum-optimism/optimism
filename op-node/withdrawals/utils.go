@@ -14,10 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindingspreview"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"))
@@ -48,10 +47,32 @@ type ProvenWithdrawalParameters struct {
 	WithdrawalProof [][]byte // List of trie nodes to prove L2 storage
 }
 
-// ProveWithdrawalParameters queries L1 & L2 to generate all withdrawal parameters and proof necessary to prove a withdrawal on L1.
+// ProveWithdrawalParameters calls ProveWithdrawalParametersForBlock with the most recent L2 output after the given header.
+func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2BlockCl BlockClient, txHash common.Hash, header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller) (ProvenWithdrawalParameters, error) {
+	l2OutputIndex, err := l2OutputOracleContract.GetL2OutputIndexAfter(&bind.CallOpts{}, header.Number)
+	if err != nil {
+		return ProvenWithdrawalParameters{}, fmt.Errorf("failed to get l2OutputIndex: %w", err)
+	}
+	l2BlockNumber := header.Number
+	return ProveWithdrawalParametersForBlock(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, l2BlockNumber, l2OutputIndex)
+}
+
+// ProveWithdrawalParametersFPAC calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
+func ProveWithdrawalParametersFPAC(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2BlockCl BlockClient, txHash common.Hash, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (ProvenWithdrawalParameters, error) {
+	latestGame, err := FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract)
+	if err != nil {
+		return ProvenWithdrawalParameters{}, fmt.Errorf("failed to find latest game: %w", err)
+	}
+
+	l2BlockNumber := new(big.Int).SetBytes(latestGame.ExtraData[0:32])
+	l2OutputIndex := latestGame.Index
+	return ProveWithdrawalParametersForBlock(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, l2BlockNumber, l2OutputIndex)
+}
+
+// ProveWithdrawalParametersForBlock queries L1 & L2 to generate all withdrawal parameters and proof necessary to prove a withdrawal on L1.
 // The header provided is very important. It should be a block (timestamp) for which there is a submitted output in the L2 Output Oracle
 // contract. If not, the withdrawal will fail as it the storage proof cannot be verified if there is no submitted state root.
-func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2BlockCl BlockClient, txHash common.Hash, header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortalContract *bindings.OptimismPortalCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (ProvenWithdrawalParameters, error) {
+func ProveWithdrawalParametersForBlock(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2BlockCl BlockClient, txHash common.Hash, l2BlockNumber, l2OutputIndex *big.Int) (ProvenWithdrawalParameters, error) {
 	// Transaction receipt
 	receipt, err := l2ReceiptCl.TransactionReceipt(ctx, txHash)
 	if err != nil {
@@ -71,25 +92,6 @@ func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2Recei
 		return ProvenWithdrawalParameters{}, err
 	}
 	slot := StorageSlotOfWithdrawalHash(withdrawalHash)
-
-	var l2OutputIndex *big.Int
-	var l2BlockNumber *big.Int
-	if e2eutils.UseFPAC() {
-		latestGame, err := FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract)
-		if err != nil {
-			return ProvenWithdrawalParameters{}, fmt.Errorf("failed to find latest game: %w", err)
-		}
-
-		l2BlockNumber = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
-		l2OutputIndex = latestGame.Index
-	} else {
-		l2OutputIndex, err = l2OutputOracleContract.GetL2OutputIndexAfter(&bind.CallOpts{}, header.Number)
-		if err != nil {
-			return ProvenWithdrawalParameters{}, fmt.Errorf("failed to get l2OutputIndex: %w", err)
-		}
-
-		l2BlockNumber = header.Number
-	}
 
 	// Fetch the block from the L2 node
 	l2Block, err := l2BlockCl.BlockByNumber(ctx, l2BlockNumber)

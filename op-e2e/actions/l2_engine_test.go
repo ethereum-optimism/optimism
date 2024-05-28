@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
@@ -13,8 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie"
-	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -34,7 +35,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	genesisBlock := sd.L2Cfg.ToBlock()
 	consensus := beacon.New(ethash.NewFaker())
 	db := rawdb.NewMemoryDatabase()
-	tdb := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	sd.L2Cfg.MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
@@ -97,7 +98,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
 	db := rawdb.NewMemoryDatabase()
-	tdb := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	sd.L2Cfg.MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
@@ -192,12 +193,13 @@ func TestL2EngineAPIFail(gt *testing.T) {
 	log := testlog.Logger(t, log.LevelDebug)
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	// mock an RPC failure
-	engine.ActL2RPCFail(t)
+	mockErr := errors.New("mock L2 RPC error")
+	engine.ActL2RPCFail(t, mockErr)
 	// check RPC failure
 	l2Cl, err := sources.NewL2Client(engine.RPCClient(), log, nil, sources.L2ClientDefaultConfig(sd.RollupCfg, false))
 	require.NoError(t, err)
 	_, err = l2Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
-	require.ErrorContains(t, err, "mock")
+	require.ErrorIs(t, err, mockErr)
 	head, err := l2Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	require.Equal(gt, sd.L2Cfg.ToBlock().Hash(), head.Hash(), "expecting engine to start at genesis")

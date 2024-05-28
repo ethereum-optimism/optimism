@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/fee-estimation",
-  "version": "0.15.3",
+  "version": "0.15.4",
   "description": "Lightweight library for doing OP-Chain gas estimation",
   "license": "MIT",
   "repository": {
@@ -38,14 +38,14 @@
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react-hooks": "^8.0.1",
     "@vitest/coverage-istanbul": "^1.2.2",
-    "abitype": "^1.0.0",
+    "abitype": "^1.0.2",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^24.0.0",
     "tsup": "^8.0.1",
-    "typescript": "^5.3.3",
-    "viem": "^2.7.6",
-    "vite": "^5.0.12",
+    "typescript": "^5.4.5",
+    "viem": "^2.8.13",
+    "vite": "^5.1.7",
     "vitest": "^1.2.2"
   },
   "peerDependencies": {

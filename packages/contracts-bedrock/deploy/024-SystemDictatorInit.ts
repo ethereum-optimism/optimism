@@ -159,6 +159,8 @@ const deployFn: DeployFunction = async (hre) => {
           hre,
           'OptimismMintableERC20FactoryProxy'
         ),
+        disputeGameFactory: ethers.constants.AddressZero,
+        gasPayingToken: ethers.constants.AddressZero,
       },
     },
     protocolVersionConfig: {

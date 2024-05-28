@@ -186,6 +186,6 @@ func (h *ProxydWSClient) WriteControlMessage(msgType int, msg []byte) error {
 }
 
 func InitLogger() {
-	slog.SetDefault(slog.New(
-		log.NewTerminalHandlerWithLevel(os.Stdout, slog.LevelDebug, false)))
+	log.SetDefault(log.NewLogger(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})))
 }

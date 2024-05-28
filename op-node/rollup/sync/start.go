@@ -34,6 +34,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 type L1Chain interface {
@@ -124,6 +125,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	var ahead bool                                    // when "n", the L2 block, has a L1 origin that is not visible in our L1 chain source yet
 
 	ready := false // when we found the block after the safe head, and we just need to return the parent block.
+	bOff := retry.Exponential()
 
 	// Each loop iteration we traverse further from the unsafe head towards the finalized head.
 	// Once we pass the previous safe head and we have seen enough canonical L1 origins to fill a sequence window worth of data,
@@ -133,7 +135,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		// Fetch L1 information if we never had it, or if we do not have it for the current origin.
 		// Optimization: as soon as we have a previous L1 block, try to traverse L1 by hash instead of by number, to fill the cache.
 		if n.L1Origin.Hash == l1Block.ParentHash {
-			b, err := l1.L1BlockRefByHash(ctx, n.L1Origin.Hash)
+			b, err := retry.Do(ctx, 5, bOff, func() (eth.L1BlockRef, error) { return l1.L1BlockRefByHash(ctx, n.L1Origin.Hash) })
 			if err != nil {
 				// Exit, find-sync start should start over, to move to an available L1 chain with block-by-number / not-found case.
 				return nil, fmt.Errorf("failed to retrieve L1 block: %w", err)
@@ -142,7 +144,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			l1Block = b
 			ahead = false
 		} else if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
-			b, err := l1.L1BlockRefByNumber(ctx, n.L1Origin.Number)
+			b, err := retry.Do(ctx, 5, bOff, func() (eth.L1BlockRef, error) { return l1.L1BlockRefByNumber(ctx, n.L1Origin.Number) })
 			// if L2 is ahead of L1 view, then consider it a "plausible" head
 			notFound := errors.Is(err, ethereum.NotFound)
 			if err != nil && !notFound {
@@ -176,7 +178,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		if result.Unsafe == (eth.L2BlockRef{}) {
 			result.Unsafe = n
 			// Check we are not reorging L2 incredibly deep
-			if n.L1Origin.Number+(MaxReorgSeqWindows*cfg.SeqWindowSize) < prevUnsafe.L1Origin.Number {
+			if n.L1Origin.Number+(MaxReorgSeqWindows*cfg.SyncLookback()) < prevUnsafe.L1Origin.Number {
 				// If the reorg depth is too large, something is fishy.
 				// This can legitimately happen if L1 goes down for a while. But in that case,
 				// restarting the L2 node with a bigger configured MaxReorgDepth is an acceptable
@@ -201,7 +203,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		}
 
 		// If the L2 block is at least as old as the previous safe head, and we have seen at least a full sequence window worth of L1 blocks to confirm
-		if n.Number <= result.Safe.Number && n.L1Origin.Number+cfg.SeqWindowSize < highestL2WithCanonicalL1Origin.L1Origin.Number && n.SequenceNumber == 0 {
+		if n.Number <= result.Safe.Number && n.L1Origin.Number+cfg.SyncLookback() < highestL2WithCanonicalL1Origin.L1Origin.Number && n.SequenceNumber == 0 {
 			ready = true
 		}
 

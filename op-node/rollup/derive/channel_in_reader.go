@@ -17,15 +17,12 @@ import (
 // This is a pure function from the channel, but each channel (or channel fragment)
 // must be tagged with an L1 inclusion block to be passed to the batch queue.
 type ChannelInReader struct {
-	log log.Logger
-
-	cfg *rollup.Config
-
+	log         log.Logger
+	spec        *rollup.ChainSpec
+	cfg         *rollup.Config
 	nextBatchFn func() (*BatchData, error)
-
-	prev *ChannelBank
-
-	metrics Metrics
+	prev        *ChannelBank
+	metrics     Metrics
 }
 
 var _ ResettableStage = (*ChannelInReader)(nil)
@@ -33,6 +30,7 @@ var _ ResettableStage = (*ChannelInReader)(nil)
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
 func NewChannelInReader(cfg *rollup.Config, log log.Logger, prev *ChannelBank, metrics Metrics) *ChannelInReader {
 	return &ChannelInReader{
+		spec:    rollup.NewChainSpec(cfg),
 		cfg:     cfg,
 		log:     log,
 		prev:    prev,
@@ -46,7 +44,7 @@ func (cr *ChannelInReader) Origin() eth.L1BlockRef {
 
 // TODO: Take full channel for better logging
 func (cr *ChannelInReader) WriteChannel(data []byte) error {
-	if f, err := BatchReader(bytes.NewBuffer(data)); err == nil {
+	if f, err := BatchReader(bytes.NewBuffer(data), cr.spec.MaxRLPBytesPerChannel(cr.prev.Origin().Time), cr.cfg.IsFjord(cr.prev.Origin().Time)); err == nil {
 		cr.nextBatchFn = f
 		cr.metrics.RecordChannelInputBytes(len(data))
 		return nil

@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/bonds"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -36,11 +37,13 @@ type Service struct {
 	cl clock.Clock
 
 	extractor    *extract.Extractor
-	forecast     *forecast
+	forecast     *Forecast
+	bonds        *bonds.Bonds
 	game         *extract.GameCallerCreator
+	resolutions  *ResolutionMonitor
+	claims       *ClaimMonitor
+	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
-	detector     *detector
-	validator    *outputValidator
 
 	l1Client *ethclient.Client
 
@@ -82,13 +85,16 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
 
-	s.initOutputValidator()   // Must be called before initForecast
+	s.initClaimMonitor(cfg)
+	s.initResolutionMonitor()
+	s.initWithdrawalMonitor()
+
 	s.initGameCallerCreator() // Must be called before initForecast
 
-	s.initExtractor()
+	s.initExtractor(cfg)
 
 	s.initForecast(cfg)
-	s.initDetector()
+	s.initBonds()
 
 	s.initMonitor(ctx, cfg) // Monitor must be initialized last
 
@@ -98,24 +104,45 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
-func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.rollupClient)
+func (s *Service) initClaimMonitor(cfg *config.Config) {
+	s.claims = NewClaimMonitor(s.logger, s.cl, cfg.HonestActors, s.metrics)
+}
+
+func (s *Service) initResolutionMonitor() {
+	s.resolutions = NewResolutionMonitor(s.logger, s.metrics, s.cl)
+}
+
+func (s *Service) initWithdrawalMonitor() {
+	s.withdrawals = NewWithdrawalMonitor(s.logger, s.metrics)
 }
 
 func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
-func (s *Service) initExtractor() {
-	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter)
+func (s *Service) initExtractor(cfg *config.Config) {
+	s.extractor = extract.NewExtractor(
+		s.logger,
+		s.game.CreateContract,
+		s.factoryContract.GetGamesAtOrAfter,
+		cfg.IgnoredGames,
+		cfg.MaxConcurrency,
+		extract.NewClaimEnricher(),
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
+		extract.NewWithdrawalsEnricher(),
+		extract.NewBondEnricher(),
+		extract.NewBalanceEnricher(),
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewAgreementEnricher(s.logger, s.metrics, s.rollupClient),
+	)
 }
 
 func (s *Service) initForecast(cfg *config.Config) {
-	s.forecast = newForecast(s.logger, s.metrics, s.validator)
+	s.forecast = NewForecast(s.logger, s.metrics)
 }
 
-func (s *Service) initDetector() {
-	s.detector = newDetector(s.logger, s.metrics, s.validator)
+func (s *Service) initBonds() {
+	s.bonds = bonds.NewBonds(s.logger, s.metrics, s.cl)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
@@ -172,11 +199,8 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 }
 
 func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract, err := contracts.NewDisputeGameFactoryContract(cfg.GameFactoryAddress,
+	factoryContract := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
 		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
-	if err != nil {
-		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
-	}
 	s.factoryContract = factoryContract
 	return nil
 }
@@ -189,14 +213,20 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		}
 		return block.Hash(), nil
 	}
+	l2ChallengesMonitor := NewL2ChallengesMonitor(s.logger, s.metrics)
 	s.monitor = newGameMonitor(
 		ctx,
 		s.logger,
 		s.cl,
+		s.metrics,
 		cfg.MonitorInterval,
 		cfg.GameWindow,
-		s.detector.Detect,
 		s.forecast.Forecast,
+		s.bonds.CheckBonds,
+		s.resolutions.CheckResolutions,
+		s.claims.CheckClaims,
+		s.withdrawals.CheckWithdrawals,
+		l2ChallengesMonitor.CheckL2Challenges,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,
