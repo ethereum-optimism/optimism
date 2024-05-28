@@ -102,10 +102,9 @@ func (p *SimpleAsyncGossiper) Stop() {
 // each behavior of the loop is handled by a select case on a channel, plus an internal handler function call
 func (p *SimpleAsyncGossiper) Start() {
 	// if the gossiping is already running, return
-	if p.running.Load() {
+	if !p.running.CompareAndSwap(false, true) {
 		return
 	}
-	p.running.Store(true)
 	// else, start the handling loop
 	go func() {
 		defer p.running.Store(false)
