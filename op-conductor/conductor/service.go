@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
+	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -25,20 +26,22 @@ import (
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 var (
-	ErrResumeTimeout                           = errors.New("timeout to resume conductor")
-	ErrPauseTimeout                            = errors.New("timeout to pause conductor")
-	ErrUnsafeHeadMismarch                      = errors.New("unsafe head mismatch")
-	ErrUnableToRetrieveUnsafeHeadFromConsensus = errors.New("unable to retrieve unsafe head from consensus")
+	ErrResumeTimeout      = errors.New("timeout to resume conductor")
+	ErrPauseTimeout       = errors.New("timeout to pause conductor")
+	ErrUnsafeHeadMismatch = errors.New("unsafe head mismatch")
+	ErrNoUnsafeHead       = errors.New("no unsafe head")
 )
 
 // New creates a new OpConductor instance.
 func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
-	return NewOpConductor(ctx, cfg, log, version, nil, nil, nil)
+	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil)
 }
 
 // NewOpConductor creates a new OpConductor instance.
@@ -46,6 +49,7 @@ func NewOpConductor(
 	ctx context.Context,
 	cfg *Config,
 	log log.Logger,
+	m metrics.Metricer,
 	version string,
 	ctrl client.SequencerControl,
 	cons consensus.Consensus,
@@ -59,6 +63,7 @@ func NewOpConductor(
 		log:          log,
 		version:      version,
 		cfg:          cfg,
+		metrics:      m,
 		pauseCh:      make(chan struct{}),
 		pauseDoneCh:  make(chan struct{}),
 		resumeCh:     make(chan struct{}),
@@ -172,10 +177,12 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
+		c.metrics,
 		c.cfg.HealthCheck.Interval,
 		c.cfg.HealthCheck.UnsafeInterval,
 		c.cfg.HealthCheck.SafeInterval,
 		c.cfg.HealthCheck.MinPeerCount,
+		c.cfg.HealthCheck.SafeEnabled,
 		&c.cfg.RollupCfg,
 		node,
 		p2p,
@@ -244,6 +251,7 @@ type OpConductor struct {
 	log     log.Logger
 	version string
 	cfg     *Config
+	metrics metrics.Metricer
 
 	ctrl client.SequencerControl
 	cons consensus.Consensus
@@ -270,7 +278,8 @@ type OpConductor struct {
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 
-	rpcServer *oprpc.Server
+	rpcServer     *oprpc.Server
+	metricsServer *httputil.HTTPServer
 }
 
 type state struct {
@@ -290,6 +299,10 @@ func (s *state) Equal(other *state) bool {
 	return s.leader == other.leader && s.healthy == other.healthy && s.active == other.active
 }
 
+func (s *state) String() string {
+	return fmt.Sprintf("leader: %t, healthy: %t, active: %t", s.leader, s.healthy, s.active)
+}
+
 var _ cliapp.Lifecycle = (*OpConductor)(nil)
 
 // Start implements cliapp.Lifecycle.
@@ -305,8 +318,24 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 		return errors.Wrap(err, "failed to start JSON-RPC server")
 	}
 
+	if oc.cfg.MetricsConfig.Enabled {
+		oc.log.Info("starting metrics server")
+		m, ok := oc.metrics.(opmetrics.RegistryMetricer)
+		if !ok {
+			return fmt.Errorf("metrics were enabled, but metricer %T does not expose registry for metrics-server", oc.metrics)
+		}
+		metricsServer, err := opmetrics.StartServer(m.Registry(), oc.cfg.MetricsConfig.ListenAddr, oc.cfg.MetricsConfig.ListenPort)
+		if err != nil {
+			return errors.Wrap(err, "failed to start metrics server")
+		}
+		oc.metricsServer = metricsServer
+	}
+
 	oc.wg.Add(1)
 	go oc.loop()
+
+	oc.metrics.RecordInfo(oc.version)
+	oc.metrics.RecordUp()
 
 	oc.log.Info("OpConductor started")
 	return nil
@@ -345,6 +374,12 @@ func (oc *OpConductor) Stop(ctx context.Context) error {
 		}
 	}
 
+	if oc.metricsServer != nil {
+		if err := oc.metricsServer.Shutdown(ctx); err != nil {
+			result = multierror.Append(result, errors.Wrap(err, "failed to stop metrics server"))
+		}
+	}
+
 	if result.ErrorOrNil() != nil {
 		oc.log.Error("failed to stop OpConductor", "err", result.ErrorOrNil())
 		return result.ErrorOrNil()
@@ -365,6 +400,7 @@ func (oc *OpConductor) Pause(ctx context.Context) error {
 	select {
 	case oc.pauseCh <- struct{}{}:
 		<-oc.pauseDoneCh
+		oc.log.Info("OpConductor has been paused")
 		return nil
 	case <-ctx.Done():
 		return ErrPauseTimeout
@@ -381,6 +417,7 @@ func (oc *OpConductor) Resume(ctx context.Context) error {
 	select {
 	case oc.resumeCh <- struct{}{}:
 		<-oc.resumeDoneCh
+		oc.log.Info("OpConductor has been resumed")
 		return nil
 	case <-ctx.Done():
 		return ErrResumeTimeout
@@ -405,7 +442,7 @@ func (oc *OpConductor) Leader(_ context.Context) bool {
 }
 
 // LeaderWithID returns the current leader's server ID and address.
-func (oc *OpConductor) LeaderWithID(_ context.Context) (string, string) {
+func (oc *OpConductor) LeaderWithID(_ context.Context) *consensus.ServerInfo {
 	return oc.cons.LeaderWithID()
 }
 
@@ -434,7 +471,7 @@ func (oc *OpConductor) TransferLeaderToServer(_ context.Context, id string, addr
 	return oc.cons.TransferLeaderTo(id, addr)
 }
 
-// CommitUnsafePayload commits a unsafe payload (latest head) to the cluster FSM.
+// CommitUnsafePayload commits an unsafe payload (latest head) to the cluster FSM ensuring strong consistency by leveraging Raft consensus mechanisms.
 func (oc *OpConductor) CommitUnsafePayload(_ context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return oc.cons.CommitUnsafePayload(payload)
 }
@@ -444,16 +481,28 @@ func (oc *OpConductor) SequencerHealthy(_ context.Context) bool {
 	return oc.healthy.Load()
 }
 
+// ClusterMembership returns current cluster's membership information.
+func (oc *OpConductor) ClusterMembership(_ context.Context) ([]*consensus.ServerInfo, error) {
+	return oc.cons.ClusterMembership()
+}
+
+// LatestUnsafePayload returns the latest unsafe payload envelope from FSM in a strongly consistent fashion.
+func (oc *OpConductor) LatestUnsafePayload(_ context.Context) (*eth.ExecutionPayloadEnvelope, error) {
+	return oc.cons.LatestUnsafePayload()
+}
+
 func (oc *OpConductor) loop() {
 	defer oc.wg.Done()
 
 	for {
+		startTime := time.Now()
 		select {
 		case <-oc.shutdownCtx.Done():
 			return
 		default:
 			oc.loopActionFn()
 		}
+		oc.metrics.RecordLoopExecutionTime(time.Since(startTime).Seconds())
 	}
 }
 
@@ -505,12 +554,11 @@ func (oc *OpConductor) handleHealthUpdate(hcerr error) {
 		oc.queueAction()
 	}
 
-	if healthy != oc.healthy.Load() {
+	if oc.healthy.Swap(healthy) != healthy {
 		// queue an action if health status changed.
 		oc.queueAction()
 	}
 
-	oc.healthy.Store(healthy)
 	oc.hcerr = hcerr
 }
 
@@ -565,7 +613,7 @@ func (oc *OpConductor) action() {
 			break
 		}
 
-		// 2. we're here becasuse an healthy leader became unhealthy itself
+		// 2. we're here because an healthy leader became unhealthy itself
 		//    then we should try to stop sequencing locally and transfer leadership.
 		var result *multierror.Error
 		// Try to stop sequencer first, but since sequencer is not healthy, we may not be able to stop it.
@@ -593,7 +641,7 @@ func (oc *OpConductor) action() {
 
 	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
-		oc.log.Error("failed to execute step, queueing another one to retry", "err", err)
+		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
 		// randomly sleep for 0-200ms to avoid excessive retry
 		time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
 		oc.queueAction()
@@ -603,6 +651,7 @@ func (oc *OpConductor) action() {
 	if !status.Equal(oc.prevState) {
 		oc.log.Info("state changed", "prev_state", oc.prevState, "new_state", status)
 		oc.prevState = status
+		oc.metrics.RecordStateChange(status.leader, status.healthy, status.active)
 	}
 }
 
@@ -611,6 +660,7 @@ func (oc *OpConductor) transferLeader() error {
 	// TransferLeader here will do round robin to try to transfer leadership to the next healthy node.
 	oc.log.Info("transferring leadership", "server", oc.cons.ServerID())
 	err := oc.cons.TransferLeader()
+	oc.metrics.RecordLeaderTransfer(err == nil)
 	if err == nil {
 		oc.leader.Store(false)
 		return nil // success
@@ -638,6 +688,7 @@ func (oc *OpConductor) stopSequencer() error {
 			return errors.Wrap(err, "failed to stop sequencer")
 		}
 	}
+	oc.metrics.RecordStopSequencer(err == nil)
 
 	oc.seqActive.Store(false)
 	return nil
@@ -651,8 +702,15 @@ func (oc *OpConductor) startSequencer() error {
 	unsafeInCons, unsafeInNode, err := oc.compareUnsafeHead(ctx)
 	// if there's a mismatch, try to post the unsafe head to op-node
 	if err != nil {
-		if errors.Is(err, ErrUnsafeHeadMismarch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
+		if errors.Is(err, ErrUnsafeHeadMismatch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
+			oc.log.Debug(
+				"posting unsafe head to op-node",
+				"consensus_num", uint64(unsafeInCons.ExecutionPayload.BlockNumber),
+				"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash.Hex(),
+				"node_num", unsafeInNode.NumberU64(),
+				"node_hash", unsafeInNode.Hash().Hex(),
+			)
 			if innerErr := oc.ctrl.PostUnsafePayload(ctx, unsafeInCons); innerErr != nil {
 				oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", innerErr)
 			}
@@ -661,7 +719,8 @@ func (oc *OpConductor) startSequencer() error {
 	}
 
 	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
-	if err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash); err != nil {
+	err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash)
+	if err != nil {
 		// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
 		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
 			return fmt.Errorf("failed to start sequencer: %w", err)
@@ -669,15 +728,19 @@ func (oc *OpConductor) startSequencer() error {
 			oc.log.Warn("sequencer already started.", "err", err)
 		}
 	}
+	oc.metrics.RecordStartSequencer(err == nil)
 
 	oc.seqActive.Store(true)
 	return nil
 }
 
 func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPayloadEnvelope, eth.BlockInfo, error) {
-	unsafeInCons := oc.cons.LatestUnsafePayload()
+	unsafeInCons, err := oc.cons.LatestUnsafePayload()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to retrieve unsafe head from consensus")
+	}
 	if unsafeInCons == nil {
-		return nil, nil, ErrUnableToRetrieveUnsafeHeadFromConsensus
+		return nil, nil, ErrNoUnsafeHead
 	}
 
 	unsafeInNode, err := oc.ctrl.LatestUnsafeBlock(ctx)
@@ -685,17 +748,17 @@ func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPay
 		return unsafeInCons, nil, errors.Wrap(err, "failed to get latest unsafe block from EL during compareUnsafeHead phase")
 	}
 
-	oc.log.Debug("comparing unsafe head", "consensus", unsafeInCons.ExecutionPayload.BlockNumber, "node", unsafeInNode.NumberU64())
+	oc.log.Debug("comparing unsafe head", "consensus", uint64(unsafeInCons.ExecutionPayload.BlockNumber), "node", unsafeInNode.NumberU64())
 	if unsafeInCons.ExecutionPayload.BlockHash != unsafeInNode.Hash() {
 		oc.log.Warn(
 			"latest unsafe block in consensus is not the same as the one in op-node",
 			"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash,
-			"consensus_block_num", unsafeInCons.ExecutionPayload.BlockNumber,
+			"consensus_num", uint64(unsafeInCons.ExecutionPayload.BlockNumber),
 			"node_hash", unsafeInNode.Hash(),
-			"node_block_num", unsafeInNode.NumberU64(),
+			"node_num", unsafeInNode.NumberU64(),
 		)
 
-		return unsafeInCons, unsafeInNode, ErrUnsafeHeadMismarch
+		return unsafeInCons, unsafeInNode, ErrUnsafeHeadMismatch
 	}
 
 	return unsafeInCons, unsafeInNode, nil

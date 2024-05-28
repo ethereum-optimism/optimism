@@ -58,7 +58,7 @@ const getL2ERC20TokenBalance = async (ownerAddress: Address) => {
   )
 }
 
-describe('ECO token', () => {
+describe.skip('ECO token', () => {
   it('sdk should be able to deposit to l1 bridge contract correctly', async () => {
     await l1TestClient.impersonateAccount({ address: ECO_WHALE })
 

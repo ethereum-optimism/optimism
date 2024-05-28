@@ -7,15 +7,17 @@ import (
 	"math/big"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/bonds"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/extract"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -34,9 +36,14 @@ type Service struct {
 
 	cl clock.Clock
 
-	metadata     *metadataCreator
+	extractor    *extract.Extractor
+	forecast     *Forecast
+	bonds        *bonds.Bonds
+	game         *extract.GameCallerCreator
+	resolutions  *ResolutionMonitor
+	claims       *ClaimMonitor
+	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
-	detector     *detector
 
 	l1Client *ethclient.Client
 
@@ -77,9 +84,19 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
-	s.initDetector()
-	s.initMetadataCreator()
-	s.initMonitor(ctx, cfg)
+
+	s.initClaimMonitor(cfg)
+	s.initResolutionMonitor()
+	s.initWithdrawalMonitor()
+
+	s.initGameCallerCreator() // Must be called before initForecast
+
+	s.initExtractor(cfg)
+
+	s.initForecast(cfg)
+	s.initBonds()
+
+	s.initMonitor(ctx, cfg) // Monitor must be initialized last
 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
 	s.metrics.RecordUp()
@@ -87,8 +104,45 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
-func (s *Service) initDetector() {
-	s.detector = newDetector(s.logger, s.metrics, s.metadata, s.rollupClient)
+func (s *Service) initClaimMonitor(cfg *config.Config) {
+	s.claims = NewClaimMonitor(s.logger, s.cl, cfg.HonestActors, s.metrics)
+}
+
+func (s *Service) initResolutionMonitor() {
+	s.resolutions = NewResolutionMonitor(s.logger, s.metrics, s.cl)
+}
+
+func (s *Service) initWithdrawalMonitor() {
+	s.withdrawals = NewWithdrawalMonitor(s.logger, s.metrics)
+}
+
+func (s *Service) initGameCallerCreator() {
+	s.game = extract.NewGameCallerCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+}
+
+func (s *Service) initExtractor(cfg *config.Config) {
+	s.extractor = extract.NewExtractor(
+		s.logger,
+		s.game.CreateContract,
+		s.factoryContract.GetGamesAtOrAfter,
+		cfg.IgnoredGames,
+		cfg.MaxConcurrency,
+		extract.NewClaimEnricher(),
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
+		extract.NewWithdrawalsEnricher(),
+		extract.NewBondEnricher(),
+		extract.NewBalanceEnricher(),
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewAgreementEnricher(s.logger, s.metrics, s.rollupClient),
+	)
+}
+
+func (s *Service) initForecast(cfg *config.Config) {
+	s.forecast = NewForecast(s.logger, s.metrics)
+}
+
+func (s *Service) initBonds() {
+	s.bonds = bonds.NewBonds(s.logger, s.metrics, s.cl)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
@@ -98,10 +152,6 @@ func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config
 	}
 	s.rollupClient = outputRollupClient
 	return nil
-}
-
-func (s *Service) initMetadataCreator() {
-	s.metadata = NewMetadataCreator(s.metrics, batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
 }
 
 func (s *Service) initL1Client(ctx context.Context, cfg *config.Config) error {
@@ -149,11 +199,8 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 }
 
 func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract, err := contracts.NewDisputeGameFactoryContract(cfg.GameFactoryAddress,
+	factoryContract := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
 		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
-	if err != nil {
-		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
-	}
 	s.factoryContract = factoryContract
 	return nil
 }
@@ -166,24 +213,31 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		}
 		return block.Hash(), nil
 	}
+	l2ChallengesMonitor := NewL2ChallengesMonitor(s.logger, s.metrics)
 	s.monitor = newGameMonitor(
 		ctx,
 		s.logger,
 		s.cl,
+		s.metrics,
 		cfg.MonitorInterval,
 		cfg.GameWindow,
-		s.detector.Detect,
-		s.factoryContract.GetGamesAtOrAfter,
+		s.forecast.Forecast,
+		s.bonds.CheckBonds,
+		s.resolutions.CheckResolutions,
+		s.claims.CheckClaims,
+		s.withdrawals.CheckWithdrawals,
+		l2ChallengesMonitor.CheckL2Challenges,
+		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,
 	)
 }
 
 func (s *Service) Start(ctx context.Context) error {
-	s.logger.Info("starting scheduler")
-	s.logger.Info("starting monitoring")
+	s.logger.Info("Starting scheduler")
+	s.logger.Info("Starting monitoring")
 	s.monitor.StartMonitoring()
-	s.logger.Info("dispute monitor game service start completed")
+	s.logger.Info("Dispute monitor game service start completed")
 	return nil
 }
 
@@ -192,7 +246,7 @@ func (s *Service) Stopped() bool {
 }
 
 func (s *Service) Stop(ctx context.Context) error {
-	s.logger.Info("stopping dispute mon service")
+	s.logger.Info("Stopping dispute mon service")
 
 	var result error
 	if s.pprofService != nil {

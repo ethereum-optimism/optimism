@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -58,10 +59,12 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		log:            s.log,
 		done:           make(chan struct{}),
 		interval:       s.interval,
+		metrics:        &metrics.NoopMetricsImpl{},
 		healthUpdateCh: make(chan error),
 		rollupCfg:      s.rollupCfg,
 		unsafeInterval: unsafeInterval,
 		safeInterval:   safeInterval,
+		safeEnabled:    true,
 		minPeerCount:   s.minPeerCount,
 		timeProviderFn: tp.Now,
 		node:           mockRollupClient,
@@ -102,7 +105,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 
 	rc := &testutils.MockRollupClient{}
 	ss1 := mockSyncStatus(now, 5, now-8, 1)
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 5; i++ {
 		rc.ExpectSyncStatus(ss1, nil)
 	}
 
@@ -147,6 +150,13 @@ func (s *HealthMonitorTestSuite) TestUnhealthySafeHeadNotProgressing() {
 		}
 	}
 
+	// test that the safeEnabled flag works
+	monitor.safeEnabled = false
+	rc.ExpectSyncStatus(mockSyncStatus(now+6, 4, now, 1), nil)
+	rc.ExpectSyncStatus(mockSyncStatus(now+6, 4, now, 1), nil)
+	healthy := <-healthUpdateCh
+	s.Nil(healthy)
+
 	s.NoError(monitor.Stop())
 }
 
@@ -160,7 +170,8 @@ func (s *HealthMonitorTestSuite) TestHealthyWithUnsafeLag() {
 	rc.ExpectSyncStatus(mockSyncStatus(now-10, 1, now, 1), nil)
 	rc.ExpectSyncStatus(mockSyncStatus(now-10, 1, now, 1), nil)
 	rc.ExpectSyncStatus(mockSyncStatus(now-8, 2, now, 1), nil)
-	rc.ExpectSyncStatus(mockSyncStatus(now-8, 2, now, 1), nil)
+	// in this case now time is behind unsafe head time, this should still be considered healthy.
+	rc.ExpectSyncStatus(mockSyncStatus(now+5, 2, now, 1), nil)
 
 	monitor := s.SetupMonitor(now, 60, 60, rc, nil)
 	healthUpdateCh := monitor.Subscribe()
@@ -180,6 +191,11 @@ func (s *HealthMonitorTestSuite) TestHealthyWithUnsafeLag() {
 	s.Nil(healthy)
 	s.Equal(lastSeenUnsafeTime, monitor.lastSeenUnsafeTime)
 	s.Equal(uint64(1), monitor.lastSeenUnsafeNum)
+
+	healthy = <-healthUpdateCh
+	s.Nil(healthy)
+	s.Equal(lastSeenUnsafeTime+2, monitor.lastSeenUnsafeTime)
+	s.Equal(uint64(2), monitor.lastSeenUnsafeNum)
 
 	healthy = <-healthUpdateCh
 	s.Nil(healthy)

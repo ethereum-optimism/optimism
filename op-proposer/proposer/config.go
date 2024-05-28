@@ -58,6 +58,9 @@ type CLIConfig struct {
 
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
+
+	// Whether to wait for the sequencer to sync to a recent block at startup.
+	WaitNodeSync bool
 }
 
 func (c *CLIConfig) Check() error {
@@ -74,6 +77,9 @@ func (c *CLIConfig) Check() error {
 		return err
 	}
 
+	if c.DGFAddress == "" && c.L2OOAddress == "" {
+		return errors.New("neither the `DisputeGameFactory` nor `L2OutputOracle` address was provided")
+	}
 	if c.DGFAddress != "" && c.L2OOAddress != "" {
 		return errors.New("both the `DisputeGameFactory` and `L2OutputOracle` addresses were provided")
 	}
@@ -106,5 +112,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ProposalInterval:             ctx.Duration(flags.ProposalIntervalFlag.Name),
 		DisputeGameType:              uint32(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
+		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
 	}
 }

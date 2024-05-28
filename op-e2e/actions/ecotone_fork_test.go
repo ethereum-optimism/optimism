@@ -14,11 +14,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -43,7 +43,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	genesisBlock := hexutil.Uint64(0)
-	ecotoneOffset := hexutil.Uint64(2)
+	ecotoneOffset := hexutil.Uint64(4)
 
 	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
 
@@ -59,6 +59,10 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	_, _, miner, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 
+	// build a single block to move away from the genesis with 0-values in L1Block contract
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -70,7 +74,8 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	scalar, err := gasPriceOracle.Scalar(nil)
 	require.NoError(t, err)
 	require.True(t, scalar.Cmp(big.NewInt(0)) > 0, "scalar must start non-zero")
-	require.True(t, scalar.Cmp(new(big.Int).SetUint64(dp.DeployConfig.GasPriceOracleScalar)) == 0, "must match deploy config")
+	feeScalar := dp.DeployConfig.FeeScalar()
+	require.Equal(t, scalar, new(big.Int).SetBytes(feeScalar[:]), "must match deploy config")
 
 	// Get current implementations addresses (by slot) for L1Block + GasPriceOracle
 	initialGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, nil)
@@ -101,7 +106,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 		txn := transactions[i]
 		receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
 		require.NoError(t, err)
-		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %d must pass", i)
 		require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
 	}
 
@@ -162,11 +167,14 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NotNil(t, latestBlock.BeaconRoot())
 	require.Equal(t, *latestBlock.BeaconRoot(), common.Hash{},
 		"L1 genesis block has zeroed parent-beacon-block-root, since it has no parent block, and that propagates into L2")
-	// The first block is an exception in upgrade-networks,
-	// since the beacon-block root contract isn't there at Ecotone activation,
-	// and the beacon-block-root insertion is processed at the start of the block before deposit txs.
-	// If the contract was permissionlessly deployed before, the contract storage will be updated however.
-	checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, 0, "ecotone activation block has no data yet (since contract wasn't there)")
+	// Legacy check:
+	// > The first block is an exception in upgrade-networks,
+	// > since the beacon-block root contract isn't there at Ecotone activation,
+	// > and the beacon-block-root insertion is processed at the start of the block before deposit txs.
+	// > If the contract was permissionlessly deployed before, the contract storage will be updated however.
+	// > checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, 0, "ecotone activation block has no data yet (since contract wasn't there)")
+	// Note: 4788 is now installed as preinstall, and thus always there.
+	checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, latestBlock.Time(), "4788 lookup of first cancun block is 0 hash")
 
 	// Build empty L2 block, to pass ecotone activation
 	sequencer.ActL2StartBlock(t)
@@ -186,7 +194,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// test if the migrated scalar matches the deploy config
 	basefeeScalar, err := gasPriceOracle.BaseFeeScalar(nil)
 	require.NoError(t, err)
-	require.True(t, uint64(basefeeScalar) == dp.DeployConfig.GasPriceOracleScalar, "must match deploy config")
+	require.Equal(t, uint64(basefeeScalar), dp.DeployConfig.GasPriceOracleScalar, "must match deploy config")
 
 	cost, err = gasPriceOracle.GetL1Fee(nil, []byte{0, 1, 2, 3, 4})
 	require.NoError(t, err)

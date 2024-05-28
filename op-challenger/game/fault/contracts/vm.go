@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -19,22 +20,19 @@ type VMContract struct {
 	contract    *batching.BoundContract
 }
 
-func NewVMContract(addr common.Address, caller *batching.MultiCaller) (*VMContract, error) {
-	mipsAbi, err := bindings.MIPSMetaData.GetAbi()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load VM ABI: %w", err)
-	}
+func NewVMContract(addr common.Address, caller *batching.MultiCaller) *VMContract {
+	mipsAbi := snapshots.LoadMIPSABI()
 
 	return &VMContract{
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(mipsAbi, addr),
-	}, nil
+	}
 }
 
 func (c *VMContract) Oracle(ctx context.Context) (*PreimageOracleContract, error) {
-	results, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodOracle))
+	results, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, c.contract.Call(methodOracle))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load oracle address: %w", err)
 	}
-	return NewPreimageOracleContract(results.GetAddress(0), c.multiCaller)
+	return NewPreimageOracleContract(results.GetAddress(0), c.multiCaller), nil
 }

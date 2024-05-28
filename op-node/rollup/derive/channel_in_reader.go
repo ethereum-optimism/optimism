@@ -17,15 +17,12 @@ import (
 // This is a pure function from the channel, but each channel (or channel fragment)
 // must be tagged with an L1 inclusion block to be passed to the batch queue.
 type ChannelInReader struct {
-	log log.Logger
-
-	cfg *rollup.Config
-
+	log         log.Logger
+	spec        *rollup.ChainSpec
+	cfg         *rollup.Config
 	nextBatchFn func() (*BatchData, error)
-
-	prev *ChannelBank
-
-	metrics Metrics
+	prev        *ChannelBank
+	metrics     Metrics
 }
 
 var _ ResettableStage = (*ChannelInReader)(nil)
@@ -33,6 +30,7 @@ var _ ResettableStage = (*ChannelInReader)(nil)
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
 func NewChannelInReader(cfg *rollup.Config, log log.Logger, prev *ChannelBank, metrics Metrics) *ChannelInReader {
 	return &ChannelInReader{
+		spec:    rollup.NewChainSpec(cfg),
 		cfg:     cfg,
 		log:     log,
 		prev:    prev,
@@ -46,7 +44,7 @@ func (cr *ChannelInReader) Origin() eth.L1BlockRef {
 
 // TODO: Take full channel for better logging
 func (cr *ChannelInReader) WriteChannel(data []byte) error {
-	if f, err := BatchReader(bytes.NewBuffer(data)); err == nil {
+	if f, err := BatchReader(bytes.NewBuffer(data), cr.spec.MaxRLPBytesPerChannel(cr.prev.Origin().Time), cr.cfg.IsFjord(cr.prev.Origin().Time)); err == nil {
 		cr.nextBatchFn = f
 		cr.metrics.RecordChannelInputBytes(len(data))
 		return nil
@@ -89,15 +87,17 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		cr.NextChannel()
 		return nil, NotEnoughData
 	}
+
+	batch := batchWithMetadata{comprAlgo: batchData.ComprAlgo}
 	switch batchData.GetBatchType() {
 	case SingularBatchType:
-		singularBatch, err := GetSingularBatch(batchData)
+		batch.Batch, err = GetSingularBatch(batchData)
 		if err != nil {
 			return nil, err
 		}
-		singularBatch.LogContext(cr.log).Debug("decoded singular batch from channel", "stage_origin", cr.Origin())
+		batch.LogContext(cr.log).Debug("decoded singular batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("singular")
-		return singularBatch, nil
+		return batch, nil
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsDelta(origin.Time) {
 			// Check hard fork activation with the L1 inclusion block time instead of the L1 origin block time.
@@ -105,13 +105,13 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 			// This is just for early dropping invalid batches as soon as possible.
 			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
 		}
-		spanBatch, err := DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
+		batch.Batch, err = DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
 		if err != nil {
 			return nil, err
 		}
-		spanBatch.LogContext(cr.log).Debug("decoded span batch from channel", "stage_origin", cr.Origin())
+		batch.LogContext(cr.log).Debug("decoded span batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("span")
-		return spanBatch, nil
+		return batch, nil
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.
 		return nil, NewTemporaryError(fmt.Errorf("unrecognized batch type: %d", batchData.GetBatchType()))

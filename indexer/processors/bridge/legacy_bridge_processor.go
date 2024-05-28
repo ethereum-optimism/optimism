@@ -13,8 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/processors/bridge/ovm1"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 // Legacy Bridge Initiation

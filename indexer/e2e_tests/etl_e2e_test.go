@@ -6,9 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
+	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -18,15 +22,62 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestE2EL1ETLInactivityWindow(t *testing.T) {
+	withInactivityWindow := func(cfg *config.Config) *config.Config {
+		cfg.Chain.ETLAllowedInactivityWindowSeconds = 1
+
+		// Passing the inactivity window will index the latest header
+		// in the batch. Make the batch size 1 so all blocks are indexed
+		cfg.Chain.L1HeaderBufferSize = 1
+		return cfg
+	}
+
+	testSuite := createE2ETestSuite(t, withInactivityWindow)
+
+	// wait for 10 L1 blocks to be posted
+	require.NoError(t, wait.For(context.Background(), time.Second, func() (bool, error) {
+		l1Header := testSuite.Indexer.BridgeProcessor.LastL1Header
+		return l1Header != nil && l1Header.Number.Uint64() >= 10, nil
+	}))
+
+	// each block is indexed
+	for height := int64(0); height < int64(10); height++ {
+		header, err := testSuite.DB.Blocks.L1BlockHeaderWithFilter(database.BlockHeader{Number: big.NewInt(height)})
+		require.NoError(t, err)
+		require.NotNil(t, header)
+		require.Equal(t, header.Number.Uint64(), uint64(height))
+	}
+}
+
 func TestE2EETL(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
 	l2OutputOracle, err := bindings.NewL2OutputOracle(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, testSuite.L1Client)
 	require.NoError(t, err)
 
+	disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(testSuite.OpCfg.L1Deployments.DisputeGameFactoryProxy, testSuite.L1Client)
+	require.NoError(t, err)
+
+	optimismPortal, err := bindingspreview.NewOptimismPortal2Caller(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
+	require.NoError(t, err)
+
 	// wait for at least 10 L2 blocks posted on L1
 	require.NoError(t, wait.For(context.Background(), time.Second, func() (bool, error) {
-		l2Height, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{Context: context.Background()})
+		var l2Height *big.Int
+		var err error
+		if e2eutils.UseFPAC() {
+			gameCount, err := disputeGameFactory.GameCount(&bind.CallOpts{Context: context.Background()})
+			require.NoError(t, err)
+			if gameCount.Cmp(big.NewInt(0)) == 0 {
+				return false, nil
+			}
+
+			latestGame, err := withdrawals.FindLatestGame(context.Background(), disputeGameFactory, optimismPortal)
+			require.NoError(t, err)
+			l2Height = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
+		} else {
+			l2Height, err = l2OutputOracle.LatestBlockNumber(&bind.CallOpts{Context: context.Background()})
+		}
 		return l2Height != nil && l2Height.Uint64() >= 9, err
 	}))
 

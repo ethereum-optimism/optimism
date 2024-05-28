@@ -5,11 +5,25 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
+)
+
+var (
+	// The default values for the ResourceConfig, used as part of
+	// an EIP-1559 curve for deposit gas.
+	DefaultResourceConfig = bindings.ResourceMeteringResourceConfig{
+		MaxResourceLimit:            genesis.MaxResourceLimit,
+		ElasticityMultiplier:        genesis.ElasticityMultiplier,
+		BaseFeeMaxChangeDenominator: genesis.BaseFeeMaxChangeDenominator,
+		MinimumBaseFee:              genesis.MinimumBaseFee,
+		SystemTxMaxGas:              genesis.SystemTxMaxGas,
+		MaximumBaseFee:              genesis.MaximumBaseFee,
+	}
 )
 
 // CheckL1 will check that the versions of the contracts on L1 match the versions
@@ -42,7 +56,7 @@ func CheckL1(ctx context.Context, list *superchain.ImplementationList, backend b
 // CheckVersionedContract will check that the version of the deployed contract matches
 // the artifact in the superchain registry.
 func CheckVersionedContract(ctx context.Context, contract superchain.VersionedContract, backend bind.ContractBackend) error {
-	addr := common.HexToAddress(contract.Address.String())
+	addr := common.Address(contract.Address)
 	code, err := backend.CodeAt(ctx, addr, nil)
 	if err != nil {
 		return err
@@ -65,31 +79,31 @@ func GetContractVersions(ctx context.Context, addresses *superchain.AddressList,
 	var versions superchain.ContractVersions
 	var err error
 
-	versions.L1CrossDomainMessenger, err = getVersion(ctx, common.HexToAddress(addresses.L1CrossDomainMessengerProxy.String()), backend)
+	versions.L1CrossDomainMessenger, err = getVersion(ctx, common.Address(addresses.L1CrossDomainMessengerProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("L1CrossDomainMessenger: %w", err)
 	}
-	versions.L1ERC721Bridge, err = getVersion(ctx, common.HexToAddress(addresses.L1ERC721BridgeProxy.String()), backend)
+	versions.L1ERC721Bridge, err = getVersion(ctx, common.Address(addresses.L1ERC721BridgeProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("L1ERC721Bridge: %w", err)
 	}
-	versions.L1StandardBridge, err = getVersion(ctx, common.HexToAddress(addresses.L1StandardBridgeProxy.String()), backend)
+	versions.L1StandardBridge, err = getVersion(ctx, common.Address(addresses.L1StandardBridgeProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("L1StandardBridge: %w", err)
 	}
-	versions.L2OutputOracle, err = getVersion(ctx, common.HexToAddress(addresses.L2OutputOracleProxy.String()), backend)
+	versions.L2OutputOracle, err = getVersion(ctx, common.Address(addresses.L2OutputOracleProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("L2OutputOracle: %w", err)
 	}
-	versions.OptimismMintableERC20Factory, err = getVersion(ctx, common.HexToAddress(addresses.OptimismMintableERC20FactoryProxy.String()), backend)
+	versions.OptimismMintableERC20Factory, err = getVersion(ctx, common.Address(addresses.OptimismMintableERC20FactoryProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("OptimismMintableERC20Factory: %w", err)
 	}
-	versions.OptimismPortal, err = getVersion(ctx, common.HexToAddress(addresses.OptimismPortalProxy.String()), backend)
+	versions.OptimismPortal, err = getVersion(ctx, common.Address(addresses.OptimismPortalProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("OptimismPortal: %w", err)
 	}
-	versions.SystemConfig, err = getVersion(ctx, common.HexToAddress(chainConfig.SystemConfigAddr.String()), backend)
+	versions.SystemConfig, err = getVersion(ctx, common.Address(addresses.SystemConfigProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("SystemConfig: %w", err)
 	}

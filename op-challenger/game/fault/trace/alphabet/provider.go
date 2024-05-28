@@ -28,7 +28,7 @@ var _ types.TraceProvider = (*AlphabetTraceProvider)(nil)
 // AlphabetTraceProvider is a [TraceProvider] that monotonically increments
 // the starting l2 block number as the claim value.
 type AlphabetTraceProvider struct {
-	AlphabetPrestateProvider
+	alphabetPrestateProvider
 	startingBlockNumber *big.Int
 	depth               types.Depth
 	maxLen              uint64
@@ -73,6 +73,10 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 		return common.Hash{}, err
 	}
 	return alphabetStateHash(claimBytes), nil
+}
+
+func (ap *AlphabetTraceProvider) GetL2BlockNumberChallenge(_ context.Context) (*types.InvalidL2BlockNumberChallenge, error) {
+	return nil, types.ErrL2BlockNumberValid
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and claim.

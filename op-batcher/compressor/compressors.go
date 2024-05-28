@@ -10,6 +10,10 @@ const (
 	RatioKind  = "ratio"
 	ShadowKind = "shadow"
 	NoneKind   = "none"
+
+	// CloseOverheadZlib is the number of final bytes a [zlib.Writer] call writes
+	// to the output buffer.
+	CloseOverheadZlib = 9
 )
 
 var Kinds = map[string]FactoryFunc{

@@ -23,7 +23,9 @@ func TestRethDBReceiptsLoad(t *testing.T) {
 	//       Old State Root: 0xaf81a692d228d56d35c80d65aeba59636b4671403054f6c57446c0e3e4d951c8
 	//       New State Root (Empty MPT): 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421
 	blockHash := common.HexToHash("0x6a229123d607c2232a8b0bdd36f90745945d05181018e64e60ff2b93ab6b52e5")
-	res, err := FetchRethReceipts("../rethdb-reader/testdata/db", &blockHash)
+	fetcher := NewRethDBReceiptsFetcher("../rethdb-reader/testdata/db")
+	require.NotNil(t, fetcher.dbInstance)
+	res, err := FetchRethReceipts(fetcher.dbInstance, &blockHash)
 	require.NoError(t, err)
 
 	receipt := (*types.Receipt)(res[0])

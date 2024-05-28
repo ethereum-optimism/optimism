@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { ISemver } from "src/universal/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 
@@ -19,7 +20,7 @@ import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 /// @dev https://en.wikibooks.org/wiki/MIPS_Assembly/Instruction_Formats
 /// @dev https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
 ///      MIPS linux kernel errors used by Go runtime
-contract MIPS {
+contract MIPS is ISemver{
 
     /// @notice Stores a thread-context with its state and meta-data.
     struct ThreadContext {
@@ -66,17 +67,21 @@ contract MIPS {
     /// @notice Start of the data segment.
     uint32 public constant BRK_START = 0x40000000;
 
-    uint32 constant FD_STDIN = 0;
-    uint32 constant FD_STDOUT = 1;
-    uint32 constant FD_STDERR = 2;
-    uint32 constant FD_HINT_READ = 3;
-    uint32 constant FD_HINT_WRITE = 4;
-    uint32 constant FD_PREIMAGE_READ = 5;
-    uint32 constant FD_PREIMAGE_WRITE = 6;
+    /// @notice The semantic version of the MIPS contract.
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
-    uint32 constant EBADF = 0x9;
-    uint32 constant EINVAL = 0x16;
-    uint32 constant EAGAIN = 0xb;
+    uint32 internal constant FD_STDIN = 0;
+    uint32 internal constant FD_STDOUT = 1;
+    uint32 internal constant FD_STDERR = 2;
+    uint32 internal constant FD_HINT_READ = 3;
+    uint32 internal constant FD_HINT_WRITE = 4;
+    uint32 internal constant FD_PREIMAGE_READ = 5;
+    uint32 internal constant FD_PREIMAGE_WRITE = 6;
+
+    uint32 internal constant EBADF = 0x9;
+    uint32 internal constant EINVAL = 0x16;
+    uint32 internal constant EAGAIN = 0xb;
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -571,6 +576,9 @@ contract MIPS {
             // Stores the quotient in LO
             // And the remainder in HI
             else if (_func == 0x1a) {
+                if (int32(_rt) == 0) {
+                    revert("MIPS: division by zero");
+                }
                 tc.state.hi = uint32(int32(_rs) % int32(_rt));
                 tc.state.lo = uint32(int32(_rs) / int32(_rt));
             }
@@ -578,6 +586,9 @@ contract MIPS {
             // Stores the quotient in LO
             // And the remainder in HI
             else if (_func == 0x1b) {
+                if (_rt == 0) {
+                    revert("MIPS: division by zero");
+                }
                 tc.state.hi = _rs % _rt;
                 tc.state.lo = _rs / _rt;
             }

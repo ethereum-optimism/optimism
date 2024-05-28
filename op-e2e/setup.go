@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	geth_eth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -39,9 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -58,18 +57,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-var (
-	testingJWTSecret = [32]byte{123}
-)
+var testingJWTSecret = [32]byte{123}
 
 func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	return txmgr.CLIConfig{
@@ -85,7 +84,7 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	}
 }
 
-func DefaultSystemConfig(t *testing.T) SystemConfig {
+func DefaultSystemConfig(t testing.TB) SystemConfig {
 	config.ExternalL2TestParms.SkipIfNecessary(t)
 
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
@@ -95,7 +94,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	e2eutils.ApplyDeployConfigForks(deployConfig)
 	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
-	require.NoError(t, l1Deployments.Check())
+	require.NoError(t, l1Deployments.Check(deployConfig))
 
 	require.Equal(t, secrets.Addresses().Batcher, deployConfig.BatchSenderAddress)
 	require.Equal(t, secrets.Addresses().SequencerP2P, deployConfig.P2PSequencerAddress)
@@ -152,16 +151,17 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LevelCrit).New("role", "proposer"),
 		},
-		GethOptions:                map[string][]geth.GethOption{},
-		P2PTopology:                nil, // no P2P connectivity by default
-		NonFinalizedProposals:      false,
-		ExternalL2Shim:             config.ExternalL2Shim,
-		BatcherTargetL1TxSizeBytes: 100_000,
-		DataAvailabilityType:       batcherFlags.CalldataType,
+		GethOptions:            map[string][]geth.GethOption{},
+		P2PTopology:            nil, // no P2P connectivity by default
+		NonFinalizedProposals:  false,
+		ExternalL2Shim:         config.ExternalL2Shim,
+		DataAvailabilityType:   batcherFlags.CalldataType,
+		MaxPendingTransactions: 1,
+		BatcherTargetNumFrames: 1,
 	}
 }
 
-func writeDefaultJWT(t *testing.T) string {
+func writeDefaultJWT(t testing.TB) string {
 	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
 	jwtPath := path.Join(t.TempDir(), "jwt_secret")
 	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0o600); err != nil {
@@ -213,14 +213,23 @@ type SystemConfig struct {
 	// Configure data-availability type that is used by the batcher.
 	DataAvailabilityType batcherFlags.DataAvailabilityType
 
-	// Target L1 tx size for the batcher transactions
-	BatcherTargetL1TxSizeBytes uint64
-
 	// Max L1 tx size for the batcher transactions
 	BatcherMaxL1TxSizeBytes uint64
 
+	// Target number of frames to create per channel. Can be used to create
+	// multi-blob transactions.
+	// Default is 1 if unset.
+	BatcherTargetNumFrames int
+
+	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, insteaf of max blob size
+	BatcherUseMaxTxSizeForBlobs bool
+
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
+
+	// MaxPendingTransactions determines how many transactions the batcher will try to send
+	// concurrently. 0 means unlimited.
+	MaxPendingTransactions uint64
 }
 
 type GethInstance struct {
@@ -302,6 +311,11 @@ func (sys *System) L1BeaconEndpoint() string {
 	return sys.L1BeaconAPIAddr
 }
 
+func (sys *System) L1BeaconHTTPClient() *sources.BeaconHTTPClient {
+	logger := testlog.Logger(sys.t, log.LevelInfo).New("component", "beaconClient")
+	return sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(sys.L1BeaconEndpoint(), logger))
+}
+
 func (sys *System) NodeEndpoint(name string) string {
 	return selectEndpoint(sys.EthInstances[name])
 }
@@ -337,6 +351,11 @@ func (sys *System) RollupCfg() *rollup.Config {
 
 func (sys *System) L2Genesis() *core.Genesis {
 	return sys.L2GenesisCfg
+}
+
+func (sys *System) L1Slot(l1Timestamp uint64) uint64 {
+	return (l1Timestamp - uint64(sys.Cfg.DeployConfig.L1GenesisBlockTimestamp)) /
+		sys.Cfg.DeployConfig.L1BlockTime
 }
 
 func (sys *System) Close() {
@@ -446,14 +465,14 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l1Genesis.Alloc[addr]; ok {
-			l1Genesis.Alloc[addr] = core.GenesisAccount{
+			l1Genesis.Alloc[addr] = types.Account{
 				Code:    existing.Code,
 				Storage: existing.Storage,
 				Balance: amount,
 				Nonce:   existing.Nonce,
 			}
 		} else {
-			l1Genesis.Alloc[addr] = core.GenesisAccount{
+			l1Genesis.Alloc[addr] = types.Account{
 				Balance: amount,
 				Nonce:   0,
 			}
@@ -461,21 +480,30 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
+	var allocsMode genesis.L2AllocsMode
+	allocsMode = genesis.L2AllocsDelta
+	if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
+		allocsMode = genesis.L2AllocsFjord
+	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
+		allocsMode = genesis.L2AllocsEcotone
+	}
+	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
+	l2Allocs := config.L2Allocs(allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
 	if err != nil {
 		return nil, err
 	}
 	sys.L2GenesisCfg = l2Genesis
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l2Genesis.Alloc[addr]; ok {
-			l2Genesis.Alloc[addr] = core.GenesisAccount{
+			l2Genesis.Alloc[addr] = types.Account{
 				Code:    existing.Code,
 				Storage: existing.Storage,
 				Balance: amount,
 				Nonce:   existing.Nonce,
 			}
 		} else {
-			l2Genesis.Alloc[addr] = core.GenesisAccount{
+			l2Genesis.Alloc[addr] = types.Account{
 				Balance: amount,
 				Nonce:   0,
 			}
@@ -747,17 +775,35 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	// L2Output Submitter
-	proposerCLIConfig := &l2os.CLIConfig{
-		L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
-		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
-		PollInterval:      50 * time.Millisecond,
-		TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
-		AllowNonFinalized: cfg.NonFinalizedProposals,
-		LogConfig: oplog.CLIConfig{
-			Level:  log.LevelInfo,
-			Format: oplog.FormatText,
-		},
+	var proposerCLIConfig *l2os.CLIConfig
+	if e2eutils.UseFPAC() {
+		proposerCLIConfig = &l2os.CLIConfig{
+			L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
+			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:  6 * time.Second,
+			DisputeGameType:   0,
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
+			LogConfig: oplog.CLIConfig{
+				Level:  log.LvlInfo,
+				Format: oplog.FormatText,
+			},
+		}
+	} else {
+		proposerCLIConfig = &l2os.CLIConfig{
+			L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
+			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
+			LogConfig: oplog.CLIConfig{
+				Level:  log.LvlInfo,
+				Format: oplog.FormatText,
+			},
+		}
 	}
 	proposer, err := l2os.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, sys.Cfg.Loggers["proposer"])
 	if err != nil {
@@ -772,25 +818,35 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
 		batchType = derive.SpanBatchType
 	}
+	// batcher defaults if unset
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
 	if batcherMaxL1TxSizeBytes == 0 {
-		batcherMaxL1TxSizeBytes = 240_000
+		batcherMaxL1TxSizeBytes = 120_000
 	}
+	batcherTargetNumFrames := cfg.BatcherTargetNumFrames
+	if batcherTargetNumFrames == 0 {
+		batcherTargetNumFrames = 1
+	}
+
+	var compressionAlgo derive.CompressionAlgo = derive.Zlib
+	// if opt has brotli key, set the compression algo as brotli
+	if _, ok := opts.Get("compressionAlgo", "brotli"); ok {
+		compressionAlgo = derive.Brotli10
+	}
+
 	batcherCLIConfig := &bss.CLIConfig{
-		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
-		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
-		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxPendingTransactions: 0,
-		MaxChannelDuration:     1,
-		MaxL1TxSize:            batcherMaxL1TxSizeBytes,
-		CompressorConfig: compressor.CLIConfig{
-			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
-			TargetNumFrames:     1,
-			ApproxComprRatio:    0.4,
-		},
-		SubSafetyMargin: 4,
-		PollInterval:    50 * time.Millisecond,
-		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
+		L1EthRpc:                 sys.EthInstances["l1"].WSEndpoint(),
+		L2EthRpc:                 sys.EthInstances["sequencer"].WSEndpoint(),
+		RollupRpc:                sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxPendingTransactions:   cfg.MaxPendingTransactions,
+		MaxChannelDuration:       1,
+		MaxL1TxSize:              batcherMaxL1TxSizeBytes,
+		TestUseMaxTxSizeForBlobs: cfg.BatcherUseMaxTxSizeForBlobs,
+		TargetNumFrames:          int(batcherTargetNumFrames),
+		ApproxComprRatio:         0.4,
+		SubSafetyMargin:          4,
+		PollInterval:             50 * time.Millisecond,
+		TxMgrConfig:              newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
@@ -798,6 +854,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
 		BatchType:            batchType,
 		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
+		CompressionAlgo:      compressionAlgo,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

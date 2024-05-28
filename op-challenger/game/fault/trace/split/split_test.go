@@ -147,12 +147,12 @@ func TestBottomProviderAttackingTopLeaf(t *testing.T) {
 				// If the ref is the leaf of the top claim, ensure we respect whether the test is setup
 				// to attack or defend the top leaf claim.
 				if ref.Depth() != splitDepth || !pos.RightOf(ref.Position) {
-					gameBuilder.SeqFrom(ref).AttackCorrect()
+					gameBuilder.SeqFrom(ref).Attack()
 					attackRef := latestClaim(gameBuilder)
 					testDescendantClaims(attackRef, attackRef.Position)
 				}
 				if ref.Depth() != splitDepth || pos.RightOf(ref.Position) {
-					gameBuilder.SeqFrom(ref).DefendCorrect()
+					gameBuilder.SeqFrom(ref).Defend()
 					defendRef := latestClaim(gameBuilder)
 					testDescendantClaims(defendRef, defendRef.Position)
 				}
@@ -164,10 +164,10 @@ func TestBottomProviderAttackingTopLeaf(t *testing.T) {
 
 func attackTopLeafGIndex8(_ *testing.T, gameBuilder *test.GameBuilder) (ref types.Claim, pos types.Position, expectPre types.Claim, expectPost types.Claim) {
 	// Generate claims down to the top provider's leaf
-	seq := gameBuilder.Seq()  // gindex 1, trace 7
-	seq = seq.AttackCorrect() // gindex 2, trace 3
-	seq = seq.AttackCorrect() // gindex 4, trace 1
-	seq.AttackCorrect()       // gindex 8, trace 0
+	seq := gameBuilder.Seq() // gindex 1, trace 7
+	seq = seq.Attack()       // gindex 2, trace 3
+	seq = seq.Attack()       // gindex 4, trace 1
+	seq.Attack()             // gindex 8, trace 0
 	expectPost = latestClaim(gameBuilder)
 
 	// No pre-claim as the first output root is being challenged.
@@ -180,11 +180,11 @@ func attackTopLeafGIndex8(_ *testing.T, gameBuilder *test.GameBuilder) (ref type
 
 func defendTopLeafGIndex8(_ *testing.T, gameBuilder *test.GameBuilder) (ref types.Claim, pos types.Position, expectPre types.Claim, expectPost types.Claim) {
 	// Generate claims down to the top provider's leaf
-	seq := gameBuilder.Seq()  // gindex 1, trace 7
-	seq = seq.AttackCorrect() // gindex 2, trace 3
-	seq = seq.AttackCorrect() // gindex 4, trace 1
+	seq := gameBuilder.Seq() // gindex 1, trace 7
+	seq = seq.Attack()       // gindex 2, trace 3
+	seq = seq.Attack()       // gindex 4, trace 1
 	expectPost = latestClaim(gameBuilder)
-	seq.AttackCorrect() // gindex 8, trace 0
+	seq.Attack() // gindex 8, trace 0
 	expectPre = latestClaim(gameBuilder)
 
 	ref = latestClaim(gameBuilder)
@@ -193,11 +193,11 @@ func defendTopLeafGIndex8(_ *testing.T, gameBuilder *test.GameBuilder) (ref type
 }
 
 func attackTopLeafGIndex10(_ *testing.T, gameBuilder *test.GameBuilder) (ref types.Claim, pos types.Position, expectPre types.Claim, expectPost types.Claim) {
-	seq := gameBuilder.Seq()  // gindex 1, trace 7
-	seq = seq.AttackCorrect() // gindex 2, trace 3
-	seq = seq.AttackCorrect() // gindex 4, trace 1
+	seq := gameBuilder.Seq() // gindex 1, trace 7
+	seq = seq.Attack()       // gindex 2, trace 3
+	seq = seq.Attack()       // gindex 4, trace 1
 	expectPre = latestClaim(gameBuilder)
-	seq.DefendCorrect() // gindex 10, trace 2
+	seq.Defend() // gindex 10, trace 2
 	expectPost = latestClaim(gameBuilder)
 
 	ref = latestClaim(gameBuilder)
@@ -206,11 +206,11 @@ func attackTopLeafGIndex10(_ *testing.T, gameBuilder *test.GameBuilder) (ref typ
 }
 
 func defendTopLeafGIndex10(_ *testing.T, gameBuilder *test.GameBuilder) (ref types.Claim, pos types.Position, expectPre types.Claim, expectPost types.Claim) {
-	seq := gameBuilder.Seq()  // gindex 1, trace 7
-	seq = seq.AttackCorrect() // gindex 2, trace 3
+	seq := gameBuilder.Seq() // gindex 1, trace 7
+	seq = seq.Attack()       // gindex 2, trace 3
 	expectPost = latestClaim(gameBuilder)
-	seq = seq.AttackCorrect() // gindex 4, trace 1
-	seq.DefendCorrect()       // gindex 10, trace 2
+	seq = seq.Attack() // gindex 4, trace 1
+	seq.Defend()       // gindex 10, trace 2
 	expectPre = latestClaim(gameBuilder)
 
 	ref = latestClaim(gameBuilder)
@@ -219,11 +219,11 @@ func defendTopLeafGIndex10(_ *testing.T, gameBuilder *test.GameBuilder) (ref typ
 }
 
 func attackTopLeafGIndex12(_ *testing.T, gameBuilder *test.GameBuilder) (ref types.Claim, pos types.Position, expectPre types.Claim, expectPost types.Claim) {
-	seq := gameBuilder.Seq()  // gindex 1, trace 7
-	seq = seq.AttackCorrect() // gindex 2, trace 3
+	seq := gameBuilder.Seq() // gindex 1, trace 7
+	seq = seq.Attack()       // gindex 2, trace 3
 	expectPre = latestClaim(gameBuilder)
-	seq = seq.DefendCorrect() // gindex 6, trace 5
-	seq.AttackCorrect()       // gindex 12, trace 4
+	seq = seq.Defend() // gindex 6, trace 5
+	seq.Attack()       // gindex 12, trace 4
 	expectPost = latestClaim(gameBuilder)
 
 	ref = latestClaim(gameBuilder)
@@ -232,11 +232,11 @@ func attackTopLeafGIndex12(_ *testing.T, gameBuilder *test.GameBuilder) (ref typ
 }
 
 func defendTopLeafGIndex12(_ *testing.T, gameBuilder *test.GameBuilder) (ref types.Claim, pos types.Position, expectPre types.Claim, expectPost types.Claim) {
-	seq := gameBuilder.Seq()  // gindex 1, trace 7
-	seq = seq.AttackCorrect() // gindex 2, trace 3
-	seq = seq.DefendCorrect() // gindex 6, trace 5
+	seq := gameBuilder.Seq() // gindex 1, trace 7
+	seq = seq.Attack()       // gindex 2, trace 3
+	seq = seq.Defend()       // gindex 6, trace 5
 	expectPost = latestClaim(gameBuilder)
-	seq.AttackCorrect() // gindex 12, trace 4
+	seq.Attack() // gindex 12, trace 4
 	expectPre = latestClaim(gameBuilder)
 
 	ref = latestClaim(gameBuilder)
@@ -245,11 +245,11 @@ func defendTopLeafGIndex12(_ *testing.T, gameBuilder *test.GameBuilder) (ref typ
 }
 
 func attackTopLeafGIndex14(_ *testing.T, gameBuilder *test.GameBuilder) (ref types.Claim, pos types.Position, expectPre types.Claim, expectPost types.Claim) {
-	seq := gameBuilder.Seq()  // gindex 1, trace 7
-	seq = seq.AttackCorrect() // gindex 2, trace 3
-	seq = seq.DefendCorrect() // gindex 6, trace 5
+	seq := gameBuilder.Seq() // gindex 1, trace 7
+	seq = seq.Attack()       // gindex 2, trace 3
+	seq = seq.Defend()       // gindex 6, trace 5
 	expectPre = latestClaim(gameBuilder)
-	seq.DefendCorrect() // gindex 14, trace 6
+	seq.Defend() // gindex 14, trace 6
 	expectPost = latestClaim(gameBuilder)
 
 	ref = latestClaim(gameBuilder)
@@ -260,9 +260,9 @@ func attackTopLeafGIndex14(_ *testing.T, gameBuilder *test.GameBuilder) (ref typ
 func defendTopLeafGIndex14(_ *testing.T, gameBuilder *test.GameBuilder) (ref types.Claim, pos types.Position, expectPre types.Claim, expectPost types.Claim) {
 	seq := gameBuilder.Seq() // gindex 1, trace 7
 	expectPost = latestClaim(gameBuilder)
-	seq = seq.AttackCorrect() // gindex 2, trace 3
-	seq = seq.DefendCorrect() // gindex 6, trace 5
-	seq.DefendCorrect()       // gindex 14, trace 6
+	seq = seq.Attack() // gindex 2, trace 3
+	seq = seq.Defend() // gindex 6, trace 5
+	seq.Defend()       // gindex 14, trace 6
 	expectPre = latestClaim(gameBuilder)
 
 	ref = latestClaim(gameBuilder)
@@ -277,7 +277,7 @@ func latestClaim(gameBuilder *test.GameBuilder) types.Claim {
 func createClaimsToDepth(gameBuilder *test.GameBuilder, depth int) {
 	seq := gameBuilder.Seq()
 	for i := 0; i < depth; i++ {
-		seq = seq.AttackCorrect()
+		seq = seq.Attack()
 	}
 }
 
@@ -314,7 +314,7 @@ func setupAlphabetSplitSelector(t *testing.T) (*alphabet.AlphabetTraceProvider, 
 	selector := NewSplitProviderSelector(top, splitDepth, bottomCreator)
 
 	claimBuilder := test.NewAlphabetClaimBuilder(t, big.NewInt(0), gameDepth)
-	gameBuilder := claimBuilder.GameBuilder(true)
+	gameBuilder := claimBuilder.GameBuilder()
 	return top, selector, gameBuilder
 }
 

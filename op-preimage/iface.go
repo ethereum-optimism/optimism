@@ -40,6 +40,8 @@ const (
 	Sha256KeyType KeyType = 4
 	// BlobKeyType is for blob point pre-images.
 	BlobKeyType KeyType = 5
+	// PrecompileKeyType is for precompile result pre-images.
+	PrecompileKeyType KeyType = 6
 )
 
 // LocalIndexKey is a key local to the program, indexing a special program input.
@@ -99,6 +101,23 @@ func (k BlobKey) String() string {
 }
 
 func (k BlobKey) TerminalString() string {
+	return "0x" + hex.EncodeToString(k[:])
+}
+
+// PrecompileKey is the hash of precompile address and its input data
+type PrecompileKey [32]byte
+
+func (k PrecompileKey) PreimageKey() (out [32]byte) {
+	out = k
+	out[0] = byte(PrecompileKeyType)
+	return
+}
+
+func (k PrecompileKey) String() string {
+	return "0x" + hex.EncodeToString(k[:])
+}
+
+func (k PrecompileKey) TerminalString() string {
 	return "0x" + hex.EncodeToString(k[:])
 }
 

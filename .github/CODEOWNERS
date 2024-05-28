@@ -1,8 +1,7 @@
 # Packages
-/packages/chain-mon             @ethereum-optimism/devxpod
-/packages/common-ts             @ethereum-optimism/typescript-reviewers
+/packages/chain-mon             @ethereum-optimism/security-reviewers
+/packages/chain-mon/internal/balance-mon             @ethereum-optimism/infra-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
-/packages/core-utils            @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
 
 # Bedrock codebases
@@ -12,10 +11,12 @@
 /op-bootnode    @ethereum-optimism/go-reviewers
 /op-chain-ops   @ethereum-optimism/go-reviewers
 /op-challenger  @ethereum-optimism/go-reviewers
+/op-dispute-mon  @ethereum-optimism/go-reviewers
 /op-e2e         @ethereum-optimism/go-reviewers
 /op-heartbeat   @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
 /op-node/rollup @protolambda @trianglesphere @ajsutton
+/op-plasma      @ethereum-optimism/go-reviewers
 /op-preimage    @ethereum-optimism/go-reviewers
 /op-program     @ethereum-optimism/go-reviewers
 /op-proposer    @ethereum-optimism/go-reviewers

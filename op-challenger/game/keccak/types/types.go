@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -99,8 +99,8 @@ type Challenge struct {
 type LargePreimageOracle interface {
 	Addr() common.Address
 	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
-	GetInputDataBlocks(ctx context.Context, block batching.Block, ident LargePreimageIdent) ([]uint64, error)
-	GetProposalTreeRoot(ctx context.Context, block batching.Block, ident LargePreimageIdent) (common.Hash, error)
+	GetInputDataBlocks(ctx context.Context, block rpcblock.Block, ident LargePreimageIdent) ([]uint64, error)
+	GetProposalTreeRoot(ctx context.Context, block rpcblock.Block, ident LargePreimageIdent) (common.Hash, error)
 	DecodeInputData(data []byte) (*big.Int, InputData, error)
 	ChallengeTx(ident LargePreimageIdent, challenge Challenge) (txmgr.TxCandidate, error)
 	ChallengePeriod(ctx context.Context) (uint64, error)

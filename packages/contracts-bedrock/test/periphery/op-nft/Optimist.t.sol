@@ -203,7 +203,7 @@ contract Optimist_Initializer is Test {
 
 contract OptimistTest is Optimist_Initializer {
     /// @notice Check that constructor and initializer parameters are correctly set.
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         // expect name to be set
         assertEq(optimist.name(), name);
         // expect symbol to be set
@@ -498,7 +498,7 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /// @notice Should support ERC-721 interface.
-    function test_supportsInterface_returnsCorrectInterfaceForERC721_succeeds() external {
+    function test_supportsInterface_returnsCorrectInterfaceForERC721_succeeds() external view {
         bytes4 iface721 = type(IERC721).interfaceId;
         // check that it supports ERC-721 interface
         assertEq(optimist.supportsInterface(iface721), true);

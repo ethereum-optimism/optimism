@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
@@ -11,11 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 func TestScheduleNewGames(t *testing.T) {
-	c, workQueue, _, games, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, games, disk, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -36,7 +36,7 @@ func TestScheduleNewGames(t *testing.T) {
 }
 
 func TestSkipSchedulingInflightGames(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
@@ -51,7 +51,7 @@ func TestSkipSchedulingInflightGames(t *testing.T) {
 
 func TestExitWhenContextDoneWhileSchedulingJob(t *testing.T) {
 	// No space in buffer to schedule a job
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 0)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 0)
 	gameAddr1 := common.Address{0xaa}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Context is cancelled
@@ -63,8 +63,8 @@ func TestExitWhenContextDoneWhileSchedulingJob(t *testing.T) {
 }
 
 func TestSchedule_PrestateValidationErrors(t *testing.T) {
-	c, _, _, games, _ := setupCoordinatorTest(t, 10)
-	games.PrestateErr = fmt.Errorf("prestate error")
+	c, _, _, games, _, _ := setupCoordinatorTest(t, 10)
+	games.PrestateErr = types.ErrInvalidPrestate
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
@@ -72,8 +72,34 @@ func TestSchedule_PrestateValidationErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSchedule_SkipPrestateValidationErrors(t *testing.T) {
+	c, _, _, games, _, logs := setupCoordinatorTest(t, 10)
+	c.allowInvalidPrestate = true
+	games.PrestateErr = types.ErrInvalidPrestate
+	gameAddr1 := common.Address{0xaa}
+	ctx := context.Background()
+
+	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	require.NoError(t, err)
+	errLog := logs.FindLog(testlog.NewLevelFilter(log.LevelError), testlog.NewMessageFilter("Invalid prestate"))
+	require.NotNil(t, errLog)
+	require.Equal(t, errLog.AttrValue("game"), gameAddr1)
+	require.Equal(t, errLog.AttrValue("err"), games.PrestateErr)
+}
+
+func TestSchedule_PrestateValidationFailure(t *testing.T) {
+	c, _, _, games, _, _ := setupCoordinatorTest(t, 10)
+	c.allowInvalidPrestate = true
+	games.PrestateErr = fmt.Errorf("failed to fetch prestate")
+	gameAddr1 := common.Address{0xaa}
+	ctx := context.Background()
+
+	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	require.ErrorIs(t, err, games.PrestateErr)
+}
+
 func TestScheduleGameAgainAfterCompletion(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
@@ -94,13 +120,13 @@ func TestScheduleGameAgainAfterCompletion(t *testing.T) {
 }
 
 func TestResultForUnknownGame(t *testing.T) {
-	c, _, _, _, _ := setupCoordinatorTest(t, 10)
+	c, _, _, _, _, _ := setupCoordinatorTest(t, 10)
 	err := c.processResult(job{addr: common.Address{0xaa}})
 	require.ErrorIs(t, err, errUnknownGame)
 }
 
 func TestProcessResultsWhileJobQueueFull(t *testing.T) {
-	c, workQueue, resultQueue, games, disk := setupCoordinatorTest(t, 0)
+	c, workQueue, resultQueue, games, disk, _ := setupCoordinatorTest(t, 0)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -142,7 +168,7 @@ loop:
 }
 
 func TestDeleteDataForResolvedGames(t *testing.T) {
-	c, workQueue, _, _, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, disk, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -178,32 +204,67 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 
 	require.True(t, disk.gameDirExists[gameAddr1], "game 1 data should be preserved (not resolved)")
 	require.False(t, disk.gameDirExists[gameAddr2], "game 2 data should be deleted")
-	require.True(t, disk.gameDirExists[gameAddr3], "game 3 data should be preserved (inflight)")
+	// Game 3 never got marked as in-flight because it was already resolved so got skipped.
+	// We shouldn't be able to have a known-resolved game that is also in-flight because we always skip processing it.
+	require.False(t, disk.gameDirExists[gameAddr3], "game 3 data should be deleted")
 }
 
 func TestSchedule_RecordActedL1Block(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
-	gameAddr3 := common.Address{0xcc}
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
+	gameAddr1 := common.Address{0xaa}
+	gameAddr2 := common.Address{0xcc}
 	ctx := context.Background()
 
 	// The first game should be tracked
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr3), 1))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 1))
 
 	// Process the result
-	require.Len(t, workQueue, 1)
+	require.Len(t, workQueue, 2)
 	j := <-workQueue
+	require.Equal(t, gameAddr1, j.addr)
 	j.status = types.GameStatusDefenderWon
+	require.NoError(t, c.processResult(j))
+	j = <-workQueue
+	require.Equal(t, gameAddr2, j.addr)
+	j.status = types.GameStatusInProgress
+	require.NoError(t, c.processResult(j))
+
+	// Schedule another block
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 2))
+
+	// Process the result (only the in-progress game gets rescheduled)
+	require.Len(t, workQueue, 1)
+	j = <-workQueue
+	require.Equal(t, gameAddr2, j.addr)
+	require.Equal(t, uint64(2), j.block)
+	j.status = types.GameStatusInProgress
+	require.NoError(t, c.processResult(j))
+
+	// Schedule a third block
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 3))
+
+	// Process the result (only the in-progress game gets rescheduled)
+	// This is deliberately done a third time, because there was actually a bug where it worked for the first two
+	// cycles and failed on the third. This was because the first cycle the game status was unknown so it was processed
+	// the second cycle was the first time the game was known to be complete so was skipped but crucially it left it
+	// marked as in-flight.  On the third update the was incorrectly skipped as in-flight and the l1 block number
+	// wasn't updated. From then on the block number would never be updated.
+	require.Len(t, workQueue, 1)
+	j = <-workQueue
+	require.Equal(t, gameAddr2, j.addr)
+	require.Equal(t, uint64(3), j.block)
+	j.status = types.GameStatusInProgress
 	require.NoError(t, c.processResult(j))
 
 	// Schedule so that the metric is updated
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr3), 2))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 4))
 
 	// Verify that the block number is recorded by the metricer as acted upon
-	require.Equal(t, uint64(1), c.m.(*stubSchedulerMetrics).actedL1Blocks)
+	require.Equal(t, uint64(3), c.m.(*stubSchedulerMetrics).actedL1Blocks)
 }
 
 func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -247,7 +308,7 @@ func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
 }
 
 func TestSchedule_RecordActedL1BlockNewGame(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -276,7 +337,7 @@ func TestSchedule_RecordActedL1BlockNewGame(t *testing.T) {
 }
 
 func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
-	c, workQueue, _, games, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, games, disk, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	ctx := context.Background()
@@ -307,7 +368,7 @@ func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
 }
 
 func TestDropOldGameStates(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -331,8 +392,8 @@ func TestDropOldGameStates(t *testing.T) {
 	require.Contains(t, c.states, gameAddr4, "should create state for game 4")
 }
 
-func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan job, chan job, *createdGames, *stubDiskManager) {
-	logger := testlog.Logger(t, log.LevelInfo)
+func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan job, chan job, *createdGames, *stubDiskManager, *testlog.CapturingHandler) {
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	workQueue := make(chan job, bufferSize)
 	resultQueue := make(chan job, bufferSize)
 	games := &createdGames{
@@ -340,8 +401,8 @@ func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan jo
 		created: make(map[common.Address]*test.StubGamePlayer),
 	}
 	disk := &stubDiskManager{gameDirExists: make(map[common.Address]bool)}
-	c := newCoordinator(logger, &stubSchedulerMetrics{}, workQueue, resultQueue, games.CreateGame, disk)
-	return c, workQueue, resultQueue, games, disk
+	c := newCoordinator(logger, &stubSchedulerMetrics{}, workQueue, resultQueue, games.CreateGame, disk, false)
+	return c, workQueue, resultQueue, games, disk, logs
 }
 
 type createdGames struct {

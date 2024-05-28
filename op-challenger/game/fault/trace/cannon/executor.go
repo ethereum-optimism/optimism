@@ -2,32 +2,18 @@ package cannon
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-const (
-	snapsDir     = "snapshots"
-	preimagesDir = "preimages"
-	finalState   = "final.json.gz"
-)
-
-var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json.gz$`)
-
-type snapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error)
-type cmdExecutor func(ctx context.Context, l log.Logger, binary string, args ...string) error
 
 type Executor struct {
 	logger           log.Logger
@@ -35,7 +21,7 @@ type Executor struct {
 	l1               string
 	l1Beacon         string
 	l2               string
-	inputs           LocalGameInputs
+	inputs           utils.LocalGameInputs
 	cannon           string
 	server           string
 	network          string
@@ -44,28 +30,28 @@ type Executor struct {
 	absolutePreState string
 	snapshotFreq     uint
 	infoFreq         uint
-	selectSnapshot   snapshotSelect
-	cmdExecutor      cmdExecutor
+	selectSnapshot   utils.SnapshotSelect
+	cmdExecutor      utils.CmdExecutor
 }
 
-func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, prestate string, inputs utils.LocalGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
 		metrics:          m,
 		l1:               cfg.L1EthRpc,
 		l1Beacon:         cfg.L1Beacon,
-		l2:               cfg.CannonL2,
+		l2:               cfg.L2Rpc,
 		inputs:           inputs,
 		cannon:           cfg.CannonBin,
 		server:           cfg.CannonServer,
 		network:          cfg.CannonNetwork,
 		rollupConfig:     cfg.CannonRollupConfigPath,
 		l2Genesis:        cfg.CannonL2GenesisPath,
-		absolutePreState: cfg.CannonAbsolutePreState,
+		absolutePreState: prestate,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
 		infoFreq:         cfg.CannonInfoFreq,
-		selectSnapshot:   findStartingSnapshot,
-		cmdExecutor:      runCmd,
+		selectSnapshot:   utils.FindStartingSnapshot,
+		cmdExecutor:      utils.RunCmd,
 	}
 }
 
@@ -75,18 +61,17 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	return e.generateProof(ctx, dir, i, i)
 }
 
-// generateProofOrUntilPreimageRead executes cannon to generate a proof at the specified trace index,
-// or until a non-local preimage read is encountered if untilPreimageRead is true.
+// generateProof executes cannon from the specified starting trace index until the end trace index.
 // The proof is stored at the specified directory.
 func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, end uint64, extraCannonArgs ...string) error {
-	snapshotDir := filepath.Join(dir, snapsDir)
+	snapshotDir := filepath.Join(dir, utils.SnapsDir)
 	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
-	proofDir := filepath.Join(dir, proofsDir)
-	dataDir := preimageDir(dir)
-	lastGeneratedState := filepath.Join(dir, finalState)
+	proofDir := filepath.Join(dir, utils.ProofsDir)
+	dataDir := utils.PreimageDir(dir)
+	lastGeneratedState := filepath.Join(dir, utils.FinalState)
 	args := []string{
 		"run",
 		"--input", start,
@@ -139,59 +124,4 @@ func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, 
 	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cannon, args...)
 	e.metrics.RecordCannonExecutionTime(time.Since(execStart).Seconds())
 	return err
-}
-
-func preimageDir(dir string) string {
-	return filepath.Join(dir, preimagesDir)
-}
-
-func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
-	cmd := exec.CommandContext(ctx, binary, args...)
-	stdOut := oplog.NewWriter(l, log.LevelInfo)
-	defer stdOut.Close()
-	// Keep stdErr at info level because cannon uses stderr for progress messages
-	stdErr := oplog.NewWriter(l, log.LevelInfo)
-	defer stdErr.Close()
-	cmd.Stdout = stdOut
-	cmd.Stderr = stdErr
-	return cmd.Run()
-}
-
-// findStartingSnapshot finds the closest snapshot before the specified traceIndex in snapDir.
-// If no suitable snapshot can be found it returns absolutePreState.
-func findStartingSnapshot(logger log.Logger, snapDir string, absolutePreState string, traceIndex uint64) (string, error) {
-	// Find the closest snapshot to start from
-	entries, err := os.ReadDir(snapDir)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return absolutePreState, nil
-		}
-		return "", fmt.Errorf("list snapshots in %v: %w", snapDir, err)
-	}
-	bestSnap := uint64(0)
-	for _, entry := range entries {
-		if entry.IsDir() {
-			logger.Warn("Unexpected directory in snapshots dir", "parent", snapDir, "child", entry.Name())
-			continue
-		}
-		name := entry.Name()
-		if !snapshotNameRegexp.MatchString(name) {
-			logger.Warn("Unexpected file in snapshots dir", "parent", snapDir, "child", entry.Name())
-			continue
-		}
-		index, err := strconv.ParseUint(name[0:len(name)-len(".json.gz")], 10, 64)
-		if err != nil {
-			logger.Error("Unable to parse trace index of snapshot file", "parent", snapDir, "child", entry.Name())
-			continue
-		}
-		if index > bestSnap && index < traceIndex {
-			bestSnap = index
-		}
-	}
-	if bestSnap == 0 {
-		return absolutePreState, nil
-	}
-	startFrom := fmt.Sprintf("%v/%v.json.gz", snapDir, bestSnap)
-
-	return startFrom, nil
 }

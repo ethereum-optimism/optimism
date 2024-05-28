@@ -6,7 +6,8 @@ import { StdUtils } from "forge-std/StdUtils.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { FaultDisputeGame_Init } from "test/dispute/FaultDisputeGame.t.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
 
 contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
@@ -17,13 +18,7 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
 
     function setUp() public override {
         super.setUp();
-        super.init({
-            rootClaim: ROOT_CLAIM,
-            absolutePrestate: ABSOLUTE_PRESTATE,
-            l2BlockNumber: 0x10,
-            genesisBlockNumber: 0,
-            genesisOutputRoot: Hash.wrap(bytes32(0))
-        });
+        super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: ABSOLUTE_PRESTATE, l2BlockNumber: 0x10 });
 
         actor = new RandomClaimActor(gameProxy, vm);
 
@@ -41,13 +36,27 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
         (,,, uint256 rootBond,,,) = gameProxy.claimData(0);
 
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
-            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
+            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1, 0)));
             assertTrue(success);
         }
         gameProxy.resolve();
 
-        gameProxy.claimCredit(address(this));
-        gameProxy.claimCredit(address(actor));
+        // Wait for the withdrawal delay.
+        vm.warp(block.timestamp + 7 days + 1 seconds);
+
+        if (gameProxy.credit(address(this)) == 0) {
+            vm.expectRevert(NoCreditToClaim.selector);
+            gameProxy.claimCredit(address(this));
+        } else {
+            gameProxy.claimCredit(address(this));
+        }
+
+        if (gameProxy.credit(address(actor)) == 0) {
+            vm.expectRevert(NoCreditToClaim.selector);
+            gameProxy.claimCredit(address(actor));
+        } else {
+            gameProxy.claimCredit(address(actor));
+        }
 
         if (gameProxy.status() == GameStatus.DEFENDER_WINS) {
             assertEq(address(this).balance, type(uint96).max);
@@ -80,7 +89,8 @@ contract RandomClaimActor is StdUtils {
 
         totalBonded += _bondAmount;
 
-        GAME.move{ value: _bondAmount }(_parentIndex, _claim, _isAttack);
+        (,,,, Claim disputed,,) = GAME.claimData(_parentIndex);
+        GAME.move{ value: _bondAmount }(disputed, _parentIndex, _claim, _isAttack);
     }
 
     fallback() external payable { }

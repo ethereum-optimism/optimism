@@ -18,7 +18,7 @@ This document provides a set of troubleshooting steps for common failure scenari
 Header traversal is a client abstraction that allows the indexer to sequentially traverse the chain via batches of blocks. The following are some common failure modes and how to resolve them:
 1. `the HeaderTraversal and provider have diverged in state`
 This error occurs when the indexer is operating on a different block state than the node. This is typically caused by network reorgs and is the result of `l1-confirmation-depth` or `l2-confirmation-depth` values being set too low. To resolve this issue, 
-    * Delete L1/L2 blocks in the database back to a last known valid height
+    * Delete blocks in the database back to a last known valid L1 height. See the `reorg-delete` command available in the cli that'll appropriately conduct the deletions.
     * Increase confirmation depth values
     * Restart the indexer
 

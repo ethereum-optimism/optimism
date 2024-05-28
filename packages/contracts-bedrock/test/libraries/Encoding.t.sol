@@ -13,7 +13,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 
 contract Encoding_Test is CommonTest {
     /// @dev Tests encoding and decoding a nonce and version.
-    function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external {
+    function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external pure {
         (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(Encoding.encodeVersionedNonce(_nonce, _version));
         assertEq(version, _version);
         assertEq(nonce, _nonce);
@@ -59,6 +59,7 @@ contract Encoding_Test is CommonTest {
         bytes memory _data
     )
         external
+        pure
     {
         uint8 version = 0;
         uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);

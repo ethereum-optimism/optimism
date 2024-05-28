@@ -13,8 +13,8 @@ import (
 const envVarPrefix = "OP_BOOTNODE"
 
 var Flags = []cli.Flag{
-	opflags.CLINetworkFlag(envVarPrefix),
-	opflags.CLIRollupConfigFlag(envVarPrefix),
+	opflags.CLINetworkFlag(envVarPrefix, ""),
+	opflags.CLIRollupConfigFlag(envVarPrefix, ""),
 }
 
 func init() {

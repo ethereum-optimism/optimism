@@ -15,7 +15,7 @@ import (
 
 func TestLocalPreimageSource(t *testing.T) {
 	cfg := &config.Config{
-		Rollup:             chaincfg.Goerli,
+		Rollup:             chaincfg.Sepolia,
 		L1Head:             common.HexToHash("0x1111"),
 		L2OutputRoot:       common.HexToHash("0x2222"),
 		L2Claim:            common.HexToHash("0x3333"),

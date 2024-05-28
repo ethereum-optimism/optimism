@@ -2,11 +2,15 @@ package flags
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -68,9 +72,42 @@ var (
 	}
 	MaxL1TxSizeBytesFlag = &cli.Uint64Flag{
 		Name:    "max-l1-tx-size-bytes",
-		Usage:   "The maximum size of a batch tx submitted to L1.",
-		Value:   120_000,
+		Usage:   "The maximum size of a batch tx submitted to L1. Ignored for blobs, where max blob size will be used.",
+		Value:   120_000, // will be overwritten to max for blob da-type
 		EnvVars: prefixEnvVars("MAX_L1_TX_SIZE_BYTES"),
+	}
+	TargetNumFramesFlag = &cli.IntFlag{
+		Name:    "target-num-frames",
+		Usage:   "The target number of frames to create per channel. Controls number of blobs per blob tx, if using Blob DA.",
+		Value:   1,
+		EnvVars: prefixEnvVars("TARGET_NUM_FRAMES"),
+	}
+	ApproxComprRatioFlag = &cli.Float64Flag{
+		Name:    "approx-compr-ratio",
+		Usage:   "The approximate compression ratio (<= 1.0). Only relevant for ratio compressor.",
+		Value:   0.6,
+		EnvVars: prefixEnvVars("APPROX_COMPR_RATIO"),
+	}
+	CompressorFlag = &cli.StringFlag{
+		Name:    "compressor",
+		Usage:   "The type of compressor. Valid options: " + strings.Join(compressor.KindKeys, ", "),
+		EnvVars: prefixEnvVars("COMPRESSOR"),
+		Value:   compressor.ShadowKind,
+		Action: func(_ *cli.Context, s string) error {
+			if !slices.Contains(compressor.KindKeys, s) {
+				return fmt.Errorf("unsupported compressor: %s", s)
+			}
+			return nil
+		},
+	}
+	CompressionAlgoFlag = &cli.GenericFlag{
+		Name:    "compression-algo",
+		Usage:   "The compression algorithm to use. Valid options: " + openum.EnumString(derive.CompressionAlgos),
+		EnvVars: prefixEnvVars("COMPRESSION_ALGO"),
+		Value: func() *derive.CompressionAlgo {
+			out := derive.Zlib
+			return &out
+		}(),
 	}
 	StoppedFlag = &cli.BoolFlag{
 		Name:    "stopped",
@@ -78,10 +115,11 @@ var (
 		EnvVars: prefixEnvVars("STOPPED"),
 	}
 	BatchTypeFlag = &cli.UintFlag{
-		Name:    "batch-type",
-		Usage:   "The batch type. 0 for SingularBatch and 1 for SpanBatch.",
-		Value:   0,
-		EnvVars: prefixEnvVars("BATCH_TYPE"),
+		Name:        "batch-type",
+		Usage:       "The batch type. 0 for SingularBatch and 1 for SpanBatch.",
+		Value:       0,
+		EnvVars:     prefixEnvVars("BATCH_TYPE"),
+		DefaultText: "singular",
 	}
 	DataAvailabilityTypeFlag = &cli.GenericFlag{
 		Name: "data-availability-type",
@@ -99,6 +137,20 @@ var (
 		Value:   2 * time.Minute,
 		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
 	}
+	CheckRecentTxsDepthFlag = &cli.IntFlag{
+		Name: "check-recent-txs-depth",
+		Usage: "Indicates how many blocks back the batcher should look during startup for a recent batch tx on L1. This can " +
+			"speed up waiting for node sync. It should be set to the verifier confirmation depth of the sequencer (e.g. 4).",
+		Value:   0,
+		EnvVars: prefixEnvVars("CHECK_RECENT_TXS_DEPTH"),
+	}
+	WaitNodeSyncFlag = &cli.BoolFlag{
+		Name: "wait-node-sync",
+		Usage: "Indicates if, during startup, the batcher should wait for a recent batcher tx on L1 to " +
+			"finalize (via more block confirmations). This should help avoid duplicate batcher txs.",
+		Value:   false,
+		EnvVars: prefixEnvVars("WAIT_NODE_SYNC"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -110,16 +162,22 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	WaitNodeSyncFlag,
+	CheckRecentTxsDepthFlag,
 	SubSafetyMarginFlag,
 	PollIntervalFlag,
 	MaxPendingTransactionsFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
+	TargetNumFramesFlag,
+	ApproxComprRatioFlag,
+	CompressorFlag,
 	StoppedFlag,
 	SequencerHDPathFlag,
 	BatchTypeFlag,
 	DataAvailabilityTypeFlag,
 	ActiveSequencerCheckDurationFlag,
+	CompressionAlgoFlag,
 }
 
 func init() {
@@ -128,7 +186,7 @@ func init() {
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, compressor.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, "")...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }

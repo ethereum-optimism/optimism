@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -81,15 +82,17 @@ type PayloadsQueue struct {
 	MaxSize     uint64
 	blockHashes map[common.Hash]struct{}
 	SizeFn      func(p *eth.ExecutionPayloadEnvelope) uint64
+	log         log.Logger
 }
 
-func NewPayloadsQueue(maxSize uint64, sizeFn func(p *eth.ExecutionPayloadEnvelope) uint64) *PayloadsQueue {
+func NewPayloadsQueue(log log.Logger, maxSize uint64, sizeFn func(p *eth.ExecutionPayloadEnvelope) uint64) *PayloadsQueue {
 	return &PayloadsQueue{
 		pq:          nil,
 		currentSize: 0,
 		MaxSize:     maxSize,
 		blockHashes: make(map[common.Hash]struct{}),
 		SizeFn:      sizeFn,
+		log:         log,
 	}
 }
 
@@ -125,7 +128,8 @@ func (upq *PayloadsQueue) Push(e *eth.ExecutionPayloadEnvelope) error {
 	})
 	upq.currentSize += size
 	for upq.currentSize > upq.MaxSize {
-		upq.Pop()
+		env := upq.Pop()
+		upq.log.Info("Dropping payload from payload queue because the payload queue is too large", "id", env.ExecutionPayload.ID())
 	}
 	upq.blockHashes[e.ExecutionPayload.BlockHash] = struct{}{}
 	return nil

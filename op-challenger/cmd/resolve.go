@@ -12,7 +12,7 @@ import (
 )
 
 func Resolve(ctx *cli.Context) error {
-	contract, txMgr, err := NewContractWithTxMgr[*contracts.FaultDisputeGameContract](ctx, GameAddressFlag.Name, contracts.NewFaultDisputeGameContract)
+	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, GameAddressFlag.Name, contracts.NewFaultDisputeGameContract)
 	if err != nil {
 		return fmt.Errorf("failed to create dispute game bindings: %w", err)
 	}
@@ -32,14 +32,14 @@ func Resolve(ctx *cli.Context) error {
 	return nil
 }
 
-var resolveFlags = []cli.Flag{
-	flags.L1EthRpcFlag,
-	GameAddressFlag,
-}
-
-func init() {
-	resolveFlags = append(resolveFlags, txmgr.CLIFlagsWithDefaults(flags.EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	resolveFlags = append(resolveFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
+func resolveFlags() []cli.Flag {
+	cliFlags := []cli.Flag{
+		flags.L1EthRpcFlag,
+		GameAddressFlag,
+	}
+	cliFlags = append(cliFlags, txmgr.CLIFlagsWithDefaults(flags.EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
+	cliFlags = append(cliFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
+	return cliFlags
 }
 
 var ResolveCommand = &cli.Command{
@@ -47,6 +47,5 @@ var ResolveCommand = &cli.Command{
 	Usage:       "Resolves the specified dispute game if possible",
 	Description: "Resolves the specified dispute game if possible",
 	Action:      Resolve,
-	Flags:       resolveFlags,
-	Hidden:      true,
+	Flags:       resolveFlags(),
 }

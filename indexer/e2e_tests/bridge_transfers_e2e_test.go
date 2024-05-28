@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/indexer/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -300,7 +300,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	require.Empty(t, aliceWithdrawals.Withdrawals[0].FinalizedL1TransactionHash)
 
 	// wait for processor catchup
-	proveReceipt, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, withdrawReceipt)
+	proveReceipt, finalizeReceipt, _, _ := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, withdrawReceipt)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 		l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
@@ -388,7 +388,7 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserETHReceive(t *testing.T) {
 	require.Empty(t, aliceWithdrawals.Withdrawals[0].FinalizedL1TransactionHash)
 
 	// wait for processor catchup
-	proveReceipt, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, l2ToL1WithdrawReceipt)
+	proveReceipt, finalizeReceipt, _, _ := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, l2ToL1WithdrawReceipt)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 		l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
@@ -565,12 +565,12 @@ func TestClientBridgeFunctions(t *testing.T) {
 		actors[i].amt = l2ToL1MessagePasserWithdrawTx.Value()
 
 		// (3.d) Ensure that withdrawal and deposit txs are retrievable via API
-		deposits, err := testSuite.Client.GetAllDepositsByAddress(actor.addr)
+		deposits, err := testSuite.ApiClient.GetAllDepositsByAddress(actor.addr)
 		require.NoError(t, err)
 		require.Len(t, deposits, 1)
 		require.Equal(t, depositTx.Hash().String(), deposits[0].L1TxHash)
 
-		withdrawals, err := testSuite.Client.GetAllWithdrawalsByAddress(actor.addr)
+		withdrawals, err := testSuite.ApiClient.GetAllWithdrawalsByAddress(actor.addr)
 		require.NoError(t, err)
 		require.Len(t, withdrawals, 1)
 		require.Equal(t, l2ToL1MessagePasserWithdrawTx.Hash().String(), withdrawals[0].TransactionHash)
@@ -578,7 +578,7 @@ func TestClientBridgeFunctions(t *testing.T) {
 	}
 
 	// (4) Ensure that supply assessment is correct
-	assessment, err := testSuite.Client.GetSupplyAssessment()
+	assessment, err := testSuite.ApiClient.GetSupplyAssessment()
 	require.NoError(t, err)
 
 	mintFloat, _ := mintSum.Float64()
@@ -601,7 +601,7 @@ func TestClientBridgeFunctions(t *testing.T) {
 
 		s.proven = new(big.Int).Add(s.proven, actor.amt)
 
-		finalReceipt := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, actor.priv, proveReceipt, params)
+		finalReceipt, _, _ := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, actor.priv, proveReceipt, params)
 		require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 			seen := l1Header != nil && l1Header.Number.Uint64() >= finalReceipt.BlockNumber.Uint64()
@@ -612,7 +612,7 @@ func TestClientBridgeFunctions(t *testing.T) {
 	}
 
 	// (6) Validate assessment for proven & finalized withdrawals
-	assessment, err = testSuite.Client.GetSupplyAssessment()
+	assessment, err = testSuite.ApiClient.GetSupplyAssessment()
 	require.NoError(t, err)
 
 	proven, acc := s.proven.Float64()

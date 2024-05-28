@@ -8,6 +8,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
@@ -251,7 +253,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	prev := &fakeAttributesQueue{}
 
 	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
@@ -262,13 +264,13 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	eq.origin = refD
 	prev.origin = refD
 	eq.ec.SetSafeHead(refC1)
-	eq.postProcessSafeL2()
+	require.NoError(t, eq.postProcessSafeL2())
 
 	// now say D0 was included in E and became the new safe head
 	eq.origin = refE
 	prev.origin = refE
 	eq.ec.SetSafeHead(refD0)
-	eq.postProcessSafeL2()
+	require.NoError(t, eq.postProcessSafeL2())
 
 	// let's finalize D (current L1), from which we fully derived C1 (it was safe head), but not D0 (included in E)
 	eq.Finalize(refD)
@@ -487,7 +489,7 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refE}
 
 	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
@@ -817,7 +819,7 @@ func TestVerifyNewL1Origin(t *testing.T) {
 
 			prev := &fakeAttributesQueue{origin: refE}
 			ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-			eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
+			eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 			require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 			require.Equal(t, refB1, ec.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
@@ -914,7 +916,7 @@ func TestBlockBuildingRace(t *testing.T) {
 
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 	ec := NewEngineController(eng, logger, metrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	id := eth.PayloadID{0xff}
@@ -1086,7 +1088,7 @@ func TestResetLoop(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 
 	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	eq.ec.SetUnsafeHead(refA2)
 	eq.ec.SetSafeHead(refA1)
 	eq.ec.SetFinalizedHead(refA0)
@@ -1192,7 +1194,7 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refA}
 
 	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
-	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{})
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled)
 	eq.ec.SetUnsafeHead(refA2)
 	eq.ec.SetSafeHead(refA0)
 	eq.ec.SetFinalizedHead(refA0)
@@ -1216,4 +1218,102 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)
+}
+
+func TestPlasmaFinalityData(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	eng := &testutils.MockEngine{}
+	l1F := &testutils.MockL1Source{}
+
+	rng := rand.New(rand.NewSource(1234))
+
+	refA := testutils.RandomBlockRef(rng)
+	refA0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           refA.Time,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 0,
+	}
+
+	prev := &fakeAttributesQueue{origin: refA}
+
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1:     refA.ID(),
+			L2:     refA0.ID(),
+			L2Time: refA0.Time,
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: common.Address{42},
+				Overhead:    [32]byte{123},
+				Scalar:      [32]byte{42},
+				GasLimit:    20_000_000,
+			},
+		},
+		BlockTime:     1,
+		SeqWindowSize: 2,
+	}
+	plasmaCfg := &rollup.PlasmaConfig{
+		DAChallengeWindow: 90,
+		DAResolveWindow:   90,
+		CommitmentType:    plasma.KeccakCommitmentString,
+	}
+	// shoud return l1 finality if plasma is not enabled
+	require.Equal(t, uint64(finalityLookback), calcFinalityLookback(cfg))
+
+	cfg.PlasmaConfig = plasmaCfg
+	expFinalityLookback := 181
+	require.Equal(t, uint64(expFinalityLookback), calcFinalityLookback(cfg))
+
+	refA1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA0.Number + 1,
+		ParentHash:     refA0.Hash,
+		Time:           refA0.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 1,
+	}
+
+	ec := NewEngineController(eng, logger, metrics.NoopMetrics, &rollup.Config{}, sync.CLSync)
+
+	eq := NewEngineQueue(logger, cfg, eng, ec, metrics.NoopMetrics, prev, l1F, &sync.Config{}, safedb.Disabled)
+	require.Equal(t, expFinalityLookback, cap(eq.finalityData))
+
+	l1parent := refA
+	l2parent := refA1
+
+	ec.SetSafeHead(l2parent)
+	require.NoError(t, eq.postProcessSafeL2())
+
+	// advance over 200 l1 origins each time incrementing new l2 safe heads
+	// and post processing.
+	for i := uint64(0); i < 200; i++ {
+		require.NoError(t, eq.postProcessSafeL2())
+
+		l1parent = eth.L1BlockRef{
+			Hash:       testutils.RandomHash(rng),
+			Number:     l1parent.Number + 1,
+			ParentHash: l1parent.Hash,
+			Time:       l1parent.Time + 12,
+		}
+		eq.origin = l1parent
+
+		for j := uint64(0); i < cfg.SeqWindowSize; i++ {
+			l2parent = eth.L2BlockRef{
+				Hash:           testutils.RandomHash(rng),
+				Number:         l2parent.Number + 1,
+				ParentHash:     l2parent.Hash,
+				Time:           l2parent.Time + cfg.BlockTime,
+				L1Origin:       l1parent.ID(),
+				SequenceNumber: j,
+			}
+			ec.SetSafeHead(l2parent)
+			require.NoError(t, eq.postProcessSafeL2())
+		}
+	}
+
+	// finality data does not go over challenge + resolve windows + 1 capacity
+	// (prunes down to 180 then adds the extra 1 each time)
+	require.Equal(t, expFinalityLookback, len(eq.finalityData))
 }

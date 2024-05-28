@@ -6,21 +6,29 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Detect func(ctx context.Context, games []types.GameMetadata)
+type ForecastResolution func(games []*types.EnrichedGameData, ignoredCount, failedCount int)
+type Bonds func(games []*types.EnrichedGameData)
+type Resolutions func(games []*types.EnrichedGameData)
+type Monitor func(games []*types.EnrichedGameData)
 type BlockHashFetcher func(ctx context.Context, number *big.Int) (common.Hash, error)
 type BlockNumberFetcher func(ctx context.Context) (uint64, error)
-type FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
+type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, int, error)
+
+type MonitorMetrics interface {
+	RecordMonitorDuration(dur time.Duration)
+}
 
 type gameMonitor struct {
-	logger log.Logger
-	clock  clock.Clock
+	logger  log.Logger
+	clock   clock.Clock
+	metrics MonitorMetrics
 
 	done   chan struct{}
 	ctx    context.Context
@@ -29,8 +37,13 @@ type gameMonitor struct {
 	gameWindow      time.Duration
 	monitorInterval time.Duration
 
-	detect           Detect
-	fetchGames       FactoryGameFetcher
+	forecast         ForecastResolution
+	bonds            Bonds
+	resolutions      Resolutions
+	claims           Monitor
+	withdrawals      Monitor
+	l2Challenges     Monitor
+	extract          Extract
 	fetchBlockHash   BlockHashFetcher
 	fetchBlockNumber BlockNumberFetcher
 }
@@ -39,10 +52,16 @@ func newGameMonitor(
 	ctx context.Context,
 	logger log.Logger,
 	cl clock.Clock,
+	metrics MonitorMetrics,
 	monitorInterval time.Duration,
 	gameWindow time.Duration,
-	detect Detect,
-	factory FactoryGameFetcher,
+	forecast ForecastResolution,
+	bonds Bonds,
+	resolutions Resolutions,
+	claims Monitor,
+	withdrawals Monitor,
+	l2Challenges Monitor,
+	extract Extract,
 	fetchBlockNumber BlockNumberFetcher,
 	fetchBlockHash BlockHashFetcher,
 ) *gameMonitor {
@@ -51,42 +70,46 @@ func newGameMonitor(
 		clock:            cl,
 		ctx:              ctx,
 		done:             make(chan struct{}),
+		metrics:          metrics,
 		monitorInterval:  monitorInterval,
 		gameWindow:       gameWindow,
-		detect:           detect,
-		fetchGames:       factory,
+		forecast:         forecast,
+		bonds:            bonds,
+		resolutions:      resolutions,
+		claims:           claims,
+		withdrawals:      withdrawals,
+		l2Challenges:     l2Challenges,
+		extract:          extract,
 		fetchBlockNumber: fetchBlockNumber,
 		fetchBlockHash:   fetchBlockHash,
 	}
 }
 
-func (m *gameMonitor) minGameTimestamp() uint64 {
-	if m.gameWindow.Seconds() == 0 {
-		return 0
-	}
-	// time: "To compute t-d for a duration d, use t.Add(-d)."
-	// https://pkg.go.dev/time#Time.Sub
-	if m.clock.Now().Unix() > int64(m.gameWindow.Seconds()) {
-		return uint64(m.clock.Now().Add(-m.gameWindow).Unix())
-	}
-	return 0
-}
-
 func (m *gameMonitor) monitorGames() error {
+	start := m.clock.Now()
 	blockNumber, err := m.fetchBlockNumber(m.ctx)
 	if err != nil {
-		return fmt.Errorf("Failed to fetch block number: %w", err)
+		return fmt.Errorf("failed to fetch block number: %w", err)
 	}
 	m.logger.Debug("Fetched block number", "blockNumber", blockNumber)
 	blockHash, err := m.fetchBlockHash(context.Background(), new(big.Int).SetUint64(blockNumber))
 	if err != nil {
-		return fmt.Errorf("Failed to fetch block hash: %w", err)
+		return fmt.Errorf("failed to fetch block hash: %w", err)
 	}
-	games, err := m.fetchGames(m.ctx, blockHash, m.minGameTimestamp())
+	minGameTimestamp := clock.MinCheckedTimestamp(m.clock, m.gameWindow)
+	enrichedGames, ignored, failed, err := m.extract(m.ctx, blockHash, minGameTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	m.detect(m.ctx, games)
+	m.resolutions(enrichedGames)
+	m.forecast(enrichedGames, ignored, failed)
+	m.bonds(enrichedGames)
+	m.claims(enrichedGames)
+	m.withdrawals(enrichedGames)
+	m.l2Challenges(enrichedGames)
+	timeTaken := m.clock.Since(start)
+	m.metrics.RecordMonitorDuration(timeTaken)
+	m.logger.Info("Completed monitoring update", "blockNumber", blockNumber, "blockHash", blockHash, "duration", timeTaken, "games", len(enrichedGames), "ignored", ignored, "failed", failed)
 	return nil
 }
 

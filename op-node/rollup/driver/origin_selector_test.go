@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -174,6 +175,42 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 
 	_, err := s.FindL1Origin(context.Background(), l2Head)
 	require.ErrorContains(t, err, "sequencer time drift")
+}
+
+func u64ptr(n uint64) *uint64 {
+	return &n
+}
+
+// TestOriginSelector_FjordSeqDrift has a similar setup to the previous test
+// TestOriginSelectorStrictConfDepth but with Fjord activated at the l1 origin.
+// This time the same L1 origin is returned if no new L1 head is seen, instead of an error,
+// because the Fjord max sequencer drift is higher.
+func TestOriginSelector_FjordSeqDrift(t *testing.T) {
+	log := testlog.Logger(t, log.LevelCrit)
+	cfg := &rollup.Config{
+		MaxSequencerDrift: 8,
+		BlockTime:         2,
+		FjordTime:         u64ptr(20), // a's timestamp
+	}
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	a := eth.L1BlockRef{
+		Hash:   common.Hash{'a'},
+		Number: 10,
+		Time:   20,
+	}
+	l2Head := eth.L2BlockRef{
+		L1Origin: a.ID(),
+		Time:     27, // next L2 block time would be past pre-Fjord seq drift
+	}
+
+	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
+	l1.ExpectL1BlockRefByNumber(a.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
+	s := NewL1OriginSelector(log, cfg, l1)
+
+	l1O, err := s.FindL1Origin(context.Background(), l2Head)
+	require.NoError(t, err, "with Fjord activated, have increased max seq drift")
+	require.Equal(t, a, l1O)
 }
 
 // TestOriginSelectorSeqDriftRespectsNextOriginTime

@@ -22,27 +22,34 @@ const (
 	ColorFlagName  = "log.color"
 )
 
-// CLIFlags creates flag definitions for the logging utils.
+func CLIFlags(envPrefix string) []cli.Flag {
+	return CLIFlagsWithCategory(envPrefix, "")
+}
+
+// CLIFlagsWithCategory creates flag definitions for the logging utils.
 // Warning: flags are not safe to reuse due to an upstream urfave default-value mutation bug in GenericFlag.
 // Use cliapp.ProtectFlags(flags) to create a copy before passing it into an App if the app runs more than once.
-func CLIFlags(envPrefix string) []cli.Flag {
+func CLIFlagsWithCategory(envPrefix string, category string) []cli.Flag {
 	return []cli.Flag{
 		&cli.GenericFlag{
-			Name:    LevelFlagName,
-			Usage:   "The lowest log level that will be output",
-			Value:   NewLevelFlagValue(log.LevelInfo),
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_LEVEL"),
+			Name:     LevelFlagName,
+			Usage:    "The lowest log level that will be output",
+			Value:    NewLevelFlagValue(log.LevelInfo),
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_LEVEL"),
+			Category: category,
 		},
 		&cli.GenericFlag{
-			Name:    FormatFlagName,
-			Usage:   "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
-			Value:   NewFormatFlagValue(FormatText),
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
+			Name:     FormatFlagName,
+			Usage:    "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
+			Value:    NewFormatFlagValue(FormatText),
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
+			Category: category,
 		},
 		&cli.BoolFlag{
-			Name:    ColorFlagName,
-			Usage:   "Color the log output if in terminal mode",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
+			Name:     ColorFlagName,
+			Usage:    "Color the log output if in terminal mode",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
+			Category: category,
 		},
 	}
 }
@@ -121,6 +128,7 @@ func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 	termColorHandler := func(w io.Writer) slog.Handler {
 		return log.NewTerminalHandler(w, color)
 	}
+	logfmtHandler := func(w io.Writer) slog.Handler { return log.LogfmtHandlerWithLevel(w, log.LevelTrace) }
 	switch ft {
 	case FormatJSON:
 		return log.JSONHandler
@@ -128,12 +136,12 @@ func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 		if term.IsTerminal(int(os.Stdout.Fd())) {
 			return termColorHandler
 		} else {
-			return log.LogfmtHandler
+			return logfmtHandler
 		}
 	case FormatTerminal:
 		return termColorHandler
 	case FormatLogFmt:
-		return log.LogfmtHandler
+		return logfmtHandler
 	default:
 		panic(fmt.Errorf("failed to create slog.Handler factory for format-type=%q and color=%v", ft, color))
 	}

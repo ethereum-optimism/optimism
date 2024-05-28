@@ -54,6 +54,26 @@ export const toProvider = (provider: ProviderLike): Provider => {
 }
 
 /**
+ * Converts a ProviderLike into a JsonRpcProvider.
+ *
+ * @param provider ProviderLike to turn into a JsonRpcProvider.
+ * @returns Input as a JsonRpcProvider.
+ */
+export const toJsonRpcProvider = (
+  provider: ProviderLike
+): ethers.providers.JsonRpcProvider => {
+  const coerced = toProvider(provider)
+  if ('send' in coerced) {
+    // Existence of "send" is basically the only function that matters for determining if we can
+    // use this provider as a JsonRpcProvider, because "send" is the function that we usually want
+    // access to when we specifically care about having a JsonRpcProvider.
+    return coerced as ethers.providers.JsonRpcProvider
+  } else {
+    throw new Error('Invalid JsonRpcProvider, does not have "send" function')
+  }
+}
+
+/**
  * Pulls a transaction hash out of a TransactionLike object.
  *
  * @param transaction TransactionLike to convert into a transaction hash.

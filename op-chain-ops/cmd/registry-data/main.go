@@ -91,17 +91,19 @@ type GenesisAccount struct {
 }
 
 type Genesis struct {
-	Nonce      uint64         `json:"nonce"`
-	Timestamp  uint64         `json:"timestamp"`
-	ExtraData  []byte         `json:"extraData"`
-	GasLimit   uint64         `json:"gasLimit"`
-	Difficulty *hexutil.Big   `json:"difficulty"`
-	Mixhash    common.Hash    `json:"mixHash"`
-	Coinbase   common.Address `json:"coinbase"`
-	Number     uint64         `json:"number"`
-	GasUsed    uint64         `json:"gasUsed"`
-	ParentHash common.Hash    `json:"parentHash"`
-	BaseFee    *hexutil.Big   `json:"baseFeePerGas"`
+	Nonce         uint64         `json:"nonce"`
+	Timestamp     uint64         `json:"timestamp"`
+	ExtraData     []byte         `json:"extraData"`
+	GasLimit      uint64         `json:"gasLimit"`
+	Difficulty    *hexutil.Big   `json:"difficulty"`
+	Mixhash       common.Hash    `json:"mixHash"`
+	Coinbase      common.Address `json:"coinbase"`
+	Number        uint64         `json:"number"`
+	GasUsed       uint64         `json:"gasUsed"`
+	ParentHash    common.Hash    `json:"parentHash"`
+	BaseFee       *hexutil.Big   `json:"baseFeePerGas"`
+	ExcessBlobGas *uint64        `json:"excessBlobGas"` // EIP-4844
+	BlobGasUsed   *uint64        `json:"blobGasUsed"`   // EIP-4844
 
 	Alloc jsonutil.LazySortedJsonMap[common.Address, GenesisAccount] `json:"alloc"`
 	// For genesis definitions without full state (OP-Mainnet, OP-Goerli)
@@ -168,19 +170,21 @@ func entrypoint(ctx *cli.Context) error {
 			return errors.New("genesis-header based genesis must have no withdrawals")
 		}
 		out := Genesis{
-			Nonce:      genesisHeader.Nonce.Uint64(),
-			Timestamp:  genesisHeader.Time,
-			ExtraData:  genesisHeader.Extra,
-			GasLimit:   genesisHeader.GasLimit,
-			Difficulty: (*hexutil.Big)(genesisHeader.Difficulty),
-			Mixhash:    genesisHeader.MixDigest,
-			Coinbase:   genesisHeader.Coinbase,
-			Number:     genesisHeader.Number.Uint64(),
-			GasUsed:    genesisHeader.GasUsed,
-			ParentHash: genesisHeader.ParentHash,
-			BaseFee:    (*hexutil.Big)(genesisHeader.BaseFee),
-			Alloc:      make(jsonutil.LazySortedJsonMap[common.Address, GenesisAccount]),
-			StateHash:  &genesisHeader.Root,
+			Nonce:         genesisHeader.Nonce.Uint64(),
+			Timestamp:     genesisHeader.Time,
+			ExtraData:     genesisHeader.Extra,
+			GasLimit:      genesisHeader.GasLimit,
+			Difficulty:    (*hexutil.Big)(genesisHeader.Difficulty),
+			Mixhash:       genesisHeader.MixDigest,
+			Coinbase:      genesisHeader.Coinbase,
+			Number:        genesisHeader.Number.Uint64(),
+			GasUsed:       genesisHeader.GasUsed,
+			ParentHash:    genesisHeader.ParentHash,
+			BaseFee:       (*hexutil.Big)(genesisHeader.BaseFee),
+			ExcessBlobGas: genesisHeader.ExcessBlobGas, // EIP-4844
+			BlobGasUsed:   genesisHeader.BlobGasUsed,   // EIP-4844
+			Alloc:         make(jsonutil.LazySortedJsonMap[common.Address, GenesisAccount]),
+			StateHash:     &genesisHeader.Root,
 		}
 		if err := writeGzipJSON(ctx.Path(OutputFlag.Name), out); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
@@ -209,18 +213,20 @@ func entrypoint(ctx *cli.Context) error {
 
 	// convert into allocation data
 	out := Genesis{
-		Nonce:      genesis.Nonce,
-		Timestamp:  genesis.Timestamp,
-		ExtraData:  genesis.ExtraData,
-		GasLimit:   genesis.GasLimit,
-		Difficulty: (*hexutil.Big)(genesis.Difficulty),
-		Mixhash:    genesis.Mixhash,
-		Coinbase:   genesis.Coinbase,
-		Number:     genesis.Number,
-		GasUsed:    genesis.GasUsed,
-		ParentHash: genesis.ParentHash,
-		BaseFee:    (*hexutil.Big)(genesis.BaseFee),
-		Alloc:      make(jsonutil.LazySortedJsonMap[common.Address, GenesisAccount]),
+		Nonce:         genesis.Nonce,
+		Timestamp:     genesis.Timestamp,
+		ExtraData:     genesis.ExtraData,
+		GasLimit:      genesis.GasLimit,
+		Difficulty:    (*hexutil.Big)(genesis.Difficulty),
+		Mixhash:       genesis.Mixhash,
+		Coinbase:      genesis.Coinbase,
+		Number:        genesis.Number,
+		GasUsed:       genesis.GasUsed,
+		ParentHash:    genesis.ParentHash,
+		BaseFee:       (*hexutil.Big)(genesis.BaseFee),
+		ExcessBlobGas: genesis.ExcessBlobGas, // EIP-4844
+		BlobGasUsed:   genesis.BlobGasUsed,   // EIP-4844
+		Alloc:         make(jsonutil.LazySortedJsonMap[common.Address, GenesisAccount]),
 	}
 
 	// write genesis, but only reference code by code-hash, and don't encode the L2 predeploys to save space.

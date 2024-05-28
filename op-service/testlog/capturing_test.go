@@ -12,27 +12,49 @@ func TestCaptureLogger(t *testing.T) {
 	lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	msg := "foo bar"
 	lgr.Info(msg, "a", 1)
-	rec, ok := logs.FindLogContaining("foo")
-	require.True(t, ok)
+	msgFilter := testlog.NewMessageFilter(msg)
+	rec := logs.FindLog(msgFilter)
 	require.Equal(t, msg, rec.Message)
 	require.EqualValues(t, 1, rec.AttrValue("a"))
 
 	lgr.Debug("bug")
-	_, ok = logs.FindLogContaining("bug")
-	require.True(t, ok, "should capture all logs, not only above level")
+	containsFilter := testlog.NewMessageContainsFilter("bug")
+	l := logs.FindLog(containsFilter)
+	require.NotNil(t, l, "should capture all logs, not only above level")
 
 	msgClear := "clear"
 	lgr.Error(msgClear)
-	require.NotNil(t, logs.FindLog(log.LevelError, msgClear))
+	levelFilter := testlog.NewLevelFilter(log.LevelError)
+	msgFilter = testlog.NewMessageFilter(msgClear)
+	require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 	logs.Clear()
-	_, ok = logs.FindLogContaining(msgClear)
-	require.False(t, ok)
+	containsFilter = testlog.NewMessageContainsFilter(msgClear)
+	l = logs.FindLog(containsFilter)
+	require.Nil(t, l)
 
 	lgrb := lgr.New("b", 2)
 	msgOp := "optimistic"
 	lgrb.Info(msgOp, "c", 3)
-	recOp, ok := logs.FindLogContaining(msgOp)
-	require.True(t, ok, "should still capture logs from derived logger")
+	containsFilter = testlog.NewMessageContainsFilter(msgOp)
+	recOp := logs.FindLog(containsFilter)
+	require.NotNil(t, recOp, "should still capture logs from derived logger")
 	require.EqualValues(t, 3, recOp.AttrValue("c"))
 	// Note: "b" attributes won't be visible on captured record
+}
+
+func TestCaptureLoggerAttributesFilter(t *testing.T) {
+	lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	msg := "foo bar"
+	lgr.Info(msg, "a", "test")
+	lgr.Info(msg, "a", "test 2")
+	lgr.Info(msg, "a", "random")
+	msgFilter := testlog.NewMessageFilter(msg)
+	attrFilter := testlog.NewAttributesFilter("a", "random")
+
+	rec := logs.FindLog(msgFilter, attrFilter)
+	require.Equal(t, msg, rec.Message)
+	require.EqualValues(t, "random", rec.AttrValue("a"))
+
+	recs := logs.FindLogs(msgFilter, attrFilter)
+	require.Len(t, recs, 1)
 }
