@@ -38,7 +38,7 @@ contract DeploymentSummaryFaultProofs is DeploymentSummaryFaultProofsCode {
     address internal constant superchainConfigProxyAddress = 0xDEb1E9a6Be7Baf84208BB6E10aC9F9bbE1D70809;
     address internal constant systemConfigAddress = 0x67866A5052E5302aaD08e9f352331fd8622eB6DC;
     address internal constant systemConfigProxyAddress = 0x20A42a5a785622c6Ba2576B2D6e924aA82BFA11D;
-    address internal constant systemOwnerSafeAddress = 0x7d039be7F9b5190147621b02e82B250e1D748e02;
+    address internal constant systemOwnerSafeAddress = 0x7EA964E5D864b95f6D7d2BD04dA897F6e31084b3;
     address internal constant acc27Address = 0x12e721c390F5728200a26BBEf206A5F4F7E991f3;
     address internal constant acc28Address = 0x2abb7CBB720020ee3C9ecf3915D14B6d1886A577;
 
@@ -81,7 +81,7 @@ contract DeploymentSummaryFaultProofs is DeploymentSummaryFaultProofsCode {
         value = hex"000000000000000000000000bb2180ebd78ce97360503434ed37fcf4a1df61c3";
         vm.store(proxyAdminAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
-        value = hex"0000000000000000000000007d039be7f9b5190147621b02e82b250e1d748e02";
+        value = hex"0000000000000000000000007ea964e5d864b95f6d7d2bd04da897f6e31084b3";
         vm.store(proxyAdminAddress, slot, value);
         vm.etch(superchainConfigProxyAddress, superchainConfigProxyCode);
         slot = hex"b53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103";
