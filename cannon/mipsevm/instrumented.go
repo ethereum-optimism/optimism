@@ -9,6 +9,12 @@ type PreimageOracle interface {
 	GetPreimage(k [32]byte) []byte
 }
 
+type Debug struct {
+	stack  []uint32
+	caller []uint32
+	meta   *Metadata
+}
+
 type InstrumentedState struct {
 	state *State
 
@@ -27,6 +33,9 @@ type InstrumentedState struct {
 	lastPreimageKey [32]byte
 	// offset we last read from, or max uint32 if nothing is read this step
 	lastPreimageOffset uint32
+
+	debug        Debug
+	debugEnabled bool
 }
 
 const (
@@ -51,6 +60,11 @@ func NewInstrumentedState(state *State, po PreimageOracle, stdOut, stdErr io.Wri
 		stdErr:         stdErr,
 		preimageOracle: po,
 	}
+}
+
+func (m *InstrumentedState) InitDebug(meta *Metadata) {
+	m.debugEnabled = true
+	m.debug.meta = meta
 }
 
 func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {

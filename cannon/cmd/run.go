@@ -99,6 +99,10 @@ var (
 		Name:  "pprof.cpu",
 		Usage: "enable pprof cpu profiling",
 	}
+	RunDebugFlag = &cli.BoolFlag{
+		Name:  "debug",
+		Usage: "enable debug mode, which includes stack traces and other debug info in the output.",
+	}
 
 	OutFilePerm = os.FileMode(0o755)
 )
@@ -336,6 +340,10 @@ func Run(ctx *cli.Context) error {
 	}
 
 	us := mipsevm.NewInstrumentedState(state, po, outLog, errLog)
+	debugProgram := ctx.Bool(RunDebugFlag.Name)
+	if debugProgram {
+		us.InitDebug(meta)
+	}
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
@@ -442,6 +450,9 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 	l.Info("Execution stopped", "exited", state.Exited, "code", state.ExitCode)
+	if debugProgram {
+		us.Traceback()
+	}
 
 	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
@@ -468,5 +479,6 @@ var RunCommand = &cli.Command{
 		RunMetaFlag,
 		RunInfoAtFlag,
 		RunPProfCPU,
+		RunDebugFlag,
 	},
 }
