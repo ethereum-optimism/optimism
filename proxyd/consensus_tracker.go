@@ -3,6 +3,7 @@ package proxyd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -192,7 +193,7 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 	key := ct.key("mutex")
 
 	val, err := ct.client.Get(ct.ctx, key).Result()
-	if err != nil && err != redis.Nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		log.Error("failed to read the lock", "err", err)
 		RecordGroupConsensusError(ct.backendGroup, "read_lock", err)
 		if ct.leader {
