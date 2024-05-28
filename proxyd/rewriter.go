@@ -1,10 +1,13 @@
 package proxyd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -321,8 +324,11 @@ func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *Con
 	retries := 0
 	if requestedBlock > consensusBlock {
 		if !consensusPollerRetry {
+			trackMetrics(retries, totalSleepMs, requestedBlock, consensusBlock)
 			return ErrRewriteBlockOutOfRange
 		}
+
+		startMs := time.Now().UnixMilli()
 
 		// consensusHA mode
 		// try to re-read the current state from redis and update in-memory
@@ -330,6 +336,7 @@ func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *Con
 			ct := cp.tracker.(*RedisConsensusTracker)
 			// nothing to do if this is the leader
 			if ct.leader {
+				trackMetrics(retries, totalSleepMs, requestedBlock, consensusBlock)
 				return ErrRewriteBlockOutOfRange
 			}
 
@@ -342,30 +349,32 @@ func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *Con
 			ct.updateRemote(val)
 		}
 
-		// check if consensus has a newer block already
-		// increase the sleep time in each iteration by 10ms
-		// this will sleep at most 2100ms in total (20*21/2*10)
-		for retries < 21 {
+		ctx := context.Background()
+		bOff := retry.Exponential()
+		maxAttempts := 2
+		retry.Do(ctx, maxAttempts, bOff, func() (bool, error) {
 			retries += 1
 			consensusBlock = int64(cp.GetLatestBlockNumber())
-			if requestedBlock <= consensusBlock {
-				break
+			if requestedBlock > consensusBlock {
+				return false, fmt.Errorf("requested block is greater than consensus block (%d, %d)", requestedBlock, consensusBlock)
 			}
-			sleepIterationMs := retries * 10
-			totalSleepMs += sleepIterationMs
-			time.Sleep(time.Duration(sleepIterationMs) * time.Millisecond)
-		}
+			return true, nil
+		})
+		totalSleepMs = int(time.Now().UnixMilli()) - int(startMs)
 	}
 
-	// track requested values
-	RecordConsensusBlockUpdateRetries("rewriteTag", hexutil.Uint64(retries))
-	RecordConsensusBlockUpdateTotalSleepMs("rewriteTag", hexutil.Uint64(totalSleepMs))
-	RecordConsensusRequestedBlock("rewriteTag", hexutil.Uint64(requestedBlock))
-	RecordConsensusCurrentConsensusBlock("rewriteTag", hexutil.Uint64(consensusBlock))
-
+	trackMetrics(retries, totalSleepMs, requestedBlock, consensusBlock)
 	// return an error if the consensus block is still too small
 	if requestedBlock > consensusBlock {
 		return ErrRewriteBlockOutOfRange
 	}
 	return nil
+}
+
+func trackMetrics(retries int, totalSleepMs int, requestedBlock int64, consensusBlock int64) {
+	// track requested values
+	RecordConsensusBlockUpdateRetries("rewriteTag", hexutil.Uint64(retries))
+	RecordConsensusBlockUpdateTotalSleepMs("rewriteTag", hexutil.Uint64(totalSleepMs))
+	RecordConsensusRequestedBlock("rewriteTag", hexutil.Uint64(requestedBlock))
+	RecordConsensusCurrentConsensusBlock("rewriteTag", hexutil.Uint64(consensusBlock))
 }

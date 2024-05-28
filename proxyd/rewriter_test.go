@@ -210,9 +210,7 @@ func TestRewriteRequest(t *testing.T) {
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["toBlock"])
 			},
 		},
-
 		/* required parameter at pos 0 */
-
 		{
 			name: "debug_getRawReceipts latest",
 			args: args{
