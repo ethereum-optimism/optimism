@@ -3,6 +3,7 @@ package proxyd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -66,7 +67,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 	val, err := c.rdb.Get(ctx, c.namespaced(key)).Result()
 	redisCacheDurationSumm.WithLabelValues("GET").Observe(float64(time.Since(start).Milliseconds()))
 
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return "", nil
 	} else if err != nil {
 		RecordRedisError("CacheGet")

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"time"
 
@@ -71,7 +72,7 @@ func (d *ipBanBook) startGC() {
 
 func (d *ipBanBook) GetIPBanExpiration(ip net.IP) (time.Time, error) {
 	rec, err := d.book.getRecord(ip.To16().String())
-	if err == UnknownRecordErr {
+	if errors.Is(err, UnknownRecordErr) {
 		return time.Time{}, UnknownBanErr
 	}
 	if err != nil {

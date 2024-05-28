@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -67,7 +68,7 @@ func (d *peerBanBook) startGC() {
 
 func (d *peerBanBook) GetPeerBanExpiration(id peer.ID) (time.Time, error) {
 	rec, err := d.book.getRecord(id)
-	if err == UnknownRecordErr {
+	if errors.Is(err, UnknownRecordErr) {
 		return time.Time{}, UnknownBanErr
 	}
 	if err != nil {

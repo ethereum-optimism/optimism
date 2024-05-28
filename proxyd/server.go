@@ -369,7 +369,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		}
 
 		batchRes, batchContainsCached, servedBy, err := s.handleBatchRPC(ctx, reqs, isLimited, true)
-		if err == context.DeadlineExceeded {
+		if errors.Is(err, context.DeadlineExceeded) {
 			writeRPCError(ctx, w, nil, ErrGatewayTimeout)
 			return
 		}
