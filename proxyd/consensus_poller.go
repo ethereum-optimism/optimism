@@ -139,6 +139,25 @@ func (ah *PollerAsyncHandler) Init() {
 		}(be)
 	}
 
+	for _, be := range ah.cp.backendGroup.Fallbacks {
+		go func(be *Backend) {
+			for {
+				timer := time.NewTimer(ah.cp.interval)
+
+				if ah.cp.noPrimaryCandidates() {
+					ah.cp.UpdateBackend(ah.ctx, be)
+				}
+
+				select {
+				case <-timer.C:
+				case <-ah.ctx.Done():
+					timer.Stop()
+					return
+				}
+			}
+		}(be)
+	}
+
 	// create the group consensus poller
 	go func() {
 		for {
@@ -638,7 +657,20 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync
 //   - updated recently
 //   - not lagging latest block
 func (cp *ConsensusPoller) getConsensusCandidates() map[*Backend]*backendState {
-	candidates := make(map[*Backend]*backendState, len(cp.backendGroup.Backends))
+	primaryCandidates := cp.getHealthy(cp.backendGroup.Backends)
+	if len(primaryCandidates) == 0 {
+		return primaryCandidates
+	}
+
+	return cp.getHealthy(cp.backendGroup.Fallbacks)
+}
+
+func (cp *ConsensusPoller) noPrimaryCandidates() bool {
+	return len(cp.getHealthy(cp.backendGroup.Backends)) == 0
+}
+
+func (cp *ConsensusPoller) getHealthy(source map[*Backend]*backendState) map[*Backend]*backendState {
+	candidates := make(map[*Backend]*backendState, len(source))
 
 	for _, be := range cp.backendGroup.Backends {
 		bs := cp.getBackendState(be)
