@@ -284,7 +284,6 @@ contract Deploy is Deployer {
     function _run() internal virtual {
         console.log("start of L1 Deploy!");
         deploySafe("SystemOwnerSafe");
-        console.log("deployed Safe!");
         setupSuperchain();
         console.log("set up superchain!");
         if (cfg.usePlasma()) {
@@ -442,7 +441,7 @@ contract Deploy is Deployer {
         uint256 _threshold,
         bool _keepDeployer
     )
-        public
+        internal
         returns (address addr_)
     {
         console.log("Deploying safe: %s ", _name);
