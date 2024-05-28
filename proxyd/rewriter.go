@@ -315,6 +315,8 @@ func rewriteTagBlockNumberOrHash(rctx RewriteContext, current *rpc.BlockNumberOr
 }
 
 func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *ConsensusPoller, consensusPollerRetry bool) error {
+	totalSleepMs := 0
+	retries := 0
 	if requestedBlock > consensusBlock {
 		if !consensusPollerRetry {
 			return ErrRewriteBlockOutOfRange
@@ -323,22 +325,21 @@ func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *Con
 		// check if consensus has a newer block already
 		// increase the sleep time in each iteration by 10ms
 		// this will sleep at most 2100ms in total (20*21/2*10)
-		i := 1
-		totalSleepMs := 0
-		for ; i < 21; i++ {
+		for retries < 21 {
+			retries += 1
 			consensusBlock = int64(cp.GetLatestBlockNumber())
 			if requestedBlock <= consensusBlock {
 				break
 			}
-			sleepIterationMs := i * 10
+			sleepIterationMs := retries * 10
 			totalSleepMs += sleepIterationMs
 			time.Sleep(time.Duration(sleepIterationMs) * time.Millisecond)
 		}
-		RecordConsensusBlockUpdateRetries("rewriteTag", hexutil.Uint64(i))
-		RecordConsensusBlockUpdateTotalSleepMs("rewriteTag", hexutil.Uint64(totalSleepMs))
 	}
 
 	// track requested values
+	RecordConsensusBlockUpdateRetries("rewriteTag", hexutil.Uint64(retries))
+	RecordConsensusBlockUpdateTotalSleepMs("rewriteTag", hexutil.Uint64(totalSleepMs))
 	RecordConsensusRequestedBlock("rewriteTag", hexutil.Uint64(requestedBlock))
 	RecordConsensusCurrentConsensusBlock("rewriteTag", hexutil.Uint64(consensusBlock))
 
