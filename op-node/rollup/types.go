@@ -52,6 +52,8 @@ type Genesis struct {
 type PlasmaConfig struct {
 	// L1 DataAvailabilityChallenge contract proxy address
 	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
+	// CommitmentType specifies which commitment type can be used. Defaults to Keccak (type 0) if not present
+	CommitmentType string `json:"da_commitment_type"`
 	// DA challenge window value set on the DAC contract. Used in plasma mode
 	// to compute when a commitment can no longer be challenged.
 	DAChallengeWindow uint64 `json:"da_challenge_window"`
@@ -345,6 +347,18 @@ func validatePlasmaConfig(cfg *Config) error {
 		if cfg.LegacyDAResolveWindow != cfg.PlasmaConfig.DAResolveWindow {
 			return fmt.Errorf("LegacyDAResolveWindow (%v) !=  PlasmaConfig.DAResolveWindow (%v)", cfg.LegacyDAResolveWindow, cfg.PlasmaConfig.DAResolveWindow)
 		}
+		if cfg.PlasmaConfig.CommitmentType != plasma.KeccakCommitmentString {
+			return errors.New("Cannot set CommitmentType with the legacy config")
+		}
+	} else if cfg.PlasmaConfig != nil {
+		if !(cfg.PlasmaConfig.CommitmentType == plasma.KeccakCommitmentString || cfg.PlasmaConfig.CommitmentType == plasma.GenericCommitmentString) {
+			return fmt.Errorf("invalid commitment type: %v", cfg.PlasmaConfig.CommitmentType)
+		}
+		if cfg.PlasmaConfig.CommitmentType == plasma.KeccakCommitmentString && cfg.PlasmaConfig.DAChallengeAddress == (common.Address{}) {
+			return errors.New("Must set da_challenge_contract_address for keccak commitments")
+		} else if cfg.PlasmaConfig.CommitmentType == plasma.GenericCommitmentString && cfg.PlasmaConfig.DAChallengeAddress != (common.Address{}) {
+			return errors.New("Must set empty da_challenge_contract_address for generic commitments")
+		}
 	}
 	return nil
 }
@@ -485,19 +499,21 @@ func (c *Config) GetOPPlasmaConfig() (plasma.Config, error) {
 	if c.PlasmaConfig == nil {
 		return plasma.Config{}, errors.New("no plasma config")
 	}
-	if c.PlasmaConfig.DAChallengeAddress == (common.Address{}) {
-		return plasma.Config{}, errors.New("missing DAChallengeAddress")
-	}
 	if c.PlasmaConfig.DAChallengeWindow == uint64(0) {
 		return plasma.Config{}, errors.New("missing DAChallengeWindow")
 	}
 	if c.PlasmaConfig.DAResolveWindow == uint64(0) {
 		return plasma.Config{}, errors.New("missing DAResolveWindow")
 	}
+	t, err := plasma.CommitmentTypeFromString(c.PlasmaConfig.CommitmentType)
+	if err != nil {
+		return plasma.Config{}, err
+	}
 	return plasma.Config{
 		DAChallengeContractAddress: c.PlasmaConfig.DAChallengeAddress,
 		ChallengeWindow:            c.PlasmaConfig.DAChallengeWindow,
 		ResolveWindow:              c.PlasmaConfig.DAResolveWindow,
+		CommitmentType:             t,
 	}, nil
 }
 
@@ -550,6 +566,9 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	banner += fmt.Sprintf("  - Interop: %s\n", fmtForkTimeOrUnset(c.InteropTime))
 	// Report the protocol version
 	banner += fmt.Sprintf("Node supports up to OP-Stack Protocol Version: %s\n", OPStackSupport)
+	if c.PlasmaConfig != nil {
+		banner += fmt.Sprintf("Node supports Plasma Mode with CommitmentType %v\n", c.PlasmaConfig.CommitmentType)
+	}
 	return banner
 }
 
@@ -569,6 +588,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	if networkL1 == "" {
 		networkL1 = "unknown L1"
 	}
+
 	log.Info("Rollup Config", "l2_chain_id", c.L2ChainID, "l2_network", networkL2, "l1_chain_id", c.L1ChainID,
 		"l1_network", networkL1, "l2_start_time", c.Genesis.L2Time, "l2_block_hash", c.Genesis.L2.Hash.String(),
 		"l2_block_number", c.Genesis.L2.Number, "l1_block_hash", c.Genesis.L1.Hash.String(),
@@ -578,6 +598,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"ecotone_time", fmtForkTimeOrUnset(c.EcotoneTime),
 		"fjord_time", fmtForkTimeOrUnset(c.FjordTime),
 		"interop_time", fmtForkTimeOrUnset(c.InteropTime),
+		"plasma_mode", c.PlasmaConfig != nil,
 	)
 }
 

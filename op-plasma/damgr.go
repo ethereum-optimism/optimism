@@ -51,6 +51,8 @@ type HeadSignalFn func(eth.L1BlockRef)
 type Config struct {
 	// Required for filtering contract events
 	DAChallengeContractAddress common.Address
+	// Allowed CommitmentType
+	CommitmentType CommitmentType
 	// The number of l1 blocks after the input is committed during which one can challenge.
 	ChallengeWindow uint64
 	// The number of l1 blocks after a commitment is challenged during which one can resolve.
@@ -166,6 +168,10 @@ func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemC
 // GetInput returns the input data for the given commitment bytes. blockNumber is required to lookup
 // the challenge status in the DataAvailabilityChallenge L1 contract.
 func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, blockId eth.BlockID) (eth.Data, error) {
+	// If it's not the right commitment type, report it as an expired commitment in order to skip it
+	if d.cfg.CommitmentType != comm.CommitmentType() {
+		return nil, fmt.Errorf("invalid commitment type; expected: %v, got: %v: %w", d.cfg.CommitmentType, comm.CommitmentType(), ErrExpiredChallenge)
+	}
 	// If the challenge head is ahead in the case of a pipeline reset or stall, we might have synced a
 	// challenge event for this commitment. Otherwise we mark the commitment as part of the canonical
 	// chain so potential future challenge events can be selected.
@@ -204,6 +210,10 @@ func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, bl
 		// challenge was resolved, data is available in storage, return directly
 		if !notFound {
 			return data, nil
+		}
+		// Generic Commitments don't resolve from L1 so if we still can't find the data with out of luck
+		if comm.CommitmentType() == GenericCommitmentType {
+			return nil, ErrMissingPastWindow
 		}
 		// data not found in storage, return from challenge resolved input
 		resolvedInput, err := d.state.GetResolvedInput(comm.Encode())
@@ -310,31 +320,39 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.Bl
 				d.log.Error("tx hash mismatch", "block", block.Number, "txIdx", i, "log", log.Index, "txHash", tx.Hash(), "receiptTxHash", log.TxHash)
 				continue
 			}
-			// Decode the input from resolver tx calldata
-			input, err := DecodeResolvedInput(tx.Data())
-			if err != nil {
-				d.log.Error("failed to decode resolved input", "block", block.Number, "txIdx", i, "err", err)
-				continue
+			var input []byte
+			if d.cfg.CommitmentType == Keccak256CommitmentType {
+				// Decode the input from resolver tx calldata
+				input, err = DecodeResolvedInput(tx.Data())
+				if err != nil {
+					d.log.Error("failed to decode resolved input", "block", block.Number, "txIdx", i, "err", err)
+					continue
+				}
+				if err := comm.Verify(input); err != nil {
+					d.log.Error("failed to verify commitment", "block", block.Number, "txIdx", i, "err", err)
+					continue
+				}
 			}
-			if err := comm.Verify(input); err != nil {
-				d.log.Error("failed to verify commitment", "block", block.Number, "txIdx", i, "err", err)
-				continue
-			}
-			d.log.Debug("challenge resolved", "block", block, "txIdx", i)
+			d.log.Info("challenge resolved", "block", block, "txIdx", i, "comm", comm.Encode())
 			d.state.SetResolvedChallenge(comm.Encode(), input, log.BlockNumber)
 		case ChallengeActive:
-			d.log.Info("detected new active challenge", "block", block)
+			d.log.Info("detected new active challenge", "block", block, "comm", comm.Encode())
 			d.state.SetActiveChallenge(comm.Encode(), log.BlockNumber, d.cfg.ResolveWindow)
 		default:
-			d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", log.Index, "status", status)
+			d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", log.Index, "status", status, "comm", comm.Encode())
 		}
 	}
 	return nil
 }
 
 // fetchChallengeLogs returns logs for challenge events if any for the given block
-func (d *DA) fetchChallengeLogs(ctx context.Context, l1 L1Fetcher, block eth.BlockID) ([]*types.Log, error) { //cached with deposits events call so not expensive
+func (d *DA) fetchChallengeLogs(ctx context.Context, l1 L1Fetcher, block eth.BlockID) ([]*types.Log, error) {
 	var logs []*types.Log
+	// Don't look at the challenge contract if there is no challenge contract.
+	if d.cfg.CommitmentType == GenericCommitmentType {
+		return logs, nil
+	}
+	//cached with deposits events call so not expensive
 	_, receipts, err := l1.FetchReceipts(ctx, block.Hash)
 	if err != nil {
 		return nil, err

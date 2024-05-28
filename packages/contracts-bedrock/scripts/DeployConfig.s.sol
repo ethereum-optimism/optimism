@@ -69,6 +69,7 @@ contract DeployConfig is Script {
     uint256 public respectedGameType;
     bool public useFaultProofs;
     bool public usePlasma;
+    string public daCommitmentType;
     uint256 public daChallengeWindow;
     uint256 public daResolveWindow;
     uint256 public daBondSize;
@@ -147,6 +148,7 @@ contract DeployConfig is Script {
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
 
         usePlasma = _readOr(_json, "$.usePlasma", false);
+        daCommitmentType = _readOr(_json, "$.daCommitmentType", "KeccakCommitment");
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
         daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
         daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
@@ -231,5 +233,17 @@ contract DeployConfig is Script {
 
     function _readOr(string memory json, string memory key, address defaultValue) internal view returns (address) {
         return vm.keyExists(json, key) ? stdJson.readAddress(json, key) : defaultValue;
+    }
+
+    function _readOr(
+        string memory json,
+        string memory key,
+        string memory defaultValue
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        return vm.keyExists(json, key) ? stdJson.readString(json, key) : defaultValue;
     }
 }

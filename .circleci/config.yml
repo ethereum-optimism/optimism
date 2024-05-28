@@ -225,6 +225,12 @@ jobs:
           name: Copy Plasma allocs to .devnet-plasma
           command: cp -r .devnet/ .devnet-plasma/
       - run:
+          name: Generate Generic Plasma allocs
+          command: DEVNET_PLASMA="true" GENERIC_PLASMA="true" make devnet-allocs
+      - run:
+          name: Copy Plasma allocs to .devnet-plasma
+          command: cp -r .devnet/ .devnet-plasma-generic/
+      - run:
           name: Generate non-FPAC allocs
           command: make devnet-allocs
       - persist_to_workspace:
@@ -251,6 +257,11 @@ jobs:
             - ".devnet-plasma/allocs-l2.json"
             - ".devnet-plasma/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l2-ecotone.json"
+            - ".devnet-plasma-generic/allocs-l1.json"
+            - ".devnet-plasma-generic/addresses.json"
+            - ".devnet-plasma-generic/allocs-l2.json"
+            - ".devnet-plasma-generic/allocs-l2-delta.json"
+            - ".devnet-plasma-generic/allocs-l2-ecotone.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -1270,6 +1281,16 @@ jobs:
             - run:
                 name: Set DEVNET_PLASMA = true
                 command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['plasma-generic', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_PLASMA = true
+                command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
+            - run:
+                name: Set GENERIC_PLASMA = true
+                command: echo 'export GENERIC_PLASMA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
@@ -1878,7 +1899,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              fpac: ["legacy", "fault-proofs", "plasma"]
+              fpac: ["legacy", "fault-proofs", "plasma", "plasma-generic"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build

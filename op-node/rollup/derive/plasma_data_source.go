@@ -92,7 +92,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %x from da service: %w", s.comm, err))
 	}
 	// inputs are limited to a max size to ensure they can be challenged in the DA contract.
-	if len(data) > plasma.MaxInputSize {
+	if s.comm.CommitmentType() == plasma.Keccak256CommitmentType && len(data) > plasma.MaxInputSize {
 		s.log.Warn("input data exceeds max size", "size", len(data), "max", plasma.MaxInputSize)
 		s.comm = nil
 		return s.Next(ctx)
