@@ -603,7 +603,7 @@ contract L2Genesis is Deployer {
 
         uint256[] memory initialBalances = new uint256[](1);
         initialBalances[0] = 100_000 ether;
-        deploycUSD(initialBalanceAddresses, initialBalances, 2);
+        //deploycUSD(initialBalanceAddresses, initialBalances, 2);
     }
 
     /// @notice Sets up a proxy for the given impl address
