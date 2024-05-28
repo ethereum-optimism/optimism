@@ -4,6 +4,12 @@ version: '3.4'
 # https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz
 # and extracted to the DATA_DIR
 
+# The jwt-secret.txt file should be a random string of32 characters and should be kept secret.
+
+# The p2p-node-key.txt is the private key used for the node to identify itself.
+
+# The discovery and peerstore directories are used to store the peerstore and discovery data.
+
 services:
   l2:
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:${GETH_VERSION:-optimism}
@@ -44,8 +50,18 @@ services:
       --network=boba-sepolia
       --rpc.addr=0.0.0.0
       --rpc.port=8545
+    # Optional flags
+    # These flags are optional and can be used to identify the node and store the peerstore and discovery data.
+    # We recommend adding these flags to your configuration to help identify your node and store the peerstore and discovery data.
+    #  --p2p.ban.peers=false
+    #  --p2p.priv.path=/config/p2p-node-key.txt
+    #  --p2p.discovery.path=/p2p_discovery_db
+    #  --p2p.peerstore.path=/p2p_peerstore_db
     ports:
       - "8545:8545"
     volumes:
       - ./jwt-secret.txt:/config/jwt-secret.txt
+    #  - ./p2p-node-key.txt:/config/p2p-node-key.txt
+    #  - ./discovery:/p2p_discovery_db
+    #  - ./peerstore:/p2p_peerstore_db
     restart: always
