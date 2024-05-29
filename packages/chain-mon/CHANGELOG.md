@@ -1,5 +1,12 @@
 # @eth-optimism/drippie-mon
 
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [[`eb454ac72b26211eb8037e7e777315c8f30d994d`](https://github.com/ethereum-optimism/optimism/commit/eb454ac72b26211eb8037e7e777315c8f30d994d)]:
+  - @eth-optimism/contracts-bedrock@0.17.3
+
 ## 0.6.5
 
 ### Patch Changes
