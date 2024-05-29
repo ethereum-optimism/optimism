@@ -28,7 +28,7 @@ func (*NoopMetricsImpl) RecordGameResolutionStatus(_ ResolutionStatus, _ int) {}
 
 func (*NoopMetricsImpl) RecordCredit(_ CreditExpectation, _ int) {}
 
-func (*NoopMetricsImpl) RecordClaims(_ ClaimStatus, _ int) {}
+func (*NoopMetricsImpl) RecordClaims(_ *ClaimStatuses) {}
 
 func (*NoopMetricsImpl) RecordWithdrawalRequests(_ common.Address, _ bool, _ int) {}
 

@@ -1,11 +1,13 @@
 package mon
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -19,39 +21,147 @@ var frozen = time.Unix(int64(time.Hour.Seconds()), 0)
 
 func TestClaimMonitor_CheckClaims(t *testing.T) {
 	t.Run("RecordsClaims", func(t *testing.T) {
-		monitor, cl, cMetrics := newTestClaimMonitor(t)
+		monitor, cl, cMetrics, _ := newTestClaimMonitor(t)
 		games := makeMultipleTestGames(uint64(cl.Now().Unix()))
 		monitor.CheckClaims(games)
 
-		require.Equal(t, 2, cMetrics.calls[metrics.FirstHalfExpiredResolved])
-		require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfExpiredUnresolved])
-		require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfNotExpiredResolved])
-		require.Equal(t, 1, cMetrics.calls[metrics.FirstHalfNotExpiredUnresolved])
+		for status, count := range cMetrics.calls {
+			fmt.Printf("%v: %v \n", status, count)
+		}
 
-		require.Equal(t, 2, cMetrics.calls[metrics.SecondHalfExpiredResolved])
-		require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfExpiredUnresolved])
-		require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfNotExpiredResolved])
-		require.Equal(t, 1, cMetrics.calls[metrics.SecondHalfNotExpiredUnresolved])
+		// Test data is a bit weird and has unresolvable claims that have been resolved
+		require.Equal(t, 2, cMetrics.calls[metrics.NewClaimStatus(true, true, false, true)])
+		require.Equal(t, 1, cMetrics.calls[metrics.NewClaimStatus(true, true, true, false)])
+		require.Equal(t, 1, cMetrics.calls[metrics.NewClaimStatus(true, false, false, true)])
+		require.Equal(t, 1, cMetrics.calls[metrics.NewClaimStatus(true, false, false, false)])
+
+		// Test data is a bit weird and has unresolvable claims that have been resolved
+		require.Equal(t, 2, cMetrics.calls[metrics.NewClaimStatus(false, true, false, true)])
+		require.Equal(t, 1, cMetrics.calls[metrics.NewClaimStatus(false, true, true, false)])
+		require.Equal(t, 1, cMetrics.calls[metrics.NewClaimStatus(false, false, false, true)])
+		require.Equal(t, 1, cMetrics.calls[metrics.NewClaimStatus(false, false, false, false)])
 	})
 
 	t.Run("ZeroRecordsClaims", func(t *testing.T) {
-		monitor, _, cMetrics := newTestClaimMonitor(t)
+		monitor, _, cMetrics, _ := newTestClaimMonitor(t)
 		var games []*types.EnrichedGameData
 		monitor.CheckClaims(games)
-		// Check we zero'd out any categories that didn't have games in them (otherwise they retain their previous value)
-		require.Contains(t, cMetrics.calls, metrics.FirstHalfExpiredResolved)
-		require.Contains(t, cMetrics.calls, metrics.FirstHalfExpiredUnresolved)
-		require.Contains(t, cMetrics.calls, metrics.FirstHalfNotExpiredResolved)
-		require.Contains(t, cMetrics.calls, metrics.FirstHalfNotExpiredUnresolved)
+		// Should record 0 values for true and false variants of the four fields in ClaimStatus
+		require.Len(t, cMetrics.calls, 2*2*2*2)
+	})
 
-		require.Contains(t, cMetrics.calls, metrics.SecondHalfExpiredResolved)
-		require.Contains(t, cMetrics.calls, metrics.SecondHalfExpiredUnresolved)
-		require.Contains(t, cMetrics.calls, metrics.SecondHalfNotExpiredResolved)
-		require.Contains(t, cMetrics.calls, metrics.SecondHalfNotExpiredUnresolved)
+	t.Run("ConsiderChildResolvability", func(t *testing.T) {
+		monitor, _, cMetrics, logs := newTestClaimMonitor(t)
+		chessClockDuration := 10 * time.Minute
+		// Game started long enough ago that the root chess clock has now expired
+		gameStart := frozen.Add(-chessClockDuration - 15*time.Minute)
+		games := []*types.EnrichedGameData{
+			{
+				MaxClockDuration: uint64(chessClockDuration.Seconds()),
+				GameMetadata: gameTypes.GameMetadata{
+					Proxy:     common.Address{0xaa},
+					Timestamp: 50,
+				},
+				Claims: []types.EnrichedClaim{
+					{
+						Claim: faultTypes.Claim{
+							ContractIndex: 0,
+							ClaimData: faultTypes.ClaimData{
+								Position: faultTypes.RootPosition,
+							},
+							Clock: faultTypes.NewClock(time.Duration(0), gameStart),
+						},
+						Resolved: false,
+					},
+					{
+						Claim: faultTypes.Claim{ // Fast challenge, clock has expired
+							ContractIndex:       1,
+							ParentContractIndex: 0,
+							ClaimData: faultTypes.ClaimData{
+								Position: faultTypes.RootPosition,
+							},
+							Clock: faultTypes.NewClock(1*time.Minute, gameStart.Add(1*time.Minute)),
+						},
+						Resolved: false,
+					},
+					{
+						Claim: faultTypes.Claim{ // Fast counter to fast challenge, clock has expired, resolved
+							ContractIndex:       2,
+							ParentContractIndex: 1,
+							ClaimData: faultTypes.ClaimData{
+								Position: faultTypes.RootPosition,
+							},
+							Clock: faultTypes.NewClock(1*time.Minute, gameStart.Add((1+1)*time.Minute)),
+						},
+						Resolved: true,
+					},
+					{
+						Claim: faultTypes.Claim{ // Second fast counter to fast challenge, clock has expired, not resolved
+							ContractIndex:       3,
+							ParentContractIndex: 1,
+							ClaimData: faultTypes.ClaimData{
+								Position: faultTypes.RootPosition,
+							},
+							Clock: faultTypes.NewClock(1*time.Minute, gameStart.Add((1+1)*time.Minute)),
+						},
+						Resolved: false,
+					},
+					{
+						Claim: faultTypes.Claim{ // Challenge, clock has not yet expired
+							ContractIndex:       4,
+							ParentContractIndex: 0,
+							ClaimData: faultTypes.ClaimData{
+								Position: faultTypes.RootPosition,
+							},
+							Clock: faultTypes.NewClock(20*time.Minute, gameStart.Add(20*time.Minute)),
+						},
+						Resolved: false,
+					},
+					{
+						Claim: faultTypes.Claim{ // Counter to challenge, clock hasn't expired yet
+							ContractIndex:       5,
+							ParentContractIndex: 4,
+							ClaimData: faultTypes.ClaimData{
+								Position: faultTypes.RootPosition,
+							},
+							Clock: faultTypes.NewClock(1*time.Minute, gameStart.Add((20+1)*time.Minute)),
+						},
+						Resolved: false,
+					},
+				},
+			},
+		}
+		monitor.CheckClaims(games)
+		expected := &metrics.ClaimStatuses{}
+		// Root claim - clock expired, but not resolvable because of child claims
+		expected.RecordClaim(false, true, false, false)
+		// Claim 1 - clock expired, resolvable as both children are resolvable even though only one is resolved
+		expected.RecordClaim(false, true, true, false)
+		// Claim 2 - clock expired, resolvable and resolved
+		expected.RecordClaim(false, true, true, true)
+		// Claim 3 - clock expired, resolvable but not resolved
+		expected.RecordClaim(false, true, true, false)
+		// Claim 4 - clock not expired
+		expected.RecordClaim(false, false, false, false)
+		// Claim 5 - clock not expired
+		expected.RecordClaim(false, false, false, false)
+
+		expected.ForEachStatus(func(status metrics.ClaimStatus, count int) {
+			require.Equalf(t, count, cMetrics.calls[status], "status %v", status)
+		})
+
+		unresolvedClaimMsg := testlog.NewMessageFilter("Claim unresolved after clock expiration")
+		claim1Warn := logs.FindLog(unresolvedClaimMsg, testlog.NewAttributesFilter("claimContractIndex", "1"))
+		require.NotNil(t, claim1Warn, "Should warn about claim 1 being unresolved")
+		claim3Warn := logs.FindLog(unresolvedClaimMsg, testlog.NewAttributesFilter("claimContractIndex", "3"))
+		require.NotNil(t, claim3Warn, "Should warn about claim 3 being unresolved")
+
+		require.Equal(t, claim3Warn.AttrValue("delay"), claim1Warn.AttrValue("delay"),
+			"Claim 1 should have same delay as claim 3 as it could not be resolved before claim 3 clock expired")
 	})
 
 	t.Run("RecordsUnexpectedClaimResolution", func(t *testing.T) {
-		monitor, cl, cMetrics := newTestClaimMonitor(t)
+		monitor, cl, cMetrics, _ := newTestClaimMonitor(t)
 		games := makeMultipleTestGames(uint64(cl.Now().Unix()))
 		monitor.CheckClaims(games)
 
@@ -80,15 +190,16 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 	})
 }
 
-func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock, *stubClaimMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock, *stubClaimMetrics, *testlog.CapturingHandler) {
+	logger, handler := testlog.CaptureLogger(t, log.LvlInfo)
 	cl := clock.NewDeterministicClock(frozen)
 	metrics := &stubClaimMetrics{}
 	honestActors := []common.Address{
 		{0x01},
 		{0x02},
 	}
-	return NewClaimMonitor(logger, cl, honestActors, metrics), cl, metrics
+	monitor := NewClaimMonitor(logger, cl, honestActors, metrics)
+	return monitor, cl, metrics, handler
 }
 
 type stubClaimMetrics struct {
@@ -96,11 +207,13 @@ type stubClaimMetrics struct {
 	honest map[common.Address]metrics.HonestActorData
 }
 
-func (s *stubClaimMetrics) RecordClaims(status metrics.ClaimStatus, count int) {
+func (s *stubClaimMetrics) RecordClaims(statuses *metrics.ClaimStatuses) {
 	if s.calls == nil {
 		s.calls = make(map[metrics.ClaimStatus]int)
 	}
-	s.calls[status] += count
+	statuses.ForEachStatus(func(status metrics.ClaimStatus, count int) {
+		s.calls[status] = count
+	})
 }
 
 func (s *stubClaimMetrics) RecordHonestActorClaims(address common.Address, data *metrics.HonestActorData) {
