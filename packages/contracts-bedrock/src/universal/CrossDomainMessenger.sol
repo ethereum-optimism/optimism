@@ -166,6 +166,8 @@ abstract contract CrossDomainMessenger is
     /// @param msgHash Hash of the message that failed to be relayed.
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
+    event RevertMessage(bytes32 indexed msgHash, address indexed target, uint256 value);
+
     /// @notice Sends a message to some target address on the other chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
     ///         permanently locked. The same will occur if the target on the other chain is
@@ -174,10 +176,10 @@ abstract contract CrossDomainMessenger is
     /// @param _message     Message to trigger the target address with.
     /// @param _minGasLimit Minimum gas limit that the message can be executed with.
     function sendMessage(address _target, bytes calldata _message, uint32 _minGasLimit) external payable {
-        if (isCustomGasToken()) {
-            require(msg.value == 0, "CrossDomainMessenger: cannot send value with custom gas token");
-        }
+        _sendMessage(_target, _message, _minGasLimit);
+    }
 
+    function _sendMessage(address _target, bytes memory _message, uint32 _minGasLimit) internal {
         // Triggers a message to the other messenger. Note that the amount of gas provided to the
         // message is the amount of gas requested by the user PLUS the base gas value. We want to
         // guarantee the property that the call to the target contract will always have at least
@@ -243,10 +245,13 @@ abstract contract CrossDomainMessenger is
             // opposed to being replayed).
             assert(msg.value == _value);
             assert(!failedMessages[versionedHash]);
-        } else {
+        } else if (failedMessages[versionedHash]) {
             require(msg.value == 0, "CrossDomainMessenger: value must be zero unless message is from a system address");
-
-            require(failedMessages[versionedHash], "CrossDomainMessenger: message cannot be replayed");
+        } else {
+            // If the message was not from the valid system address nor it is the failed message, just return the fund back
+            // fallback to sendMessage call to refund and return shortly after
+            _sendMessage(_sender, "", uint32(RELAY_RESERVED_GAS));            
+            return;
         }
 
         require(
@@ -343,7 +348,7 @@ abstract contract CrossDomainMessenger is
     /// @param _message     Message to compute the amount of required gas for.
     /// @param _minGasLimit Minimum desired gas limit when message goes to target.
     /// @return Amount of gas required to guarantee message receipt.
-    function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint64) {
+    function baseGas(bytes memory _message, uint32 _minGasLimit) public pure returns (uint64) {
         return
         // Constant overhead
         RELAY_CONSTANT_OVERHEAD
@@ -360,15 +365,6 @@ abstract contract CrossDomainMessenger is
         // Gas reserved for the execution between the `hasMinGas` check and the `CALL`
         // opcode. (Conservative)
         + RELAY_GAS_CHECK_BUFFER;
-    }
-
-    /// @notice Returns the address of the gas token and the token's decimals.
-    function gasPayingToken() internal view virtual returns (address, uint8);
-
-    /// @notice Returns whether the chain uses a custom gas token or not.
-    function isCustomGasToken() internal view returns (bool) {
-        (address token,) = gasPayingToken();
-        return token != Constants.ETHER;
     }
 
     /// @notice Initializer.
