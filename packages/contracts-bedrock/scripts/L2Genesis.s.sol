@@ -25,6 +25,7 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Process } from "scripts/libraries/Process.sol";
 
 interface IInitializable {
     function initialize(address _addr) external;
@@ -557,7 +558,7 @@ contract L2Genesis is Deployer {
         commands[0] = "bash";
         commands[1] = "-c";
         commands[2] = string.concat("cat <<< $(jq -S '.' ", _path, ") > ", _path);
-        vm.ffi(commands);
+        Process.run(commands);
     }
 
     /// @notice Funds the default dev accounts with ether

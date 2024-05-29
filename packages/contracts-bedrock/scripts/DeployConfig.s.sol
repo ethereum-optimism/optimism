@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Executables } from "scripts/Executables.sol";
+import { Process } from "scripts/libraries/Process.sol";
 import { Chains } from "scripts/Chains.sol";
 
 /// @title DeployConfig
@@ -182,7 +183,7 @@ contract DeployConfig is Script {
             cmd[0] = Executables.bash;
             cmd[1] = "-c";
             cmd[2] = string.concat("cast block ", vm.toString(tag), " --json | ", Executables.jq, " .timestamp");
-            bytes memory res = vm.ffi(cmd);
+            bytes memory res = Process.run(cmd);
             return stdJson.readUint(string(res), "");
         }
         return uint256(_l2OutputOracleStartingTimestamp);
@@ -219,7 +220,7 @@ contract DeployConfig is Script {
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat("cast block ", _tag, " --json | ", Executables.jq, " -r .hash");
-        bytes memory res = vm.ffi(cmd);
+        bytes memory res = Process.run(cmd);
         return abi.decode(res, (bytes32));
     }
 
