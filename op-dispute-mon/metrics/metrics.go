@@ -41,14 +41,14 @@ type CreditExpectation uint8
 
 const (
 	// Max Duration reached
-	CreditBelowMaxDuration CreditExpectation = iota
-	CreditEqualMaxDuration
-	CreditAboveMaxDuration
+	CreditBelowWithdrawable CreditExpectation = iota
+	CreditEqualWithdrawable
+	CreditAboveWithdrawable
 
 	// Max Duration not reached
-	CreditBelowNonMaxDuration
-	CreditEqualNonMaxDuration
-	CreditAboveNonMaxDuration
+	CreditBelowNonWithdrawable
+	CreditEqualNonWithdrawable
+	CreditAboveNonWithdrawable
 )
 
 type GameAgreementStatus uint8
@@ -293,7 +293,7 @@ func NewMetrics() *Metrics {
 			Help:      "Cumulative credits",
 		}, []string{
 			"credit",
-			"max_duration",
+			"withdrawable",
 		}),
 		claims: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -434,18 +434,18 @@ func (m *Metrics) RecordGameResolutionStatus(status ResolutionStatus, count int)
 func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {
 	asLabels := func(expectation CreditExpectation) []string {
 		switch expectation {
-		case CreditBelowMaxDuration:
-			return []string{"below", "max_duration"}
-		case CreditEqualMaxDuration:
-			return []string{"expected", "max_duration"}
-		case CreditAboveMaxDuration:
-			return []string{"above", "max_duration"}
-		case CreditBelowNonMaxDuration:
-			return []string{"below", "non_max_duration"}
-		case CreditEqualNonMaxDuration:
-			return []string{"expected", "non_max_duration"}
-		case CreditAboveNonMaxDuration:
-			return []string{"above", "non_max_duration"}
+		case CreditBelowWithdrawable:
+			return []string{"below", "withdrawable"}
+		case CreditEqualWithdrawable:
+			return []string{"expected", "withdrawable"}
+		case CreditAboveWithdrawable:
+			return []string{"above", "withdrawable"}
+		case CreditBelowNonWithdrawable:
+			return []string{"below", "non_withdrawable"}
+		case CreditEqualNonWithdrawable:
+			return []string{"expected", "non_withdrawable"}
+		case CreditAboveNonWithdrawable:
+			return []string{"above", "non_withdrawable"}
 		default:
 			panic(fmt.Errorf("unknown credit expectation: %v", expectation))
 		}
