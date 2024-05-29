@@ -285,6 +285,13 @@ DEPLOY_CONFIG_PATH=<PATH_TO_MY_DEPLOY_CONFIG> \
   --rpc-url $ETH_RPC_URL
 ```
 
+The `IMPL_SALT` env var can be used to set the `create2` salt for deploying the implementation
+contracts.
+
+This will deploy an entire new system of L1 smart contracts including a new `SuperchainConfig`.
+In the future there will be an easy way to deploy only proxies and use shared implementations
+for each of the contracts as well as a shared `SuperchainConfig` contract.
+
 ### Deploying Production Networks
 
 Production users should deploy their L1 contracts from a contracts release.
