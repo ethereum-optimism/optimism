@@ -29,20 +29,26 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *ForgeAllocs, l1Deployme
 		panic("Did not expect NewL1Genesis to generate non-empty state") // sanity check for dev purposes.
 	}
 	// copy, for safety when the dump is reused (like in e2e testing)
-	genesis.Alloc = dump.Copy().Accounts
+
+	if dump != nil {
+		genesis.Alloc = dump.Copy().Accounts
+	}
+
 	if config.FundDevAccounts {
 		FundDevAccounts(genesis)
 	}
 	SetPrecompileBalances(genesis)
 
-	l1Deployments.ForEach(func(name string, addr common.Address) {
-		acc, ok := genesis.Alloc[addr]
-		if ok {
-			log.Info("Included L1 deployment", "name", name, "address", addr, "balance", acc.Balance, "storage", len(acc.Storage), "nonce", acc.Nonce)
-		} else {
-			log.Info("Excluded L1 deployment", "name", name, "address", addr)
-		}
-	})
+	if l1Deployments != nil {
+		l1Deployments.ForEach(func(name string, addr common.Address) {
+			acc, ok := genesis.Alloc[addr]
+			if ok {
+				log.Info("Included L1 deployment", "name", name, "address", addr, "balance", acc.Balance, "storage", len(acc.Storage), "nonce", acc.Nonce)
+			} else {
+				log.Info("Excluded L1 deployment", "name", name, "address", addr)
+			}
+		})
+	}
 
 	return genesis, nil
 }

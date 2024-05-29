@@ -90,38 +90,19 @@ def main():
     os.makedirs(devnet_dir, exist_ok=True)
 
     if args.allocs:
-        devnet_l1_allocs(config)
-        devnet_l2_allocs(config)
+        # devnet_l1_allocs(config)
+        # devnet_l2_allocs(config)
         return
 
     git_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
     git_date = subprocess.run(['git', 'show', '-s', "--format=%ct"], capture_output=True, text=True).stdout.strip()
-
-    # Create shared network device for multiple containers to communicate
-    run_command(['docker', 'network', 'create', '-d', 'bridge', 'ops-bedrock-shared'], cwd=config.ops_bedrock_dir)
 
     # CI loads the images from workspace, and does not otherwise know the images are good as-is
     if DEVNET_NO_BUILD:
         log.info('Skipping docker images build')
     else:
         log.info(f'Building docker images for git commit {git_commit} ({git_date})')
-        log.info('Building docker images for L1')
         run_command(['docker', 'compose',
-                     '-f', 'docker-compose.l1.yml',
-                     'build',
-                     '--progress', 'plain',
-                     '--build-arg', f'GIT_COMMIT={git_commit}',
-                     '--build-arg', f'GIT_DATE={git_date}'
-                     ],
-                    cwd=config.ops_bedrock_dir, env={
-            'PWD': config.ops_bedrock_dir,
-            'DOCKER_BUILDKIT': '1', # (should be available by default in later versions, but explicitly enable it anyway)
-            'COMPOSE_DOCKER_CLI_BUILD': '1'  # use the docker cache
-        })
-
-        log.info('Building docker images for L2')
-        run_command(['docker', 'compose',
-                     '-f', 'docker-compose.l2.yml',
                      'build',
                      '--progress', 'plain',
                      '--build-arg', f'GIT_COMMIT={git_commit}',
@@ -178,8 +159,8 @@ def devnet_l2_allocs(config):
     run_command([
         'forge', 'script', fqn, "--sig", "runWithAllUpgrades()"
     ], env={
-      'CONTRACT_ADDRESSES_PATH': config.l1_deployments_path,
-      'DEPLOY_CONFIG_PATH': config.devnet_config_path,
+        'CONTRACT_ADDRESSES_PATH': config.l1_deployments_path,
+        'DEPLOY_CONFIG_PATH': config.devnet_config_path,
     }, cwd=config.contracts_bedrock_dir)
 
     # For the previous forks, and the latest fork (default, thus empty prefix),
@@ -196,15 +177,6 @@ def devnet_deploy_l1(config):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
-        if not os.path.exists(config.allocs_l1_path) or DEVNET_FPAC or DEVNET_PLASMA:
-            # If this is the FPAC devnet then we need to generate the allocs
-            # file here always. This is because CI will run devnet-allocs
-            # without DEVNET_FPAC=true which means the allocs will be wrong.
-            # Re-running this step means the allocs will be correct.
-            devnet_l1_allocs(config)
-        else:
-            log.info('Re-using existing L1 allocs.')
-
         # It's odd that we want to regenerate the devnetL1.json file with
         # an updated timestamp different than the one used in the devnet_l1_allocs
         # function.  But, without it, CI flakes on this test rather consistently.
@@ -214,8 +186,6 @@ def devnet_deploy_l1(config):
         run_command([
             'go', 'run', 'cmd/main.go', 'genesis', 'l1',
             '--deploy-config', config.devnet_config_path,
-            '--l1-allocs', config.allocs_l1_path,
-            '--l1-deployments', config.addresses_json_path,
             '--outfile.l1', config.genesis_l1_path,
         ], cwd=config.op_node_dir)
 
@@ -223,11 +193,38 @@ def devnet_deploy_l1(config):
     run_command(['docker', 'compose', 'up', '-d', 'l1'], cwd=config.ops_bedrock_dir, env={
         'PWD': config.ops_bedrock_dir
     })
-    wait_up(8545)
-    wait_for_rpc_server('127.0.0.1:8545')
+    wait_up(10545)
+    wait_for_rpc_server('127.0.0.1:10545')
+
+    log.info('Waiting for L1 to start up.')
+    time.sleep(3) # Give the L1 some time to start up. Tx right after geth has launched fails with "transaction indexing is in progress"
+
+    log.info('Deploying create2 factory')
+    run_command([
+        'cast', 'publish', '--rpc-url', 'http://localhost:10545',
+        '0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222'], cwd=config.contracts_bedrock_dir)
+    time.sleep(3) # Wait for tx to be mined.
 
 
 def devnet_deploy_l2(config):
+    # Start deploying L1 contracts.
+    run_command([
+        'forge', 'script', 'scripts/Deploy.s.sol:Deploy', '--rpc-url', 'http://localhost:10545',
+        '--sig', 'runWithStateDiff()',
+        '--broadcast',
+        '--private-key', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+    ], env={
+        'DEPLOY_CONFIG_PATH': config.devnet_config_path,
+    }, cwd=config.contracts_bedrock_dir)
+
+    time.sleep(3) # Wait for tx to be mined.
+
+    run_command([
+        'forge', 'script', 'scripts/Deploy.s.sol:Deploy',
+        '--sig', 'sync()',
+        '--rpc-url', 'http://localhost:10545',
+    ], cwd=config.contracts_bedrock_dir)
+
     if os.path.exists(config.genesis_l2_path):
         log.info('L2 genesis and rollup configs already generated.')
     else:

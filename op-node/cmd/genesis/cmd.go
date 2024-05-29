@@ -35,9 +35,8 @@ var (
 		Required: true,
 	}
 	l1DeploymentsFlag = &cli.PathFlag{
-		Name:     "l1-deployments",
-		Usage:    "Path to L1 deployments JSON file as in superchain-registry",
-		Required: true,
+		Name:  "l1-deployments",
+		Usage: "Path to L1 deployments JSON file as in superchain-registry",
 	}
 	outfileL2Flag = &cli.PathFlag{
 		Name:  "outfile.l2",
@@ -107,10 +106,10 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 
-			// Check the addresses after setting the deployments
-			if err := config.CheckAddresses(); err != nil {
-				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
-			}
+			// // Check the addresses after setting the deployments
+			// if err := config.CheckAddresses(); err != nil {
+			// 	return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
+			// }
 
 			var dump *genesis.ForgeAllocs
 			if l1Allocs := ctx.String("l1-allocs"); l1Allocs != "" {
