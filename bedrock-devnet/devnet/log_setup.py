@@ -27,4 +27,6 @@ log_config = {
     },
 }
 
-dictConfig(log_config)
+
+def setup_logging():
+    dictConfig(log_config)
