@@ -41,17 +41,24 @@ Configuration options can be reviewed with:
 ./bin/op-node --help
 ```
 
+[eth-json-rpc-spec]: https://ethereum.github.io/execution-apis/api-documentation
+
 To start syncing the rollup:
 
-Connect to at least one L1 RPC and L2 execution engine:
+Connect to one L1 Execution Client that supports the [Ethereum JSON-RPC spec][eth-json-rpc-spec],
+an L1 Consensus Client that supports the [Beacon Node API](https://ethereum.github.io/beacon-APIs) and
+an OP Stack based Execution Client that supports the [Ethereum JSON-RPC spec][eth-json-rpc-spec]:
 
-- L1: use any L1 node / RPC (websocket connection path may differ)
-- L2: run the Optimism fork of geth: [`op-geth`](https://github.com/ethereum-optimism/op-geth)
+- L1: use any L1 client, RPC, websocket, or IPC (connection config may differ)
+- L2: use any OP Stack Execution Client like [`op-geth`](https://github.com/ethereum-optimism/op-geth)
+
+Note that websockets or IPC preferred for event notifications to improve sync, http RPC works with adaptive polling.
 
 ```shell
-# websockets or IPC preferred for event notifications to improve sync, http RPC works with adaptive polling.
-op \
-  --l1=ws://localhost:8546 --l2=ws//localhost:9001 \
+./bin/op-node \
+  --l1=ws://localhost:8546 \
+  --l1.beacon=http://localhost:4000 \
+  --l2=ws://localhost:9001 \
   --rollup.config=./path-to-network-config/rollup.json \
   --rpc.addr=127.0.0.1 \
   --rpc.port=7000
