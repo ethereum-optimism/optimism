@@ -184,6 +184,9 @@ abstract contract CrossDomainMessenger is
         // message is the amount of gas requested by the user PLUS the base gas value. We want to
         // guarantee the property that the call to the target contract will always have at least
         // the minimum gas limit specified by the user.
+        if (isCustomGasToken()) {
+            require(msg.value == 0, "CrossDomainMessenger: cannot send value with custom gas token");
+        }
         _sendMessage({
             _to: address(otherMessenger),
             _gasLimit: baseGas(_message, _minGasLimit),
