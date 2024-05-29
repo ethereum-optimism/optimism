@@ -96,9 +96,10 @@ const (
 	DefaultAsteriscInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
-	// The default value is 15 days, which is an 8 day resolution buffer
-	// and bond claiming buffer plus the 7 day game finalization window.
-	DefaultGameWindow   = time.Duration(15 * 24 * time.Hour)
+	// The default value is 28 days. The worst case duration for a game is 16 days
+	// (due to clock extension), plus 7 days WETH withdrawal delay leaving a 5 day
+	// buffer to monitor games to ensure bonds are claimed.
+	DefaultGameWindow   = time.Duration(28 * 24 * time.Hour)
 	DefaultMaxPendingTx = 10
 )
 
