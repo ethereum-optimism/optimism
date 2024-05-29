@@ -1,0 +1,199 @@
+version: '3.4'
+
+volumes:
+  l2_data:
+  safedb_data:
+  challenger_data:
+  op_log:
+
+networks:
+  ops-network:
+    name: ops-bedrock-shared
+    external: true
+
+services:
+  l2:
+    build:
+      context: .
+      dockerfile: Dockerfile.l2
+    ports:
+      - "9545:8545"
+      - "8060:6060"
+    volumes:
+      - "l2_data:/db"
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/sh"
+      - "/entrypoint.sh"
+      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+    environment:
+      GETH_MINER_RECOMMIT: 100ms
+    networks:
+      - ops-network
+
+  op-node:
+    depends_on:
+      - l2
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-node-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
+    command: >
+      op-node
+      --l1=ws://l1:8546
+      --l2=http://l2:8551
+      --l2.jwt-secret=/config/test-jwt-secret.txt
+      --sequencer.enabled
+      --sequencer.l1-confs=0
+      --verifier.l1-confs=0
+      --p2p.sequencer.key=8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+      --rollup.config=/rollup.json
+      --rpc.addr=0.0.0.0
+      --rpc.port=8545
+      --p2p.listen.ip=0.0.0.0
+      --p2p.listen.tcp=9003
+      --p2p.listen.udp=9003
+      --p2p.scoring.peers=light
+      --p2p.ban.peers=true
+      --snapshotlog.file=/op_log/snapshot.log
+      --p2p.priv.path=/config/p2p-node-key.txt
+      --metrics.enabled
+      --metrics.addr=0.0.0.0
+      --metrics.port=7300
+      --pprof.enabled
+      --rpc.enable-admin
+      --safedb.path=/db
+      --plasma.enabled=${PLASMA_ENABLED}
+      --plasma.da-service=${PLASMA_DA_SERVICE}
+      --plasma.da-server=http://da-server:3100
+    ports:
+      - "7545:8545"
+      - "9003:9003"
+      - "7300:7300"
+      - "6060:6060"
+    volumes:
+      - "safedb_data:/db"
+      - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
+      - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+      - op_log:/op_log
+    networks:
+      - ops-network
+
+  op-proposer:
+    depends_on:
+      - l2
+      - op-node
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-proposer-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
+    ports:
+      - "6062:6060"
+      - "7302:7300"
+      - "6546:8545"
+    environment:
+      OP_PROPOSER_L1_ETH_RPC: http://l1:8545
+      OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
+      OP_PROPOSER_POLL_INTERVAL: 1s
+      OP_PROPOSER_NUM_CONFIRMATIONS: 1
+      OP_PROPOSER_MNEMONIC: test test test test test test test test test test test junk
+      OP_PROPOSER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
+      OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
+      OP_PROPOSER_GAME_FACTORY_ADDRESS: "${DGF_ADDRESS}"
+      OP_PROPOSER_GAME_TYPE: "${DG_TYPE}"
+      OP_PROPOSER_PROPOSAL_INTERVAL: "${PROPOSAL_INTERVAL}"
+      OP_PROPOSER_PPROF_ENABLED: "true"
+      OP_PROPOSER_METRICS_ENABLED: "true"
+      OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
+      OP_PROPOSER_RPC_ENABLE_ADMIN: "true"
+    networks:
+      - ops-network
+
+  op-batcher:
+    depends_on:
+      - l2
+      - op-node
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-batcher-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
+    ports:
+      - "6061:6060"
+      - "7301:7300"
+      - "6545:8545"
+    environment:
+      OP_BATCHER_L1_ETH_RPC: http://l1:8545
+      OP_BATCHER_L2_ETH_RPC: http://l2:8545
+      OP_BATCHER_ROLLUP_RPC: http://op-node:8545
+      OP_BATCHER_MAX_CHANNEL_DURATION: 1
+      OP_BATCHER_SUB_SAFETY_MARGIN: 4 # SWS is 15, ChannelTimeout is 40
+      OP_BATCHER_POLL_INTERVAL: 1s
+      OP_BATCHER_NUM_CONFIRMATIONS: 1
+      OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
+      OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
+      OP_BATCHER_PPROF_ENABLED: "true"
+      OP_BATCHER_METRICS_ENABLED: "true"
+      OP_BATCHER_RPC_ENABLE_ADMIN: "true"
+      OP_BATCHER_BATCH_TYPE: 0
+      OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
+      OP_BATCHER_PLASMA_DA_SERVICE: "${PLASMA_DA_SERVICE}"
+      OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
+    networks:
+      - ops-network
+
+  op-challenger:
+    depends_on:
+      - l2
+      - op-node
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-challenger-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:devnet
+    volumes:
+      - "challenger_data:/db"
+      - "../op-program/bin:/op-program"
+    environment:
+      OP_CHALLENGER_L1_ETH_RPC: http://l1:8545
+      # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
+      OP_CHALLENGER_L1_BEACON: "unset"
+      OP_CHALLENGER_ROLLUP_RPC: http://op-node:8545
+      OP_CHALLENGER_TRACE_TYPE: cannon
+      OP_CHALLENGER_GAME_FACTORY_ADDRESS: ${DGF_ADDRESS}
+      # The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
+      # before the L2 genesis is known.
+      OP_CHALLENGER_UNSAFE_ALLOW_INVALID_PRESTATE: "true"
+      OP_CHALLENGER_DATADIR: /db
+      OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./.devnet/rollup.json
+      OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2.json
+      OP_CHALLENGER_CANNON_BIN: ./cannon/bin/cannon
+      OP_CHALLENGER_CANNON_SERVER: /op-program/op-program
+      OP_CHALLENGER_CANNON_PRESTATE: /op-program/prestate.json
+      OP_CHALLENGER_L2_ETH_RPC: http://l2:8545
+      OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
+      OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
+      OP_CHALLENGER_NUM_CONFIRMATIONS: 1
+    networks:
+      - ops-network
+
+  sentinel:
+    image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
+    volumes:
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+    # private-key is mnemonic index 5 of the test mnemonic.
+    command: >
+      sentinel
+      --datadir=data
+      --l1-rpc-http=http://l1:8545
+      --l1-rpc-ws=ws://l1:8546
+      --da-storage-uri=http://da-server:3100
+      --private-key=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+      --config=/rollup.json
+    networks:
+      - ops-network
