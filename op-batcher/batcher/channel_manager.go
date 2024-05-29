@@ -320,6 +320,7 @@ func (s *channelManager) outputFrames() error {
 		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
+		"oldest_l1_origin", s.currentChannel.OldestL1Origin(),
 		"l1_origin", lastClosedL1Origin,
 		"full_reason", s.currentChannel.FullErr(),
 		"compr_ratio", comprRatio,

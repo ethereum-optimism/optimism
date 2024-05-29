@@ -226,6 +226,11 @@ func (c *channel) LatestL1Origin() eth.BlockID {
 	return c.channelBuilder.LatestL1Origin()
 }
 
+// OldestL1Origin returns the oldest L1 block origin from all the L2 blocks that have been added to the channel
+func (c *channel) OldestL1Origin() eth.BlockID {
+	return c.channelBuilder.OldestL1Origin()
+}
+
 func (s *channel) Close() {
 	s.channelBuilder.Close()
 }
