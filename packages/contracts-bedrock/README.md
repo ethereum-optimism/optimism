@@ -22,6 +22,7 @@ High-level information about these contracts can be found within this README and
   - [Contributing Guide](#contributing-guide)
   - [Style Guide](#style-guide)
 - [Deployment](#deployment)
+  - [Deploying Production Networks](#deploying-production-networks)
 - [Generating L2 Genesis Allocs](#generating-l2-genesis-allocs)
   - [Configuration](#configuration)
     - [Custom Gas Token](#custom-gas-token)
@@ -283,6 +284,13 @@ DEPLOY_CONFIG_PATH=<PATH_TO_MY_DEPLOY_CONFIG> \
   --broadcast --private-key $PRIVATE_KEY \
   --rpc-url $ETH_RPC_URL
 ```
+
+### Deploying Production Networks
+
+Production users should deploy their L1 contracts from a contracts release.
+All contracts releases are on git tags with the following format: `op-contracts/vX.Y.Z`.
+See the [release process](https://github.com/ethereum-optimism/optimism?tab=readme-ov-file#development-and-release-process)
+for more information.
 
 ## Generating L2 Genesis Allocs
 
