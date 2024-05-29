@@ -329,46 +329,46 @@ func TestCheckRecipientCredit(t *testing.T) {
 	bonds.CheckBonds([]*monTypes.EnrichedGameData{game1, game2, game3, game4})
 
 	require.Len(t, m.credits, 6)
-	require.Contains(t, m.credits, metrics.CreditBelowMaxDuration)
-	require.Contains(t, m.credits, metrics.CreditEqualMaxDuration)
-	require.Contains(t, m.credits, metrics.CreditAboveMaxDuration)
-	require.Contains(t, m.credits, metrics.CreditBelowNonMaxDuration)
-	require.Contains(t, m.credits, metrics.CreditEqualNonMaxDuration)
-	require.Contains(t, m.credits, metrics.CreditAboveNonMaxDuration)
+	require.Contains(t, m.credits, metrics.CreditBelowWithdrawable)
+	require.Contains(t, m.credits, metrics.CreditEqualWithdrawable)
+	require.Contains(t, m.credits, metrics.CreditAboveWithdrawable)
+	require.Contains(t, m.credits, metrics.CreditBelowNonWithdrawable)
+	require.Contains(t, m.credits, metrics.CreditEqualNonWithdrawable)
+	require.Contains(t, m.credits, metrics.CreditAboveNonWithdrawable)
 
 	// Game 2 and 4 recipients added here as it has reached max duration
-	require.Equal(t, 2, m.credits[metrics.CreditBelowMaxDuration], "CreditBelowMaxDuration")
-	require.Equal(t, 3, m.credits[metrics.CreditEqualMaxDuration], "CreditEqualMaxDuration")
-	require.Equal(t, 2, m.credits[metrics.CreditAboveMaxDuration], "CreditAboveMaxDuration")
+	require.Equal(t, 2, m.credits[metrics.CreditBelowWithdrawable], "CreditBelowWithdrawable")
+	require.Equal(t, 3, m.credits[metrics.CreditEqualWithdrawable], "CreditEqualWithdrawable")
+	require.Equal(t, 2, m.credits[metrics.CreditAboveWithdrawable], "CreditAboveWithdrawable")
 
 	// Game 1 and 3 recipients added here as it hasn't reached max duration
-	require.Equal(t, 3, m.credits[metrics.CreditBelowNonMaxDuration], "CreditBelowNonMaxDuration")
-	require.Equal(t, 2, m.credits[metrics.CreditEqualNonMaxDuration], "CreditEqualNonMaxDuration")
-	require.Equal(t, 2, m.credits[metrics.CreditAboveNonMaxDuration], "CreditAboveNonMaxDuration")
+	require.Equal(t, 3, m.credits[metrics.CreditBelowNonWithdrawable], "CreditBelowNonWithdrawable")
+	require.Equal(t, 2, m.credits[metrics.CreditEqualNonWithdrawable], "CreditEqualNonWithdrawable")
+	require.Equal(t, 2, m.credits[metrics.CreditAboveNonWithdrawable], "CreditAboveNonWithdrawable")
 
 	// Logs from game1
 	// addr1 is correct so has no logs
 	// addr2 is below expected before max duration, so warn about early withdrawal
 	require.NotNil(t, logs.FindLog(
-		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewLevelFilter(log.LevelError),
 		testlog.NewMessageFilter("Credit withdrawn early"),
 		testlog.NewAttributesFilter("game", game1.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr2.Hex()),
-		testlog.NewAttributesFilter("duration", "unreached")))
+		testlog.NewAttributesFilter("withdrawable", "non_withdrawable")))
 	// addr3 is above expected
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Credit above expected amount"),
 		testlog.NewAttributesFilter("game", game1.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr3.Hex()),
-		testlog.NewAttributesFilter("duration", "unreached")))
+		testlog.NewAttributesFilter("withdrawable", "non_withdrawable")))
 	// addr4 is below expected before max duration, so warn about early withdrawal
 	require.NotNil(t, logs.FindLog(
-		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewLevelFilter(log.LevelError),
 		testlog.NewMessageFilter("Credit withdrawn early"),
 		testlog.NewAttributesFilter("game", game1.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr4.Hex()),
-		testlog.NewAttributesFilter("duration", "unreached")))
+		testlog.NewAttributesFilter("withdrawable", "non_withdrawable")))
 
 	// Logs from game 2
 	// addr1 is below expected - no warning as withdrawals may now be possible
@@ -379,18 +379,18 @@ func TestCheckRecipientCredit(t *testing.T) {
 		testlog.NewMessageFilter("Credit above expected amount"),
 		testlog.NewAttributesFilter("game", game2.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr3.Hex()),
-		testlog.NewAttributesFilter("duration", "reached")))
+		testlog.NewAttributesFilter("withdrawable", "withdrawable")))
 	// addr4 is correct
 
 	// Logs from game 3
 	// addr1 is correct so has no logs
 	// addr2 is below expected before max duration, so warn about early withdrawal
 	require.NotNil(t, logs.FindLog(
-		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewLevelFilter(log.LevelError),
 		testlog.NewMessageFilter("Credit withdrawn early"),
 		testlog.NewAttributesFilter("game", game3.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr2.Hex()),
-		testlog.NewAttributesFilter("duration", "unreached")))
+		testlog.NewAttributesFilter("withdrawable", "non_withdrawable")))
 	// addr3 is not involved so no logs
 	// addr4 is above expected before max duration, so warn
 	require.NotNil(t, logs.FindLog(
@@ -398,7 +398,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 		testlog.NewMessageFilter("Credit above expected amount"),
 		testlog.NewAttributesFilter("game", game3.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr4.Hex()),
-		testlog.NewAttributesFilter("duration", "unreached")))
+		testlog.NewAttributesFilter("withdrawable", "non_withdrawable")))
 
 	// Logs from game 4
 	// addr1 is correct so has no logs
@@ -410,7 +410,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 		testlog.NewMessageFilter("Credit above expected amount"),
 		testlog.NewAttributesFilter("game", game4.Proxy.Hex()),
 		testlog.NewAttributesFilter("recipient", addr4.Hex()),
-		testlog.NewAttributesFilter("duration", "reached")))
+		testlog.NewAttributesFilter("withdrawable", "withdrawable")))
 }
 
 func setupBondMetricsTest(t *testing.T) (*Bonds, *stubBondMetrics, *testlog.CapturingHandler) {
