@@ -345,7 +345,9 @@ func Run(ctx *cli.Context) error {
 		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
 			return fmt.Errorf("cannot enable debug mode without a metadata file")
 		}
-		us.InitDebug(meta)
+		if err := us.InitDebug(meta); err != nil {
+			return fmt.Errorf("failed to initialize debug mode: %w", err)
+		}
 	}
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
