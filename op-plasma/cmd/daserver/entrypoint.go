@@ -43,7 +43,7 @@ func StartDAServer(cliCtx *cli.Context) error {
 		store = s3
 	}
 
-	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), adapters.KVStoreAdapter{store}, l)
+	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), adapters.KVStoreAdapter{KVStore: store}, l)
 
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("failed to start the DA server")
