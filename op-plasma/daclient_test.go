@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -116,7 +115,7 @@ func TestDAClientService(t *testing.T) {
 		Enabled:      true,
 		DAServerURL:  fmt.Sprintf("http://%s", server.Endpoint()),
 		VerifyOnRead: false,
-		GenericDA:    true,
+		GenericDA:    false,
 	}
 	require.NoError(t, cfg.Check())
 
@@ -129,7 +128,7 @@ func TestDAClientService(t *testing.T) {
 	comm, err := client.SetInput(ctx, input)
 	require.NoError(t, err)
 
-	require.Equal(t, comm, NewGenericCommitment(crypto.Keccak256(input)))
+	require.Equal(t, comm.String(), NewKeccak256Commitment(input).String())
 
 	stored, err := client.GetInput(ctx, comm)
 	require.NoError(t, err)
@@ -144,7 +143,7 @@ func TestDAClientService(t *testing.T) {
 	require.NoError(t, err)
 
 	// test not found error
-	comm = NewGenericCommitment(RandomData(rng, 32))
+	comm = NewKeccak256Commitment(RandomData(rng, 32))
 	_, err = client.GetInput(ctx, comm)
 	require.ErrorIs(t, err, ErrNotFound)
 
@@ -157,6 +156,6 @@ func TestDAClientService(t *testing.T) {
 	_, err = client.SetInput(ctx, input)
 	require.Error(t, err)
 
-	_, err = client.GetInput(ctx, NewGenericCommitment(input))
+	_, err = client.GetInput(ctx, NewKeccak256Commitment(input))
 	require.Error(t, err)
 }

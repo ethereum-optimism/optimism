@@ -63,18 +63,14 @@ type DA struct {
 	log     log.Logger
 	cfg     Config
 	metrics Metricer
-
 	storage DAStorage
+	state   *State // the DA state keeps track of all the commitments and their challenge status.
 
-	// the DA state keeps track of all the commitments and their challenge status.
-	state *State
+	challengeOrigin  eth.BlockID    // the highest l1 block we synced challenge contract events from
+	commitmentOrigin eth.BlockID    // the highest l1 block we read commitments from
+	finalizedHead    eth.L1BlockRef // the latest recorded finalized head as per the challenge contract
+	l1FinalizedHead  eth.L1BlockRef // the latest recorded finalized head as per the l1 finalization signal
 
-	// the latest l1 block we synced challenge contract events from
-	origin eth.BlockID
-	// the latest recorded finalized head as per the challenge contract
-	finalizedHead eth.L1BlockRef
-	// the latest recorded finalized head as per the l1 finalization signal
-	l1FinalizedHead eth.L1BlockRef
 	// flag the reset function we are resetting because of an expired challenge
 	resetting bool
 
@@ -93,7 +89,7 @@ func NewPlasmaDAWithStorage(log log.Logger, cfg Config, storage DAStorage, metri
 		cfg:     cfg,
 		storage: storage,
 		metrics: metrics,
-		state:   NewState(log, metrics),
+		state:   NewState(log, metrics, cfg),
 	}
 }
 
@@ -118,34 +114,26 @@ func (d *DA) OnFinalizedHeadSignal(f HeadSignalFn) {
 // Finalize takes the L1 finality signal, compares the plasma finalized block and forwards the finality
 // signal to the engine queue based on whichever is most behind.
 func (d *DA) Finalize(l1Finalized eth.L1BlockRef) {
-	ref := d.finalizedHead
-	d.log.Info("received l1 finalized signal, forwarding to engine queue", "l1", l1Finalized, "plasma", ref)
-	// if the l1 finalized head is behind it is the finalized head
-	if l1Finalized.Number < d.finalizedHead.Number {
-		ref = l1Finalized
-	}
-	// prune finalized state
-	d.state.Prune(ref.Number)
-
+	d.l1FinalizedHead = l1Finalized
+	d.log.Info("received l1 finalized signal, forwarding to engine queue", "l1", l1Finalized, "plasma", d.finalizedHead)
 	if d.finalizedHeadSignalFunc == nil {
 		d.log.Warn("finalized head signal function not set")
 		return
 	}
-
 	// signal the engine queue
-	d.finalizedHeadSignalFunc(ref)
+	d.finalizedHeadSignalFunc(d.finalizedHead)
 }
 
 // LookAhead increments the challenges origin and process the new block if it exists.
 // It is used when the derivation pipeline stalls due to missing data and we need to continue
 // syncing challenge events until the challenge is resolved or expires.
 func (d *DA) LookAhead(ctx context.Context, l1 L1Fetcher) error {
-	blkRef, err := l1.L1BlockRefByNumber(ctx, d.origin.Number+1)
+	blkRef, err := l1.L1BlockRefByNumber(ctx, d.challengeOrigin.Number+1)
 	// temporary error, will do a backoff
 	if err != nil {
 		return err
 	}
-	return d.AdvanceL1Origin(ctx, l1, blkRef.ID())
+	return d.AdvanceChallengeOrigin(ctx, l1, blkRef.ID())
 }
 
 // Reset the challenge event derivation origin in case of L1 reorg
@@ -157,9 +145,12 @@ func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemC
 	// from this stage of the pipeline.
 	if d.resetting {
 		d.resetting = false
+		d.commitmentOrigin = base.ID()
+		d.state.ClearCommitments()
 	} else {
 		// resetting due to L1 reorg, clear state
-		d.origin = base.ID()
+		d.challengeOrigin = base.ID()
+		d.commitmentOrigin = base.ID()
 		d.state.Reset()
 	}
 	return io.EOF
@@ -167,22 +158,24 @@ func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemC
 
 // GetInput returns the input data for the given commitment bytes. blockNumber is required to lookup
 // the challenge status in the DataAvailabilityChallenge L1 contract.
-func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, blockId eth.BlockID) (eth.Data, error) {
+func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, blockId eth.L1BlockRef) (eth.Data, error) {
 	// If it's not the right commitment type, report it as an expired commitment in order to skip it
 	if d.cfg.CommitmentType != comm.CommitmentType() {
 		return nil, fmt.Errorf("invalid commitment type; expected: %v, got: %v: %w", d.cfg.CommitmentType, comm.CommitmentType(), ErrExpiredChallenge)
 	}
-	// If the challenge head is ahead in the case of a pipeline reset or stall, we might have synced a
-	// challenge event for this commitment. Otherwise we mark the commitment as part of the canonical
-	// chain so potential future challenge events can be selected.
-	ch := d.state.GetOrTrackChallenge(comm.Encode(), blockId.Number, d.cfg.ChallengeWindow)
+	// Don't track the expired commitment. If we hit this case we have seen an expired challenge, but never used the data so we can
+	// skip the reorg. If we used the data & then expire the challenge later, we do that during the AdvanceChallengeOrigin step
+	status := d.state.GetChallengeStatus(comm, blockId.Number)
+	if status == ChallengeExpired {
+		return nil, ErrExpiredChallenge
+	}
+	// Record the commitment for later finalization / invalidation
+	d.state.TrackCommitment(comm, blockId)
+	d.log.Info("getting input", "comm", comm, "status", status)
 
 	// Fetch the input from the DA storage.
 	data, err := d.storage.GetInput(ctx, comm)
-
-	// data is not found in storage but may be available if the challenge was resolved.
 	notFound := errors.Is(ErrNotFound, err)
-
 	if err != nil && !notFound {
 		d.log.Error("failed to get preimage", "err", err)
 		// the storage client request failed for some other reason
@@ -190,58 +183,107 @@ func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, bl
 		return nil, err
 	}
 
-	switch ch.challengeStatus {
-	case ChallengeActive:
-		if d.isExpired(ch.expiresAt) {
-			// this challenge has expired, this input must be skipped
-			return nil, ErrExpiredChallenge
-		} else if notFound {
-			// data is missing and a challenge is active, we must wait for the challenge to resolve
-			// hence we continue syncing new origins to sync the new challenge events.
+	switch status {
+	case ChallengeUninitialized:
+		if notFound {
+			// If this commitment was never challenged & we can't find the data, treat it as unrecoverable.
+			if d.challengeOrigin.Number > blockId.Number+d.cfg.ChallengeWindow {
+				return nil, ErrMissingPastWindow
+			}
+			// Otherwise continue syncing challenges hoping it eventually is challenged and resolved
 			if err := d.LookAhead(ctx, l1); err != nil {
 				return nil, err
 			}
 			return nil, ErrPendingChallenge
-		}
-	case ChallengeExpired:
-		// challenge was marked as expired, skip
-		return nil, ErrExpiredChallenge
-	case ChallengeResolved:
-		// challenge was resolved, data is available in storage, return directly
-		if !notFound {
+		} else {
 			return data, nil
 		}
-		// Generic Commitments don't resolve from L1 so if we still can't find the data with out of luck
-		if comm.CommitmentType() == GenericCommitmentType {
-			return nil, ErrMissingPastWindow
-		}
-		// data not found in storage, return from challenge resolved input
-		resolvedInput, err := d.state.GetResolvedInput(comm.Encode())
-		if err != nil {
-			return nil, err
-		}
-		return resolvedInput, nil
-	default:
+	case ChallengeActive:
 		if notFound {
-			if d.isExpired(ch.expiresAt) {
-				// we're past the challenge window and the data is not available
-				return nil, ErrMissingPastWindow
-			} else {
-				// continue syncing challenges hoping it eventually is challenged and resolved
-				if err := d.LookAhead(ctx, l1); err != nil {
-					return nil, err
-				}
-				return nil, ErrPendingChallenge
+			// data is missing and a challenge is active, we must wait for the challenge to resolve
+			// hence we continue syncing new origins to sync the new challenge events.
+			// AdvanceChallengeOrigin calls ExpireChallenges which will mark this challenge as expired when the window is up.
+			if err := d.LookAhead(ctx, l1); err != nil {
+				return nil, err
 			}
+			return nil, ErrPendingChallenge
+		} else {
+			return data, nil
 		}
+	case ChallengeResolved:
+		if notFound {
+			// Generic Commitments don't resolve from L1 so if we still can't find the data with out of luck
+			if comm.CommitmentType() == GenericCommitmentType {
+				return nil, ErrMissingPastWindow
+			}
+			ch, _ := d.state.GetChallenge(comm, blockId.Number)
+			// data not found in storage, return from challenge resolved input
+			// Note: Only do this for keccak commitments
+			return ch.input, nil
+		} else {
+			return data, nil
+		}
+	default:
+		return nil, fmt.Errorf("Unknown challenge status: %v", status)
 	}
-
-	return data, nil
 }
 
-// isExpired returns whether the given expiration block number is lower or equal to the current head
-func (d *DA) isExpired(bn uint64) bool {
-	return d.origin.Number >= bn
+// AdvanceChallengeOrigin reads & stores challenge events for the given L1 block
+func (d *DA) AdvanceChallengeOrigin(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
+	// do not repeat for the same or old origin
+	if block.Number <= d.challengeOrigin.Number {
+		return nil
+	}
+	if err := d.loadChallengeEvents(ctx, l1, block); err != nil {
+		return err
+	}
+	// Expire challenges separately from commitments
+	d.state.ExpireChallenges(block)
+	d.challengeOrigin = block
+	d.metrics.RecordChallengesHead("latest", d.challengeOrigin.Number)
+	d.log.Info("processed plasma challenge origin", "origin", block)
+	return nil
+}
+
+// AdvanceCommitmentOrigin expires + prunes commitments at the start of reading in L1 commitments from a block.
+func (d *DA) AdvanceCommitmentOrigin(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
+	// do not repeat for the same origin
+	if block.Number <= d.commitmentOrigin.Number {
+		return nil
+	}
+
+	// Expire commitments
+	err := d.state.ExpireCommitments(block)
+	if err != nil {
+		// warn the reset function not to clear the state
+		d.resetting = true
+		return err
+	}
+	// Advance the finalization signal. This is split into two places.
+	// This function the latest L1 finalized head & sets finalized head to the highest L1 block ref which
+	// has been fully processed.
+	// The Finalize function sets the L1 finalized head & forwards the finalized which is set here.
+	// Prune the state up to our current finalized head & possibly get a L1
+	ref := d.state.Prune(d.l1FinalizedHead.ID())
+	if ref != (eth.L1BlockRef{}) {
+		// If prune found a new finalized head, set it
+		d.metrics.RecordChallengesHead("finalized", ref.Number)
+		d.finalizedHead = ref
+	} else if d.state.NoCommitments() && d.l1FinalizedHead.Number > d.cfg.ChallengeWindow {
+		// Else if there are no commitments, the finalized head is set to the L1 finalized head - challenge window
+		ref, err = l1.L1BlockRefByNumber(ctx, d.l1FinalizedHead.Number-d.cfg.ChallengeWindow)
+		if err != nil {
+			return err
+		}
+		d.metrics.RecordChallengesHead("finalized", ref.Number)
+		d.finalizedHead = ref
+	}
+
+	d.commitmentOrigin = block
+	d.metrics.RecordChallengesHead("latest", d.challengeOrigin.Number)
+	d.log.Info("processed plasma l1 origin", "origin", block, "finalized", d.finalizedHead.ID(), "l1-finalize", d.l1FinalizedHead.ID())
+
+	return nil
 }
 
 // AdvanceL1Origin syncs any challenge events included in the l1 block, expires any active challenges
@@ -249,44 +291,17 @@ func (d *DA) isExpired(bn uint64) bool {
 // as the new head for tracking challenges. If forwards an error if any new challenge have expired to
 // trigger a derivation reset.
 func (d *DA) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
-	// do not repeat for the same origin
-	if block.Number <= d.origin.Number {
-		return nil
+	if err := d.AdvanceChallengeOrigin(ctx, l1, block); err != nil {
+		return fmt.Errorf("failed to advance challenge origin: %w", err)
 	}
-	// sync challenges for the given block ID
-	if err := d.LoadChallengeEvents(ctx, l1, block); err != nil {
-		return err
+	if err := d.AdvanceCommitmentOrigin(ctx, l1, block); err != nil {
+		return fmt.Errorf("failed to advance commitment origin: %w", err)
 	}
-	// advance challenge window, computing the finalized head
-	bn, err := d.state.ExpireChallenges(block.Number)
-	if err != nil {
-		// warn the reset function not to clear the state
-		d.resetting = true
-		return err
-	}
-
-	// finalized head signal is called only when the finalized head number increases
-	// and the l1 finalized head ahead of the DA finalized head.
-	if bn > d.finalizedHead.Number {
-		ref, err := l1.L1BlockRefByNumber(ctx, bn)
-		if err != nil {
-			return err
-		}
-		d.metrics.RecordChallengesHead("finalized", bn)
-
-		// keep track of finalized had so it can be picked up by the
-		// l1 finalization signal
-		d.finalizedHead = ref
-	}
-	d.origin = block
-	d.metrics.RecordChallengesHead("latest", d.origin.Number)
-
-	d.log.Info("processed plasma l1 origin", "origin", block, "next-finalized", bn, "finalized", d.finalizedHead.Number, "l1-finalize", d.l1FinalizedHead.Number)
 	return nil
 }
 
-// LoadChallengeEvents fetches the l1 block receipts and updates the challenge status
-func (d *DA) LoadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
+// loadChallengeEvents fetches the l1 block receipts and updates the challenge status
+func (d *DA) loadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
 	// filter any challenge event logs in the block
 	logs, err := d.fetchChallengeLogs(ctx, l1, block)
 	if err != nil {
@@ -295,7 +310,7 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.Bl
 
 	for _, log := range logs {
 		i := log.TxIndex
-		status, comm, err := d.decodeChallengeStatus(log)
+		status, comm, bn, err := d.decodeChallengeStatus(log)
 		if err != nil {
 			d.log.Error("failed to decode challenge event", "block", block.Number, "tx", i, "log", log.Index, "err", err)
 			continue
@@ -320,6 +335,7 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.Bl
 				d.log.Error("tx hash mismatch", "block", block.Number, "txIdx", i, "log", log.Index, "txHash", tx.Hash(), "receiptTxHash", log.TxHash)
 				continue
 			}
+
 			var input []byte
 			if d.cfg.CommitmentType == Keccak256CommitmentType {
 				// Decode the input from resolver tx calldata
@@ -333,13 +349,19 @@ func (d *DA) LoadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.Bl
 					continue
 				}
 			}
-			d.log.Info("challenge resolved", "block", block, "txIdx", i, "comm", comm.Encode())
-			d.state.SetResolvedChallenge(comm.Encode(), input, log.BlockNumber)
+
+			d.log.Info("challenge resolved", "block", block, "txIdx", i)
+			// Resolve challenge in state
+			if err := d.state.ResolveChallenge(comm, block, bn, input); err != nil {
+				d.log.Error("failed to resolve challenge", "block", block.Number, "txIdx", i, "err", err)
+				continue
+			}
 		case ChallengeActive:
-			d.log.Info("detected new active challenge", "block", block, "comm", comm.Encode())
-			d.state.SetActiveChallenge(comm.Encode(), log.BlockNumber, d.cfg.ResolveWindow)
+			// create challenge in state
+			d.log.Info("detected new active challenge", "block", block, "comm", comm)
+			d.state.CreateChallenge(comm, block, bn)
 		default:
-			d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", log.Index, "status", status, "comm", comm.Encode())
+			d.log.Warn("skipping unknown challenge status", "block", block.Number, "tx", i, "log", log.Index, "status", status, "comm", comm)
 		}
 	}
 	return nil
@@ -374,25 +396,17 @@ func (d *DA) fetchChallengeLogs(ctx context.Context, l1 L1Fetcher, block eth.Blo
 }
 
 // decodeChallengeStatus decodes and validates a challenge event from a transaction log, returning the associated commitment bytes.
-func (d *DA) decodeChallengeStatus(log *types.Log) (ChallengeStatus, CommitmentData, error) {
+func (d *DA) decodeChallengeStatus(log *types.Log) (ChallengeStatus, CommitmentData, uint64, error) {
 	event, err := DecodeChallengeStatusEvent(log)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, 0, err
 	}
 	comm, err := DecodeCommitmentData(event.ChallengedCommitment)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, 0, err
 	}
 	d.log.Debug("decoded challenge status event", "log", log, "event", event, "comm", fmt.Sprintf("%x", comm.Encode()))
-
-	bn := event.ChallengedBlockNumber.Uint64()
-	// IsTracking just validates whether the commitment was challenged for the correct block number
-	// if it has been loaded from the batcher inbox before. Spam commitments will be tracked but
-	// ignored and evicted unless derivation encounters the commitment.
-	if !d.state.IsTracking(comm.Encode(), bn) {
-		return 0, nil, fmt.Errorf("%w: %x at block %d", ErrInvalidChallenge, comm.Encode(), bn)
-	}
-	return ChallengeStatus(event.Status), comm, nil
+	return ChallengeStatus(event.Status), comm, event.ChallengedBlockNumber.Uint64(), nil
 }
 
 var (
