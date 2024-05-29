@@ -1,0 +1,37 @@
+[
+  {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 1,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "registry",
+    "offset": 0,
+    "slot": "1",
+    "type": "contract ICeloRegistry"
+  },
+  {
+    "bytes": "32",
+    "label": "totalSupply_",
+    "offset": 0,
+    "slot": "2",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "allowed",
+    "offset": 0,
+    "slot": "3",
+    "type": "mapping(address => mapping(address => uint256))"
+  }
+]

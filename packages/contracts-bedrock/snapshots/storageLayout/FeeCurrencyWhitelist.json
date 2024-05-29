@@ -1,0 +1,23 @@
+[
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 20,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "32",
+    "label": "whitelist",
+    "offset": 0,
+    "slot": "1",
+    "type": "address[]"
+  }
+]

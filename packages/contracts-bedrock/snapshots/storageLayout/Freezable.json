@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "registry",
+    "offset": 0,
+    "slot": "1",
+    "type": "contract ICeloRegistry"
+  }
+]

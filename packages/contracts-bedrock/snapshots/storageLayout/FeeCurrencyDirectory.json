@@ -1,0 +1,30 @@
+[
+  {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 1,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "currencies",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => struct IFeeCurrencyDirectory.CurrencyConfig)"
+  },
+  {
+    "bytes": "32",
+    "label": "currencyList",
+    "offset": 0,
+    "slot": "2",
+    "type": "address[]"
+  }
+]
