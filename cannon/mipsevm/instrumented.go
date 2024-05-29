@@ -1,6 +1,7 @@
 package mipsevm
 
 import (
+	"errors"
 	"io"
 )
 
@@ -62,9 +63,13 @@ func NewInstrumentedState(state *State, po PreimageOracle, stdOut, stdErr io.Wri
 	}
 }
 
-func (m *InstrumentedState) InitDebug(meta *Metadata) {
+func (m *InstrumentedState) InitDebug(meta *Metadata) error {
+	if meta == nil {
+		return errors.New("metadata is nil")
+	}
 	m.debugEnabled = true
 	m.debug.meta = meta
+	return nil
 }
 
 func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {

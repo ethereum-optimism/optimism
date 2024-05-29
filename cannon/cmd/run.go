@@ -101,7 +101,7 @@ var (
 	}
 	RunDebugFlag = &cli.BoolFlag{
 		Name:  "debug",
-		Usage: "enable debug mode, which includes stack traces and other debug info in the output.",
+		Usage: "enable debug mode, which includes stack traces and other debug info in the output. Requires --meta.",
 	}
 
 	OutFilePerm = os.FileMode(0o755)
@@ -342,6 +342,9 @@ func Run(ctx *cli.Context) error {
 	us := mipsevm.NewInstrumentedState(state, po, outLog, errLog)
 	debugProgram := ctx.Bool(RunDebugFlag.Name)
 	if debugProgram {
+		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+			return fmt.Errorf("cannot enable debug mode without a metadata file")
+		}
 		us.InitDebug(meta)
 	}
 	proofFmt := ctx.String(RunProofFmtFlag.Name)

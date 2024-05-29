@@ -208,6 +208,8 @@ func (m *InstrumentedState) popStack() {
 			m.debug.stack = m.debug.stack[:len(m.debug.stack)-1]
 			m.debug.caller = m.debug.caller[:len(m.debug.caller)-1]
 		}
+	} else {
+		fmt.Printf("ERROR: stack underflow at pc=%x. step=%d\n", m.state.PC, m.state.Step)
 	}
 }
 
