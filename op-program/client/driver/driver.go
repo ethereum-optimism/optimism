@@ -9,10 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -24,8 +24,16 @@ type Derivation interface {
 	Step(ctx context.Context) error
 }
 
-type EngineState interface {
+type Pipeline interface {
+	Step(ctx context.Context, pendingSafeHead eth.L2BlockRef) (outAttrib *derive.AttributesWithParent, outErr error)
+	ConfirmEngineReset()
+}
+
+type Engine interface {
 	SafeL2Head() eth.L2BlockRef
+	PendingSafeL2Head() eth.L2BlockRef
+	TryUpdateEngine(ctx context.Context) error
+	derive.ResetEngineControl
 }
 
 type L2Source interface {
@@ -33,22 +41,60 @@ type L2Source interface {
 	L2OutputRoot(uint64) (eth.Bytes32, error)
 }
 
-type NoopFinalizer struct{}
+type Deriver interface {
+	SafeL2Head() eth.L2BlockRef
+	SyncStep(ctx context.Context) error
+}
 
-func (n NoopFinalizer) OnDerivationL1End(ctx context.Context, derivedFrom eth.L1BlockRef) error {
+type MinimalSyncDeriver struct {
+	logger            log.Logger
+	pipeline          Pipeline
+	attributesHandler driver.AttributesHandler
+	l1Source          derive.L1Fetcher
+	l2Source          L2Source
+	engine            Engine
+	syncCfg           *sync.Config
+	initialResetDone  bool
+	cfg               *rollup.Config
+}
+
+func (d *MinimalSyncDeriver) SafeL2Head() eth.L2BlockRef {
+	return d.engine.SafeL2Head()
+}
+
+func (d *MinimalSyncDeriver) SyncStep(ctx context.Context) error {
+	if !d.initialResetDone {
+		if err := d.engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+			return err
+		}
+		if err := derive.ResetEngine(ctx, d.logger, d.cfg, d.engine, d.l1Source, d.l2Source, d.syncCfg, nil); err != nil {
+			return err
+		}
+		d.pipeline.ConfirmEngineReset()
+		d.initialResetDone = true
+	}
+
+	if err := d.engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+		return err
+	}
+	if err := d.attributesHandler.Proceed(ctx); err != io.EOF {
+		// EOF error means we can't process the next attributes. Then we should derive the next attributes.
+		return err
+	}
+
+	attrib, err := d.pipeline.Step(ctx, d.engine.PendingSafeL2Head())
+	if err != nil {
+		return err
+	}
+	d.attributesHandler.SetAttributes(attrib)
 	return nil
 }
 
-func (n NoopFinalizer) PostProcessSafeL2(l2Safe eth.L2BlockRef, derivedFrom eth.L1BlockRef) {}
-
-func (n NoopFinalizer) Reset() {}
-
-var _ derive.FinalizerHooks = (*NoopFinalizer)(nil)
-
 type Driver struct {
-	logger         log.Logger
-	pipeline       Derivation
-	engine         EngineState
+	logger log.Logger
+
+	deriver Deriver
+
 	l2OutputRoot   func(uint64) (eth.Bytes32, error)
 	targetBlockNum uint64
 }
@@ -56,12 +102,20 @@ type Driver struct {
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l1BlobsSource derive.L1BlobsFetcher, l2Source L2Source, targetBlockNum uint64) *Driver {
 	engine := derive.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 	attributesHandler := attributes.NewAttributesHandler(logger, cfg, engine, l2Source)
-	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, engine, metrics.NoopMetrics, &sync.Config{}, safedb.Disabled, NoopFinalizer{}, attributesHandler)
-	pipeline.Reset()
+	syncCfg := &sync.Config{SyncMode: sync.CLSync}
+	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, metrics.NoopMetrics)
 	return &Driver{
-		logger:         logger,
-		pipeline:       pipeline,
-		engine:         engine,
+		logger: logger,
+		deriver: &MinimalSyncDeriver{
+			logger:            logger,
+			pipeline:          pipeline,
+			attributesHandler: attributesHandler,
+			l1Source:          l1Source,
+			l2Source:          l2Source,
+			engine:            engine,
+			syncCfg:           syncCfg,
+			cfg:               cfg,
+		},
 		l2OutputRoot:   l2Source.L2OutputRoot,
 		targetBlockNum: targetBlockNum,
 	}
@@ -72,11 +126,11 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 // Returns io.EOF if the derivation completed successfully
 // Returns a non-EOF error if the derivation failed
 func (d *Driver) Step(ctx context.Context) error {
-	if err := d.pipeline.Step(ctx); errors.Is(err, io.EOF) {
-		d.logger.Info("Derivation complete: reached L1 head", "head", d.engine.SafeL2Head())
+	if err := d.deriver.SyncStep(ctx); errors.Is(err, io.EOF) {
+		d.logger.Info("Derivation complete: reached L1 head", "head", d.deriver.SafeL2Head())
 		return io.EOF
 	} else if errors.Is(err, derive.NotEnoughData) {
-		head := d.engine.SafeL2Head()
+		head := d.deriver.SafeL2Head()
 		if head.Number >= d.targetBlockNum {
 			d.logger.Info("Derivation complete: reached L2 block", "head", head)
 			return io.EOF
@@ -95,7 +149,7 @@ func (d *Driver) Step(ctx context.Context) error {
 }
 
 func (d *Driver) SafeHead() eth.L2BlockRef {
-	return d.engine.SafeL2Head()
+	return d.deriver.SafeL2Head()
 }
 
 func (d *Driver) ValidateClaim(l2ClaimBlockNum uint64, claimedOutputRoot eth.Bytes32) error {

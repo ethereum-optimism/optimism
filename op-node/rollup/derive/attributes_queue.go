@@ -31,6 +31,8 @@ type AttributesWithParent struct {
 	Attributes   *eth.PayloadAttributes
 	Parent       eth.L2BlockRef
 	IsLastInSpan bool
+
+	DerivedFrom eth.L1BlockRef
 }
 
 type AttributesQueue struct {
@@ -71,7 +73,12 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2Bloc
 		return nil, err
 	} else {
 		// Clear out the local state once we will succeed
-		attr := AttributesWithParent{attrs, parent, aq.isLastInSpan}
+		attr := AttributesWithParent{
+			Attributes:   attrs,
+			Parent:       parent,
+			IsLastInSpan: aq.isLastInSpan,
+			DerivedFrom:  aq.Origin(),
+		}
 		aq.batch = nil
 		aq.isLastInSpan = false
 		return &attr, nil

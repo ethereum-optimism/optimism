@@ -35,12 +35,17 @@ type L2Verifier struct {
 		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	}
 
+	syncDeriver *driver.SyncDeriver
+
 	// L2 rollup
 	engine     *derive.EngineController
 	derivation *derive.DerivationPipeline
 	clSync     *clsync.CLSync
 
-	finalizer driver.Finalizer
+	attributesHandler driver.AttributesHandler
+	safeHeadListener  derive.SafeHeadListener
+	finalizer         driver.Finalizer
+	syncCfg           *sync.Config
 
 	l1      derive.L1Fetcher
 	l1State *driver.L1State
@@ -84,17 +89,27 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 
 	attributesHandler := attributes.NewAttributesHandler(log, cfg, engine, eng)
 
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, engine, metrics,
-		syncCfg, safeHeadListener, finalizer, attributesHandler)
-	pipeline.Reset()
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, metrics)
+	// TODO syncCfg, safeHeadListener, finalizer
 
 	rollupNode := &L2Verifier{
-		log:            log,
-		eng:            eng,
-		engine:         engine,
-		clSync:         clSync,
-		derivation:     pipeline,
-		finalizer:      finalizer,
+		log:               log,
+		eng:               eng,
+		engine:            engine,
+		clSync:            clSync,
+		derivation:        pipeline,
+		finalizer:         finalizer,
+		attributesHandler: attributesHandler,
+		safeHeadListener:  safeHeadListener,
+		syncCfg:           syncCfg,
+		syncDeriver: &driver.SyncDeriver{
+			Derivation:        pipeline,
+			Finalizer:         finalizer,
+			AttributesHandler: attributesHandler,
+			SafeHeadNotifs:    safeHeadListener,
+			CLSync:            clSync,
+			Engine:            engine,
+		},
 		l1:             l1,
 		l1State:        driver.NewL1State(log, metrics),
 		l2PipelineIdle: true,
@@ -240,18 +255,7 @@ func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 
 // syncStep represents the Driver.syncStep
 func (s *L2Verifier) syncStep(ctx context.Context) error {
-	if fcuCalled, err := s.engine.TryBackupUnsafeReorg(ctx); fcuCalled {
-		return err
-	}
-	if err := s.engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
-		return err
-	}
-	if err := s.clSync.Proceed(ctx); err != io.EOF {
-		return err
-	}
-
-	s.l2PipelineIdle = false
-	return s.derivation.Step(ctx)
+	return s.syncDeriver.SyncStep(ctx)
 }
 
 // ActL2PipelineStep runs one iteration of the L2 derivation pipeline
@@ -270,6 +274,12 @@ func (s *L2Verifier) ActL2PipelineStep(t Testing) {
 	} else if err != nil && errors.Is(err, derive.ErrReset) {
 		s.log.Warn("Derivation pipeline is reset", "err", err)
 		s.derivation.Reset()
+		if err := derive.ResetEngine(t.Ctx(), s.log, s.rollupCfg, s.engine, s.l1, s.eng, s.syncCfg, s.safeHeadListener); err != nil {
+			s.log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
+			// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
+			return
+		}
+		s.derivation.ConfirmEngineReset()
 		return
 	} else if err != nil && errors.Is(err, derive.ErrTemporary) {
 		s.log.Warn("Derivation process temporary error", "err", err)
