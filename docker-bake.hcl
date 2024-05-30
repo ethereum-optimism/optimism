@@ -186,19 +186,6 @@ target "op-program" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-program:${tag}"]
 }
 
-target "op-ufm" {
-  dockerfile = "./op-ufm/Dockerfile"
-  context    = "./"
-  args       = {
-    // op-ufm dockerfile has no _ in the args
-    GITCOMMIT  = "${GIT_COMMIT}"
-    GITDATE    = "${GIT_DATE}"
-    GITVERSION = "${GIT_VERSION}"
-  }
-  platforms = split(",", PLATFORMS)
-  tags      = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-ufm:${tag}"]
-}
-
 target "cannon" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."

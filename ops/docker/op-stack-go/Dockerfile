@@ -39,7 +39,6 @@ ARG GIT_COMMIT
 ARG GIT_DATE
 
 # separate docker-builds:
-# - op-ufm
 # - proxyd
 # - any JS/TS/smart-contract builds
 
