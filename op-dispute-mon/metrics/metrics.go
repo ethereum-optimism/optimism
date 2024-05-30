@@ -107,7 +107,7 @@ type ClaimStatuses struct {
 	statuses map[ClaimStatus]int
 }
 
-func (c *ClaimStatuses) RecordClaim(firstHalf bool, clockExpired bool, resolvable bool, resolved bool) {
+func (c *ClaimStatuses) RecordClaim(firstHalf, clockExpired, resolvable, resolved bool) {
 	if c.statuses == nil {
 		c.statuses = make(map[ClaimStatus]int)
 	}
@@ -131,7 +131,7 @@ func (c *ClaimStatuses) ForEachStatus(callback func(status ClaimStatus, count in
 	}
 }
 
-func NewClaimStatus(firstHalf bool, clockExpired bool, resolvable bool, resolved bool) ClaimStatus {
+func NewClaimStatus(firstHalf, clockExpired, resolvable, resolved bool) ClaimStatus {
 	return ClaimStatus{
 		firstHalf:    firstHalf,
 		clockExpired: clockExpired,
@@ -175,7 +175,7 @@ type Metricer interface {
 
 	RecordIgnoredGames(count int)
 
-	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
+	RecordBondCollateral(addr common.Address, required, available *big.Int)
 
 	RecordL2Challenges(agreement bool, count int)
 
@@ -492,7 +492,7 @@ func (m *Metrics) RecordFailedGames(count int) {
 	m.failedGames.Set(float64(count))
 }
 
-func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
+func (m *Metrics) RecordBondCollateral(addr common.Address, required, available *big.Int) {
 	balanceLabel := "sufficient"
 	zeroBalanceLabel := "insufficient"
 	if required.Cmp(available) > 0 {
@@ -522,7 +522,7 @@ const (
 )
 
 func labelValuesFor(status GameAgreementStatus) []string {
-	asStrings := func(status string, inProgress bool, correct bool, agree bool) []string {
+	asStrings := func(status string, inProgress, correct, agree bool) []string {
 		inProgressStr := "in_progress"
 		if !inProgress {
 			inProgressStr = "complete"
