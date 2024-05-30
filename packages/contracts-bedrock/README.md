@@ -22,6 +22,8 @@ High-level information about these contracts can be found within this README and
   - [Contributing Guide](#contributing-guide)
   - [Style Guide](#style-guide)
 - [Deployment](#deployment)
+  - [Deploying Production Networks](#deploying-production-networks)
+- [Generating L2 Genesis Allocs](#generating-l2-genesis-allocs)
   - [Configuration](#configuration)
     - [Custom Gas Token](#custom-gas-token)
   - [Execution](#execution)
@@ -267,13 +269,50 @@ Maintaining a consistent code style makes code easier to review and maintain, ul
 
 ## Deployment
 
-The smart contracts are deployed using `foundry` with a `hardhat-deploy` compatibility layer. When the contracts are deployed,
-they will write a temp file to disk that can then be formatted into a `hardhat-deploy` style artifact by calling another script.
+The smart contracts are deployed using `foundry`. The `DEPLOYMENT_OUTFILE` env var will determine the filepath that the
+deployment artifact is written to on disk after the deployment. It comes in the form of a JSON file where keys are
+the names of the contracts and the values are the addresses the contract was deployed to.
 
-The addresses in the `deployments` directory will be read into the script based on the backend's chain id.
-To manually define the set of addresses used in the script, set the `CONTRACT_ADDRESSES_PATH` env var to a path on the local
-filesystem that points to a JSON file full of key value pairs where the keys are names of contracts and the
-values are addresses. This works well with the JSON files in `superchain-ops`.
+The `DEPLOY_CONFIG_PATH` is a filepath to a deploy config file, see the `deploy-config` directory for examples and the
+[DeployConfig](https://github.com/ethereum-optimism/optimism/blob/develop/op-chain-ops/genesis/config.go) definition for
+descriptions of the values.
+
+```bash
+DEPLOYMENT_OUTFILE=deployments/artifact.json \
+DEPLOY_CONFIG_PATH=<PATH_TO_MY_DEPLOY_CONFIG> \
+  forge script scripts/Deploy.s.sol:Deploy \
+  --broadcast --private-key $PRIVATE_KEY \
+  --rpc-url $ETH_RPC_URL
+```
+
+The `IMPL_SALT` env var can be used to set the `create2` salt for deploying the implementation
+contracts.
+
+This will deploy an entire new system of L1 smart contracts including a new `SuperchainConfig`.
+In the future there will be an easy way to deploy only proxies and use shared implementations
+for each of the contracts as well as a shared `SuperchainConfig` contract.
+
+### Deploying Production Networks
+
+Production users should deploy their L1 contracts from a contracts release.
+All contracts releases are on git tags with the following format: `op-contracts/vX.Y.Z`.
+See the [release process](https://github.com/ethereum-optimism/optimism?tab=readme-ov-file#development-and-release-process)
+for more information.
+
+## Generating L2 Genesis Allocs
+
+A foundry script is used to generate the L2 genesis allocs. This is a JSON file that represents the L2 genesis state.
+The `CONTRACT_ADDRESSES_PATH` env var represents the deployment artifact that was generated during a contract deployment.
+The same deploy config JSON file should be used for L1 contracts deployment as when generating the L2 genesis allocs.
+The `STATE_DUMP_PATH` env var represents the filepath at which the allocs will be written to on disk.
+
+```bash
+CONTRACT_ADDRESSES_PATH=deployments/artifact.json \
+DEPLOY_CONFIG_PATH=<PATH_TO_MY_DEPLOY_CONFIG> \
+STATE_DUMP_PATH=<PATH_TO_WRITE_L2_ALLOCS> \
+  forge script scripts/L2Genesis.s.sol:L2Genesis \
+  --sig 'runWithStateDump()'
+```
 
 ### Configuration
 
