@@ -142,3 +142,107 @@ func FindMonorepoRoot(startDir string) (string, error) {
 	}
 	return "", fmt.Errorf("monorepo root not found")
 }
+
+// IndexedIterable is an interface that represents a collection that can be iterated over with an index.
+type IndexedIterable[T any] interface {
+	// Len returns the number of elements in the collection.
+	Len() int
+
+	// CurrentIndex returns the current index of the iterator.
+	CurrentIndex() int
+
+	// SetCurrentIndex sets the current index of the iterator.
+	SetCurrentIndex(int)
+
+	// Get returns the element at the specified index.
+	Get(i int) T
+
+	// Iter returns a channel that can be used to iterate over the collection.
+	Iter() <-chan int
+}
+
+// NewOrderedIterable returns an IndexedIterable that can be used to iterate over the elements of the list in order.
+func NewOrderedIterable[T any](list []T) IndexedIterable[T] {
+	return &orderedIterableList[T]{list: list}
+}
+
+type orderedIterableList[T any] struct {
+	list []T
+	idx  int
+}
+
+func (r *orderedIterableList[T]) Len() int {
+	return len(r.list)
+}
+
+func (r *orderedIterableList[T]) CurrentIndex() int {
+	return r.idx
+}
+
+func (r *orderedIterableList[T]) SetCurrentIndex(i int) {
+	r.idx = i
+}
+
+func (r *orderedIterableList[T]) Get(i int) T {
+	return r.list[i]
+}
+
+func (r *orderedIterableList[T]) Iter() <-chan int {
+	ch := make(chan int, r.Len())
+	go func() {
+		for offset := range r.list {
+			idx := (r.CurrentIndex() + offset) % r.Len()
+			ch <- idx
+		}
+		close(ch)
+	}()
+	return ch
+}
+
+// NewRandomizedIterable returns an IndexedIterable that can be used to iterate over the elements of the list in a randomized order.
+func NewRandomizedIterable[T any](list []T) IndexedIterable[T] {
+	set := make(map[int]T, len(list))
+	for idx, v := range list {
+		set[idx] = v
+	}
+	idx := 0
+	for i := range set {
+		idx = i
+		break
+	}
+	return &randomizedIterableList[T]{set: set, idx: idx}
+}
+
+type randomizedIterableList[T any] struct {
+	set map[int]T
+	idx int
+}
+
+func (r randomizedIterableList[T]) Len() int {
+	return len(r.set)
+}
+
+func (r *randomizedIterableList[T]) CurrentIndex() int {
+	return r.idx
+}
+
+func (r *randomizedIterableList[T]) SetCurrentIndex(i int) {
+	r.idx = i
+}
+
+func (r *randomizedIterableList[T]) Get(i int) T {
+	return r.set[i]
+}
+func (r randomizedIterableList[T]) Iter() <-chan int {
+	ch := make(chan int, r.Len())
+	go func() {
+		ch <- r.CurrentIndex()
+		for idx := range r.set {
+			if idx != r.CurrentIndex() {
+				ch <- idx
+			}
+		}
+		close(ch)
+	}()
+	return ch
+}

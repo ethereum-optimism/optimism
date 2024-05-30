@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -22,10 +23,9 @@ type ActiveL2RollupProvider struct {
 
 	activeTimeout time.Time
 
-	rollupUrls          []string
+	rollupUrls          op_service.IndexedIterable[string]
 	rollupDialer        rollupDialer
 	currentRollupClient RollupClientInterface
-	rollupIndex         int
 	clientLock          *sync.Mutex
 }
 
@@ -34,7 +34,7 @@ type ActiveL2RollupProvider struct {
 // provide a checkDuration of 0 to check every time
 func NewActiveL2RollupProvider(
 	ctx context.Context,
-	rollupUrls []string,
+	rollupUrls op_service.IndexedIterable[string],
 	checkDuration time.Duration,
 	networkTimeout time.Duration,
 	logger log.Logger,
@@ -49,13 +49,13 @@ func NewActiveL2RollupProvider(
 
 func newActiveL2RollupProvider(
 	ctx context.Context,
-	rollupUrls []string,
+	rollupUrls op_service.IndexedIterable[string],
 	checkDuration time.Duration,
 	networkTimeout time.Duration,
 	logger log.Logger,
 	dialer rollupDialer,
 ) (*ActiveL2RollupProvider, error) {
-	if len(rollupUrls) == 0 {
+	if rollupUrls.Len() == 0 {
 		return nil, errors.New("empty rollup urls list")
 	}
 	p := &ActiveL2RollupProvider{
@@ -101,24 +101,23 @@ func (p *ActiveL2RollupProvider) shouldCheck() bool {
 }
 
 func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error {
-	startIdx := p.rollupIndex
 	var errs error
-	for offset := range p.rollupUrls {
-		idx := (startIdx + offset) % p.numEndpoints()
-		if offset != 0 || p.currentRollupClient == nil {
+	for idx := range p.rollupUrls.Iter() {
+		ep := p.rollupUrls.Get(idx)
+
+		if idx != p.rollupUrls.CurrentIndex() || p.currentRollupClient == nil {
 			if err := p.dialSequencer(ctx, idx); err != nil {
 				errs = errors.Join(errs, err)
-				p.log.Warn("Error dialing next sequencer.", "err", err, "index", p.rollupIndex)
+				p.log.Warn("Error dialing next sequencer.", "err", err, "index", p.rollupUrls.CurrentIndex(), "url", ep)
 				continue
 			}
 		}
 
-		ep := p.rollupUrls[idx]
 		if active, err := p.checkCurrentSequencer(ctx); err != nil {
 			errs = errors.Join(errs, err)
 			p.log.Warn("Error querying active sequencer, trying next.", "err", err, "index", idx, "url", ep)
 		} else if active {
-			if offset == 0 {
+			if idx == p.rollupUrls.CurrentIndex() {
 				p.log.Debug("Current sequencer active.", "index", idx, "url", ep)
 			} else {
 				p.log.Info("Found new active sequencer.", "index", idx, "url", ep)
@@ -137,10 +136,6 @@ func (p *ActiveL2RollupProvider) checkCurrentSequencer(ctx context.Context) (boo
 	return p.currentRollupClient.SequencerActive(cctx)
 }
 
-func (p *ActiveL2RollupProvider) numEndpoints() int {
-	return len(p.rollupUrls)
-}
-
 // dialSequencer dials the sequencer for the url at the given index.
 // If successful, the currentRollupClient and rollupIndex are updated and the
 // old rollup client is closed.
@@ -148,7 +143,7 @@ func (p *ActiveL2RollupProvider) dialSequencer(ctx context.Context, idx int) err
 	cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 	defer cancel()
 
-	ep := p.rollupUrls[idx]
+	ep := p.rollupUrls.Get(idx)
 	p.log.Info("Dialing next sequencer.", "index", idx, "url", ep)
 	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
 	if err != nil {
@@ -157,7 +152,7 @@ func (p *ActiveL2RollupProvider) dialSequencer(ctx context.Context, idx int) err
 	if p.currentRollupClient != nil {
 		p.currentRollupClient.Close()
 	}
-	p.rollupIndex = idx
+	p.rollupUrls.SetCurrentIndex(idx)
 	p.currentRollupClient = rollupClient
 	return nil
 }

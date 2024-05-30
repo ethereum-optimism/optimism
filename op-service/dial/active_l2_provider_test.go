@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/log"
@@ -64,7 +65,7 @@ func (et *endpointProviderTest) newActiveL2RollupProvider(checkDuration time.Dur
 
 	return newActiveL2RollupProvider(
 		context.Background(),
-		rollupUrls,
+		op_service.NewOrderedIterable(rollupUrls),
 		checkDuration,
 		1*time.Minute,
 		testlog.Logger(et.t, log.LevelDebug),
@@ -112,8 +113,8 @@ func (et *endpointProviderTest) newActiveL2EndpointProvider(checkDuration time.D
 
 	return newActiveL2EndpointProvider(
 		context.Background(),
-		ethUrls,
-		rollupUrls,
+		op_service.NewOrderedIterable(ethUrls),
+		op_service.NewOrderedIterable(rollupUrls),
 		checkDuration,
 		1*time.Minute,
 		testlog.Logger(et.t, log.LevelDebug),

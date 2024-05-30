@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -19,9 +20,8 @@ type ethDialer func(ctx context.Context, timeout time.Duration, log log.Logger, 
 type ActiveL2EndpointProvider struct {
 	ActiveL2RollupProvider
 	currentEthClient EthClientInterface
-	ethClientIndex   int
 	ethDialer        ethDialer
-	ethUrls          []string
+	ethUrls          op_service.IndexedIterable[string]
 }
 
 // NewActiveL2EndpointProvider creates a new ActiveL2EndpointProvider
@@ -43,26 +43,26 @@ func NewActiveL2EndpointProvider(ctx context.Context,
 	) (RollupClientInterface, error) {
 		return DialRollupClientWithTimeout(ctx, timeout, log, url)
 	}
-	return newActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, checkDuration, networkTimeout, logger, ethDialer, rollupDialer)
+	return newActiveL2EndpointProvider(ctx, op_service.NewRandomizedIterable(ethUrls), op_service.NewRandomizedIterable(rollupUrls), checkDuration, networkTimeout, logger, ethDialer, rollupDialer)
 }
 
 func newActiveL2EndpointProvider(
 	ctx context.Context,
-	ethUrls, rollupUrls []string,
+	ethUrls, rollupUrls op_service.IndexedIterable[string],
 	checkDuration time.Duration,
 	networkTimeout time.Duration,
 	logger log.Logger,
 	ethDialer ethDialer,
 	rollupDialer rollupDialer,
 ) (*ActiveL2EndpointProvider, error) {
-	if len(rollupUrls) == 0 {
+	if rollupUrls.Len() == 0 {
 		return nil, errors.New("empty rollup urls list, expected at least one URL")
 	}
-	if len(ethUrls) != len(rollupUrls) {
-		return nil, fmt.Errorf("number of eth urls (%d) and rollup urls (%d) mismatch", len(ethUrls), len(rollupUrls))
+	if ethUrls.Len() != rollupUrls.Len() {
+		return nil, fmt.Errorf("number of eth urls (%d) and rollup urls (%d) mismatch", ethUrls.Len(), rollupUrls.Len())
 	}
 
-	rollupProvider, err := newActiveL2RollupProvider(ctx, rollupUrls, checkDuration, networkTimeout, logger, rollupDialer)
+	rollupProvider, err := newActiveL2RollupProvider(ctx, (rollupUrls), checkDuration, networkTimeout, logger, rollupDialer)
 	if err != nil {
 		return nil, err
 	}
@@ -86,12 +86,12 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 	if err != nil {
 		return nil, err
 	}
-	if p.ethClientIndex != p.rollupIndex || p.currentEthClient == nil {
+	if p.ethUrls.CurrentIndex() != p.rollupUrls.CurrentIndex() || p.currentEthClient == nil {
 		// we changed sequencers, dial a new EthClient
 		cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 		defer cancel()
-		idx := p.rollupIndex
-		ep := p.ethUrls[idx]
+		idx := p.rollupUrls.CurrentIndex()
+		ep := p.ethUrls.Get(idx)
 		log.Info("sequencer changed (or ethClient was nil due to startup), dialing new eth client", "new_index", idx, "new_url", ep)
 		ethClient, err := p.ethDialer(cctx, p.networkTimeout, p.log, ep)
 		if err != nil {
@@ -100,7 +100,7 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 		if p.currentEthClient != nil {
 			p.currentEthClient.Close()
 		}
-		p.ethClientIndex = idx
+		p.ethUrls.SetCurrentIndex(idx)
 		p.currentEthClient = ethClient
 	}
 	return p.currentEthClient, nil

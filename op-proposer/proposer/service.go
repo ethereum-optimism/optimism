@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/rpc"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -131,7 +132,7 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 	var rollupProvider dial.RollupProvider
 	if strings.Contains(cfg.RollupRpc, ",") {
 		rollupUrls := strings.Split(cfg.RollupRpc, ",")
-		rollupProvider, err = dial.NewActiveL2RollupProvider(ctx, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, ps.Log)
+		rollupProvider, err = dial.NewActiveL2RollupProvider(ctx, op_service.NewRandomizedIterable(rollupUrls), cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, ps.Log)
 	} else {
 		rollupProvider, err = dial.NewStaticL2RollupProvider(ctx, ps.Log, cfg.RollupRpc)
 	}
