@@ -322,6 +322,8 @@ func (s *channelManager) outputFrames() error {
 		"output_bytes", outBytes,
 		"oldest_l1_origin", s.currentChannel.OldestL1Origin(),
 		"l1_origin", lastClosedL1Origin,
+		"oldest_l2", s.currentChannel.OldestL2(),
+		"latest_l2", s.currentChannel.LatestL2(),
 		"full_reason", s.currentChannel.FullErr(),
 		"compr_ratio", comprRatio,
 		"latest_l1_origin", s.l1OriginLastClosedChannel,

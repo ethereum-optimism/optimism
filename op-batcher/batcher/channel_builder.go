@@ -70,6 +70,10 @@ type ChannelBuilder struct {
 	latestL1Origin eth.BlockID
 	// oldestL1Origin is the oldest L1 origin of all the L2 blocks that have been added to the channel
 	oldestL1Origin eth.BlockID
+	// latestL2 is the latest L2 block of all the L2 blocks that have been added to the channel
+	latestL2 eth.BlockID
+	// oldestL2 is the oldest L2 block of all the L2 blocks that have been added to the channel
+	oldestL2 eth.BlockID
 	// frames data queue, to be send as txs
 	frames []frameData
 	// total frames counter
@@ -142,6 +146,16 @@ func (c *ChannelBuilder) OldestL1Origin() eth.BlockID {
 	return c.latestL1Origin
 }
 
+// LatestL2 returns the latest L2 block from all the L2 blocks that have been added to the channel
+func (c *ChannelBuilder) LatestL2() eth.BlockID {
+	return c.latestL2
+}
+
+// OldestL2 returns the oldest L2 block from all the L2 blocks that have been added to the channel
+func (c *ChannelBuilder) OldestL2() eth.BlockID {
+	return c.oldestL2
+}
+
 // AddBlock adds a block to the channel compression pipeline. IsFull should be
 // called afterwards to test whether the channel is full. If full, a new channel
 // must be started.
@@ -183,6 +197,18 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 		c.oldestL1Origin = eth.BlockID{
 			Hash:   l1info.BlockHash,
 			Number: l1info.Number,
+		}
+	}
+	if block.NumberU64() > c.latestL2.Number {
+		c.latestL2 = eth.BlockID{
+			Hash:   block.Hash(),
+			Number: block.NumberU64(),
+		}
+	}
+	if c.oldestL2.Number == 0 || block.NumberU64() < c.oldestL2.Number {
+		c.oldestL2 = eth.BlockID{
+			Hash:   block.Hash(),
+			Number: block.NumberU64(),
 		}
 	}
 
