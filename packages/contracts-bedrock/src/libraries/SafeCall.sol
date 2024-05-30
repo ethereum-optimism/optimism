@@ -9,10 +9,9 @@ library SafeCall {
     /// @param _target   Address to call
     /// @param _gas      Amount of gas to pass to the call
     /// @param _value    Amount of value to pass to the call
-    function send(address _target, uint256 _gas, uint256 _value) internal returns (bool) {
-        bool _success;
+    function send(address _target, uint256 _gas, uint256 _value) internal returns (bool success_) {
         assembly {
-            _success :=
+            success_ :=
                 call(
                     _gas, // gas
                     _target, // recipient
@@ -23,7 +22,24 @@ library SafeCall {
                     0 // outlen
                 )
         }
-        return _success;
+    }
+
+    /// @notice Perform a low level call with all gas without copying any returndata
+    /// @param _target   Address to call
+    /// @param _value    Amount of value to pass to the call
+    function send(address _target, uint256 _value) internal returns (bool success_) {
+        assembly {
+            success_ :=
+                call(
+                    gas(), // gas
+                    _target, // recipient
+                    _value, // ether value
+                    0, // inloc
+                    0, // inlen
+                    0, // outloc
+                    0 // outlen
+                )
+        }
     }
 
     /// @notice Perform a low level call without copying any returndata
@@ -31,10 +47,9 @@ library SafeCall {
     /// @param _gas      Amount of gas to pass to the call
     /// @param _value    Amount of value to pass to the call
     /// @param _calldata Calldata to pass to the call
-    function call(address _target, uint256 _gas, uint256 _value, bytes memory _calldata) internal returns (bool) {
-        bool _success;
+    function call(address _target, uint256 _gas, uint256 _value, bytes memory _calldata) internal returns (bool success_) {
         assembly {
-            _success :=
+            success_ :=
                 call(
                     _gas, // gas
                     _target, // recipient
@@ -45,7 +60,6 @@ library SafeCall {
                     0 // outlen
                 )
         }
-        return _success;
     }
 
     /// @notice Helper function to determine if there is sufficient gas remaining within the context

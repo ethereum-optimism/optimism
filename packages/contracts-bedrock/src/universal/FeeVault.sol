@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title FeeVault
@@ -26,7 +27,7 @@ abstract contract FeeVault {
     WithdrawalNetwork public immutable WITHDRAWAL_NETWORK;
 
     /// @notice The minimum gas limit for the FeeVault withdrawal transaction.
-    uint32 internal constant WITHDRAWAL_MIN_GAS = 35_000;
+    uint32 internal constant WITHDRAWAL_MIN_GAS = 300_000;
 
     /// @notice Total amount of wei processed by the contract.
     uint256 public totalProcessed;
@@ -71,12 +72,14 @@ abstract contract FeeVault {
         emit Withdrawal(value, RECIPIENT, msg.sender, WITHDRAWAL_NETWORK);
 
         if (WITHDRAWAL_NETWORK == WithdrawalNetwork.L2) {
-            (bool success,) = RECIPIENT.call{ value: value }(hex"");
+            bool success = SafeCall.send(RECIPIENT, value);
             require(success, "FeeVault: failed to send ETH to L2 fee recipient");
         } else {
-            L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: value }(
-                RECIPIENT, WITHDRAWAL_MIN_GAS, bytes("")
-            );
+            L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{ value: value }({
+                _target: RECIPIENT,
+                _gasLimit: WITHDRAWAL_MIN_GAS,
+                _data: hex""
+            });
         }
     }
 }

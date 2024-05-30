@@ -6,6 +6,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter } from "test/mocks/Callers.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -64,21 +67,40 @@ contract SequencerFeeVault_Test is CommonTest {
         assertEq(sequencerFeeVault.totalProcessed(), 0);
 
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
-        emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this));
+        emit Withdrawal(address(sequencerFeeVault).balance, recipient, address(this));
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(
             address(sequencerFeeVault).balance,
-            sequencerFeeVault.RECIPIENT(),
+            recipient,
             address(this),
             FeeVault.WithdrawalNetwork.L1
         );
 
         // The entire vault's balance is withdrawn
         vm.expectCall(
-            Predeploys.L2_STANDARD_BRIDGE,
+            Predeploys.L2_TO_L1_MESSAGE_PASSER,
             address(sequencerFeeVault).balance,
-            abi.encodeWithSelector(
-                StandardBridge.bridgeETHTo.selector, sequencerFeeVault.l1FeeWallet(), 35_000, bytes("")
+            hex""
+        );
+
+        // The message is passed to the correct recipient
+        vm.expectEmit(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+        emit MessagePassed(
+            l2ToL1MessagePasser.messageNonce(),
+            address(sequencerFeeVault),
+            recipient,
+            amount,
+            300_000,
+            hex"",
+            Hashing.hashWithdrawal(
+                Types.WithdrawalTransaction({
+                    nonce: l2ToL1MessagePasser.messageNonce(),
+                    sender: address(sequencerFeeVault),
+                    target: recipient,
+                    value: amount,
+                    gasLimit: 300_000,
+                    data: hex""
+                })
             )
         );
 

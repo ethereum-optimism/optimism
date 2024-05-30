@@ -3,59 +3,73 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
+import { StdCheatsSafe } from "forge-std/StdCheats.sol";
 
 // Target contract
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 contract SafeCall_Test is Test {
-    /// @dev Tests that the `send` function succeeds.
-    function testFuzz_send_succeeds(address from, address to, uint256 gas, uint64 value) external {
-        vm.assume(from.balance == 0);
-        vm.assume(to.balance == 0);
-        // no precompiles (mainnet)
-        assumeNotPrecompile(to);
-        // don't call the vm
-        vm.assume(to != address(vm));
-        vm.assume(from != address(vm));
-        // don't call the console
-        vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
-        // don't call the create2 deployer
-        vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
-        vm.assume(to != address(this));
+    /// @notice Helper function to deduplicate code. Makes all assumptions required for these tests.
+    function assumeNot(address _addr) internal {
+        vm.assume(_addr.balance == 0);
+        vm.assume(_addr != address(this));
+        assumeAddressIsNot(_addr, StdCheatsSafe.AddressType.ForgeAddress, StdCheatsSafe.AddressType.Precompile);
+    }
 
-        assertEq(from.balance, 0, "from balance is 0");
-        vm.deal(from, value);
-        assertEq(from.balance, value, "from balance not dealt");
+    /// @notice Internal helper function for `send` tests
+    function sendTest(address _from, address _to, uint256 _gas, uint64 _value) internal {
+        assumeNot(_from);
+        assumeNot(_to);
 
-        uint256[2] memory balancesBefore = [from.balance, to.balance];
+        assertEq(_from.balance, 0, "from balance is 0");
+        vm.deal(_from, _value);
+        assertEq(_from.balance, _value, "from balance not dealt");
 
-        vm.expectCall(to, value, bytes(""));
-        vm.prank(from);
-        bool success = SafeCall.send(to, gas, value);
+        uint256[2] memory balancesBefore = [_from.balance, _to.balance];
+
+        vm.expectCall(_to, _value, bytes(""));
+        vm.prank(_from);
+        bool success;
+        if (_value == 0) {
+            success = SafeCall.send({ _target: _to, _value: _value });
+        } else {
+            success = SafeCall.send({ _target: _to, _gas: _gas, _value: _value });
+        }
 
         assertTrue(success, "send not successful");
-        if (from == to) {
-            assertEq(from.balance, balancesBefore[0], "Self-send did not change balance");
+        if (_from == _to) {
+            assertEq(_from.balance, balancesBefore[0], "Self-send did not change balance");
         } else {
-            assertEq(from.balance, balancesBefore[0] - value, "from balance not drained");
-            assertEq(to.balance, balancesBefore[1] + value, "to balance received");
+            assertEq(_from.balance, balancesBefore[0] - _value, "from balance not drained");
+            assertEq(_to.balance, balancesBefore[1] + _value, "to balance received");
         }
+    }
+
+    /// @dev Tests that the `send` function succeeds.
+    function testFuzz_send_succeeds(address _from, address _to, uint256 _gas) external {
+        sendTest({
+            _from: _from,
+            _to: _to,
+            _gas: _gas,
+            _value: 0
+        });
+    }
+
+    /// @dev Tests that the `send` function with value succeeds.
+    function testFuzz_sendWithValue_succeeds(address _from, address _to, uint256 _gas, uint64 _value) external {
+        vm.assume(_value != 0);
+        sendTest({
+            _from: _from,
+            _to: _to,
+            _gas: _gas,
+            _value: _value
+        });
     }
 
     /// @dev Tests that `call` succeeds.
     function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
-        vm.assume(from.balance == 0);
-        vm.assume(to.balance == 0);
-        // no precompiles (mainnet)
-        assumeNotPrecompile(to);
-        // don't call the vm
-        vm.assume(to != address(vm));
-        vm.assume(from != address(vm));
-        // don't call the console
-        vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
-        // don't call the create2 deployer
-        vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
-        vm.assume(to != address(this));
+        assumeNot(from);
+        assumeNot(to);
 
         assertEq(from.balance, 0, "from balance is 0");
         vm.deal(from, value);
@@ -86,18 +100,8 @@ contract SafeCall_Test is Test {
     )
         external
     {
-        vm.assume(from.balance == 0);
-        vm.assume(to.balance == 0);
-        // no precompiles (mainnet)
-        assumeNotPrecompile(to);
-        // don't call the vm
-        vm.assume(to != address(vm));
-        vm.assume(from != address(vm));
-        // don't call the console
-        vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
-        // don't call the create2 deployer
-        vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
-        vm.assume(to != address(this));
+        assumeNot(from);
+        assumeNot(to);
 
         assertEq(from.balance, 0, "from balance is 0");
         vm.deal(from, value);
