@@ -1030,7 +1030,8 @@ contract Deploy is Deployer {
                         disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
-                        gasPayingToken: customGasTokenAddress
+                        gasPayingToken: customGasTokenAddress,
+                        l1MessageValidator: address(0)
                     })
                 )
             )

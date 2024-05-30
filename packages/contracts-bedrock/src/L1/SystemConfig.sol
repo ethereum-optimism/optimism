@@ -39,6 +39,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         address optimismPortal;
         address optimismMintableERC20Factory;
         address gasPayingToken;
+        address l1MessageValidator;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -117,6 +118,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
     ResourceMetering.ResourceConfig internal _resourceConfig;
 
+    /// @notice L1MessageValidator (optional) contract address. Zero address means no additional
+    ///         validation occurs.
+    address public l1MessageValidator;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -159,7 +164,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: address(0)
+                gasPayingToken: address(0),
+                l1MessageValidator: address(0)
             })
         });
     }
@@ -209,7 +215,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
-
+        _setL1MessageValidator(_addresses.l1MessageValidator);
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
     }
@@ -324,6 +330,20 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 _symbol: symbol
             });
         }
+    }
+
+    /// @notice Updates the L1MessageValidator. The zero address means
+    ///         no additional validation should be performed.
+    ///         Can only be called by the owner.
+    /// @param _validator New value for l1MessageValidator.
+    function setL1MessageValidator(address _validator) external onlyOwner {
+        _setL1MessageValidator(_validator);
+    }
+
+    /// @notice Internal function for updating the L1MessageValidator.
+    /// @param _validator New value for L1MessageValidator.
+    function _setL1MessageValidator(address _validator) internal {
+        l1MessageValidator = _validator;
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.

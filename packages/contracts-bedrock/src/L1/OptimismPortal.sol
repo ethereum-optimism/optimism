@@ -6,6 +6,7 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { IL1MessageValidator } from "src/L1/IL1MessageValidator.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -171,6 +172,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         } else {
             return _balance;
         }
+    }
+
+    /// @notice Returns the address of the (optional) L1MessageValidator.
+    function l1MessageValidator() internal view returns (address addr_) {
+        addr_ = systemConfig.l1MessageValidator();
     }
 
     /// @notice Getter function for the address of the guardian.
@@ -548,6 +554,14 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
+        // Check the L1MessageValidator if it is enabled
+        address messageValidator = l1MessageValidator();
+        if (messageValidator != address(0)) {
+            if (!IL1MessageValidator(messageValidator).validateMessage(_data, _to)) {
+                revert InvalidDeposit();
+            }
+        }
+        
         // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
         // We use opaque data so that we can update the TransactionDeposited event in the future
         // without breaking the current interface.

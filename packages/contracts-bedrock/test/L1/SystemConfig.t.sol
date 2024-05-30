@@ -145,7 +145,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: Constants.ETHER
+                gasPayingToken: Constants.ETHER,
+                l1MessageValidator: address(0)
             })
         });
     }
@@ -175,7 +176,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: Constants.ETHER
+                gasPayingToken: Constants.ETHER,
+                l1MessageValidator: address(0)
             })
         });
         assertEq(systemConfig.startBlock(), block.number);
@@ -206,7 +208,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: Constants.ETHER
+                gasPayingToken: Constants.ETHER,
+                l1MessageValidator: address(0)
             })
         });
         assertEq(systemConfig.startBlock(), 1);
@@ -301,7 +304,8 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: address(0)
+                gasPayingToken: address(0),
+                l1MessageValidator: address(0)
             })
         });
     }
@@ -339,7 +343,8 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
                 l1StandardBridge: address(0),
                 optimismPortal: address(optimismPortal),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: _gasPayingToken
+                gasPayingToken: _gasPayingToken,
+                l1MessageValidator: address(0)
             })
         });
     }

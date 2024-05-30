@@ -22,3 +22,5 @@ error CallPaused();
 error GasEstimation();
 /// @notice Error for when a method is being reentered.
 error NonReentrant();
+/// @notice Error for deposits not allowed through the l1MesssageValidator.
+error InvalidDeposit();
