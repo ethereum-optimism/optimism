@@ -404,6 +404,7 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
             // Unlike below we don't grab the timestamp here because it adds an unnecessary request.
             this.logger.info(`valid withdrawal`, {
               withdrawalHash: event.args.withdrawalHash,
+              disputeGameAddress: disputeGame.address,
             })
 
             // Bump the withdrawals metric so we can keep track.
@@ -415,6 +416,7 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
             this.logger.error(`withdrawalHash not seen on L2`, {
               withdrawalHash: event.args.withdrawalHash,
               provenAt: ts,
+              disputeGameAddress: disputeGame.address,
             })
 
             // Change to forgery state.
@@ -425,9 +427,10 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
           }
         } else {
           this.state.invalidProposalWithdrawals.push(disputeGameData)
-          this.logger.info(`invalid proposal`, {
+          this.logger.warn(`invalid proposal`, {
             withdrawalHash: event.args.withdrawalHash,
             provenAt: ts,
+            disputeGameAddress: disputeGame.address,
           })
         }
       }
