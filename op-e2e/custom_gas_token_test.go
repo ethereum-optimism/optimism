@@ -200,6 +200,99 @@ func TestCustomGasToken(t *testing.T) {
 		require.Equal(t, withdrawAmount, diff)
 	}
 
+	checkFeeWithdrawal := func(t *testing.T, enabled bool) {
+		feeVault, err := bindings.NewSequencerFeeVault(predeploys.SequencerFeeVaultAddr, l2Client)
+		require.NoError(t, err)
+
+		l2opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L2ChainIDBig())
+		require.NoError(t, err)
+
+		recipient, err := feeVault.RECIPIENT(&bind.CallOpts{})
+		require.NoError(t, err)
+
+		var recipientBalanceBefore *big.Int
+		if enabled {
+			recipientBalanceBefore, err = weth9.BalanceOf(&bind.CallOpts{}, recipient)
+		} else {
+			recipientBalanceBefore, err = l1Client.BalanceAt(context.Background(), recipient, nil)
+		}
+		require.NoError(t, err)
+
+		amount, err := feeVault.MINWITHDRAWALAMOUNT(&bind.CallOpts{})
+		require.NoError(t, err)
+
+		l1opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L1ChainIDBig())
+		require.NoError(t, err)
+		if enabled {
+			depositAmount := new(big.Int).Mul(amount, big.NewInt(4))
+			l1opts.Value = depositAmount
+			dep, err := weth9.Deposit(l1opts)
+			waitForTx(t, dep, err, l1Client)
+
+			l1opts.Value = nil
+			tx, err := weth9.Approve(l1opts, cfg.L1Deployments.OptimismPortalProxy, depositAmount)
+			waitForTx(t, tx, err, l1Client)
+
+			optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
+			require.NoError(t, err)
+			deposit, err := optimismPortal.DepositERC20Transaction(l1opts, cfg.Secrets.Addresses().Alice, depositAmount, depositAmount, 500_000, false, []byte{})
+			waitForTx(t, deposit, err, l1Client)
+		} else {
+			optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
+			require.NoError(t, err)
+			l1opts.Value = new(big.Int).Mul(amount, big.NewInt(2))
+			tx, err := optimismPortal.DonateETH(l1opts)
+			waitForTx(t, tx, err, l1Client)
+		}
+
+		aliceBalance, err := l2Client.BalanceAt(context.Background(), cfg.Secrets.Addresses().Alice, nil)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, aliceBalance.Uint64(), uint64(0))
+
+		l2opts.Value = amount
+		feeVaultTx, err := feeVault.Receive(l2opts)
+		waitForTx(t, feeVaultTx, err, l2Client)
+
+		vaultBalance, err := l2Client.BalanceAt(context.Background(), predeploys.SequencerFeeVaultAddr, nil)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, vaultBalance.Uint64(), amount.Uint64())
+
+		l2opts.Value = nil
+		withdrawal, err := feeVault.Withdraw(l2opts)
+		waitForTx(t, withdrawal, err, l2Client)
+
+		receipt, err := l2Client.TransactionReceipt(context.Background(), withdrawal.Hash())
+		require.NoError(t, err)
+
+		inclusionHeight := receipt.BlockNumber.Uint64()
+		it, err := feeVault.FilterWithdrawal(&bind.FilterOpts{
+			Start: inclusionHeight,
+			End:   &inclusionHeight,
+		})
+		require.NoError(t, err)
+		require.True(t, it.Next())
+
+		withdrawnAmount := it.Event.Value
+
+		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", cfg.Secrets.Alice, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
+		require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
+		if e2eutils.UseFPAC() {
+			require.Equal(t, types.ReceiptStatusSuccessful, resolveClaimReceipt.Status)
+			require.Equal(t, types.ReceiptStatusSuccessful, resolveReceipt.Status)
+		}
+
+		var recipientBalanceAfter *big.Int
+		if enabled {
+			recipientBalanceAfter, err = weth9.BalanceOf(&bind.CallOpts{}, recipient)
+		} else {
+			recipientBalanceAfter, err = l1Client.BalanceAt(context.Background(), recipient, nil)
+		}
+		require.NoError(t, err)
+
+		require.Equal(t, recipientBalanceAfter, new(big.Int).Add(recipientBalanceBefore, withdrawnAmount))
+	}
+
 	checkL1TokenNameAndSymbol := func(t *testing.T, enabled bool) {
 		systemConfig, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
 		require.NoError(t, err)
@@ -278,7 +371,7 @@ func TestCustomGasToken(t *testing.T) {
 	checkL1TokenNameAndSymbol(t, enabled)
 	checkL2TokenNameAndSymbol(t, enabled)
 	checkWETHTokenNameAndSymbol(t, enabled)
-
+	checkFeeWithdrawal(t, enabled)
 	// Activate custom gas token feature (devnet does not have this activated at genesis)
 	setCustomGasToken(t, cfg, sys, weth9Address)
 
@@ -289,6 +382,7 @@ func TestCustomGasToken(t *testing.T) {
 	checkL1TokenNameAndSymbol(t, enabled)
 	checkL2TokenNameAndSymbol(t, enabled)
 	checkWETHTokenNameAndSymbol(t, enabled)
+	checkFeeWithdrawal(t, enabled)
 }
 
 // callViaSafe will use the Safe smart account at safeAddress to send a transaction to target using the provided data. The transaction signature is constructed from
