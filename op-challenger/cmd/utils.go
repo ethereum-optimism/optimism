@@ -74,5 +74,6 @@ func newClientsFromCLI(ctx *cli.Context) (*batching.MultiCaller, txmgr.TxManager
 		return nil, nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 
+	logger.Info("Configured transaction manager", "sender", txMgr.From())
 	return caller, txMgr, nil
 }
