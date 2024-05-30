@@ -84,7 +84,7 @@ func TestL1BeaconEndpointConfig_Setup(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			cfg := L1BeaconEndpointConfig{BeaconFallbackAddrs: test.baa}
-			_, fb, err := cfg.Setup(context.TODO(), nil)
+			_, fb, err := cfg.Setup(context.Background(), nil)
 			require.NoError(t, err)
 			require.Len(t, fb, test.len)
 		})
