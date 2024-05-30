@@ -47,6 +47,7 @@ class Config:
     genesis_l1_path: str
     genesis_l2_path: str
     allocs_l1_path: str
+    allocs_l2_path: str
     addresses_json_path: str
     sdk_addresses_json_path: str
     rollup_config_path: str
@@ -77,6 +78,7 @@ def main():
         genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
         genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
         allocs_l1_path=pjoin(devnet_dir, 'allocs-l1.json'),
+        allocs_l2_path=pjoin(devnet_dir, 'allocs-l2.json'),
         addresses_json_path=pjoin(devnet_dir, 'addresses.json'),
         sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
         rollup_config_path=pjoin(devnet_dir, 'rollup.json')
@@ -193,15 +195,15 @@ def devnet_deploy_l1(config):
     run_command(['docker', 'compose', 'up', '-d', 'l1'], cwd=config.ops_bedrock_dir, env={
         'PWD': config.ops_bedrock_dir
     })
-    wait_up(10545)
-    wait_for_rpc_server('127.0.0.1:10545')
+    wait_up(8545)
+    wait_for_rpc_server('127.0.0.1:8545')
 
-    log.info('Waiting for L1 to start up.')
+    log.info('Waiting for L1 to warm up.')
     time.sleep(3) # Give the L1 some time to start up. Tx right after geth has launched fails with "transaction indexing is in progress"
 
     log.info('Deploying create2 factory')
     run_command([
-        'cast', 'publish', '--rpc-url', 'http://localhost:10545',
+        'cast', 'publish', '--rpc-url', 'http://localhost:8545',
         '0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222'], cwd=config.contracts_bedrock_dir)
     time.sleep(3) # Wait for tx to be mined.
 
@@ -209,46 +211,35 @@ def devnet_deploy_l1(config):
 def devnet_deploy_l2(config):
     # Start deploying L1 contracts.
     run_command([
-        'forge', 'script', 'scripts/Deploy.s.sol:Deploy', '--rpc-url', 'http://localhost:10545',
+        'forge', 'script', 'scripts/Deploy.s.sol:Deploy', '--rpc-url', 'http://localhost:8545',
         '--sig', 'runWithStateDiff()',
         '--broadcast',
         '--private-key', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
     ], env={
         'DEPLOY_CONFIG_PATH': config.devnet_config_path,
+        'DEPLOYMENT_OUTFILE': config.l1_deployments_path
     }, cwd=config.contracts_bedrock_dir)
 
     time.sleep(3) # Wait for tx to be mined.
-
-    run_command([
-        'forge', 'script', 'scripts/Deploy.s.sol:Deploy',
-        '--sig', 'sync()',
-        '--rpc-url', 'http://localhost:10545',
-    ], cwd=config.contracts_bedrock_dir)
 
     if os.path.exists(config.genesis_l2_path):
         log.info('L2 genesis and rollup configs already generated.')
     else:
         log.info('Generating L2 genesis and rollup configs.')
-        l2_allocs_path = pjoin(config.devnet_dir, 'allocs-l2.json')
-        if os.path.exists(l2_allocs_path) == False or DEVNET_FPAC == True:
-            # Also regenerate if FPAC.
-            # The FPAC flag may affect the L1 deployments addresses, which may affect the L2 genesis.
-            devnet_l2_allocs(config)
-        else:
-            log.info('Re-using existing L2 allocs.')
+        devnet_l2_allocs(config)
 
         run_command([
             'go', 'run', 'cmd/main.go', 'genesis', 'l2',
             '--l1-rpc', 'http://localhost:8545',
             '--deploy-config', config.devnet_config_path,
-            '--l2-allocs', l2_allocs_path,
-            '--l1-deployments', config.addresses_json_path,
+            '--l2-allocs', config.allocs_l2_path,
+            '--l1-deployments', config.l1_deployments_path,
             '--outfile.l2', config.genesis_l2_path,
             '--outfile.rollup', config.rollup_config_path
         ], cwd=config.op_node_dir)
 
     rollup_config = read_json(config.rollup_config_path)
-    addresses = read_json(config.addresses_json_path)
+    addresses = read_json(config.l1_deployments_path)
 
     # Start the L2.
     log.info('Bringing up L2.')
