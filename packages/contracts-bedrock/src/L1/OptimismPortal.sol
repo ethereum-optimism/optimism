@@ -561,7 +561,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 revert InvalidDeposit();
             }
         }
-        
+
         // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
         // We use opaque data so that we can update the TransactionDeposited event in the future
         // without breaking the current interface.
