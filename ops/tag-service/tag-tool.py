@@ -13,7 +13,6 @@ SERVICES  = [
     'op-challenger',
     'op-dispute-mon',
     'op-proposer',
-    'op-ufm',
     'da-server',
     'proxyd',
     'op-heartbeat',
