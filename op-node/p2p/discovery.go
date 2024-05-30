@@ -368,7 +368,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 				}
 			}
 			// We add the addresses to the peerstore, and update the address TTL.
-			//After that we stop using the address, assuming it may not be valid anymore (until we rediscover the node)
+			// After that we stop using the address, assuming it may not be valid anymore (until we rediscover the node)
 			pstore.AddAddrs(info.ID, info.Addrs, discoveredAddrTTL)
 			_ = pstore.AddPubKey(info.ID, pub)
 
@@ -411,7 +411,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 						continue
 					}
 					// skip peers that we were just connected to
-					if n.Host().Network().Connectedness(id) == network.CannotConnect {
+					if n.Host().Network().Connectedness(id) == network.Limited {
 						continue
 					}
 					// schedule, if there is still space to schedule (this may block)
