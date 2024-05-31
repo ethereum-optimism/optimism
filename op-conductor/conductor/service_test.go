@@ -293,6 +293,54 @@ func (s *OpConductorTestSuite) TestScenario1() {
 	// unsafe in consensus is different than unsafe in node.
 	mockPayload := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: 3,
+			BlockHash:   [32]byte{4, 5, 6},
+		},
+	}
+	mockBlockInfo := &testutils.MockBlockInfo{
+		InfoNum:  1,
+		InfoHash: [32]byte{1, 2, 3},
+	}
+	s.cons.EXPECT().TransferLeader().Return(nil)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+
+	// become leader
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	// expect to transfer leadership, go back to [follower, not healthy, not sequencing]
+	s.False(s.conductor.leader.Load())
+	s.False(s.conductor.healthy.Load())
+	s.False(s.conductor.seqActive.Load())
+	s.Equal(health.ErrSequencerNotHealthy, s.conductor.hcerr)
+	s.Equal(&state{
+		leader:  true,
+		healthy: false,
+		active:  false,
+	}, s.conductor.prevState)
+	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
+
+// In this test, we have a follower that is not healthy and not sequencing, it becomes leader through election.
+// But since its unsafe head is one block behind consensus, we expect it to post the unsafe payload and then transfer leadership to another node.
+// [follower, not healthy, not sequencing] -- become leader --> [leader, not healthy, not sequencing] -- transfer leadership --> [follower, not healthy, not sequencing]
+func (s *OpConductorTestSuite) TestScenario1ConsensusAheadByOneBlock() {
+	s.enableSynchronization()
+
+	// set initial state
+	s.conductor.leader.Store(false)
+	s.conductor.healthy.Store(false)
+	s.conductor.seqActive.Store(false)
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.prevState = &state{
+		leader:  false,
+		healthy: false,
+		active:  false,
+	}
+
+	// unsafe in consensus is different than unsafe in node.
+	mockPayload := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
 			BlockNumber: 2,
 			BlockHash:   [32]byte{4, 5, 6},
 		},
@@ -304,6 +352,7 @@ func (s *OpConductorTestSuite) TestScenario1() {
 	s.cons.EXPECT().TransferLeader().Return(nil)
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
 
 	// become leader
 	s.updateLeaderStatusAndExecuteAction(true)
@@ -718,8 +767,8 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 		healthy: false,
 		active:  false,
 	}, s.conductor.prevState)
-	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 2)
-	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 2)
+	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 1)
+	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 1)
 	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
 
 	s.log.Info("4. stay unhealthy for a bit while catching up")

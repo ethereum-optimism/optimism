@@ -593,11 +593,11 @@ func (oc *OpConductor) action() {
 		// 1. current node is follower, active sequencer became unhealthy and started the leadership transfer process.
 		//    however if leadership transfer took longer than the time for health monitor to treat the node as unhealthy,
 		//    then basically the entire network is stalled and we need to start sequencing in this case.
-		if !oc.prevState.leader && !oc.prevState.active {
-			_, _, cerr := oc.compareUnsafeHead(oc.shutdownCtx)
-			if cerr == nil && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
-				// if unsafe in consensus is the same as unsafe in op-node, then it is scenario #1 and we should start sequencer.
-				err = oc.startSequencer()
+		if !oc.prevState.leader && !oc.prevState.active && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
+			err = oc.startSequencer()
+			if err != nil {
+				oc.log.Error("failed to start sequencer, transferring leadership instead", "server", oc.cons.ServerID(), "err", err)
+			} else {
 				break
 			}
 		}
