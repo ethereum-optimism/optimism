@@ -65,6 +65,8 @@ type ThreadContext struct {
 	Exited   bool   `json:"exited"`
 
 	State *ThreadState `json:"state"` // null if thread has exited and entered zombie-state
+
+	debug Debug `json:"-"`
 }
 
 type ThreadState struct {

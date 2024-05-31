@@ -31,6 +31,25 @@ const (
 	sysRtSigaction      = 4194
 	sysNanosleep        = 4166
 	sysPrlimit64        = 4338
+
+	sysReadlinkAt   = 4298
+	sysOpenAt       = 4288
+	sysFstat64      = 4215
+	sysPread64      = 4200
+	sysClose        = 4006
+	sysIoctl        = 4054
+	sysEpollCreate1 = 4326
+	sysPipe2        = 4328
+
+	// TODO: maybe handle these?
+	sysEpollCtl   = 4249
+	sysEpollPwait = 4313
+	sysGetRandom  = 4353
+	sysUname      = 4122
+	sysStat64     = 4213
+	sysGetuid     = 4024
+	sysGetgid     = 4047
+	sysLlseek     = 4140
 )
 
 // TODO:
@@ -272,6 +291,12 @@ func (m *InstrumentedState) handleSyscall() error {
 		// the new thread also has to continue with the next instruction
 		newThreadContext.State.PC = tc.State.NextPC
 		newThreadContext.State.NextPC = tc.State.NextPC + 4
+		if m.debugEnabled {
+			newThreadContext.debug.stack = make([]uint32, 1)
+			newThreadContext.debug.caller = make([]uint32, 1)
+			newThreadContext.debug.stack[0] = a1
+			newThreadContext.debug.caller[0] = tc.State.PC
+		}
 
 		// add the new thread context to the state
 		m.state.Threads = append(m.state.Threads, newThreadContext)
@@ -289,7 +314,24 @@ func (m *InstrumentedState) handleSyscall() error {
 	case sysSigaltstack: // sigaltstack
 	case sysRtSigaction: // rt_sigaction
 	case sysPrlimit64: // prlimit64
+	case sysClose: // close
+	case sysPread64: // pread64
+	case sysFstat64: // fstat64
+	case sysOpenAt: // openat
+	case sysReadlinkAt: // readlinkat
+	case sysIoctl: // ioctl
+	case sysEpollCreate1: // epoll_create1
+	case sysPipe2: // pipe2
+	case sysEpollCtl: // epoll_ctl
+	case sysEpollPwait: // epoll_pwait
+	case sysGetRandom: // getrandom
+	case sysUname: // uname
+	case sysStat64: // stat64
+	case sysGetuid: // getuid
+	case sysGetgid: // getgid
+	case sysLlseek: // llseek
 	default:
+		// m.Traceback()
 		return fmt.Errorf("unrecognized syscall: %d", syscallNum)
 	}
 	tc.State.Registers[2] = v0
@@ -304,42 +346,45 @@ func (m *InstrumentedState) pushStack(target uint32) {
 	if !m.debugEnabled {
 		return
 	}
-	m.debug.stack = append(m.debug.stack, target)
-	m.debug.caller = append(m.debug.caller, m.state.PC)
+	tc := &m.state.Threads[m.state.CurrentThread]
+	tc.debug.stack = append(tc.debug.stack, target)
+	tc.debug.caller = append(tc.debug.caller, tc.State.PC)
 }
 
 func (m *InstrumentedState) popStack() {
 	if !m.debugEnabled {
 		return
 	}
-	if len(m.debug.stack) != 0 {
-		fn := m.debug.meta.LookupSymbol(m.state.PC)
-		topFn := m.debug.meta.LookupSymbol(m.debug.stack[len(m.debug.stack)-1])
+	tc := &m.state.Threads[m.state.CurrentThread]
+	if len(tc.debug.stack) != 0 {
+		fn := m.meta.LookupSymbol(tc.State.PC)
+		topFn := m.meta.LookupSymbol(tc.debug.stack[len(tc.debug.stack)-1])
 		if fn != topFn {
 			// most likely the function was inlined. Snap back to the last return.
-			i := len(m.debug.stack) - 1
+			i := len(tc.debug.stack) - 1
 			for ; i >= 0; i-- {
-				if m.debug.meta.LookupSymbol(m.debug.stack[i]) == fn {
-					m.debug.stack = m.debug.stack[:i]
-					m.debug.caller = m.debug.caller[:i]
+				if m.meta.LookupSymbol(tc.debug.stack[i]) == fn {
+					tc.debug.stack = tc.debug.stack[:i]
+					tc.debug.caller = tc.debug.caller[:i]
 					break
 				}
 			}
 		} else {
-			m.debug.stack = m.debug.stack[:len(m.debug.stack)-1]
-			m.debug.caller = m.debug.caller[:len(m.debug.caller)-1]
+			tc.debug.stack = tc.debug.stack[:len(tc.debug.stack)-1]
+			tc.debug.caller = tc.debug.caller[:len(tc.debug.caller)-1]
 		}
 	} else {
-		fmt.Printf("ERROR: stack underflow at pc=%x. step=%d\n", m.state.PC, m.state.Step)
+		fmt.Printf("ERROR: stack underflow at pc=%x. step=%d\n", tc.State.PC, m.state.Step)
 	}
 }
 
 func (m *InstrumentedState) Traceback() {
-	fmt.Printf("traceback at pc=%x. step=%d\n", m.state.PC, m.state.Step)
-	for i := len(m.debug.stack) - 1; i >= 0; i-- {
-		s := m.debug.stack[i]
-		idx := len(m.debug.stack) - i - 1
-		fmt.Printf("\t%d %x in %s caller=%08x\n", idx, s, m.debug.meta.LookupSymbol(s), m.debug.caller[i])
+	tc := &m.state.Threads[m.state.CurrentThread]
+	fmt.Printf("traceback at pc=%x. step=%d\n", tc.State.PC, m.state.Step)
+	for i := len(tc.debug.stack) - 1; i >= 0; i-- {
+		s := tc.debug.stack[i]
+		idx := len(tc.debug.stack) - i - 1
+		fmt.Printf("\t%d %x in %s caller=%08x\n", idx, s, m.meta.LookupSymbol(s), tc.debug.caller[i])
 	}
 }
 

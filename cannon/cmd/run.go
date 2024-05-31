@@ -390,7 +390,8 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if sleepCheck(state.Thread().State.PC) { // don't loop forever when we get stuck because of an unexpected bad program
-			return fmt.Errorf("got stuck in Go sleep at step %d", step)
+			// TODO: sleepCheck is not applicable for MT-Cannon
+			//return fmt.Errorf("got stuck in Go sleep at step %d", step)
 		}
 
 		if stopAt(state) {

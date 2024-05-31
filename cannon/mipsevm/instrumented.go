@@ -13,7 +13,6 @@ type PreimageOracle interface {
 type Debug struct {
 	stack  []uint32
 	caller []uint32
-	meta   *Metadata
 }
 
 type InstrumentedState struct {
@@ -35,7 +34,7 @@ type InstrumentedState struct {
 	// offset we last read from, or max uint32 if nothing is read this step
 	lastPreimageOffset uint32
 
-	debug        Debug
+	meta         *Metadata
 	debugEnabled bool
 }
 
@@ -70,7 +69,7 @@ func (m *InstrumentedState) InitDebug(meta *Metadata) error {
 		return errors.New("metadata is nil")
 	}
 	m.debugEnabled = true
-	m.debug.meta = meta
+	m.meta = meta
 	return nil
 }
 
