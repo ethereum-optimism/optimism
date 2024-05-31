@@ -22,7 +22,6 @@ MIN_VERSIONS = {
     'op-proposer': '0.10.14',
     'proxyd': '3.16.0',
     'op-heartbeat': '0.1.0',
-    'ufm-metamask': '0.1.0',
     'op-contracts': '1.0.0',
     'op-conductor': '0.0.0',
 }

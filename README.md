@@ -84,7 +84,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 │   ├── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
-└── <a href="./ufm-test-services">ufm-test-services</a>: Runs a set of tasks to generate metrics
 </pre>
 
 ## Development and Release Process
@@ -127,7 +126,6 @@ The full set of components that have releases are:
 - `op-proposer`
 - `op-ufm`
 - `proxyd`
-- `ufm-metamask`
 
 All other components and packages should be considered development components only and do not have releases.
 
