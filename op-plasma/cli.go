@@ -22,7 +22,7 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 	return []cli.Flag{
 		&cli.BoolFlag{
 			Name:     EnabledFlagName,
-			Usage:    "Enable plasma mode",
+			Usage:    "Enable plasma mode\nPlasma Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.",
 			Value:    false,
 			EnvVars:  plasmaEnv(envPrefix, "ENABLED"),
 			Category: category,
