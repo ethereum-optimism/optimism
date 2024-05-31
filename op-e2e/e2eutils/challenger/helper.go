@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,6 +56,13 @@ func NewHelper(log log.Logger, t *testing.T, require *require.Assertions, dir st
 }
 
 type Option func(config2 *config.Config)
+
+func WithCannonAbsolutePreStateBaseURL(url *url.URL) Option {
+	return func(c *config.Config) {
+		c.CannonAbsolutePreState = ""
+		c.CannonAbsolutePreStateBaseURL = url
+	}
+}
 
 func WithFactoryAddress(addr common.Address) Option {
 	return func(c *config.Config) {

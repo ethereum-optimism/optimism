@@ -3,12 +3,19 @@ package faultproofs
 import (
 	"context"
 	"fmt"
+	"os"
+	"io"
+	"net/url"
+	"net/http/httptest"
+	"net/http"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -177,6 +184,58 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 		})
 	}
+}
+
+func TestOutputCannonRemoteAbsolutePreState(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+
+	ctx := context.Background()
+	sys, l1Client := StartFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
+	require.NotNil(t, game)
+	outputRootClaim := game.DisputeLastBlock(ctx)
+	game.LogGameData(ctx)
+
+	// Find the monorepo root directory
+	monorepoRoot := e2eutils.FindMonorepoRoot(t)
+	absolutePreStateFile := monorepoRoot + "op-program/bin/prestate.json"
+
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		// query := req.URL.Path
+		file, err := os.Open(absolutePreStateFile)
+		require.NoError(t, err)
+		defer file.Close()
+		_, err = io.Copy(rw, file)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	parsed, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice), challenger.WithCannonAbsolutePreStateBaseURL(parsed))
+
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
+
+	maxDepth := game.MaxDepth(ctx)
+	game.DefendClaim(ctx, outputRootClaim, func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+		// Post invalid claims for most steps to get down into the early part of the trace
+		if claim.Depth() < maxDepth-3 {
+			return claim.Attack(ctx, common.Hash{0xaa})
+		} else {
+			// Post our own counter but using the correct hash in low levels to force a defense step
+			return correctTrace.AttackClaim(ctx, claim)
+		}
+	})
+
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForInactivity(ctx, 10, true)
+	game.LogGameData(ctx)
+	require.EqualValues(t, gameTypes.GameStatusChallengerWon, game.Status(ctx))
 }
 
 func TestOutputCannonDefendStep(t *testing.T) {
