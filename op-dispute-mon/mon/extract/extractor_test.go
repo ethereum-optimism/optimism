@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
@@ -226,6 +227,7 @@ type mockGameCaller struct {
 	extraCredit      []*big.Int
 	balanceErr       error
 	balance          *big.Int
+	delayDuration    time.Duration
 	balanceAddr      common.Address
 	withdrawalsCalls int
 	withdrawalsErr   error
@@ -290,11 +292,11 @@ func (m *mockGameCaller) GetCredits(_ context.Context, _ rpcblock.Block, recipie
 	return response, nil
 }
 
-func (m *mockGameCaller) GetBalance(_ context.Context, _ rpcblock.Block) (*big.Int, common.Address, error) {
+func (m *mockGameCaller) GetBalanceAndDelay(_ context.Context, _ rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
 	if m.balanceErr != nil {
-		return nil, common.Address{}, m.balanceErr
+		return nil, 0, common.Address{}, m.balanceErr
 	}
-	return m.balance, m.balanceAddr, nil
+	return m.balance, m.delayDuration, m.balanceAddr, nil
 }
 
 func (m *mockGameCaller) IsResolved(_ context.Context, _ rpcblock.Block, claims ...faultTypes.Claim) ([]bool, error) {

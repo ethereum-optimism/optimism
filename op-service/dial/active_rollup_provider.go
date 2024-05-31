@@ -7,10 +7,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type rollupDialer func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error)
+type rollupDialer func(ctx context.Context, log log.Logger, url string) (RollupClientInterface, error)
 
 // ActiveL2EndpointProvider is an interface for providing a RollupClient
 // It manages the lifecycle of the RollupClient for callers
@@ -39,10 +41,14 @@ func NewActiveL2RollupProvider(
 	networkTimeout time.Duration,
 	logger log.Logger,
 ) (*ActiveL2RollupProvider, error) {
-	rollupDialer := func(ctx context.Context, timeout time.Duration,
-		log log.Logger, url string,
+	rollupDialer := func(ctx context.Context, log log.Logger, url string,
 	) (RollupClientInterface, error) {
-		return DialRollupClientWithTimeout(ctx, timeout, log, url)
+		rpcCl, err := dialRPCClient(ctx, log, url)
+		if err != nil {
+			return nil, err
+		}
+
+		return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
 	}
 	return newActiveL2RollupProvider(ctx, rollupUrls, checkDuration, networkTimeout, logger, rollupDialer)
 }
@@ -150,7 +156,7 @@ func (p *ActiveL2RollupProvider) dialSequencer(ctx context.Context, idx int) err
 
 	ep := p.rollupUrls[idx]
 	p.log.Info("Dialing next sequencer.", "index", idx, "url", ep)
-	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
+	rollupClient, err := p.rollupDialer(cctx, p.log, ep)
 	if err != nil {
 		return fmt.Errorf("dialing rollup client: %w", err)
 	}

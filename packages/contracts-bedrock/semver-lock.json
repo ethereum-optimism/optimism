@@ -64,8 +64,8 @@
     "sourceCodeHash": "0xd787bd2a192ba5025fa0a8de2363af66a8de20de226e411bdb576adb64636cd0"
   },
   "src/L2/CrossL2Inbox.sol": {
-    "initCodeHash": "0x2455cab02c32f22521bfeb8a6e404c5ea2eca32e1bfdce8f34013e32d52ffc13",
-    "sourceCodeHash": "0x864d244dd0b01cb01e5f50425bedce46e72005bdb8bead198ac885481547f41d"
+    "initCodeHash": "0x46e15ac5de81ea415061d049730da25acf31040d6d5d70fe3a9bf4cac100c282",
+    "sourceCodeHash": "0xc3d38bfa73fc33369891a2e8c987baf64b1e94c53d6104676fd4c93e1f5c8011"
   },
   "src/L2/GasPriceOracle.sol": {
     "initCodeHash": "0xb16f1e370e58c7693fd113a21a1b1e7ccebc03d4f1e5a76786fc27847ef51ead",
@@ -100,8 +100,8 @@
     "sourceCodeHash": "0x8388b9b8075f31d580fed815b66b45394e40fb1a63cd8cda2272d2c390fc908c"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol": {
-    "initCodeHash": "0x26995afaa790e4daa74deb8dc5088b915633d3d037a2feb5cd8dd2ec8d3c51fc",
-    "sourceCodeHash": "0x0cbdda4623c9c10653332af3c43ee37d9c4a6e4e0214f9a0fb51ae053b0b6220"
+    "initCodeHash": "0x975a4b620e71a1cacd5078972c5e042d010b01e52d0ccd17934cbc7c9890f23b",
+    "sourceCodeHash": "0x249218d69909750f5245a42d247a789f1837c24863bded94dc577fcbec914175"
   },
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0xd62e193d89b1661d34031227a45ce1eade9c2a89b0bd7f362f511d03cceef294",

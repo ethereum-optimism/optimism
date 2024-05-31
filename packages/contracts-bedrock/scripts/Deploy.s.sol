@@ -56,6 +56,7 @@ import { Types } from "scripts/Types.sol";
 import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
+import { Process } from "scripts/libraries/Process.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -1342,11 +1343,11 @@ contract Deploy is Deployer {
             commands[0] = "bash";
             commands[1] = "-c";
             commands[2] = string.concat("[[ -f ", filePath, " ]] && echo \"present\"");
-            if (vm.ffi(commands).length == 0) {
+            if (Process.run(commands).length == 0) {
                 revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
             }
             commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
-            mipsAbsolutePrestate_ = Claim.wrap(abi.decode(vm.ffi(commands), (bytes32)));
+            mipsAbsolutePrestate_ = Claim.wrap(abi.decode(Process.run(commands), (bytes32)));
             console.log(
                 "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
                 vm.toString(Claim.unwrap(mipsAbsolutePrestate_))

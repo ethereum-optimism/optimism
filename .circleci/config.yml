@@ -1808,16 +1808,6 @@ workflows:
           requires:
             - pnpm-monorepo
             - cannon-prestate
-      - go-e2e-test:
-          name: op-e2e-ext-geth-tests<< matrix.fpac >>
-          matrix:
-            parameters:
-              fpac: ["", "-fault-proofs"]
-          module: op-e2e
-          target: test-external-geth
-          requires:
-            - go-mod-download
-            - pnpm-monorepo
       - op-service-rethdb-tests:
           requires:
             - go-mod-download
@@ -1847,7 +1837,6 @@ workflows:
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
-            - op-e2e-ext-geth-tests
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
