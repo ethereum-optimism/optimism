@@ -752,7 +752,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 			s.executeAction()
 		}
 		return res
-	}, 2*time.Second, 100*time.Millisecond)
+	}, 10*time.Millisecond, time.Millisecond)
 }
 
 func (s *OpConductorTestSuite) TestHandleInitError() {
