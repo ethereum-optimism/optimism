@@ -126,7 +126,6 @@ The full set of components that have releases are:
 - `op-proposer`
 - `op-ufm`
 - `proxyd`
-- `ufm-metamask`
 
 All other components and packages should be considered development components only and do not have releases.
 
