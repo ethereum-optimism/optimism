@@ -591,6 +591,23 @@ contract L1StandardBridge_DepositERC20_TestFail is Bridge_Initializer {
         vm.prank(alice, alice);
         l1StandardBridge.depositERC20(address(0), address(0), 100, 100, hex"");
     }
+
+    /// @dev Tests that depositing an ERC20 to the bridge reverts
+    ///      if the gas paying token is a custom gas token.
+    function test_depositERC20_gasPayingToken_reverts() external {
+        // Deal Alice's ERC20 State
+        deal(address(L1Token), alice, 100000, true);
+        vm.prank(alice);
+        L1Token.approve(address(l1StandardBridge), type(uint256).max);
+
+        vm.mockCall(
+            address(systemConfig), abi.encodeWithSignature("gasPayingToken()"), abi.encode(address(L1Token), uint8(18))
+        );
+
+        vm.expectRevert("Cannot deposit gas paying token from L1StandardBridge");
+        vm.prank(alice, alice);
+        l1StandardBridge.depositERC20(address(L1Token), address(0), 100, 100, hex"");
+    }
 }
 
 contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
