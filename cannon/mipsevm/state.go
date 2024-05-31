@@ -139,12 +139,14 @@ const (
 )
 
 func (sw StateWitness) StateHash() (common.Hash, error) {
-	if len(sw) != 226 {
+	//if len(sw) != 226 {
+	// TODO: replace below with the expected length including ThreadContext witness
+	if len(sw) < 73 {
 		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected 226", len(sw))
 	}
 
 	hash := crypto.Keccak256Hash(sw)
-	offset := 32*2 + 4*6
+	offset := 32*2 + 4*2
 	exitCode := sw[offset]
 	exited := sw[offset+1]
 	status := vmStatus(exited == 1, exitCode)
