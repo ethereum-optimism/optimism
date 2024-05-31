@@ -26,6 +26,7 @@ type ActiveL2RollupProvider struct {
 	rollupDialer        rollupDialer
 	currentRollupClient RollupClientInterface
 	rollupIndex         int
+	nextIndexToCheck    int
 	clientLock          *sync.Mutex
 }
 
@@ -101,20 +102,33 @@ func (p *ActiveL2RollupProvider) shouldCheck() bool {
 }
 
 func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error {
-	startIdx := p.rollupIndex
+	startIdx := p.nextIndexToCheck
+	triedUrls := make([]string, 0, p.numEndpoints())
 	var errs error
+
 	for offset := range p.rollupUrls {
 		idx := (startIdx + offset) % p.numEndpoints()
-		if offset != 0 || p.currentRollupClient == nil {
-			if err := p.dialSequencer(ctx, idx); err != nil {
+		p.nextIndexToCheck = (idx + 1) % p.numEndpoints()
+		ep := p.rollupUrls[idx]
+		triedUrls = append(triedUrls, ep)
+
+		if idx != p.rollupIndex || p.currentRollupClient == nil {
+			if err := p.dialSequencer(ctx, idx); errors.Is(err, context.DeadlineExceeded) {
 				errs = errors.Join(errs, err)
-				p.log.Warn("Error dialing next sequencer.", "err", err, "index", p.rollupIndex)
+				p.log.Warn("Timed out dialing next sequencer.", "err", err, "index", idx, "url", ep)
+				break
+			} else if err != nil {
+				errs = errors.Join(errs, err)
+				p.log.Warn("Error dialing next sequencer.", "err", err, "index", idx, "url", ep)
 				continue
 			}
 		}
 
-		ep := p.rollupUrls[idx]
-		if active, err := p.checkCurrentSequencer(ctx); err != nil {
+		if active, err := p.checkCurrentSequencer(ctx); errors.Is(err, context.DeadlineExceeded) {
+			errs = errors.Join(errs, err)
+			p.log.Warn("Timed out querying active sequencer.", "err", err, "index", idx, "url", ep)
+			break
+		} else if err != nil {
 			errs = errors.Join(errs, err)
 			p.log.Warn("Error querying active sequencer, trying next.", "err", err, "index", idx, "url", ep)
 		} else if active {
@@ -123,12 +137,13 @@ func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error 
 			} else {
 				p.log.Info("Found new active sequencer.", "index", idx, "url", ep)
 			}
+			p.nextIndexToCheck = idx
 			return nil
 		} else {
 			p.log.Info("Sequencer inactive, trying next.", "index", idx, "url", ep)
 		}
 	}
-	return fmt.Errorf("failed to find an active sequencer, tried following urls: %v; errs: %w", p.rollupUrls, errs)
+	return fmt.Errorf("failed to find an active sequencer, tried following urls: %v; errs: %w", triedUrls, errs)
 }
 
 func (p *ActiveL2RollupProvider) checkCurrentSequencer(ctx context.Context) (bool, error) {
