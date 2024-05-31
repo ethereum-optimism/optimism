@@ -2,6 +2,7 @@ package plasma
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -23,15 +23,16 @@ type UnifiedStore interface {
 }
 
 type DAServer struct {
-	log        log.Logger
-	endpoint   string
-	store      UnifiedStore
-	tls        *rpc.ServerTLSConfig
-	httpServer *http.Server
-	listener   net.Listener
+	log            log.Logger
+	endpoint       string
+	store          UnifiedStore
+	tls            *rpc.ServerTLSConfig
+	httpServer     *http.Server
+	listener       net.Listener
+	useGenericComm bool
 }
 
-func NewDAServer(host string, port int, store UnifiedStore, log log.Logger) *DAServer {
+func NewDAServer(host string, port int, store UnifiedStore, log log.Logger, useGenericComm bool) *DAServer {
 	endpoint := net.JoinHostPort(host, strconv.Itoa(port))
 	return &DAServer{
 		log:      log,
@@ -40,6 +41,7 @@ func NewDAServer(host string, port int, store UnifiedStore, log log.Logger) *DAS
 		httpServer: &http.Server{
 			Addr: endpoint,
 		},
+		useGenericComm: useGenericComm,
 	}
 }
 
@@ -116,9 +118,8 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
+
 func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	d.log.Info("PUT", "url", r.URL)
 
@@ -137,20 +138,33 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Path == "/put" || r.URL.Path == "/put/" { // without commitment
-		comm := GenericCommitment(crypto.Keccak256Hash(input).Bytes())
-		comm, err := d.store.Put(r.Context(), comm.Encode(), input)
-		if err != nil {
-			d.log.Error("Failed to store commitment to the DA server", "err", err, "comm", comm)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+		var comm []byte
+		if d.useGenericComm {
+			n, err := d.store.Put(r.Context(), comm, input)
+			if err != nil {
+				d.log.Error("Failed to store commitment to the DA server", "err", err, "comm", comm)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			comm = append(comm, 0x01)
+			comm = append(comm, n...)
+		} else {
+			comm = NewKeccak256Commitment(input).Encode()
+			_, err := d.store.Put(r.Context(), comm, input)
+			if err != nil {
+				d.log.Error("Failed to store commitment to the DA server", "err", err, "comm", comm)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
+
+		d.log.Info("stored commitment", "key", hex.EncodeToString(comm), "input_len", len(input))
 
 		if _, err := w.Write(comm); err != nil {
 			d.log.Error("Failed to write commitment request body", "err", err, "comm", comm)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
 	} else {
 		key := path.Base(r.URL.Path)
 		comm, err := hexutil.Decode(key)
@@ -166,10 +180,8 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
 	}
-
-	w.WriteHeader(http.StatusOK)
-
 }
 
 func (b *DAServer) Endpoint() string {

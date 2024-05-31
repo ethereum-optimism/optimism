@@ -48,7 +48,7 @@ func TestAvailDAClientService(t *testing.T) {
 
 	ctx := context.Background()
 
-	server := NewDAServer("127.0.0.1", 0, adapters.DAServiceAdapter{DAService: store}, logger)
+	server := NewDAServer("127.0.0.1", 0, adapters.DAServiceAdapter{DAService: store}, logger, true)
 
 	require.NoError(t, server.Start())
 

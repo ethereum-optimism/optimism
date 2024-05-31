@@ -30,6 +30,7 @@ log = logging.getLogger()
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_FPAC = os.getenv('DEVNET_FPAC') == "true"
 DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
+GENERIC_PLASMA = os.getenv('GENERIC_PLASMA') == "true"
 
 class Bunch:
     def __init__(self, **kwds):
@@ -135,6 +136,8 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
         deploy_config['faultGameWithdrawalDelay'] = 0
     if DEVNET_PLASMA:
         deploy_config['usePlasma'] = True
+    if GENERIC_PLASMA:
+        deploy_config['daCommitmentType'] = "GenericCommitment"
     write_json(paths.devnet_config_path, deploy_config)
 
 def devnet_l1_allocs(paths):
@@ -273,10 +276,16 @@ def devnet_deploy(paths):
 
     if DEVNET_PLASMA:
         docker_env['PLASMA_ENABLED'] = 'true'
-        docker_env['PLASMA_DA_SERVICE'] = 'false'
     else:
         docker_env['PLASMA_ENABLED'] = 'false'
+
+    if GENERIC_PLASMA:
+        docker_env['PLASMA_GENERIC_DA'] = 'true'
+        docker_env['PLASMA_DA_SERVICE'] = 'true'
+    else:
+        docker_env['PLASMA_GENERIC_DA'] = 'false'
         docker_env['PLASMA_DA_SERVICE'] = 'false'
+
 
     # Bring up the rest of the services.
     log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
@@ -287,7 +296,7 @@ def devnet_deploy(paths):
         log.info('Bringing up `op-challenger`.')
         run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
-    # Optionally bring up OP Plasma.
+    # Optionally bring up Plasma Mode components.
     if DEVNET_PLASMA:
         log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
         run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)

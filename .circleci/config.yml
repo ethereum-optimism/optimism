@@ -225,6 +225,12 @@ jobs:
           name: Copy Plasma allocs to .devnet-plasma
           command: cp -r .devnet/ .devnet-plasma/
       - run:
+          name: Generate Generic Plasma allocs
+          command: DEVNET_PLASMA="true" GENERIC_PLASMA="true" make devnet-allocs
+      - run:
+          name: Copy Plasma allocs to .devnet-plasma
+          command: cp -r .devnet/ .devnet-plasma-generic/
+      - run:
           name: Generate non-FPAC allocs
           command: make devnet-allocs
       - persist_to_workspace:
@@ -251,6 +257,11 @@ jobs:
             - ".devnet-plasma/allocs-l2.json"
             - ".devnet-plasma/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l2-ecotone.json"
+            - ".devnet-plasma-generic/allocs-l1.json"
+            - ".devnet-plasma-generic/addresses.json"
+            - ".devnet-plasma-generic/allocs-l2.json"
+            - ".devnet-plasma-generic/allocs-l2-delta.json"
+            - ".devnet-plasma-generic/allocs-l2-ecotone.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -725,28 +736,6 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
-  contracts-ts-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore pnpm Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
-      - check-changed:
-          patterns: sdk,contracts-bedrock,contracts
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: Check generated and build
-          command: pnpm generate:check
-          working_directory: packages/contracts-ts
-
   sdk-next-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -863,14 +852,6 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: packages
-      - run:
-          name: Check common-ts
-          command: npx depcheck
-          working_directory: packages/common-ts
-      - run:
-          name: Check core-utils
-          command: npx depcheck
-          working_directory: packages/core-utils
       - run:
           name: Check sdk
           command: npx depcheck
@@ -1220,6 +1201,8 @@ jobs:
               echo 'export EXPECTED_PRESTATE_HASH="0x034c8cc69f22c35ae386a97136715dd48aaf97fd190942a111bfa680c2f2f421"' >> $BASH_ENV
             elif [[ "<<parameters.version>>" == "1.0.0" ]]; then
               echo 'export EXPECTED_PRESTATE_HASH="0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.1.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b"' >> $BASH_ENV
             else
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
@@ -1298,6 +1281,16 @@ jobs:
             - run:
                 name: Set DEVNET_PLASMA = true
                 command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['plasma-generic', <<parameters.fpac>>]
+          steps:
+            - run:
+                name: Set DEVNET_PLASMA = true
+                command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
+            - run:
+                name: Set GENERIC_PLASMA = true
+                command: echo 'export GENERIC_PLASMA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
@@ -1675,18 +1668,6 @@ workflows:
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
-      - js-lint-test:
-          name: common-ts-tests
-          coverage_flag: common-ts-tests
-          package_name: common-ts
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: core-utils-tests
-          coverage_flag: core-utils-tests
-          package_name: core-utils
-          requires:
-            - pnpm-monorepo
       - contracts-bedrock-tests:
           requires:
             - pnpm-monorepo
@@ -1701,21 +1682,14 @@ workflows:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
-          dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: contracts-ts-tests
-          coverage_flag: contracts-ts-tests
-          package_name: contracts-ts
-          dependencies: '(contracts-bedrock|contracts-ts)'
+          dependencies: "(contracts-bedrock|sdk)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: sdk-tests
           coverage_flag: sdk-tests
           package_name: sdk
-          dependencies: "(contracts-bedrock|core-utils)"
+          dependencies: "contracts-bedrock"
           requires:
             - pnpm-monorepo
       - depcheck:
@@ -1834,16 +1808,6 @@ workflows:
           requires:
             - pnpm-monorepo
             - cannon-prestate
-      - go-e2e-test:
-          name: op-e2e-ext-geth-tests<< matrix.fpac >>
-          matrix:
-            parameters:
-              fpac: ["", "-fault-proofs"]
-          module: op-e2e
-          target: test-external-geth
-          requires:
-            - go-mod-download
-            - pnpm-monorepo
       - op-service-rethdb-tests:
           requires:
             - go-mod-download
@@ -1873,7 +1837,6 @@ workflows:
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
-            - op-e2e-ext-geth-tests
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
@@ -1925,7 +1888,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              fpac: ["legacy", "fault-proofs", "plasma"]
+              fpac: ["legacy", "fault-proofs", "plasma", "plasma-generic"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
@@ -2440,6 +2403,6 @@ workflows:
       - preimage-reproducibility:
           matrix:
             parameters:
-              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0"]
+              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0"]
           context:
             slack

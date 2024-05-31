@@ -51,7 +51,7 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 	for _, game := range games {
 		// Check if the max duration has been reached for this game
 		duration := uint64(b.clock.Now().Unix()) - game.Timestamp
-		maxDurationReached := duration >= game.MaxClockDuration*2
+		maxDurationReached := duration >= game.MaxClockDuration+uint64(game.WETHDelay.Seconds())
 
 		// Iterate over claims, filter out resolved ones and sum up expected credits per recipient
 		expectedCredits := make(map[common.Address]*big.Int)
@@ -95,32 +95,32 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 			comparison := actual.Cmp(expected)
 			if maxDurationReached {
 				if comparison > 0 {
-					creditMetrics[metrics.CreditAboveMaxDuration] += 1
-					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "reached")
+					creditMetrics[metrics.CreditAboveWithdrawable] += 1
+					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "withdrawable", "withdrawable")
 				} else if comparison == 0 {
-					creditMetrics[metrics.CreditEqualMaxDuration] += 1
+					creditMetrics[metrics.CreditEqualWithdrawable] += 1
 				} else {
-					creditMetrics[metrics.CreditBelowMaxDuration] += 1
+					creditMetrics[metrics.CreditBelowWithdrawable] += 1
 				}
 			} else {
 				if comparison > 0 {
-					creditMetrics[metrics.CreditAboveNonMaxDuration] += 1
-					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "unreached")
+					creditMetrics[metrics.CreditAboveNonWithdrawable] += 1
+					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "withdrawable", "non_withdrawable")
 				} else if comparison == 0 {
-					creditMetrics[metrics.CreditEqualNonMaxDuration] += 1
+					creditMetrics[metrics.CreditEqualNonWithdrawable] += 1
 				} else {
-					creditMetrics[metrics.CreditBelowNonMaxDuration] += 1
-					b.logger.Warn("Credit withdrawn early", "recipient", recipient, "expected", expected, "actual", actual, "gameAddr", game.Proxy, "duration", "unreached")
+					creditMetrics[metrics.CreditBelowNonWithdrawable] += 1
+					b.logger.Error("Credit withdrawn early", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "withdrawable", "non_withdrawable")
 				}
 			}
 		}
 	}
 
-	b.metrics.RecordCredit(metrics.CreditBelowMaxDuration, creditMetrics[metrics.CreditBelowMaxDuration])
-	b.metrics.RecordCredit(metrics.CreditEqualMaxDuration, creditMetrics[metrics.CreditEqualMaxDuration])
-	b.metrics.RecordCredit(metrics.CreditAboveMaxDuration, creditMetrics[metrics.CreditAboveMaxDuration])
+	b.metrics.RecordCredit(metrics.CreditBelowWithdrawable, creditMetrics[metrics.CreditBelowWithdrawable])
+	b.metrics.RecordCredit(metrics.CreditEqualWithdrawable, creditMetrics[metrics.CreditEqualWithdrawable])
+	b.metrics.RecordCredit(metrics.CreditAboveWithdrawable, creditMetrics[metrics.CreditAboveWithdrawable])
 
-	b.metrics.RecordCredit(metrics.CreditBelowNonMaxDuration, creditMetrics[metrics.CreditBelowNonMaxDuration])
-	b.metrics.RecordCredit(metrics.CreditEqualNonMaxDuration, creditMetrics[metrics.CreditEqualNonMaxDuration])
-	b.metrics.RecordCredit(metrics.CreditAboveNonMaxDuration, creditMetrics[metrics.CreditAboveNonMaxDuration])
+	b.metrics.RecordCredit(metrics.CreditBelowNonWithdrawable, creditMetrics[metrics.CreditBelowNonWithdrawable])
+	b.metrics.RecordCredit(metrics.CreditEqualNonWithdrawable, creditMetrics[metrics.CreditEqualNonWithdrawable])
+	b.metrics.RecordCredit(metrics.CreditAboveNonWithdrawable, creditMetrics[metrics.CreditAboveNonWithdrawable])
 }

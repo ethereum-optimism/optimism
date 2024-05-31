@@ -66,6 +66,7 @@
   "respectedGameType": 0,
   "useFaultProofs": false,
   "usePlasma": false,
+  "daCommitmentType": "KeccakCommitment",
   "daChallengeWindow": 160,
   "daResolveWindow": 160,
   "daBondSize": 1000000,

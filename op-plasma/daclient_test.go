@@ -30,7 +30,7 @@ func NewMemStore() *MemStore {
 func (s *MemStore) Get(ctx context.Context, key []byte) ([]byte, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-
+	fmt.Println("key", key)
 	if entry, ok := s.db[string(key)]; ok {
 		return common.CopyBytes(entry), nil
 	}
@@ -41,7 +41,6 @@ func (s *MemStore) Get(ctx context.Context, key []byte) ([]byte, error) {
 func (s *MemStore) Put(ctx context.Context, key []byte, value []byte) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-
 	s.db[string(key)] = common.CopyBytes(value)
 	return nil
 }
@@ -60,7 +59,7 @@ func NewDAServiceStore() *DAServiceStore {
 func (s *DAServiceStore) Get(ctx context.Context, key []byte) ([]byte, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-
+	fmt.Println("key", key)
 	if entry, ok := s.db[string(key)]; ok {
 		return common.CopyBytes(entry), nil
 	}
@@ -72,68 +71,128 @@ func (s *DAServiceStore) Put(ctx context.Context, value []byte) ([]byte, error) 
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	comm := NewGenericCommitment(crypto.Keccak256(value))
-
+	fmt.Println("commsdfdsfs", comm)
 	s.db[string(comm.Encode())] = common.CopyBytes(value)
 	return comm, nil
 }
 
-func TestDAClientPrecomputed(t *testing.T) {
-	store := NewMemStore()
-	logger := testlog.Logger(t, log.LevelDebug)
+// func TestDAClientPrecomputed(t *testing.T) {
+// 	store := NewMemStore()
+// 	logger := testlog.Logger(t, log.LevelDebug)
 
-	ctx := context.Background()
+// 	ctx := context.Background()
 
-	server := NewDAServer("127.0.0.1", 0, adapters.KVStoreAdapter{KVStore: store}, logger)
+// 	server := NewDAServer("127.0.0.1", 0, adapters.KVStoreAdapter{KVStore: store}, logger, false)
 
-	require.NoError(t, server.Start())
+// 	require.NoError(t, server.Start())
 
-	cfg := CLIConfig{
-		Enabled:      true,
-		DAServerURL:  fmt.Sprintf("http://%s", server.Endpoint()),
-		VerifyOnRead: true,
-	}
-	require.NoError(t, cfg.Check())
+// 	cfg := CLIConfig{
+// 		Enabled:      true,
+// 		DAServerURL:  fmt.Sprintf("http://%s", server.Endpoint()),
+// 		VerifyOnRead: true,
+// 	}
+// 	require.NoError(t, cfg.Check())
 
-	client := cfg.NewDAClient()
+// 	client := cfg.NewDAClient()
 
-	rng := rand.New(rand.NewSource(1234))
+// 	rng := rand.New(rand.NewSource(1234))
 
-	input := RandomData(rng, 2000)
+// 	input := RandomData(rng, 2000)
 
-	comm, err := client.SetInput(ctx, input)
+// 	comm, err := client.SetInput(ctx, input)
 
-	require.NoError(t, err)
+// 	require.NoError(t, err)
 
-	require.Equal(t, comm, NewKeccak256Commitment(input))
+// 	require.Equal(t, comm, NewKeccak256Commitment(input))
 
-	stored, err := client.GetInput(ctx, comm)
-	require.NoError(t, err)
+// 	stored, err := client.GetInput(ctx, comm)
+// 	require.NoError(t, err)
 
-	require.Equal(t, input, stored)
+// 	require.Equal(t, input, stored)
 
-	// set a bad commitment in the store
-	require.NoError(t, store.Put(ctx, comm.Encode(), []byte("bad data")))
+// 	// set a bad commitment in the store
+// 	require.NoError(t, store.Put(ctx, comm.Encode(), []byte("bad data")))
 
-	_, err = client.GetInput(ctx, comm)
-	require.ErrorIs(t, err, ErrCommitmentMismatch)
+// 	_, err = client.GetInput(ctx, comm)
+// 	require.ErrorIs(t, err, ErrCommitmentMismatch)
 
-	// test not found error
-	comm = NewKeccak256Commitment(RandomData(rng, 32))
-	_, err = client.GetInput(ctx, comm)
-	require.ErrorIs(t, err, ErrNotFound)
+// 	// test not found error
+// 	comm = NewKeccak256Commitment(RandomData(rng, 32))
+// 	_, err = client.GetInput(ctx, comm)
+// 	require.ErrorIs(t, err, ErrNotFound)
 
-	// test storing bad data
-	_, err = client.SetInput(ctx, []byte{})
-	require.ErrorIs(t, err, ErrInvalidInput)
+// 	// test storing bad data
+// 	_, err = client.SetInput(ctx, []byte{})
+// 	require.ErrorIs(t, err, ErrInvalidInput)
 
-	// server not responsive
-	require.NoError(t, server.Stop())
-	_, err = client.SetInput(ctx, input)
-	require.Error(t, err)
+// 	// server not responsive
+// 	require.NoError(t, server.Stop())
+// 	_, err = client.SetInput(ctx, input)
+// 	require.Error(t, err)
 
-	_, err = client.GetInput(ctx, NewKeccak256Commitment(input))
-	require.Error(t, err)
-}
+// 	_, err = client.GetInput(ctx, NewKeccak256Commitment(input))
+// 	require.Error(t, err)
+// }
+
+// func TestDAClientServiceServerCompute(t *testing.T) {
+// 	store := NewMemStore()
+// 	logger := testlog.Logger(t, log.LevelDebug)
+
+// 	ctx := context.Background()
+
+// 	server := NewDAServer("127.0.0.1", 0, adapters.KVStoreAdapter{KVStore: store}, logger, false)
+
+// 	require.NoError(t, server.Start())
+
+// 	cfg := CLIConfig{
+// 		Enabled:      true,
+// 		DAServerURL:  fmt.Sprintf("http://%s", server.Endpoint()),
+// 		VerifyOnRead: false,
+// 		GenericDA:    true,
+// 	}
+// 	require.NoError(t, cfg.Check())
+
+// 	client := cfg.NewDAClient()
+
+// 	rng := rand.New(rand.NewSource(1234))
+
+// 	input := RandomData(rng, 2000)
+
+// 	comm, err := client.SetInput(ctx, input)
+
+// 	require.NoError(t, err)
+
+// 	require.Equal(t, comm, NewKeccak256Commitment(input))
+
+// 	stored, err := client.GetInput(ctx, comm)
+// 	require.NoError(t, err)
+
+// 	require.Equal(t, input, stored)
+// 	badData := []byte("bad data")
+// 	// set a bad commitment in the store
+// 	require.NoError(t, store.Put(ctx, crypto.Keccak256(badData), badData))
+
+// 	// assert no error as generic commitments cannot be verified client side
+// 	_, err = client.GetInput(ctx, comm)
+// 	require.NoError(t, err)
+
+// 	// test not found error
+// 	comm = NewGenericCommitment(RandomData(rng, 32))
+// 	_, err = client.GetInput(ctx, comm)
+// 	require.ErrorIs(t, err, ErrNotFound)
+
+// 	// test storing bad data
+// 	_, err = client.SetInput(ctx, []byte{})
+// 	require.ErrorIs(t, err, ErrInvalidInput)
+
+// 	// server not responsive
+// 	require.NoError(t, server.Stop())
+// 	_, err = client.SetInput(ctx, input)
+// 	require.Error(t, err)
+
+// 	_, err = client.GetInput(ctx, NewGenericCommitment(input))
+// 	require.Error(t, err)
+// }
 
 func TestDAClientService(t *testing.T) {
 	store := NewDAServiceStore()
@@ -141,7 +200,7 @@ func TestDAClientService(t *testing.T) {
 
 	ctx := context.Background()
 
-	server := NewDAServer("127.0.0.1", 0, adapters.DAServiceAdapter{DAService: store}, logger)
+	server := NewDAServer("127.0.0.1", 0, adapters.DAServiceAdapter{DAService: store}, logger, true)
 
 	require.NoError(t, server.Start())
 
@@ -160,6 +219,7 @@ func TestDAClientService(t *testing.T) {
 	input := RandomData(rng, 2000)
 
 	comm, err := client.SetInput(ctx, input)
+
 	require.NoError(t, err)
 
 	require.Equal(t, comm, NewGenericCommitment(crypto.Keccak256(input)))

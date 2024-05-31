@@ -28,21 +28,21 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
-	FactoryAddressFlag = &cli.StringFlag{
+	GameFactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
 		Usage:   "Address of the fault game factory contract.",
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
+	}
+	RollupRpcFlag = &cli.StringFlag{
+		Name:    "rollup-rpc",
+		Usage:   "HTTP provider URL for the rollup node",
+		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	// Optional Flags
 	HonestActorsFlag = &cli.StringSliceFlag{
 		Name:    "honest-actors",
 		Usage:   "List of honest actors that are monitored for any claims that are resolved against them.",
 		EnvVars: prefixEnvVars("HONEST_ACTORS"),
-	}
-	RollupRpcFlag = &cli.StringFlag{
-		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node",
-		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	MonitorIntervalFlag = &cli.DurationFlag{
 		Name:    "monitor-interval",
@@ -73,12 +73,12 @@ var (
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	FactoryAddressFlag,
+	GameFactoryAddressFlag,
+	RollupRpcFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
-	RollupRpcFlag,
 	HonestActorsFlag,
 	MonitorIntervalFlag,
 	GameWindowFlag,
@@ -111,7 +111,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if err := CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
+	gameFactoryAddress, err := opservice.ParseAddress(ctx.String(GameFactoryAddressFlag.Name))
 	if err != nil {
 		return nil, err
 	}
@@ -144,9 +144,9 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
+		RollupRpc:          ctx.String(RollupRpcFlag.Name),
 
 		HonestActors:    actors,
-		RollupRpc:       ctx.String(RollupRpcFlag.Name),
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),
 		GameWindow:      ctx.Duration(GameWindowFlag.Name),
 		IgnoredGames:    ignoredGames,

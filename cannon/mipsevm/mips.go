@@ -179,6 +179,49 @@ func (m *InstrumentedState) handleSyscall() error {
 	return nil
 }
 
+func (m *InstrumentedState) pushStack(target uint32) {
+	if !m.debugEnabled {
+		return
+	}
+	m.debug.stack = append(m.debug.stack, target)
+	m.debug.caller = append(m.debug.caller, m.state.PC)
+}
+
+func (m *InstrumentedState) popStack() {
+	if !m.debugEnabled {
+		return
+	}
+	if len(m.debug.stack) != 0 {
+		fn := m.debug.meta.LookupSymbol(m.state.PC)
+		topFn := m.debug.meta.LookupSymbol(m.debug.stack[len(m.debug.stack)-1])
+		if fn != topFn {
+			// most likely the function was inlined. Snap back to the last return.
+			i := len(m.debug.stack) - 1
+			for ; i >= 0; i-- {
+				if m.debug.meta.LookupSymbol(m.debug.stack[i]) == fn {
+					m.debug.stack = m.debug.stack[:i]
+					m.debug.caller = m.debug.caller[:i]
+					break
+				}
+			}
+		} else {
+			m.debug.stack = m.debug.stack[:len(m.debug.stack)-1]
+			m.debug.caller = m.debug.caller[:len(m.debug.caller)-1]
+		}
+	} else {
+		fmt.Printf("ERROR: stack underflow at pc=%x. step=%d\n", m.state.PC, m.state.Step)
+	}
+}
+
+func (m *InstrumentedState) Traceback() {
+	fmt.Printf("traceback at pc=%x. step=%d\n", m.state.PC, m.state.Step)
+	for i := len(m.debug.stack) - 1; i >= 0; i-- {
+		s := m.debug.stack[i]
+		idx := len(m.debug.stack) - i - 1
+		fmt.Printf("\t%d %x in %s caller=%08x\n", idx, s, m.debug.meta.LookupSymbol(s), m.debug.caller[i])
+	}
+}
+
 func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
 	if m.state.NextPC != m.state.PC+4 {
 		panic("branch in delay slot")
@@ -291,6 +334,7 @@ func (m *InstrumentedState) mipsStep() error {
 		}
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (m.state.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
+		m.pushStack(target)
 		return m.handleJump(linkReg, target)
 	}
 
@@ -356,6 +400,7 @@ func (m *InstrumentedState) mipsStep() error {
 			if fun == 9 {
 				linkReg = rdReg
 			}
+			m.popStack()
 			return m.handleJump(linkReg, rs)
 		}
 

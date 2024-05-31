@@ -55,7 +55,8 @@ func TestFrameValidity(t *testing.T) {
 			name: "double close",
 			frames: []Frame{
 				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")},
-				{ID: id, FrameNumber: 1, IsLast: true}},
+				{ID: id, FrameNumber: 1, IsLast: true},
+			},
 			shouldErr: []bool{false, true},
 			sizes:     []uint64{204, 204},
 		},
@@ -63,7 +64,8 @@ func TestFrameValidity(t *testing.T) {
 			name: "duplicate frame",
 			frames: []Frame{
 				{ID: id, FrameNumber: 2, Data: []byte("four")},
-				{ID: id, FrameNumber: 2, Data: []byte("seven__")}},
+				{ID: id, FrameNumber: 2, Data: []byte("seven__")},
+			},
 			shouldErr: []bool{false, true},
 			sizes:     []uint64{204, 204},
 		},
@@ -71,7 +73,8 @@ func TestFrameValidity(t *testing.T) {
 			name: "duplicate closing frames",
 			frames: []Frame{
 				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")},
-				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("seven__")}},
+				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("seven__")},
+			},
 			shouldErr: []bool{false, true},
 			sizes:     []uint64{204, 204},
 		},
@@ -79,7 +82,8 @@ func TestFrameValidity(t *testing.T) {
 			name: "frame past closing",
 			frames: []Frame{
 				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")},
-				{ID: id, FrameNumber: 10, Data: []byte("seven__")}},
+				{ID: id, FrameNumber: 10, Data: []byte("seven__")},
+			},
 			shouldErr: []bool{false, true},
 			sizes:     []uint64{204, 204},
 		},
@@ -87,7 +91,8 @@ func TestFrameValidity(t *testing.T) {
 			name: "prune after close frame",
 			frames: []Frame{
 				{ID: id, FrameNumber: 10, IsLast: false, Data: []byte("seven__")},
-				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")}},
+				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")},
+			},
 			shouldErr: []bool{false, false},
 			sizes:     []uint64{207, 204},
 		},
@@ -95,7 +100,8 @@ func TestFrameValidity(t *testing.T) {
 			name: "multiple valid frames",
 			frames: []Frame{
 				{ID: id, FrameNumber: 10, Data: []byte("seven__")},
-				{ID: id, FrameNumber: 2, Data: []byte("four")}},
+				{ID: id, FrameNumber: 2, Data: []byte("four")},
+			},
 			shouldErr: []bool{false, false},
 			sizes:     []uint64{207, 411},
 		},
@@ -107,103 +113,107 @@ func TestFrameValidity(t *testing.T) {
 }
 
 func TestBatchReader(t *testing.T) {
-	// Get batch data
 	rng := rand.New(rand.NewSource(0x543331))
 	singularBatch := RandomSingularBatch(rng, 20, big.NewInt(333))
 	batchDataInput := NewBatchData(singularBatch)
 
-	encodedBatch := &bytes.Buffer{}
+	encodedBatch := new(bytes.Buffer)
 	err := batchDataInput.EncodeRLP(encodedBatch)
 	require.NoError(t, err)
 
-	var testCases = []struct {
+	const Zstd CompressionAlgo = "zstd" // invalid algo
+	compressor := func(ca CompressionAlgo) func(buf *bytes.Buffer, t *testing.T) {
+		switch {
+		case ca == Zlib:
+			return func(buf *bytes.Buffer, t *testing.T) {
+				writer := zlib.NewWriter(buf)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				require.NoError(t, writer.Close())
+			}
+		case ca.IsBrotli():
+			return func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(ChannelVersionBrotli)
+				lvl := GetBrotliLevel(ca)
+				writer := brotli.NewWriterLevel(buf, lvl)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				require.NoError(t, writer.Close())
+			}
+		case ca == Zstd: // invalid algo
+			return func(buf *bytes.Buffer, t *testing.T) {
+				buf.WriteByte(0x02) // invalid channel version byte
+				writer := zstd.NewWriter(buf)
+				_, err := writer.Write(encodedBatch.Bytes())
+				require.NoError(t, err)
+				require.NoError(t, writer.Close())
+			}
+		default:
+			panic("unexpected test algo")
+		}
+	}
+
+	testCases := []struct {
 		name      string
-		algo      func(buf *bytes.Buffer, t *testing.T)
+		algo      CompressionAlgo
 		isFjord   bool
 		expectErr bool
 	}{
 		{
-			name: "zlib-post-fjord",
-			algo: func(buf *bytes.Buffer, t *testing.T) {
-				writer := zlib.NewWriter(buf)
-				_, err := writer.Write(encodedBatch.Bytes())
-				require.NoError(t, err)
-				writer.Close()
-			},
+			name:    "zlib-post-fjord",
+			algo:    Zlib,
 			isFjord: true,
 		},
 		{
-			name: "zlib-pre-fjord",
-			algo: func(buf *bytes.Buffer, t *testing.T) {
-				writer := zlib.NewWriter(buf)
-				_, err := writer.Write(encodedBatch.Bytes())
-				require.NoError(t, err)
-				writer.Close()
-			},
+			name:    "zlib-pre-fjord",
+			algo:    Zlib,
 			isFjord: false,
 		},
 		{
-			name: "brotli9-post-fjord",
-			algo: func(buf *bytes.Buffer, t *testing.T) {
-				buf.WriteByte(ChannelVersionBrotli)
-				writer := brotli.NewWriterLevel(buf, 9)
-				_, err := writer.Write(encodedBatch.Bytes())
-				require.NoError(t, err)
-				writer.Close()
-			},
+			name:    "brotli-post-fjord",
+			algo:    Brotli,
 			isFjord: true,
 		},
 		{
-			name: "brotli9-pre-fjord",
-			algo: func(buf *bytes.Buffer, t *testing.T) {
-				buf.WriteByte(ChannelVersionBrotli)
-				writer := brotli.NewWriterLevel(buf, 9)
-				_, err := writer.Write(encodedBatch.Bytes())
-				require.NoError(t, err)
-				writer.Close()
-			},
+			name:      "brotli-pre-fjord",
+			algo:      Brotli,
 			isFjord:   false,
 			expectErr: true, // expect an error because brotli is not supported before Fjord
 		},
 		{
-			name: "brotli10-post-fjord",
-			algo: func(buf *bytes.Buffer, t *testing.T) {
-				buf.WriteByte(ChannelVersionBrotli)
-				writer := brotli.NewWriterLevel(buf, 10)
-				_, err := writer.Write(encodedBatch.Bytes())
-				require.NoError(t, err)
-				writer.Close()
-			},
+			name:    "brotli9-post-fjord",
+			algo:    Brotli9,
 			isFjord: true,
 		},
 		{
-			name: "brotli11-post-fjord",
-			algo: func(buf *bytes.Buffer, t *testing.T) {
-				buf.WriteByte(ChannelVersionBrotli)
-				writer := brotli.NewWriterLevel(buf, 11)
-				_, err := writer.Write(encodedBatch.Bytes())
-				require.NoError(t, err)
-				writer.Close()
-			},
+			name:      "brotli9-pre-fjord",
+			algo:      Brotli9,
+			isFjord:   false,
+			expectErr: true, // expect an error because brotli is not supported before Fjord
+		},
+		{
+			name:    "brotli10-post-fjord",
+			algo:    Brotli10,
 			isFjord: true,
 		},
 		{
-			name: "zstd-post-fjord",
-			algo: func(buf *bytes.Buffer, t *testing.T) {
-				writer := zstd.NewWriter(buf)
-				_, err := writer.Write(encodedBatch.Bytes())
-				require.NoError(t, err)
-				writer.Close()
-			},
+			name:    "brotli11-post-fjord",
+			algo:    Brotli11,
+			isFjord: true,
+		},
+		{
+			name:      "zstd-post-fjord",
+			algo:      Zstd,
 			expectErr: true,
 			isFjord:   true,
-		}}
+		},
+	}
 
 	for _, tc := range testCases {
 		compressed := new(bytes.Buffer)
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc.algo(compressed, t)
+			compressor(tc.algo)(compressed, t)
 			reader, err := BatchReader(bytes.NewReader(compressed.Bytes()), 120000, tc.isFjord)
 			if tc.expectErr {
 				require.Error(t, err)
@@ -215,6 +225,12 @@ func TestBatchReader(t *testing.T) {
 			batchData, err := reader()
 			require.NoError(t, err)
 			require.NotNil(t, batchData)
+			if tc.algo.IsBrotli() {
+				// special case because reader doesn't decode level
+				batchDataInput.ComprAlgo = Brotli
+			} else {
+				batchDataInput.ComprAlgo = tc.algo
+			}
 			require.Equal(t, batchDataInput, batchData)
 		})
 	}

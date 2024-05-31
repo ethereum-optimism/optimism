@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import { Vm } from "forge-std/Vm.sol";
 import { Executables } from "scripts/Executables.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { Process } from "scripts/libraries/Process.sol";
 
 /// @notice Contains information about a storage slot. Mirrors the layout of the storage
 ///         slot object in Forge artifacts so that we can deserialize JSON into this struct.
@@ -41,7 +42,7 @@ library ForgeArtifacts {
         cmd[2] = string.concat(
             Executables.echo, " ", _name, " | ", Executables.sed, " -E 's/[.][0-9]+\\.[0-9]+\\.[0-9]+//g'"
         );
-        bytes memory res = vm.ffi(cmd);
+        bytes memory res = Process.run(cmd);
         out_ = string(res);
     }
 
@@ -58,7 +59,7 @@ library ForgeArtifacts {
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " -r '.storageLayout' < ", _getForgeArtifactPath(_name));
-        bytes memory res = vm.ffi(cmd);
+        bytes memory res = Process.run(cmd);
         layout_ = string(res);
     }
 
@@ -68,7 +69,7 @@ library ForgeArtifacts {
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " -r '.abi' < ", _getForgeArtifactPath(_name));
-        bytes memory res = vm.ffi(cmd);
+        bytes memory res = Process.run(cmd);
         abi_ = string(res);
     }
 
@@ -78,7 +79,7 @@ library ForgeArtifacts {
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " '.methodIdentifiers | keys' < ", _getForgeArtifactPath(_name));
-        bytes memory res = vm.ffi(cmd);
+        bytes memory res = Process.run(cmd);
         ids_ = stdJson.readStringArray(string(res), "");
     }
 
@@ -87,7 +88,7 @@ library ForgeArtifacts {
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.forge, " config --json | ", Executables.jq, " -r .out");
-        bytes memory res = vm.ffi(cmd);
+        bytes memory res = Process.run(cmd);
         string memory contractName = _stripSemver(_name);
         dir_ = string.concat(vm.projectRoot(), "/", string(res), "/", contractName, ".sol");
     }
@@ -112,7 +113,7 @@ library ForgeArtifacts {
             Executables.jq,
             " -R -s -c 'split(\"\n\") | map(select(length > 0))'"
         );
-        bytes memory res = vm.ffi(cmd);
+        bytes memory res = Process.run(cmd);
         string[] memory files = stdJson.readStringArray(string(res), "");
         out_ = string.concat(directory, "/", files[0]);
     }
@@ -139,7 +140,7 @@ library ForgeArtifacts {
             Executables.jq,
             " '.storage[] | select(.label == \"_initialized\" and .type == \"t_uint8\")'"
         );
-        bytes memory rawSlot = vm.parseJson(string(vm.ffi(command)));
+        bytes memory rawSlot = vm.parseJson(string(Process.run(command)));
         slot_ = abi.decode(rawSlot, (StorageSlot));
     }
 
@@ -184,7 +185,7 @@ library ForgeArtifacts {
             Executables.jq,
             " -R -s 'split(\"\n\")[:-1]'"
         );
-        string[] memory contractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
+        string[] memory contractNames = abi.decode(vm.parseJson(string(Process.run(command))), (string[]));
 
         abis_ = new Abi[](contractNames.length);
 

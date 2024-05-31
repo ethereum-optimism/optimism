@@ -78,25 +78,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "dependencySet",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "dependencySetSize",
     "outputs": [
@@ -253,6 +234,24 @@
   {
     "inputs": [
       {
+        "internalType": "enum ConfigType",
+        "name": "_type",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_value",
+        "type": "bytes"
+      }
+    ],
+    "name": "setConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "_token",
         "type": "address"
@@ -335,13 +334,6 @@
   },
   {
     "inputs": [],
-    "name": "setL1BlockValuesInterop",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "timestamp",
     "outputs": [
       {
@@ -365,6 +357,32 @@
     ],
     "stateMutability": "pure",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "chainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "DependencyAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "chainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "DependencyRemoved",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -396,6 +414,26 @@
     ],
     "name": "GasPayingTokenSet",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyDependency",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CantRemovedDependency",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DependencySetSizeTooLarge",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotDependency",
+    "type": "error"
   },
   {
     "inputs": [],

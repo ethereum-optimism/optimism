@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"strings"
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -40,14 +41,14 @@ type CreditExpectation uint8
 
 const (
 	// Max Duration reached
-	CreditBelowMaxDuration CreditExpectation = iota
-	CreditEqualMaxDuration
-	CreditAboveMaxDuration
+	CreditBelowWithdrawable CreditExpectation = iota
+	CreditEqualWithdrawable
+	CreditAboveWithdrawable
 
 	// Max Duration not reached
-	CreditBelowNonMaxDuration
-	CreditEqualNonMaxDuration
-	CreditAboveNonMaxDuration
+	CreditBelowNonWithdrawable
+	CreditEqualNonWithdrawable
+	CreditAboveNonWithdrawable
 )
 
 type GameAgreementStatus uint8
@@ -66,32 +67,76 @@ const (
 	DisagreeChallengerWins
 )
 
-type ClaimStatus uint8
+type ClaimStatus struct {
+	resolved     bool
+	clockExpired bool
+	firstHalf    bool
+	resolvable   bool
+}
 
-const (
-	// Claims where the game is in the first half
-	FirstHalfExpiredResolved ClaimStatus = iota
-	FirstHalfExpiredUnresolved
-	FirstHalfNotExpiredResolved
-	FirstHalfNotExpiredUnresolved
+func (s ClaimStatus) AsLabels() []string {
+	labels := make([]string, 4)
+	if s.resolved {
+		labels[0] = "resolved"
+	} else {
+		labels[0] = "unresolved"
+	}
+	if s.clockExpired {
+		labels[1] = "expired"
+	} else {
+		labels[1] = "not_expired"
+	}
+	if s.firstHalf {
+		labels[2] = "first_half"
+	} else {
+		labels[2] = "second_half"
+	}
+	if s.resolvable {
+		labels[3] = "resolvable"
+	} else {
+		labels[3] = "unresolvable"
+	}
+	return labels
+}
 
-	// Claims where the game is in the second half
-	SecondHalfExpiredResolved
-	SecondHalfExpiredUnresolved
-	SecondHalfNotExpiredResolved
-	SecondHalfNotExpiredUnresolved
-)
+func (s ClaimStatus) String() string {
+	return strings.Join(s.AsLabels(), ", ")
+}
 
-func ZeroClaimStatuses() map[ClaimStatus]int {
-	return map[ClaimStatus]int{
-		FirstHalfExpiredResolved:       0,
-		FirstHalfExpiredUnresolved:     0,
-		FirstHalfNotExpiredResolved:    0,
-		FirstHalfNotExpiredUnresolved:  0,
-		SecondHalfExpiredResolved:      0,
-		SecondHalfExpiredUnresolved:    0,
-		SecondHalfNotExpiredResolved:   0,
-		SecondHalfNotExpiredUnresolved: 0,
+type ClaimStatuses struct {
+	statuses map[ClaimStatus]int
+}
+
+func (c *ClaimStatuses) RecordClaim(firstHalf, clockExpired, resolvable, resolved bool) {
+	if c.statuses == nil {
+		c.statuses = make(map[ClaimStatus]int)
+	}
+	c.statuses[NewClaimStatus(firstHalf, clockExpired, resolvable, resolved)]++
+}
+
+// ForEachStatus iterates through all possible statuses and calls the callback function with the status and count of
+// claims. This ensures that statuses that have no claims counted against them are still considered to have 0 claims.
+func (c *ClaimStatuses) ForEachStatus(callback func(status ClaimStatus, count int)) {
+	allBools := []bool{true, false}
+	for _, firstHalf := range allBools {
+		for _, clockExpired := range allBools {
+			for _, resolvable := range allBools {
+				for _, resolved := range allBools {
+					status := NewClaimStatus(firstHalf, clockExpired, resolvable, resolved)
+					count := c.statuses[status]
+					callback(status, count)
+				}
+			}
+		}
+	}
+}
+
+func NewClaimStatus(firstHalf, clockExpired, resolvable, resolved bool) ClaimStatus {
+	return ClaimStatus{
+		firstHalf:    firstHalf,
+		clockExpired: clockExpired,
+		resolvable:   resolvable,
+		resolved:     resolved,
 	}
 }
 
@@ -118,7 +163,7 @@ type Metricer interface {
 
 	RecordCredit(expectation CreditExpectation, count int)
 
-	RecordClaims(status ClaimStatus, count int)
+	RecordClaims(statuses *ClaimStatuses)
 
 	RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int)
 
@@ -130,7 +175,7 @@ type Metricer interface {
 
 	RecordIgnoredGames(count int)
 
-	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
+	RecordBondCollateral(addr common.Address, required, available *big.Int)
 
 	RecordL2Challenges(agreement bool, count int)
 
@@ -248,7 +293,7 @@ func NewMetrics() *Metrics {
 			Help:      "Cumulative credits",
 		}, []string{
 			"credit",
-			"max_duration",
+			"withdrawable",
 		}),
 		claims: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -258,6 +303,7 @@ func NewMetrics() *Metrics {
 			"resolved",
 			"clock",
 			"game_time_period",
+			"resolvable",
 		}),
 		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -388,18 +434,18 @@ func (m *Metrics) RecordGameResolutionStatus(status ResolutionStatus, count int)
 func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {
 	asLabels := func(expectation CreditExpectation) []string {
 		switch expectation {
-		case CreditBelowMaxDuration:
-			return []string{"below", "max_duration"}
-		case CreditEqualMaxDuration:
-			return []string{"expected", "max_duration"}
-		case CreditAboveMaxDuration:
-			return []string{"above", "max_duration"}
-		case CreditBelowNonMaxDuration:
-			return []string{"below", "non_max_duration"}
-		case CreditEqualNonMaxDuration:
-			return []string{"expected", "non_max_duration"}
-		case CreditAboveNonMaxDuration:
-			return []string{"above", "non_max_duration"}
+		case CreditBelowWithdrawable:
+			return []string{"below", "withdrawable"}
+		case CreditEqualWithdrawable:
+			return []string{"expected", "withdrawable"}
+		case CreditAboveWithdrawable:
+			return []string{"above", "withdrawable"}
+		case CreditBelowNonWithdrawable:
+			return []string{"below", "non_withdrawable"}
+		case CreditEqualNonWithdrawable:
+			return []string{"expected", "non_withdrawable"}
+		case CreditAboveNonWithdrawable:
+			return []string{"above", "non_withdrawable"}
 		default:
 			panic(fmt.Errorf("unknown credit expectation: %v", expectation))
 		}
@@ -407,30 +453,10 @@ func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {
 	m.credits.WithLabelValues(asLabels(expectation)...).Set(float64(count))
 }
 
-func (m *Metrics) RecordClaims(status ClaimStatus, count int) {
-	asLabels := func(status ClaimStatus) []string {
-		switch status {
-		case FirstHalfExpiredResolved:
-			return []string{"resolved", "expired", "first_half"}
-		case FirstHalfExpiredUnresolved:
-			return []string{"unresolved", "expired", "first_half"}
-		case FirstHalfNotExpiredResolved:
-			return []string{"resolved", "not_expired", "first_half"}
-		case FirstHalfNotExpiredUnresolved:
-			return []string{"unresolved", "not_expired", "first_half"}
-		case SecondHalfExpiredResolved:
-			return []string{"resolved", "expired", "second_half"}
-		case SecondHalfExpiredUnresolved:
-			return []string{"unresolved", "expired", "second_half"}
-		case SecondHalfNotExpiredResolved:
-			return []string{"resolved", "not_expired", "second_half"}
-		case SecondHalfNotExpiredUnresolved:
-			return []string{"unresolved", "not_expired", "second_half"}
-		default:
-			panic(fmt.Errorf("unknown claim status: %v", status))
-		}
-	}
-	m.claims.WithLabelValues(asLabels(status)...).Set(float64(count))
+func (m *Metrics) RecordClaims(statuses *ClaimStatuses) {
+	statuses.ForEachStatus(func(status ClaimStatus, count int) {
+		m.claims.WithLabelValues(status.AsLabels()...).Set(float64(count))
+	})
 }
 
 func (m *Metrics) RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int) {
@@ -466,7 +492,7 @@ func (m *Metrics) RecordFailedGames(count int) {
 	m.failedGames.Set(float64(count))
 }
 
-func (m *Metrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
+func (m *Metrics) RecordBondCollateral(addr common.Address, required, available *big.Int) {
 	balanceLabel := "sufficient"
 	zeroBalanceLabel := "insufficient"
 	if required.Cmp(available) > 0 {
@@ -496,7 +522,7 @@ const (
 )
 
 func labelValuesFor(status GameAgreementStatus) []string {
-	asStrings := func(status string, inProgress bool, correct bool, agree bool) []string {
+	asStrings := func(status string, inProgress, correct, agree bool) []string {
 		inProgressStr := "in_progress"
 		if !inProgress {
 			inProgressStr = "complete"

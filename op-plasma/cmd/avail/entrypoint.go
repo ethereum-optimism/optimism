@@ -32,7 +32,7 @@ func StartDAServer(cliCtx *cli.Context) error {
 
 	availService := availService.NewAvailService(cfg.RPC, cfg.Seed, cfg.AppId, cfg.Timeout)
 
-	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), adapters.DAServiceAdapter{DAService: availService}, l)
+	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), adapters.DAServiceAdapter{DAService: availService}, l, true)
 
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("failed to start the DA server")
