@@ -9,8 +9,7 @@ import (
 // and expose an io Writer interface,
 // for the program running within the VM to write to.
 type LoggingWriter struct {
-	Name string
-	Log  log.Logger
+	Log log.Logger
 }
 
 func logAsText(b string) bool {
