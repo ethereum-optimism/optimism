@@ -42,7 +42,7 @@ var (
 	compAlgos = []derive.CompressionAlgo{
 		derive.Zlib,
 		derive.Brotli,
-		derive.Brotli10,
+		derive.Brotli9,
 		derive.Brotli11,
 	}
 
