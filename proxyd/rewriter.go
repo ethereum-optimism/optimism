@@ -15,12 +15,12 @@ import (
 )
 
 type RewriteContext struct {
-	latest               hexutil.Uint64
-	safe                 hexutil.Uint64
-	finalized            hexutil.Uint64
-	maxBlockRange        uint64
-	cp                   *ConsensusPoller
-	consensusPollerRetry bool
+	latest              hexutil.Uint64
+	safe                hexutil.Uint64
+	finalized           hexutil.Uint64
+	maxBlockRange       uint64
+	cp                  *ConsensusPoller
+	consensusMaxRetries int
 }
 
 type RewriteResult uint8
@@ -281,7 +281,7 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 	case rpc.LatestBlockNumber:
 		return rctx.latest.String(), true, nil
 	default:
-		err := tryConsensusBlockUpdate(bnh.BlockNumber.Int64(), int64(rctx.latest), rctx.cp, rctx.consensusPollerRetry)
+		err := tryConsensusBlockUpdate(bnh.BlockNumber.Int64(), int64(rctx.latest), rctx.cp, rctx.consensusMaxRetries)
 		if err != nil {
 			return "", false, err
 		}
@@ -310,7 +310,7 @@ func rewriteTagBlockNumberOrHash(rctx RewriteContext, current *rpc.BlockNumberOr
 		bn := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(rctx.latest))
 		return &bn, true, nil
 	default:
-		err := tryConsensusBlockUpdate(current.BlockNumber.Int64(), int64(rctx.latest), rctx.cp, rctx.consensusPollerRetry)
+		err := tryConsensusBlockUpdate(current.BlockNumber.Int64(), int64(rctx.latest), rctx.cp, rctx.consensusMaxRetries)
 		if err != nil {
 			return nil, false, err
 		}
@@ -319,11 +319,11 @@ func rewriteTagBlockNumberOrHash(rctx RewriteContext, current *rpc.BlockNumberOr
 	return current, false, nil
 }
 
-func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *ConsensusPoller, consensusPollerRetry bool) error {
+func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *ConsensusPoller, consensusMaxRetries int) error {
 	totalSleepMs := 0
 	retries := 0
 	if requestedBlock > consensusBlock {
-		if !consensusPollerRetry {
+		if consensusMaxRetries == 0 {
 			trackMetrics(retries, totalSleepMs, requestedBlock, consensusBlock)
 			return ErrRewriteBlockOutOfRange
 		}
@@ -351,8 +351,7 @@ func tryConsensusBlockUpdate(requestedBlock int64, consensusBlock int64, cp *Con
 
 		ctx := context.Background()
 		bOff := retry.Exponential()
-		maxAttempts := 2
-		retry.Do(ctx, maxAttempts, bOff, func() (bool, error) {
+		retry.Do(ctx, consensusMaxRetries, bOff, func() (bool, error) {
 			retries += 1
 			consensusBlock = int64(cp.GetLatestBlockNumber())
 			if requestedBlock > consensusBlock {

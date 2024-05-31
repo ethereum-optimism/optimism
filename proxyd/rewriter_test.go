@@ -688,10 +688,10 @@ func TestOutdatedRewriteContext(t *testing.T) {
 	cp.tracker.SetLatestBlockNumber(hexutil.Uint64(100))
 	tests := []rewriteTest{
 		{
-			name: "eth_getBlockByNumber with enabled consensusPollerRetry, requested block 100",
+			name: "eth_getBlockByNumber with enabled consensus_max_retries > 0, requested block 100",
 			args: args{
 				// RewriteContext is still at block 99
-				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusPollerRetry: true},
+				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusMaxRetries: 1},
 				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{hexutil.Uint64(100).String()})},
 				res:  nil,
 			},
@@ -705,10 +705,10 @@ func TestOutdatedRewriteContext(t *testing.T) {
 			},
 		},
 		{
-			name: "eth_getBlockByNumber with disabled consensusPollerRetry, requested block 100",
+			name: "eth_getBlockByNumber with consensus_max_retries == 0, requested block 100",
 			args: args{
 				// RewriteContext is still at block 99
-				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusPollerRetry: false},
+				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusMaxRetries: 0},
 				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{hexutil.Uint64(100).String()})},
 				res:  nil,
 			},
@@ -716,10 +716,10 @@ func TestOutdatedRewriteContext(t *testing.T) {
 			expectedErr: ErrRewriteBlockOutOfRange,
 		},
 		{
-			name: "eth_getBlockByNumber with enabled consensusPollerRetry, requested block 101",
+			name: "eth_getBlockByNumber with consensus_max_retries > 0, requested block 101",
 			args: args{
 				// RewriteContext is still at block 99
-				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusPollerRetry: true},
+				rctx: RewriteContext{latest: hexutil.Uint64(99), cp: cp, consensusMaxRetries: 1},
 				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{hexutil.Uint64(101).String()})},
 				res:  nil,
 			},
