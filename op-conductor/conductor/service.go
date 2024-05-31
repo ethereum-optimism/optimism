@@ -72,6 +72,7 @@ func NewOpConductor(
 		ctrl:         ctrl,
 		cons:         cons,
 		hmon:         hmon,
+		retryBackoff: func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
 	}
 	oc.loopActionFn = oc.loopAction
 
@@ -280,6 +281,8 @@ type OpConductor struct {
 
 	rpcServer     *oprpc.Server
 	metricsServer *httputil.HTTPServer
+
+	retryBackoff func() time.Duration
 }
 
 type state struct {
@@ -642,8 +645,7 @@ func (oc *OpConductor) action() {
 	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
 		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
-		// randomly sleep for 0-200ms to avoid excessive retry
-		time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
+		time.Sleep(oc.retryBackoff())
 		oc.queueAction()
 		return
 	}
