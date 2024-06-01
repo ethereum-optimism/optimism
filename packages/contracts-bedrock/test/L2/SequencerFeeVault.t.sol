@@ -69,19 +69,10 @@ contract SequencerFeeVault_Test is CommonTest {
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, recipient, address(this));
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
-        emit Withdrawal(
-            address(sequencerFeeVault).balance,
-            recipient,
-            address(this),
-            FeeVault.WithdrawalNetwork.L1
-        );
+        emit Withdrawal(address(sequencerFeeVault).balance, recipient, address(this), FeeVault.WithdrawalNetwork.L1);
 
         // The entire vault's balance is withdrawn
-        vm.expectCall(
-            Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            address(sequencerFeeVault).balance,
-            hex""
-        );
+        vm.expectCall(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(sequencerFeeVault).balance, hex"");
 
         // The message is passed to the correct recipient
         vm.expectEmit(Predeploys.L2_TO_L1_MESSAGE_PASSER);

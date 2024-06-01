@@ -47,23 +47,13 @@ contract SafeCall_Test is Test {
 
     /// @dev Tests that the `send` function succeeds.
     function testFuzz_send_succeeds(address _from, address _to, uint256 _gas) external {
-        sendTest({
-            _from: _from,
-            _to: _to,
-            _gas: _gas,
-            _value: 0
-        });
+        sendTest({ _from: _from, _to: _to, _gas: _gas, _value: 0 });
     }
 
     /// @dev Tests that the `send` function with value succeeds.
     function testFuzz_sendWithValue_succeeds(address _from, address _to, uint256 _gas, uint64 _value) external {
         vm.assume(_value != 0);
-        sendTest({
-            _from: _from,
-            _to: _to,
-            _gas: _gas,
-            _value: _value
-        });
+        sendTest({ _from: _from, _to: _to, _gas: _gas, _value: _value });
     }
 
     /// @dev Tests that `call` succeeds.
