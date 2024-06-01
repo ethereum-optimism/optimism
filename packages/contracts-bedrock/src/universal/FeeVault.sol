@@ -18,19 +18,31 @@ abstract contract FeeVault {
     }
 
     /// @notice Minimum balance before a withdrawal can be triggered.
+    ///         Use the `minWithdrawalAmount()` getter as this is deprecated
+    ///         and is subject to be removed in the future.
+    /// @custom:legacy
     uint256 public immutable MIN_WITHDRAWAL_AMOUNT;
 
-    /// @notice Wallet that will receive the fees.
+    /// @notice Account that will receive the fees. Can be located on L1 or L2.
+    ///         Use the `recipient()` getter as this is deprecated
+    ///         and is subject to be removed in the future.
+    /// @custom:legacy
     address public immutable RECIPIENT;
 
-    /// @notice Network which the RECIPIENT will receive fees on.
+    /// @notice Network which the recipient will receive fees on.
+    ///         Use the `withdrawalNetwork()` getter as this is deprecated
+    ///         and is subject to be removed in the future.
+    /// @custom:legacy
     WithdrawalNetwork public immutable WITHDRAWAL_NETWORK;
 
     /// @notice The minimum gas limit for the FeeVault withdrawal transaction.
-    uint32 internal constant WITHDRAWAL_MIN_GAS = 300_000;
+    uint32 internal constant WITHDRAWAL_MIN_GAS = 400_000;
 
     /// @notice Total amount of wei processed by the contract.
     uint256 public totalProcessed;
+
+    /// @notice Reserve extra slots in the storage layout for future upgrades.
+    uint256[49] private __gap;
 
     /// @notice Emitted each time a withdrawal occurs. This event will be deprecated
     ///         in favor of the Withdrawal event containing the WithdrawalNetwork parameter.
@@ -57,6 +69,21 @@ abstract contract FeeVault {
 
     /// @notice Allow the contract to receive ETH.
     receive() external payable { }
+
+    /// @notice Minimum balance before a withdrawal can be triggered.
+    function minWithdrawalAmount() public returns (uint256 amount_) {
+        amount_ = MIN_WITHDRAWAL_AMOUNT;
+    }
+
+    /// @notice Account that will receive the fees. Can be located on L1 or L2.
+    function recipient() public returns (address recipient_) {
+        recipient_ = RECIPIENT;
+    }
+
+    /// @notice Network which the recipient will receive fees on.
+    function withdrawalNetwork() public returns (WithdrawalNetwork network_) {
+        network_ = WITHDRAWAL_NETWORK;
+    }
 
     /// @notice Triggers a withdrawal of funds to the fee wallet on L1 or L2.
     function withdraw() external {
