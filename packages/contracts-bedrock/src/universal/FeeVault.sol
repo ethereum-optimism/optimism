@@ -71,17 +71,17 @@ abstract contract FeeVault {
     receive() external payable { }
 
     /// @notice Minimum balance before a withdrawal can be triggered.
-    function minWithdrawalAmount() public returns (uint256 amount_) {
+    function minWithdrawalAmount() public view returns (uint256 amount_) {
         amount_ = MIN_WITHDRAWAL_AMOUNT;
     }
 
     /// @notice Account that will receive the fees. Can be located on L1 or L2.
-    function recipient() public returns (address recipient_) {
+    function recipient() public view returns (address recipient_) {
         recipient_ = RECIPIENT;
     }
 
     /// @notice Network which the recipient will receive fees on.
-    function withdrawalNetwork() public returns (WithdrawalNetwork network_) {
+    function withdrawalNetwork() public view returns (WithdrawalNetwork network_) {
         network_ = WITHDRAWAL_NETWORK;
     }
 
