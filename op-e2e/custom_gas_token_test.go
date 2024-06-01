@@ -200,16 +200,26 @@ func TestCustomGasToken(t *testing.T) {
 		require.Equal(t, withdrawAmount, diff)
 	}
 
+	// checkFeeWithdrawal ensures that the FeeVault can be withdrawn from
 	checkFeeWithdrawal := func(t *testing.T, enabled bool) {
 		feeVault, err := bindings.NewSequencerFeeVault(predeploys.SequencerFeeVaultAddr, l2Client)
 		require.NoError(t, err)
 
-		l2opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L2ChainIDBig())
+		// Alice will be sending transactions
+		aliceOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L2ChainIDBig())
 		require.NoError(t, err)
 
+		// Get the recipient of the funds
 		recipient, err := feeVault.RECIPIENT(&bind.CallOpts{})
 		require.NoError(t, err)
 
+		// This test depends on the withdrawal network being L1 which is represented
+		// by 0 in the enum.
+		withdrawalNetwork, err := feeVault.WITHDRAWALNETWORK(&bind.CallOpts{})
+		require.NoError(t, err)
+		require.Equal(t, withdrawalNetwork, uint8(0))
+
+		// Get the balance of the recipient on L1
 		var recipientBalanceBefore *big.Int
 		if enabled {
 			recipientBalanceBefore, err = weth9.BalanceOf(&bind.CallOpts{}, recipient)
@@ -218,12 +228,16 @@ func TestCustomGasToken(t *testing.T) {
 		}
 		require.NoError(t, err)
 
+		// Get the min withdrawal amount for the FeeVault
 		amount, err := feeVault.MINWITHDRAWALAMOUNT(&bind.CallOpts{})
 		require.NoError(t, err)
 
 		l1opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L1ChainIDBig())
 		require.NoError(t, err)
+		// Alice deposits funds
 		if enabled {
+			// approve + transferFrom flow
+			// Cannot use `transfer` because of the tracking of balance in the OptimismPortal
 			depositAmount := new(big.Int).Mul(amount, big.NewInt(4))
 			l1opts.Value = depositAmount
 			dep, err := weth9.Deposit(l1opts)
@@ -238,6 +252,7 @@ func TestCustomGasToken(t *testing.T) {
 			deposit, err := optimismPortal.DepositERC20Transaction(l1opts, cfg.Secrets.Addresses().Alice, depositAmount, depositAmount, 500_000, false, []byte{})
 			waitForTx(t, deposit, err, l1Client)
 		} else {
+			// send ether to the portal directly, alice already has funds on L2
 			optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
 			require.NoError(t, err)
 			l1opts.Value = new(big.Int).Mul(amount, big.NewInt(2))
@@ -245,23 +260,34 @@ func TestCustomGasToken(t *testing.T) {
 			waitForTx(t, tx, err, l1Client)
 		}
 
+		// Get Alice's balance on L2
 		aliceBalance, err := l2Client.BalanceAt(context.Background(), cfg.Secrets.Addresses().Alice, nil)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, aliceBalance.Uint64(), uint64(0))
 
-		l2opts.Value = amount
-		feeVaultTx, err := feeVault.Receive(l2opts)
+		// Send funds to the FeeVault so its balance is above the min withdrawal amount
+		aliceOpts.Value = amount
+		feeVaultTx, err := feeVault.Receive(aliceOpts)
 		waitForTx(t, feeVaultTx, err, l2Client)
 
+		// Ensure that the balance of the vault is large enough to withdraw
 		vaultBalance, err := l2Client.BalanceAt(context.Background(), predeploys.SequencerFeeVaultAddr, nil)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, vaultBalance.Uint64(), amount.Uint64())
 
-		l2opts.Value = nil
-		withdrawal, err := feeVault.Withdraw(l2opts)
-		waitForTx(t, withdrawal, err, l2Client)
+		// Ensure there is code at the vault address
+		code, err := l2Client.CodeAt(context.Background(), predeploys.SequencerFeeVaultAddr, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, code)
 
-		receipt, err := l2Client.TransactionReceipt(context.Background(), withdrawal.Hash())
+		// Poke the fee vault to withdraw
+		l2Opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Bob, cfg.L2ChainIDBig())
+		require.NoError(t, err)
+		withdrawalTx, err := feeVault.Withdraw(l2Opts)
+		waitForTx(t, withdrawalTx, err, l2Client)
+
+		// Get the receipt and the amount withdrawn
+		receipt, err := l2Client.TransactionReceipt(context.Background(), withdrawalTx.Hash())
 		require.NoError(t, err)
 
 		inclusionHeight := receipt.BlockNumber.Uint64()
@@ -274,6 +300,7 @@ func TestCustomGasToken(t *testing.T) {
 
 		withdrawnAmount := it.Event.Value
 
+		// Finalize the withdrawal
 		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", cfg.Secrets.Alice, receipt)
 		require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 		require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
@@ -282,6 +309,7 @@ func TestCustomGasToken(t *testing.T) {
 			require.Equal(t, types.ReceiptStatusSuccessful, resolveReceipt.Status)
 		}
 
+		// Assert that the recipient's balance did increase
 		var recipientBalanceAfter *big.Int
 		if enabled {
 			recipientBalanceAfter, err = weth9.BalanceOf(&bind.CallOpts{}, recipient)
@@ -372,6 +400,7 @@ func TestCustomGasToken(t *testing.T) {
 	checkL2TokenNameAndSymbol(t, enabled)
 	checkWETHTokenNameAndSymbol(t, enabled)
 	checkFeeWithdrawal(t, enabled)
+
 	// Activate custom gas token feature (devnet does not have this activated at genesis)
 	setCustomGasToken(t, cfg, sys, weth9Address)
 

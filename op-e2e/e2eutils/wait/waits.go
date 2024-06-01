@@ -50,7 +50,7 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 		if errors.Is(err, ethereum.NotFound) || (err != nil && strings.Contains(err.Error(), "transaction indexing is in progress")) {
 			select {
 			case <-ctx.Done():
-				return nil, fmt.Errorf("timed out waiting for tx %s: %w", hash, ctx.Err())
+				return nil, fmt.Errorf("timed out waiting for tx %s: %w: %w", hash, err, ctx.Err())
 			case <-ticker.C:
 				continue
 			}
