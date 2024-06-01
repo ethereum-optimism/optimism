@@ -28,14 +28,13 @@ contract SequencerFeeVault_Test is CommonTest {
         recipient = deploy.cfg().sequencerFeeVaultRecipient();
     }
 
-    /// @dev Tests that the minimum withdrawal amount is correct.
-    function test_minWithdrawalAmount_succeeds() external view {
-        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
-    }
-
     /// @dev Tests that the l1 fee wallet is correct.
     function test_constructor_succeeds() external view {
         assertEq(sequencerFeeVault.l1FeeWallet(), recipient);
+        assertEq(sequencerFeeVault.recipient(), recipient);
+        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
+        assertEq(sequencerFeeVault.minWithdrawalAmount(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(FeeVault.WithdrawalNetwork.L1));
     }
 
     /// @dev Tests that the fee vault is able to receive ETH.
@@ -89,7 +88,7 @@ contract SequencerFeeVault_Test is CommonTest {
                     sender: address(sequencerFeeVault),
                     target: recipient,
                     value: amount,
-                    gasLimit: 300_000,
+                    gasLimit: 400_000,
                     data: hex""
                 })
             )
