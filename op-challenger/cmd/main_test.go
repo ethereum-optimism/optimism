@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/superchain-registry/superchain"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -144,8 +145,8 @@ func TestMultipleTraceTypes(t *testing.T) {
 }
 
 func TestGameFactoryAddress(t *testing.T) {
-	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag game-factory-address is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address"))
+	t.Run("RequiredWhenNetworkNotSupplied", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag game-factory-address or network is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
@@ -156,6 +157,18 @@ func TestGameFactoryAddress(t *testing.T) {
 
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--game-factory-address=foo"))
+	})
+}
+
+func TestNetwork(t *testing.T) {
+	t.Run("Valid", func(t *testing.T) {
+		opSepoliaChainId := uint64(11155420)
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--network=op-sepolia"))
+		require.EqualValues(t, superchain.Addresses[opSepoliaChainId].DisputeGameFactoryProxy, cfg.GameFactoryAddress)
+	})
+
+	t.Run("UnknownNetwork", func(t *testing.T) {
+		verifyArgsInvalid(t, "unknown chain: not-a-network", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--network=not-a-network"))
 	})
 }
 
