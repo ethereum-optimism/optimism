@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -176,7 +177,9 @@ func execute(binPath string, config external.Config) (*gethSession, error) {
 		}
 		var authString string
 		var port int
-		fmt.Fscanf(sess.Err, "%d %s", &port, &authString)
+		if _, err := fmt.Fscanf(sess.Err, "%d %s", &port, &authString); err != nil && !errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("error while reading auth string: %w", err)
+		}
 		switch authString {
 		case "auth=true":
 			enginePort = port
