@@ -132,8 +132,6 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
     if DEVNET_FPAC:
         deploy_config['useFaultProofs'] = True
-        deploy_config['faultGameMaxClockDuration'] = 10
-        deploy_config['faultGameWithdrawalDelay'] = 0
     if DEVNET_PLASMA:
         deploy_config['usePlasma'] = True
     if GENERIC_PLASMA:
@@ -269,7 +267,7 @@ def devnet_deploy(paths):
     # Must be done selectively because op-proposer throws if both are set.
     if DEVNET_FPAC:
         docker_env['DGF_ADDRESS'] = dispute_game_factory
-        docker_env['DG_TYPE'] = '0'
+        docker_env['DG_TYPE'] = '254'
         docker_env['PROPOSAL_INTERVAL'] = '10s'
     else:
         docker_env['L2OO_ADDRESS'] = l2_output_oracle
