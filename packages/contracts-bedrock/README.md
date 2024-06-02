@@ -288,6 +288,8 @@ DEPLOY_CONFIG_PATH=<PATH_TO_MY_DEPLOY_CONFIG> \
 The `IMPL_SALT` env var can be used to set the `create2` salt for deploying the implementation
 contracts.
 
+The `MAX_GAS_LIMIT` value in the SystemConfig.sol file must be greater than the `l2GenesisBlockGasLimit` value in the DEPLOY_CONFIG_PATH file.
+
 This will deploy an entire new system of L1 smart contracts including a new `SuperchainConfig`.
 In the future there will be an easy way to deploy only proxies and use shared implementations
 for each of the contracts as well as a shared `SuperchainConfig` contract.
