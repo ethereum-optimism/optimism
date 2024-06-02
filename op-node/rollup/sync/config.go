@@ -15,15 +15,17 @@ type Mode int
 const (
 	CLSync Mode = iota
 	ELSync
+	ForceELSync
 )
 
 const (
-	CLSyncString string = "consensus-layer"
-	ELSyncString string = "execution-layer"
+	CLSyncString      string = "consensus-layer"
+	ELSyncString      string = "execution-layer"
+	ForceELSyncString string = "force-execution-layer"
 )
 
-var Modes = []Mode{CLSync, ELSync}
-var ModeStrings = []string{CLSyncString, ELSyncString}
+var Modes = []Mode{CLSync, ELSync, ForceELSync}
+var ModeStrings = []string{CLSyncString, ELSyncString, ForceELSyncString}
 
 func StringToMode(s string) (Mode, error) {
 	switch strings.ToLower(s) {
@@ -31,6 +33,8 @@ func StringToMode(s string) (Mode, error) {
 		return CLSync, nil
 	case ELSyncString:
 		return ELSync, nil
+	case ForceELSyncString:
+		return ForceELSync, nil
 	default:
 		return 0, fmt.Errorf("unknown sync mode: %s", s)
 	}
@@ -42,6 +46,8 @@ func (m Mode) String() string {
 		return CLSyncString
 	case ELSync:
 		return ELSyncString
+	case ForceELSync:
+		return ForceELSyncString
 	default:
 		return "unknown"
 	}
@@ -59,6 +65,10 @@ func (m *Mode) Set(value string) error {
 func (m *Mode) Clone() any {
 	cpy := *m
 	return &cpy
+}
+
+func (m Mode) IsELSync() bool {
+	return m == ELSync || m == ForceELSync
 }
 
 type Config struct {
