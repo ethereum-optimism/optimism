@@ -80,7 +80,7 @@ contract SequencerFeeVault_Test is CommonTest {
             address(sequencerFeeVault),
             recipient,
             amount,
-            300_000,
+            400_000,
             hex"",
             Hashing.hashWithdrawal(
                 Types.WithdrawalTransaction({
