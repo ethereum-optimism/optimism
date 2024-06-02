@@ -2,6 +2,7 @@ package disputegame
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/binary"
 	"math/big"
 	"testing"
@@ -88,6 +89,7 @@ type FactoryHelper struct {
 	System      DisputeSystem
 	Client      *ethclient.Client
 	Opts        *bind.TransactOpts
+	PrivKey     *ecdsa.PrivateKey
 	FactoryAddr common.Address
 	Factory     *bindings.DisputeGameFactory
 }
@@ -97,7 +99,8 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 	client := system.NodeClient("l1")
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
-	opts, err := bind.NewKeyedTransactorWithChainID(TestKey, chainID)
+	privKey := TestKey
+	opts, err := bind.NewKeyedTransactorWithChainID(privKey, chainID)
 	require.NoError(err)
 
 	l1Deployments := system.L1Deployments()
@@ -111,6 +114,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 		System:      system,
 		Client:      client,
 		Opts:        opts,
+		PrivKey:     privKey,
 		Factory:     factory,
 		FactoryAddr: factoryAddr,
 	}
@@ -167,8 +171,6 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.Require.Len(rcpt.Logs, 2, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.Factory.ParseDisputeGameCreated(*rcpt.Logs[1])
 	h.Require.NoError(err)
-	gameBindings, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.Client)
-	h.Require.NoError(err)
 	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
@@ -182,7 +184,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 
 	return &OutputCannonGameHelper{
-		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, game, gameBindings, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
+		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
 	}
 }
 
@@ -223,8 +225,6 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.Require.Len(rcpt.Logs, 2, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.Factory.ParseDisputeGameCreated(*rcpt.Logs[1])
 	h.Require.NoError(err)
-	gameBindings, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.Client)
-	h.Require.NoError(err)
 	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
@@ -238,7 +238,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 
 	return &OutputAlphabetGameHelper{
-		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, game, gameBindings, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
+		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
 	}
 }
 
