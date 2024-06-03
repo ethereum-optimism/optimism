@@ -60,12 +60,19 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    ) internal view override returns (bool) {
+    )
+        internal
+        view
+        override
+        returns (bool)
+    {
         address l2MessageValidator = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l2MessageValidator();
         if (l2MessageValidator == address(0)) {
             return true;
         }
-        return IL2MessageValidator(l2MessageValidator).validateMessage(_nonce, _sender, _target, _value, _minGasLimit, _message);
+        return IL2MessageValidator(l2MessageValidator).validateMessage(
+            _nonce, _sender, _target, _value, _minGasLimit, _message
+        );
     }
 
     /// @inheritdoc CrossDomainMessenger

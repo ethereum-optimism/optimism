@@ -18,5 +18,8 @@ interface IL2MessageValidator {
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    ) external view returns (bool);
+    )
+        external
+        view
+        returns (bool);
 }

@@ -8,7 +8,9 @@ import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
-import { AdditionalMessageValidators, IAdditionalMessageValidators } from "src/libraries/AdditionalMessageValidators.sol";
+import {
+    AdditionalMessageValidators, IAdditionalMessageValidators
+} from "src/libraries/AdditionalMessageValidators.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title SystemConfig
@@ -331,14 +333,16 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken, IAdditionalMess
 
     /// @notice Setter for additional message validators. Can only be called by the owner.
     /// @param _l1MessageValidator Address static called in the OptimismPortal for additional message validation.
-    /// @param _l2MessageValidator Address static called in the L2CrossDomainMessenger for additional message validation.
+    /// @param _l2MessageValidator Address static called in the L2CrossDomainMessenger for additional message
+    /// validation.
     function setMessageValidators(address _l1MessageValidator, address _l2MessageValidator) external onlyOwner {
-       _setMessageValidators(_l1MessageValidator, _l2MessageValidator);
+        _setMessageValidators(_l1MessageValidator, _l2MessageValidator);
     }
 
     /// @notice Internal setter for additional message validators.
     /// @param _l1MessageValidator Address static called in the OptimismPortal for additional message validation.
-    /// @param _l2MessageValidator Address static called in the L2CrossDomainMessenger for additional message validation.
+    /// @param _l2MessageValidator Address static called in the L2CrossDomainMessenger for additional message
+    /// validation.
     function _setMessageValidators(address _l1MessageValidator, address _l2MessageValidator) internal virtual {
         // Set the message validators in storage and in the OptimismPortal.
         AdditionalMessageValidators.set(_l1MessageValidator, _l2MessageValidator);

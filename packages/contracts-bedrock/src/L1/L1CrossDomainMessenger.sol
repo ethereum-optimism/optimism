@@ -62,13 +62,18 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function passesDomainMessageValidator(
-        uint256 /* _nonce */,
-        address /* _sender */,
-        address /* _target */,
-        uint256 /* _value */,
-        uint256 /* _minGasLimit */,
+        uint256, /* _nonce */
+        address, /* _sender */
+        address, /* _target */
+        uint256, /* _value */
+        uint256, /* _minGasLimit */
         bytes calldata /* _message */
-    ) internal pure override returns (bool) {
+    )
+        internal
+        pure
+        override
+        returns (bool)
+    {
         return true;
     }
 

@@ -270,7 +270,7 @@ abstract contract CrossDomainMessenger is
         // perform additional checks through the L2MessageValidator.
         // TODO: add min gas checking functionality
         if (
-                !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER)
+            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER)
                 || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
                 || !passesDomainMessageValidator(_nonce, _sender, _target, _value, _minGasLimit, _message)
         ) {
@@ -388,7 +388,11 @@ abstract contract CrossDomainMessenger is
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    ) internal view virtual returns (bool);
+    )
+        internal
+        view
+        virtual
+        returns (bool);
 
     /// @notice Initializer.
     /// @param _otherMessenger CrossDomainMessenger contract on the other chain.

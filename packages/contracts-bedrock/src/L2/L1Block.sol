@@ -4,7 +4,9 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
-import { AdditionalMessageValidators, IAdditionalMessageValidators } from "src/libraries/AdditionalMessageValidators.sol";
+import {
+    AdditionalMessageValidators, IAdditionalMessageValidators
+} from "src/libraries/AdditionalMessageValidators.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied
@@ -197,6 +199,6 @@ contract L1Block is ISemver, IGasToken, IAdditionalMessageValidators {
 
         AdditionalMessageValidators.set(_l1MessageValidator, _l2MessageValidator);
 
-        emit MessageValidatorsSet({ l1MessageValidator: _l1MessageValidator, l2MessageValidator: _l2MessageValidator});
+        emit MessageValidatorsSet({ l1MessageValidator: _l1MessageValidator, l2MessageValidator: _l2MessageValidator });
     }
 }
