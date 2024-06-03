@@ -160,7 +160,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		}
 	}
 
-	dataPending := firstWithTxData != nil && firstWithTxData.HasTxData(s.closed)
+	dataPending := firstWithTxData != nil
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", len(s.blocks))
 
 	// Short circuit if there is pending tx data or the channel manager is closed.
