@@ -257,23 +257,27 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
       const hash = event.args.withdrawalHash
       const exists = await this.state.messenger.sentMessages(hash)
 
+      const block = await event.getBlock()
+      const ts = `${dateformat(
+        new Date(block.timestamp * 1000),
+        'mmmm dS, yyyy, h:MM:ss TT',
+        true
+      )} UTC`
+
       // Hopefully the withdrawal exists!
       if (exists) {
         // Unlike below we don't grab the timestamp here because it adds an unnecessary request.
         this.logger.info(`valid withdrawal`, {
           withdrawalHash: event.args.withdrawalHash,
+          provenAt: ts,
+          blockNumber: block.number,
+          transaction: event.transactionHash,
         })
 
         // Bump the withdrawals metric so we can keep track.
         this.metrics.withdrawalsValidated.inc()
       } else {
         // Grab and format the timestamp so it's clear how much time is left.
-        const block = await event.getBlock()
-        const ts = `${dateformat(
-          new Date(block.timestamp * 1000),
-          'mmmm dS, yyyy, h:MM:ss TT',
-          true
-        )} UTC`
 
         // Uh oh!
         this.logger.error(`withdrawalHash not seen on L2`, {
