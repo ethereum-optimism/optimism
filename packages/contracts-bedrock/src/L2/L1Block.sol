@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import { AdditionalMessageValidators, IAdditionalMessageValidators } from "src/libraries/AdditionalMessageValidators.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied
@@ -13,7 +14,10 @@ import "src/libraries/L1BlockErrors.sol";
 ///         Values within this contract are updated once per epoch (every L1 block) and can only be
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
-contract L1Block is ISemver, IGasToken {
+contract L1Block is ISemver, IGasToken, IAdditionalMessageValidators {
+    /// @notice Event emitted when additional message validation is set.
+    event MessageValidatorsSet(address indexed l1MessageValidator, address indexed l2MessageValidator);
+
     /// @notice Event emitted when the gas paying token is set.
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
 
@@ -60,6 +64,28 @@ contract L1Block is ISemver, IGasToken {
     /// @custom:semver 1.4.1-beta.1
     function version() public pure virtual returns (string memory) {
         return "1.4.1-beta.1";
+    }
+
+    /// @notice Returns the L1MessageValidator address called from the OptimismPortal.
+    ///         If nothing is set in state, then it means there is no additional message
+    ///         message validation being used.
+    function l1MessageValidator() public view returns (address addr_) {
+        addr_ = AdditionalMessageValidators.getL1MessageValidator();
+    }
+
+    /// @notice Returns the L2MessageValidator address called from the L2CrossDomainMessenger.
+    ///         If nothing is set in state, then it means there is no additional message
+    ///         message validation being used.
+    function l2MessageValidator() public view returns (address addr_) {
+        addr_ = AdditionalMessageValidators.getL2MessageValidator();
+    }
+
+    /// @notice Returns a bool indicating if the network is using additional
+    ///         message validators on either L1 or L2.
+    function isAdditionalMessageValidating() public view returns (bool) {
+        bool l1MessageValidatorSet = l1MessageValidator() != address(0);
+        bool l2MessageValidatorSet = l2MessageValidator() != address(0);
+        return l1MessageValidatorSet || l2MessageValidatorSet;
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -161,5 +187,16 @@ contract L1Block is ISemver, IGasToken {
         GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
 
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
+    }
+
+    /// @notice Sets the additional message validators for the L2 system. Can only be called by the special
+    ///         depositor account. This function is not called on every L2 block but instead
+    ///         only called by specially crafted L1 deposit transactions.
+    function setMessageValidators(address _l1MessageValidator, address _l2MessageValidator) external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        AdditionalMessageValidators.set(_l1MessageValidator, _l2MessageValidator);
+
+        emit MessageValidatorsSet({ l1MessageValidator: _l1MessageValidator, l2MessageValidator: _l2MessageValidator});
     }
 }

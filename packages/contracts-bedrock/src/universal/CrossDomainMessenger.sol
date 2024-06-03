@@ -264,9 +264,15 @@ abstract contract CrossDomainMessenger is
         //
         // If `xDomainMsgSender` is not the default L2 sender, this function
         // is being re-entered. This marks the message as failed to allow it to be replayed.
+        //
+        // During forced L1 -> L2 messages we check to make sure any (additional) message validation
+        // is passed. On L1, this MUST always return true without additional checks. On L2, this may
+        // perform additional checks through the L2MessageValidator.
+        // TODO: add min gas checking functionality
         if (
-            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER)
+                !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER)
                 || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
+                || !passesDomainMessageValidator(_nonce, _sender, _target, _value, _minGasLimit, _message)
         ) {
             failedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
@@ -370,6 +376,19 @@ abstract contract CrossDomainMessenger is
         (address token,) = gasPayingToken();
         return token != Constants.ETHER;
     }
+
+    /// @notice Returns whether or not the additional message validator passes for a given message.
+    ///         On L1, this should always be true.
+    ///         On L2, forced L1 -> L2 messages may go through additional validation if enabled
+    ///         by the system config.
+    function passesDomainMessageValidator(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _minGasLimit,
+        bytes calldata _message
+    ) internal view virtual returns (bool);
 
     /// @notice Initializer.
     /// @param _otherMessenger CrossDomainMessenger contract on the other chain.

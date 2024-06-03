@@ -174,11 +174,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         }
     }
 
-    /// @notice Returns the address of the (optional) L1MessageValidator.
-    function l1MessageValidator() internal view returns (address addr_) {
-        addr_ = systemConfig.l1MessageValidator();
-    }
-
     /// @notice Getter function for the address of the guardian.
     ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.guardian()` instead.
     /// @return Address of the guardian.
@@ -222,6 +217,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Returns the gas paying token and its decimals.
     function gasPayingToken() internal view returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = systemConfig.gasPayingToken();
+    }
+
+    /// @notice Returns the address of the (optional) L1MessageValidator.
+    function l1MessageValidator() internal view returns (address addr_) {
+        addr_ = systemConfig.l1MessageValidator();
     }
 
     /// @notice Getter for the resource config.
@@ -570,6 +570,31 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+    }
+
+    /// @notice Sets additional message validators for the L2 system. Only the SystemConfig contract
+    ///         can call this function.
+    function setMessageValidators(address _l1MessageValidator, address _l2MessageValidator) external {
+        if (msg.sender != address(systemConfig)) revert Unauthorized();
+
+        // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
+        // This value must be large enough to cover the cost of calling `L1Block.setMessageValidators`.
+        useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
+
+        // Emit the special deposit transaction directly that sets the additional message validators
+        // in the L1Block predeploy contract.
+        emit TransactionDeposited(
+            Constants.DEPOSITOR_ACCOUNT,
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            DEPOSIT_VERSION,
+            abi.encodePacked(
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
+                false, // isCreation,
+                abi.encodeCall(L1Block.setMessageValidators, (_l1MessageValidator, _l2MessageValidator))
+            )
+        );
     }
 
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
