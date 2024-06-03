@@ -154,7 +154,7 @@ func registerAlphabet(
 		startingValidator := NewPrestateValidator("output root", contract.GetStartingRootHash, prestateProvider)
 		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, startingValidator}, creator, l1HeaderSource, selective, claimants)
 	}
-	err := registerOracle(ctx, m, oracles, gameFactory, caller, faultTypes.AlphabetGameType)
+	err := registerOracle(ctx, m, oracles, gameFactory, caller, gameType)
 	if err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func registerAlphabet(
 	contractCreator := func(game types.GameMetadata) (claims.BondContract, error) {
 		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
 	}
-	registry.RegisterBondContract(faultTypes.AlphabetGameType, contractCreator)
+	registry.RegisterBondContract(gameType, contractCreator)
 	return nil
 }
 
