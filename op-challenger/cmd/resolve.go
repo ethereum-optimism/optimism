@@ -12,7 +12,7 @@ import (
 )
 
 func Resolve(ctx *cli.Context) error {
-	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, GameAddressFlag.Name, contracts.NewFaultDisputeGameContract)
+	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, AddrFromFlag(GameAddressFlag.Name), contracts.NewFaultDisputeGameContract)
 	if err != nil {
 		return fmt.Errorf("failed to create dispute game bindings: %w", err)
 	}
