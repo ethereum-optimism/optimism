@@ -15,7 +15,7 @@ A[Bundler] -- method --> B[Offchain Handler] -- update --> D[Smart Contract]
 
 ### About Hybrid Compute
 
-This are some basic information that might give you an easier time understanding this repository.
+These are some basic information that might give you an easier time understanding this repository.
 Hybrid Compute in the Boba Network allows smart contracts to interact with external data and services. Typically, smart
 contracts on blockchains like Ethereum are limited to the data available on the blockchain, unable to access outside
 information directly. Hybrid Compute changes this by enabling smart contracts to make API calls to external services.
