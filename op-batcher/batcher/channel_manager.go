@@ -135,7 +135,7 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 
 // nextTxData pops off s.datas & handles updating the internal state
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
-	if channel == nil || !channel.HasTxData() {
+	if channel == nil || !channel.HasTxData(s.closed) {
 		s.log.Trace("no next tx data")
 		return txData{}, io.EOF // TODO: not enough data error instead
 	}
@@ -154,13 +154,13 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	defer s.mu.Unlock()
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
-		if ch.HasTxData() {
+		if ch.HasTxData(s.closed) {
 			firstWithTxData = ch
 			break
 		}
 	}
 
-	dataPending := firstWithTxData != nil && firstWithTxData.HasTxData()
+	dataPending := firstWithTxData != nil && firstWithTxData.HasTxData(s.closed)
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", len(s.blocks))
 
 	// Short circuit if there is pending tx data or the channel manager is closed.
@@ -403,7 +403,7 @@ func (s *channelManager) Close() error {
 		}
 	}
 
-	if s.currentChannel.HasTxData() {
+	if s.currentChannel.HasTxData(s.closed) {
 		// Make it clear to the caller that there is remaining pending work.
 		return ErrPendingAfterClose
 	}

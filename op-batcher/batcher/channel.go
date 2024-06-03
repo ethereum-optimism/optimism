@@ -173,8 +173,8 @@ func (s *channel) NextTxData() txData {
 	return txdata
 }
 
-func (s *channel) HasTxData() bool {
-	if s.IsFull() || !s.cfg.MultiFrameTxs {
+func (s *channel) HasTxData(channelClosed bool) bool {
+	if channelClosed || s.IsFull() || !s.cfg.MultiFrameTxs {
 		return s.channelBuilder.HasFrame()
 	}
 	// collect enough frames if channel is not full yet

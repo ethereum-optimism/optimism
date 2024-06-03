@@ -136,7 +136,7 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 	ch.channelBuilder.PushFrames(mockframes[:n-1]...)
 
 	requireTxData := func(i int) {
-		require.True(ch.HasTxData(), "expected tx data %d", i)
+		require.True(ch.HasTxData(false), "expected tx data %d", i)
 		txdata := ch.NextTxData()
 		require.Len(txdata.frames, 1)
 		frame := txdata.frames[0]
@@ -148,14 +148,14 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 	for i := 0; i < n-1; i++ {
 		requireTxData(i)
 	}
-	require.False(ch.HasTxData())
+	require.False(ch.HasTxData(false))
 
 	// put in last two
 	ch.channelBuilder.PushFrames(mockframes[n-1 : n+1]...)
 	for i := n - 1; i < n+1; i++ {
 		requireTxData(i)
 	}
-	require.False(ch.HasTxData())
+	require.False(ch.HasTxData(false))
 }
 
 func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
@@ -175,11 +175,11 @@ func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 	mockframes := makeMockFrameDatas(chID, n+1)
 	// put multiple frames into channel, but less than target
 	ch.channelBuilder.PushFrames(mockframes[:n-1]...)
-	require.False(ch.HasTxData())
+	require.False(ch.HasTxData(false))
 
 	// put in last two
 	ch.channelBuilder.PushFrames(mockframes[n-1 : n+1]...)
-	require.True(ch.HasTxData())
+	require.True(ch.HasTxData(false))
 	txdata := ch.NextTxData()
 	require.Len(txdata.frames, n)
 	for i := 0; i < n; i++ {
@@ -188,7 +188,7 @@ func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 		require.EqualValues(i, frame.data[0])
 		require.Equal(frameID{chID: chID, frameNumber: uint16(i)}, frame.id)
 	}
-	require.False(ch.HasTxData(), "no tx data expected with single pending frame")
+	require.False(ch.HasTxData(false), "no tx data expected with single pending frame")
 }
 
 func makeMockFrameDatas(id derive.ChannelID, n int) []frameData {
