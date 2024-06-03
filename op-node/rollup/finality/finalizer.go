@@ -172,7 +172,7 @@ func (fi *Finalizer) tryFinalize(ctx context.Context) error {
 		// Sanity check the finality signal of L1.
 		// Even though the signal is trusted and we do the below check also,
 		// the signal itself has to be canonical to proceed.
-		// This check could be removed if the finality signal is fully trusted, and if tests were more flexible for this case.
+		// TODO(#10724): This check could be removed if the finality signal is fully trusted, and if tests were more flexible for this case.
 		signalRef, err := fi.l1Fetcher.L1BlockRefByNumber(ctx, fi.finalizedL1.Number)
 		if err != nil {
 			return derive.NewTemporaryError(fmt.Errorf("failed to check if on finalizing L1 chain, could not fetch block %d: %w", fi.finalizedL1.Number, err))
