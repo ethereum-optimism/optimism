@@ -282,6 +282,8 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
               withdrawalHash: event.args.withdrawalHash,
               provenAt: ts,
               disputeGameAddress: disputeGame.address,
+              blockNumber: block.number,
+              transaction: event.transactionHash,
             }
           )
         } else if (status === GameStatus.DEFENDER_WINS) {
@@ -291,6 +293,8 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
               withdrawalHash: event.args.withdrawalHash,
               provenAt: ts,
               disputeGameAddress: disputeGame.address,
+              blockNumber: block.number,
+              transaction: event.transactionHash,
             }
           )
           this.state.forgeryDetected = true
@@ -304,6 +308,8 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
               withdrawalHash: event.args.withdrawalHash,
               provenAt: ts,
               disputeGameAddress: disputeGame.address,
+              blockNumber: block.number,
+              transaction: event.transactionHash,
             }
           )
         }
@@ -440,6 +446,8 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
               withdrawalHash: event.args.withdrawalHash,
               provenAt: ts,
               disputeGameAddress: disputeGame.address,
+              blockNumber: block.number,
+              transaction: event.transactionHash,
             })
 
             // Bump the withdrawals metric so we can keep track.
@@ -454,6 +462,8 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
                 withdrawalHash: event.args.withdrawalHash,
                 provenAt: ts,
                 disputeGameAddress: disputeGame.address,
+                blockNumber: block.number,
+                transaction: event.transactionHash,
               }
             )
 

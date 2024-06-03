@@ -279,6 +279,8 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
         this.logger.error(`withdrawalHash not seen on L2`, {
           withdrawalHash: event.args.withdrawalHash,
           provenAt: ts,
+          blockNumber: block.number,
+          transaction: event.transactionHash,
         })
 
         // Change to forgery state.
