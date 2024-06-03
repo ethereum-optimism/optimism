@@ -1453,7 +1453,7 @@ contract Deploy is Deployer {
                 faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
                 maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
-                maxClockDuration: Duration.wrap(1) // Resolvable in the next block
+                maxClockDuration: Duration.wrap(0) // Resolvable immediately
              })
         });
     }
