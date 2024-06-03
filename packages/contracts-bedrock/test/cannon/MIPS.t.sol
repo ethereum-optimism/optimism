@@ -1531,6 +1531,25 @@ contract MIPS_Test is CommonTest {
         mips.step(encodeState(state), proof, 0);
     }
 
+    function test_invalid_root_different_leaf_fails() external {
+        uint32 insn = 0x0000000c; // syscall
+
+        // Initialize the state, though for the proof, use valid proofs for the instruction
+        // and the memory address, but for a different leaf that does not contain the
+        // instruction @ pc nor the memory address being read.
+        uint32 pc = 0;
+        MIPS.State memory state;
+        bytes memory proof;
+        (state.memRoot, proof) = ffi.getCannonMemoryProofWrongLeaf(pc, insn, 0x4, 0);
+        state.pc = pc;
+        state.nextPC = pc + 4;
+        state.registers[2] = 4246; // exit_group syscall
+        state.registers[4] = 0x5; // a0
+
+        vm.expectRevert(hex"000000000000000000000000000000000000000000000000000000000badf00d");
+        mips.step(encodeState(state), proof, 0);
+    }
+
     function test_jump_inDelaySlot_fails() external {
         uint16 label = 0x2;
         uint32 insn = uint32(0x08_00_00_00) | label; // j label
