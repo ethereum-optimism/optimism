@@ -549,7 +549,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			// Wait for the finalization period, then we can finalize this withdrawal.
 			require.NotEqual(t, cfg.L1Deployments.L2OutputOracleProxy, common.Address{})
 			var blockNumber uint64
-			if e2eutils.UseFPAC() {
+			if e2eutils.UseFaultProofs() {
 				blockNumber, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber)
 			} else {
 				blockNumber, err = wait.ForOutputRootPublished(ctx, l1Client, cfg.L1Deployments.L2OutputOracleProxy, receipt.BlockNumber)
@@ -655,7 +655,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 
-				if e2eutils.UseFPAC() {
+				if e2eutils.UseFaultProofs() {
 					// Start a challenger to resolve claims and games once the clock expires
 					factoryHelper := disputegame.NewFactoryHelper(t, ctx, sys)
 					factoryHelper.StartChallenger(ctx, "Challenger",
@@ -683,7 +683,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
 				ctx, withdrawalCancel := context.WithTimeout(context.Background(), 60*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer withdrawalCancel()
-				if e2eutils.UseFPAC() {
+				if e2eutils.UseFaultProofs() {
 					err = wait.ForWithdrawalCheck(ctx, l1Client, withdrawal, cfg.L1Deployments.OptimismPortalProxy, transactor.Account.L1Opts.From)
 					require.NoError(t, err)
 				} else {

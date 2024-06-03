@@ -23,7 +23,7 @@ import (
 )
 
 func TestCustomGasToken(t *testing.T) {
-	InitParallel(t, SkipOnFPAC) // Custom Gas Token feature is not yet compatible with FPAC
+	InitParallel(t, SkipOnFaultProofs) // Custom Gas Token feature is not yet compatible with fault proofs
 
 	cfg := DefaultSystemConfig(t)
 	offset := hexutil.Uint64(0)
@@ -175,7 +175,7 @@ func TestCustomGasToken(t *testing.T) {
 		proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
 		finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
 		fees = new(big.Int).Add(proveFee, finalizeFee)
-		if e2eutils.UseFPAC() {
+		if e2eutils.UseFaultProofs() {
 			resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
 			resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
 			fees = new(big.Int).Add(fees, resolveClaimFee)

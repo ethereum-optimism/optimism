@@ -419,7 +419,7 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 
 	var l2OutputBlockNr *big.Int
 	var l2OutputBlock *types.Block
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		latestGame, err := withdrawals.FindLatestGame(t.Ctx(), &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
 		require.NoError(t, err)
 		l2OutputBlockNr = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
@@ -436,7 +436,7 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 		return nil, fmt.Errorf("the latest L2 output is %d and is not past L2 block %d that includes the withdrawal yet, no withdrawal can be proved yet", l2OutputBlock.NumberU64(), l2WithdrawalBlock.NumberU64())
 	}
 
-	if !e2eutils.UseFPAC() {
+	if !e2eutils.UseFaultProofs() {
 		finalizationPeriod, err := s.L1.env.Bindings.L2OutputOracle.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
 		require.NoError(t, err)
 		l1Head, err := s.L1.env.EthCl.HeaderByNumber(t.Ctx(), nil)
