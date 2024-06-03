@@ -42,6 +42,8 @@ type Driver struct {
 
 	finalizer Finalizer
 
+	clSync CLSync
+
 	// The engine controller is used by the sequencer & derivation components.
 	// We will also use it for EL sync in a future PR.
 	engineController *derive.EngineController
@@ -334,7 +336,7 @@ func (s *Driver) eventLoop() {
 			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 			if s.syncCfg.SyncMode == sync.CLSync || !s.engineController.IsEngineSyncing() {
 				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-				s.derivation.AddUnsafePayload(envelope)
+				s.clSync.AddUnsafePayload(envelope)
 				s.metrics.RecordReceivedUnsafePayload(envelope)
 				reqStep()
 			} else if s.syncCfg.SyncMode == sync.ELSync {
@@ -372,9 +374,8 @@ func (s *Driver) eventLoop() {
 			if s.engineController.IsEngineSyncing() {
 				continue
 			}
-			s.metrics.SetDerivationIdle(false)
-			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
-			err := s.derivation.Step(s.driverCtx)
+			s.log.Debug("Sync process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
+			err := s.syncStep(s.driverCtx)
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin(), "err", err)
@@ -455,6 +456,28 @@ func (s *Driver) eventLoop() {
 			return
 		}
 	}
+}
+
+func (s *Driver) syncStep(ctx context.Context) error {
+	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
+	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
+	if fcuCalled, err := s.engineController.TryBackupUnsafeReorg(ctx); fcuCalled {
+		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
+		return err
+	}
+	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
+	// perform a network call, then we should yield even if we did not encounter an error.
+	if err := s.engineController.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+		return err
+	}
+	// Trying unsafe payload should be done before safe attributes
+	// It allows the unsafe head to move forward while the long-range consolidation is in progress.
+	if err := s.clSync.Proceed(ctx); err != io.EOF {
+		// EOF error means we can't process the next unsafe payload. Then we should process next safe attributes.
+		return err
+	}
+	s.metrics.SetDerivationIdle(false)
+	return s.derivation.Step(s.driverCtx)
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.
@@ -618,7 +641,7 @@ type hashAndErrorChannel struct {
 // Results are received through OnUnsafeL2Payload.
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 	start := s.engineController.UnsafeL2Head()
-	end := s.derivation.LowestQueuedUnsafeBlock()
+	end := s.clSync.LowestQueuedUnsafeBlock()
 	// Check if we have missing blocks between the start and end. Request them if we do.
 	if end == (eth.L2BlockRef{}) {
 		s.log.Debug("requesting sync with open-end range", "start", start)

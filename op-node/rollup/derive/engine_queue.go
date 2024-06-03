@@ -83,7 +83,6 @@ type LocalEngineControl interface {
 	IsEngineSyncing() bool
 	TryUpdateEngine(ctx context.Context) error
 	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
-	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
 
 	PendingSafeL2Head() eth.L2BlockRef
 	BackupUnsafeL2Head() eth.L2BlockRef
@@ -124,9 +123,6 @@ type FinalizerHooks interface {
 	Reset()
 }
 
-// Max memory used for buffering unsafe payloads
-const maxUnsafePayloadsMemory = 500 * 1024 * 1024
-
 // EngineQueue queues up payload attributes to consolidate or process with the provided Engine
 type EngineQueue struct {
 	log log.Logger
@@ -136,7 +132,6 @@ type EngineQueue struct {
 
 	// The queued-up attributes
 	safeAttributes *AttributesWithParent
-	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 
 	engine L2Source
 	prev   NextAttributesProvider
@@ -165,7 +160,6 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, l2Source L2Source, engin
 		ec:             engine,
 		engine:         l2Source,
 		metrics:        metrics,
-		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
 		syncCfg:        syncCfg,
@@ -181,34 +175,6 @@ func (eq *EngineQueue) Origin() eth.L1BlockRef {
 
 func (eq *EngineQueue) SystemConfig() eth.SystemConfig {
 	return eq.sysCfg
-}
-
-func (eq *EngineQueue) AddUnsafePayload(envelope *eth.ExecutionPayloadEnvelope) {
-	if envelope == nil {
-		eq.log.Warn("cannot add nil unsafe payload")
-		return
-	}
-
-	if err := eq.unsafePayloads.Push(envelope); err != nil {
-		eq.log.Warn("Could not add unsafe payload", "id", envelope.ExecutionPayload.ID(), "timestamp", uint64(envelope.ExecutionPayload.Timestamp), "err", err)
-		return
-	}
-	p := eq.unsafePayloads.Peek()
-	eq.metrics.RecordUnsafePayloadsBuffer(uint64(eq.unsafePayloads.Len()), eq.unsafePayloads.MemSize(), p.ExecutionPayload.ID())
-	eq.log.Trace("Next unsafe payload to process", "next", p.ExecutionPayload.ID(), "timestamp", uint64(p.ExecutionPayload.Timestamp))
-}
-
-// LowestQueuedUnsafeBlock returns the block
-func (eq *EngineQueue) LowestQueuedUnsafeBlock() eth.L2BlockRef {
-	payload := eq.unsafePayloads.Peek()
-	if payload == nil {
-		return eth.L2BlockRef{}
-	}
-	ref, err := PayloadToBlockRef(eq.cfg, payload.ExecutionPayload)
-	if err != nil {
-		return eth.L2BlockRef{}
-	}
-	return ref
 }
 
 func (eq *EngineQueue) BackupUnsafeL2Head() eth.L2BlockRef {
@@ -229,16 +195,8 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	}
 	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
 	// perform a network call, then we should yield even if we did not encounter an error.
-	if err := eq.ec.TryUpdateEngine(ctx); !errors.Is(err, errNoFCUNeeded) {
+	if err := eq.ec.TryUpdateEngine(ctx); !errors.Is(err, ErrNoFCUNeeded) {
 		return err
-	}
-	// Trying unsafe payload should be done before safe attributes
-	// It allows the unsafe head can move forward while the long-range consolidation is in progress.
-	if eq.unsafePayloads.Len() > 0 {
-		if err := eq.tryNextUnsafePayload(ctx); err != io.EOF {
-			return err
-		}
-		// EOF error means we can't process the next unsafe payload. Then we should process next safe attributes.
 	}
 	if eq.isEngineSyncing() {
 		// The pipeline cannot move forwards if doing EL sync.
@@ -343,52 +301,6 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 		"l2_time", eq.ec.UnsafeL2Head().Time,
 		"l1_derived", eq.origin,
 	)
-}
-
-func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
-	firstEnvelope := eq.unsafePayloads.Peek()
-	first := firstEnvelope.ExecutionPayload
-
-	if uint64(first.BlockNumber) <= eq.ec.SafeL2Head().Number {
-		eq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", eq.ec.SafeL2Head().ID(), "unsafe", eq.ec.UnsafeL2Head().ID(), "unsafe_payload", first.ID())
-		eq.unsafePayloads.Pop()
-		return nil
-	}
-	if uint64(first.BlockNumber) <= eq.ec.UnsafeL2Head().Number {
-		eq.log.Info("skipping unsafe payload, since it is older than unsafe head", "unsafe", eq.ec.UnsafeL2Head().ID(), "unsafe_payload", first.ID())
-		eq.unsafePayloads.Pop()
-		return nil
-	}
-
-	// Ensure that the unsafe payload builds upon the current unsafe head
-	if first.ParentHash != eq.ec.UnsafeL2Head().Hash {
-		if uint64(first.BlockNumber) == eq.ec.UnsafeL2Head().Number+1 {
-			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.ec.SafeL2Head().ID(), "unsafe", eq.ec.UnsafeL2Head().ID(), "unsafe_payload", first.ID())
-			eq.unsafePayloads.Pop()
-		}
-		return io.EOF // time to go to next stage if we cannot process the first unsafe payload
-	}
-
-	ref, err := PayloadToBlockRef(eq.cfg, first)
-	if err != nil {
-		eq.log.Error("failed to decode L2 block ref from payload", "err", err)
-		eq.unsafePayloads.Pop()
-		return nil
-	}
-
-	if err := eq.ec.InsertUnsafePayload(ctx, firstEnvelope, ref); errors.Is(err, ErrTemporary) {
-		eq.log.Debug("Temporary error while inserting unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
-		return err
-	} else if err != nil {
-		eq.log.Warn("Dropping invalid unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
-		eq.unsafePayloads.Pop()
-		return err
-	}
-	eq.unsafePayloads.Pop()
-	eq.log.Trace("Executed unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
-	eq.logSyncProgress("unsafe payload from sequencer")
-
-	return nil
 }
 
 func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
@@ -614,17 +526,4 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	}
 	eq.logSyncProgress("reset derivation work")
 	return io.EOF
-}
-
-// UnsafeL2SyncTarget retrieves the first queued-up L2 unsafe payload, or a zeroed reference if there is none.
-func (eq *EngineQueue) UnsafeL2SyncTarget() eth.L2BlockRef {
-	if first := eq.unsafePayloads.Peek(); first != nil {
-		ref, err := PayloadToBlockRef(eq.cfg, first.ExecutionPayload)
-		if err != nil {
-			return eth.L2BlockRef{}
-		}
-		return ref
-	} else {
-		return eth.L2BlockRef{}
-	}
 }

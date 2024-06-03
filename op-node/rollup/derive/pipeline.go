@@ -16,7 +16,6 @@ import (
 type Metrics interface {
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
-	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 	RecordChannelInputBytes(inputCompressedBytes int)
 	RecordHeadChannelOpened()
 	RecordChannelTimedOut()
@@ -38,10 +37,8 @@ type ResettableStage interface {
 }
 
 type EngineQueueStage interface {
-	LowestQueuedUnsafeBlock() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	SystemConfig() eth.SystemConfig
-	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	Step(context.Context) error
 }
 
@@ -116,17 +113,6 @@ func (dp *DerivationPipeline) Reset() {
 // i.e. the L1 chain up to and including this point included and/or produced all the safe L2 blocks.
 func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
 	return dp.eng.Origin()
-}
-
-// AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1
-func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
-	dp.eng.AddUnsafePayload(payload)
-}
-
-// LowestQueuedUnsafeBlock returns the lowest queued unsafe block. If the gap is filled from the unsafe head
-// to this block, the EngineQueue will be able to apply the queued payloads.
-func (dp *DerivationPipeline) LowestQueuedUnsafeBlock() eth.L2BlockRef {
-	return dp.eng.LowestQueuedUnsafeBlock()
 }
 
 // Step tries to progress the buffer.
