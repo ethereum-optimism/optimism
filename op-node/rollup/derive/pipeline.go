@@ -39,11 +39,8 @@ type ResettableStage interface {
 
 type EngineQueueStage interface {
 	LowestQueuedUnsafeBlock() eth.L2BlockRef
-	FinalizedL1() eth.L1BlockRef
 	Origin() eth.L1BlockRef
 	SystemConfig() eth.SystemConfig
-
-	Finalize(l1Origin eth.L1BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	Step(context.Context) error
 }
@@ -69,7 +66,9 @@ type DerivationPipeline struct {
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 
-func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher, plasma PlasmaInputFetcher, l2Source L2Source, engine LocalEngineControl, metrics Metrics, syncCfg *sync.Config, safeHeadListener SafeHeadListener) *DerivationPipeline {
+func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher,
+	plasma PlasmaInputFetcher, l2Source L2Source, engine LocalEngineControl, metrics Metrics,
+	syncCfg *sync.Config, safeHeadListener SafeHeadListener, finalizer FinalizerHooks) *DerivationPipeline {
 
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
@@ -83,12 +82,7 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchQueue)
 
 	// Step stages
-	eng := NewEngineQueue(log, rollupCfg, l2Source, engine, metrics, attributesQueue, l1Fetcher, syncCfg, safeHeadListener)
-
-	// Plasma takes control of the engine finalization signal only when usePlasma is enabled.
-	plasma.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
-		eng.Finalize(ref)
-	})
+	eng := NewEngineQueue(log, rollupCfg, l2Source, engine, metrics, attributesQueue, l1Fetcher, syncCfg, safeHeadListener, finalizer)
 
 	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
 	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
@@ -122,22 +116,6 @@ func (dp *DerivationPipeline) Reset() {
 // i.e. the L1 chain up to and including this point included and/or produced all the safe L2 blocks.
 func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
 	return dp.eng.Origin()
-}
-
-func (dp *DerivationPipeline) Finalize(l1Origin eth.L1BlockRef) {
-	// In plasma mode, the finalization signal is proxied through the plasma manager.
-	// Finality signal will come from the DA contract or L1 finality whichever is last.
-	if dp.rollupCfg.PlasmaEnabled() {
-		dp.plasma.Finalize(l1Origin)
-	} else {
-		dp.eng.Finalize(l1Origin)
-	}
-}
-
-// FinalizedL1 is the L1 finalization of the inner-most stage of the derivation pipeline,
-// i.e. the L1 chain up to and including this point included and/or produced all the finalized L2 blocks.
-func (dp *DerivationPipeline) FinalizedL1() eth.L1BlockRef {
-	return dp.eng.FinalizedL1()
 }
 
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1
