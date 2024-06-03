@@ -143,7 +143,7 @@ type ProcessPreimageOracle struct {
 
 const clientPollTimeout = time.Second * 15
 
-func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracle, error) {
+func NewProcessPreimageOracle(name string, args []string, stdout log.Logger, stderr log.Logger) (*ProcessPreimageOracle, error) {
 	if name == "" {
 		return &ProcessPreimageOracle{}, nil
 	}
@@ -158,8 +158,8 @@ func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracl
 	}
 
 	cmd := exec.Command(name, args...) // nosemgrep
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = &mipsevm.LoggingWriter{Log: stdout}
+	cmd.Stderr = &mipsevm.LoggingWriter{Log: stderr}
 	cmd.ExtraFiles = []*os.File{
 		hOracleRW.Reader(),
 		hOracleRW.Writer(),
@@ -254,9 +254,11 @@ func Run(ctx *cli.Context) error {
 		return err
 	}
 
-	l := Logger(os.Stderr, log.LevelInfo)
-	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
-	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
+	guestLogger := Logger(os.Stderr, log.LevelInfo)
+	outLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
+	errLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
+
+	l := Logger(os.Stderr, log.LevelInfo).With("module", "vm")
 
 	stopAtAnyPreimage := false
 	var stopAtPreimageKeyPrefix []byte
@@ -309,7 +311,9 @@ func Run(ctx *cli.Context) error {
 		args = []string{""}
 	}
 
-	po, err := NewProcessPreimageOracle(args[0], args[1:])
+	poOut := Logger(os.Stdout, log.LevelInfo).With("module", "host")
+	poErr := Logger(os.Stderr, log.LevelInfo).With("module", "host")
+	po, err := NewProcessPreimageOracle(args[0], args[1:], poOut, poErr)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle process: %w", err)
 	}

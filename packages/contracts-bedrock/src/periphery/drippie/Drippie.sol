@@ -251,4 +251,11 @@ contract Drippie is AssetReceiver {
     function getDripStatus(string calldata _name) public view returns (DripStatus) {
         return drips[_name].status;
     }
+
+    /// @notice Returns the interval of a given drip.
+    /// @param _name Drip to check.
+    /// @return Interval of the given drip.
+    function getDripInterval(string calldata _name) public view returns (uint256) {
+        return drips[_name].config.interval;
+    }
 }

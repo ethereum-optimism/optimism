@@ -4,7 +4,8 @@ pragma solidity 0.8.15;
 import { IDripCheck } from "../IDripCheck.sol";
 
 interface IGelatoTreasury {
-    function userTokenBalance(address _user, address _token) external view returns (uint256);
+    function totalDepositedAmount(address _user, address _token) external view returns (uint256);
+    function totalWithdrawnAmount(address _user, address _token) external view returns (uint256);
 }
 
 /// @title CheckGelatoLow
@@ -24,11 +25,19 @@ contract CheckGelatoLow is IDripCheck {
     function check(bytes memory _params) external view returns (bool execute_) {
         Params memory params = abi.decode(_params, (Params));
 
-        // Check GelatoTreasury ETH balance is below threshold.
-        execute_ = IGelatoTreasury(params.treasury).userTokenBalance(
-            params.recipient,
-            // Gelato represents ETH as 0xeeeee....eeeee
-            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
-        ) < params.threshold;
+        // Gelato represents ETH as 0xeeeee....eeeee.
+        address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+        // Get the total deposited amount.
+        uint256 deposited = IGelatoTreasury(params.treasury).totalDepositedAmount(params.recipient, eth);
+
+        // Get the total withdrawn amount.
+        uint256 withdrawn = IGelatoTreasury(params.treasury).totalWithdrawnAmount(params.recipient, eth);
+
+        // Figure out the current balance.
+        uint256 balance = deposited - withdrawn;
+
+        // Check if the balance is below the threshold.
+        execute_ = balance < params.threshold;
     }
 }

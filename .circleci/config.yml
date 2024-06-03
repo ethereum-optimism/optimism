@@ -1901,10 +1901,6 @@ workflows:
           name: indexer-docker-build
           docker_name: indexer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-      - docker-build:
-          name: ufm-metamask-docker-build
-          docker_name: ufm-metamask
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test:
@@ -2183,21 +2179,6 @@ workflows:
             - oplabs-gcr
           requires:
             - hold
-      - docker-build:
-          name: ufm-metamask-docker-release
-          filters:
-            tags:
-              only: /^ufm-metamask\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: ufm-metamask
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr
-          requires:
-            - hold
 
   scheduled-todo-issues:
     when:
@@ -2380,14 +2361,6 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           resource_class: xlarge
           requires: [ 'chain-mon-docker-publish' ] # use the cached base image
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - docker-build:
-          name: ufm-metamask-docker-publish
-          docker_name: ufm-metamask
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           publish: true
           context:
             - oplabs-gcr

@@ -16,7 +16,6 @@ SERVICES  = [
     'da-server',
     'proxyd',
     'op-heartbeat',
-    'ufm-metamask',
     'op-contracts',
     'test',
     'op-stack', # special case for tagging op-node, op-batcher, and op-proposer together

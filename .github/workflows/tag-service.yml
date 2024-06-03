@@ -32,7 +32,6 @@ on:
           - op-ufm
           - da-server
           - proxyd
-          - ufm-metamask
           - op-contracts
           - op-conductor
       prerelease:
