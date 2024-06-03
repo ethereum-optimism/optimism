@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-service/flags"
+	"github.com/ethereum-optimism/superchain-registry/superchain"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
@@ -44,6 +46,7 @@ var (
 		Usage:   "HTTP provider URL for the rollup node",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
+	NetworkFlag        = flags.CLINetworkFlag(EnvVarPrefix, "")
 	FactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
 		Usage:   "Address of the fault game factory contract.",
@@ -225,7 +228,6 @@ var (
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	FactoryAddressFlag,
 	DatadirFlag,
 	RollupRpcFlag,
 	L1BeaconFlag,
@@ -233,6 +235,8 @@ var requiredFlags = []cli.Flag{
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	NetworkFlag,
+	FactoryAddressFlag,
 	TraceTypeFlag,
 	MaxConcurrencyFlag,
 	L2EthRpcFlag,
@@ -379,6 +383,39 @@ func getL2Rpc(ctx *cli.Context, logger log.Logger) (string, error) {
 	return l2Rpc, nil
 }
 
+func FactoryAddress(ctx *cli.Context) (common.Address, error) {
+	if ctx.IsSet(FactoryAddressFlag.Name) && ctx.IsSet(flags.NetworkFlagName) {
+		return common.Address{}, fmt.Errorf("flag %v and %v must not both be set", FactoryAddressFlag.Name, flags.NetworkFlagName)
+	}
+	if ctx.IsSet(FactoryAddressFlag.Name) {
+		gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
+		if err != nil {
+			return common.Address{}, err
+		}
+		return gameFactoryAddress, nil
+	}
+	if ctx.IsSet(flags.NetworkFlagName) {
+		chainName := ctx.String(flags.NetworkFlagName)
+		chainCfg := chaincfg.ChainByName(chainName)
+		if chainCfg == nil {
+			var opts []string
+			for _, cfg := range superchain.OPChains {
+				opts = append(opts, cfg.Chain+"-"+cfg.Superchain)
+			}
+			return common.Address{}, fmt.Errorf("unknown chain: %v (Valid options: %v)", chainName, strings.Join(opts, ", "))
+		}
+		addrs, ok := superchain.Addresses[chainCfg.ChainID]
+		if !ok {
+			return common.Address{}, fmt.Errorf("no addresses available for chain %v", chainName)
+		}
+		if addrs.DisputeGameFactoryProxy == (superchain.Address{}) {
+			return common.Address{}, fmt.Errorf("dispute factory proxy not available for chain %v", chainName)
+		}
+		return common.Address(addrs.DisputeGameFactoryProxy), nil
+	}
+	return common.Address{}, fmt.Errorf("flag %v or %v is required", FactoryAddressFlag.Name, flags.NetworkFlagName)
+}
+
 // NewConfigFromCLI parses the Config from the provided flags or environment variables.
 func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, error) {
 	traceTypes, err := parseTraceTypes(ctx)
@@ -388,7 +425,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	if err := CheckRequired(ctx, traceTypes); err != nil {
 		return nil, err
 	}
-	gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
+	gameFactoryAddress, err := FactoryAddress(ctx)
 	if err != nil {
 		return nil, err
 	}
