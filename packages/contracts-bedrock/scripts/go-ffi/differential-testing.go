@@ -390,6 +390,39 @@ func DiffTestUtils() {
 		packed, err := cannonMemoryProofArgs.Pack(&output)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(packed[32:]))
+	case "cannonMemoryProofWrongLeaf":
+		// <pc, insn, memAddr, memValue>
+		mem := mipsevm.NewMemory()
+		if len(args) != 5 {
+			panic("Error: cannonMemoryProofWrongLeaf requires 4 arguments")
+		}
+		pc, err := strconv.ParseUint(args[1], 10, 32)
+		checkErr(err, "Error decocding addr")
+		insn, err := strconv.ParseUint(args[2], 10, 32)
+		checkErr(err, "Error decocding insn")
+		mem.SetMemory(uint32(pc), uint32(insn))
+
+		var insnProof, memProof [896]byte
+		memAddr, err := strconv.ParseUint(args[3], 10, 32)
+		checkErr(err, "Error decocding memAddr")
+		memValue, err := strconv.ParseUint(args[4], 10, 32)
+		checkErr(err, "Error decocding memValue")
+		mem.SetMemory(uint32(memAddr), uint32(memValue))
+
+		// Compute a valid proof for the root, but for the wrong leaves.
+		memProof = mem.MerkleProof(uint32(memAddr + 32))
+		insnProof = mem.MerkleProof(uint32(pc + 32))
+
+		output := struct {
+			MemRoot common.Hash
+			Proof   []byte
+		}{
+			MemRoot: mem.MerkleRoot(),
+			Proof:   append(insnProof[:], memProof[:]...),
+		}
+		packed, err := cannonMemoryProofArgs.Pack(&output)
+		checkErr(err, "Error encoding output")
+		fmt.Print(hexutil.Encode(packed[32:]))
 	case "encodeScalarEcotone":
 		basefeeScalar, err := strconv.ParseUint(args[1], 10, 32)
 		checkErr(err, "Error decocding basefeeScalar")

@@ -245,6 +245,28 @@ contract FFIInterface {
         return (memRoot, proof);
     }
 
+    function getCannonMemoryProofWrongLeaf(
+        uint32 pc,
+        uint32 insn,
+        uint32 memAddr,
+        uint32 memVal
+    )
+        external
+        returns (bytes32, bytes memory)
+    {
+        string[] memory cmds = new string[](7);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "cannonMemoryProofWrongLeaf";
+        cmds[3] = vm.toString(pc);
+        cmds[4] = vm.toString(insn);
+        cmds[5] = vm.toString(memAddr);
+        cmds[6] = vm.toString(memVal);
+        bytes memory result = Process.run(cmds);
+        (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
+        return (memRoot, proof);
+    }
+
     function encodeScalarEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external returns (bytes32) {
         string[] memory cmds = new string[](5);
         cmds[0] = "scripts/go-ffi/go-ffi";
