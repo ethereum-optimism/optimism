@@ -346,7 +346,7 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 			if err := CheckAsteriscFlags(ctx); err != nil {
 				return err
 			}
-		case config.TraceTypeAlphabet:
+		case config.TraceTypeAlphabet, config.TraceTypeFast:
 		default:
 			return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 		}

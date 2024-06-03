@@ -600,6 +600,9 @@ contract DeploymentSummaryFaultProofs is DeploymentSummaryFaultProofsCode {
         slot = hex"d9d16d34ffb15ba3a3d852f0d403e2ce1d691fb54de27ac87cd2f993f3ec330f";
         value = hex"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         vm.store(anchorStateRegistryProxyAddress, slot, value);
+        slot = hex"1d32deecea32fd1365d10df47fc6666a05871102e61a115a5c569bca7e5de14d";
+        value = hex"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        vm.store(anchorStateRegistryProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
         value = hex"0000000000000000000000000000000000000000000000000000000000000001";
         vm.store(anchorStateRegistryProxyAddress, slot, value);

@@ -22,6 +22,7 @@ const (
 	CannonGameType       uint32 = 0
 	PermissionedGameType uint32 = 1
 	AsteriscGameType     uint32 = 2
+	FastGameType         uint32 = 254
 	AlphabetGameType     uint32 = 255
 )
 
