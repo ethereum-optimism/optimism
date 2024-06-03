@@ -57,10 +57,14 @@ func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	var proposer *L2Proposer
 	if e2eutils.UseFPAC() {
+		optimismPortal2Contract, err := bindingspreview.NewOptimismPortal2(sd.DeploymentsL1.OptimismPortalProxy, miner.EthClient())
+		require.NoError(t, err)
+		respectedGameType, err := optimismPortal2Contract.RespectedGameType(&bind.CallOpts{})
+		require.NoError(t, err)
 		proposer = NewL2Proposer(t, log, &ProposerCfg{
 			DisputeGameFactoryAddr: &sd.DeploymentsL1.DisputeGameFactoryProxy,
 			ProposalInterval:       6 * time.Second,
-			DisputeGameType:        0,
+			DisputeGameType:        respectedGameType,
 			ProposerKey:            dp.Secrets.Proposer,
 			AllowNonFinalized:      true,
 		}, miner.EthClient(), rollupSeqCl)
