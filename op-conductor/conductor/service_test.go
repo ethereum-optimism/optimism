@@ -118,6 +118,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 
 	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
+	conductor.retryBackoff = func() time.Duration { return 0 } // disable retry backoff for tests
 	s.conductor = conductor
 
 	s.healthUpdateCh = make(chan error, 1)
@@ -751,7 +752,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 			s.executeAction()
 		}
 		return res
-	}, 2*time.Second, 100*time.Millisecond)
+	}, 2*time.Second, time.Millisecond)
 }
 
 func (s *OpConductorTestSuite) TestHandleInitError() {
