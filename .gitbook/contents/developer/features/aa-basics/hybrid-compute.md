@@ -28,9 +28,9 @@ more sophisticated and dynamic applications.
 ### About a Bundler
 
 An Account Abstraction Bundler is a component of a blockchain system designed to enhance the functionality and
-flexibility of smart contracts. It facilitates the direct control of accounts by smart contracts, removing the
-traditional division between externally owned accounts and contract accounts. This abstraction allows smart contracts to
-interact more seamlessly with other contracts and manage accounts directly. Additionally, the bundler aspect optimizes
+flexibility of smart contract accounts. It facilitates the direct control of accounts by translating user intents, removing the
+traditional division between externally owned accounts and their dependencies for contract accounts. This abstraction allows users to
+interact more seamlessly and manage smart contract accounts directly. Additionally, the bundler aspect optimizes
 transaction packaging by grouping multiple transactions together before adding them to a block. This optimization can
 lead to more efficient use of block space and potentially lower transaction fees. Overall, Account Abstraction Bundlers
 enable the development of more sophisticated decentralized applications (dApps) by empowering smart contracts with
