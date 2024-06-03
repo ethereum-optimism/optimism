@@ -208,7 +208,7 @@ func NewLogHandler(wr io.Writer, cfg CLIConfig) slog.Handler {
 // The log handler of the logger is a LvlSetter, i.e. the log level can be changed as needed.
 func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 	h := NewLogHandler(wr, cfg)
-	return log.NewLogger(h)
+	return log.NewLogger(h).With("pid", os.Getpid())
 }
 
 // SetGlobalLogHandler sets the log handles as the handler of the global default logger.
