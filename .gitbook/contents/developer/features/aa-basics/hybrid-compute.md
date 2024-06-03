@@ -52,7 +52,7 @@ The first step is to write our ``offchain handler.`` This handler is responsible
 along with their payloads and returning the appropriate responses.
 
 Let's begin with a simple example where the handler receives two numbers. It will perform both addition and subtraction
-on these numbers. If the result of the subtraction results in an underflow (i.e., the first number is greater than the
+on these numbers. If the result of the subtraction results in an overflow (i.e., the first number is greater than the
 second), the handler will respond with an underflow error.
 
 ```python
