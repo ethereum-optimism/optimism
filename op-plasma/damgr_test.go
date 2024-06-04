@@ -53,9 +53,12 @@ func TestFinalization(t *testing.T) {
 	require.NoError(t, state.ExpireCommitments(bID(8)))
 	require.Empty(t, state.commitments)
 
-	require.Equal(t, eth.L1BlockRef{}, state.Prune(bID(bn1)))
-	require.Equal(t, eth.L1BlockRef{}, state.Prune(bID(7)))
-	require.Equal(t, eth.L1BlockRef{Number: bn1}, state.Prune(bID(8)))
+	state.Prune(bID(bn1))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+	state.Prune(bID(7))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+	state.Prune(bID(8))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
 
 	// Track a commitment, challenge it, & then resolve it
 	c2 := RandomCommitment(rng)
@@ -80,9 +83,12 @@ func TestFinalization(t *testing.T) {
 	require.Empty(t, state.challenges)
 
 	// Now finalize everything
-	require.Equal(t, eth.L1BlockRef{}, state.Prune(bID(20)))
-	require.Equal(t, eth.L1BlockRef{}, state.Prune(bID(28)))
-	require.Equal(t, eth.L1BlockRef{Number: bn2}, state.Prune(bID(32)))
+	state.Prune(bID(20))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+	state.Prune(bID(28))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+	state.Prune(bID(32))
+	require.Equal(t, eth.L1BlockRef{Number: bn2}, state.lastPrunedCommitment)
 }
 
 // TestExpireChallenges expires challenges and prunes the state for longer windows
@@ -169,7 +175,8 @@ func TestDAChallengeDetached(t *testing.T) {
 	require.ErrorIs(t, err, ErrReorgRequired)
 
 	// pruning finalized block is safe. It should not prune any commitments yet.
-	require.Equal(t, eth.L1BlockRef{}, state.Prune(bID(1)))
+	state.Prune(bID(1))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
 
 	// Perform reorg back to bn2
 	state.ClearCommitments()
@@ -290,7 +297,7 @@ func TestAdvanceChallengeOrigin(t *testing.T) {
 		err = da.AdvanceChallengeOrigin(ctx, l1F, id2)
 		require.NoError(t, err)
 	}
-	_ = state.Prune(bID(bn + 1 + pcfg.ChallengeWindow + pcfg.ResolveWindow))
+	state.Prune(bID(bn + 1 + pcfg.ChallengeWindow + pcfg.ResolveWindow))
 
 	_, has = state.GetChallenge(comm, 14)
 	require.False(t, has)

@@ -277,12 +277,11 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	}
 
-	// TODO: Finalization is now reporting more info than before
-	// trigger l1 finalization signal
-	// da.Finalize(l1Refs[len(l1Refs)-32])
-	// finalitySignal.AssertExpectations(t)
+	// finalize based on the second to last block, which will prune the commitment on block 2, and make it finalized
+	da.Finalize(l1Refs[len(l1Refs)-2])
+	finalitySignal.AssertExpectations(t)
 
-	// l1F.AssertExpectations(t)
+	//l1F.AssertExpectations(t)
 }
 
 // This tests makes sure the pipeline returns a temporary error if data is not found.
@@ -399,9 +398,11 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	_, err = src.Next(ctx)
 	require.ErrorIs(t, err, NotEnoughData)
 
-	// // now challenge is resolved
-	// err = daState.ResolveChallenge(comm, eth.BlockID{Number: ref.Number + 2}, ref.Number, input)
-	// require.NoError(t, err)
+	// create and resolve a challenge
+	daState.CreateChallenge(comm, ref.ID(), ref.Number)
+	// now challenge is resolved
+	err = daState.ResolveChallenge(comm, eth.BlockID{Number: ref.Number + 2}, ref.Number, input)
+	require.NoError(t, err)
 
 	// derivation can resume
 	data, err := src.Next(ctx)

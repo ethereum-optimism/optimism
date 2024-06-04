@@ -23,13 +23,14 @@ const (
 
 // Commitment keeps track of the onchain state of an input commitment.
 type Commitment struct {
-	comm               CommitmentData
+	data               CommitmentData
 	inclusionBlock     eth.L1BlockRef // block where the commitment is included as calldata to the batcher inbox.
 	challengeWindowEnd uint64         // represents the block number after which the commitment can no longer be challenged.
 }
 
+// Challenges are used to track the status of a challenge against a commitment.
 type Challenge struct {
-	comm                     CommitmentData  // the specific commitment which was challenged
+	commData                 CommitmentData  // the specific commitment which was challenged
 	commInclusionBlockNumber uint64          // block where the commitment is included as calldata to the batcher inbox
 	resolveWindowEnd         uint64          // block number at which the challenge must be resolved by
 	input                    []byte          // the input itself if it was resolved onchain
@@ -37,7 +38,7 @@ type Challenge struct {
 }
 
 func (c *Challenge) key() string {
-	return challengeKey(c.comm, c.commInclusionBlockNumber)
+	return challengeKey(c.commData, c.commInclusionBlockNumber)
 }
 
 func challengeKey(comm CommitmentData, inclusionBlockNumber uint64) string {
@@ -45,21 +46,21 @@ func challengeKey(comm CommitmentData, inclusionBlockNumber uint64) string {
 }
 
 // State tracks the commitment and their challenges in order of l1 inclusion.
-// Commitments & challenges are tracked in their L1 inclusion order. Commitments are split into un-expired & expired queues.
-// When commitments are moved from the un-expired to expired queues, if there is an active challenge the DA Manager is informed
-// that a commitment became invalid. When commitments + challenges expire in a block which is finalized, they are removed from
-// the state.
-// In the special case of a L2 reorg, challenges are still tracked but commitments are removed. This will allow the plasma fetcher
-// to find the expired challenge.
+// Commitments and Challenges are tracked in L1 inclusion order. They are tracked in two separate queues for Active and Expired commitments.
+// When commitments are moved to Expired, if there is an active challenge, the DA Manager is informed that a commitment became invalid.
+// Challenges and Commitments can be pruned when they are beyond a certain block number (e.g. when they are finalized).
+// In the special case of a L2 reorg, challenges are still tracked but commitments are removed.
+// This will allow the plasma fetcher to find the expired challenge.
 type State struct {
-	commitments        []Commitment          // commitments where the challenge/resolve period has not expired yet
-	expiredCommitments []Commitment          // commitments where the challenge/resolve period has expired but not finalized
-	challenges         []*Challenge          // challenges ordered by L1 inclusion
-	expiredChallenges  []*Challenge          // challenges ordered by L1 inclusion
-	challengesMap      map[string]*Challenge // challenges by seralized comm + block number for easy lookup
-	cfg                Config
-	log                log.Logger
-	metrics            Metricer
+	commitments          []Commitment          // commitments where the challenge/resolve period has not expired yet
+	expiredCommitments   []Commitment          // commitments where the challenge/resolve period has expired but not finalized
+	challenges           []*Challenge          // challenges ordered by L1 inclusion
+	expiredChallenges    []*Challenge          // challenges ordered by L1 inclusion
+	challengesMap        map[string]*Challenge // challenges by seralized comm + block number for easy lookup
+	lastPrunedCommitment eth.L1BlockRef        // the last commitment to be pruned
+	cfg                  Config
+	log                  log.Logger
+	metrics              Metricer
 }
 
 func NewState(log log.Logger, m Metricer, cfg Config) *State {
@@ -95,7 +96,7 @@ func (s *State) Reset() {
 // same commitment is challenged again.
 func (s *State) CreateChallenge(comm CommitmentData, inclusionBlock eth.BlockID, commBlockNumber uint64) {
 	c := &Challenge{
-		comm:                     comm,
+		commData:                 comm,
 		commInclusionBlockNumber: commBlockNumber,
 		resolveWindowEnd:         inclusionBlock.Number + s.cfg.ResolveWindow,
 		challengeStatus:          ChallengeActive,
@@ -118,7 +119,7 @@ func (s *State) ResolveChallenge(comm CommitmentData, inclusionBlock eth.BlockID
 // TrackCommitment stores a commitment in the State
 func (s *State) TrackCommitment(comm CommitmentData, inclusionBlock eth.L1BlockRef) {
 	c := Commitment{
-		comm:               comm,
+		data:               comm,
 		inclusionBlock:     inclusionBlock,
 		challengeWindowEnd: inclusionBlock.Number + s.cfg.ChallengeWindow,
 	}
@@ -131,7 +132,7 @@ func (s *State) GetChallenge(comm CommitmentData, commBlockNumber uint64) (*Chal
 	return challenge, ok
 }
 
-// GetChallenge looks up a challenge against commitment + inclusion block.
+// GetChallengeStatus looks up a challenge's status, or returns ChallengeUninitialized if there is no challenge.
 func (s *State) GetChallengeStatus(comm CommitmentData, commBlockNumber uint64) ChallengeStatus {
 	challenge, ok := s.GetChallenge(comm, commBlockNumber)
 	if ok {
@@ -145,16 +146,18 @@ func (s *State) NoCommitments() bool {
 	return len(s.challenges) == 0 && len(s.expiredChallenges) == 0 && len(s.commitments) == 0 && len(s.expiredCommitments) == 0
 }
 
-// ExpireCommitments moves commitments from the could be challenged/resolved state to the have been resolved as valid or not but not yet finalized state.
-// If a commitment was found to be invalid (via a challenge marking it as Expired), we return ErrExpiredChallenge to indicate that a L2 reorg
-// should be performed.
+// ExpireCommitments moves commitments from the acive state map to the expired state map.
+// commitments are considered expired when the challenge window ends without a challenge, or when the resolve window ends without a resolution to the challenge.
+// This function processess commitments in order of inclusion until it finds a commitment which has not expired.
+// If a commitment expires which did not resolve its challenge, it returns ErrReorgRequired to indicate that a L2 reorg should be performed.
 func (s *State) ExpireCommitments(origin eth.BlockID) error {
 	var err error
 	for len(s.commitments) > 0 {
 		c := s.commitments[0]
-		challenge, ok := s.GetChallenge(c.comm, c.inclusionBlock.Number)
+		challenge, ok := s.GetChallenge(c.data, c.inclusionBlock.Number)
 
-		// Determine when the commitment's challenge window expires
+		// A commitment expires when the challenge window ends without a challenge,
+		// or when the resolve window on the challenge ends.
 		expiresAt := c.challengeWindowEnd
 		if ok {
 			expiresAt = challenge.resolveWindowEnd
@@ -164,12 +167,13 @@ func (s *State) ExpireCommitments(origin eth.BlockID) error {
 		if expiresAt > origin.Number {
 			return err
 		}
-		s.log.Info("Expiring commitment", "comm", c.comm, "commInclusionBlockNumber", c.inclusionBlock.Number, "origin", origin, "challenged", ok)
 
 		// If it has expired, move the commitment to the expired queue
+		s.log.Info("Expiring commitment", "comm", c.data, "commInclusionBlockNumber", c.inclusionBlock.Number, "origin", origin, "challenged", ok)
 		s.expiredCommitments = append(s.expiredCommitments, c)
 		s.commitments = s.commitments[1:]
-		// If there was a challenge which was not resolved, expire the commitment.
+
+		// If the expiring challenge was not resolved, return an error to indicate a reorg is required.
 		if ok && challenge.challengeStatus != ChallengeResolved {
 			err = ErrReorgRequired
 		}
@@ -177,19 +181,24 @@ func (s *State) ExpireCommitments(origin eth.BlockID) error {
 	return err
 }
 
-// ExpireChallenges marks challenges as expired. It must be called for every block because there is no contract event to expire challenges.
+// ExpireChallenges moves challenges from the active state map to the expired state map.
+// challenges are considered expired when the oirgin is beyond the challenge's resolve window.
+// This function processess challenges in order of inclusion until it finds a commitment which has not expired.
+// This function must be called for every block because there is no contract event to expire challenges.
 func (s *State) ExpireChallenges(origin eth.BlockID) {
 	for len(s.challenges) > 0 {
 		c := s.challenges[0]
+
 		// If the challenge can still be resolved, return early
 		if c.resolveWindowEnd > origin.Number {
 			return
 		}
-		s.log.Info("Expiring challenge", "comm", c.comm, "commInclusionBlockNumber", c.commInclusionBlockNumber, "origin", origin)
 
 		// Move the challenge to the expired queue
+		s.log.Info("Expiring challenge", "comm", c.commData, "commInclusionBlockNumber", c.commInclusionBlockNumber, "origin", origin)
 		s.expiredChallenges = append(s.expiredChallenges, c)
 		s.challenges = s.challenges[1:]
+
 		// Mark the challenge as expired if it was not resolved
 		if c.challengeStatus == ChallengeActive {
 			c.challengeStatus = ChallengeExpired
@@ -197,39 +206,53 @@ func (s *State) ExpireChallenges(origin eth.BlockID) {
 	}
 }
 
-// Prune removes challenges & commitments which have been expired in a block which is finalized.
-// It returns the inclusion block number of a commitment which has been finalized.
-func (s *State) Prune(finalizedBlock eth.BlockID) eth.L1BlockRef {
-	var ret eth.L1BlockRef
+// Prune removes challenges & commitments which have an expiry block number beyond the given block number.
+func (s *State) Prune(origin eth.BlockID) {
+	// Commitments rely on challenges, so we prune commitments first.
+	s.pruneCommitments(origin)
+	s.pruneChallenges(origin)
+}
+
+// pruneCommitments removes commitments which have are beyond a given block number.
+// It will remove commitments in order of inclusion until it finds a commitment which is not beyond the given block number.
+func (s *State) pruneCommitments(origin eth.BlockID) {
 	for len(s.expiredCommitments) > 0 {
 		c := s.expiredCommitments[0]
-		challenge, ok := s.GetChallenge(c.comm, c.inclusionBlock.Number)
+		challenge, ok := s.GetChallenge(c.data, c.inclusionBlock.Number)
 
-		// Determine when the commitment expires
+		// the commitment is considered removable when the challenge window ends without a challenge,
+		// or when the resolve window on the challenge ends.
 		expiresAt := c.challengeWindowEnd
 		if ok {
 			expiresAt = challenge.resolveWindowEnd
 		}
 
-		// If the commitment expires the in future, stop processing commitments
-		if expiresAt > finalizedBlock.Number {
+		// If the commitment is not beyond the given block number, return early
+		if expiresAt > origin.Number {
 			break
 		}
-		// Remove the finalized commitment
-		s.expiredCommitments = s.expiredCommitments[1:]
-		// Return the inclusion block which is passed as the finalized block to the finality controller
-		ret = c.inclusionBlock
-	}
 
+		// Remove the commitment
+		s.expiredCommitments = s.expiredCommitments[1:]
+
+		// Record the latest inclusion block to be returned
+		s.lastPrunedCommitment = c.inclusionBlock
+	}
+}
+
+// pruneChallenges removes challenges which have are beyond a given block number.
+// It will remove challenges in order of inclusion until it finds a challenge which is not beyond the given block number.
+func (s *State) pruneChallenges(origin eth.BlockID) {
 	for len(s.expiredChallenges) > 0 {
 		c := s.expiredChallenges[0]
-		// If the challenge expires the in future, stop processing challenges
-		if c.resolveWindowEnd > finalizedBlock.Number {
+
+		// If the challenge is not beyond the given block number, return early
+		if c.resolveWindowEnd > origin.Number {
 			break
 		}
-		// Remove the finalized challenge
+
+		// Remove the challenge
 		s.expiredChallenges = s.expiredChallenges[1:]
 		delete(s.challengesMap, c.key())
 	}
-	return ret
 }

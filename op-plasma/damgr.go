@@ -74,7 +74,7 @@ type DA struct {
 	// flag the reset function we are resetting because of an expired challenge
 	resetting bool
 
-	finalizedHeadSignalFunc HeadSignalFn
+	finalizedHeadSignalHandler HeadSignalFn
 }
 
 // NewPlasmaDA creates a new PlasmaDA instance with the given log and CLIConfig.
@@ -108,20 +108,52 @@ func NewPlasmaDAWithState(log log.Logger, cfg Config, storage DAStorage, metrics
 // OnFinalizedHeadSignal sets the callback function to be called when the finalized head is updated.
 // This will signal to the engine queue that will set the proper L2 block as finalized.
 func (d *DA) OnFinalizedHeadSignal(f HeadSignalFn) {
-	d.finalizedHeadSignalFunc = f
+	d.finalizedHeadSignalHandler = f
 }
 
-// Finalize takes the L1 finality signal, compares the plasma finalized block and forwards the finality
-// signal to the engine queue based on whichever is most behind.
-func (d *DA) Finalize(l1Finalized eth.L1BlockRef) {
+// updateFinalizedHead sets the finalized head and prunes the state to the L1 Finalized head.
+// the finalized head is set to the latest reference pruned in this way.
+// It is called by the Finalize function, as it has an L1 finalized head to use.
+func (d *DA) updateFinalizedHead(l1Finalized eth.L1BlockRef) {
 	d.l1FinalizedHead = l1Finalized
-	d.log.Info("received l1 finalized signal, forwarding to engine queue", "l1", l1Finalized, "plasma", d.finalizedHead)
-	if d.finalizedHeadSignalFunc == nil {
-		d.log.Warn("finalized head signal function not set")
+	// Prune the state to the finalized head
+	d.state.Prune(l1Finalized.ID())
+	d.finalizedHead = d.state.lastPrunedCommitment
+}
+
+// updateFinalizedFromL1 updates the finalized head based on the challenge window.
+// it uses the L1 fetcher to get the block reference at the finalized head - challenge window.
+// It is called in AdvanceL1Origin if there are no commitments to finalize, as it has an L1 fetcher to use.
+func (d *DA) updateFinalizedFromL1(ctx context.Context, l1 L1Fetcher) error {
+	// don't update if the finalized head is smaller than the challenge window
+	if d.l1FinalizedHead.Number < d.cfg.ChallengeWindow {
+		return nil
+	}
+	ref, err := l1.L1BlockRefByNumber(ctx, d.l1FinalizedHead.Number-d.cfg.ChallengeWindow)
+	if err != nil {
+		return err
+	}
+	d.finalizedHead = ref
+	return nil
+}
+
+// Finalize sets the L1 finalized head signal and calls the handler function if set.
+func (d *DA) Finalize(l1Finalized eth.L1BlockRef) {
+	d.updateFinalizedHead(l1Finalized)
+	d.metrics.RecordChallengesHead("finalized", d.finalizedHead.Number)
+
+	// Record and Log the latest L1 finalized head
+	d.log.Info("received l1 finalized signal, forwarding plasma finalization to finalizedHeadSignalHandler",
+		"l1", l1Finalized,
+		"plasma", d.finalizedHead)
+
+	// execute the handler function if set
+	// the handler function is called with the plasma finalized head
+	if d.finalizedHeadSignalHandler == nil {
+		d.log.Warn("finalized head signal handler not set")
 		return
 	}
-	// signal the engine queue
-	d.finalizedHeadSignalFunc(d.finalizedHead)
+	d.finalizedHeadSignalHandler(d.finalizedHead)
 }
 
 // LookAhead increments the challenges origin and process the new block if it exists.
@@ -163,10 +195,12 @@ func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, bl
 	if d.cfg.CommitmentType != comm.CommitmentType() {
 		return nil, fmt.Errorf("invalid commitment type; expected: %v, got: %v: %w", d.cfg.CommitmentType, comm.CommitmentType(), ErrExpiredChallenge)
 	}
-	// Don't track the expired commitment. If we hit this case we have seen an expired challenge, but never used the data so we can
-	// skip the reorg. If we used the data & then expire the challenge later, we do that during the AdvanceChallengeOrigin step
 	status := d.state.GetChallengeStatus(comm, blockId.Number)
+	// check if the challenge is expired
 	if status == ChallengeExpired {
+		// Don't track the expired commitment. If we hit this case we have seen an expired challenge, but never used the data.
+		// this indicates that the data which might cause us to reorg is expired (not to be used) so we can optimize by skipping the reorg.
+		// If we used the data & then expire the challenge later, we do that during the AdvanceChallengeOrigin step
 		return nil, ErrExpiredChallenge
 	}
 	// Record the commitment for later finalization / invalidation
@@ -183,9 +217,10 @@ func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, bl
 		return nil, err
 	}
 
-	switch status {
-	case ChallengeUninitialized:
-		if notFound {
+	// If the data is not found, things are handled differently based on the challenge status.
+	if notFound {
+		switch status {
+		case ChallengeUninitialized:
 			// If this commitment was never challenged & we can't find the data, treat it as unrecoverable.
 			if d.challengeOrigin.Number > blockId.Number+d.cfg.ChallengeWindow {
 				return nil, ErrMissingPastWindow
@@ -195,37 +230,32 @@ func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, bl
 				return nil, err
 			}
 			return nil, ErrPendingChallenge
-		} else {
-			return data, nil
-		}
-	case ChallengeActive:
-		if notFound {
-			// data is missing and a challenge is active, we must wait for the challenge to resolve
+		case ChallengeActive:
+			// If the commitment is active, we must wait for the challenge to resolve
 			// hence we continue syncing new origins to sync the new challenge events.
-			// AdvanceChallengeOrigin calls ExpireChallenges which will mark this challenge as expired when the window is up.
+			// Active challenges are expired by the AdvanceChallengeOrigin function which calls state.ExpireChallenges
 			if err := d.LookAhead(ctx, l1); err != nil {
 				return nil, err
 			}
 			return nil, ErrPendingChallenge
-		} else {
-			return data, nil
-		}
-	case ChallengeResolved:
-		if notFound {
+		case ChallengeResolved:
 			// Generic Commitments don't resolve from L1 so if we still can't find the data with out of luck
 			if comm.CommitmentType() == GenericCommitmentType {
 				return nil, ErrMissingPastWindow
 			}
-			ch, _ := d.state.GetChallenge(comm, blockId.Number)
-			// data not found in storage, return from challenge resolved input
-			// Note: Only do this for keccak commitments
-			return ch.input, nil
-		} else {
-			return data, nil
+			// Keccak commitments resolve from L1, so we should have the data in the challenge resolved input
+			if comm.CommitmentType() == Keccak256CommitmentType {
+				ch, _ := d.state.GetChallenge(comm, blockId.Number)
+				return ch.input, nil
+			}
 		}
-	default:
-		return nil, fmt.Errorf("Unknown challenge status: %v", status)
 	}
+	// regardless of the potential notFound error, if this challenge status is not handled, return an error
+	if status != ChallengeUninitialized && status != ChallengeActive && status != ChallengeResolved {
+		return nil, fmt.Errorf("unknown challenge status: %v", status)
+	}
+
+	return data, nil
 }
 
 // AdvanceChallengeOrigin reads & stores challenge events for the given L1 block
@@ -234,18 +264,23 @@ func (d *DA) AdvanceChallengeOrigin(ctx context.Context, l1 L1Fetcher, block eth
 	if block.Number <= d.challengeOrigin.Number {
 		return nil
 	}
+
+	// load challenge events from the l1 block
 	if err := d.loadChallengeEvents(ctx, l1, block); err != nil {
 		return err
 	}
-	// Expire challenges separately from commitments
+
+	// Expire challenges
 	d.state.ExpireChallenges(block)
+
+	// set and record the new challenge origin
 	d.challengeOrigin = block
 	d.metrics.RecordChallengesHead("latest", d.challengeOrigin.Number)
 	d.log.Info("processed plasma challenge origin", "origin", block)
 	return nil
 }
 
-// AdvanceCommitmentOrigin expires + prunes commitments at the start of reading in L1 commitments from a block.
+// AdvanceCommitmentOrigin updates the commitment origin and the finalized head.
 func (d *DA) AdvanceCommitmentOrigin(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
 	// do not repeat for the same origin
 	if block.Number <= d.commitmentOrigin.Number {
@@ -259,26 +294,8 @@ func (d *DA) AdvanceCommitmentOrigin(ctx context.Context, l1 L1Fetcher, block et
 		d.resetting = true
 		return err
 	}
-	// Advance the finalization signal. This is split into two places.
-	// This function the latest L1 finalized head & sets finalized head to the highest L1 block ref which
-	// has been fully processed.
-	// The Finalize function sets the L1 finalized head & forwards the finalized which is set here.
-	// Prune the state up to our current finalized head & possibly get a L1
-	ref := d.state.Prune(d.l1FinalizedHead.ID())
-	if ref != (eth.L1BlockRef{}) {
-		// If prune found a new finalized head, set it
-		d.metrics.RecordChallengesHead("finalized", ref.Number)
-		d.finalizedHead = ref
-	} else if d.state.NoCommitments() && d.l1FinalizedHead.Number > d.cfg.ChallengeWindow {
-		// Else if there are no commitments, the finalized head is set to the L1 finalized head - challenge window
-		ref, err = l1.L1BlockRefByNumber(ctx, d.l1FinalizedHead.Number-d.cfg.ChallengeWindow)
-		if err != nil {
-			return err
-		}
-		d.metrics.RecordChallengesHead("finalized", ref.Number)
-		d.finalizedHead = ref
-	}
 
+	// set and record the new commitment origin
 	d.commitmentOrigin = block
 	d.metrics.RecordChallengesHead("latest", d.challengeOrigin.Number)
 	d.log.Info("processed plasma l1 origin", "origin", block, "finalized", d.finalizedHead.ID(), "l1-finalize", d.l1FinalizedHead.ID())
@@ -288,7 +305,7 @@ func (d *DA) AdvanceCommitmentOrigin(ctx context.Context, l1 L1Fetcher, block et
 
 // AdvanceL1Origin syncs any challenge events included in the l1 block, expires any active challenges
 // after the new resolveWindow, computes and signals the new finalized head and sets the l1 block
-// as the new head for tracking challenges. If forwards an error if any new challenge have expired to
+// as the new head for tracking challenges and commitments. If forwards an error if any new challenge have expired to
 // trigger a derivation reset.
 func (d *DA) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
 	if err := d.AdvanceChallengeOrigin(ctx, l1, block); err != nil {
@@ -296,6 +313,14 @@ func (d *DA) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, block eth.BlockI
 	}
 	if err := d.AdvanceCommitmentOrigin(ctx, l1, block); err != nil {
 		return fmt.Errorf("failed to advance commitment origin: %w", err)
+	}
+	// if there are no commitments, we can calculate the finalized head based on the challenge window
+	// otherwise, the finalization signal is used to set the finalized head
+	if d.state.NoCommitments() {
+		if err := d.updateFinalizedFromL1(ctx, l1); err != nil {
+			return err
+		}
+		d.metrics.RecordChallengesHead("finalized", d.finalizedHead.Number)
 	}
 	return nil
 }
