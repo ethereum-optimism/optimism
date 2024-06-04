@@ -1,0 +1,31 @@
+[server]
+rpc_port = 8545
+
+[backend]
+response_timeout_seconds = 1
+max_degraded_latency_threshold = "30ms"
+
+[backends]
+[backends.normal]
+rpc_url = "$NODE1_URL"
+
+[backends.fallback]
+rpc_url = "$NODE2_URL"
+
+[backend_groups]
+[backend_groups.node]
+backends = ["normal", "fallback"]
+consensus_aware = true
+consensus_handler = "noop"            # allow more control over the consensus poller for tests
+consensus_ban_period = "1m"
+consensus_max_update_threshold = "2m"
+consensus_max_block_lag = 8
+consensus_min_peer_count = 4
+fallbacks = ["fallback"]
+
+[rpc_method_mappings]
+eth_call = "node"
+eth_chainId = "node"
+eth_blockNumber = "node"
+eth_getBlockByNumber = "node"
+consensus_getReceipts = "node"
