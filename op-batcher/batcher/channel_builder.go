@@ -74,6 +74,8 @@ type ChannelBuilder struct {
 	numFrames int
 	// total amount of output data of all frames created yet
 	outputBytes int
+	// expiring L1 height for span batch only
+	spanBatchExpire uint64
 }
 
 // newChannelBuilder creates a new channel builder or returns an error if the
@@ -165,6 +167,9 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 
 	c.blocks = append(c.blocks, block)
 	c.updateSwTimeout(batch)
+	if c.cfg.BatchType == derive.SpanBatchType && len(c.blocks) == 1 {
+		c.spanBatchExpire = uint64(batch.EpochNum) + c.cfg.SeqWindowSize
+	}
 
 	if l1info.Number > c.latestL1Origin.Number {
 		c.latestL1Origin = eth.BlockID{

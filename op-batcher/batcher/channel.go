@@ -85,6 +85,10 @@ func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*t
 	s.confirmedTxUpdated = true
 	s.channelBuilder.FramePublished(inclusionBlock.Number)
 
+	if s.isSpanBatchExpired(inclusionBlock.Number) {
+		s.log.Warn("Channel span batch expired, dropping", "id", s.ID(), "l1height", inclusionBlock.Number, "spanBatchExpire", s.channelBuilder.spanBatchExpire)
+		return true, nil
+	}
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
 	if s.isTimedOut() {
@@ -128,7 +132,7 @@ func (s *channel) updateInclusionBlocks() {
 	s.confirmedTxUpdated = false
 }
 
-// pendingChannelIsTimedOut returns true if submitted channel has timed out.
+// isTimedOut returns true if submitted channel has timed out.
 // A channel has timed out if the difference in L1 Inclusion blocks between
 // the first & last included block is greater than or equal to the channel timeout.
 func (s *channel) isTimedOut() bool {
@@ -137,7 +141,11 @@ func (s *channel) isTimedOut() bool {
 	return s.maxInclusionBlock-s.minInclusionBlock >= s.cfg.ChannelTimeout
 }
 
-// pendingChannelIsFullySubmitted returns true if the channel has been fully submitted.
+func (s *channel) isSpanBatchExpired(l1Height uint64) bool {
+	return s.channelBuilder.spanBatchExpire != 0 && l1Height > s.channelBuilder.spanBatchExpire
+}
+
+// isFullySubmitted returns true if the channel has been fully submitted.
 func (s *channel) isFullySubmitted() bool {
 	// Update min/max inclusion blocks for timeout check
 	s.updateInclusionBlocks()
