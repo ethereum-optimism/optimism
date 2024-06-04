@@ -18,6 +18,10 @@ reqenv "GS_BATCHER_ADDRESS"
 reqenv "GS_PROPOSER_ADDRESS"
 reqenv "GS_SEQUENCER_ADDRESS"
 reqenv "L1_RPC_URL"
+reqenv "L1_CHAIN_ID"
+reqenv "L2_CHAIN_ID"
+reqenv "L1_BLOCK_TIME"
+reqenv "L2_BLOCK_TIME"
 
 # Get the finalized block timestamp and hash
 block=$(cast block finalized --rpc-url "$L1_RPC_URL")
@@ -29,10 +33,10 @@ config=$(cat << EOL
 {
   "l1StartingBlockTag": "$blockhash",
 
-  "l1ChainID": 11155111,
-  "l2ChainID": 42069,
-  "l2BlockTime": 2,
-  "l1BlockTime": 12,
+  "l1ChainID": $L1_CHAIN_ID,
+  "l2ChainID": $L2_CHAIN_ID,
+  "l2BlockTime": $L2_BLOCK_TIME,
+  "l1BlockTime": $L1_BLOCK_TIME,
 
   "maxSequencerDrift": 600,
   "sequencerWindowSize": 3600,
@@ -49,7 +53,7 @@ config=$(cat << EOL
   "l2OutputOracleProposer": "$GS_PROPOSER_ADDRESS",
   "l2OutputOracleChallenger": "$GS_ADMIN_ADDRESS",
 
-  "finalizationPeriodSeconds": 12,
+  "finalizationPeriodSeconds": $L1_BLOCK_TIME,
 
   "proxyAdminOwner": "$GS_ADMIN_ADDRESS",
   "baseFeeVaultRecipient": "$GS_ADMIN_ADDRESS",
