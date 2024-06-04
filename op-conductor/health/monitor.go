@@ -117,7 +117,16 @@ func (hm *SequencerHealthMonitor) loop() {
 		case <-ticker.C:
 			err := hm.healthCheck()
 			hm.metrics.RecordHealthCheck(err == nil, err)
-			hm.healthUpdateCh <- err
+			// Ensure that we exit cleanly if told to shutdown while still waiting to publish the health update
+		loop:
+			for {
+				select {
+				case hm.healthUpdateCh <- err:
+					break loop
+				case <-hm.done:
+					break loop
+				}
+			}
 		}
 	}
 }
