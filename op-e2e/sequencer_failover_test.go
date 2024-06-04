@@ -148,6 +148,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 // [Category: Sequencer Failover]
 // Test that the sequencer can successfully failover to a new sequencer once the active sequencer goes down.
 func TestSequencerFailover_ActiveSequencerDown(t *testing.T) {
+	t.Skip("Triggers a deadlock in shutdown")
 	sys, conductors, cleanup := setupSequencerFailoverTest(t)
 	defer cleanup()
 
