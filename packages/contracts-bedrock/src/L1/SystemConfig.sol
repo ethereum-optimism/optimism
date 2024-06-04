@@ -8,13 +8,16 @@ import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import {
+    AdditionalMessageValidators, IAdditionalMessageValidators
+} from "src/libraries/AdditionalMessageValidators.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
+contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken, IAdditionalMessageValidators {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
@@ -40,6 +43,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         address optimismMintableERC20Factory;
         address gasPayingToken;
         address l1MessageValidator;
+        address l2MessageValidator;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -118,10 +122,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
     ResourceMetering.ResourceConfig internal _resourceConfig;
 
-    /// @notice L1MessageValidator (optional) contract address. Zero address means no additional
-    ///         validation occurs.
-    address public l1MessageValidator;
-
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -165,7 +165,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
                 gasPayingToken: address(0),
-                l1MessageValidator: address(0)
+                l1MessageValidator: address(0),
+                l2MessageValidator: address(0)
             })
         });
     }
@@ -215,7 +216,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
-        _setL1MessageValidator(_addresses.l1MessageValidator);
+        _setMessageValidators(_addresses.l1MessageValidator, _addresses.l2MessageValidator);
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
     }
@@ -308,6 +309,46 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         symbol_ = GasPayingToken.getSymbol();
     }
 
+    /// @notice Returns the L1MessageValidator address called from the OptimismPortal.
+    ///         If nothing is set in state, then it means there is no additional message
+    ///         message validation being used.
+    function l1MessageValidator() public view returns (address addr_) {
+        addr_ = AdditionalMessageValidators.getL1MessageValidator();
+    }
+
+    /// @notice Returns the L2MessageValidator address called from the L2CrossDomainMessenger.
+    ///         If nothing is set in state, then it means there is no additional message
+    ///         message validation being used.
+    function l2MessageValidator() public view returns (address addr_) {
+        addr_ = AdditionalMessageValidators.getL2MessageValidator();
+    }
+
+    /// @notice Returns a bool indicating if the network is using additional
+    ///         message validators on either L1 or L2.
+    function isAdditionalMessageValidating() public view returns (bool) {
+        bool l1MessageValidatorSet = l1MessageValidator() != address(0);
+        bool l2MessageValidatorSet = l2MessageValidator() != address(0);
+        return l1MessageValidatorSet || l2MessageValidatorSet;
+    }
+
+    /// @notice Setter for additional message validators. Can only be called by the owner.
+    /// @param _l1MessageValidator Address static called in the OptimismPortal for additional message validation.
+    /// @param _l2MessageValidator Address static called in the L2CrossDomainMessenger for additional message
+    /// validation.
+    function setMessageValidators(address _l1MessageValidator, address _l2MessageValidator) external onlyOwner {
+        _setMessageValidators(_l1MessageValidator, _l2MessageValidator);
+    }
+
+    /// @notice Internal setter for additional message validators.
+    /// @param _l1MessageValidator Address static called in the OptimismPortal for additional message validation.
+    /// @param _l2MessageValidator Address static called in the L2CrossDomainMessenger for additional message
+    /// validation.
+    function _setMessageValidators(address _l1MessageValidator, address _l2MessageValidator) internal virtual {
+        // Set the message validators in storage and in the OptimismPortal.
+        AdditionalMessageValidators.set(_l1MessageValidator, _l2MessageValidator);
+        OptimismPortal(payable(optimismPortal())).setMessageValidators(_l1MessageValidator, _l2MessageValidator);
+    }
+
     /// @notice Internal setter for the gas paying token address, includes validation.
     ///         The token must not already be set and must be non zero and not the ether address
     ///         to set the token address. This prevents the token address from being changed
@@ -330,20 +371,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 _symbol: symbol
             });
         }
-    }
-
-    /// @notice Updates the L1MessageValidator. The zero address means
-    ///         no additional validation should be performed.
-    ///         Can only be called by the owner.
-    /// @param _validator New value for l1MessageValidator.
-    function setL1MessageValidator(address _validator) external onlyOwner {
-        _setL1MessageValidator(_validator);
-    }
-
-    /// @notice Internal function for updating the L1MessageValidator.
-    /// @param _validator New value for L1MessageValidator.
-    function _setL1MessageValidator(address _validator) internal {
-        l1MessageValidator = _validator;
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.

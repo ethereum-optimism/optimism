@@ -1031,7 +1031,8 @@ contract Deploy is Deployer {
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
                         gasPayingToken: customGasTokenAddress,
-                        l1MessageValidator: address(0)
+                        l1MessageValidator: address(0),
+                        l2MessageValidator: address(0)
                     })
                 )
             )

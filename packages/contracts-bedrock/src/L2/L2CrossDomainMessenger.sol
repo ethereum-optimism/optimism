@@ -5,6 +5,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { IL2MessageValidator } from "src/L2/IL2MessageValidator.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L1Block } from "src/L2/L1Block.sol";
@@ -49,6 +50,29 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @inheritdoc CrossDomainMessenger
     function gasPayingToken() internal view override returns (address addr_, uint8 decimals_) {
         (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function passesDomainMessageValidator(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _minGasLimit,
+        bytes calldata _message
+    )
+        internal
+        view
+        override
+        returns (bool)
+    {
+        address l2MessageValidator = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l2MessageValidator();
+        if (l2MessageValidator == address(0)) {
+            return true;
+        }
+        return IL2MessageValidator(l2MessageValidator).validateMessage(
+            _nonce, _sender, _target, _value, _minGasLimit, _message
+        );
     }
 
     /// @inheritdoc CrossDomainMessenger
