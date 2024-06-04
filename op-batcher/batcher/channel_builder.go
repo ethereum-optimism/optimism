@@ -200,16 +200,10 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 		}
 	}
 	if block.NumberU64() > c.latestL2.Number {
-		c.latestL2 = eth.BlockID{
-			Hash:   block.Hash(),
-			Number: block.NumberU64(),
-		}
+		c.latestL2 = eth.ToBlockID(block)
 	}
 	if c.oldestL2.Number == 0 || block.NumberU64() < c.oldestL2.Number {
-		c.oldestL2 = eth.BlockID{
-			Hash:   block.Hash(),
-			Number: block.NumberU64(),
-		}
+		c.oldestL2 = eth.ToBlockID(block)
 	}
 
 	if err = c.co.FullErr(); err != nil {
