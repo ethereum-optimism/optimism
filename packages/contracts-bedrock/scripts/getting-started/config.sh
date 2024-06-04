@@ -101,6 +101,7 @@ config=$(cat << EOL
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 14,
+  "faultGameWithdrawalDelay": 604800,
 
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400
