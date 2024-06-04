@@ -88,6 +88,7 @@ func TestConsensus(t *testing.T) {
 	defer shutdown()
 
 	ctx := context.Background()
+	bg.Consensus.Reset()
 
 	// poll for updated consensus
 	update := func() {
@@ -363,6 +364,22 @@ func TestConsensus(t *testing.T) {
 	})
 
 	t.Run("ban backend if tags are messed - finalized dropped", func(t *testing.T) {
+		reset()
+		update()
+		overrideBlock("node1", "finalized", "0xa1")
+		update()
+
+		require.Equal(t, "0x101", bg.Consensus.GetLatestBlockNumber().String())
+		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
+		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
+
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+		require.NotContains(t, consensusGroup, nodes["node1"].backend)
+		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.Equal(t, 1, len(consensusGroup))
+	})
+
+	t.Run("ban backend if latest block height is recieved 5 times in a row", func(t *testing.T) {
 		reset()
 		update()
 		overrideBlock("node1", "finalized", "0xa1")
