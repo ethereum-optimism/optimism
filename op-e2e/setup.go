@@ -776,7 +776,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	// L2Output Submitter
 	var proposerCLIConfig *l2os.CLIConfig
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
 			L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
 			RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),

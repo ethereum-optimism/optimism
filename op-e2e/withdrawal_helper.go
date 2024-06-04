@@ -103,7 +103,7 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	l1Client := clients.NodeClient("l1")
 	var blockNumber uint64
 	var err error
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		blockNumber, err = wait.ForGamePublished(ctx, l1Client, config.L1Deployments.OptimismPortalProxy, config.L1Deployments.DisputeGameFactoryProxy, l2WithdrawalReceipt.BlockNumber)
 		require.Nil(t, err)
 	} else {
@@ -164,8 +164,8 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 }
 
 func ProveWithdrawalParameters(ctx context.Context, proofCl withdrawals.ProofClient, l2ReceiptCl withdrawals.ReceiptClient, l2BlockCl withdrawals.BlockClient, txHash common.Hash, header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (withdrawals.ProvenWithdrawalParameters, error) {
-	if e2eutils.UseFPAC() {
-		return withdrawals.ProveWithdrawalParametersFPAC(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, disputeGameFactoryContract, optimismPortal2Contract)
+	if e2eutils.UseFaultProofs() {
+		return withdrawals.ProveWithdrawalParametersFaultProofs(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, disputeGameFactoryContract, optimismPortal2Contract)
 	} else {
 		return withdrawals.ProveWithdrawalParameters(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, header, l2OutputOracleContract)
 	}
@@ -190,7 +190,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 
 	var resolveClaimReceipt *types.Receipt
 	var resolveReceipt *types.Receipt
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		portal2, err := bindingspreview.NewOptimismPortal2(config.L1Deployments.OptimismPortalProxy, l1Client)
 		require.Nil(t, err)
 
@@ -231,7 +231,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		require.Equal(t, types.ReceiptStatusSuccessful, resolveReceipt.Status)
 	}
 
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		err := wait.ForWithdrawalCheck(ctx, l1Client, wd, config.L1Deployments.OptimismPortalProxy, opts.From)
 		require.Nil(t, err)
 	} else {

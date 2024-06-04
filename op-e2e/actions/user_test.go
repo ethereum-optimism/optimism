@@ -136,7 +136,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	var proposer *L2Proposer
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		optimismPortal2Contract, err := bindingspreview.NewOptimismPortal2(sd.DeploymentsL1.OptimismPortalProxy, miner.EthClient())
 		require.NoError(t, err)
 		respectedGameType, err := optimismPortal2Contract.RespectedGameType(&bind.CallOpts{})
@@ -285,8 +285,8 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	miner.ActL1StartBlock(13)(t)
 	miner.ActL1EndBlock(t)
 
-	// If using FPAC we need to resolve the game
-	if e2eutils.UseFPAC() {
+	// If using fault proofs we need to resolve the game
+	if e2eutils.UseFaultProofs() {
 		// Resolve the root claim
 		alice.ActResolveClaim(t)
 		miner.ActL1StartBlock(12)(t)
