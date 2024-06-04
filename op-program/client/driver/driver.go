@@ -130,13 +130,10 @@ func (d *Driver) Step(ctx context.Context) error {
 		d.logger.Info("Derivation complete: reached L1 head", "head", d.deriver.SafeL2Head())
 		return io.EOF
 	} else if errors.Is(err, derive.NotEnoughData) {
-		head := d.deriver.SafeL2Head()
-		if head.Number >= d.targetBlockNum {
-			d.logger.Info("Derivation complete: reached L2 block", "head", head)
-			return io.EOF
-		}
+		// NotEnoughData is not handled differently than a nil error.
+		// This used to be returned by the EngineQueue when a block was derived, but also other stages.
+		// Instead, every driver-loop iteration we check if the target block number has been reached.
 		d.logger.Debug("Data is lacking")
-		return nil
 	} else if errors.Is(err, derive.ErrTemporary) {
 		// While most temporary errors are due to requests for external data failing which can't happen,
 		// they may also be returned due to other events like channels timing out so need to be handled
@@ -144,6 +141,11 @@ func (d *Driver) Step(ctx context.Context) error {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("pipeline err: %w", err)
+	}
+	head := d.deriver.SafeL2Head()
+	if head.Number >= d.targetBlockNum {
+		d.logger.Info("Derivation complete: reached L2 block", "head", head)
+		return io.EOF
 	}
 	return nil
 }

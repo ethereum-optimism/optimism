@@ -90,7 +90,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	attributesHandler := attributes.NewAttributesHandler(log, cfg, engine, eng)
 
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, metrics)
-	// TODO syncCfg, safeHeadListener, finalizer
 
 	rollupNode := &L2Verifier{
 		log:               log,
