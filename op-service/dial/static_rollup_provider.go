@@ -11,8 +11,8 @@ import (
 // It manages the lifecycle of the RollupClient for callers
 type RollupProvider interface {
 	// RollupClient(ctx) returns the underlying sources.RollupClient pointing to the L2 rollup consensus node.
-	// Note: ctx should be a lifecycle context as client selection may involve multiple network operations,
-	// specifically in the case of failover.
+	// Note: ctx should be a lifecycle context without an attached timeout as client selection may involve
+	// multiple network operations, specifically in the case of failover.
 	RollupClient(ctx context.Context) (RollupClientInterface, error)
 	// Close() closes the underlying client or clients
 	Close()
