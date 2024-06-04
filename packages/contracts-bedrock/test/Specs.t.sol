@@ -47,6 +47,7 @@ contract Specification_Test is CommonTest {
 
     mapping(string => mapping(bytes4 => Spec)) specs;
     mapping(string => uint256) public numEntries;
+    uint256 numSpecs;
 
     function setUp() public override {
         super.setUp();
@@ -368,7 +369,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("l1CrossDomainMessenger()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("l1ERC721Bridge()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("l1StandardBridge()") });
-        _addSpec({ _name: "SystemConfig", _sel: _getSel("l2OutputOracle()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("optimismPortal()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("optimismMintableERC20Factory()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("batchInbox()") });
@@ -376,7 +376,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("L1_CROSS_DOMAIN_MESSENGER_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("L1_ERC_721_BRIDGE_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("L1_STANDARD_BRIDGE_SLOT()") });
-        _addSpec({ _name: "SystemConfig", _sel: _getSel("L2_OUTPUT_ORACLE_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("OPTIMISM_PORTAL_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("BATCH_INBOX_SLOT()") });
@@ -384,6 +383,12 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("gasPayingTokenName()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("gasPayingTokenSymbol()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("isCustomGasToken()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("DISPUTE_GAME_FACTORY_SLOT()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("disputeGameFactory()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("setGasConfigEcotone(uint32,uint32)"), _auth: Role.SYSTEMCONFIGOWNER });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("basefeeScalar()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("blobbasefeeScalar()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("maximumGasLimit()") });
 
         // ProxyAdmin
         _addSpec({ _name: "ProxyAdmin", _sel: _getSel("addressManager()") });
@@ -645,6 +650,7 @@ contract Specification_Test is CommonTest {
     function _addSpec(string memory _name, bytes4 _sel, Role _auth, bool _pausable) internal {
         specs[_name][_sel] = Spec({ name: _name, sel: _sel, auth: _auth, pausable: _pausable });
         numEntries[_name]++;
+        numSpecs++;
     }
 
     /// @dev Adds a spec for a function with no auth.
@@ -666,9 +672,11 @@ contract Specification_Test is CommonTest {
     function testContractAuth() public {
         string[] memory pathExcludes = new string[](1);
         pathExcludes[0] = "src/dispute/interfaces/*";
+        pathExcludes[0] = "src/dispute/lib/*";
         Abi[] memory abis =
             ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,governance,universal/ProxyAdmin.sol}", pathExcludes);
 
+        uint256 numCheckedEntries = 0;
         for (uint256 i = 0; i < abis.length; i++) {
             string memory contractName = abis[i].contractName;
             assertEq(
@@ -694,7 +702,9 @@ contract Specification_Test is CommonTest {
                     spec.sel,
                     string.concat("Specification_Test: invalid ABI ", contractName, "::", abiEntry.fnName)
                 );
+                numCheckedEntries++;
             }
         }
+        assertEq(numSpecs, numCheckedEntries, "Some specs were not checked");
     }
 }
