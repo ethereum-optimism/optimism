@@ -118,14 +118,11 @@ func (hm *SequencerHealthMonitor) loop() {
 			err := hm.healthCheck()
 			hm.metrics.RecordHealthCheck(err == nil, err)
 			// Ensure that we exit cleanly if told to shutdown while still waiting to publish the health update
-		loop:
-			for {
-				select {
-				case hm.healthUpdateCh <- err:
-					break loop
-				case <-hm.done:
-					return
-				}
+			select {
+			case hm.healthUpdateCh <- err:
+				continue
+			case <-hm.done:
+				return
 			}
 		}
 	}
