@@ -124,7 +124,7 @@ func (hm *SequencerHealthMonitor) loop() {
 				case hm.healthUpdateCh <- err:
 					break loop
 				case <-hm.done:
-					break loop
+					return
 				}
 			}
 		}
