@@ -194,18 +194,6 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionP
 	}
 }
 
-func (s *Driver) logSyncProgress(reason string) {
-	s.log.Info("Sync progress",
-		"reason", reason,
-		"l2_finalized", s.engineController.Finalized(),
-		"l2_safe", s.engineController.SafeL2Head(),
-		"l2_pending_safe", s.engineController.PendingSafeL2Head(),
-		"l2_unsafe", s.engineController.UnsafeL2Head(),
-		"l2_time", s.engineController.UnsafeL2Head().Time,
-		"l1_derived", s.derivation.Origin(),
-	)
-}
-
 // the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
 func (s *Driver) eventLoop() {
 	defer s.wg.Done()
@@ -352,7 +340,6 @@ func (s *Driver) eventLoop() {
 				if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
 					s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 				}
-				s.logSyncProgress("unsafe payload from sequencer while in EL sync")
 			}
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -81,7 +82,10 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		finalizer = finality.NewFinalizer(log, cfg, l1, engine)
 	}
 
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, engine, metrics, syncCfg, safeHeadListener, finalizer)
+	attributesHandler := attributes.NewAttributesHandler(log, cfg, engine, eng)
+
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, engine, metrics,
+		syncCfg, safeHeadListener, finalizer, attributesHandler)
 	pipeline.Reset()
 
 	rollupNode := &L2Verifier{
