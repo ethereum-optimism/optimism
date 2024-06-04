@@ -16,8 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 type EngineBackend interface {
@@ -50,6 +52,10 @@ type L2EngineAPI struct {
 	log     log.Logger
 	backend EngineBackend
 
+	// Functionality for snap sync
+	remotes    map[common.Hash]*types.Block
+	downloader *downloader.Downloader
+
 	// L2 block building data
 	blockProcessor *BlockProcessor
 	pendingIndices map[common.Address]uint64 // per account, how many txs from the pool were already included in the block, since the pool is lagging behind block mining.
@@ -59,10 +65,12 @@ type L2EngineAPI struct {
 	payloadID engine.PayloadID // ID of payload that is currently being built
 }
 
-func NewL2EngineAPI(log log.Logger, backend EngineBackend) *L2EngineAPI {
+func NewL2EngineAPI(log log.Logger, backend EngineBackend, downloader *downloader.Downloader) *L2EngineAPI {
 	return &L2EngineAPI{
-		log:     log,
-		backend: backend,
+		log:        log,
+		backend:    backend,
+		remotes:    make(map[common.Hash]*types.Block),
+		downloader: downloader,
 	}
 }
 
@@ -72,20 +80,20 @@ var (
 )
 
 // computePayloadId computes a pseudo-random payloadid, based on the parameters.
-func computePayloadId(headBlockHash common.Hash, params *eth.PayloadAttributes) engine.PayloadID {
+func computePayloadId(headBlockHash common.Hash, attrs *eth.PayloadAttributes) engine.PayloadID {
 	// Hash
 	hasher := sha256.New()
 	hasher.Write(headBlockHash[:])
-	_ = binary.Write(hasher, binary.BigEndian, params.Timestamp)
-	hasher.Write(params.PrevRandao[:])
-	hasher.Write(params.SuggestedFeeRecipient[:])
-	_ = binary.Write(hasher, binary.BigEndian, params.NoTxPool)
-	_ = binary.Write(hasher, binary.BigEndian, uint64(len(params.Transactions)))
-	for _, tx := range params.Transactions {
+	_ = binary.Write(hasher, binary.BigEndian, attrs.Timestamp)
+	hasher.Write(attrs.PrevRandao[:])
+	hasher.Write(attrs.SuggestedFeeRecipient[:])
+	_ = binary.Write(hasher, binary.BigEndian, attrs.NoTxPool)
+	_ = binary.Write(hasher, binary.BigEndian, uint64(len(attrs.Transactions)))
+	for _, tx := range attrs.Transactions {
 		_ = binary.Write(hasher, binary.BigEndian, uint64(len(tx))) // length-prefix to avoid collisions
 		hasher.Write(tx)
 	}
-	_ = binary.Write(hasher, binary.BigEndian, *params.GasLimit)
+	_ = binary.Write(hasher, binary.BigEndian, *attrs.GasLimit)
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
 	return out
@@ -106,9 +114,7 @@ func (ea *L2EngineAPI) PendingIndices(from common.Address) uint64 {
 	return ea.pendingIndices[from]
 }
 
-var (
-	ErrNotBuildingBlock = errors.New("not currently building a block, cannot include tx from queue")
-)
+var ErrNotBuildingBlock = errors.New("not currently building a block, cannot include tx from queue")
 
 func (ea *L2EngineAPI) IncludeTx(tx *types.Transaction, from common.Address) error {
 	if ea.blockProcessor == nil {
@@ -134,22 +140,22 @@ func (ea *L2EngineAPI) IncludeTx(tx *types.Transaction, from common.Address) err
 	return nil
 }
 
-func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttributes) error {
+func (ea *L2EngineAPI) startBlock(parent common.Hash, attrs *eth.PayloadAttributes) error {
 	if ea.blockProcessor != nil {
 		ea.log.Warn("started building new block without ending previous block", "previous", ea.blockProcessor.header, "prev_payload_id", ea.payloadID)
 	}
 
-	processor, err := NewBlockProcessorFromPayloadAttributes(ea.backend, parent, params)
+	processor, err := NewBlockProcessorFromPayloadAttributes(ea.backend, parent, attrs)
 	if err != nil {
 		return err
 	}
 	ea.blockProcessor = processor
 	ea.pendingIndices = make(map[common.Address]uint64)
-	ea.l2ForceEmpty = params.NoTxPool
-	ea.payloadID = computePayloadId(parent, params)
+	ea.l2ForceEmpty = attrs.NoTxPool
+	ea.payloadID = computePayloadId(parent, attrs)
 
 	// pre-process the deposits
-	for i, otx := range params.Transactions {
+	for i, otx := range attrs.Transactions {
 		var tx types.Transaction
 		if err := tx.UnmarshalBinary(otx); err != nil {
 			return fmt.Errorf("transaction %d is not valid: %w", i, err)
@@ -178,12 +184,19 @@ func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
 }
 
 func (ea *L2EngineAPI) GetPayloadV1(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
-	return ea.getPayload(ctx, payloadId)
+	res, err := ea.getPayload(ctx, payloadId)
+	if err != nil {
+		return nil, err
+	}
+	return res.ExecutionPayload, nil
 }
 
 func (ea *L2EngineAPI) GetPayloadV2(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	payload, err := ea.getPayload(ctx, payloadId)
-	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, err
+	return ea.getPayload(ctx, payloadId)
+}
+
+func (ea *L2EngineAPI) GetPayloadV3(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	return ea.getPayload(ctx, payloadId)
 }
 
 func (ea *L2EngineAPI) config() *params.ChainConfig {
@@ -213,6 +226,17 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV2(ctx context.Context, state *eth.Forkc
 	return ea.forkchoiceUpdated(ctx, state, attr)
 }
 
+// Ported from: https://github.com/ethereum-optimism/op-geth/blob/c50337a60a1309a0f1dca3bf33ed1bb38c46cdd7/eth/catalyst/api.go#L197C1-L205C1
+func (ea *L2EngineAPI) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	if attr != nil {
+		if err := ea.verifyPayloadAttributes(attr); err != nil {
+			return STATUS_INVALID, engine.InvalidParams.With(err)
+		}
+	}
+	return ea.forkchoiceUpdated(ctx, state, attr)
+}
+
+// Ported from: https://github.com/ethereum-optimism/op-geth/blob/c50337a60a1309a0f1dca3bf33ed1bb38c46cdd7/eth/catalyst/api.go#L206-L218
 func (ea *L2EngineAPI) verifyPayloadAttributes(attr *eth.PayloadAttributes) error {
 	c := ea.config()
 
@@ -220,6 +244,11 @@ func (ea *L2EngineAPI) verifyPayloadAttributes(attr *eth.PayloadAttributes) erro
 	if err := checkAttribute(c.IsShanghai, attr.Withdrawals != nil, c.LondonBlock, uint64(attr.Timestamp)); err != nil {
 		return fmt.Errorf("invalid withdrawals: %w", err)
 	}
+	// Verify beacon root attribute for Cancun.
+	if err := checkAttribute(c.IsCancun, attr.ParentBeaconBlockRoot != nil, c.LondonBlock, uint64(attr.Timestamp)); err != nil {
+		return fmt.Errorf("invalid parent beacon block root: %w", err)
+	}
+
 	return nil
 }
 
@@ -238,7 +267,7 @@ func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionP
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("withdrawals not supported in V1"))
 	}
 
-	return ea.newPayload(ctx, payload)
+	return ea.newPayload(ctx, payload, nil, nil)
 }
 
 func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
@@ -250,10 +279,32 @@ func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionP
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil withdrawals pre-shanghai"))
 	}
 
-	return ea.newPayload(ctx, payload)
+	return ea.newPayload(ctx, payload, nil, nil)
 }
 
-func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
+// Ported from: https://github.com/ethereum-optimism/op-geth/blob/c50337a60a1309a0f1dca3bf33ed1bb38c46cdd7/eth/catalyst/api.go#L486C1-L507
+func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	if params.ExcessBlobGas == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil excessBlobGas post-cancun"))
+	}
+	if params.BlobGasUsed == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil params.BlobGasUsed post-cancun"))
+	}
+	if versionedHashes == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil versionedHashes post-cancun"))
+	}
+	if beaconRoot == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil parentBeaconBlockRoot post-cancun"))
+	}
+
+	if !ea.config().IsCancun(new(big.Int).SetUint64(uint64(params.BlockNumber)), uint64(params.Timestamp)) {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("newPayloadV3 called pre-cancun"))
+	}
+
+	return ea.newPayload(ctx, params, versionedHashes, beaconRoot)
+}
+
+func (ea *L2EngineAPI) getPayload(_ context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	ea.log.Trace("L2Engine API request received", "method", "GetPayload", "id", payloadId)
 	if ea.payloadID != payloadId {
 		ea.log.Warn("unexpected payload ID requested for block building", "expected", ea.payloadID, "got", payloadId)
@@ -264,10 +315,11 @@ func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) 
 		ea.log.Error("failed to finish block building", "err", err)
 		return nil, engine.UnknownPayload
 	}
-	return eth.BlockAsPayload(bl, ea.config().CanyonTime)
+
+	return eth.BlockAsPayloadEnv(bl, ea.config().CanyonTime)
 }
 
-func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+func (ea *L2EngineAPI) forkchoiceUpdated(_ context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ForkchoiceUpdated", "head", state.HeadBlockHash, "finalized", state.FinalizedBlockHash, "safe", state.SafeBlockHash)
 	if state.HeadBlockHash == (common.Hash{}) {
 		ea.log.Warn("Forkchoice requested update to zero hash")
@@ -278,7 +330,24 @@ func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.Forkcho
 	// reason.
 	block := ea.backend.GetBlockByHash(state.HeadBlockHash)
 	if block == nil {
-		// TODO: syncing not supported yet
+		if ea.downloader == nil {
+			ea.log.Warn("Must register downloader to be able to snap sync")
+			return STATUS_SYNCING, nil
+		}
+		// If the head hash is unknown (was not given to us in a newPayload request),
+		// we cannot resolve the header, so not much to do. This could be extended in
+		// the future to resolve from the `eth` network, but it's an unexpected case
+		// that should be fixed, not papered over.
+		header := ea.remotes[state.HeadBlockHash]
+		if header == nil {
+			ea.log.Warn("Forkchoice requested unknown head", "hash", state.HeadBlockHash)
+			return STATUS_SYNCING, nil
+		}
+
+		ea.log.Info("Forkchoice requested sync to new head", "number", header.Number(), "hash", header.Hash())
+		if err := ea.downloader.BeaconSync(downloader.SnapSync, header.Header(), nil); err != nil {
+			return STATUS_SYNCING, err
+		}
 		return STATUS_SYNCING, nil
 	}
 	// Block is known locally, just sanity check that the beacon client does not
@@ -369,7 +438,7 @@ func toGethWithdrawals(payload *eth.ExecutionPayload) []*types.Withdrawal {
 	return result
 }
 
-func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
+func (ea *L2EngineAPI) newPayload(_ context.Context, payload *eth.ExecutionPayload, hashes []common.Hash, root *common.Hash) (*eth.PayloadStatusV1, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ExecutePayload", "number", payload.BlockNumber, "hash", payload.BlockHash)
 	txs := make([][]byte, len(payload.Transactions))
 	for i, tx := range payload.Transactions {
@@ -387,11 +456,13 @@ func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPay
 		GasUsed:       uint64(payload.GasUsed),
 		Timestamp:     uint64(payload.Timestamp),
 		ExtraData:     payload.ExtraData,
-		BaseFeePerGas: payload.BaseFeePerGas.ToBig(),
+		BaseFeePerGas: (*uint256.Int)(&payload.BaseFeePerGas).ToBig(),
 		BlockHash:     payload.BlockHash,
 		Transactions:  txs,
 		Withdrawals:   toGethWithdrawals(payload),
-	}, nil, nil)
+		ExcessBlobGas: (*uint64)(payload.ExcessBlobGas),
+		BlobGasUsed:   (*uint64)(payload.BlobGasUsed),
+	}, hashes, root)
 	if err != nil {
 		log.Debug("Invalid NewPayload params", "params", payload, "error", err)
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalidBlockHash}, nil
@@ -408,6 +479,7 @@ func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPay
 
 	parent := ea.backend.GetBlock(block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
+		ea.remotes[block.Hash()] = block
 		// TODO: hack, saying we accepted if we don't know the parent block. Might want to return critical error if we can't actually sync.
 		return &eth.PayloadStatusV1{Status: eth.ExecutionAccepted, LatestValidHash: nil}, nil
 	}

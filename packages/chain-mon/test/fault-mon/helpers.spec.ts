@@ -46,21 +46,18 @@ describe('helpers', () => {
       signer
     )
 
-    const L2OutputOracleImplementation = await Factory__L2OutputOracle.deploy(
-      deployConfig.l2OutputOracleSubmissionInterval,
-      deployConfig.l2BlockTime,
-      deployConfig.l2OutputOracleStartingBlockNumber,
-      deployConfig.l2OutputOracleStartingTimestamp,
-      deployConfig.l2OutputOracleProposer,
-      deployConfig.l2OutputOracleChallenger,
-      deployConfig.finalizationPeriodSeconds
-    )
+    const L2OutputOracleImplementation = await Factory__L2OutputOracle.deploy()
 
     await Proxy.upgradeToAndCall(
       L2OutputOracleImplementation.address,
       L2OutputOracleImplementation.interface.encodeFunctionData('initialize', [
+        deployConfig.l2OutputOracleSubmissionInterval,
+        deployConfig.l2BlockTime,
         deployConfig.l2OutputOracleStartingBlockNumber,
         deployConfig.l2OutputOracleStartingTimestamp,
+        deployConfig.l2OutputOracleProposer,
+        deployConfig.l2OutputOracleChallenger,
+        deployConfig.finalizationPeriodSeconds,
       ])
     )
 

@@ -44,7 +44,7 @@ func main() {
 func OpConductorMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	logCfg := oplog.ReadCLIConfig(ctx)
 	log := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-	oplog.SetGlobalLogHandler(log.GetHandler())
+	oplog.SetGlobalLogHandler(log.Handler())
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, log)
 
 	cfg, err := conductor.NewConfig(ctx, log)

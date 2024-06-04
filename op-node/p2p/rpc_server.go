@@ -36,6 +36,7 @@ var (
 	ErrDisabledDiscovery   = errors.New("discovery disabled")
 	ErrNoConnectionManager = errors.New("no connection manager")
 	ErrNoConnectionGater   = errors.New("no connection gater")
+	ErrInvalidRequest      = errors.New("invalid request")
 )
 
 type Node interface {
@@ -204,6 +205,7 @@ type PeerStats struct {
 	Table         uint `json:"table"`
 	BlocksTopic   uint `json:"blocksTopic"`
 	BlocksTopicV2 uint `json:"blocksTopicV2"`
+	BlocksTopicV3 uint `json:"blocksTopicV3"`
 	Banned        uint `json:"banned"`
 	Known         uint `json:"known"`
 }
@@ -220,6 +222,7 @@ func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
 		Table:         0,
 		BlocksTopic:   uint(len(s.node.GossipOut().BlocksTopicV1Peers())),
 		BlocksTopicV2: uint(len(s.node.GossipOut().BlocksTopicV2Peers())),
+		BlocksTopicV3: uint(len(s.node.GossipOut().BlocksTopicV3Peers())),
 		Banned:        0,
 		Known:         uint(len(pstore.Peers())),
 	}
@@ -242,23 +245,31 @@ func (s *APIBackend) DiscoveryTable(_ context.Context) ([]*enode.Node, error) {
 	}
 }
 
-func (s *APIBackend) BlockPeer(_ context.Context, p peer.ID) error {
+func (s *APIBackend) BlockPeer(_ context.Context, id peer.ID) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_blockPeer")
+	if err := id.Validate(); err != nil {
+		s.log.Warn("invalid peer ID", "method", "BlockPeer", "peer", id, "err", err)
+		return ErrInvalidRequest
+	}
 	defer recordDur()
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return ErrNoConnectionGater
 	} else {
-		return gater.BlockPeer(p)
+		return gater.BlockPeer(id)
 	}
 }
 
-func (s *APIBackend) UnblockPeer(_ context.Context, p peer.ID) error {
+func (s *APIBackend) UnblockPeer(_ context.Context, id peer.ID) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_unblockPeer")
+	if err := id.Validate(); err != nil {
+		s.log.Warn("invalid peer ID", "method", "UnblockPeer", "peer", id, "err", err)
+		return ErrInvalidRequest
+	}
 	defer recordDur()
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return ErrNoConnectionGater
 	} else {
-		return gater.UnblockPeer(p)
+		return gater.UnblockPeer(id)
 	}
 }
 
@@ -276,6 +287,10 @@ func (s *APIBackend) ListBlockedPeers(_ context.Context) ([]peer.ID, error) {
 // Note: active connections to the IP address are not automatically closed.
 func (s *APIBackend) BlockAddr(_ context.Context, ip net.IP) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_blockAddr")
+	if ip == nil {
+		s.log.Warn("invalid IP", "method", "BlockAddr")
+		return ErrInvalidRequest
+	}
 	defer recordDur()
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return ErrNoConnectionGater
@@ -286,6 +301,10 @@ func (s *APIBackend) BlockAddr(_ context.Context, ip net.IP) error {
 
 func (s *APIBackend) UnblockAddr(_ context.Context, ip net.IP) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_unblockAddr")
+	if ip == nil {
+		s.log.Warn("invalid IP", "method", "UnblockAddr")
+		return ErrInvalidRequest
+	}
 	defer recordDur()
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return ErrNoConnectionGater
@@ -308,6 +327,10 @@ func (s *APIBackend) ListBlockedAddrs(_ context.Context) ([]net.IP, error) {
 // Note: active connections to the IP subnet are not automatically closed.
 func (s *APIBackend) BlockSubnet(_ context.Context, ipnet *net.IPNet) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_blockSubnet")
+	if ipnet == nil || ipnet.IP == nil || ipnet.Mask == nil {
+		s.log.Warn("invalid IPNet", "method", "BlockSubnet")
+		return ErrInvalidRequest
+	}
 	defer recordDur()
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return ErrNoConnectionGater
@@ -318,6 +341,10 @@ func (s *APIBackend) BlockSubnet(_ context.Context, ipnet *net.IPNet) error {
 
 func (s *APIBackend) UnblockSubnet(_ context.Context, ipnet *net.IPNet) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_unblockSubnet")
+	if ipnet == nil || ipnet.IP == nil || ipnet.Mask == nil {
+		s.log.Warn("invalid IPNet", "method", "UnblockSubnet")
+		return ErrInvalidRequest
+	}
 	defer recordDur()
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return ErrNoConnectionGater
@@ -336,24 +363,32 @@ func (s *APIBackend) ListBlockedSubnets(_ context.Context) ([]*net.IPNet, error)
 	}
 }
 
-func (s *APIBackend) ProtectPeer(_ context.Context, p peer.ID) error {
+func (s *APIBackend) ProtectPeer(_ context.Context, id peer.ID) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_protectPeer")
+	if err := id.Validate(); err != nil {
+		s.log.Warn("invalid peer ID", "method", "ProtectPeer", "peer", id, "err", err)
+		return ErrInvalidRequest
+	}
 	defer recordDur()
 	if manager := s.node.ConnectionManager(); manager == nil {
 		return ErrNoConnectionManager
 	} else {
-		manager.Protect(p, "api-protected")
+		manager.Protect(id, "api-protected")
 		return nil
 	}
 }
 
-func (s *APIBackend) UnprotectPeer(_ context.Context, p peer.ID) error {
+func (s *APIBackend) UnprotectPeer(_ context.Context, id peer.ID) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_unprotectPeer")
+	if err := id.Validate(); err != nil {
+		s.log.Warn("invalid peer ID", "method", "UnprotectPeer", "peer", id, "err", err)
+		return ErrInvalidRequest
+	}
 	defer recordDur()
 	if manager := s.node.ConnectionManager(); manager == nil {
 		return ErrNoConnectionManager
 	} else {
-		manager.Unprotect(p, "api-protected")
+		manager.Unprotect(id, "api-protected")
 		return nil
 	}
 }
@@ -375,6 +410,21 @@ func (s *APIBackend) ConnectPeer(ctx context.Context, addr string) error {
 
 func (s *APIBackend) DisconnectPeer(_ context.Context, id peer.ID) error {
 	recordDur := s.m.RecordRPCServerRequest("opp2p_disconnectPeer")
+	if err := id.Validate(); err != nil {
+		s.log.Warn("invalid peer ID", "method", "DisconnectPeer", "peer", id, "err", err)
+		return ErrInvalidRequest
+	}
 	defer recordDur()
-	return s.node.Host().Network().ClosePeer(id)
+	err := s.node.Host().Network().ClosePeer(id)
+	if err != nil {
+		return err
+	}
+	ps := s.node.Host().Peerstore()
+	ps.RemovePeer(id)
+	ps.ClearAddrs(id)
+	err = s.node.ConnectionGater().UnblockPeer(id)
+	if err != nil {
+		return fmt.Errorf("closed peer but failed to unblock: %w", err)
+	}
+	return nil
 }

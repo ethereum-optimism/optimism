@@ -42,6 +42,7 @@ const (
 	defaultWSHandshakeTimeout    = 10 * time.Second
 	defaultWSReadTimeout         = 2 * time.Minute
 	defaultWSWriteTimeout        = 10 * time.Second
+	defaultCacheTtl              = 1 * time.Hour
 	maxRequestBodyLogLen         = 2000
 	defaultMaxUpstreamBatchSize  = 10
 	defaultRateLimitHeader       = "X-Forwarded-For"
@@ -155,11 +156,7 @@ func NewServer(
 	overrideLims := make(map[string]FrontendRateLimiter)
 	globalMethodLims := make(map[string]bool)
 	for method, override := range rateLimitConfig.MethodOverrides {
-		var err error
 		overrideLims[method] = limiterFactory(time.Duration(override.Interval), override.Limit, method)
-		if err != nil {
-			return nil, err
-		}
 
 		if override.Global {
 			globalMethodLims[method] = true

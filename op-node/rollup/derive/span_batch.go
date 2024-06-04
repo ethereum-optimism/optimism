@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -59,6 +58,9 @@ func (b *RawSpanBatch) GetBatchType() int {
 
 // decodeOriginBits parses data into bp.originBits
 func (bp *spanBatchPayload) decodeOriginBits(r *bytes.Reader) error {
+	if bp.blockCount > MaxSpanBatchElementCount {
+		return ErrTooBigSpanBatchSize
+	}
 	bits, err := decodeSpanBatchBits(r, bp.blockCount)
 	if err != nil {
 		return fmt.Errorf("failed to decode origin bits: %w", err)
@@ -128,8 +130,8 @@ func (bp *spanBatchPayload) decodeBlockCount(r *bytes.Reader) error {
 	if err != nil {
 		return fmt.Errorf("failed to read block count: %w", err)
 	}
-	// number of L2 block in span batch cannot be greater than MaxSpanBatchSize
-	if blockCount > MaxSpanBatchSize {
+	// number of L2 block in span batch cannot be greater than MaxSpanBatchElementCount
+	if blockCount > MaxSpanBatchElementCount {
 		return ErrTooBigSpanBatchSize
 	}
 	if blockCount == 0 {
@@ -148,9 +150,9 @@ func (bp *spanBatchPayload) decodeBlockTxCounts(r *bytes.Reader) error {
 		if err != nil {
 			return fmt.Errorf("failed to read block tx count: %w", err)
 		}
-		// number of txs in single L2 block cannot be greater than MaxSpanBatchSize
+		// number of txs in single L2 block cannot be greater than MaxSpanBatchElementCount
 		// every tx will take at least single byte
-		if blockTxCount > MaxSpanBatchSize {
+		if blockTxCount > MaxSpanBatchElementCount {
 			return ErrTooBigSpanBatchSize
 		}
 		blockTxCounts = append(blockTxCounts, blockTxCount)
@@ -175,8 +177,8 @@ func (bp *spanBatchPayload) decodeTxs(r *bytes.Reader) error {
 		}
 		totalBlockTxCount = total
 	}
-	// total number of txs in span batch cannot be greater than MaxSpanBatchSize
-	if totalBlockTxCount > MaxSpanBatchSize {
+	// total number of txs in span batch cannot be greater than MaxSpanBatchElementCount
+	if totalBlockTxCount > MaxSpanBatchElementCount {
 		return ErrTooBigSpanBatchSize
 	}
 	bp.txs.totalBlockTxCount = totalBlockTxCount
@@ -205,9 +207,6 @@ func (bp *spanBatchPayload) decodePayload(r *bytes.Reader) error {
 
 // decode reads the byte encoding of SpanBatch from Reader stream
 func (b *RawSpanBatch) decode(r *bytes.Reader) error {
-	if r.Len() > MaxSpanBatchSize {
-		return ErrTooBigSpanBatchSize
-	}
 	if err := b.decodePrefix(r); err != nil {
 		return fmt.Errorf("failed to decode span batch prefix: %w", err)
 	}
@@ -411,10 +410,20 @@ func singularBatchToElement(singularBatch *SingularBatch) *SpanBatchElement {
 // SpanBatch is an implementation of Batch interface,
 // containing the input to build a span of L2 blocks in derived form (SpanBatchElement)
 type SpanBatch struct {
-	ParentCheck   [20]byte            // First 20 bytes of the first block's parent hash
-	L1OriginCheck [20]byte            // First 20 bytes of the last block's L1 origin hash
-	Batches       []*SpanBatchElement // List of block input in derived form
+	ParentCheck      [20]byte // First 20 bytes of the first block's parent hash
+	L1OriginCheck    [20]byte // First 20 bytes of the last block's L1 origin hash
+	GenesisTimestamp uint64
+	ChainID          *big.Int
+	Batches          []*SpanBatchElement // List of block input in derived form
+
+	// caching
+	originBits    *big.Int
+	blockTxCounts []uint64
+	sbtxs         *spanBatchTxs
 }
+
+func (b *SpanBatch) AsSingularBatch() (*SingularBatch, bool) { return nil, false }
+func (b *SpanBatch) AsSpanBatch() (*SpanBatch, bool)         { return b, true }
 
 // spanBatchMarshaling is a helper type used for JSON marshaling.
 type spanBatchMarshaling struct {
@@ -493,60 +502,73 @@ func (b *SpanBatch) GetBlockCount() int {
 	return len(b.Batches)
 }
 
+func (b *SpanBatch) peek(n int) *SpanBatchElement { return b.Batches[len(b.Batches)-1-n] }
+
 // AppendSingularBatch appends a SingularBatch into the span batch
 // updates l1OriginCheck or parentCheck if needed.
-func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch) {
-	if len(b.Batches) == 0 {
-		copy(b.ParentCheck[:], singularBatch.ParentHash.Bytes()[:20])
+func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uint64) error {
+	// if this new element is not ordered with respect to the last element, panic
+	if len(b.Batches) > 0 && b.peek(0).Timestamp > singularBatch.Timestamp {
+		panic("span batch is not ordered")
 	}
+
+	// always append the new batch and set the L1 origin check
 	b.Batches = append(b.Batches, singularBatchToElement(singularBatch))
+
+	// always update the L1 origin check
 	copy(b.L1OriginCheck[:], singularBatch.EpochHash.Bytes()[:20])
+	// if there is only one batch, initialize the ParentCheck
+	// and set the epochBit based on the seqNum
+	epochBit := uint(0)
+	if len(b.Batches) == 1 {
+		if seqNum == 0 {
+			epochBit = 1
+		}
+		copy(b.ParentCheck[:], singularBatch.ParentHash.Bytes()[:20])
+	} else {
+		// if there is more than one batch, set the epochBit based on the last two batches
+		if b.peek(1).EpochNum < b.peek(0).EpochNum {
+			epochBit = 1
+		}
+	}
+	// set the respective bit in the originBits
+	b.originBits.SetBit(b.originBits, len(b.Batches)-1, epochBit)
+
+	// update the blockTxCounts cache with the latest batch's tx count
+	b.blockTxCounts = append(b.blockTxCounts, uint64(len(b.peek(0).Transactions)))
+
+	// add the new txs to the sbtxs
+	newTxs := make([][]byte, 0, len(b.peek(0).Transactions))
+	for i := 0; i < len(b.peek(0).Transactions); i++ {
+		newTxs = append(newTxs, b.peek(0).Transactions[i])
+	}
+	// add the new txs to the sbtxs
+	// this is the only place where we can get an error
+	return b.sbtxs.AddTxs(newTxs, b.ChainID)
 }
 
 // ToRawSpanBatch merges SingularBatch List and initialize single RawSpanBatch
-func (b *SpanBatch) ToRawSpanBatch(originChangedBit uint, genesisTimestamp uint64, chainID *big.Int) (*RawSpanBatch, error) {
+func (b *SpanBatch) ToRawSpanBatch() (*RawSpanBatch, error) {
 	if len(b.Batches) == 0 {
 		return nil, errors.New("cannot merge empty singularBatch list")
 	}
-	raw := RawSpanBatch{}
-	// Sort by timestamp of L2 block
-	sort.Slice(b.Batches, func(i, j int) bool {
-		return b.Batches[i].Timestamp < b.Batches[j].Timestamp
-	})
-	// spanBatchPrefix
 	span_start := b.Batches[0]
 	span_end := b.Batches[len(b.Batches)-1]
-	raw.relTimestamp = span_start.Timestamp - genesisTimestamp
-	raw.l1OriginNum = uint64(span_end.EpochNum)
-	raw.parentCheck = b.ParentCheck
-	raw.l1OriginCheck = b.L1OriginCheck
-	// spanBatchPayload
-	raw.blockCount = uint64(len(b.Batches))
-	raw.originBits = new(big.Int)
-	raw.originBits.SetBit(raw.originBits, 0, originChangedBit)
-	for i := 1; i < len(b.Batches); i++ {
-		bit := uint(0)
-		if b.Batches[i-1].EpochNum < b.Batches[i].EpochNum {
-			bit = 1
-		}
-		raw.originBits.SetBit(raw.originBits, i, bit)
-	}
-	var blockTxCounts []uint64
-	var txs [][]byte
-	for _, batch := range b.Batches {
-		blockTxCount := uint64(len(batch.Transactions))
-		blockTxCounts = append(blockTxCounts, blockTxCount)
-		for _, rawTx := range batch.Transactions {
-			txs = append(txs, rawTx)
-		}
-	}
-	raw.blockTxCounts = blockTxCounts
-	stxs, err := newSpanBatchTxs(txs, chainID)
-	if err != nil {
-		return nil, err
-	}
-	raw.txs = stxs
-	return &raw, nil
+
+	return &RawSpanBatch{
+		spanBatchPrefix: spanBatchPrefix{
+			relTimestamp:  span_start.Timestamp - b.GenesisTimestamp,
+			l1OriginNum:   uint64(span_end.EpochNum),
+			parentCheck:   b.ParentCheck,
+			l1OriginCheck: b.L1OriginCheck,
+		},
+		spanBatchPayload: spanBatchPayload{
+			blockCount:    uint64(len(b.Batches)),
+			originBits:    b.originBits,
+			blockTxCounts: b.blockTxCounts,
+			txs:           b.sbtxs,
+		},
+	}, nil
 }
 
 // GetSingularBatches converts SpanBatchElements after L2 safe head to SingularBatches.
@@ -582,17 +604,15 @@ func (b *SpanBatch) GetSingularBatches(l1Origins []eth.L1BlockRef, l2SafeHead et
 }
 
 // NewSpanBatch converts given singularBatches into SpanBatchElements, and creates a new SpanBatch.
-func NewSpanBatch(singularBatches []*SingularBatch) *SpanBatch {
-	spanBatch := &SpanBatch{}
-	if len(singularBatches) == 0 {
-		return spanBatch
+func NewSpanBatch(genesisTimestamp uint64, chainID *big.Int) *SpanBatch {
+	// newSpanBatchTxs can't fail with empty txs
+	sbtxs, _ := newSpanBatchTxs([][]byte{}, chainID)
+	return &SpanBatch{
+		GenesisTimestamp: genesisTimestamp,
+		ChainID:          chainID,
+		originBits:       big.NewInt(0),
+		sbtxs:            sbtxs,
 	}
-	copy(spanBatch.ParentCheck[:], singularBatches[0].ParentHash.Bytes()[:20])
-	copy(spanBatch.L1OriginCheck[:], singularBatches[len(singularBatches)-1].EpochHash.Bytes()[:20])
-	for _, singularBatch := range singularBatches {
-		spanBatch.Batches = append(spanBatch.Batches, singularBatchToElement(singularBatch))
-	}
-	return spanBatch
 }
 
 // DeriveSpanBatch derives SpanBatch from BatchData.
@@ -603,49 +623,6 @@ func DeriveSpanBatch(batchData *BatchData, blockTime, genesisTimestamp uint64, c
 	}
 	// If the batch type is Span batch, derive block inputs from RawSpanBatch.
 	return rawSpanBatch.ToSpanBatch(blockTime, genesisTimestamp, chainID)
-}
-
-// SpanBatchBuilder is a utility type to build a SpanBatch by adding a SingularBatch one by one.
-// makes easier to stack SingularBatches and convert to RawSpanBatch for encoding.
-type SpanBatchBuilder struct {
-	genesisTimestamp uint64
-	chainID          *big.Int
-	spanBatch        *SpanBatch
-	originChangedBit uint
-}
-
-func NewSpanBatchBuilder(genesisTimestamp uint64, chainID *big.Int) *SpanBatchBuilder {
-	return &SpanBatchBuilder{
-		genesisTimestamp: genesisTimestamp,
-		chainID:          chainID,
-		spanBatch:        &SpanBatch{},
-	}
-}
-
-func (b *SpanBatchBuilder) AppendSingularBatch(singularBatch *SingularBatch, seqNum uint64) {
-	if b.GetBlockCount() == 0 {
-		b.originChangedBit = 0
-		if seqNum == 0 {
-			b.originChangedBit = 1
-		}
-	}
-	b.spanBatch.AppendSingularBatch(singularBatch)
-}
-
-func (b *SpanBatchBuilder) GetRawSpanBatch() (*RawSpanBatch, error) {
-	raw, err := b.spanBatch.ToRawSpanBatch(b.originChangedBit, b.genesisTimestamp, b.chainID)
-	if err != nil {
-		return nil, err
-	}
-	return raw, nil
-}
-
-func (b *SpanBatchBuilder) GetBlockCount() int {
-	return len(b.spanBatch.Batches)
-}
-
-func (b *SpanBatchBuilder) Reset() {
-	b.spanBatch = &SpanBatch{}
 }
 
 // ReadTxData reads raw RLP tx data from reader and returns txData and txType
@@ -672,7 +649,7 @@ func ReadTxData(r *bytes.Reader) ([]byte, int, error) {
 		}
 	}
 	// avoid out of memory before allocation
-	s := rlp.NewStream(r, MaxSpanBatchSize)
+	s := rlp.NewStream(r, MaxSpanBatchElementCount)
 	var txPayload []byte
 	kind, _, err := s.Kind()
 	switch {

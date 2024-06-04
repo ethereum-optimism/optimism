@@ -14,14 +14,14 @@ import (
 )
 
 func TestSchedulerProcessesGames(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	ctx := context.Background()
 	createPlayer := func(g types.GameMetadata, dir string) (GamePlayer, error) {
 		return &test.StubGamePlayer{}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}
-	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer)
+	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer, false)
 	s.Start(ctx)
 
 	gameAddr1 := common.Address{0xaa}
@@ -43,13 +43,13 @@ func TestSchedulerProcessesGames(t *testing.T) {
 }
 
 func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	createPlayer := func(game types.GameMetadata, dir string) (GamePlayer, error) {
 		return &test.StubGamePlayer{}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}
-	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer)
+	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer, false)
 
 	// Scheduler not started - first call fills the queue
 	require.NoError(t, s.Schedule(asGames(common.Address{0xaa}), 0))

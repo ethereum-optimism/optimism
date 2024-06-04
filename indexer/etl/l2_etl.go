@@ -14,13 +14,14 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
 
 type L2ETL struct {
 	ETL
-	LatestHeader *types.Header
+	latestHeader *types.Header
 
 	// the batch handler may do work that we can interrupt on shutdown
 	resourceCtx    context.Context
@@ -31,10 +32,10 @@ type L2ETL struct {
 	db *database.DB
 
 	mu        sync.Mutex
-	listeners []chan interface{}
+	listeners []chan *types.Header
 }
 
-func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient,
+func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client client.Client,
 	contracts config.L2Contracts, shutdown context.CancelCauseFunc) (*L2ETL, error) {
 	log = log.New("etl", "l2")
 
@@ -80,13 +81,13 @@ func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		contracts:       l2Contracts,
 		etlBatches:      etlBatches,
 
-		EthClient: client,
+		client: client,
 	}
 
 	resCtx, resCancel := context.WithCancel(context.Background())
 	return &L2ETL{
 		ETL:          etl,
-		LatestHeader: fromHeader,
+		latestHeader: fromHeader,
 
 		resourceCtx:    resCtx,
 		resourceCancel: resCancel,
@@ -150,6 +151,8 @@ func (l2Etl *L2ETL) handleBatch(batch *ETLBatch) error {
 		l2Etl.ETL.metrics.RecordIndexedLog(batch.Logs[i].Address)
 	}
 
+	/** Every L2 block is indexed so the inactivity window does not apply here **/
+
 	// Continually try to persist this batch. If it fails after 10 attempts, we simply error out
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 	if _, err := retry.Do[interface{}](l2Etl.resourceCtx, 10, retryStrategy, func() (interface{}, error) {
@@ -177,16 +180,16 @@ func (l2Etl *L2ETL) handleBatch(batch *ETLBatch) error {
 	batch.Logger.Info("indexed batch")
 
 	// All L2 blocks are indexed so len(batch.Headers) == len(l2BlockHeaders)
-	l2Etl.LatestHeader = &batch.Headers[len(batch.Headers)-1]
+	l2Etl.latestHeader = &batch.Headers[len(batch.Headers)-1]
 	l2Etl.ETL.metrics.RecordIndexedHeaders(len(l2BlockHeaders))
-	l2Etl.ETL.metrics.RecordEtlLatestHeight(l2Etl.LatestHeader.Number)
+	l2Etl.ETL.metrics.RecordEtlLatestHeight(l2Etl.latestHeader.Number)
 
 	// Notify Listeners
 	l2Etl.mu.Lock()
 	defer l2Etl.mu.Unlock()
 	for i := range l2Etl.listeners {
 		select {
-		case l2Etl.listeners[i] <- struct{}{}:
+		case l2Etl.listeners[i] <- l2Etl.latestHeader:
 		default:
 			// do nothing if the listener hasn't picked
 			// up the previous notif
@@ -196,10 +199,9 @@ func (l2Etl *L2ETL) handleBatch(batch *ETLBatch) error {
 	return nil
 }
 
-// Notify returns a channel that'll receive a value every time new data has
-// been persisted by the L2ETL
-func (l2Etl *L2ETL) Notify() <-chan interface{} {
-	receiver := make(chan interface{})
+// Notify returns a channel that'll receive the latest header when new data has been persisted
+func (l2Etl *L2ETL) Notify() <-chan *types.Header {
+	receiver := make(chan *types.Header)
 	l2Etl.mu.Lock()
 	defer l2Etl.mu.Unlock()
 

@@ -1,10 +1,13 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+var ErrInvalidPrestate = errors.New("absolute prestate does not match")
 
 type GameStatus uint8
 
@@ -37,11 +40,8 @@ func GameStatusFromUint8(i uint8) (GameStatus, error) {
 }
 
 type GameMetadata struct {
-	GameType  uint8
+	Index     uint64
+	GameType  uint32
 	Timestamp uint64
 	Proxy     common.Address
-}
-
-type LargePreimageOracle interface {
-	Addr() common.Address
 }

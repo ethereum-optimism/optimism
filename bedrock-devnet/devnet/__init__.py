@@ -26,6 +26,12 @@ parser.add_argument('--test', help='Tests the deployment, must already be deploy
 
 log = logging.getLogger()
 
+# Global environment variables
+DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
+DEVNET_L2OO = os.getenv('DEVNET_L2OO') == "true"
+DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
+GENERIC_PLASMA = os.getenv('GENERIC_PLASMA') == "true"
+
 class Bunch:
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
@@ -58,6 +64,7 @@ def main():
     devnet_dir = pjoin(monorepo_dir, '.devnet')
     contracts_bedrock_dir = pjoin(monorepo_dir, 'packages', 'contracts-bedrock')
     deployment_dir = pjoin(contracts_bedrock_dir, 'deployments', 'devnetL1')
+    forge_l1_dump_path = pjoin(contracts_bedrock_dir, 'state-dump-900.json')
     op_node_dir = pjoin(args.monorepo_dir, 'op-node')
     ops_bedrock_dir = pjoin(monorepo_dir, 'ops-bedrock')
     deploy_config_dir = pjoin(contracts_bedrock_dir, 'deploy-config')
@@ -71,6 +78,7 @@ def main():
       devnet_dir=devnet_dir,
       contracts_bedrock_dir=contracts_bedrock_dir,
       deployment_dir=deployment_dir,
+      forge_l1_dump_path=forge_l1_dump_path,
       l1_deployments_path=pjoin(deployment_dir, '.deploy'),
       deploy_config_dir=deploy_config_dir,
       devnet_config_path=devnet_config_path,
@@ -81,7 +89,7 @@ def main():
       sdk_dir=sdk_dir,
       genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
       genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
-      allocs_path=pjoin(devnet_dir, 'allocs-l1.json'),
+      allocs_l1_path=pjoin(devnet_dir, 'allocs-l1.json'),
       addresses_json_path=pjoin(devnet_dir, 'addresses.json'),
       sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
       rollup_config_path=pjoin(devnet_dir, 'rollup.json')
@@ -95,14 +103,15 @@ def main():
     os.makedirs(devnet_dir, exist_ok=True)
 
     if args.allocs:
-        devnet_l1_genesis(paths)
+        devnet_l1_allocs(paths)
+        devnet_l2_allocs(paths)
         return
 
     git_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
     git_date = subprocess.run(['git', 'show', '-s', "--format=%ct"], capture_output=True, text=True).stdout.strip()
 
     # CI loads the images from workspace, and does not otherwise know the images are good as-is
-    if os.getenv('DEVNET_NO_BUILD') == "true":
+    if DEVNET_NO_BUILD:
         log.info('Skipping docker images build')
     else:
         log.info(f'Building docker images for git commit {git_commit} ({git_date})')
@@ -117,72 +126,56 @@ def main():
     log.info('Devnet starting')
     devnet_deploy(paths)
 
-
-def deploy_contracts(paths):
-    wait_up(8545)
-    wait_for_rpc_server('127.0.0.1:8545')
-    res = eth_accounts('127.0.0.1:8545')
-
-    response = json.loads(res)
-    account = response['result'][0]
-    log.info(f'Deploying with {account}')
-
-    # send some ether to the create2 deployer account
-    run_command([
-        'cast', 'send', '--from', account,
-        '--rpc-url', 'http://127.0.0.1:8545',
-        '--unlocked', '--value', '5ether', '0x3fAB184622Dc19b6109349B94811493BF2a45362'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    # deploy the create2 deployer
-    run_command([
-      'cast', 'publish', '--rpc-url', 'http://127.0.0.1:8545',
-      '0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    fqn = 'scripts/Deploy.s.sol:Deploy'
-    run_command([
-        'forge', 'script', fqn, '--sender', account,
-        '--rpc-url', 'http://127.0.0.1:8545', '--broadcast',
-        '--unlocked', '--with-gas-price', '100000000000'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
-    shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
-
-    log.info('Syncing contracts.')
-    run_command([
-        'forge', 'script', fqn, '--sig', 'sync()',
-        '--rpc-url', 'http://127.0.0.1:8545'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
-
 def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
     if update_timestamp:
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
+    if DEVNET_L2OO:
+        deploy_config['useFaultProofs'] = False
+    if DEVNET_PLASMA:
+        deploy_config['usePlasma'] = True
+    if GENERIC_PLASMA:
+        deploy_config['daCommitmentType'] = "GenericCommitment"
     write_json(paths.devnet_config_path, deploy_config)
 
-def devnet_l1_genesis(paths):
-    log.info('Generating L1 genesis state')
+def devnet_l1_allocs(paths):
+    log.info('Generating L1 genesis allocs')
     init_devnet_l1_deploy_config(paths)
 
-    geth = subprocess.Popen([
-        'anvil', '-a', '10', '--port', '8545', '--chain-id', '1337', '--disable-block-gas-limit',
-        '--gas-price', '0', '--base-fee', '1', '--block-time', '1'
-    ])
+    fqn = 'scripts/Deploy.s.sol:Deploy'
+    run_command([
+        # We need to set the sender here to an account we know the private key of,
+        # because the sender ends up being the owner of the ProxyAdmin SAFE
+        # (which we need to enable the Custom Gas Token feature).
+        'forge', 'script', fqn, "--sig", "runWithStateDump()", "--sender", "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+    ], env={
+      'DEPLOYMENT_OUTFILE': paths.l1_deployments_path,
+      'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
+    }, cwd=paths.contracts_bedrock_dir)
 
-    try:
-        forge = ChildProcess(deploy_contracts, paths)
-        forge.start()
-        forge.join()
-        err = forge.get_error()
-        if err:
-            raise Exception(f"Exception occurred in child process: {err}")
+    shutil.move(src=paths.forge_l1_dump_path, dst=paths.allocs_l1_path)
 
-        res = anvil_dumpState('127.0.0.1:8545')
-        allocs = convert_anvil_dump(res)
-        write_json(paths.allocs_path, allocs)
-    finally:
-        geth.terminate()
+    shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
+
+
+def devnet_l2_allocs(paths):
+    log.info('Generating L2 genesis allocs, with L1 addresses: '+paths.l1_deployments_path)
+
+    fqn = 'scripts/L2Genesis.s.sol:L2Genesis'
+    run_command([
+        'forge', 'script', fqn, "--sig", "runWithAllUpgrades()"
+    ], env={
+      'CONTRACT_ADDRESSES_PATH': paths.l1_deployments_path,
+      'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
+    }, cwd=paths.contracts_bedrock_dir)
+
+    # For the previous forks, and the latest fork (default, thus empty prefix),
+    # move the forge-dumps into place as .devnet allocs.
+    for suffix in ["-delta", "-ecotone", ""]:
+        input_path = pjoin(paths.contracts_bedrock_dir, f"state-dump-901{suffix}.json")
+        output_path = pjoin(paths.devnet_dir, f'allocs-l2{suffix}.json')
+        shutil.move(src=input_path, dst=output_path)
+        log.info("Generated L2 allocs: "+output_path)
 
 
 # Bring up the devnet where the contracts are deployed to L1
@@ -191,11 +184,17 @@ def devnet_deploy(paths):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
-        if os.path.exists(paths.allocs_path) == False:
-            devnet_l1_genesis(paths)
+        if not os.path.exists(paths.allocs_l1_path) or DEVNET_L2OO or DEVNET_PLASMA:
+            # If this is a devnet variant then we need to generate the allocs
+            # file here always. This is because CI will run devnet-allocs
+            # without setting the appropriate env var which means the allocs will be wrong.
+            # Re-running this step means the allocs will be correct.
+            devnet_l1_allocs(paths)
+        else:
+            log.info('Re-using existing L1 allocs.')
 
         # It's odd that we want to regenerate the devnetL1.json file with
-        # an updated timestamp different than the one used in the devnet_l1_genesis
+        # an updated timestamp different than the one used in the devnet_l1_allocs
         # function.  But, without it, CI flakes on this test rather consistently.
         # If someone reads this comment and understands why this is being done, please
         # update this comment to explain.
@@ -203,7 +202,7 @@ def devnet_deploy(paths):
         run_command([
             'go', 'run', 'cmd/main.go', 'genesis', 'l1',
             '--deploy-config', paths.devnet_config_path,
-            '--l1-allocs', paths.allocs_path,
+            '--l1-allocs', paths.allocs_l1_path,
             '--l1-deployments', paths.addresses_json_path,
             '--outfile.l1', paths.genesis_l1_path,
         ], cwd=paths.op_node_dir)
@@ -219,11 +218,20 @@ def devnet_deploy(paths):
         log.info('L2 genesis and rollup configs already generated.')
     else:
         log.info('Generating L2 genesis and rollup configs.')
+        l2_allocs_path = pjoin(paths.devnet_dir, 'allocs-l2.json')
+        if os.path.exists(l2_allocs_path) == False or DEVNET_L2OO == True:
+            # Also regenerate if L2OO.
+            # The L2OO flag may affect the L1 deployments addresses, which may affect the L2 genesis.
+            devnet_l2_allocs(paths)
+        else:
+            log.info('Re-using existing L2 allocs.')
+
         run_command([
             'go', 'run', 'cmd/main.go', 'genesis', 'l2',
             '--l1-rpc', 'http://localhost:8545',
             '--deploy-config', paths.devnet_config_path,
-            '--deployment-dir', paths.deployment_dir,
+            '--l2-allocs', l2_allocs_path,
+            '--l1-deployments', paths.addresses_json_path,
             '--outfile.l2', paths.genesis_l2_path,
             '--outfile.rollup', paths.rollup_config_path
         ], cwd=paths.op_node_dir)
@@ -231,77 +239,68 @@ def devnet_deploy(paths):
     rollup_config = read_json(paths.rollup_config_path)
     addresses = read_json(paths.addresses_json_path)
 
+    # Start the L2.
     log.info('Bringing up L2.')
     run_command(['docker', 'compose', 'up', '-d', 'l2'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
+
+    # Wait for the L2 to be available.
     wait_up(9545)
     wait_for_rpc_server('127.0.0.1:9545')
 
+    # Print out the addresses being used for easier debugging.
     l2_output_oracle = addresses['L2OutputOracleProxy']
-    log.info(f'Using L2OutputOracle {l2_output_oracle}')
+    dispute_game_factory = addresses['DisputeGameFactoryProxy']
     batch_inbox_address = rollup_config['batch_inbox_address']
+    log.info(f'Using L2OutputOracle {l2_output_oracle}')
+    log.info(f'Using DisputeGameFactory {dispute_game_factory}')
     log.info(f'Using batch inbox {batch_inbox_address}')
 
-    log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
-    run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
+    # Set up the base docker environment.
+    docker_env = {
         'PWD': paths.ops_bedrock_dir,
-        'L2OO_ADDRESS': l2_output_oracle,
         'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address
-    })
+    }
 
-    log.info('Bringing up `artifact-server`')
-    run_command(['docker', 'compose', 'up', '-d', 'artifact-server'], cwd=paths.ops_bedrock_dir, env={
-        'PWD': paths.ops_bedrock_dir
-    })
+    # Selectively set the L2OO_ADDRESS or DGF_ADDRESS if using L2OO.
+    # Must be done selectively because op-proposer throws if both are set.
+    if DEVNET_L2OO:
+        docker_env['L2OO_ADDRESS'] = l2_output_oracle
+    else:
+        docker_env['DGF_ADDRESS'] = dispute_game_factory
+        docker_env['DG_TYPE'] = '254'
+        docker_env['PROPOSAL_INTERVAL'] = '10s'
 
+    if DEVNET_PLASMA:
+        docker_env['PLASMA_ENABLED'] = 'true'
+    else:
+        docker_env['PLASMA_ENABLED'] = 'false'
+
+    if GENERIC_PLASMA:
+        docker_env['PLASMA_GENERIC_DA'] = 'true'
+        docker_env['PLASMA_DA_SERVICE'] = 'true'
+    else:
+        docker_env['PLASMA_GENERIC_DA'] = 'false'
+        docker_env['PLASMA_DA_SERVICE'] = 'false'
+
+
+    # Bring up the rest of the services.
+    log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
+    run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher', 'artifact-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Optionally bring up op-challenger.
+    if not DEVNET_L2OO:
+        log.info('Bringing up `op-challenger`.')
+        run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Optionally bring up Plasma Mode components.
+    if DEVNET_PLASMA:
+        log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
+        run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Fin.
     log.info('Devnet ready.')
-
-
-def eth_accounts(url):
-    log.info(f'Fetch eth_accounts {url}')
-    conn = http.client.HTTPConnection(url)
-    headers = {'Content-type': 'application/json'}
-    body = '{"id":2, "jsonrpc":"2.0", "method": "eth_accounts", "params":[]}'
-    conn.request('POST', '/', body, headers)
-    response = conn.getresponse()
-    data = response.read().decode()
-    conn.close()
-    return data
-
-
-def anvil_dumpState(url):
-    log.info(f'Fetch debug_dumpBlock {url}')
-    conn = http.client.HTTPConnection(url)
-    headers = {'Content-type': 'application/json'}
-    body = '{"id":3, "jsonrpc":"2.0", "method": "anvil_dumpState", "params":[]}'
-    conn.request('POST', '/', body, headers)
-    data = conn.getresponse().read()
-    # Anvil returns a JSON-RPC response with a hex-encoded "result" field
-    result = json.loads(data.decode('utf-8'))['result']
-    result_bytes = bytes.fromhex(result[2:])
-    uncompressed = gzip.decompress(result_bytes).decode()
-    return json.loads(uncompressed)
-
-def convert_anvil_dump(dump):
-    accounts = dump['accounts']
-
-    for account in accounts.values():
-        bal = account['balance']
-        account['balance'] = str(int(bal, 16))
-
-        if 'storage' in account:
-            storage = account['storage']
-            storage_keys = list(storage.keys())
-            for key in storage_keys:
-                value = storage[key]
-                del storage[key]
-                storage[pad_hex(key)] = pad_hex(value)
-
-    return dump
-
-def pad_hex(input):
-    return '0x' + input.replace('0x', '').zfill(64)
 
 def wait_for_rpc_server(url):
     log.info(f'Waiting for RPC server at {url}')
@@ -340,7 +339,7 @@ def devnet_test(paths):
           ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
            '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
           cwd=paths.sdk_dir, timeout=8*60)
-    ], max_workers=2)
+    ], max_workers=1)
 
 
 def run_commands(commands: list[CommandPreset], max_workers=2):

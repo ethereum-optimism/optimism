@@ -6,13 +6,13 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ func simulatedBackend() (privateKey *ecdsa.PrivateKey, address common.Address, o
 	if err != nil {
 		return nil, common.Address{}, nil, nil, err
 	}
-	backend = backends.NewSimulatedBackend(core.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000)
+	backend = backends.NewSimulatedBackend(types.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000) // nolint:staticcheck
 
 	return privateKey, from, opts, backend, nil
 }
@@ -39,17 +39,7 @@ func setupL2OutputOracle() (common.Address, *bind.TransactOpts, *backends.Simula
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}
-
-	_, _, contract, err := bindings.DeployL2OutputOracle(
-		opts,
-		backend,
-		big.NewInt(10),
-		big.NewInt(2),
-		big.NewInt(0),
-		big.NewInt(0),
-		from,
-		common.Address{0xdd},
-		big.NewInt(100))
+	_, _, contract, err := bindings.DeployL2OutputOracle(opts, backend)
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}
@@ -90,7 +80,7 @@ func TestManualABIPacking(t *testing.T) {
 	txData, err := proposeL2OutputTxData(l2ooAbi, output)
 	require.NoError(t, err)
 
-	// set a gas limit to disable gas estimation. The invariantes that the L2OO tries to uphold
+	// set a gas limit to disable gas estimation. The invariants that the L2OO tries to uphold
 	// are not maintained in this test.
 	opts.GasLimit = 100_000
 	tx, err := l2oo.ProposeL2Output(
@@ -113,13 +103,13 @@ func TestManualABIPacking(t *testing.T) {
 
 	output = testutils.RandomOutputResponse(rng)
 
-	txData, err = proposeL2OutputDGFTxData(dgfAbi, uint8(0), output)
+	txData, err = proposeL2OutputDGFTxData(dgfAbi, uint32(0), output)
 	require.NoError(t, err)
 
 	opts.GasLimit = 100_000
 	dgfTx, err := dgf.Create(
 		opts,
-		uint8(0),
+		uint32(0),
 		output.OutputRoot,
 		math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)),
 	)

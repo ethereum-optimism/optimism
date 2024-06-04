@@ -31,7 +31,7 @@ func TestPayloadByHash(t *testing.T) {
 		require.NoError(t, err)
 		expected, err := eth.BlockAsPayload(block, engine.rollupCfg.CanyonTime)
 		require.NoError(t, err)
-		require.Equal(t, expected, payload)
+		require.Equal(t, &eth.ExecutionPayloadEnvelope{ExecutionPayload: expected}, payload)
 	})
 
 	t.Run("UnknownBlock", func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestPayloadByNumber(t *testing.T) {
 		require.NoError(t, err)
 		expected, err := eth.BlockAsPayload(block, engine.rollupCfg.CanyonTime)
 		require.NoError(t, err)
-		require.Equal(t, expected, payload)
+		require.Equal(t, &eth.ExecutionPayloadEnvelope{ExecutionPayload: expected}, payload)
 	})
 
 	t.Run("NoCanonicalHash", func(t *testing.T) {
@@ -161,13 +161,13 @@ func createOracleEngine(t *testing.T) (*OracleEngine, *stubEngineBackend) {
 	}
 	engine := OracleEngine{
 		backend:   backend,
-		rollupCfg: chaincfg.Goerli,
+		rollupCfg: chaincfg.Sepolia,
 	}
 	return &engine, backend
 }
 
 func createL2Block(t *testing.T, number int) *types.Block {
-	tx, err := derive.L1InfoDeposit(chaincfg.Goerli, eth.SystemConfig{}, uint64(1), eth.HeaderBlockInfo(&types.Header{
+	tx, err := derive.L1InfoDeposit(chaincfg.Sepolia, eth.SystemConfig{}, uint64(1), eth.HeaderBlockInfo(&types.Header{
 		Number:  big.NewInt(32),
 		BaseFee: big.NewInt(7),
 	}), 0)

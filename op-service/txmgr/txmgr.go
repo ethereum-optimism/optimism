@@ -59,6 +59,10 @@ type TxManager interface {
 	// may be included on L1 even if the context is cancelled.
 	//
 	// NOTE: Send can be called concurrently, the nonce will be managed internally.
+	//
+	// Callers using both Blob and non-Blob transactions should check to see if the returned error
+	// is ErrAlreadyReserved, which indicates an incompatible transaction may be stuck in the
+	// mempool and is in need of replacement or cancellation.
 	Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error)
 
 	// From returns the sending address associated with the instance of the transaction manager.
@@ -70,6 +74,7 @@ type TxManager interface {
 
 	// Close the underlying connection
 	Close()
+	IsClosed() bool
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -170,7 +175,7 @@ func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logge
 	}
 	if len(tx.BlobHashes()) != 0 {
 		// log the number of blobs a tx has only if it's a blob tx
-		fields = append(fields, "blobs", len(tx.BlobHashes()))
+		fields = append(fields, "blobs", len(tx.BlobHashes()), "blobFeeCap", tx.BlobGasFeeCap())
 	}
 	return m.l.New(fields...)
 }
@@ -245,6 +250,7 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 // NOTE: If the [TxCandidate.GasLimit] is non-zero, it will be used as the transaction's gas.
 // NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
 func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+	m.l.Debug("crafting Transaction", "blobs", len(candidate.Blobs), "calldata_size", len(candidate.TxData))
 	gasTipCap, baseFee, blobBaseFee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
 		m.metr.RPCError()
@@ -277,7 +283,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		if candidate.To == nil {
 			return nil, errors.New("blob txs cannot deploy contracts")
 		}
-		if sidecar, blobHashes, err = makeSidecar(candidate.Blobs); err != nil {
+		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
 		}
 	}
@@ -311,14 +317,13 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		}
 	}
 	return m.signWithNextNonce(ctx, txMessage) // signer sets the nonce field of the tx
-
 }
 
-// makeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
+// MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
 // data.
-func makeSidecar(blobs []*eth.Blob) (*types.BlobTxSidecar, []common.Hash, error) {
+func MakeSidecar(blobs []*eth.Blob) (*types.BlobTxSidecar, []common.Hash, error) {
 	sidecar := &types.BlobTxSidecar{}
-	blobHashes := []common.Hash{}
+	blobHashes := make([]common.Hash, 0, len(blobs))
 	for i, blob := range blobs {
 		rawBlob := *blob.KZGBlob()
 		sidecar.Blobs = append(sidecar.Blobs, rawBlob)
@@ -413,23 +418,22 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 		return tx
 	}
 
-	// Immediately publish a transaction before starting the resumbission loop
+	// Immediately publish a transaction before starting the resubmission loop
 	tx = publishAndWait(tx, false)
 
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
 	defer ticker.Stop()
 
 	for {
+		if err := sendState.CriticalError(); err != nil {
+			m.txLogger(tx, false).Warn("Aborting transaction submission", "err", err)
+			return nil, fmt.Errorf("aborted tx send due to critical error: %w", err)
+		}
 		select {
 		case <-ticker.C:
 			// Don't resubmit a transaction if it has been mined, but we are waiting for the conf depth.
 			if sendState.IsWaitingForConfirmation() {
 				continue
-			}
-			// If we see lots of unrecoverable errors (and no pending transactions) abort sending the transaction.
-			if sendState.ShouldAbortImmediately() {
-				m.txLogger(tx, false).Warn("Aborting transaction submission")
-				return nil, errors.New("aborted transaction sending")
 			}
 			// if the tx manager closed while we were waiting for the tx, give up
 			if m.closed.Load() {
@@ -489,14 +493,19 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 
 		if err == nil {
 			m.metr.TxPublished("")
-			log.Info("Transaction successfully published")
+			l.Info("Transaction successfully published")
 			return tx, true
 		}
 
 		switch {
+		case errStringMatch(err, ErrAlreadyReserved):
+			// this can happen if, say, a blob transaction is stuck in the mempool and we try to
+			// send a non-blob transaction (and vice-versa).
+			l.Warn("txpool contains pending tx of incompatible type", "err", err)
+			m.metr.TxPublished("pending_tx_of_incompatible_type")
 		case errStringMatch(err, core.ErrNonceTooLow):
 			l.Warn("nonce too low", "err", err)
-			m.metr.TxPublished("nonce_to_low")
+			m.metr.TxPublished("nonce_too_low")
 		case errStringMatch(err, context.Canceled):
 			m.metr.RPCError()
 			l.Warn("transaction send cancelled", "err", err)
@@ -589,6 +598,11 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	}
 
 	m.metr.RecordBaseFee(tip.BaseFee)
+	if tip.ExcessBlobGas != nil {
+		blobFee := eip4844.CalcBlobFee(*tip.ExcessBlobGas)
+		m.metr.RecordBlobBaseFee(blobFee)
+	}
+
 	m.l.Debug("Transaction mined, checking confirmations", "tx", txHash,
 		"block", eth.ReceiptBlockID(receipt), "tip", eth.HeaderBlockID(tip),
 		"numConfirmations", m.cfg.NumConfirmations)
@@ -650,7 +664,10 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		return nil, err
 	}
 	if tx.Gas() != gas {
-		m.l.Info("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
+		// non-determinism in gas limit estimation happens regularly due to underlying state
+		// changes across calls, and is even more common now that geth uses an in-exact estimation
+		// approach as of v1.13.6.
+		m.l.Debug("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
 			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 	}
 
@@ -739,27 +756,34 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
+		m.metr.RecordBlobBaseFee(blobFee)
 	}
 	return tip, baseFee, blobFee, nil
 }
 
-func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) error {
-	// If below threshold, don't apply multiplier limit
-	if thr := m.cfg.FeeLimitThreshold; thr != nil && thr.Cmp(bumpedFee) == 1 {
-		return nil
-	}
+// checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers
+// if FeeLimitThreshold is specified in config, any increase which stays under the threshold are allowed
+func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) (errs error) {
+	threshold := m.cfg.FeeLimitThreshold
+	limit := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
+	maxTip := new(big.Int).Mul(tip, limit)
+	maxFee := calcGasFeeCap(new(big.Int).Mul(baseFee, limit), maxTip)
 
-	// Make sure increase is at most [FeeLimitMultiplier] the suggested values
-	feeLimitMult := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
-	maxTip := new(big.Int).Mul(tip, feeLimitMult)
-	if bumpedTip.Cmp(maxTip) > 0 {
-		return fmt.Errorf("bumped tip cap %v is over %dx multiple of the suggested value", bumpedTip, m.cfg.FeeLimitMultiplier)
+	// generic check function to check tip and fee, and build up an error
+	check := func(v, max *big.Int, name string) {
+		// if threshold is specified and the value is under the threshold, no need to check the max
+		if threshold != nil && threshold.Cmp(v) > 0 {
+			return
+		}
+		// if the value is over the max, add an error message
+		if v.Cmp(max) > 0 {
+			errs = errors.Join(errs, fmt.Errorf("bumped %s cap %v is over %dx multiple of the suggested value", name, v, limit))
+		}
 	}
-	maxFee := calcGasFeeCap(new(big.Int).Mul(baseFee, feeLimitMult), maxTip)
-	if bumpedFee.Cmp(maxFee) > 0 {
-		return fmt.Errorf("bumped fee cap %v is over %dx multiple of the suggested value", bumpedFee, m.cfg.FeeLimitMultiplier)
-	}
-	return nil
+	check(bumpedTip, maxTip, "tip")
+	check(bumpedFee, maxFee, "fee")
+
+	return errs
 }
 
 func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int) error {
@@ -775,6 +799,11 @@ func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int
 			bumpedBlobFee, m.cfg.FeeLimitMultiplier, ErrBlobFeeLimit)
 	}
 	return nil
+}
+
+// IsClosed returns true if the tx manager is closed.
+func (m *SimpleTxManager) IsClosed() bool {
+	return m.closed.Load()
 }
 
 // calcThresholdValue returns ceil(x * priceBumpPercent / 100) for non-blob txs, or

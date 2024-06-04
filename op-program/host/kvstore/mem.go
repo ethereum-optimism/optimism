@@ -1,6 +1,7 @@
 package kvstore
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -23,7 +24,7 @@ func NewMemKV() *MemKV {
 func (m *MemKV) Put(k common.Hash, v []byte) error {
 	m.Lock()
 	defer m.Unlock()
-	m.m[k] = v
+	m.m[k] = slices.Clone(v)
 	return nil
 }
 
@@ -34,5 +35,5 @@ func (m *MemKV) Get(k common.Hash) ([]byte, error) {
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return v, nil
+	return slices.Clone(v), nil
 }

@@ -1,13 +1,20 @@
 package derive
 
 import (
+	"bufio"
 	"bytes"
 	"compress/zlib"
 	"fmt"
 	"io"
 
+	"github.com/andybalholm/brotli"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
+)
+
+const (
+	ZlibCM8  = 8
+	ZlibCM15 = 15
 )
 
 // A Channel is a set of batches that are split into at least one, but possibly multiple frames.
@@ -100,6 +107,11 @@ func (ch *Channel) OpenBlockNumber() uint64 {
 	return ch.openBlock.Number
 }
 
+// HighestBlock returns the last L1 block which affect this channel
+func (ch *Channel) HighestBlock() eth.L1BlockRef {
+	return ch.highestL1InclusionBlock
+}
+
 // Size returns the current size of the channel including frame overhead.
 // Reading from the channel does not reduce the size as reading is done
 // on uncompressed data while this size is over compressed data.
@@ -146,17 +158,47 @@ func (ch *Channel) Reader() io.Reader {
 // The L1Inclusion block is also provided at creation time.
 // Warning: the batch reader can read every batch-type.
 // The caller of the batch-reader should filter the results.
-func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
-	// Setup decompressor stage + RLP reader
-	zr, err := zlib.NewReader(r)
+func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func() (*BatchData, error), error) {
+	// use buffered reader so can peek the first byte
+	bufReader := bufio.NewReader(r)
+	compressionType, err := bufReader.Peek(1)
 	if err != nil {
 		return nil, err
 	}
-	rlpReader := rlp.NewStream(zr, MaxRLPBytesPerChannel)
+
+	var zr io.Reader
+	var comprAlgo CompressionAlgo
+	// For zlib, the last 4 bits must be either 8 or 15 (both are reserved value)
+	if compressionType[0]&0x0F == ZlibCM8 || compressionType[0]&0x0F == ZlibCM15 {
+		var err error
+		zr, err = zlib.NewReader(bufReader)
+		if err != nil {
+			return nil, err
+		}
+		// If the bits equal to 1, then it is a brotli reader
+		comprAlgo = Zlib
+	} else if compressionType[0] == ChannelVersionBrotli {
+		// If before Fjord, we cannot accept brotli compressed batch
+		if !isFjord {
+			return nil, fmt.Errorf("cannot accept brotli compressed batch before Fjord")
+		}
+		// discard the first byte
+		_, err := bufReader.Discard(1)
+		if err != nil {
+			return nil, err
+		}
+		zr = brotli.NewReader(bufReader)
+		comprAlgo = Brotli
+	} else {
+		return nil, fmt.Errorf("cannot distinguish the compression algo used given type byte %v", compressionType[0])
+	}
+
+	// Setup decompressor stage + RLP reader
+	rlpReader := rlp.NewStream(zr, maxRLPBytesPerChannel)
 	// Read each batch iteratively
 	return func() (*BatchData, error) {
-		var batchData BatchData
-		if err = rlpReader.Decode(&batchData); err != nil {
+		batchData := BatchData{ComprAlgo: comprAlgo}
+		if err := rlpReader.Decode(&batchData); err != nil {
 			return nil, err
 		}
 		return &batchData, nil

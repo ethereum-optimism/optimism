@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,7 +33,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	rollupConfig, err := NewRollupConfig(log, ctx)
+	rollupConfig, err := NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +79,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		L2:     l2Endpoint,
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
+		Beacon: NewBeaconEndpointConfig(ctx),
 		RPC: node.RPCConfig{
 			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
 			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
@@ -99,19 +101,41 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			URL:     ctx.String(flags.HeartbeatURLFlag.Name),
 		},
 		ConfigPersistence: configPersistence,
+		SafeDBPath:        ctx.String(flags.SafeDBPath.Name),
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
 		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
+
+		ConductorEnabled:    ctx.Bool(flags.ConductorEnabledFlag.Name),
+		ConductorRpc:        ctx.String(flags.ConductorRpcFlag.Name),
+		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
+
+		Plasma: plasma.ReadCLIConfig(ctx),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
 		return nil, fmt.Errorf("failed to load driver config: %w", err)
 	}
 
+	// conductor controls the sequencer state
+	if cfg.ConductorEnabled {
+		cfg.Driver.SequencerStopped = true
+	}
+
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
+	return &node.L1BeaconEndpointConfig{
+		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
+		BeaconHeader:           ctx.String(flags.BeaconHeader.Name),
+		BeaconFallbackAddrs:    ctx.StringSlice(flags.BeaconFallbackAddrs.Name),
+		BeaconCheckIgnore:      ctx.Bool(flags.BeaconCheckIgnore.Name),
+		BeaconFetchAllSidecars: ctx.Bool(flags.BeaconFetchAllSidecars.Name),
+	}
 }
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
@@ -174,12 +198,21 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	}
 }
 
-func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
+func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	network := ctx.String(opflags.NetworkFlagName)
 	rollupConfigPath := ctx.String(opflags.RollupConfigFlagName)
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
+	rollupConfig, err := NewRollupConfig(log, network, rollupConfigPath)
+	if err != nil {
+		return nil, err
+	}
+	applyOverrides(ctx, rollupConfig)
+	return rollupConfig, nil
+}
+
+func NewRollupConfig(log log.Logger, network string, rollupConfigPath string) (*rollup.Config, error) {
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.
@@ -191,7 +224,6 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 		if err != nil {
 			return nil, err
 		}
-		applyOverrides(ctx, rollupConfig)
 		return rollupConfig, nil
 	}
 
@@ -205,7 +237,6 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
-	applyOverrides(ctx, &rollupConfig)
 	return &rollupConfig, nil
 }
 
@@ -218,27 +249,33 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		delta := ctx.Uint64(opflags.DeltaOverrideFlagName)
 		rollupConfig.DeltaTime = &delta
 	}
+	if ctx.IsSet(opflags.EcotoneOverrideFlagName) {
+		ecotone := ctx.Uint64(opflags.EcotoneOverrideFlagName)
+		rollupConfig.EcotoneTime = &ecotone
+	}
+	if ctx.IsSet(opflags.FjordOverrideFlagName) {
+		fjord := ctx.Uint64(opflags.FjordOverrideFlagName)
+		rollupConfig.FjordTime = &fjord
+	}
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 	snapshotFile := ctx.String(flags.SnapshotLog.Name)
-	handler := log.DiscardHandler()
-	if snapshotFile != "" {
-		var err error
-		handler, err = log.FileHandler(snapshotFile, log.JSONFormat())
-		if err != nil {
-			return nil, err
-		}
-		handler = log.SyncHandler(handler)
+	if snapshotFile == "" {
+		return log.NewLogger(log.DiscardHandler()), nil
 	}
-	logger := log.New()
-	logger.SetHandler(handler)
-	return logger, nil
+
+	sf, err := os.OpenFile(snapshotFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	handler := log.JSONHandler(sf)
+	return log.NewLogger(handler), nil
 }
 
 func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
 	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) && ctx.IsSet(flags.SyncModeFlag.Name) {
-		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time.")
+		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time")
 	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
 		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
 	}

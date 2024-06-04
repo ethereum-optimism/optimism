@@ -37,7 +37,7 @@ contract CrossDomainOwnable3_Test is Bridge_Initializer {
     }
 
     /// @dev Tests that the constructor sets the correct variables.
-    function test_constructor_succeeds() public {
+    function test_constructor_succeeds() public view {
         assertEq(setter.owner(), alice);
         assertEq(setter.isLocal(), true);
     }

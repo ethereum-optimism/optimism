@@ -10,8 +10,7 @@ import (
 func TestNonCompressor(t *testing.T) {
 	require := require.New(t)
 	c, err := NewNonCompressor(Config{
-		TargetFrameSize: 1000,
-		TargetNumFrames: 100,
+		TargetOutputSize: 100000,
 	})
 	require.NoError(err)
 

@@ -13,8 +13,10 @@ This directory contains documentation for all defined invariant tests within `co
 - [Encoding](./Encoding.md)
 - [FaultDisputeGame](./FaultDisputeGame.md)
 - [Hashing](./Hashing.md)
+- [InvariantTest.sol](./InvariantTest.sol.md)
 - [L2OutputOracle](./L2OutputOracle.md)
 - [OptimismPortal](./OptimismPortal.md)
+- [OptimismPortal2](./OptimismPortal2.md)
 - [ResourceMetering](./ResourceMetering.md)
 - [SafeCall](./SafeCall.md)
 - [SystemConfig](./SystemConfig.md)
@@ -26,7 +28,7 @@ To auto-generate documentation for invariant tests, run `pnpm autogen:invariant-
 
 ## Documentation Standard
 
-In order for an invariant test file to be picked up by the [docgen script](../scripts/invariant-doc-gen.ts), it must
+In order for an invariant test file to be picked up by the [docgen script](../scripts/autogen/generate-invariant-docs.ts), it must
 adhere to the following conventions:
 
 ### Forge Invariants

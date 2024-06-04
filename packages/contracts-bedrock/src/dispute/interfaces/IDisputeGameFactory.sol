@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity ^0.8.0;
 
 import { IDisputeGame } from "./IDisputeGame.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title IDisputeGameFactory
 /// @notice The interface for a DisputeGameFactory contract.
@@ -23,6 +23,15 @@ interface IDisputeGameFactory {
     /// @param gameType The type of the DisputeGame.
     /// @param newBond The new bond (in wei) for initializing the game type.
     event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
+
+    /// @notice Information about a dispute game found in a `findLatestGames` search.
+    struct GameSearchResult {
+        uint256 index;
+        GameId metadata;
+        Timestamp timestamp;
+        Claim rootClaim;
+        bytes extraData;
+    }
 
     /// @notice The total number of dispute games created by this factory.
     /// @return gameCount_ The total number of dispute games created by this factory.
@@ -111,4 +120,18 @@ interface IDisputeGameFactory {
         external
         pure
         returns (Hash uuid_);
+
+    /// @notice Finds the `_n` most recent `GameId`'s of type `_gameType` starting at `_start`. If there are less than
+    ///         `_n` games of type `_gameType` starting at `_start`, then the returned array will be shorter than `_n`.
+    /// @param _gameType The type of game to find.
+    /// @param _start The index to start the reverse search from.
+    /// @param _n The number of games to find.
+    function findLatestGames(
+        GameType _gameType,
+        uint256 _start,
+        uint256 _n
+    )
+        external
+        view
+        returns (GameSearchResult[] memory games_);
 }

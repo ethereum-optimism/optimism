@@ -104,7 +104,7 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalSum(database.WithdrawFilte
 }
 
 func TestHealthz(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	cfg := &Config{
 		DB:            &TestDBConnector{BridgeTransfers: &MockBridgeTransfersView{}},
 		HTTPServer:    apiConfig,
@@ -122,7 +122,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestL1BridgeDepositsHandler(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	cfg := &Config{
 		DB:            &TestDBConnector{BridgeTransfers: &MockBridgeTransfersView{}},
 		HTTPServer:    apiConfig,
@@ -151,7 +151,7 @@ func TestL1BridgeDepositsHandler(t *testing.T) {
 }
 
 func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	cfg := &Config{
 		DB:            &TestDBConnector{BridgeTransfers: &MockBridgeTransfersView{}},
 		HTTPServer:    apiConfig,

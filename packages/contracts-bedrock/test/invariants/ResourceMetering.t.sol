@@ -8,8 +8,8 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 
 import { Arithmetic } from "src/libraries/Arithmetic.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
 contract ResourceMetering_User is StdUtils, ResourceMetering {
     bool public failedMaxGasPerBlock;
@@ -137,10 +137,11 @@ contract ResourceMetering_User is StdUtils, ResourceMetering {
     function _burnInternal(uint64 _gasToBurn) private metered(_gasToBurn) { }
 }
 
-contract ResourceMetering_Invariant is StdInvariant, Test {
+contract ResourceMetering_Invariant is StdInvariant, InvariantTest {
     ResourceMetering_User internal actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a actor.
         actor = new ResourceMetering_User();
 
@@ -159,7 +160,7 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
     ///                   (and there were no empty blocks in between), ensure this
     ///                   block's baseFee increased, but not by more than the max amount
     ///                   per block.
-    function invariant_high_usage_raise_baseFee() external {
+    function invariant_high_usage_raise_baseFee() external view {
         assertFalse(actor.failedRaiseBaseFee());
     }
 
@@ -168,7 +169,7 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
     ///
     ///                   If the previous block used less than the target amount of gas,
     ///                   the base fee should decrease, but not more than the max amount.
-    function invariant_low_usage_lower_baseFee() external {
+    function invariant_low_usage_lower_baseFee() external view {
         assertFalse(actor.failedLowerBaseFee());
     }
 
@@ -176,7 +177,7 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
     ///
     ///                   This test asserts that a block's base fee can never drop
     ///                   below the `MINIMUM_BASE_FEE` threshold.
-    function invariant_never_below_min_baseFee() external {
+    function invariant_never_below_min_baseFee() external view {
         assertFalse(actor.failedNeverBelowMinBaseFee());
     }
 
@@ -184,7 +185,7 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
     ///
     ///                   This test asserts that a block can never consume more than
     ///                   the `MAX_RESOURCE_LIMIT` gas threshold.
-    function invariant_never_above_max_gas_limit() external {
+    function invariant_never_above_max_gas_limit() external view {
         assertFalse(actor.failedMaxGasPerBlock());
     }
 
@@ -194,7 +195,7 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
     ///                   cannot be raised more than the maximum amount allowed. The max base
     ///                   fee change (per-block) is derived as follows:
     ///                   `prevBaseFee / BASE_FEE_MAX_CHANGE_DENOMINATOR`
-    function invariant_never_exceed_max_increase() external {
+    function invariant_never_exceed_max_increase() external view {
         assertFalse(actor.failedMaxRaiseBaseFeePerBlock());
     }
 
@@ -204,7 +205,7 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
     ///                   be lowered more than the maximum amount allowed. The max base fee
     ///                   change (per-block) is derived as follows:
     ///                   `prevBaseFee / BASE_FEE_MAX_CHANGE_DENOMINATOR`
-    function invariant_never_exceed_max_decrease() external {
+    function invariant_never_exceed_max_decrease() external view {
         assertFalse(actor.failedMaxLowerBaseFeePerBlock());
     }
 
@@ -213,7 +214,7 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
     ///
     ///                   When calculating the `maxBaseFeeChange` after multiple empty blocks,
     ///                   the calculation should never be allowed to underflow.
-    function invariant_never_underflow() external {
+    function invariant_never_underflow() external view {
         assertFalse(actor.underflow());
     }
 }

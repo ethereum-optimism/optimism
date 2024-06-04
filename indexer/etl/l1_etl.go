@@ -15,13 +15,16 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
 
 type L1ETL struct {
 	ETL
-	LatestHeader *types.Header
+	latestHeader *types.Header
+
+	cfg Config
 
 	// the batch handler may do work that we can interrupt on shutdown
 	resourceCtx    context.Context
@@ -32,12 +35,12 @@ type L1ETL struct {
 	db *database.DB
 
 	mu        sync.Mutex
-	listeners []chan interface{}
+	listeners []chan *types.Header
 }
 
 // NewL1ETL creates a new L1ETL instance that will start indexing from different starting points
 // depending on the state of the database and the supplied start height.
-func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient,
+func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client client.Client,
 	contracts config.L1Contracts, shutdown context.CancelCauseFunc) (*L1ETL, error) {
 	log = log.New("etl", "l1")
 
@@ -71,7 +74,11 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		fromHeader = latestHeader.RLPHeader.Header()
 	} else if cfg.StartHeight.BitLen() > 0 {
 		log.Info("no indexed state starting from supplied L1 height", "height", cfg.StartHeight.String())
-		header, err := client.BlockHeaderByNumber(cfg.StartHeight)
+
+		ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+		defer cancel()
+
+		header, err := client.HeaderByNumber(ctxwt, cfg.StartHeight)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch starting block header: %w", err)
 		}
@@ -96,13 +103,15 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		contracts:       l1Contracts,
 		etlBatches:      etlBatches,
 
-		EthClient: client,
+		client: client,
 	}
 
 	resCtx, resCancel := context.WithCancel(context.Background())
 	return &L1ETL{
 		ETL:          etl,
-		LatestHeader: fromHeader,
+		latestHeader: fromHeader,
+
+		cfg: cfg,
 
 		db:             db,
 		resourceCtx:    resCtx,
@@ -161,6 +170,15 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 		}
 	}
 
+	// If there has been no activity and the inactivity window has elapsed since the last header, index the latest
+	// block to remediate any false-stall alerts on downstream processors that rely on indexed state.
+	if l1Etl.cfg.AllowedInactivityWindowSeconds > 0 && len(l1BlockHeaders) == 0 {
+		latestHeader := batch.Headers[len(batch.Headers)-1]
+		if l1Etl.latestHeader == nil || latestHeader.Time-l1Etl.latestHeader.Time > uint64(l1Etl.cfg.AllowedInactivityWindowSeconds) {
+			l1BlockHeaders = append(l1BlockHeaders, database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&latestHeader)})
+		}
+	}
+
 	l1ContractEvents := make([]database.L1ContractEvent, len(batch.Logs))
 	for i := range batch.Logs {
 		timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
@@ -180,8 +198,10 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 				return err
 			}
 			// we must have logs if we have l1 blocks
-			if err := tx.ContractEvents.StoreL1ContractEvents(l1ContractEvents); err != nil {
-				return err
+			if len(l1ContractEvents) > 0 {
+				if err := tx.ContractEvents.StoreL1ContractEvents(l1ContractEvents); err != nil {
+					return err
+				}
 			}
 			return nil
 		}); err != nil {
@@ -203,16 +223,16 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 
 	// Since not every L1 block is indexed, we still want our metrics to cover L1 blocks
 	// that have been observed so that a false stall alert isn't triggered on low activity
-	l1Etl.LatestHeader = &batch.Headers[len(batch.Headers)-1]
+	l1Etl.latestHeader = &batch.Headers[len(batch.Headers)-1]
 	l1Etl.ETL.metrics.RecordIndexedHeaders(len(l1BlockHeaders))
-	l1Etl.ETL.metrics.RecordEtlLatestHeight(l1Etl.LatestHeader.Number)
+	l1Etl.ETL.metrics.RecordEtlLatestHeight(l1Etl.latestHeader.Number)
 
 	// Notify Listeners
 	l1Etl.mu.Lock()
 	defer l1Etl.mu.Unlock()
 	for i := range l1Etl.listeners {
 		select {
-		case l1Etl.listeners[i] <- struct{}{}:
+		case l1Etl.listeners[i] <- l1Etl.latestHeader:
 		default:
 			// do nothing if the listener hasn't picked
 			// up the previous notif
@@ -222,10 +242,9 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 	return nil
 }
 
-// Notify returns a channel that'll receive a value every time new data has
-// been persisted by the L1ETL
-func (l1Etl *L1ETL) Notify() <-chan interface{} {
-	receiver := make(chan interface{})
+// Notify returns a channel that'll receive the latest header when new data has been persisted
+func (l1Etl *L1ETL) Notify() <-chan *types.Header {
+	receiver := make(chan *types.Header)
 	l1Etl.mu.Lock()
 	defer l1Etl.mu.Unlock()
 

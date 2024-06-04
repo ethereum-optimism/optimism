@@ -25,7 +25,7 @@ func TestServerMode(t *testing.T) {
 
 	l1Head := common.Hash{0x11}
 	l2OutputRoot := common.Hash{0x33}
-	cfg := config.NewConfig(chaincfg.Goerli, chainconfig.OPGoerliChainConfig, l1Head, common.Hash{0x22}, l2OutputRoot, common.Hash{0x44}, 1000)
+	cfg := config.NewConfig(chaincfg.Sepolia, chainconfig.OPSepoliaChainConfig, l1Head, common.Hash{0x22}, l2OutputRoot, common.Hash{0x44}, 1000)
 	cfg.DataDir = dir
 	cfg.ServerMode = true
 
@@ -35,7 +35,7 @@ func TestServerMode(t *testing.T) {
 	hintServer, hintClient, err := io.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	defer hintClient.Close()
-	logger := testlog.Logger(t, log.LvlTrace)
+	logger := testlog.Logger(t, log.LevelTrace)
 	result := make(chan error)
 	go func() {
 		result <- PreimageServer(context.Background(), logger, cfg, preimageServer, hintServer)

@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -40,8 +43,9 @@ type L2Sequencer struct {
 	mockL1OriginSelector *MockL1OriginSelector
 }
 
-func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
-	ver := NewL2Verifier(t, log, l1, eng, cfg, &sync.Config{})
+func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc derive.L1BlobsFetcher,
+	plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
+	ver := NewL2Verifier(t, log, l1, blobSrc, plasmaSrc, eng, cfg, &sync.Config{}, safedb.Disabled)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
 	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.l1State.L1Head, l1)
 	l1OriginSelector := &MockL1OriginSelector{
@@ -94,7 +98,7 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	}
 	s.l2Building = false
 
-	_, err := s.sequencer.CompleteBuildingBlock(t.Ctx())
+	_, err := s.sequencer.CompleteBuildingBlock(t.Ctx(), async.NoOpGossiper{}, &conductor.NoOpConductor{})
 	// TODO: there may be legitimate temporary errors here, if we mock engine API RPC-failure.
 	// For advanced tests we can catch those and print a warning instead.
 	require.NoError(t, err)
@@ -159,6 +163,21 @@ func (s *L2Sequencer) ActBuildToL1HeadExclUnsafe(t Testing) {
 
 func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 	for s.L2Unsafe().Time < target {
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
+
+func (s *L2Sequencer) ActBuildL2ToEcotone(t Testing) {
+	require.NotNil(t, s.rollupCfg.EcotoneTime, "cannot activate Ecotone when it is not scheduled")
+	for s.L2Unsafe().Time < *s.rollupCfg.EcotoneTime {
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
+func (s *L2Sequencer) ActBuildL2ToFjord(t Testing) {
+	require.NotNil(t, s.rollupCfg.FjordTime, "cannot activate FjordTime when it is not scheduled")
+	for s.L2Unsafe().Time < *s.rollupCfg.FjordTime {
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
 	}

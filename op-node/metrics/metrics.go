@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
@@ -24,11 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-const (
-	Namespace = "op_node"
-
-	BatchMethod = "<batch>"
-)
+const Namespace = "op_node"
 
 type Metricer interface {
 	RecordInfo(version string)
@@ -41,7 +39,7 @@ type Metricer interface {
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayload)
+	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	RecordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash)
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
@@ -121,6 +119,8 @@ type Metrics struct {
 	L1ReorgDepth prometheus.Histogram
 
 	TransactionsSequencedTotal prometheus.Counter
+
+	PlasmaMetrics plasma.Metricer
 
 	// Channel Bank Metrics
 	headChannelOpenedEvent *metrics.Event
@@ -384,6 +384,8 @@ func NewMetrics(procName string) *Metrics {
 			"required",
 		}),
 
+		PlasmaMetrics: plasma.MakeMetrics(ns, factory),
+
 		registry: registry,
 		factory:  factory,
 	}
@@ -443,9 +445,9 @@ func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
 
-func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayload) {
+func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	m.UnsafePayloads.Record()
-	m.RecordRef("l2", "received_payload", uint64(payload.BlockNumber), uint64(payload.Timestamp), payload.BlockHash)
+	m.RecordRef("l2", "received_payload", uint64(payload.ExecutionPayload.BlockNumber), uint64(payload.ExecutionPayload.Timestamp), payload.ExecutionPayload.BlockHash)
 }
 
 func (m *Metrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
@@ -640,7 +642,7 @@ func (n *noopMetricer) RecordPublishingError() {
 func (n *noopMetricer) RecordDerivationError() {
 }
 
-func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayload) {
+func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 }
 
 func (n *noopMetricer) RecordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash) {

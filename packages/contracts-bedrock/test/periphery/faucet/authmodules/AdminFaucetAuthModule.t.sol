@@ -81,6 +81,8 @@ contract AdminFaucetAuthModuleTest is Test {
     /// @notice Assert that verify returns true for valid proofs signed by admins.
     function test_adminProof_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         address fundsReceiver = makeAddr("fundsReceiver");
         bytes memory proof = issueProofWithEIP712Domain(
             adminKey,
@@ -96,7 +98,9 @@ contract AdminFaucetAuthModuleTest is Test {
         vm.prank(nonAdmin);
         assertEq(
             adminFam.verify(
-                Faucet.DripParameters(payable(fundsReceiver), nonce), keccak256(abi.encodePacked(fundsReceiver)), proof
+                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
+                keccak256(abi.encodePacked(fundsReceiver)),
+                proof
             ),
             true
         );
@@ -105,6 +109,8 @@ contract AdminFaucetAuthModuleTest is Test {
     /// @notice Assert that verify returns false for proofs signed by nonadmins.
     function test_nonAdminProof_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         address fundsReceiver = makeAddr("fundsReceiver");
         bytes memory proof = issueProofWithEIP712Domain(
             nonAdminKey,
@@ -120,7 +126,9 @@ contract AdminFaucetAuthModuleTest is Test {
         vm.prank(admin);
         assertEq(
             adminFam.verify(
-                Faucet.DripParameters(payable(fundsReceiver), nonce), keccak256(abi.encodePacked(fundsReceiver)), proof
+                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
+                keccak256(abi.encodePacked(fundsReceiver)),
+                proof
             ),
             false
         );
@@ -130,6 +138,8 @@ contract AdminFaucetAuthModuleTest is Test {
     ///         than the id in the call to verify.
     function test_proofWithWrongId_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         address fundsReceiver = makeAddr("fundsReceiver");
         address randomAddress = makeAddr("randomAddress");
         bytes memory proof = issueProofWithEIP712Domain(
@@ -146,7 +156,9 @@ contract AdminFaucetAuthModuleTest is Test {
         vm.prank(admin);
         assertEq(
             adminFam.verify(
-                Faucet.DripParameters(payable(fundsReceiver), nonce), keccak256(abi.encodePacked(randomAddress)), proof
+                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
+                keccak256(abi.encodePacked(randomAddress)),
+                proof
             ),
             false
         );

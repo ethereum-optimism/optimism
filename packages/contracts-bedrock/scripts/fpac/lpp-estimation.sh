@@ -16,7 +16,9 @@ anvil --base-fee $BASE_FEE &
 ANVIL_PID=$!
 
 # Deploy the `PreimageOracle` contract to anvil.
-PO_ADDR=$(forge create PreimageOracle --private-key $PRIVATE_KEY --rpc-url $ETH_RPC_URL --json | jq -r '.deployedTo')
+PO_MIN_PROPOSAL_SIZE=10000
+PO_CHALLENGE_PERIOD=120
+PO_ADDR=$(forge create PreimageOracle --private-key $PRIVATE_KEY --rpc-url $ETH_RPC_URL --json --constructor-args "${PO_MIN_PROPOSAL_SIZE}" "${PO_CHALLENGE_PERIOD}" 0 | jq -r '.deployedTo')
 
 # Capture the balance of the submitter prior to submitting all leaves.
 BALANCE_BEFORE=$(cast balance --rpc-url http://localhost:8545 "$PUB_KEY")

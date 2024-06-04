@@ -165,7 +165,7 @@ func TestCloseCompletes(t *testing.T) {
 func TestPrune(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	store := sync.MutexWrap(ds.NewMapDatastore())
 	clock := clock.NewDeterministicClock(time.UnixMilli(1000))
 	book, err := newScoreBook(ctx, logger, clock, store, 24*time.Hour)
@@ -220,7 +220,7 @@ func TestPrune(t *testing.T) {
 func TestPruneMultipleBatches(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	clock := clock.NewDeterministicClock(time.UnixMilli(1000))
 	book, err := newScoreBook(ctx, logger, clock, sync.MutexWrap(ds.NewMapDatastore()), 24*time.Hour)
 	require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestPruneMultipleBatches(t *testing.T) {
 func TestIgnoreOutdatedScores(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	clock := clock.NewDeterministicClock(time.UnixMilli(1000))
 	retentionPeriod := 24 * time.Hour
 	book, err := newScoreBook(ctx, logger, clock, sync.MutexWrap(ds.NewMapDatastore()), retentionPeriod)
@@ -289,7 +289,7 @@ func createMemoryStore(t *testing.T) ExtendedPeerstore {
 func createPeerstoreWithBacking(t *testing.T, store *sync.MutexDatastore) ExtendedPeerstore {
 	ps, err := pstoreds.NewPeerstore(context.Background(), store, pstoreds.DefaultOpts())
 	require.NoError(t, err, "Failed to create peerstore")
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	c := clock.NewDeterministicClock(time.UnixMilli(100))
 	eps, err := NewExtendedPeerstore(context.Background(), logger, c, ps, store, 24*time.Hour)
 	require.NoError(t, err)

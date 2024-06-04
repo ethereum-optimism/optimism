@@ -90,11 +90,15 @@ func (h headerInfo) GasLimit() uint64 {
 	return h.Header.GasLimit
 }
 
+func (h headerInfo) ParentBeaconRoot() *common.Hash {
+	return h.Header.ParentBeaconRoot
+}
+
 func (h headerInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(h.Header)
 }
 
-type rpcHeader struct {
+type RPCHeader struct {
 	ParentHash  common.Hash      `json:"parentHash"`
 	UncleHash   common.Hash      `json:"sha3Uncles"`
 	Coinbase    common.Address   `json:"miner"`
@@ -132,7 +136,7 @@ type rpcHeader struct {
 
 // checkPostMerge checks that the block header meets all criteria to be a valid ExecutionPayloadHeader,
 // see EIP-3675 (block header changes) and EIP-4399 (mixHash usage for prev-randao)
-func (hdr *rpcHeader) checkPostMerge() error {
+func (hdr *RPCHeader) checkPostMerge() error {
 	// TODO: the genesis block has a non-zero difficulty number value.
 	// Either this block needs to change, or we special case it. This is not valid w.r.t. EIP-3675.
 	if hdr.Number != 0 && (*big.Int)(&hdr.Difficulty).Cmp(common.Big0) != 0 {
@@ -153,12 +157,12 @@ func (hdr *rpcHeader) checkPostMerge() error {
 	return nil
 }
 
-func (hdr *rpcHeader) computeBlockHash() common.Hash {
+func (hdr *RPCHeader) computeBlockHash() common.Hash {
 	gethHeader := hdr.createGethHeader()
 	return gethHeader.Hash()
 }
 
-func (hdr *rpcHeader) createGethHeader() *types.Header {
+func (hdr *RPCHeader) createGethHeader() *types.Header {
 	return &types.Header{
 		ParentHash:      hdr.ParentHash,
 		UncleHash:       hdr.UncleHash,
@@ -184,7 +188,7 @@ func (hdr *rpcHeader) createGethHeader() *types.Header {
 	}
 }
 
-func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, error) {
+func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, error) {
 	if mustBePostMerge {
 		if err := hdr.checkPostMerge(); err != nil {
 			return nil, err
@@ -198,20 +202,20 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 	return &headerInfo{hdr.Hash, hdr.createGethHeader()}, nil
 }
 
-func (hdr *rpcHeader) BlockID() eth.BlockID {
+func (hdr *RPCHeader) BlockID() eth.BlockID {
 	return eth.BlockID{
 		Hash:   hdr.Hash,
 		Number: uint64(hdr.Number),
 	}
 }
 
-type rpcBlock struct {
-	rpcHeader
+type RPCBlock struct {
+	RPCHeader
 	Transactions []*types.Transaction `json:"transactions"`
 	Withdrawals  *types.Withdrawals   `json:"withdrawals,omitempty"`
 }
 
-func (block *rpcBlock) verify() error {
+func (block *RPCBlock) verify() error {
 	if computed := block.computeBlockHash(); computed != block.Hash {
 		return fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, block.Hash)
 	}
@@ -243,7 +247,7 @@ func (block *rpcBlock) verify() error {
 	return nil
 }
 
-func (block *rpcBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, types.Transactions, error) {
+func (block *RPCBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, types.Transactions, error) {
 	if mustBePostMerge {
 		if err := block.checkPostMerge(); err != nil {
 			return nil, nil, err
@@ -256,7 +260,7 @@ func (block *rpcBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInf
 	}
 
 	// verify the header data
-	info, err := block.rpcHeader.Info(trustCache, mustBePostMerge)
+	info, err := block.RPCHeader.Info(trustCache, mustBePostMerge)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to verify block from RPC: %w", err)
 	}
@@ -264,7 +268,7 @@ func (block *rpcBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInf
 	return info, block.Transactions, nil
 }
 
-func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload, error) {
+func (block *RPCBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.ExecutionPayloadEnvelope, error) {
 	if err := block.checkPostMerge(); err != nil {
 		return nil, err
 	}
@@ -287,7 +291,7 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 		opaqueTxs[i] = data
 	}
 
-	return &eth.ExecutionPayload{
+	payload := &eth.ExecutionPayload{
 		ParentHash:    block.ParentHash,
 		FeeRecipient:  block.Coinbase,
 		StateRoot:     eth.Bytes32(block.Root),
@@ -299,10 +303,17 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 		GasUsed:       block.GasUsed,
 		Timestamp:     block.Time,
 		ExtraData:     eth.BytesMax32(block.Extra),
-		BaseFeePerGas: baseFee,
+		BaseFeePerGas: eth.Uint256Quantity(baseFee),
 		BlockHash:     block.Hash,
 		Transactions:  opaqueTxs,
 		Withdrawals:   block.Withdrawals,
+		BlobGasUsed:   block.BlobGasUsed,
+		ExcessBlobGas: block.ExcessBlobGas,
+	}
+
+	return &eth.ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: block.ParentBeaconRoot,
+		ExecutionPayload:      payload,
 	}, nil
 }
 

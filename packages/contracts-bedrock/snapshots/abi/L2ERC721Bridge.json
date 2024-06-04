@@ -1,12 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_otherBridge",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -28,7 +22,7 @@
     "name": "OTHER_BRIDGE",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract StandardBridge",
         "name": "",
         "type": "address"
       }
@@ -146,7 +140,13 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address payable",
+        "name": "_l1ERC721Bridge",
+        "type": "address"
+      }
+    ],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -170,7 +170,7 @@
     "name": "otherBridge",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract StandardBridge",
         "name": "",
         "type": "address"
       }

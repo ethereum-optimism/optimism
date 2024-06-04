@@ -5,19 +5,17 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrNotFound = errors.New("not found")
-)
+var ErrNotFound = errors.New("not found")
 
 type OracleEngine struct {
 	api       *engineapi.L2EngineAPI
@@ -26,7 +24,7 @@ type OracleEngine struct {
 }
 
 func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engineapi.EngineBackend) *OracleEngine {
-	engineAPI := engineapi.NewL2EngineAPI(logger, backend)
+	engineAPI := engineapi.NewL2EngineAPI(logger, backend, nil)
 	return &OracleEngine{
 		api:       engineAPI,
 		backend:   backend,
@@ -43,38 +41,63 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error)
 	if err != nil {
 		return eth.Bytes32{}, fmt.Errorf("failed to open L2 state db at block %s: %w", outBlock.Hash(), err)
 	}
-	withdrawalsTrie, err := stateDB.Database().OpenStorageTrie(outBlock.Root, predeploys.L2ToL1MessagePasserAddr, stateDB.GetStorageRoot(predeploys.L2ToL1MessagePasserAddr))
+	withdrawalsTrie, err := stateDB.OpenStorageTrie(predeploys.L2ToL1MessagePasserAddr)
 	if err != nil {
 		return eth.Bytes32{}, fmt.Errorf("withdrawals trie unavailable at block %v: %w", outBlock.Hash(), err)
 	}
 	return rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(outBlock), withdrawalsTrie.Hash())
 }
 
-func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
-	res, err := o.api.GetPayloadV2(ctx, payloadId)
+func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	var res *eth.ExecutionPayloadEnvelope
+	var err error
+	switch method := o.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp); method {
+	case eth.GetPayloadV3:
+		res, err = o.api.GetPayloadV3(ctx, payloadInfo.ID)
+	case eth.GetPayloadV2:
+		res, err = o.api.GetPayloadV2(ctx, payloadInfo.ID)
+	default:
+		return nil, fmt.Errorf("unsupported GetPayload version: %s", method)
+	}
 	if err != nil {
 		return nil, err
 	}
-	return res.ExecutionPayload, nil
+	return res, nil
 }
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
+	switch method := o.rollupCfg.ForkchoiceUpdatedVersion(attr); method {
+	case eth.FCUV3:
+		return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
+	case eth.FCUV2:
+		return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
+	case eth.FCUV1:
+		return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
+	default:
+		return nil, fmt.Errorf("unsupported ForkchoiceUpdated version: %s", method)
+	}
 }
 
-func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	return o.api.NewPayloadV2(ctx, payload)
+func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	switch method := o.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
+	case eth.NewPayloadV3:
+		return o.api.NewPayloadV3(ctx, payload, []common.Hash{}, parentBeaconBlockRoot)
+	case eth.NewPayloadV2:
+		return o.api.NewPayloadV2(ctx, payload)
+	default:
+		return nil, fmt.Errorf("unsupported NewPayload version: %s", method)
+	}
 }
 
-func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
+func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	block := o.backend.GetBlockByHash(hash)
 	if block == nil {
 		return nil, ErrNotFound
 	}
-	return eth.BlockAsPayload(block, o.rollupCfg.CanyonTime)
+	return eth.BlockAsPayloadEnv(block, o.rollupCfg.CanyonTime)
 }
 
-func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayload, error) {
+func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayloadEnvelope, error) {
 	hash := o.backend.GetCanonicalHash(n)
 	if hash == (common.Hash{}) {
 		return nil, ErrNotFound
@@ -125,5 +148,5 @@ func (o *OracleEngine) SystemConfigByL2Hash(ctx context.Context, hash common.Has
 	if err != nil {
 		return eth.SystemConfig{}, err
 	}
-	return derive.PayloadToSystemConfig(o.rollupCfg, payload)
+	return derive.PayloadToSystemConfig(o.rollupCfg, payload.ExecutionPayload)
 }

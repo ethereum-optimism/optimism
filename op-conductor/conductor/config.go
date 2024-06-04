@@ -48,6 +48,9 @@ type Config struct {
 	// RollupCfg is the rollup config.
 	RollupCfg rollup.Config
 
+	// RPCEnableProxy is true if the sequencer RPC proxy should be enabled.
+	RPCEnableProxy bool
+
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
@@ -98,7 +101,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		return nil, errors.Wrap(err, "missing required flags")
 	}
 
-	rollupCfg, err := opnode.NewRollupConfig(log, ctx)
+	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load rollup config")
 	}
@@ -106,21 +109,25 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	return &Config{
 		ConsensusAddr:  ctx.String(flags.ConsensusAddr.Name),
 		ConsensusPort:  ctx.Int(flags.ConsensusPort.Name),
+		RaftBootstrap:  ctx.Bool(flags.RaftBootstrap.Name),
 		RaftServerID:   ctx.String(flags.RaftServerID.Name),
 		RaftStorageDir: ctx.String(flags.RaftStorageDir.Name),
 		NodeRPC:        ctx.String(flags.NodeRPC.Name),
 		ExecutionRPC:   ctx.String(flags.ExecutionRPC.Name),
 		Paused:         ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
-			Interval:     ctx.Uint64(flags.HealthCheckInterval.Name),
-			SafeInterval: ctx.Uint64(flags.HealthCheckSafeInterval.Name),
-			MinPeerCount: ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
+			Interval:       ctx.Uint64(flags.HealthCheckInterval.Name),
+			UnsafeInterval: ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
+			SafeEnabled:    ctx.Bool(flags.HealthCheckSafeEnabled.Name),
+			SafeInterval:   ctx.Uint64(flags.HealthCheckSafeInterval.Name),
+			MinPeerCount:   ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
 		},
-		RollupCfg:     *rollupCfg,
-		LogConfig:     oplog.ReadCLIConfig(ctx),
-		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:   oppprof.ReadCLIConfig(ctx),
-		RPC:           oprpc.ReadCLIConfig(ctx),
+		RollupCfg:      *rollupCfg,
+		RPCEnableProxy: ctx.Bool(flags.RPCEnableProxy.Name),
+		LogConfig:      oplog.ReadCLIConfig(ctx),
+		MetricsConfig:  opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:    oppprof.ReadCLIConfig(ctx),
+		RPC:            oprpc.ReadCLIConfig(ctx),
 	}, nil
 }
 
@@ -128,6 +135,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 type HealthCheckConfig struct {
 	// Interval is the interval (in seconds) to check the health of the sequencer.
 	Interval uint64
+
+	// UnsafeInterval is the interval allowed between unsafe head and now in seconds.
+	UnsafeInterval uint64
+
+	// SafeEnabled is whether to enable safe head progression checks.
+	SafeEnabled bool
 
 	// SafeInterval is the interval between safe head progression measured in seconds.
 	SafeInterval uint64

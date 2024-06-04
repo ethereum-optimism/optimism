@@ -123,7 +123,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.state.LastHint = append(m.state.LastHint, hintData...)
 			for len(m.state.LastHint) >= 4 { // process while there is enough data to check if there are any hints
 				hintLen := binary.BigEndian.Uint32(m.state.LastHint[:4])
-				if hintLen >= uint32(len(m.state.LastHint[4:])) {
+				if hintLen <= uint32(len(m.state.LastHint[4:])) {
 					hint := m.state.LastHint[4 : 4+hintLen] // without the length prefix
 					m.state.LastHint = m.state.LastHint[4+hintLen:]
 					m.preimageOracle.Hint(hint)
@@ -177,6 +177,49 @@ func (m *InstrumentedState) handleSyscall() error {
 	m.state.PC = m.state.NextPC
 	m.state.NextPC = m.state.NextPC + 4
 	return nil
+}
+
+func (m *InstrumentedState) pushStack(target uint32) {
+	if !m.debugEnabled {
+		return
+	}
+	m.debug.stack = append(m.debug.stack, target)
+	m.debug.caller = append(m.debug.caller, m.state.PC)
+}
+
+func (m *InstrumentedState) popStack() {
+	if !m.debugEnabled {
+		return
+	}
+	if len(m.debug.stack) != 0 {
+		fn := m.debug.meta.LookupSymbol(m.state.PC)
+		topFn := m.debug.meta.LookupSymbol(m.debug.stack[len(m.debug.stack)-1])
+		if fn != topFn {
+			// most likely the function was inlined. Snap back to the last return.
+			i := len(m.debug.stack) - 1
+			for ; i >= 0; i-- {
+				if m.debug.meta.LookupSymbol(m.debug.stack[i]) == fn {
+					m.debug.stack = m.debug.stack[:i]
+					m.debug.caller = m.debug.caller[:i]
+					break
+				}
+			}
+		} else {
+			m.debug.stack = m.debug.stack[:len(m.debug.stack)-1]
+			m.debug.caller = m.debug.caller[:len(m.debug.caller)-1]
+		}
+	} else {
+		fmt.Printf("ERROR: stack underflow at pc=%x. step=%d\n", m.state.PC, m.state.Step)
+	}
+}
+
+func (m *InstrumentedState) Traceback() {
+	fmt.Printf("traceback at pc=%x. step=%d\n", m.state.PC, m.state.Step)
+	for i := len(m.debug.stack) - 1; i >= 0; i-- {
+		s := m.debug.stack[i]
+		idx := len(m.debug.stack) - i - 1
+		fmt.Printf("\t%d %x in %s caller=%08x\n", idx, s, m.debug.meta.LookupSymbol(s), m.debug.caller[i])
+	}
 }
 
 func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
@@ -291,6 +334,7 @@ func (m *InstrumentedState) mipsStep() error {
 		}
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (m.state.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
+		m.pushStack(target)
 		return m.handleJump(linkReg, target)
 	}
 
@@ -356,6 +400,7 @@ func (m *InstrumentedState) mipsStep() error {
 			if fun == 9 {
 				linkReg = rdReg
 			}
+			m.popStack()
 			return m.handleJump(linkReg, rs)
 		}
 
@@ -498,7 +543,7 @@ func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 			switch fun {
 			case 0x2: // mul
 				return uint32(int32(rs) * int32(rt))
-			case 0x20, 0x21: // clo
+			case 0x20, 0x21: // clz, clo
 				if fun == 0x20 {
 					rs = ^rs
 				}

@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -21,10 +20,12 @@ const (
 )
 
 var (
-	ErrBlobInvalidFieldElement    = errors.New("invalid field element")
-	ErrBlobInvalidEncodingVersion = errors.New("invalid encoding version")
-	ErrBlobInvalidLength          = errors.New("invalid length for blob")
-	ErrBlobInputTooLarge          = errors.New("too much data to encode in one blob")
+	ErrBlobInvalidFieldElement        = errors.New("invalid field element")
+	ErrBlobInvalidEncodingVersion     = errors.New("invalid encoding version")
+	ErrBlobInvalidLength              = errors.New("invalid length for blob")
+	ErrBlobInputTooLarge              = errors.New("too much data to encode in one blob")
+	ErrBlobExtraneousData             = errors.New("non-zero data encountered where blob should be empty")
+	ErrBlobExtraneousDataFieldElement = errors.New("non-zero data encountered where field element should be empty")
 )
 
 type Blob [BlobSize]byte
@@ -62,14 +63,8 @@ func (b *Blob) ComputeKZGCommitment() (kzg4844.Commitment, error) {
 // KZGToVersionedHash computes the "blob hash" (a.k.a. versioned-hash) of a blob-commitment, as used in a blob-tx.
 // We implement it here because it is unfortunately not (currently) exposed by geth.
 func KZGToVersionedHash(commitment kzg4844.Commitment) (out common.Hash) {
-	// EIP-4844 spec:
-	//	def kzg_to_versioned_hash(commitment: KZGCommitment) -> VersionedHash:
-	//		return VERSIONED_HASH_VERSION_KZG + sha256(commitment)[1:]
-	h := sha256.New()
-	h.Write(commitment[:])
-	_ = h.Sum(out[:0])
-	out[0] = params.BlobTxHashVersion
-	return out
+	hasher := sha256.New()
+	return kzg4844.CalcBlobHashV1(hasher, &commitment)
 }
 
 // VerifyBlobProof verifies that the given blob and proof corresponds to the given commitment,
@@ -238,7 +233,17 @@ func (b *Blob) ToData() (Data, error) {
 		}
 		opos = reassembleBytes(opos, encodedByte, output)
 	}
+	for i := int(outputLen); i < len(output); i++ {
+		if output[i] != 0 {
+			return nil, fmt.Errorf("fe=%d: %w", opos/32, ErrBlobExtraneousDataFieldElement)
+		}
+	}
 	output = output[:outputLen]
+	for ; ipos < BlobSize; ipos++ {
+		if b[ipos] != 0 {
+			return nil, fmt.Errorf("pos=%d: %w", ipos, ErrBlobExtraneousData)
+		}
+	}
 	return output, nil
 }
 

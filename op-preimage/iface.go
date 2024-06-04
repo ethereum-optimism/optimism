@@ -34,6 +34,14 @@ const (
 	LocalKeyType KeyType = 1
 	// Keccak256KeyType is for keccak256 pre-images, for any global shared pre-images.
 	Keccak256KeyType KeyType = 2
+	// GlobalGenericKeyType is a reserved key type for generic global data.
+	GlobalGenericKeyType KeyType = 3
+	// Sha256KeyType is for sha256 pre-images, for any global shared pre-images.
+	Sha256KeyType KeyType = 4
+	// BlobKeyType is for blob point pre-images.
+	BlobKeyType KeyType = 5
+	// PrecompileKeyType is for precompile result pre-images.
+	PrecompileKeyType KeyType = 6
 )
 
 // LocalIndexKey is a key local to the program, indexing a special program input.
@@ -59,6 +67,57 @@ func (k Keccak256Key) String() string {
 }
 
 func (k Keccak256Key) TerminalString() string {
+	return "0x" + hex.EncodeToString(k[:])
+}
+
+// Sha256Key wraps a sha256 hash to use it as a typed pre-image key.hash
+type Sha256Key [32]byte
+
+func (k Sha256Key) PreimageKey() (out [32]byte) {
+	out = k
+	out[0] = byte(Sha256KeyType)
+	return
+}
+
+func (k Sha256Key) String() string {
+	return "0x" + hex.EncodeToString(k[:])
+}
+
+func (k Sha256Key) TerminalString() string {
+	return "0x" + hex.EncodeToString(k[:])
+}
+
+// BlobKey is the hash of a blob commitment and `z` value to use as a preimage key for `y`.
+type BlobKey [32]byte
+
+func (k BlobKey) PreimageKey() (out [32]byte) {
+	out = k
+	out[0] = byte(BlobKeyType)
+	return
+}
+
+func (k BlobKey) String() string {
+	return "0x" + hex.EncodeToString(k[:])
+}
+
+func (k BlobKey) TerminalString() string {
+	return "0x" + hex.EncodeToString(k[:])
+}
+
+// PrecompileKey is the hash of precompile address and its input data
+type PrecompileKey [32]byte
+
+func (k PrecompileKey) PreimageKey() (out [32]byte) {
+	out = k
+	out[0] = byte(PrecompileKeyType)
+	return
+}
+
+func (k PrecompileKey) String() string {
+	return "0x" + hex.EncodeToString(k[:])
+}
+
+func (k PrecompileKey) TerminalString() string {
 	return "0x" + hex.EncodeToString(k[:])
 }
 

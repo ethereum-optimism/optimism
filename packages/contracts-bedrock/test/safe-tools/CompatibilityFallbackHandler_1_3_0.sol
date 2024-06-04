@@ -6,7 +6,7 @@ import "safe-contracts/interfaces/ERC721TokenReceiver.sol";
 import "safe-contracts/interfaces/ERC777TokensRecipient.sol";
 import "safe-contracts/interfaces/IERC165.sol";
 import "safe-contracts/interfaces/ISignatureValidator.sol";
-import { Safe as GnosisSafe } from "safe-contracts/Safe.sol";
+import { GnosisSafe } from "safe-contracts/GnosisSafe.sol";
 
 /// author: Colin Nielsen
 /// https://github.com/colinnielsen/safe-tools/blob/ce6c654a76d91b619ab7778c77d1a76b3ced6666/src/CompatibilityFallbackHandler_1_3_0.sol
@@ -162,7 +162,6 @@ contract CompatibilityFallbackHandler is DefaultCallbackHandler, ISignatureValid
         targetContract;
         calldataPayload;
 
-        // solhint-disable-next-line no-inline-assembly
         assembly {
             let internalCalldata := mload(0x40)
             // Store `simulateAndRevert.selector`.

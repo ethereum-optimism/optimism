@@ -9,7 +9,7 @@ import (
 )
 
 func newOutputPrestateProvider(t *testing.T, prestateBlock uint64) (*OutputPrestateProvider, *stubRollupClient) {
-	rollupClient := stubRollupClient{
+	rollupClient := &stubRollupClient{
 		outputs: map[uint64]*eth.OutputResponse{
 			prestateBlock: {
 				OutputRoot: eth.Bytes32(prestateOutputRoot),
@@ -23,9 +23,9 @@ func newOutputPrestateProvider(t *testing.T, prestateBlock uint64) (*OutputPrest
 		},
 	}
 	return &OutputPrestateProvider{
-		rollupClient:  &rollupClient,
+		rollupClient:  rollupClient,
 		prestateBlock: prestateBlock,
-	}, &rollupClient
+	}, rollupClient
 }
 
 func TestAbsolutePreStateCommitment(t *testing.T) {

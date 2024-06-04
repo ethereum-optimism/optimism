@@ -1,15 +1,19 @@
 package upgrades
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
@@ -18,8 +22,6 @@ const (
 	// upgradeAndCall represents the signature of the upgradeAndCall function
 	// on the ProxyAdmin contract.
 	upgradeAndCall = "upgradeAndCall(address,address,bytes)"
-	// upgrade represents the signature of the upgrade function on the ProxyAdmin contract.
-	upgrade = "upgrade(address,address)"
 
 	method = "setBytes32"
 )
@@ -27,41 +29,36 @@ const (
 var (
 	// storageSetterAddr represents the address of the StorageSetter contract.
 	storageSetterAddr = common.HexToAddress("0xd81f43eDBCAcb4c29a9bA38a13Ee5d79278270cC")
-
-	// superchainConfigProxy refers to the address of the Sepolia superchain config proxy.
-	// NOTE: this is currently hardcoded and we will need to move this to the superchain-registry
-	// and have 1 deployed for each superchain target.
-	superchainConfigProxy = common.HexToAddress("0xC2Be75506d5724086DEB7245bd260Cc9753911Be")
 )
 
 // L1 will add calls for upgrading each of the L1 contracts.
-func L1(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
-	if err := L1CrossDomainMessenger(batch, implementations, list, config, chainConfig, backend); err != nil {
+func L1(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, superchainConfig *superchain.Superchain, backend bind.ContractBackend) error {
+	if err := L1CrossDomainMessenger(batch, implementations, list, config, chainConfig, superchainConfig, backend); err != nil {
 		return fmt.Errorf("upgrading L1CrossDomainMessenger: %w", err)
 	}
-	if err := L1ERC721Bridge(batch, implementations, list, config, chainConfig, backend); err != nil {
+	if err := L1ERC721Bridge(batch, implementations, list, config, chainConfig, superchainConfig, backend); err != nil {
 		return fmt.Errorf("upgrading L1ERC721Bridge: %w", err)
 	}
-	if err := L1StandardBridge(batch, implementations, list, config, chainConfig, backend); err != nil {
+	if err := L1StandardBridge(batch, implementations, list, config, chainConfig, superchainConfig, backend); err != nil {
 		return fmt.Errorf("upgrading L1StandardBridge: %w", err)
 	}
-	if err := L2OutputOracle(batch, implementations, list, config, chainConfig, backend); err != nil {
+	if err := L2OutputOracle(batch, implementations, list, config, chainConfig, superchainConfig, backend); err != nil {
 		return fmt.Errorf("upgrading L2OutputOracle: %w", err)
 	}
-	if err := OptimismMintableERC20Factory(batch, implementations, list, config, chainConfig, backend); err != nil {
+	if err := OptimismMintableERC20Factory(batch, implementations, list, config, chainConfig, superchainConfig, backend); err != nil {
 		return fmt.Errorf("upgrading OptimismMintableERC20Factory: %w", err)
 	}
-	if err := OptimismPortal(batch, implementations, list, config, chainConfig, backend); err != nil {
+	if err := OptimismPortal(batch, implementations, list, config, chainConfig, superchainConfig, backend); err != nil {
 		return fmt.Errorf("upgrading OptimismPortal: %w", err)
 	}
-	if err := SystemConfig(batch, implementations, list, config, chainConfig, backend); err != nil {
+	if err := SystemConfig(batch, implementations, list, config, chainConfig, superchainConfig, backend); err != nil {
 		return fmt.Errorf("upgrading SystemConfig: %w", err)
 	}
 	return nil
 }
 
 // L1CrossDomainMessenger will add a call to the batch that upgrades the L1CrossDomainMessenger.
-func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
+func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, superchainConfig *superchain.Superchain, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -80,11 +77,6 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 				Key:   common.Hash{},
 				Value: common.Hash{},
 			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L28
-			{
-				Key:   common.Hash{31: 249},
-				Value: common.Hash{},
-			},
 		}
 
 		calldata, err := storageSetterABI.Pack(method, input)
@@ -92,11 +84,11 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.L1CrossDomainMessengerProxy.String()),
+			common.Address(list.L1CrossDomainMessengerProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -107,18 +99,39 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
-	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy)
+	l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessengerCaller(common.Address(list.L1CrossDomainMessengerProxy), backend)
+	if err != nil {
+		return err
+	}
+	optimismPortal, err := l1CrossDomainMessenger.PORTAL(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	otherMessenger, err := l1CrossDomainMessenger.OTHERMESSENGER(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if optimismPortal != common.Address(list.OptimismPortalProxy) {
+		return fmt.Errorf("Portal address doesn't match config")
+	}
+
+	if otherMessenger != predeploys.L2CrossDomainMessengerAddr {
+		return fmt.Errorf("OtherMessenger address doesn't match config")
+	}
+
+	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", common.Address(*superchainConfig.Config.SuperchainConfigAddr), optimismPortal)
 	if err != nil {
 		return err
 	}
 
 	args := []any{
-		common.HexToAddress(list.L1CrossDomainMessengerProxy.String()),
-		common.HexToAddress(implementations.L1CrossDomainMessenger.Address.String()),
+		common.Address(list.L1CrossDomainMessengerProxy),
+		common.Address(implementations.L1CrossDomainMessenger.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -127,7 +140,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 }
 
 // L1ERC721Bridge will add a call to the batch that upgrades the L1ERC721Bridge.
-func L1ERC721Bridge(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
+func L1ERC721Bridge(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, superchainConfig *superchain.Superchain, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -153,11 +166,11 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 			return fmt.Errorf("setBytes32: %w", err)
 		}
 		args := []any{
-			common.HexToAddress(list.L1ERC721BridgeProxy.String()),
+			common.Address(list.L1ERC721BridgeProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -168,18 +181,39 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	calldata, err := l1ERC721BridgeABI.Pack("initialize", superchainConfigProxy)
+	l1ERC721Bridge, err := bindings.NewL1ERC721BridgeCaller(common.Address(list.L1ERC721BridgeProxy), backend)
+	if err != nil {
+		return err
+	}
+	messenger, err := l1ERC721Bridge.Messenger(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	otherBridge, err := l1ERC721Bridge.OtherBridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
+		return fmt.Errorf("Messenger address doesn't match config")
+	}
+
+	if otherBridge != predeploys.L2ERC721BridgeAddr {
+		return fmt.Errorf("OtherBridge address doesn't match config")
+	}
+
+	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, common.Address(*(superchainConfig.Config.SuperchainConfigAddr)))
 	if err != nil {
 		return err
 	}
 
 	args := []any{
-		common.HexToAddress(list.L1ERC721BridgeProxy.String()),
-		common.HexToAddress(implementations.L1ERC721Bridge.Address.String()),
+		common.Address(list.L1ERC721BridgeProxy),
+		common.Address(implementations.L1ERC721Bridge.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -188,7 +222,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 }
 
 // L1StandardBridge will add a call to the batch that upgrades the L1StandardBridge.
-func L1StandardBridge(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
+func L1StandardBridge(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, superchainConfig *superchain.Superchain, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -207,11 +241,6 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 				Key:   common.Hash{},
 				Value: common.Hash{},
 			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L41
-			{
-				Key:   common.Hash{31: 0x03},
-				Value: common.Hash{},
-			},
 		}
 
 		calldata, err := storageSetterABI.Pack(method, input)
@@ -219,11 +248,11 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.L1StandardBridgeProxy.String()),
+			common.Address(list.L1StandardBridgeProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -234,18 +263,41 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	calldata, err := l1StandardBridgeABI.Pack("initialize", superchainConfigProxy)
+	l1StandardBridge, err := bindings.NewL1StandardBridgeCaller(common.Address(list.L1StandardBridgeProxy), backend)
+	if err != nil {
+		return err
+	}
+
+	messenger, err := l1StandardBridge.MESSENGER(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	otherBridge, err := l1StandardBridge.OTHERBRIDGE(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if messenger != common.Address(list.L1CrossDomainMessengerProxy) {
+		return fmt.Errorf("Messenger address doesn't match config")
+	}
+
+	if otherBridge != predeploys.L2StandardBridgeAddr {
+		return fmt.Errorf("OtherBridge address doesn't match config")
+	}
+
+	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, common.Address(*(superchainConfig.Config.SuperchainConfigAddr)))
 	if err != nil {
 		return err
 	}
 
 	args := []any{
-		common.HexToAddress(list.L1StandardBridgeProxy.String()),
-		common.HexToAddress(implementations.L1StandardBridge.Address.String()),
+		common.Address(list.L1StandardBridgeProxy),
+		common.Address(implementations.L1StandardBridge.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -254,7 +306,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 }
 
 // L2OutputOracle will add a call to the batch that upgrades the L2OutputOracle.
-func L2OutputOracle(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
+func L2OutputOracle(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, superchainConfig *superchain.Superchain, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -273,16 +325,6 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 				Key:   common.Hash{},
 				Value: common.Hash{},
 			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L55
-			{
-				Key:   common.Hash{31: 0x04},
-				Value: common.Hash{},
-			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L56
-			{
-				Key:   common.Hash{31: 0x05},
-				Value: common.Hash{},
-			},
 		}
 
 		calldata, err := storageSetterABI.Pack(method, input)
@@ -290,11 +332,11 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.L2OutputOracleProxy.String()),
+			common.Address(list.L2OutputOracleProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -305,41 +347,101 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	var l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp *big.Int
+	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.Address(list.L2OutputOracleProxy), backend)
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleSubmissionInterval, err := l2OutputOracle.SUBMISSIONINTERVAL(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2BlockTime, err := l2OutputOracle.L2BLOCKTIME(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleStartingBlockNumber, err := l2OutputOracle.StartingBlockNumber(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleStartingTimestamp, err := l2OutputOracle.StartingTimestamp(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleProposer, err := l2OutputOracle.PROPOSER(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2OutputOracleChallenger, err := l2OutputOracle.CHALLENGER(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	finalizationPeriodSeconds, err := l2OutputOracle.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
 	if config != nil {
-		l2OutputOracleStartingBlockNumber = new(big.Int).SetUint64(config.L2OutputOracleStartingBlockNumber)
+		if l2OutputOracleSubmissionInterval.Uint64() != config.L2OutputOracleSubmissionInterval {
+			return fmt.Errorf("L2OutputOracleSubmissionInterval address doesn't match config")
+		}
+
+		if l2BlockTime.Uint64() != config.L2BlockTime {
+			return fmt.Errorf("L2BlockTime address doesn't match config")
+		}
+
+		if l2OutputOracleStartingBlockNumber.Uint64() != config.L2OutputOracleStartingBlockNumber {
+			return fmt.Errorf("L2OutputOracleStartingBlockNumber address doesn't match config")
+		}
+
 		if config.L2OutputOracleStartingTimestamp < 0 {
 			return fmt.Errorf("L2OutputOracleStartingTimestamp must be concrete")
 		}
-		l2OutputOracleStartingTimestamp = new(big.Int).SetInt64(int64(config.L2OutputOracleStartingTimestamp))
-	} else {
-		l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.HexToAddress(list.L2OutputOracleProxy.String()), backend)
-		if err != nil {
-			return err
-		}
-		l2OutputOracleStartingBlockNumber, err = l2OutputOracle.StartingBlockNumber(&bind.CallOpts{})
-		if err != nil {
-			return err
+
+		if int(l2OutputOracleStartingTimestamp.Int64()) != config.L2OutputOracleStartingTimestamp {
+			return fmt.Errorf("L2OutputOracleStartingTimestamp address doesn't match config")
 		}
 
-		l2OutputOracleStartingTimestamp, err = l2OutputOracle.StartingTimestamp(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if l2OutputOracleProposer != config.L2OutputOracleProposer {
+			return fmt.Errorf("L2OutputOracleProposer address doesn't match config")
+		}
+
+		if l2OutputOracleChallenger != config.L2OutputOracleChallenger {
+			return fmt.Errorf("L2OutputOracleChallenger address doesn't match config")
+		}
+
+		if finalizationPeriodSeconds.Uint64() != config.FinalizationPeriodSeconds {
+			return fmt.Errorf("FinalizationPeriodSeconds address doesn't match config")
 		}
 	}
 
-	calldata, err := l2OutputOracleABI.Pack("initialize", l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp)
+	calldata, err := l2OutputOracleABI.Pack(
+		"initialize",
+		l2OutputOracleSubmissionInterval,
+		l2BlockTime,
+		l2OutputOracleStartingBlockNumber,
+		l2OutputOracleStartingTimestamp,
+		l2OutputOracleProposer,
+		l2OutputOracleChallenger,
+		finalizationPeriodSeconds,
+	)
 	if err != nil {
 		return err
 	}
 
 	args := []any{
-		common.HexToAddress(list.L2OutputOracleProxy.String()),
-		common.HexToAddress(implementations.L2OutputOracle.Address.String()),
+		common.Address(list.L2OutputOracleProxy),
+		common.Address(implementations.L2OutputOracle.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -348,7 +450,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 }
 
 // OptimismMintableERC20Factory will add a call to the batch that upgrades the OptimismMintableERC20Factory.
-func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
+func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, superchainConfig *superchain.Superchain, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -374,23 +476,48 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
+			common.Address(list.OptimismMintableERC20FactoryProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
 	}
 
-	args := []any{
-		common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
-		common.HexToAddress(implementations.OptimismMintableERC20Factory.Address.String()),
+	optimismMintableERC20FactoryABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
+	if err != nil {
+		return err
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
-	if err := batch.AddCall(proxyAdmin, common.Big0, upgrade, args, proxyAdminABI); err != nil {
+	optimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.Address(list.OptimismMintableERC20FactoryProxy), backend)
+	if err != nil {
+		return err
+	}
+
+	bridge, err := optimismMintableERC20Factory.BRIDGE(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if bridge != common.Address(list.L1StandardBridgeProxy) {
+		return fmt.Errorf("Bridge address doesn't match config")
+	}
+
+	calldata, err := optimismMintableERC20FactoryABI.Pack("initialize", bridge)
+	if err != nil {
+		return err
+	}
+
+	args := []any{
+		common.Address(list.OptimismMintableERC20FactoryProxy),
+		common.Address(implementations.OptimismMintableERC20Factory.Address),
+		calldata,
+	}
+
+	proxyAdmin := common.Address(list.ProxyAdmin)
+	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
 
@@ -398,7 +525,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 }
 
 // OptimismPortal will add a call to the batch that upgrades the OptimismPortal.
-func OptimismPortal(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
+func OptimismPortal(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, superchainConfig *superchain.Superchain, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -417,21 +544,6 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 				Key:   common.Hash{},
 				Value: common.Hash{},
 			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L72
-			{
-				Key:   common.Hash{31: 53},
-				Value: common.Hash{},
-			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L73
-			{
-				Key:   common.Hash{31: 54},
-				Value: common.Hash{},
-			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L74
-			{
-				Key:   common.Hash{31: 55},
-				Value: common.Hash{},
-			},
 		}
 
 		calldata, err := storageSetterABI.Pack(method, input)
@@ -439,11 +551,11 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 			return err
 		}
 		args := []any{
-			common.HexToAddress(list.OptimismPortalProxy.String()),
+			common.Address(list.OptimismPortalProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -454,18 +566,39 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	calldata, err := optimismPortalABI.Pack("initialize", superchainConfigProxy)
+	optimismPortal, err := bindings.NewOptimismPortalCaller(common.Address(list.OptimismPortalProxy), backend)
+	if err != nil {
+		return err
+	}
+	l2OutputOracle, err := optimismPortal.L2Oracle(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	systemConfig, err := optimismPortal.SystemConfig(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if l2OutputOracle != common.Address(list.L2OutputOracleProxy) {
+		return fmt.Errorf("L2OutputOracle address doesn't match config")
+	}
+
+	if systemConfig != common.Address(list.SystemConfigProxy) {
+		return fmt.Errorf("SystemConfig address doesn't match config")
+	}
+
+	calldata, err := optimismPortalABI.Pack("initialize", l2OutputOracle, systemConfig, common.Address(*superchainConfig.Config.SuperchainConfigAddr))
 	if err != nil {
 		return err
 	}
 
 	args := []any{
-		common.HexToAddress(list.OptimismPortalProxy.String()),
-		common.HexToAddress(implementations.OptimismPortal.Address.String()),
+		common.Address(list.OptimismPortalProxy),
+		common.Address(implementations.OptimismPortal.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
@@ -474,7 +607,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 }
 
 // SystemConfig will add a call to the batch that upgrades the SystemConfig.
-func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
+func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, superchainConfig *superchain.Superchain, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -487,51 +620,27 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			return err
 		}
 
+		var startBlock common.Hash
+		if config != nil {
+			startBlock = common.BigToHash(new(big.Int).SetUint64(config.SystemConfigStartBlock))
+		} else {
+			val, err := strconv.ParseUint(os.Getenv("SYSTEM_CONFIG_START_BLOCK"), 10, 64)
+			if err != nil {
+				return err
+			}
+			startBlock = common.BigToHash(new(big.Int).SetUint64(val))
+		}
+
 		input := []bindings.StorageSetterSlot{
 			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L82-L83
 			{
 				Key:   common.Hash{},
 				Value: common.Hash{},
 			},
-			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L92
+			// bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
 			{
-				Key:   common.Hash{31: 106},
-				Value: common.Hash{},
-			},
-			// bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT = bytes32(uint256(keccak256("systemconfig.l1crossdomainmessenger")) - 1);
-			{
-				Key:   common.HexToHash("0x383f291819e6d54073bc9a648251d97421076bdd101933c0c022219ce9580636"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant L1_ERC_721_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1);
-			{
-				Key:   common.HexToHash("0x46adcbebc6be8ce551740c29c47c8798210f23f7f4086c41752944352568d5a7"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
-			{
-				Key:   common.HexToHash("0x9904ba90dde5696cda05c9e0dab5cbaa0fea005ace4d11218a02ac668dad6376"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
-			{
-				Key:   common.HexToHash("0xe52a667f71ec761b9b381c7b76ca9b852adf7e8905da0e0ad49986a0a6871815"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
-			{
-				Key:   common.HexToHash("0x4b6c74f9e688cb39801f2112c14a8c57232a3fc5202e1444126d4bce86eb19ac"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT = bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
-			{
-				Key:   common.HexToHash("0xa04c5bb938ca6fc46d95553abf0a76345ce3e722a30bf4f74928b8e7d852320c"),
-				Value: common.Hash{},
-			},
-			// bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
-			{
-				Key:   common.HexToHash("0x71ac12829d66ee73d8d95bff50b3589745ce57edae70a3fb111a2342464dc597"),
-				Value: common.Hash{},
+				Key:   common.HexToHash("0xa11ee3ab75b40e88a0105e935d17cd36c8faee0138320d776c411291bdbbb19f"),
+				Value: startBlock,
 			},
 		}
 
@@ -540,11 +649,11 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			return err
 		}
 		args := []any{
-			common.HexToAddress(chainConfig.SystemConfigAddr.String()),
+			common.Address(list.SystemConfigProxy),
 			storageSetterAddr,
 			calldata,
 		}
-		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		proxyAdmin := common.Address(list.ProxyAdmin)
 		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
@@ -555,47 +664,82 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	var gasPriceOracleOverhead, gasPriceOracleScalar *big.Int
-	var batcherHash common.Hash
-	var p2pSequencerAddress, finalSystemOwner common.Address
-	var l2GenesisBlockGasLimit uint64
+	systemConfig, err := bindings.NewSystemConfigCaller(common.Address(list.SystemConfigProxy), backend)
+	if err != nil {
+		return err
+	}
+
+	gasPriceOracleOverhead, err := systemConfig.Overhead(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	gasPriceOracleScalar, err := systemConfig.Scalar(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	batcherHash, err := systemConfig.BatcherHash(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	l2GenesisBlockGasLimit, err := systemConfig.GasLimit(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	p2pSequencerAddress, err := systemConfig.UnsafeBlockSigner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	finalSystemOwner, err := systemConfig.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
 
 	if config != nil {
-		gasPriceOracleOverhead = new(big.Int).SetUint64(config.GasPriceOracleOverhead)
-		gasPriceOracleScalar = new(big.Int).SetUint64(config.GasPriceOracleScalar)
-		batcherHash = common.BytesToHash(config.BatchSenderAddress.Bytes())
-		l2GenesisBlockGasLimit = uint64(config.L2GenesisBlockGasLimit)
-		p2pSequencerAddress = config.P2PSequencerAddress
-		finalSystemOwner = config.FinalSystemOwner
-	} else {
-		systemConfig, err := bindings.NewSystemConfigCaller(common.HexToAddress(chainConfig.SystemConfigAddr.String()), backend)
-		if err != nil {
-			return err
+		if batcherHash != common.BytesToHash(config.BatchSenderAddress.Bytes()) {
+			return fmt.Errorf("BatchSenderAddress address doesn't match config")
 		}
-		gasPriceOracleOverhead, err = systemConfig.Overhead(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if l2GenesisBlockGasLimit != uint64(config.L2GenesisBlockGasLimit) {
+			return fmt.Errorf("L2GenesisBlockGasLimit address doesn't match config")
 		}
-		gasPriceOracleScalar, err = systemConfig.Scalar(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if p2pSequencerAddress != config.P2PSequencerAddress {
+			return fmt.Errorf("P2PSequencerAddress address doesn't match config")
 		}
-		batcherHash, err = systemConfig.BatcherHash(&bind.CallOpts{})
-		if err != nil {
-			return err
+		if finalSystemOwner != config.FinalSystemOwner {
+			return fmt.Errorf("FinalSystemOwner address doesn't match config")
 		}
-		l2GenesisBlockGasLimit, err = systemConfig.GasLimit(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		p2pSequencerAddress, err = systemConfig.UnsafeBlockSigner(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		finalSystemOwner, err = systemConfig.Owner(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
+	}
+
+	resourceConfig, err := systemConfig.ResourceConfig(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+
+	if resourceConfig.MaxResourceLimit != DefaultResourceConfig.MaxResourceLimit {
+		return fmt.Errorf("DefaultResourceConfig MaxResourceLimit doesn't match contract MaxResourceLimit")
+	}
+	if resourceConfig.ElasticityMultiplier != DefaultResourceConfig.ElasticityMultiplier {
+		return fmt.Errorf("DefaultResourceConfig ElasticityMultiplier doesn't match contract ElasticityMultiplier")
+	}
+	if resourceConfig.BaseFeeMaxChangeDenominator != DefaultResourceConfig.BaseFeeMaxChangeDenominator {
+		return fmt.Errorf("DefaultResourceConfig BaseFeeMaxChangeDenominator doesn't match contract BaseFeeMaxChangeDenominator")
+	}
+	if resourceConfig.MinimumBaseFee != DefaultResourceConfig.MinimumBaseFee {
+		return fmt.Errorf("DefaultResourceConfig MinimumBaseFee doesn't match contract MinimumBaseFee")
+	}
+	if resourceConfig.SystemTxMaxGas != DefaultResourceConfig.SystemTxMaxGas {
+		return fmt.Errorf("DefaultResourceConfig SystemTxMaxGas doesn't match contract SystemTxMaxGas")
+	}
+	if resourceConfig.MaximumBaseFee.Cmp(DefaultResourceConfig.MaximumBaseFee) != 0 {
+		return fmt.Errorf("DefaultResourceConfig MaximumBaseFee doesn't match contract MaximumBaseFee")
+	}
+
+	if true {
+		return errors.New("Update superchain-registry dependency to include DisputeGameFactory and GasPayingToken addresses")
 	}
 
 	calldata, err := systemConfigABI.Pack(
@@ -606,19 +750,29 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		batcherHash,
 		l2GenesisBlockGasLimit,
 		p2pSequencerAddress,
-		genesis.DefaultResourceConfig,
+		DefaultResourceConfig,
+		chainConfig.BatchInboxAddr,
+		bindings.SystemConfigAddresses{
+			L1CrossDomainMessenger:       common.Address(list.L1CrossDomainMessengerProxy),
+			L1ERC721Bridge:               common.Address(list.L1ERC721BridgeProxy),
+			L1StandardBridge:             common.Address(list.L1StandardBridgeProxy),
+			DisputeGameFactory:           common.Address{},
+			OptimismPortal:               common.Address(list.OptimismPortalProxy),
+			OptimismMintableERC20Factory: common.Address(list.OptimismMintableERC20FactoryProxy),
+			GasPayingToken:               common.Address{},
+		},
 	)
 	if err != nil {
 		return err
 	}
 
 	args := []any{
-		common.HexToAddress(chainConfig.SystemConfigAddr.String()),
-		common.HexToAddress(implementations.SystemConfig.Address.String()),
+		common.Address(list.SystemConfigProxy),
+		common.Address(implementations.SystemConfig.Address),
 		calldata,
 	}
 
-	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+	proxyAdmin := common.Address(list.ProxyAdmin)
 	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}

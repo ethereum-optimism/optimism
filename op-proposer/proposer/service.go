@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -36,13 +37,15 @@ type ProposerConfig struct {
 
 	L2OutputOracleAddr     *common.Address
 	DisputeGameFactoryAddr *common.Address
-	DisputeGameType        uint8
+	DisputeGameType        uint32
 
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
 	// is never valid on an alternative L1 chain that would produce different L2 data.
 	// This option is not necessary when higher proposal latency is acceptable and L1 is healthy.
 	AllowNonFinalized bool
+
+	WaitNodeSync bool
 }
 
 type ProposerService struct {
@@ -88,6 +91,7 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.PollInterval = cfg.PollInterval
 	ps.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
+	ps.WaitNodeSync = cfg.WaitNodeSync
 
 	ps.initL2ooAddress(cfg)
 	ps.initDGF(cfg)
@@ -127,7 +131,7 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 	var rollupProvider dial.RollupProvider
 	if strings.Contains(cfg.RollupRpc, ",") {
 		rollupUrls := strings.Split(cfg.RollupRpc, ",")
-		rollupProvider, err = dial.NewActiveL2RollupProvider(ctx, rollupUrls, dial.DefaultActiveSequencerFollowerCheckDuration, dial.DefaultDialTimeout, ps.Log)
+		rollupProvider, err = dial.NewActiveL2RollupProvider(ctx, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, ps.Log)
 	} else {
 		rollupProvider, err = dial.NewStaticL2RollupProvider(ctx, ps.Log, cfg.RollupRpc)
 	}
@@ -258,8 +262,7 @@ func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
 // Start runs once upon start of the proposer lifecycle,
 // and starts L2Output-submission work if the proposer is configured to start submit data on startup.
 func (ps *ProposerService) Start(_ context.Context) error {
-	ps.driver.Log.Info("Starting Proposer")
-
+	ps.Log.Info("Starting Proposer")
 	return ps.driver.StartL2OutputSubmitting()
 }
 

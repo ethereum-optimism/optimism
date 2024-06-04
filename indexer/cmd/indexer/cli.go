@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"math/big"
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/indexer"
@@ -30,11 +33,18 @@ var (
 		Usage:   "path to migrations folder",
 		EnvVars: []string{"INDEXER_MIGRATIONS_DIR"},
 	}
+	ReorgFlag = &cli.Uint64Flag{
+		Name:    "l1-height",
+		Aliases: []string{"height"},
+		Usage: `the lowest l1 height that has been reorg'd. All L1 data and derived L2 state will be deleted. Since not all L1 blocks are
+		indexed, this will find the maximum indexed height <= the marker, which may result in slightly more deleted state.`,
+		Required: true,
+	}
 )
 
 func runIndexer(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "indexer")
-	oplog.SetGlobalLogHandler(log.GetHandler())
+	oplog.SetGlobalLogHandler(log.Handler())
 	log.Info("running indexer...")
 
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
@@ -48,7 +58,7 @@ func runIndexer(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Life
 
 func runApi(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
-	oplog.SetGlobalLogHandler(log.GetHandler())
+	oplog.SetGlobalLogHandler(log.Handler())
 	log.Info("running api...")
 
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
@@ -71,7 +81,7 @@ func runMigrations(ctx *cli.Context) error {
 	ctx.Context = opio.CancelOnInterrupt(ctx.Context)
 
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "migrations")
-	oplog.SetGlobalLogHandler(log.GetHandler())
+	oplog.SetGlobalLogHandler(log.Handler())
 	log.Info("running migrations...")
 
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
@@ -91,11 +101,40 @@ func runMigrations(ctx *cli.Context) error {
 	return db.ExecuteSQLMigration(migrationsDir)
 }
 
+func runReorgDeletion(ctx *cli.Context) error {
+	fromL1Height := ctx.Uint64(ReorgFlag.Name)
+
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "reorg-deletion")
+	oplog.SetGlobalLogHandler(log.Handler())
+	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	l1Clnt, err := ethclient.DialContext(ctx.Context, cfg.RPCs.L1RPC)
+	if err != nil {
+		return fmt.Errorf("failed to dial L1 client: %w", err)
+	}
+	l1Header, err := l1Clnt.HeaderByNumber(ctx.Context, big.NewInt(int64(fromL1Height)))
+	if err != nil {
+		return fmt.Errorf("failed to query L1 header at height: %w", err)
+	} else if l1Header == nil {
+		return fmt.Errorf("no header found at height")
+	}
+
+	db, err := database.NewDB(ctx.Context, log, cfg.DB)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	defer db.Close()
+	return db.Transaction(func(db *database.DB) error {
+		return db.Blocks.DeleteReorgedState(l1Header.Time)
+	})
+}
+
 func newCli(GitCommit string, GitDate string) *cli.App {
-	flags := []cli.Flag{ConfigFlag}
-	flags = append(flags, oplog.CLIFlags("INDEXER")...)
-	migrationFlags := []cli.Flag{MigrationsFlag, ConfigFlag}
-	migrationFlags = append(migrationFlags, oplog.CLIFlags("INDEXER")...)
+	flags := append([]cli.Flag{ConfigFlag}, oplog.CLIFlags("INDEXER")...)
 	return &cli.App{
 		Version:              params.VersionWithCommit(GitCommit, GitDate),
 		Description:          "An indexer of all optimism events with a serving api layer",
@@ -115,9 +154,16 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 			},
 			{
 				Name:        "migrate",
-				Flags:       migrationFlags,
+				Flags:       append(flags, MigrationsFlag),
 				Description: "Runs the database migrations",
 				Action:      runMigrations,
+			},
+			{
+				Name:        "reorg-delete",
+				Aliases:     []string{"reorg"},
+				Flags:       append(flags, ReorgFlag),
+				Description: "Deletes data that has been reorg'ed out of the canonical L1 chain",
+				Action:      runReorgDeletion,
 			},
 			{
 				Name:        "version",

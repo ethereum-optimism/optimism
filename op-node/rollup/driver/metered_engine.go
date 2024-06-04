@@ -7,6 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -60,10 +62,10 @@ func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef,
 	return errType, err
 }
 
-func (m *MeteredEngine) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp derive.BlockInsertionErrType, err error) {
+func (m *MeteredEngine) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
 	sealingStart := time.Now()
 	// Actually execute the block and add it to the head of the chain.
-	payload, errType, err := m.inner.ConfirmPayload(ctx)
+	payload, errType, err := m.inner.ConfirmPayload(ctx, agossip, sequencerConductor)
 	if err != nil {
 		m.metrics.RecordSequencingError()
 		return payload, errType, err
@@ -73,12 +75,14 @@ func (m *MeteredEngine) ConfirmPayload(ctx context.Context) (out *eth.ExecutionP
 	buildTime := now.Sub(m.buildingStartTime)
 	m.metrics.RecordSequencerSealingTime(sealTime)
 	m.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(m.cfg.BlockTime)*time.Second)
-	m.metrics.CountSequencedTxs(len(payload.Transactions))
+
+	txnCount := len(payload.ExecutionPayload.Transactions)
+	m.metrics.CountSequencedTxs(txnCount)
 
 	ref := m.inner.UnsafeL2Head()
 
 	m.log.Debug("Processed new L2 block", "l2_unsafe", ref, "l1_origin", ref.L1Origin,
-		"txs", len(payload.Transactions), "time", ref.Time, "seal_time", sealTime, "build_time", buildTime)
+		"txs", txnCount, "time", ref.Time, "seal_time", sealTime, "build_time", buildTime)
 
 	return payload, errType, err
 }

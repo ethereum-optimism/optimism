@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -50,14 +51,22 @@ type OpGeth struct {
 	lgr           log.Logger
 }
 
-func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
-	logger := testlog.Logger(t, log.LvlCrit)
+func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
+	logger := testlog.Logger(t, log.LevelCrit)
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments, true)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
+	var allocsMode genesis.L2AllocsMode
+	allocsMode = genesis.L2AllocsDelta
+	if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
+		allocsMode = genesis.L2AllocsFjord
+	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
+		allocsMode = genesis.L2AllocsEcotone
+	}
+	l2Allocs := config.L2Allocs(allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
 	require.Nil(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
@@ -135,7 +144,7 @@ func (d *OpGeth) Close() {
 
 // AddL2Block Appends a new L2 block to the current chain including the specified transactions
 // The L1Info transaction is automatically prepended to the created block
-func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayload, error) {
+func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayloadEnvelope, error) {
 	attrs, err := d.CreatePayloadAttributes(txs...)
 	if err != nil {
 		return nil, err
@@ -145,7 +154,9 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, err
 	}
 
-	payload, err := d.l2Engine.GetPayload(ctx, *res.PayloadID)
+	envelope, err := d.l2Engine.GetPayload(ctx, eth.PayloadInfo{ID: *res.PayloadID, Timestamp: uint64(attrs.Timestamp)})
+	payload := envelope.ExecutionPayload
+
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +164,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, errors.New("required transactions were not included")
 	}
 
-	status, err := d.l2Engine.NewPayload(ctx, payload)
+	status, err := d.l2Engine.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +185,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	}
 	d.L2Head = payload
 	d.sequenceNum = d.sequenceNum + 1
-	return payload, nil
+	return envelope, nil
 }
 
 // StartBlockBuilding begins block building for the specified PayloadAttributes by sending a engine_forkChoiceUpdated call.
@@ -221,12 +232,18 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		withdrawals = &types.Withdrawals{}
 	}
 
+	var parentBeaconBlockRoot *common.Hash
+	if d.L2ChainConfig.IsEcotone(uint64(timestamp)) {
+		parentBeaconBlockRoot = d.L1Head.ParentBeaconRoot()
+	}
+
 	attrs := eth.PayloadAttributes{
-		Timestamp:    timestamp,
-		Transactions: txBytes,
-		NoTxPool:     true,
-		GasLimit:     (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
-		Withdrawals:  withdrawals,
+		Timestamp:             timestamp,
+		Transactions:          txBytes,
+		NoTxPool:              true,
+		GasLimit:              (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
+		Withdrawals:           withdrawals,
+		ParentBeaconBlockRoot: parentBeaconBlockRoot,
 	}
 	return &attrs, nil
 }

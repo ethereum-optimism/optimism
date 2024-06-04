@@ -5,11 +5,13 @@ import { Test } from "forge-std/Test.sol";
 import { StdUtils } from "forge-std/StdUtils.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
-contract SafeCall_Succeeds_Invariants is Test {
+contract SafeCall_Succeeds_Invariants is InvariantTest {
     SafeCaller_Actor actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a new safe caller actor.
         actor = new SafeCaller_Actor(vm, false);
 
@@ -28,7 +30,7 @@ contract SafeCall_Succeeds_Invariants is Test {
     ///
     ///                   If the check for remaining gas in `SafeCall.callWithMinGas` passes, the
     ///                   subcontext of the call below it must be provided at least `minGas` gas.
-    function invariant_callWithMinGas_alwaysForwardsMinGas_succeeds() public {
+    function invariant_callWithMinGas_alwaysForwardsMinGas_succeeds() public view {
         assertEq(actor.numCalls(), 0, "no failed calls allowed");
     }
 
@@ -37,10 +39,11 @@ contract SafeCall_Succeeds_Invariants is Test {
     }
 }
 
-contract SafeCall_Fails_Invariants is Test {
+contract SafeCall_Fails_Invariants is InvariantTest {
     SafeCaller_Actor actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a new safe caller actor.
         actor = new SafeCaller_Actor(vm, true);
 
@@ -60,7 +63,7 @@ contract SafeCall_Fails_Invariants is Test {
     ///                   If there is not enough gas in the callframe to ensure that
     ///                   `callWithMinGas` can provide the specified minimum gas limit
     ///                   to the subcontext of the call, then `callWithMinGas` must revert.
-    function invariant_callWithMinGas_neverForwardsMinGas_reverts() public {
+    function invariant_callWithMinGas_neverForwardsMinGas_reverts() public view {
         assertEq(actor.numCalls(), 0, "no successful calls allowed");
     }
 

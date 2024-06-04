@@ -6,7 +6,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { Constants } from "src/libraries/Constants.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -52,20 +52,22 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
+    /// @custom:semver 1.10.0
+    string public constant version = "1.10.0";
 
     /// @notice Constructs the L2StandardBridge contract.
-    /// @param _otherBridge Address of the L1StandardBridge.
-    constructor(address payable _otherBridge)
-        StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
-    {
-        initialize();
+    constructor() StandardBridge() {
+        initialize({ _otherBridge: StandardBridge(payable(address(0))) });
     }
 
-    /// @notice Initializes the contract. This is a noop in the implementation but included to ensure that
-    ///         the contract cannot be initialized a second time.
-    function initialize() public initializer { }
+    /// @notice Initializer.
+    /// @param _otherBridge Contract for the corresponding bridge on the other chain.
+    function initialize(StandardBridge _otherBridge) public initializer {
+        __StandardBridge_init({
+            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _otherBridge: _otherBridge
+        });
+    }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
@@ -74,10 +76,16 @@ contract L2StandardBridge is StandardBridge, ISemver {
         );
     }
 
+    /// @inheritdoc StandardBridge
+    function gasPayingToken() internal view override returns (address addr_, uint8 decimals_) {
+        (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
+    }
+
     /// @custom:legacy
     /// @notice Initiates a withdrawal from L2 to L1.
     ///         This function only works with OptimismMintableERC20 tokens or ether. Use the
     ///         `bridgeERC20` function to bridge native L2 tokens to L1.
+    ///         Subject to be deprecated in the future.
     /// @param _l2Token     Address of the L2 token to withdraw.
     /// @param _amount      Amount of the L2 token to withdraw.
     /// @param _minGasLimit Minimum gas limit to use for the transaction.
@@ -93,6 +101,7 @@ contract L2StandardBridge is StandardBridge, ISemver {
         virtual
         onlyEOA
     {
+        require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
@@ -104,6 +113,7 @@ contract L2StandardBridge is StandardBridge, ISemver {
     ///         call will fail for any amount of gas, then the ETH will be locked permanently.
     ///         This function only works with OptimismMintableERC20 tokens or ether. Use the
     ///         `bridgeERC20To` function to bridge native L2 tokens to L1.
+    ///         Subject to be deprecated in the future.
     /// @param _l2Token     Address of the L2 token to withdraw.
     /// @param _to          Recipient account on L1.
     /// @param _amount      Amount of the L2 token to withdraw.
@@ -120,42 +130,15 @@ contract L2StandardBridge is StandardBridge, ISemver {
         payable
         virtual
     {
+        require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
-    }
-
-    /// @custom:legacy
-    /// @notice Finalizes a deposit from L1 to L2. To finalize a deposit of ether, use address(0)
-    ///         and the l1Token and the Legacy ERC20 ether predeploy address as the l2Token.
-    /// @param _l1Token   Address of the L1 token to deposit.
-    /// @param _l2Token   Address of the corresponding L2 token.
-    /// @param _from      Address of the depositor.
-    /// @param _to        Address of the recipient.
-    /// @param _amount    Amount of the tokens being deposited.
-    /// @param _extraData Extra data attached to the deposit.
-    function finalizeDeposit(
-        address _l1Token,
-        address _l2Token,
-        address _from,
-        address _to,
-        uint256 _amount,
-        bytes calldata _extraData
-    )
-        external
-        payable
-        virtual
-    {
-        if (_l1Token == address(0) && _l2Token == Predeploys.LEGACY_ERC20_ETH) {
-            finalizeBridgeETH(_from, _to, _amount, _extraData);
-        } else {
-            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
-        }
     }
 
     /// @custom:legacy
     /// @notice Retrieves the access of the corresponding L1 bridge contract.
     /// @return Address of the corresponding L1 bridge contract.
     function l1TokenBridge() external view returns (address) {
-        return address(OTHER_BRIDGE);
+        return address(otherBridge);
     }
 
     /// @custom:legacy

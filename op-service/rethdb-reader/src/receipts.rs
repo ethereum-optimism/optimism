@@ -3,14 +3,14 @@
 
 use anyhow::{anyhow, Result};
 use reth_blockchain_tree::noop::NoopBlockchainTree;
-use reth_db::open_db_read_only;
+use reth_db::DatabaseEnv;
 use reth_primitives::{
-    BlockHashOrNumber, Receipt, TransactionKind, TransactionMeta, TransactionSigned, MAINNET, U128,
-    U256, U64,
+    BlockHashOrNumber, Receipt, TransactionKind, TransactionMeta, TransactionSigned, U128, U256,
+    U64,
 };
-use reth_provider::{providers::BlockchainProvider, BlockReader, ProviderFactory, ReceiptProvider};
+use reth_provider::{providers::BlockchainProvider, BlockReader, ReceiptProvider};
 use reth_rpc_types::{Log, TransactionReceipt};
-use std::{ffi::c_char, path::Path};
+use std::ffi::c_void;
 
 /// A [ReceiptsResult] is a wrapper around a JSON string containing serialized [TransactionReceipt]s
 /// as well as an error status that is compatible with FFI.
@@ -46,7 +46,7 @@ impl ReceiptsResult {
 pub(crate) unsafe fn read_receipts_inner(
     block_hash: *const u8,
     block_hash_len: usize,
-    db_path: *const c_char,
+    db_instance: *const c_void,
 ) -> Result<ReceiptsResult> {
     // Convert the raw pointer and length back to a Rust slice
     let block_hash: [u8; 32] = {
@@ -57,21 +57,8 @@ pub(crate) unsafe fn read_receipts_inner(
     }
     .try_into()?;
 
-    // Convert the *const c_char to a Rust &str
-    let db_path_str = {
-        if db_path.is_null() {
-            anyhow::bail!("db path pointer is null");
-        }
-        std::ffi::CStr::from_ptr(db_path)
-    }
-    .to_str()?;
-
-    let db = open_db_read_only(Path::new(db_path_str), None).map_err(|e| anyhow!(e))?;
-    let factory = ProviderFactory::new(db, MAINNET.clone());
-
     // Create a read-only BlockChainProvider
-    let provider = BlockchainProvider::new(factory, NoopBlockchainTree::default())?;
-
+    let provider = &*(db_instance as *const BlockchainProvider<DatabaseEnv, NoopBlockchainTree>);
     // Fetch the block and the receipts within it
     let block =
         provider.block_by_hash(block_hash.into())?.ok_or(anyhow!("Failed to fetch block"))?;
@@ -159,6 +146,9 @@ fn build_transaction_receipt_with_block_receipts(
         // EIP-4844 fields
         blob_gas_price: None,
         blob_gas_used: None,
+
+        // Other:
+        other: Default::default(),
     };
 
     match tx.transaction.kind() {
@@ -199,14 +189,18 @@ fn build_transaction_receipt_with_block_receipts(
 mod test {
     use super::*;
     use alloy_rlp::Decodable;
-    use reth_db::database::Database;
+    use reth_db::{database::Database, mdbx::DatabaseArguments};
     use reth_primitives::{
         address, b256, bloom, hex, Address, Block, Bytes, ReceiptWithBloom, Receipts,
-        SealedBlockWithSenders, U8,
+        SealedBlockWithSenders, MAINNET, U8,
     };
     use reth_provider::{BlockWriter, BundleStateWithReceipts, DatabaseProvider};
     use reth_revm::revm::db::BundleState;
-    use std::{ffi::CString, fs::File, path::Path};
+    use std::{
+        ffi::{c_char, CString},
+        fs::File,
+        path::Path,
+    };
 
     #[inline]
     fn dummy_block_with_receipts() -> Result<(Block, Vec<Receipt>)> {
@@ -235,11 +229,12 @@ mod test {
     #[inline]
     fn open_receipts_testdata_db() -> Result<()> {
         if File::open("testdata/db").is_ok() {
-            return Ok(())
+            return Ok(());
         }
 
         // Open a RW handle to the MDBX database
-        let db = reth_db::init_db(Path::new("testdata/db"), None).map_err(|e| anyhow!(e))?;
+        let db = reth_db::init_db(Path::new("testdata/db"), DatabaseArguments::default())
+            .map_err(|e| anyhow!(e))?;
         let pr = DatabaseProvider::new_rw(db.tx_mut()?, MAINNET.clone());
 
         // Grab the dummy block and receipts
@@ -260,13 +255,15 @@ mod test {
             .ok_or(anyhow!("Failed to recover signers"))?;
 
         // Commit the bundle state to the database
-        pr.append_blocks_with_bundle_state(
+        pr.append_blocks_with_state(
             vec![SealedBlockWithSenders { block: block.seal_slow(), senders }],
             BundleStateWithReceipts::new(
                 BundleState::default(),
                 Receipts::from_block_receipt(receipts),
                 block_number,
             ),
+            Default::default(),
+            Default::default(),
             None,
         )?;
         pr.commit()?;
@@ -277,16 +274,16 @@ mod test {
     #[test]
     fn fetch_receipts() {
         open_receipts_testdata_db().unwrap();
-
         unsafe {
+            let res = crate::open_db_read_only(
+                CString::new("testdata/db").unwrap().into_raw() as *const c_char
+            );
+            assert_eq!(res.error, false);
+
             let mut block_hash =
                 b256!("6a229123d607c2232a8b0bdd36f90745945d05181018e64e60ff2b93ab6b52e5");
-            let receipts_res = super::read_receipts_inner(
-                block_hash.as_mut_ptr(),
-                32,
-                CString::new("testdata/db").unwrap().into_raw() as *const c_char,
-            )
-            .unwrap();
+            let receipts_res =
+                super::read_receipts_inner(block_hash.as_mut_ptr(), 32, res.data).unwrap();
 
             let receipts_data =
                 std::slice::from_raw_parts(receipts_res.data as *const u8, receipts_res.data_len);

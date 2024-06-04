@@ -7,9 +7,6 @@
 [submodule "packages/contracts-bedrock/lib/solmate"]
 	path = packages/contracts-bedrock/lib/solmate
 	url = https://github.com/transmissions11/solmate
-[submodule "packages/contracts-bedrock/lib/clones-with-immutable-args"]
-	path = packages/contracts-bedrock/lib/clones-with-immutable-args
-	url = https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args
 [submodule "packages/contracts-bedrock/lib/forge-std"]
 	path = packages/contracts-bedrock/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
@@ -26,3 +23,6 @@
 [submodule "packages/contracts-bedrock/lib/lib-keccak"]
 	path = packages/contracts-bedrock/lib/lib-keccak
 	url = https://github.com/ethereum-optimism/lib-keccak
+[submodule "packages/contracts-bedrock/lib/automate"]
+	path = packages/contracts-bedrock/lib/automate
+	url = https://github.com/gelatodigital/automate

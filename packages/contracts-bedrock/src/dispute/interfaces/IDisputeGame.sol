@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity ^0.8.0;
 
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
 
-import "src/libraries/DisputeTypes.sol";
+import "src/dispute/lib/Types.sol";
 
 /// @title IDisputeGame
 /// @notice The generic interface for a DisputeGame contract.
@@ -16,6 +16,10 @@ interface IDisputeGame is IInitializable {
     /// @return createdAt_ The timestamp that the DisputeGame contract was created at.
     function createdAt() external view returns (Timestamp createdAt_);
 
+    /// @notice Returns the timestamp that the DisputeGame contract was resolved at.
+    /// @return resolvedAt_ The timestamp that the DisputeGame contract was resolved at.
+    function resolvedAt() external view returns (Timestamp resolvedAt_);
+
     /// @notice Returns the current status of the game.
     /// @return status_ The current status of the game.
     function status() external view returns (GameStatus status_);
@@ -26,13 +30,23 @@ interface IDisputeGame is IInitializable {
     /// @return gameType_ The type of proof system being used.
     function gameType() external view returns (GameType gameType_);
 
-    /// @notice Getter for the root claim.
+    /// @notice Getter for the creator of the dispute game.
     /// @dev `clones-with-immutable-args` argument #1
+    /// @return creator_ The creator of the dispute game.
+    function gameCreator() external pure returns (address creator_);
+
+    /// @notice Getter for the root claim.
+    /// @dev `clones-with-immutable-args` argument #2
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() external pure returns (Claim rootClaim_);
 
+    /// @notice Getter for the parent hash of the L1 block when the dispute game was created.
+    /// @dev `clones-with-immutable-args` argument #3
+    /// @return l1Head_ The parent hash of the L1 block when the dispute game was created.
+    function l1Head() external pure returns (Hash l1Head_);
+
     /// @notice Getter for the extra data.
-    /// @dev `clones-with-immutable-args` argument #2
+    /// @dev `clones-with-immutable-args` argument #4
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() external pure returns (bytes memory extraData_);
 

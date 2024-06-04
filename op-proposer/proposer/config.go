@@ -54,7 +54,13 @@ type CLIConfig struct {
 	ProposalInterval time.Duration
 
 	// DisputeGameType is the type of dispute game to create when submitting an output proposal.
-	DisputeGameType uint8
+	DisputeGameType uint32
+
+	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
+	ActiveSequencerCheckDuration time.Duration
+
+	// Whether to wait for the sequencer to sync to a recent block at startup.
+	WaitNodeSync bool
 }
 
 func (c *CLIConfig) Check() error {
@@ -71,6 +77,9 @@ func (c *CLIConfig) Check() error {
 		return err
 	}
 
+	if c.DGFAddress == "" && c.L2OOAddress == "" {
+		return errors.New("neither the `DisputeGameFactory` nor `L2OutputOracle` address was provided")
+	}
 	if c.DGFAddress != "" && c.L2OOAddress != "" {
 		return errors.New("both the `DisputeGameFactory` and `L2OutputOracle` addresses were provided")
 	}
@@ -94,13 +103,15 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PollInterval: ctx.Duration(flags.PollIntervalFlag.Name),
 		TxMgrConfig:  txmgr.ReadCLIConfig(ctx),
 		// Optional Flags
-		AllowNonFinalized: ctx.Bool(flags.AllowNonFinalizedFlag.Name),
-		RPCConfig:         oprpc.ReadCLIConfig(ctx),
-		LogConfig:         oplog.ReadCLIConfig(ctx),
-		MetricsConfig:     opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:       oppprof.ReadCLIConfig(ctx),
-		DGFAddress:        ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
-		ProposalInterval:  ctx.Duration(flags.ProposalIntervalFlag.Name),
-		DisputeGameType:   uint8(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
+		AllowNonFinalized:            ctx.Bool(flags.AllowNonFinalizedFlag.Name),
+		RPCConfig:                    oprpc.ReadCLIConfig(ctx),
+		LogConfig:                    oplog.ReadCLIConfig(ctx),
+		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
+		DGFAddress:                   ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
+		ProposalInterval:             ctx.Duration(flags.ProposalIntervalFlag.Name),
+		DisputeGameType:              uint32(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
+		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
+		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
 	}
 }

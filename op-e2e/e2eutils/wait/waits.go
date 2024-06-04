@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -46,7 +47,7 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 	defer ticker.Stop()
 	for {
 		receipt, err := client.TransactionReceipt(ctx, hash)
-		if errors.Is(err, ethereum.NotFound) {
+		if errors.Is(err, ethereum.NotFound) || (err != nil && strings.Contains(err.Error(), "transaction indexing is in progress")) {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()

@@ -20,7 +20,7 @@ func TestScheduleGcPeriodically(t *testing.T) {
 		// Wait for the gc background process to complete after cancelling the context
 		bgTasks.Wait()
 	}()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	clock := clock.NewDeterministicClock(time.UnixMilli(5000))
 
 	called := make(chan struct{}, 10)

@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
@@ -13,8 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie"
-	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -30,11 +31,11 @@ func TestL2EngineAPI(gt *testing.T) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
 	consensus := beacon.New(ethash.NewFaker())
 	db := rawdb.NewMemoryDatabase()
-	tdb := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	sd.L2Cfg.MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
@@ -50,7 +51,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err := l2Cl.NewPayload(t.Ctx(), payloadA)
+	status, err := l2Cl.NewPayload(t.Ctx(), payloadA, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.Status, eth.ExecutionValid)
 	require.Equal(t, genesisBlock.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -73,7 +74,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err = l2Cl.NewPayload(t.Ctx(), payloadB)
+	status, err = l2Cl.NewPayload(t.Ctx(), payloadB, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.Status, eth.ExecutionValid)
 	require.Equal(t, payloadA.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -94,10 +95,10 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
 	db := rawdb.NewMemoryDatabase()
-	tdb := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	sd.L2Cfg.MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
@@ -154,12 +155,13 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 
-		payload, err := l2Cl.GetPayload(t.Ctx(), *fcRes.PayloadID)
+		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(nextBlockTime)})
+		payload := envelope.ExecutionPayload
 		require.NoError(t, err)
 		require.Equal(t, parent.Hash(), payload.ParentHash, "block builds on parent block")
 
 		// apply the payload
-		status, err := l2Cl.NewPayload(t.Ctx(), payload)
+		status, err := l2Cl.NewPayload(t.Ctx(), payload, nil)
 		require.NoError(t, err)
 		require.Equal(t, status.Status, eth.ExecutionValid)
 		require.Equal(t, parent.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -188,15 +190,16 @@ func TestL2EngineAPIFail(gt *testing.T) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	// mock an RPC failure
-	engine.ActL2RPCFail(t)
+	mockErr := errors.New("mock L2 RPC error")
+	engine.ActL2RPCFail(t, mockErr)
 	// check RPC failure
 	l2Cl, err := sources.NewL2Client(engine.RPCClient(), log, nil, sources.L2ClientDefaultConfig(sd.RollupCfg, false))
 	require.NoError(t, err)
 	_, err = l2Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
-	require.ErrorContains(t, err, "mock")
+	require.ErrorIs(t, err, mockErr)
 	head, err := l2Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	require.Equal(gt, sd.L2Cfg.ToBlock().Hash(), head.Hash(), "expecting engine to start at genesis")
