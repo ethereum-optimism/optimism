@@ -53,7 +53,7 @@ config=$(cat << EOL
   "l2OutputOracleProposer": "$GS_PROPOSER_ADDRESS",
   "l2OutputOracleChallenger": "$GS_ADMIN_ADDRESS",
 
-  "finalizationPeriodSeconds": $L1_BLOCK_TIME,
+  "finalizationPeriodSeconds": 12,
 
   "proxyAdminOwner": "$GS_ADMIN_ADDRESS",
   "baseFeeVaultRecipient": "$GS_ADMIN_ADDRESS",
