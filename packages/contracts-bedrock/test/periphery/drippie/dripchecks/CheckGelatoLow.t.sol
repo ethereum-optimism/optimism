@@ -41,6 +41,11 @@ contract CheckGelatoLowTest is Test {
         gelato = new MockGelatoTreasury();
     }
 
+    /// @notice Test that the `name` function returns the correct value.
+    function test_name_succeeds() external {
+        assertEq(c.name(), "CheckGelatoLow");
+    }
+
     /// @notice Fuzz the `check` function and assert that it always returns true
     ///         when the user's balance in the treasury is less than the threshold.
     function testFuzz_check_succeeds(uint256 _threshold, address _recipient) external view {

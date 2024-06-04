@@ -15,6 +15,11 @@ contract CheckTrueTest is Test {
         c = new CheckTrue();
     }
 
+    /// @notice Test that the `name` function returns the correct value.
+    function test_name_succeeds() external {
+        assertEq(c.name(), "CheckTrue");
+    }
+
     /// @notice Fuzz the `check` function and assert that it always returns true.
     function testFuzz_always_true_succeeds(bytes memory input) external view {
         assertEq(c.check(input), true);
