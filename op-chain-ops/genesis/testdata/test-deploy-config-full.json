@@ -92,5 +92,6 @@
   "daChallengeProxy": "0x0000000000000000000000000000000000000000",
   "daChallengeWindow": 0,
   "daResolveWindow": 0,
-  "daResolverRefundPercentage": 0
+  "daResolverRefundPercentage": 0,
+  "deployCeloContracts": false
 }

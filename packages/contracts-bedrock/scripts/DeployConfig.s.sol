@@ -91,6 +91,8 @@ contract DeployConfig is Script {
 
     bool public useInterop;
 
+    bool public deployCeloContracts;
+
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data) {
@@ -174,6 +176,9 @@ contract DeployConfig is Script {
         customGasTokenAddress = _readOr(_json, "$.customGasTokenAddress", address(0));
 
         useInterop = _readOr(_json, "$.useInterop", false);
+
+        // Celo specific config
+        deployCeloContracts = _readOr(_json, "$.deployCeloContracts", false);
     }
 
     function fork() public view returns (Fork fork_) {
@@ -234,6 +239,11 @@ contract DeployConfig is Script {
     /// @notice Allow the `fundDevAccounts` config to be overridden.
     function setFundDevAccounts(bool _fundDevAccounts) public {
         fundDevAccounts = _fundDevAccounts;
+    }
+
+    /// @notice Allow the `deployCeloContracts` config to be overridden.
+    function setDeployCeloContracts(bool _deployCeloContracts) public {
+        deployCeloContracts = _deployCeloContracts;
     }
 
     /// @notice Allow the `useCustomGasToken` config to be overridden in testing environments
