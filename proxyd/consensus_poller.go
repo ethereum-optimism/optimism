@@ -660,6 +660,7 @@ func (cp *ConsensusPoller) getBackendState(be *Backend) *backendState {
 		inSync:               bs.inSync,
 		lastUpdate:           bs.lastUpdate,
 		bannedUntil:          bs.bannedUntil,
+		bans:                 bs.bans,
 	}
 }
 
