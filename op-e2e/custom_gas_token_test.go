@@ -265,6 +265,9 @@ func TestCustomGasToken(t *testing.T) {
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, aliceBalance.Uint64(), uint64(0))
 
+		// Ensure that Alice's balance is large enough to fund the FeeVault
+		require.GreaterOrEqual(t, aliceBalance.Uint64(), amount.Uint64())
+
 		// Send funds to the FeeVault so its balance is above the min withdrawal amount
 		aliceOpts.Value = amount
 		feeVaultTx, err := feeVault.Receive(aliceOpts)
