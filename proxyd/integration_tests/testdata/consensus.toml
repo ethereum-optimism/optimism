@@ -21,6 +21,8 @@ consensus_ban_period = "1m"
 consensus_max_update_threshold = "2m"
 consensus_max_block_lag = 8
 consensus_min_peer_count = 4
+consensus_zero_block_ban_period = "1m"
+consensus_zero_block_ban_threshold = -1
 
 [rpc_method_mappings]
 eth_call = "node"

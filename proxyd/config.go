@@ -128,6 +128,9 @@ type BackendGroupConfig struct {
 	ConsensusHARedis             RedisConfig  `toml:"consensus_ha_redis"`
 
 	Fallbacks []string `toml:"fallbacks"`
+
+	ZeroBlockBanPeriod    TOMLDuration `toml:"consensus_zero_block_ban_period"`
+	ZeroBlockBanThreshold int          `toml:"consensus_zero_block_ban_threshold"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig
