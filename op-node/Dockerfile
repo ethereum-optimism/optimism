@@ -14,7 +14,7 @@ COPY . .
 RUN cd op-node && make op-node
 
 # Use a minimal image for the runtime environment
-FROM golang:1.21-alpine
+FROM alpine:latest
 
 # Set the working directory inside the container
 WORKDIR /app

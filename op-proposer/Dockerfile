@@ -14,7 +14,7 @@ COPY . .
 RUN cd op-proposer && make op-proposer
 
 # Use a minimal image for the runtime environment
-FROM golang:1.21-alpine
+FROM alpine:latest
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -23,4 +23,4 @@ WORKDIR /app
 COPY --from=builder /app/op-proposer/bin/op-proposer /usr/local/bin/op-proposer
 
 # Set the entrypoint to the built binary
-ENTRYPOINT ["op-batcher"]
+ENTRYPOINT ["op-proposer"]
