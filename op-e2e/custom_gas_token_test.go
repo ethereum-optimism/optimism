@@ -253,19 +253,17 @@ func TestCustomGasToken(t *testing.T) {
 			waitForTx(t, deposit, err, l1Client)
 		} else {
 			// send ether to the portal directly, alice already has funds on L2
+			depositAmount := new(big.Int).Mul(amount, big.NewInt(2))
 			optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
 			require.NoError(t, err)
-			l1opts.Value = new(big.Int).Mul(amount, big.NewInt(2))
-			tx, err := optimismPortal.DonateETH(l1opts)
+			l1opts.Value = depositAmount
+			tx, err := optimismPortal.DepositTransaction(l1opts, cfg.Secrets.Addresses().Alice, depositAmount, 500_000, false, []byte{})
 			waitForTx(t, tx, err, l1Client)
 		}
 
 		// Get Alice's balance on L2
 		aliceBalance, err := l2Client.BalanceAt(context.Background(), cfg.Secrets.Addresses().Alice, nil)
 		require.NoError(t, err)
-		require.GreaterOrEqual(t, aliceBalance.Uint64(), uint64(0))
-
-		// Ensure that Alice's balance is large enough to fund the FeeVault
 		require.GreaterOrEqual(t, aliceBalance.Uint64(), amount.Uint64())
 
 		// Send funds to the FeeVault so its balance is above the min withdrawal amount
