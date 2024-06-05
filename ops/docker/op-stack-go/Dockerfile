@@ -16,6 +16,11 @@ FROM --platform=$BUILDPLATFORM golang:1.21.3-alpine3.18 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
+# When TARGETPLATFORM != BUILDPLATFORM we would need to set CC and CXX flags in Go for CGO functionality,
+# requiring the build-platform to install the `musl` (in case of alpine) that the target platform uses.
+# All this complexity can be avoided by disabling CGO, and relying on the native Go fallbacks.
+ENV CGO_ENABLED=0
+
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
