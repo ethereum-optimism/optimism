@@ -85,6 +85,12 @@ func TestGameFactoryAddress(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept("--game-factory-address", "--game-factory-address", "foo"))
 	})
+
+	t.Run("OverridesNetwork", func(t *testing.T) {
+		addr := common.Address{0xbb, 0xcc, 0xdd}
+		cfg := configForArgs(t, addRequiredArgsExcept("--game-factory-address", "--game-factory-address", addr.Hex(), "--network", "op-sepolia"))
+		require.Equal(t, addr, cfg.GameFactoryAddress)
+	})
 }
 
 func TestNetwork(t *testing.T) {
