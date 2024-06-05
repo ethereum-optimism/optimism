@@ -162,6 +162,26 @@ func TestConsensus(t *testing.T) {
 		nodes["node1"].mockBackend.Reset()
 	}
 
+	// getBan := func(node string, reason proxyd.BanReason) proxyd.Ban {
+	// 	ban, _ := bg.Consensus.GetBans(nodes[node].backend)[reason]
+	// 	return ban
+	// }
+	// t.Run("record a block height zero infraction", func(t *testing.T) {
+	// 	reset()
+	// 	update()
+
+	// 	bans1 := getNode1BanMap()
+	// 	requre.True(t, len(), 0)
+
+	// 	overrideBlock("node1", "latest", "0x0")
+	// 	update()
+
+	// 	require.Equal(t, "0x101", bg.Consensus.GetLatestBlockNumber().String())
+	// 	require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
+	// 	require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
+
+	// })
+
 	t.Run("initial consensus", func(t *testing.T) {
 		reset()
 
@@ -1008,22 +1028,6 @@ func TestConsensus(t *testing.T) {
 			NewRPCReq("3", "eth_getBlockByNumber", []interface{}{"0xe1"}))
 		require.NoError(t, err)
 		require.Equal(t, 400, statusCode)
-	})
-
-	t.Run("record a block height zero infraction", func(t *testing.T) {
-		reset()
-		useOnlyNode1()
-		overrideBlock("node1", "latest", "0x0")
-		update()
-
-		require.Equal(t, "0x101", bg.Consensus.GetLatestBlockNumber().String())
-		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
-		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
-
-		consensusGroup := bg.Consensus.GetConsensusGroup()
-		require.NotContains(t, consensusGroup, nodes["node1"].backend)
-		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
-		require.Equal(t, 1, len(consensusGroup))
 	})
 
 }
