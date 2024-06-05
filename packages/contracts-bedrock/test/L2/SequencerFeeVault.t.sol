@@ -31,9 +31,11 @@ contract SequencerFeeVault_Test is CommonTest {
     /// @dev Tests that the l1 fee wallet is correct.
     function test_constructor_succeeds() external view {
         assertEq(sequencerFeeVault.l1FeeWallet(), recipient);
+        assertEq(sequencerFeeVault.RECIPIENT(), recipient);
         assertEq(sequencerFeeVault.recipient(), recipient);
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
         assertEq(sequencerFeeVault.minWithdrawalAmount(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
+        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(FeeVault.WithdrawalNetwork.L1));
         assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(FeeVault.WithdrawalNetwork.L1));
     }
 
