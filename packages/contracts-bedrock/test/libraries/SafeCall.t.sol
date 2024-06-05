@@ -30,7 +30,11 @@ contract SafeCall_Test is Test {
         vm.expectCall(_to, _value, bytes(""));
         vm.prank(_from);
         bool success;
-        success = SafeCall.send({ _target: _to, _gas: _gas, _value: _value });
+        if (_gas == 0) {
+            success = SafeCall.send({ _target: _to, _value: _value });
+        } else {
+            success = SafeCall.send({ _target: _to, _gas: _gas, _value: _value });
+        }
 
         assertTrue(success, "send not successful");
         if (_from == _to) {
