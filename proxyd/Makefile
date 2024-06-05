@@ -20,6 +20,7 @@ lint:
 	go vet ./...
 .PHONY: test
 
-test-fallback:
-	go test -v ./... -test.run ^TestFallback$
-.PHONY: test-fallback
+
+test-%:
+	go test -v ./... -test.run ^Test$*$$
+.PHONY: test-%
