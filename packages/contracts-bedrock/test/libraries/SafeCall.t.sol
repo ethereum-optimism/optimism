@@ -17,7 +17,7 @@ contract SafeCall_Test is Test {
     }
 
     /// @notice Internal helper function for `send` tests
-    function sendTest(address _from, address _to, uint256 _gas, uint64 _value) internal {
+    function sendTest(address _from, address _to, uint64 _gas, uint256 _value) internal {
         assumeNot(_from);
         assumeNot(_to);
 
