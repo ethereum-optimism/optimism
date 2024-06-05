@@ -235,9 +235,11 @@ func TestCustomGasToken(t *testing.T) {
 		l1opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L1ChainIDBig())
 		require.NoError(t, err)
 
-		depositAmount := new(big.Int).Mul(amount, big.NewInt(8))
-
 		optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
+		require.NoError(t, err)
+
+		depositAmount := new(big.Int).Mul(amount, big.NewInt(14))
+		l1opts.Value = depositAmount
 
 		var receipt *types.Receipt
 
@@ -245,7 +247,6 @@ func TestCustomGasToken(t *testing.T) {
 		if enabled {
 			// approve + transferFrom flow
 			// Cannot use `transfer` because of the tracking of balance in the OptimismPortal
-			l1opts.Value = depositAmount
 			dep, err := weth9.Deposit(l1opts)
 			waitForTx(t, dep, err, l1Client)
 
@@ -256,14 +257,14 @@ func TestCustomGasToken(t *testing.T) {
 			require.NoError(t, err)
 			deposit, err := optimismPortal.DepositERC20Transaction(l1opts, cfg.Secrets.Addresses().Alice, depositAmount, depositAmount, 500_000, false, []byte{})
 			waitForTx(t, deposit, err, l1Client)
+
 			receipt, err = wait.ForReceiptOK(context.Background(), l1Client, deposit.Hash())
 			require.NoError(t, err)
 		} else {
 			// send ether to the portal directly, alice already has funds on L2
-			require.NoError(t, err)
-			l1opts.Value = depositAmount
 			tx, err := optimismPortal.DepositTransaction(l1opts, cfg.Secrets.Addresses().Alice, depositAmount, 500_000, false, []byte{})
 			waitForTx(t, tx, err, l1Client)
+
 			receipt, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 			require.NoError(t, err)
 		}
