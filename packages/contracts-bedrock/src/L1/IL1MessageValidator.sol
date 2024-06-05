@@ -9,6 +9,8 @@ interface IL1MessageValidator {
     /// @param _mint The L1 -> L2 "_mint" field.
     /// @param _value   The L1 -> L2 "_value" field.
     /// @param _gasLimit   The L1 -> L2 "_gasLimit" field.
+    /// @param _isCreation   The L1 -> L2 "_isCreation" field.
+    /// @param _data   The L1 -> L2 "_data" field.
     /// @return bool
     function validateMessage(
         address _from,
