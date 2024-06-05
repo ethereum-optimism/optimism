@@ -25,6 +25,13 @@ Compile a binary:
 make op-node
 ```
 
+### Docker image
+To build the docker image, run the following command:
+
+```shell
+ docker build .. -f Dockerfile -t op-node
+```
+
 ## Testing
 
 Run op-node unit tests:
