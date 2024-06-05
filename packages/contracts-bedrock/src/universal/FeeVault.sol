@@ -42,7 +42,7 @@ abstract contract FeeVault {
     uint256 public totalProcessed;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
-    uint256[49] private __gap;
+    uint256[48] private __gap;
 
     /// @notice Emitted each time a withdrawal occurs. This event will be deprecated
     ///         in favor of the Withdrawal event containing the WithdrawalNetwork parameter.
