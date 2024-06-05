@@ -548,18 +548,22 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // transactions are not gossipped over the p2p network.
         if (_data.length > 120_000) revert LargeCalldata();
 
+        // Check the L1MessageValidator if it is enabled
+        address messageValidator = l1MessageValidator();
+        if (messageValidator != address(0)) {
+            if (
+                !IL1MessageValidator(messageValidator).validateMessage(
+                    msg.sender, _to, _mint, _value, _gasLimit, _isCreation, _data
+                )
+            ) {
+                revert InvalidDeposit();
+            }
+        }
+
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
         if (msg.sender != tx.origin) {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
-        }
-
-        // Check the L1MessageValidator if it is enabled
-        address messageValidator = l1MessageValidator();
-        if (messageValidator != address(0)) {
-            if (!IL1MessageValidator(messageValidator).validateMessage(_data, _to)) {
-                revert InvalidDeposit();
-            }
         }
 
         // Compute the opaque data that will be emitted as part of the TransactionDeposited event.

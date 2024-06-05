@@ -4,8 +4,22 @@ pragma solidity 0.8.15;
 
 interface IL1MessageValidator {
     /// @notice Returns a boolean indicating if the message passes additional validation.
-    /// @param _data The L1 -> L2 message data.
+    /// @param _from Msg.sender of the L1 -> L2 message. This address is NOT aliased yet.
     /// @param _to   The L1 -> L2 "to" field.
+    /// @param _mint The L1 -> L2 "_mint" field.
+    /// @param _value   The L1 -> L2 "_value" field.
+    /// @param _gasLimit   The L1 -> L2 "_gasLimit" field.
     /// @return bool
-    function validateMessage(bytes memory _data, address _to) external view returns (bool);
+    function validateMessage(
+        address _from,
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+        view
+        returns (bool);
 }
