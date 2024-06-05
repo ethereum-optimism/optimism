@@ -253,12 +253,22 @@ func TestCustomGasToken(t *testing.T) {
 			waitForTx(t, deposit, err, l1Client)
 		} else {
 			// send ether to the portal directly, alice already has funds on L2
-			depositAmount := new(big.Int).Mul(amount, big.NewInt(2))
 			optimismPortal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
 			require.NoError(t, err)
+			depositAmount := new(big.Int).Mul(amount, big.NewInt(80))
 			l1opts.Value = depositAmount
 			tx, err := optimismPortal.DepositTransaction(l1opts, cfg.Secrets.Addresses().Alice, depositAmount, 500_000, false, []byte{})
 			waitForTx(t, tx, err, l1Client)
+			receipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
+			require.NoError(t, err)
+
+			// compute the deposit transaction hash + poll for it
+			depositEvent, err := receipts.FindLog(receipt.Logs, optimismPortal.ParseTransactionDeposited)
+			require.NoError(t, err, "Should emit deposit event")
+			depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
+			require.NoError(t, err)
+			_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
+			require.NoError(t, err)
 		}
 
 		// Get Alice's balance on L2
