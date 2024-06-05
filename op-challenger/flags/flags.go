@@ -396,9 +396,7 @@ func getL2Rpc(ctx *cli.Context, logger log.Logger) (string, error) {
 }
 
 func FactoryAddress(ctx *cli.Context) (common.Address, error) {
-	if ctx.IsSet(FactoryAddressFlag.Name) && ctx.IsSet(flags.NetworkFlagName) {
-		return common.Address{}, fmt.Errorf("flag %v and %v must not both be set", FactoryAddressFlag.Name, flags.NetworkFlagName)
-	}
+	// Use FactoryAddressFlag in preference to Network. Allows overriding the default dispute game factory.
 	if ctx.IsSet(FactoryAddressFlag.Name) {
 		gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
 		if err != nil {
