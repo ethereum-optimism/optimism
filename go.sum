@@ -131,8 +131,8 @@ github.com/bits-and-blooms/bitset v1.5.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edY
 github.com/bits-and-blooms/bitset v1.7.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edYb8uY+O0FJTyyDA=
 github.com/bits-and-blooms/bitset v1.10.0 h1:ePXTeiPEazB5+opbv5fr8umg2R/1NlzgDsyepwsSr88=
 github.com/bits-and-blooms/bitset v1.10.0/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=
-github.com/bobanetwork/superchain-registry/superchain v0.0.0-20240520214600-7d1824ca8d74 h1:a9lg9d2cvMwypQd2sKF2BsGNDkw5vk7Wkw/Hjprmyng=
-github.com/bobanetwork/superchain-registry/superchain v0.0.0-20240520214600-7d1824ca8d74/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
+github.com/bobanetwork/superchain-registry/superchain v0.0.0-20240605155641-2cc1ec002da8 h1:IKmpARKUiDMCChGeoJOXs8zD/h3fILANfhodpGaR0rk=
+github.com/bobanetwork/superchain-registry/superchain v0.0.0-20240605155641-2cc1ec002da8/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
 github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
 github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx27Ps=
 github.com/boombuler/barcode v1.0.0/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
