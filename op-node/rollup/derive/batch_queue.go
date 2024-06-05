@@ -140,7 +140,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		} else {
 			// This is to handle the special case of startup. At startup we call Reset & include
 			// the L1 origin. That is the only time where immediately after `Reset` is called
-			// originBehind is false.
+			// originBehind is true.
 			bq.l1Blocks = bq.l1Blocks[:0]
 		}
 		bq.log.Info("Advancing bq origin", "origin", bq.origin, "originBehind", originBehind)
