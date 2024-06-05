@@ -28,18 +28,7 @@ library SafeCall {
     /// @param _target   Address to call
     /// @param _value    Amount of value to pass to the call
     function send(address _target, uint256 _value) internal returns (bool success_) {
-        assembly {
-            success_ :=
-                call(
-                    gas(), // gas
-                    _target, // recipient
-                    _value, // ether value
-                    0, // inloc
-                    0, // inlen
-                    0, // outloc
-                    0 // outlen
-                )
-        }
+        success_ = send(_target, gasleft(), _value);
     }
 
     /// @notice Perform a low level call without copying any returndata
