@@ -60,7 +60,7 @@
     "sourceCodeHash": "0x40d708140ee6345e146e358c169a191dbbc991782560a2dcbf90ba45a82f7117"
   },
   "src/L2/BaseFeeVault.sol": {
-    "initCodeHash": "0xc563791658ca748c2a5fef578d721620046b1e5c3275f3e9fe9b3c206cf81997",
+    "initCodeHash": "0x623bf6892f0bdb536f2916bc9eb45e52012ad2c80893ff87d750757966b9be68",
     "sourceCodeHash": "0x3a725791a0f5ed84dc46dcdae26f6170a759b2fe3dc360d704356d088b76cfd6"
   },
   "src/L2/CrossL2Inbox.sol": {
@@ -80,7 +80,7 @@
     "sourceCodeHash": "0xd8ec2f814690d1ffd55e5b8496bca5a179d6d1772d61f71cdf8296c9058dc2c6"
   },
   "src/L2/L1FeeVault.sol": {
-    "initCodeHash": "0xc563791658ca748c2a5fef578d721620046b1e5c3275f3e9fe9b3c206cf81997",
+    "initCodeHash": "0x623bf6892f0bdb536f2916bc9eb45e52012ad2c80893ff87d750757966b9be68",
     "sourceCodeHash": "0x29c64c43e3deedfa63572d36ce511febb99e500352a003242aed339716d3e3ce"
   },
   "src/L2/L2CrossDomainMessenger.sol": {
@@ -104,7 +104,7 @@
     "sourceCodeHash": "0x249218d69909750f5245a42d247a789f1837c24863bded94dc577fcbec914175"
   },
   "src/L2/SequencerFeeVault.sol": {
-    "initCodeHash": "0x9856aefb218ac07e5566634262b57786010e266f810d39ac0f61c507f4c23483",
+    "initCodeHash": "0xb94145f571e92ee615c6fe903b6568e8aac5fe760b6b65148ffc45d2fb0f5433",
     "sourceCodeHash": "0x8f2a54104e5e7105ba03ba37e3ef9b6684a447245f0e0b787ba4cca12957b97c"
   },
   "src/L2/WETH.sol": {
