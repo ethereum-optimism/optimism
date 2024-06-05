@@ -1313,11 +1313,11 @@ jobs:
             tar -xzvf geth-alltools-linux-amd64-1.13.14-2bd6bd01.tar.gz
             sudo cp geth-alltools-linux-amd64-1.13.14-2bd6bd01/* /usr/local/bin
       - run:
-          name: foundryup
+          name: Install Foundry
           command: |
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup
+            ./ops/scripts/install-foundry.sh
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
             source $HOME/.bashrc
             forge --version
