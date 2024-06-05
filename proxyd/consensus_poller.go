@@ -384,10 +384,16 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	}
 	// NOTE: Maybe pass in the bhZero Ban struct here inst
 	bans, banned := cp.ComputeBlockHeightZeroBan(latestBlockNumber, bs.bans, be.Name)
+
 	// If not banned, and we got a zero reset backend state with old values
 	if !banned && (latestBlockNumber == 0) {
 		latestBlockNumber = bs.latestBlockNumber
 		latestBlockHash = bs.latestBlockHash
+
+		// Just return here, no updates at all
+		// 20 ticks over 1 minute = Then Ban Offically
+		// Just Print Log and Ban
+		// Use the sliding window
 	}
 
 	safeBlockNumber, _, err := cp.fetchBlock(ctx, be, "safe")

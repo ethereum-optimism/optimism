@@ -161,6 +161,9 @@ type Backend struct {
 	latencySlidingWindow         *sw.AvgSlidingWindow
 	networkRequestsSlidingWindow *sw.AvgSlidingWindow
 	networkErrorsSlidingWindow   *sw.AvgSlidingWindow
+	// NOTE: use the block height sliding window
+	// 20 ticks in a min = ban
+	blockHeightZeroSlidingWindow *sw.AvgSlidingWindow
 
 	weight int
 }
