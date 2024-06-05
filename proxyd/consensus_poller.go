@@ -47,7 +47,8 @@ type ConsensusPoller struct {
 	maxBlockRange      uint64
 	interval           time.Duration
 
-	// blockZeroBanPeriodn time.Duration
+	blockZeroBanPeriod    time.Duration
+	blockZeroBanThreshold int
 }
 
 type backendState struct {
@@ -65,11 +66,15 @@ type backendState struct {
 
 	bannedUntil time.Time
 
+	// TODO: Encapsulate getters and setters for the ban map, so we have type safety
+	// bs.bans["bad-value"] = ban{
+	// 	bannedUntil:          time.Now().Add(-15 * time.Hour),
+	// 	infractionTimestamps: []time.Time{time.Now()},
+	// }
 	bans map[BanReason]ban
 }
 
 type ban struct {
-	// infractionCount      int
 	infractionTimestamps []time.Time
 	bannedUntil          time.Time
 }
@@ -269,6 +274,18 @@ func WithPollerInterval(interval time.Duration) ConsensusOpt {
 	}
 }
 
+func WithZeroBlockBanThreshold(blockZeroBanThreshold int) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.blockZeroBanThreshold = blockZeroBanThreshold
+	}
+}
+
+func WithZeroBlockBanPeriod(blockZeroBanPeriod time.Duration) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.blockZeroBanPeriod = blockZeroBanPeriod
+	}
+}
+
 func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -280,11 +297,13 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 		backendGroup: bg,
 		backendState: state,
 
-		banPeriod:          5 * time.Minute,
-		maxUpdateThreshold: 30 * time.Second,
-		maxBlockLag:        8, // 8*12 seconds = 96 seconds ~ 1.6 minutes
-		minPeerCount:       3,
-		interval:           DefaultPollerInterval,
+		banPeriod:             5 * time.Minute,
+		maxUpdateThreshold:    30 * time.Second,
+		maxBlockLag:           8, // 8*12 seconds = 96 seconds ~ 1.6 minutes
+		minPeerCount:          3,
+		interval:              DefaultPollerInterval,
+		blockZeroBanThreshold: -1,
+		blockZeroBanPeriod:    30 * time.Second,
 	}
 
 	for _, opt := range opts {
@@ -341,8 +360,12 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	if err != nil {
 		log.Warn("error updating backend - latest block", "name", be.Name, "err", err)
 	}
-
-	bans := cp.ComputeBlockHeightZeroBan(latestBlockNumber, bs.bans, be.Name)
+	bans, banned := cp.ComputeBlockHeightZeroBan(latestBlockNumber, bs.bans, be.Name)
+	// If not banned, and we got a zero, reset backend state with old values
+	if (latestBlockNumber == 0) && !banned {
+		latestBlockNumber = bs.latestBlockNumber
+		latestBlockHash = bs.latestBlockHash
+	}
 
 	safeBlockNumber, _, err := cp.fetchBlock(ctx, be, "safe")
 	if err != nil {
@@ -405,6 +428,15 @@ func (cp *ConsensusPoller) checkExpectedBlockTags(
 	currentLatest hexutil.Uint64,
 	oldSafe hexutil.Uint64, currentSafe hexutil.Uint64,
 	oldFinalized hexutil.Uint64, currentFinalized hexutil.Uint64) bool {
+
+	// If current latest is zero do not check it
+	// Let the zero ban take care of it
+	if currentLatest == 0 {
+		return currentFinalized >= oldFinalized &&
+			currentSafe >= oldSafe &&
+			currentFinalized <= currentSafe
+	}
+
 	return currentFinalized >= oldFinalized &&
 		currentSafe >= oldSafe &&
 		currentFinalized <= currentSafe &&
@@ -773,8 +805,10 @@ func (cp *ConsensusPoller) FilterCandidates(backends []*Backend) map[*Backend]*b
 }
 
 // ComputeBlockHeightZeroBan will compute if we need to ban the backed if we have seen blockHeight zero for more than X times in X interval
-func (cp *ConsensusPoller) ComputeBlockHeightZeroBan(blockHeight hexutil.Uint64, bans map[BanReason]ban, be_name string) map[BanReason]ban {
-	if blockHeight == 0 {
+func (cp *ConsensusPoller) ComputeBlockHeightZeroBan(blockHeight hexutil.Uint64, bans map[BanReason]ban, be_name string) (map[BanReason]ban, bool) {
+	banned := false
+	// NOTE: Only execute if higher than zero threshold
+	if blockHeight == 0 && cp.blockZeroBanThreshold > 0 {
 		bhZeroBan, ok := bans[BlockHeightZeroBan]
 		if !ok {
 			bans[BlockHeightZeroBan] = ban{
@@ -788,12 +822,13 @@ func (cp *ConsensusPoller) ComputeBlockHeightZeroBan(blockHeight hexutil.Uint64,
 		bhZeroBan.infractionTimestamps = RemoveOldInfractionTimestamps(
 			bhZeroBan.infractionTimestamps,
 			// NOTE: Configuration Value here for TimeWindow
-			now.Add(-15*time.Second),
+			now.Add(cp.backendGroup.Consensus.blockZeroBanPeriod),
 		)
 
 		// NOTE: Configuration Value here for Amount of Infractions
-		if len(bhZeroBan.infractionTimestamps) > 5 {
+		if len(bhZeroBan.infractionTimestamps) > cp.blockZeroBanThreshold {
 			bhZeroBan.bannedUntil = time.Now().Add(cp.banPeriod)
+			banned = true
 		}
 		bans[BlockHeightZeroBan] = bhZeroBan
 
@@ -803,7 +838,7 @@ func (cp *ConsensusPoller) ComputeBlockHeightZeroBan(blockHeight hexutil.Uint64,
 			"banned", len(bhZeroBan.infractionTimestamps) > 5,
 		)
 	}
-	return bans
+	return bans, banned
 }
 
 // RemoveOldInfractionTimestamps will remove times from the array which are before the cutoff

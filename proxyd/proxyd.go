@@ -380,6 +380,14 @@ func Start(config *Config) (*Server, func(), error) {
 				copts = append(copts, WithPollerInterval(time.Duration(bgcfg.ConsensusPollerInterval)))
 			}
 
+			if bgcfg.ZeroBlockBanPeriod > 0 {
+				copts = append(copts, WithZeroBlockBanPeriod(time.Duration(bgcfg.ZeroBlockBanPeriod)))
+			}
+
+			if bgcfg.ZeroBlockBanThreshold > 0 {
+				copts = append(copts, WithZeroBlockBanPeriod(time.Duration(bgcfg.ZeroBlockBanPeriod)))
+			}
+
 			for _, be := range bgcfg.Backends {
 				if fallback, ok := bg.FallbackBackends[be]; !ok {
 					log.Crit("error backend not found in backend fallback configurations", "backend_name", be)
