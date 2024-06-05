@@ -70,8 +70,8 @@ type backendState struct {
 }
 
 type Ban struct {
-	infractionTimestamps []time.Time
-	bannedUntil          time.Time
+	InfractionTimestamps []time.Time
+	BannedUntil          time.Time
 }
 
 type BanMap struct {
@@ -99,7 +99,7 @@ func (bm *BanMap) GetBan(banReason BanReason) (Ban, bool) {
 // GetPrice gets the price for a given fruit
 func (bm *BanMap) IsBanned() bool {
 	for _, ban := range bm.banMap {
-		if time.Now().Before(ban.bannedUntil) {
+		if time.Now().Before(ban.BannedUntil) {
 			return true
 		}
 	}
@@ -611,7 +611,7 @@ func (cp *ConsensusPoller) Ban(be *Backend, duration time.Duration, reason BanRe
 	bs.backendStateMux.Lock()
 
 	bs.bans.SetBan(reason, Ban{
-		bannedUntil: time.Now().Add(duration),
+		BannedUntil: time.Now().Add(duration),
 	})
 
 	// when we ban a node, we give it the chance to start from any block when it is back
@@ -845,29 +845,30 @@ func (cp *ConsensusPoller) ComputeBlockHeightZeroBan(blockHeight hexutil.Uint64,
 		bhZeroBan, ok := bans.GetBan(BlockHeightZeroBan)
 		if !ok {
 			bhZeroBan = Ban{
-				infractionTimestamps: []time.Time{},
+				InfractionTimestamps: []time.Time{},
 			}
 		}
 
-		bhZeroBan.infractionTimestamps = append(bhZeroBan.infractionTimestamps, now)
+		bhZeroBan.InfractionTimestamps = append(bhZeroBan.InfractionTimestamps, now)
 
-		bhZeroBan.infractionTimestamps = RemoveOldInfractionTimestamps(
-			bhZeroBan.infractionTimestamps,
+		bhZeroBan.InfractionTimestamps = RemoveOldInfractionTimestamps(
+			bhZeroBan.InfractionTimestamps,
 			// NOTE: Configuration Value here for TimeWindow
 			now.Add(-1*cp.backendGroup.Consensus.blockZeroBanPeriod),
 		)
 
 		// NOTE: Configuration Value here for Amount of Infractions
-		if len(bhZeroBan.infractionTimestamps) > cp.blockZeroBanThreshold {
-			bhZeroBan.bannedUntil = time.Now().Add(cp.banPeriod)
+		if len(bhZeroBan.InfractionTimestamps) > cp.blockZeroBanThreshold {
+			bhZeroBan.BannedUntil = time.Now().Add(cp.banPeriod)
 			banned = true
 		}
 
 		log.Info("received block height zero from backend",
 			"backend_name", be_name,
-			"infraction_count", len(bhZeroBan.infractionTimestamps),
-			"banned", len(bhZeroBan.infractionTimestamps) > 5,
+			"infraction_count", len(bhZeroBan.InfractionTimestamps),
+			"banned", len(bhZeroBan.InfractionTimestamps) > 5,
 		)
+		bans.SetBan(BlockHeightZeroBan, bhZeroBan)
 	}
 	return bans, banned
 }
