@@ -11,7 +11,7 @@ RUN apk update && apk add --no-cache git make
 COPY . .
 
 # Build the op-node binary
-RUN cd op-node && make op-node
+RUN cd op-proposer && make op-proposer
 
 # Use a minimal image for the runtime environment
 FROM golang:1.21-alpine
@@ -20,7 +20,7 @@ FROM golang:1.21-alpine
 WORKDIR /app
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/op-node/bin/op-node /usr/local/bin/op-node
+COPY --from=builder /app/op-proposer/bin/op-proposer /usr/local/bin/op-proposer
 
 # Set the entrypoint to the built binary
-ENTRYPOINT ["op-node"]
+ENTRYPOINT ["op-batcher"]
