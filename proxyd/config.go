@@ -104,8 +104,10 @@ type BackendConfig struct {
 	ConsensusForcedCandidate    bool   `toml:"consensus_forced_candidate"`
 	ConsensusReceiptsTarget     string `toml:"consensus_receipts_target"`
 
-	ZeroBlockBanPeriod    TOMLDuration `toml:"consensus_zero_block_ban_period"`
-	ZeroBlockBanThreshold int          `toml:"consensus_zero_block_ban_threshold"`
+	// ZeroBlockBanPeriod    TOMLDuration `toml:"consensus_zero_block_ban_period"`
+	// TODO: Reverse these, blockHeightZero
+	ZeroBlockBanThreshold     int          `toml:"consensus_zero_block_ban_threshold"`
+	ZeroBlockHeightWindowSize TOMLDuration `toml:"consensus_zero_block_height_zero_window_size"`
 }
 
 type BackendsConfig map[string]*BackendConfig

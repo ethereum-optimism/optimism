@@ -186,3 +186,7 @@ func (sw *AvgSlidingWindow) Count() uint {
 	sw.advance()
 	return sw.qty
 }
+
+func (sw *AvgSlidingWindow) GetWindowLength() time.Duration {
+	return sw.windowLength
+}

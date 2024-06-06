@@ -2,12 +2,15 @@ package integration_tests
 
 import (
 	"context"
+	"time"
+
 	// "encoding/json"
 	// "fmt"
 	"net/http"
 	"os"
 	"path"
 	"testing"
+
 	// "time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -51,7 +54,7 @@ func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.Backend
 	node2.SetHandler(http.HandlerFunc(h2.Handler))
 
 	// setup proxyd
-	config := ReadConfig("consensus")
+	config := ReadConfig("block_height_zero")
 	svr, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 
@@ -142,13 +145,13 @@ func TestBlockHeightZero(t *testing.T) {
 		override(node, "net_peerCount", "", buildResponse(hexutil.Uint64(count).String()))
 	}
 
-	overrideNotInSync := func(node string) {
-		override(node, "eth_syncing", "", buildResponse(map[string]string{
-			"startingblock": "0x0",
-			"currentblock":  "0x0",
-			"highestblock":  "0x100",
-		}))
-	}
+	// overrideNotInSync := func(node string) {
+	// 	override(node, "eth_syncing", "", buildResponse(map[string]string{
+	// 		"startingblock": "0x0",
+	// 		"currentblock":  "0x0",
+	// 		"highestblock":  "0x100",
+	// 	}))
+	// }
 
 	// force ban node2 and make sure node1 is the only one in consensus
 	// useOnlyNode1 := func() {
@@ -222,16 +225,55 @@ func TestBlockHeightZero(t *testing.T) {
 		require.Equal(t, 2, len(bg.Consensus.GetConsensusGroup()))
 	})
 
-	t.Run("prevent using a backend not in sync", func(t *testing.T) {
+	t.Run("Test Backend BlockHeight Zero Activates at after 5 infratctions", func(t *testing.T) {
 		reset()
-		// make node1 not in sync
-		overrideNotInSync("node1")
-		update()
+		overrideBlock("node1", "latest", "0x0")
+		for i := 0; i < 6; i++ {
+			require.Equal(t, uint(i), nodes["node1"].backend.GetBlockHeightZeroSlidingWindowCount())
+			require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+			require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
+			update()
+		}
+		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
+	})
 
-		consensusGroup := bg.Consensus.GetConsensusGroup()
-		require.NotContains(t, consensusGroup, nodes["node1"].backend)
+	t.Run("Test Backend BlockHeight Zero Does not activates if only four infractions in window", func(t *testing.T) {
+		reset()
+
+		delay := nodes["node2"].backend.GetBlockHeightZeroSlidingWindowLength() / 2
+		overrideBlock("node2", "latest", "0x0")
+		for i := 0; i < 10; i++ {
+			// require.Equal(t, uint(i), nodes["node2"].backend.GetBlockHeightZeroSlidingWindowCount())
+			require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+			require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+			update()
+			time.Sleep(delay)
+		}
+		time.Sleep(delay)
 		require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
-		require.Equal(t, 1, len(consensusGroup))
+		require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
+	})
+
+	t.Run("Test Backend BlockHeight Activates then Deactivates", func(t *testing.T) {
+		reset()
+
+		// delay := nodes["node2"].backend.GetBlockHeightZeroSlidingWindowLength()
+		overrideBlock("node2", "latest", "0x0")
+		for i := 0; i < 10; i++ {
+			update()
+			if i > 5 {
+				require.True(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+				require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+			} else {
+				require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+				require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+			}
+		}
+		overrideBlock("node2", "latest", "0x1")
+		bg.Consensus.Unban(nodes["node2"].backend)
+		require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
 	})
 
 }

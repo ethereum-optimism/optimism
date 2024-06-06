@@ -163,7 +163,8 @@ type Backend struct {
 	networkErrorsSlidingWindow   *sw.AvgSlidingWindow
 	// NOTE: use the block height sliding window
 	// 20 ticks in a min = ban
-	blockHeightZeroSlidingWindow *sw.AvgSlidingWindow
+	blockHeightZeroSlidingWindow     *sw.AvgSlidingWindow
+	blockHeightZeroSlidingWindowSize time.Duration
 
 	weight int
 }
@@ -282,6 +283,12 @@ func WithConsensusReceiptTarget(receiptsTarget string) BackendOpt {
 	}
 }
 
+func WithBlockHeightZeroSlidingWindowLength(time time.Duration) BackendOpt {
+	return func(b *Backend) {
+		b.blockHeightZeroSlidingWindowSize = time
+	}
+}
+
 type indexedReqRes struct {
 	index int
 	req   *RPCReq
@@ -315,6 +322,7 @@ func NewBackend(
 	rpcSemaphore *semaphore.Weighted,
 	opts ...BackendOpt,
 ) *Backend {
+	// blockHeightZeroSlidingWindowSize :=
 
 	backend := &Backend{
 		Name:            name,
@@ -336,9 +344,7 @@ func NewBackend(
 		networkRequestsSlidingWindow: sw.NewSlidingWindow(),
 		networkErrorsSlidingWindow:   sw.NewSlidingWindow(),
 
-		blockHeightZeroSlidingWindow: sw.NewSlidingWindow(
-			sw.WithWindowLength(30 * time.Second),
-		),
+		blockHeightZeroSlidingWindowSize: 30 * time.Second,
 	}
 
 	backend.Override(opts...)
@@ -347,7 +353,20 @@ func NewBackend(
 		log.Warn("proxied requests' XFF header will not contain the proxyd ip address")
 	}
 
+	backend.blockHeightZeroSlidingWindow = sw.NewSlidingWindow(
+		sw.WithWindowLength(backend.blockHeightZeroSlidingWindowSize),
+	)
+
 	return backend
+}
+
+// TODO: Make Size and length same word
+func (b *Backend) GetBlockHeightZeroSlidingWindowLength() time.Duration {
+	return b.blockHeightZeroSlidingWindowSize
+}
+
+func (b *Backend) GetBlockHeightZeroSlidingWindowCount() uint {
+	return b.blockHeightZeroSlidingWindow.Count()
 }
 
 func (b *Backend) Override(opts ...BackendOpt) {
