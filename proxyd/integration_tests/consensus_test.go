@@ -88,7 +88,6 @@ func TestConsensus(t *testing.T) {
 	defer shutdown()
 
 	ctx := context.Background()
-	bg.Consensus.Reset()
 
 	// poll for updated consensus
 	update := func() {
@@ -160,11 +159,6 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 1, len(consensusGroup))
 		require.Contains(t, consensusGroup, nodes["node1"].backend)
 		nodes["node1"].mockBackend.Reset()
-	}
-
-	getBan := func(node string, reason proxyd.BanReason) (proxyd.Ban, bool) {
-		banMap := bg.Consensus.GetBans(nodes[node].backend)
-		return banMap.GetBan(reason)
 	}
 
 	t.Run("initial consensus", func(t *testing.T) {
@@ -369,22 +363,6 @@ func TestConsensus(t *testing.T) {
 	})
 
 	t.Run("ban backend if tags are messed - finalized dropped", func(t *testing.T) {
-		reset()
-		update()
-		overrideBlock("node1", "finalized", "0xa1")
-		update()
-
-		require.Equal(t, "0x101", bg.Consensus.GetLatestBlockNumber().String())
-		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
-		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
-
-		consensusGroup := bg.Consensus.GetConsensusGroup()
-		require.NotContains(t, consensusGroup, nodes["node1"].backend)
-		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
-		require.Equal(t, 1, len(consensusGroup))
-	})
-
-	t.Run("ban backend if latest block height is recieved 5 times in a row", func(t *testing.T) {
 		reset()
 		update()
 		overrideBlock("node1", "finalized", "0xa1")
@@ -1014,57 +992,6 @@ func TestConsensus(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 400, statusCode)
 	})
-
-	t.Run("record a single block height zero infraction", func(t *testing.T) {
-		reset()
-		update()
-
-		bhZeroBan, ok := getBan("node1", proxyd.BlockHeightZeroBan)
-
-		require.NotNil(t, ok)
-		require.Equal(t, len(bhZeroBan.InfractionTimestamps), 0)
-
-		overrideBlock("node1", "latest", "0x0")
-		update()
-
-		bhZeroBan, ok = getBan("node1", proxyd.BlockHeightZeroBan)
-		require.NotNil(t, ok)
-		require.Equal(t, len(bhZeroBan.InfractionTimestamps), 1)
-
-		require.Equal(t, "0x101", bg.Consensus.GetLatestBlockNumber().String())
-		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
-		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
-
-	})
-
-	t.Run("record multiple block height zero infraction", func(t *testing.T) {
-		reset()
-		update()
-
-		bhZeroBan, ok := getBan("node1", proxyd.BlockHeightZeroBan)
-
-		require.NotNil(t, ok)
-		require.Equal(t, len(bhZeroBan.InfractionTimestamps), 0)
-
-		overrideBlock("node1", "latest", "0x0")
-
-		for i := 0; i < 10; i++ {
-			update()
-			bhZeroBan, ok = getBan("node1", proxyd.BlockHeightZeroBan)
-			require.NotNil(t, ok)
-			require.Equal(t, len(bhZeroBan.InfractionTimestamps)-1, i)
-			if i < 5 {
-				require.Equal(t, "0x101", bg.Consensus.GetLatestBlockNumber().String())
-				require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
-				require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
-				require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
-			} else {
-				require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
-			}
-		}
-
-	})
-
 }
 
 func buildResponse(result interface{}) string {

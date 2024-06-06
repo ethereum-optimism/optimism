@@ -103,6 +103,9 @@ type BackendConfig struct {
 	ConsensusSkipPeerCountCheck bool   `toml:"consensus_skip_peer_count"`
 	ConsensusForcedCandidate    bool   `toml:"consensus_forced_candidate"`
 	ConsensusReceiptsTarget     string `toml:"consensus_receipts_target"`
+
+	ZeroBlockBanPeriod    TOMLDuration `toml:"consensus_zero_block_ban_period"`
+	ZeroBlockBanThreshold int          `toml:"consensus_zero_block_ban_threshold"`
 }
 
 type BackendsConfig map[string]*BackendConfig
@@ -129,8 +132,8 @@ type BackendGroupConfig struct {
 
 	Fallbacks []string `toml:"fallbacks"`
 
-	ZeroBlockBanPeriod    TOMLDuration `toml:"consensus_zero_block_ban_period"`
-	ZeroBlockBanThreshold int          `toml:"consensus_zero_block_ban_threshold"`
+	// ZeroBlockBanPeriod    TOMLDuration `toml:"consensus_zero_block_ban_period"`
+	// ZeroBlockBanThreshold int          `toml:"consensus_zero_block_ban_threshold"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig

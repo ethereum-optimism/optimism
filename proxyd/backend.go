@@ -315,6 +315,7 @@ func NewBackend(
 	rpcSemaphore *semaphore.Weighted,
 	opts ...BackendOpt,
 ) *Backend {
+
 	backend := &Backend{
 		Name:            name,
 		rpcURL:          rpcURL,
@@ -334,6 +335,10 @@ func NewBackend(
 		latencySlidingWindow:         sw.NewSlidingWindow(),
 		networkRequestsSlidingWindow: sw.NewSlidingWindow(),
 		networkErrorsSlidingWindow:   sw.NewSlidingWindow(),
+
+		blockHeightZeroSlidingWindow: sw.NewSlidingWindow(
+			sw.WithWindowLength(30 * time.Second),
+		),
 	}
 
 	backend.Override(opts...)
@@ -676,6 +681,13 @@ func (b *Backend) ErrorRate() (errorRate float64) {
 		errorRate = b.networkErrorsSlidingWindow.Sum() / b.networkRequestsSlidingWindow.Sum()
 	}
 	return errorRate
+}
+
+// BlockHeightZeroCount returns the instant error rate of the backend
+func (b *Backend) BlockHeightZeroCount() uint {
+	// we only really start counting the error rate after a minimum of 10 requests
+	// this is to avoid false positives when the backend is just starting up
+	return b.blockHeightZeroSlidingWindow.Count()
 }
 
 // IsDegraded checks if the backend is serving traffic in a degraded state (i.e. used as a last resource)

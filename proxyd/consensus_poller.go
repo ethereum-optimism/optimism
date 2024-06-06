@@ -13,13 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type BanReason string
-
 const (
-	DefaultPollerInterval           = 1 * time.Second
-	UnexpectedTagsBan     BanReason = "unexpected_tags"
-	BlockHeightZeroBan    BanReason = "block_height_zero"
-	BackendNotHealthyBan  BanReason = "backend_not_healthy"
+	DefaultPollerInterval = 1 * time.Second
 )
 
 type OnConsensusBroken func()
@@ -47,8 +42,8 @@ type ConsensusPoller struct {
 	maxBlockRange      uint64
 	interval           time.Duration
 
-	blockZeroBanPeriod    time.Duration
-	blockZeroBanThreshold int
+	// blockZeroBanPeriod    time.Duration
+	// blockZeroBanThreshold int
 }
 
 type backendState struct {
@@ -65,49 +60,10 @@ type backendState struct {
 	lastUpdate time.Time
 
 	bannedUntil time.Time
-
-	bans BanMap
-}
-
-type Ban struct {
-	InfractionTimestamps []time.Time
-	BannedUntil          time.Time
-}
-
-type BanMap struct {
-	banMap map[BanReason]Ban
-}
-
-// NewFruitPrices creates a new FruitPrices instance
-func NewBanMap() *BanMap {
-	return &BanMap{
-		banMap: map[BanReason]Ban{},
-	}
-}
-
-// SetPrice sets the price for a given fruit
-func (bm *BanMap) SetBan(banReason BanReason, ban Ban) {
-	bm.banMap[banReason] = ban
-}
-
-// GetPrice gets the price for a given fruit
-func (bm *BanMap) GetBan(banReason BanReason) (Ban, bool) {
-	ban, ok := bm.banMap[banReason]
-	return ban, ok
-}
-
-// GetPrice gets the price for a given fruit
-func (bm *BanMap) IsBanned() bool {
-	for _, ban := range bm.banMap {
-		if time.Now().Before(ban.BannedUntil) {
-			return true
-		}
-	}
-	return false
 }
 
 func (bs *backendState) IsBanned() bool {
-	return bs.bans.IsBanned()
+	return time.Now().Before(bs.bannedUntil)
 }
 
 // GetConsensusGroup returns the backend members that are agreeing in a consensus
@@ -296,17 +252,17 @@ func WithPollerInterval(interval time.Duration) ConsensusOpt {
 	}
 }
 
-func WithZeroBlockBanThreshold(blockZeroBanThreshold int) ConsensusOpt {
-	return func(cp *ConsensusPoller) {
-		cp.blockZeroBanThreshold = blockZeroBanThreshold
-	}
-}
-
-func WithZeroBlockBanPeriod(blockZeroBanPeriod time.Duration) ConsensusOpt {
-	return func(cp *ConsensusPoller) {
-		cp.blockZeroBanPeriod = blockZeroBanPeriod
-	}
-}
+// func WithZeroBlockBanThreshold(blockZeroBanThreshold int) ConsensusOpt {
+// 	return func(cp *ConsensusPoller) {
+// 		cp.blockZeroBanThreshold = blockZeroBanThreshold
+// 	}
+// }
+//
+// func WithZeroBlockBanPeriod(blockZeroBanPeriod time.Duration) ConsensusOpt {
+// 	return func(cp *ConsensusPoller) {
+// 		cp.blockZeroBanPeriod = blockZeroBanPeriod
+// 	}
+// }
 
 func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller {
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -319,13 +275,13 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 		backendGroup: bg,
 		backendState: state,
 
-		banPeriod:             5 * time.Minute,
-		maxUpdateThreshold:    30 * time.Second,
-		maxBlockLag:           8, // 8*12 seconds = 96 seconds ~ 1.6 minutes
-		minPeerCount:          3,
-		interval:              DefaultPollerInterval,
-		blockZeroBanThreshold: 5,
-		blockZeroBanPeriod:    30 * time.Second,
+		banPeriod:          5 * time.Minute,
+		maxUpdateThreshold: 30 * time.Second,
+		maxBlockLag:        8, // 8*12 seconds = 96 seconds ~ 1.6 minutes
+		minPeerCount:       3,
+		interval:           DefaultPollerInterval,
+		// blockZeroBanThreshold: 5,
+		// blockZeroBanPeriod:    30 * time.Second,
 	}
 
 	for _, opt := range opts {
@@ -359,7 +315,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	// if backend is not healthy state we'll only resume checking it after ban
 	if !be.IsHealthy() && !be.forcedCandidate {
 		log.Warn("backend banned - not healthy", "backend", be.Name)
-		cp.Ban(be, cp.banPeriod, BackendNotHealthyBan)
+		cp.Ban(be)
 		return
 	}
 
@@ -382,18 +338,20 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	if err != nil {
 		log.Warn("error updating backend - latest block", "name", be.Name, "err", err)
 	}
-	// NOTE: Maybe pass in the bhZero Ban struct here inst
-	bans, banned := cp.ComputeBlockHeightZeroBan(latestBlockNumber, bs.bans, be.Name)
 
-	// If not banned, and we got a zero reset backend state with old values
-	if !banned && (latestBlockNumber == 0) {
-		latestBlockNumber = bs.latestBlockNumber
-		latestBlockHash = bs.latestBlockHash
-
-		// Just return here, no updates at all
-		// 20 ticks over 1 minute = Then Ban Offically
-		// Just Print Log and Ban
-		// Use the sliding window
+	if latestBlockNumber == 0 {
+		be.blockHeightZeroSlidingWindow.Incr()
+		log.Warn("unexpected block height zero response for latest block",
+			"name", be.Name,
+			"infraction_count", be.BlockHeightZeroCount(),
+		)
+		if be.blockHeightZeroSlidingWindow.Count() > 5 {
+			log.Warn("banning backend for too many block height zero responses",
+				"name", be.Name,
+			)
+			cp.Ban(be)
+		}
+		return
 	}
 
 	safeBlockNumber, _, err := cp.fetchBlock(ctx, be, "safe")
@@ -410,7 +368,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 
 	changed := cp.setBackendState(be, peerCount, inSync,
 		latestBlockNumber, latestBlockHash,
-		safeBlockNumber, finalizedBlockNumber, bans)
+		safeBlockNumber, finalizedBlockNumber)
 
 	RecordBackendLatestBlock(be, latestBlockNumber)
 	RecordBackendSafeBlock(be, safeBlockNumber)
@@ -445,7 +403,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 			"safeBlockNumber", safeBlockNumber,
 			"latestBlockNumber", latestBlockNumber,
 		)
-		cp.Ban(be, cp.banPeriod, UnexpectedTagsBan)
+		cp.Ban(be)
 	}
 }
 
@@ -457,14 +415,6 @@ func (cp *ConsensusPoller) checkExpectedBlockTags(
 	currentLatest hexutil.Uint64,
 	oldSafe hexutil.Uint64, currentSafe hexutil.Uint64,
 	oldFinalized hexutil.Uint64, currentFinalized hexutil.Uint64) bool {
-
-	// If current latest is zero do not check it
-	// Let the zero ban take care of it
-	if currentLatest == 0 {
-		return currentFinalized >= oldFinalized &&
-			currentSafe >= oldSafe &&
-			currentFinalized <= currentSafe
-	}
 
 	return currentFinalized >= oldFinalized &&
 		currentSafe >= oldSafe &&
@@ -607,7 +557,7 @@ func (cp *ConsensusPoller) IsBanned(be *Backend) bool {
 }
 
 // Ban bans a specific backend
-func (cp *ConsensusPoller) Ban(be *Backend, duration time.Duration, reason BanReason) {
+func (cp *ConsensusPoller) Ban(be *Backend) {
 	if be.forcedCandidate {
 		return
 	}
@@ -616,9 +566,7 @@ func (cp *ConsensusPoller) Ban(be *Backend, duration time.Duration, reason BanRe
 	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
 
-	bs.bans.SetBan(reason, Ban{
-		BannedUntil: time.Now().Add(duration),
-	})
+	bs.bannedUntil = time.Now().Add(cp.banPeriod)
 
 	// when we ban a node, we give it the chance to start from any block when it is back
 	bs.latestBlockNumber = 0
@@ -626,20 +574,18 @@ func (cp *ConsensusPoller) Ban(be *Backend, duration time.Duration, reason BanRe
 	bs.finalizedBlockNumber = 0
 }
 
-// Unban removes all bans from the backends
+// Unban removes any bans from the backends
 func (cp *ConsensusPoller) Unban(be *Backend) {
 	bs := cp.backendState[be]
 	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
-	bs.bans = *NewBanMap()
+	bs.bannedUntil = time.Now().Add(-10 * time.Hour)
 }
 
 // Reset reset all backend states
 func (cp *ConsensusPoller) Reset() {
 	for _, be := range cp.backendGroup.Backends {
-		cp.backendState[be] = &backendState{
-			bans: *NewBanMap(),
-		}
+		cp.backendState[be] = &backendState{}
 	}
 }
 
@@ -721,7 +667,6 @@ func (cp *ConsensusPoller) getBackendState(be *Backend) *backendState {
 		inSync:               bs.inSync,
 		lastUpdate:           bs.lastUpdate,
 		bannedUntil:          bs.bannedUntil,
-		bans:                 bs.bans,
 	}
 }
 
@@ -732,18 +677,10 @@ func (cp *ConsensusPoller) GetLastUpdate(be *Backend) time.Time {
 	return bs.lastUpdate
 }
 
-func (cp *ConsensusPoller) GetBans(be *Backend) BanMap {
-	bs := cp.backendState[be]
-	defer bs.backendStateMux.Unlock()
-	bs.backendStateMux.Lock()
-	return bs.bans
-}
-
 func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync bool,
 	latestBlockNumber hexutil.Uint64, latestBlockHash string,
 	safeBlockNumber hexutil.Uint64,
-	finalizedBlockNumber hexutil.Uint64,
-	bans BanMap) bool {
+	finalizedBlockNumber hexutil.Uint64) bool {
 
 	bs := cp.backendState[be]
 
@@ -756,7 +693,6 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync
 	bs.finalizedBlockNumber = finalizedBlockNumber
 	bs.safeBlockNumber = safeBlockNumber
 	bs.lastUpdate = time.Now()
-	bs.bans = bans
 	bs.backendStateMux.Unlock()
 	return changed
 }
@@ -843,54 +779,4 @@ func (cp *ConsensusPoller) FilterCandidates(backends []*Backend) map[*Backend]*b
 	}
 
 	return candidates
-}
-
-// ComputeBlockHeightZeroBan will compute if we need to ban the backed if we have seen blockHeight zero for more than X times in X interval
-func (cp *ConsensusPoller) ComputeBlockHeightZeroBan(blockHeight hexutil.Uint64, bans BanMap, be_name string) (BanMap, bool) {
-	banned := false
-	// NOTE: Only execute if higher than zero threshold
-	if blockHeight == 0 && cp.blockZeroBanThreshold > 0 {
-
-		now := time.Now()
-
-		bhZeroBan, ok := bans.GetBan(BlockHeightZeroBan)
-		if !ok {
-			bhZeroBan = Ban{
-				InfractionTimestamps: []time.Time{},
-			}
-		}
-
-		bhZeroBan.InfractionTimestamps = append(bhZeroBan.InfractionTimestamps, now)
-
-		bhZeroBan.InfractionTimestamps = RemoveOldInfractionTimestamps(
-			bhZeroBan.InfractionTimestamps,
-			// NOTE: Configuration Value here for TimeWindow
-			now.Add(-1*cp.backendGroup.Consensus.blockZeroBanPeriod),
-		)
-
-		// NOTE: Configuration Value here for Amount of Infractions
-		if len(bhZeroBan.InfractionTimestamps) > cp.blockZeroBanThreshold {
-			bhZeroBan.BannedUntil = time.Now().Add(cp.banPeriod)
-			banned = true
-		}
-
-		log.Info("received block height zero from backend",
-			"backend_name", be_name,
-			"infraction_count", len(bhZeroBan.InfractionTimestamps),
-			"banned", len(bhZeroBan.InfractionTimestamps) > 5,
-		)
-		bans.SetBan(BlockHeightZeroBan, bhZeroBan)
-	}
-	return bans, banned
-}
-
-// RemoveOldInfractionTimestamps will remove times from the array which are before the cutoff
-func RemoveOldInfractionTimestamps(timestamps []time.Time, cutoff time.Time) []time.Time {
-	recentInfractions := []time.Time{}
-	for _, timestamp := range timestamps {
-		if timestamp.After(cutoff) {
-			recentInfractions = append(recentInfractions, timestamp)
-		}
-	}
-	return recentInfractions
 }
