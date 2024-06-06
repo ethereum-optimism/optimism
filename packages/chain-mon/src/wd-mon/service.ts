@@ -279,7 +279,8 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
         this.logger.error(`withdrawalHash not seen on L2`, {
           withdrawalHash: event.args.withdrawalHash,
           provenAt: ts,
-          blockNumber: block.number,
+          provenAt: dateformat(new Date(block.timestamp * 1000), 'mmmm dS, yyyy, h:MM:ss TT', true) + ' UTC',
+          blockNumber: block.number.toString(),
           transaction: event.transactionHash,
         })
 
