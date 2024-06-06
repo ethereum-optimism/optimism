@@ -321,7 +321,7 @@ func TestCustomGasToken(t *testing.T) {
 		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", cfg.Secrets.Alice, receipt)
 		require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 		require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
-		if e2eutils.UseFPAC() {
+		if e2eutils.UseFaultProofs() {
 			require.Equal(t, types.ReceiptStatusSuccessful, resolveClaimReceipt.Status)
 			require.Equal(t, types.ReceiptStatusSuccessful, resolveReceipt.Status)
 		}
