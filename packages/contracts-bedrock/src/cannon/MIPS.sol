@@ -72,16 +72,6 @@ contract MIPS is ISemver {
         oracle_ = ORACLE;
     }
 
-    /// @notice Extends the value leftwards with its most significant bit (sign extension).
-    function SE(uint32 _dat, uint32 _idx) internal pure returns (uint32 out_) {
-        unchecked {
-            bool isSigned = (_dat >> (_idx - 1)) != 0;
-            uint256 signed = ((1 << (32 - _idx)) - 1) << _idx;
-            uint256 mask = (1 << _idx) - 1;
-            return uint32(_dat & mask | (isSigned ? signed : 0));
-        }
-    }
-
     /// @notice Computes the hash of the MIPS state.
     /// @return out_ The hashed MIPS state.
     function outputState() internal returns (bytes32 out_) {
@@ -365,7 +355,7 @@ contract MIPS is ISemver {
             // If we should branch, update the PC to the branch target
             // Otherwise, proceed to the next instruction
             if (shouldBranch) {
-                state.nextPC = prevPC + 4 + (SE(_insn & 0xFFFF, 16) << 2);
+                state.nextPC = prevPC + 4 + (signExtend(_insn & 0xFFFF, 16) << 2);
             } else {
                 state.nextPC = state.nextPC + 4;
             }
@@ -729,7 +719,7 @@ contract MIPS is ISemver {
                     rt = insn & 0xFFFF;
                 } else {
                     // SignExtImm
-                    rt = SE(insn & 0xFFFF, 16);
+                    rt = signExtend(insn & 0xFFFF, 16);
                 }
             } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
                 // store rt value with store
@@ -749,7 +739,7 @@ contract MIPS is ISemver {
             uint32 mem;
             if (opcode >= 0x20) {
                 // M[R[rs]+SignExtImm]
-                rs += SE(insn & 0xFFFF, 16);
+                rs += signExtend(insn & 0xFFFF, 16);
                 uint32 addr = rs & 0xFFFFFFFC;
                 mem = readMem(addr, 1);
                 if (opcode >= 0x28 && opcode != 0x30) {

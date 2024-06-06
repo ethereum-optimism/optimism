@@ -249,7 +249,7 @@ func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint3
 	prevPC := m.state.PC
 	m.state.PC = m.state.NextPC // execute the delay slot first
 	if shouldBranch {
-		m.state.NextPC = prevPC + 4 + (SE(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
+		m.state.NextPC = prevPC + 4 + (signExtend(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
 	} else {
 		m.state.NextPC = m.state.NextPC + 4 // branch not taken
 	}
@@ -358,7 +358,7 @@ func (m *InstrumentedState) mipsStep() error {
 			rt = insn & 0xFFFF
 		} else {
 			// SignExtImm
-			rt = SE(insn&0xFFFF, 16)
+			rt = signExtend(insn&0xFFFF, 16)
 		}
 	} else if opcode >= 0x28 || opcode == 0x22 || opcode == 0x26 {
 		// store rt value with store
@@ -378,7 +378,7 @@ func (m *InstrumentedState) mipsStep() error {
 	mem := uint32(0)
 	if opcode >= 0x20 {
 		// M[R[rs]+SignExtImm]
-		rs += SE(insn&0xFFFF, 16)
+		rs += signExtend(insn&0xFFFF, 16)
 		addr := rs & 0xFFFFFFFC
 		m.trackMemAccess(addr)
 		mem = m.state.Memory.GetMemory(addr)
@@ -436,15 +436,4 @@ func (m *InstrumentedState) mipsStep() error {
 
 	// write back the value to destination register
 	return m.handleRd(rdReg, val, true)
-}
-
-func SE(dat uint32, idx uint32) uint32 {
-	isSigned := (dat >> (idx - 1)) != 0
-	signed := ((uint32(1) << (32 - idx)) - 1) << idx
-	mask := (uint32(1) << idx) - 1
-	if isSigned {
-		return dat&mask | signed
-	} else {
-		return dat & mask
-	}
 }

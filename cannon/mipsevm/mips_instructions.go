@@ -30,13 +30,13 @@ func executeMipsInstruction(insn uint32, rs uint32, rt uint32, mem uint32) uint3
 			return rt >> ((insn >> 6) & 0x1F)
 		case 0x03: // sra
 			shamt := (insn >> 6) & 0x1F
-			return SE(rt>>shamt, 32-shamt)
+			return signExtend(rt>>shamt, 32-shamt)
 		case 0x04: // sllv
 			return rt << (rs & 0x1F)
 		case 0x06: // srlv
 			return rt >> (rs & 0x1F)
 		case 0x07: // srav
-			return SE(rt>>rs, 32-rs)
+			return signExtend(rt>>rs, 32-rs)
 		// functs in range [0x8, 0x1b] are handled specially by other functions
 		case 0x08: // jr
 			return rs
@@ -118,9 +118,9 @@ func executeMipsInstruction(insn uint32, rs uint32, rt uint32, mem uint32) uint3
 		case 0x0F: // lui
 			return rt << 16
 		case 0x20: // lb
-			return SE((mem>>(24-(rs&3)*8))&0xFF, 8)
+			return signExtend((mem>>(24-(rs&3)*8))&0xFF, 8)
 		case 0x21: // lh
-			return SE((mem>>(16-(rs&2)*8))&0xFFFF, 16)
+			return signExtend((mem>>(16-(rs&2)*8))&0xFFFF, 16)
 		case 0x22: // lwl
 			val := mem << ((rs & 3) * 8)
 			mask := uint32(0xFFFFFFFF) << ((rs & 3) * 8)
@@ -162,4 +162,15 @@ func executeMipsInstruction(insn uint32, rs uint32, rt uint32, mem uint32) uint3
 		}
 	}
 	panic("invalid instruction")
+}
+
+func signExtend(dat uint32, idx uint32) uint32 {
+	isSigned := (dat >> (idx - 1)) != 0
+	signed := ((uint32(1) << (32 - idx)) - 1) << idx
+	mask := (uint32(1) << idx) - 1
+	if isSigned {
+		return dat&mask | signed
+	} else {
+		return dat & mask
+	}
 }

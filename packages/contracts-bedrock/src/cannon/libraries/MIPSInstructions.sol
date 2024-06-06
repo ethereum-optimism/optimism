@@ -38,7 +38,7 @@ function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) p
                 // sra
             else if (func == 0x03) {
                 uint32 shamt = (insn >> 6) & 0x1F;
-                return SE(rt >> shamt, 32 - shamt);
+                return signExtend(rt >> shamt, 32 - shamt);
             }
                 // sllv
             else if (func == 0x04) {
@@ -50,7 +50,7 @@ function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) p
             }
                 // srav
             else if (func == 0x07) {
-                return SE(rt >> rs, 32 - rs);
+                return signExtend(rt >> rs, 32 - rs);
             }
                 // functs in range [0x8, 0x1b] are handled specially by other functions
                 // Explicitly enumerate each funct in range to reduce code diff against Go Vm
@@ -181,11 +181,11 @@ function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) p
             }
                 // lb
             else if (opcode == 0x20) {
-                return SE((mem >> (24 - (rs & 3) * 8)) & 0xFF, 8);
+                return signExtend((mem >> (24 - (rs & 3) * 8)) & 0xFF, 8);
             }
                 // lh
             else if (opcode == 0x21) {
-                return SE((mem >> (16 - (rs & 2) * 8)) & 0xFFFF, 16);
+                return signExtend((mem >> (16 - (rs & 2) * 8)) & 0xFFFF, 16);
             }
                 // lwl
             else if (opcode == 0x22) {
@@ -251,5 +251,15 @@ function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) p
             }
         }
         revert("invalid instruction");
+    }
+}
+
+/// @notice Extends the value leftwards with its most significant bit (sign extension).
+function signExtend(uint32 _dat, uint32 _idx) pure returns (uint32 out_) {
+    unchecked {
+        bool isSigned = (_dat >> (_idx - 1)) != 0;
+        uint256 signed = ((1 << (32 - _idx)) - 1) << _idx;
+        uint256 mask = (1 << _idx) - 1;
+        return uint32(_dat & mask | (isSigned ? signed : 0));
     }
 }
