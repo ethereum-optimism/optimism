@@ -751,7 +751,8 @@ contract MIPS is ISemver {
             }
 
             // ALU
-            uint32 val = executeMipsInstruction(insn, rs, rt, mem) & 0xffFFffFF; // swr outputs more than 4 bytes without the mask
+            // Note: swr outputs more than 4 bytes without the mask 0xffFFffFF
+            uint32 val = executeMipsInstruction(insn, rs, rt, mem) & 0xffFFffFF;
 
             uint32 func = insn & 0x3f; // 6-bits
             if (opcode == 0 && func >= 8 && func < 0x1c) {
