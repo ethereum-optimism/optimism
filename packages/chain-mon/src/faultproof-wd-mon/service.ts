@@ -227,6 +227,22 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
       this.state.highestUncheckedBlockNumber =
         DEFAULT_STARTING_BLOCK_NUMBERS[l2ChainId] || 0
     }
+    this.logger.info(
+      `initialized starting at block number ${this.state.highestUncheckedBlockNumber}`
+    )
+
+    //make sure the highestUncheckedBlockNumber is not higher than the latest block number on chain
+    const latestL1BlockNumber =
+      await this.options.l1RpcProvider.getBlockNumber()
+
+    this.state.highestUncheckedBlockNumber = Math.min(
+      this.state.highestUncheckedBlockNumber,
+      latestL1BlockNumber
+    )
+
+    this.logger.info(
+      `starting at block number ${this.state.highestUncheckedBlockNumber}`
+    )
 
     // Default state is that forgeries have not been detected.
     this.state.forgeryDetected = false
@@ -264,11 +280,12 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
         this.state.portal.disputeGameBlacklist(disputeGameAddress)
       const event = disputeGameData.event
       const block = await event.getBlock()
-      const ts = dateformat(
-        new Date(block.timestamp * 1000),
-        'mmmm dS, yyyy, h:MM:ss TT',
-        true
-      ) + ' UTC'
+      const ts =
+        dateformat(
+          new Date(block.timestamp * 1000),
+          'mmmm dS, yyyy, h:MM:ss TT',
+          true
+        ) + ' UTC'
 
       if (isGameBlacklisted) {
         this.state.invalidProposalWithdrawals.splice(i, 1)
@@ -383,6 +400,9 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
     this.logger.info(`checking recent blocks`, {
       fromBlockNumber: this.state.highestUncheckedBlockNumber,
       toBlockNumber,
+      latestL1BlockNumber,
+      percentageDone:
+        Math.floor((toBlockNumber / latestL1BlockNumber) * 100) + '% done',
     })
 
     // Query for WithdrawalProven events within the specified block range.
