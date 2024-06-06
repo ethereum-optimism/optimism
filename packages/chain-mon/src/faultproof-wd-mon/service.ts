@@ -264,11 +264,11 @@ export class FaultProofWithdrawalMonitor extends BaseServiceV2<
         this.state.portal.disputeGameBlacklist(disputeGameAddress)
       const event = disputeGameData.event
       const block = await event.getBlock()
-      const ts = `${dateformat(
+      const ts = dateformat(
         new Date(block.timestamp * 1000),
         'mmmm dS, yyyy, h:MM:ss TT',
         true
-      )} UTC`
+      ) + ' UTC'
 
       if (isGameBlacklisted) {
         this.state.invalidProposalWithdrawals.splice(i, 1)
