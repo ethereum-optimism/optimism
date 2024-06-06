@@ -49,6 +49,9 @@ contract DrippieConfig is Script, Artifacts {
     /// @notice Drip configuration array.
     FullDripConfig[] public drips;
 
+    /// @notice Mapping of drip names in the config.
+    mapping(string => bool) public names;
+
     /// @param _path Path to the configuration file.
     constructor(string memory _path) {
         // Make sure artifacts are set up.
@@ -125,6 +128,7 @@ contract DrippieConfig is Script, Artifacts {
 
             // Ok we're good to go.
             drips.push(dripcfg);
+            names[name] = true;
         }
     }
 

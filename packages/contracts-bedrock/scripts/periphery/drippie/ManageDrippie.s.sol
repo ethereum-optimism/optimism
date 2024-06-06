@@ -48,7 +48,22 @@ contract ManageDrippie is Script, Artifacts {
     /// @notice Runs the management script.
     function run() public {
         console.log("ManageDrippie: running");
+        pauseDrips();
         installDrips();
+    }
+
+    /// @notice Pauses drips that have been removed from config.
+    function pauseDrips() public broadcast {
+        console.log("ManageDrippie: pausing removed drips");
+        for (uint256 i = 0; i < cfg.drippie().getDripCount(); i++) {
+            string memory name = cfg.drippie().created(i);
+            if (!cfg.names(name)) {
+                console.log("ManageDrippie: pausing %s", name);
+                cfg.drippie().status(name, Drippie.DripStatus.PAUSED);
+                _pauseGelatoDripTask(cfg.gelato(), cfg.drippie(), name);
+                console.log("ManageDrippie: %s paused successfully", name);
+            }
+        }
     }
 
     /// @notice Installs drips in the drippie contract.

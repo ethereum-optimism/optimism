@@ -5,14 +5,14 @@
   "note": "Object attributes below are prefixed with numbers because of how foundry parses JSON into structs in alphabetical order",
   "drips": [
     {
-      "00__name": "OperationsSequencerDrip_V1",
+      "00__name": "OperationsSequencerDrip_V2",
       "01__dripcheck": "CheckBalanceLow",
       "02__checkparams": {
         "01__target": "0x8F23BB38F531600e5d8FDDaAEC41F13FaB46E98c",
-        "02__threshold": 100000000000000000000
+        "02__threshold": 1000000000000000000000
       },
       "03__recipient": "0x8F23BB38F531600e5d8FDDaAEC41F13FaB46E98c",
-      "04__value": 50000000000000000000,
+      "04__value": 100000000000000000000,
       "05__interval": 3600,
       "06__data": ""
     },
