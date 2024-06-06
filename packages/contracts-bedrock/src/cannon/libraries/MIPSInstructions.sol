@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
+
 /// @notice Execute an instruction.
 function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32 out) {
     unchecked {
