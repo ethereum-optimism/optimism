@@ -183,6 +183,6 @@ var ListGamesCommand = &cli.Command{
 	Name:        "list-games",
 	Usage:       "List the games created by a dispute game factory",
 	Description: "Lists the games created by a dispute game factory",
-	Action:      ListGames,
+	Action:      Interruptible(ListGames),
 	Flags:       listGamesFlags(),
 }

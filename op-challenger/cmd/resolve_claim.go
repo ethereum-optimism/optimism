@@ -66,6 +66,6 @@ var ResolveClaimCommand = &cli.Command{
 	Name:        "resolve-claim",
 	Usage:       "Resolves the specified claim if possible",
 	Description: "Resolves the specified claim if possible",
-	Action:      ResolveClaim,
+	Action:      Interruptible(ResolveClaim),
 	Flags:       resolveClaimFlags(),
 }

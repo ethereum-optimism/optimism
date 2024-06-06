@@ -198,6 +198,6 @@ var ListClaimsCommand = &cli.Command{
 	Name:        "list-claims",
 	Usage:       "List the claims in a dispute game",
 	Description: "Lists the claims in a dispute game",
-	Action:      ListClaims,
+	Action:      Interruptible(ListClaims),
 	Flags:       listClaimsFlags(),
 }
