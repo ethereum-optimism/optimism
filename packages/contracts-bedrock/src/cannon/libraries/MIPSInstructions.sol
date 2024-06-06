@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 /// @notice Execute an instruction.
-function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32 out) {
+function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) pure returns (uint32 out) {
     unchecked {
         uint32 opcode = insn >> 26; // 6-bits
 
