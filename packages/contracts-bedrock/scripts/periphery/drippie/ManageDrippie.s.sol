@@ -53,7 +53,7 @@ contract ManageDrippie is Script, Artifacts {
 
     /// @notice Installs drips in the drippie contract.
     function installDrips() public broadcast {
-        console.log("ManageDrippie: installing Drippie config");
+        console.log("ManageDrippie: installing Drippie config for %s drips", cfg.dripsLength());
         for (uint256 i = 0; i < cfg.dripsLength(); i++) {
             DrippieConfig.FullDripConfig memory drip = abi.decode(cfg.drip(i), (DrippieConfig.FullDripConfig));
             Drippie.DripAction[] memory actions = new Drippie.DripAction[](1);
@@ -93,15 +93,15 @@ contract ManageDrippie is Script, Artifacts {
         modules[0] = GelatoDataTypes.Module.PROXY;
         modules[1] = GelatoDataTypes.Module.TRIGGER;
 
+        // Interval is in milliseconds, so we should be multiplying by 1000.
+        // We then want to attempt to trigger the drip 10x per interval, so we divide by 10.
+        // Total multiplier is then 1000 / 10 = 100.
+        uint128 interval = uint128(dripInterval) * 100;
+
         // Create arguments for the PROXY and TRIGGER modules.
         bytes[] memory args = new bytes[](2);
         args[0] = abi.encode(_name);
-        args[1] = abi.encode(
-            GelatoDataTypes.TriggerModuleData({
-                triggerType: GelatoDataTypes.TriggerType.TIME,
-                triggerConfig: abi.encode(GelatoDataTypes.Time({ nextExec: 0, interval: uint128(dripInterval) }))
-            })
-        );
+        args[1] = abi.encode(uint128(GelatoDataTypes.TriggerType.TIME), abi.encode(uint128(0), interval));
 
         // Create the task data.
         _taskData = GelatoTaskData({
