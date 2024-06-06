@@ -2,10 +2,13 @@
   "drippie": "0xd6F935Bd272BEE05bD64096D82970482EF16D64b",
   "gelato": "0x859E31b3848Ec384012EECc72C5c49821008296C",
 
-  "note": "Object attributes below are prefixed with numbers because of how foundry parses JSON into structs in alphabetical order",
+  "__comment": "Prefix is used to namespace drips so that drip management can be handled modularly",
+  "prefix": "faucetcore",
+
+  "__comment": "Object attributes below are prefixed with numbers because of how foundry parses JSON into structs in alphabetical order",
   "drips": [
     {
-      "00__name": "FaucetDrip_V1",
+      "00__name": "balance_v1",
       "01__dripcheck": "CheckBalanceLow",
       "02__checkparams": {
         "01__target": "0xF21d42203AF9af1C86E1e8ac501B41f5bc004A0a",
@@ -17,7 +20,7 @@
       "06__data": ""
     },
     {
-      "00__name": "FaucetDrip_V2",
+      "00__name": "balance_v2",
       "01__dripcheck": "CheckBalanceLow",
       "02__checkparams": {
         "01__target": "0xF21d42203AF9af1C86E1e8ac501B41f5bc004A0a",
@@ -29,7 +32,7 @@
       "06__data": ""
     },
     {
-      "00__name": "FaucetAdminDrip_V1",
+      "00__name": "admin_v1",
       "01__dripcheck": "CheckBalanceLow",
       "02__checkparams": {
         "01__target": "0x212E789D4523D4BAF464f8Fb2A9B9dff2B36e5A6",
@@ -41,7 +44,7 @@
       "06__data": ""
     },
     {
-      "00__name": "FaucetGelatoDrip_V1",
+      "00__name": "gelato_v1",
       "01__dripcheck": "CheckGelatoLow",
       "02__checkparams": {
         "00__treasury": "0x7506C12a824d73D9b08564d5Afc22c949434755e",
