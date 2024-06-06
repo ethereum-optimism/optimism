@@ -1,0 +1,234 @@
+- method: eth_chainId
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": "hello",
+    }
+- method: net_peerCount
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": "0x10"
+    }
+- method: eth_syncing
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": false
+    }
+- method: eth_getBlockByNumber
+  block: latest
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x101",
+        "number": "0x101"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x101
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x101",
+        "number": "0x101"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x102
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x102",
+        "number": "0x102"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x103
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x103",
+        "number": "0x103"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x10a
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x10a",
+        "number": "0x10a"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x132
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x132",
+        "number": "0x132"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x133
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x133",
+        "number": "0x133"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x134
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x134",
+        "number": "0x134"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x200
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x200",
+        "number": "0x200"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x91
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x91",
+        "number": "0x91"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: safe
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0xe1",
+        "number": "0xe1"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0xe1
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0xe1",
+        "number": "0xe1"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: finalized
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0xc1",
+        "number": "0xc1"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0xc1
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0xc1",
+        "number": "0xc1"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0xd1
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0xd1",
+        "number": "0xd1"
+      }
+    }
+- method: debug_getRawReceipts
+  block: 0x55
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "debug_getRawReceipts"
+      }
+    }
+- method: debug_getRawReceipts
+  block: 0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "debug_getRawReceipts"
+      }
+    }
+- method: debug_getRawReceipts
+  block: 0x101
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "debug_getRawReceipts"
+      }
+    }
+- method: eth_getTransactionReceipt
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "eth_getTransactionReceipt"
+      }
+    }
+- method: alchemy_getTransactionReceipts
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "alchemy_getTransactionReceipts"
+      }
+    }
