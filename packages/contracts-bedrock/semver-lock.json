@@ -21,7 +21,7 @@
   },
   "src/L1/L1ERC721Bridge.sol": {
     "initCodeHash": "0xec73b46e68ea29298707f7b9709e7948afe303907b6c4e8b161e2ded2c85ee9c",
-    "sourceCodeHash": "0xd57acdbd001941e75cf4326ba7c1bdad809912f10b1e44ffaebe073917cdd296"
+    "sourceCodeHash": "0x9a297e51ca46a1426f8b0492f0601d07768ccec21a87d5e5912fd5f7d9d1465f"
   },
   "src/L1/L1StandardBridge.sol": {
     "initCodeHash": "0xf46dc2d8e171bd5aebbafe31386e9d27323a124b1b99f378cb8f67ab22225a7b",
@@ -89,7 +89,7 @@
   },
   "src/L2/L2ERC721Bridge.sol": {
     "initCodeHash": "0xcafa012b2d8f1bb05c11cbbff9749c0fe6f995c9afb1d26d2d71f03384e34a22",
-    "sourceCodeHash": "0xa7646a588275046f92525ef121e5a0fe149e7752ea51fe62f7e0686a21153542"
+    "sourceCodeHash": "0x2abb9f07d973ada0c6adc4d30c0a5c590b8794a7421c22c3b3068589b97ad859"
   },
   "src/L2/L2StandardBridge.sol": {
     "initCodeHash": "0xdfe717975f7c76e80201f715a0d68f3fef02beca6a9e0f378a115e175c6a5944",
