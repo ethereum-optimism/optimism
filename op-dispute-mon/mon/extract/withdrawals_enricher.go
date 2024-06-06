@@ -24,7 +24,7 @@ func NewWithdrawalsEnricher() *WithdrawalsEnricher {
 
 func (w *WithdrawalsEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	recipients := maps.Keys(game.Recipients)
-	withdrawals, err := caller.GetWithdrawals(ctx, block, game.Proxy, recipients...)
+	withdrawals, err := caller.GetWithdrawals(ctx, block, recipients...)
 	if err != nil {
 		return fmt.Errorf("failed to fetch withdrawals: %w", err)
 	}

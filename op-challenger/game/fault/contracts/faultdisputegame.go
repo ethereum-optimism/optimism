@@ -346,13 +346,13 @@ func (f *FaultDisputeGameContractLatest) addGlobalDataTx(ctx context.Context, da
 	return oracle.AddGlobalDataTx(data)
 }
 
-func (f *FaultDisputeGameContractLatest) GetWithdrawals(ctx context.Context, block rpcblock.Block, gameAddr common.Address, recipients ...common.Address) ([]*WithdrawalRequest, error) {
+func (f *FaultDisputeGameContractLatest) GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*WithdrawalRequest, error) {
 	defer f.metrics.StartContractRequest("GetWithdrawals")()
 	delayedWETH, err := f.getDelayedWETH(ctx, block)
 	if err != nil {
 		return nil, err
 	}
-	return delayedWETH.GetWithdrawals(ctx, block, gameAddr, recipients...)
+	return delayedWETH.GetWithdrawals(ctx, block, f.contract.Addr(), recipients...)
 }
 
 func (f *FaultDisputeGameContractLatest) getDelayedWETH(ctx context.Context, block rpcblock.Block) (*DelayedWETHContract, error) {
@@ -615,7 +615,7 @@ type FaultDisputeGameContract interface {
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
 	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
 	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
-	GetWithdrawals(ctx context.Context, block rpcblock.Block, gameAddr common.Address, recipients ...common.Address) ([]*WithdrawalRequest, error)
+	GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*WithdrawalRequest, error)
 	GetOracle(ctx context.Context) (*PreimageOracleContract, error)
 	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
