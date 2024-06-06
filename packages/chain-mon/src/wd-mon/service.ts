@@ -30,6 +30,7 @@ type Metrics = {
   withdrawalsValidated: Gauge
   isDetectingForgeries: Gauge
   nodeConnectionFailures: Gauge
+  detectedForgeries: Gauge
 }
 
 type State = {
@@ -109,6 +110,11 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
           type: Gauge,
           desc: 'Number of times node connection has failed',
           labels: ['layer', 'section'],
+        },
+        detectedForgeries: {
+          type: Gauge,
+          desc: 'detected forged withdrawals',
+          labels: ['withdrawalHash', 'provenAt', 'blockNumber', 'transaction'],
         },
       },
     })
@@ -223,6 +229,9 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
     this.logger.info(`checking recent blocks`, {
       fromBlockNumber: this.state.highestUncheckedBlockNumber,
       toBlockNumber,
+      latestL1BlockNumber,
+      percentageDone:
+        Math.floor((toBlockNumber / latestL1BlockNumber) * 100) + '% done',
     })
 
     // Query for WithdrawalProven events within the specified block range.
@@ -295,12 +304,12 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
         // Change to forgery state.
         this.state.forgeryDetected = true
         this.metrics.isDetectingForgeries.set(1)
-
-        // Return early so that we never increment the highest unchecked block number and therefore
-        // will continue to loop on this forgery indefinitely. We probably want to change this
-        // behavior at some point so that we keep scanning for additional forgeries since the
-        // existence of one forgery likely implies the existence of many others.
-        return sleep(this.options.sleepTimeMs)
+        this.metrics.detectedForgeries.inc({
+          withdrawalHash: hash,
+          provenAt: ts,
+          blockNumber: block.number.toString(),
+          transaction: event.transactionHash,
+        })
       }
     }
 
