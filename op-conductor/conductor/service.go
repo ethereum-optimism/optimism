@@ -593,11 +593,11 @@ func (oc *OpConductor) action() {
 		// 1. current node is follower, active sequencer became unhealthy and started the leadership transfer process.
 		//    however if leadership transfer took longer than the time for health monitor to treat the node as unhealthy,
 		//    then basically the entire network is stalled and we need to start sequencing in this case.
-		if !oc.prevState.leader && !oc.prevState.active {
-			_, _, cerr := oc.compareUnsafeHead(oc.shutdownCtx)
-			if cerr == nil && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
-				// if unsafe in consensus is the same as unsafe in op-node, then it is scenario #1 and we should start sequencer.
-				err = oc.startSequencer()
+		if !oc.prevState.leader && !oc.prevState.active && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
+			err = oc.startSequencer()
+			if err != nil {
+				oc.log.Error("failed to start sequencer, transferring leadership instead", "server", oc.cons.ServerID(), "err", err)
+			} else {
 				break
 			}
 		}
@@ -703,20 +703,20 @@ func (oc *OpConductor) startSequencer() error {
 	// If not, then we wait for the unsafe head to catch up or gossip it to op-node manually from op-conductor.
 	unsafeInCons, unsafeInNode, err := oc.compareUnsafeHead(ctx)
 	// if there's a mismatch, try to post the unsafe head to op-node
-	if err != nil {
-		if errors.Is(err, ErrUnsafeHeadMismatch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
-			// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
-			oc.log.Debug(
-				"posting unsafe head to op-node",
-				"consensus_num", uint64(unsafeInCons.ExecutionPayload.BlockNumber),
-				"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash.Hex(),
-				"node_num", unsafeInNode.NumberU64(),
-				"node_hash", unsafeInNode.Hash().Hex(),
-			)
-			if innerErr := oc.ctrl.PostUnsafePayload(ctx, unsafeInCons); innerErr != nil {
-				oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", innerErr)
-			}
+	if errors.Is(err, ErrUnsafeHeadMismatch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
+		// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
+		oc.log.Debug(
+			"posting unsafe head to op-node",
+			"consensus_num", uint64(unsafeInCons.ExecutionPayload.BlockNumber),
+			"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash.Hex(),
+			"node_num", unsafeInNode.NumberU64(),
+			"node_hash", unsafeInNode.Hash().Hex(),
+		)
+		if err := oc.ctrl.PostUnsafePayload(ctx, unsafeInCons); err != nil {
+			oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", err)
+			return err
 		}
+	} else if err != nil {
 		return err
 	}
 
