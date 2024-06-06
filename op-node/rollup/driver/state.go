@@ -36,13 +36,7 @@ const sealingDuration = time.Millisecond * 50
 type Driver struct {
 	l1State L1StateIface
 
-	// The derivation pipeline is reset whenever we reorg.
-	// The derivation pipeline determines the new l2Safe.
-	derivation DerivationPipeline
-
-	// The engine controller is used by the sequencer & derivation components.
-	// We will also use it for EL sync in a future PR.
-	engineController *derive.EngineController
+	*SyncDeriver
 
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
@@ -117,8 +111,6 @@ type Driver struct {
 // Start starts up the state loop.
 // The loop will have been started iff err is not nil.
 func (s *Driver) Start() error {
-	s.derivation.Reset()
-
 	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled, "sequencerStopped", s.driverConfig.SequencerStopped)
 	if s.driverConfig.SequencerEnabled {
 		// Notify the initial sequencer state
@@ -190,18 +182,6 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionP
 	}
 }
 
-func (s *Driver) logSyncProgress(reason string) {
-	s.log.Info("Sync progress",
-		"reason", reason,
-		"l2_finalized", s.engineController.Finalized(),
-		"l2_safe", s.engineController.SafeL2Head(),
-		"l2_pending_safe", s.engineController.PendingSafeL2Head(),
-		"l2_unsafe", s.engineController.UnsafeL2Head(),
-		"l2_time", s.engineController.UnsafeL2Head().Time,
-		"l1_derived", s.derivation.Origin(),
-	)
-}
-
 // the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
 func (s *Driver) eventLoop() {
 	defer s.wg.Done()
@@ -266,7 +246,7 @@ func (s *Driver) eventLoop() {
 	syncCheckInterval := time.Duration(s.config.BlockTime) * time.Second * 2
 	altSyncTicker := time.NewTicker(syncCheckInterval)
 	defer altSyncTicker.Stop()
-	lastUnsafeL2 := s.engineController.UnsafeL2Head()
+	lastUnsafeL2 := s.Engine.UnsafeL2Head()
 
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
@@ -277,19 +257,19 @@ func (s *Driver) eventLoop() {
 		// This may adjust at any time based on fork-choice changes or previous errors.
 		// And avoid sequencing if the derivation pipeline indicates the engine is not ready.
 		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped &&
-			s.l1State.L1Head() != (eth.L1BlockRef{}) && s.derivation.EngineReady() {
-			if s.driverConfig.SequencerMaxSafeLag > 0 && s.engineController.SafeL2Head().Number+s.driverConfig.SequencerMaxSafeLag <= s.engineController.UnsafeL2Head().Number {
+			s.l1State.L1Head() != (eth.L1BlockRef{}) && s.Derivation.DerivationReady() {
+			if s.driverConfig.SequencerMaxSafeLag > 0 && s.Engine.SafeL2Head().Number+s.driverConfig.SequencerMaxSafeLag <= s.Engine.UnsafeL2Head().Number {
 				// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
 				// until the safe lag is below SequencerMaxSafeLag.
 				if sequencerCh != nil {
 					s.log.Warn(
 						"Delay creating new block since safe lag exceeds limit",
-						"safe_l2", s.engineController.SafeL2Head(),
-						"unsafe_l2", s.engineController.UnsafeL2Head(),
+						"safe_l2", s.Engine.SafeL2Head(),
+						"unsafe_l2", s.Engine.UnsafeL2Head(),
 					)
 					sequencerCh = nil
 				}
-			} else if s.sequencer.BuildingOnto().ID() != s.engineController.UnsafeL2Head().ID() {
+			} else if s.sequencer.BuildingOnto().ID() != s.Engine.UnsafeL2Head().ID() {
 				// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
 				// This may adjust at any time based on fork-choice changes or previous errors.
 				//
@@ -302,7 +282,7 @@ func (s *Driver) eventLoop() {
 
 		// If the engine is not ready, or if the L2 head is actively changing, then reset the alt-sync:
 		// there is no need to request L2 blocks when we are syncing already.
-		if head := s.engineController.UnsafeL2Head(); head != lastUnsafeL2 || !s.derivation.EngineReady() {
+		if head := s.Engine.UnsafeL2Head(); head != lastUnsafeL2 || !s.Derivation.DerivationReady() {
 			lastUnsafeL2 = head
 			altSyncTicker.Reset(syncCheckInterval)
 		}
@@ -313,7 +293,7 @@ func (s *Driver) eventLoop() {
 			// so, we don't need to receive the payload here
 			_, err := s.sequencer.RunNextSequencerAction(s.driverCtx, s.asyncGossiper, s.sequencerConductor)
 			if errors.Is(err, derive.ErrReset) {
-				s.derivation.Reset()
+				s.Derivation.Reset()
 			} else if err != nil {
 				s.log.Error("Sequencer critical error", "err", err)
 				return
@@ -330,9 +310,9 @@ func (s *Driver) eventLoop() {
 		case envelope := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
-			if s.syncCfg.SyncMode == sync.CLSync || !s.engineController.IsEngineSyncing() {
+			if s.syncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-				s.derivation.AddUnsafePayload(envelope)
+				s.CLSync.AddUnsafePayload(envelope)
 				s.metrics.RecordReceivedUnsafePayload(envelope)
 				reqStep()
 			} else if s.syncCfg.SyncMode == sync.ELSync {
@@ -341,14 +321,13 @@ func (s *Driver) eventLoop() {
 					s.log.Info("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
 					continue
 				}
-				if ref.Number <= s.engineController.UnsafeL2Head().Number {
+				if ref.Number <= s.Engine.UnsafeL2Head().Number {
 					continue
 				}
 				s.log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
-				if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
+				if err := s.Engine.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
 					s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 				}
-				s.logSyncProgress("unsafe payload from sequencer while in EL sync")
 			}
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
@@ -358,35 +337,42 @@ func (s *Driver) eventLoop() {
 			// no step, justified L1 information does not do anything for L2 derivation or status
 		case newL1Finalized := <-s.l1FinalizedSig:
 			s.l1State.HandleNewL1FinalizedBlock(newL1Finalized)
-			s.derivation.Finalize(newL1Finalized)
+			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*5)
+			s.Finalizer.Finalize(ctx, newL1Finalized)
+			cancel()
 			reqStep() // we may be able to mark more L2 data as finalized now
 		case <-delayedStepReq:
 			delayedStepReq = nil
 			step()
 		case <-stepReqCh:
 			// Don't start the derivation pipeline until we are done with EL sync
-			if s.engineController.IsEngineSyncing() {
+			if s.Engine.IsEngineSyncing() {
 				continue
 			}
-			s.metrics.SetDerivationIdle(false)
-			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
-			err := s.derivation.Step(s.driverCtx)
+			s.log.Debug("Sync process step", "onto_origin", s.Derivation.Origin(), "attempts", stepAttempts)
+			err := s.SyncStep(s.driverCtx)
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
-				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin(), "err", err)
+				s.log.Debug("Derivation process went idle", "progress", s.Derivation.Origin(), "err", err)
 				stepAttempts = 0
-				s.metrics.SetDerivationIdle(true)
 				continue
 			} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
-				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "unsafe_head", s.engineController.UnsafeL2Head(), "err", err)
+				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.Derivation.Origin(), "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
 				stepAttempts = 0
-				s.metrics.SetDerivationIdle(true)
 				continue
 			} else if err != nil && errors.Is(err, derive.ErrReset) {
 				// If the pipeline corrupts, e.g. due to a reorg, simply reset it
 				s.log.Warn("Derivation pipeline is reset", "err", err)
-				s.derivation.Reset()
+				s.Derivation.Reset()
+				s.Finalizer.Reset()
 				s.metrics.RecordPipelineReset()
+				reqStep()
+				if err := derive.ResetEngine(s.driverCtx, s.log, s.config, s.Engine, s.l1, s.l2, s.syncCfg, s.SafeHeadNotifs); err != nil {
+					s.log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
+					// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
+					continue
+				}
+				s.Derivation.ConfirmEngineReset()
 				continue
 			} else if err != nil && errors.Is(err, derive.ErrTemporary) {
 				s.log.Warn("Derivation process temporary error", "attempts", stepAttempts, "err", err)
@@ -411,11 +397,11 @@ func (s *Driver) eventLoop() {
 			respCh <- struct{}{}
 		case respCh := <-s.forceReset:
 			s.log.Warn("Derivation pipeline is manually reset")
-			s.derivation.Reset()
+			s.Derivation.Reset()
 			s.metrics.RecordPipelineReset()
 			close(respCh)
 		case resp := <-s.startSequencer:
-			unsafeHead := s.engineController.UnsafeL2Head().Hash
+			unsafeHead := s.Engine.UnsafeL2Head().Hash
 			if !s.driverConfig.SequencerStopped {
 				resp.err <- ErrSequencerAlreadyStarted
 			} else if !bytes.Equal(unsafeHead[:], resp.hash[:]) {
@@ -443,7 +429,7 @@ func (s *Driver) eventLoop() {
 				// Cancel any inflight block building. If we don't cancel this, we can resume sequencing an old block
 				// even if we've received new unsafe heads in the interim, causing us to introduce a re-org.
 				s.sequencer.CancelBuildingBlock(s.driverCtx)
-				respCh <- hashAndError{hash: s.engineController.UnsafeL2Head().Hash}
+				respCh <- hashAndError{hash: s.Engine.UnsafeL2Head().Hash}
 			}
 		case respCh := <-s.sequencerActive:
 			respCh <- !s.driverConfig.SequencerStopped
@@ -451,6 +437,84 @@ func (s *Driver) eventLoop() {
 			return
 		}
 	}
+}
+
+type SyncDeriver struct {
+	// The derivation pipeline is reset whenever we reorg.
+	// The derivation pipeline determines the new l2Safe.
+	Derivation DerivationPipeline
+
+	Finalizer Finalizer
+
+	AttributesHandler AttributesHandler
+
+	SafeHeadNotifs       derive.SafeHeadListener // notified when safe head is updated
+	lastNotifiedSafeHead eth.L2BlockRef
+
+	CLSync CLSync
+
+	// The engine controller is used by the sequencer & Derivation components.
+	// We will also use it for EL sync in a future PR.
+	Engine EngineController
+}
+
+// SyncStep performs the sequence of encapsulated syncing steps.
+// Warning: this sequence will be broken apart as outlined in op-node derivers design doc.
+func (s *SyncDeriver) SyncStep(ctx context.Context) error {
+	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
+	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
+	if fcuCalled, err := s.Engine.TryBackupUnsafeReorg(ctx); fcuCalled {
+		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
+		return err
+	}
+	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
+	// perform a network call, then we should yield even if we did not encounter an error.
+	if err := s.Engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+		return err
+	}
+
+	if s.Engine.IsEngineSyncing() {
+		// The pipeline cannot move forwards if doing EL sync.
+		return derive.EngineELSyncing
+	}
+
+	// Trying unsafe payload should be done before safe attributes
+	// It allows the unsafe head to move forward while the long-range consolidation is in progress.
+	if err := s.CLSync.Proceed(ctx); err != io.EOF {
+		// EOF error means we can't process the next unsafe payload. Then we should process next safe attributes.
+		return err
+	}
+	// Try safe attributes now.
+	if err := s.AttributesHandler.Proceed(ctx); err != io.EOF {
+		// EOF error means we can't process the next attributes. Then we should derive the next attributes.
+		return err
+	}
+	derivationOrigin := s.Derivation.Origin()
+	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() && s.Derivation.DerivationReady() &&
+		s.lastNotifiedSafeHead != s.Engine.SafeL2Head() {
+		s.lastNotifiedSafeHead = s.Engine.SafeL2Head()
+		// make sure we track the last L2 safe head for every new L1 block
+		if err := s.SafeHeadNotifs.SafeHeadUpdated(s.lastNotifiedSafeHead, derivationOrigin.ID()); err != nil {
+			// At this point our state is in a potentially inconsistent state as we've updated the safe head
+			// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
+			// a little (it always rolls back at least 1 block) and then it will retry storing the entry
+			return derive.NewResetError(fmt.Errorf("safe head notifications failed: %w", err))
+		}
+	}
+	s.Finalizer.PostProcessSafeL2(s.Engine.SafeL2Head(), derivationOrigin)
+
+	// try to finalize the L2 blocks we have synced so far (no-op if L1 finality is behind)
+	if err := s.Finalizer.OnDerivationL1End(ctx, derivationOrigin); err != nil {
+		return fmt.Errorf("finalizer OnDerivationL1End error: %w", err)
+	}
+
+	attr, err := s.Derivation.Step(ctx, s.Engine.PendingSafeL2Head())
+	if err != nil {
+		return err
+	}
+
+	s.AttributesHandler.SetAttributes(attr)
+	return nil
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.
@@ -537,15 +601,15 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 // the driver event loop to avoid retrieval of an inconsistent status.
 func (s *Driver) syncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
-		CurrentL1:          s.derivation.Origin(),
-		CurrentL1Finalized: s.derivation.FinalizedL1(),
+		CurrentL1:          s.Derivation.Origin(),
+		CurrentL1Finalized: s.Finalizer.FinalizedL1(),
 		HeadL1:             s.l1State.L1Head(),
 		SafeL1:             s.l1State.L1Safe(),
 		FinalizedL1:        s.l1State.L1Finalized(),
-		UnsafeL2:           s.engineController.UnsafeL2Head(),
-		SafeL2:             s.engineController.SafeL2Head(),
-		FinalizedL2:        s.engineController.Finalized(),
-		PendingSafeL2:      s.engineController.PendingSafeL2Head(),
+		UnsafeL2:           s.Engine.UnsafeL2Head(),
+		SafeL2:             s.Engine.SafeL2Head(),
+		FinalizedL2:        s.Engine.Finalized(),
+		PendingSafeL2:      s.Engine.PendingSafeL2Head(),
 	}
 }
 
@@ -593,10 +657,10 @@ func (s *Driver) snapshot(event string) {
 	s.snapshotLog.Info("Rollup State Snapshot",
 		"event", event,
 		"l1Head", deferJSONString{s.l1State.L1Head()},
-		"l1Current", deferJSONString{s.derivation.Origin()},
-		"l2Head", deferJSONString{s.engineController.UnsafeL2Head()},
-		"l2Safe", deferJSONString{s.engineController.SafeL2Head()},
-		"l2FinalizedHead", deferJSONString{s.engineController.Finalized()})
+		"l1Current", deferJSONString{s.Derivation.Origin()},
+		"l2Head", deferJSONString{s.Engine.UnsafeL2Head()},
+		"l2Safe", deferJSONString{s.Engine.SafeL2Head()},
+		"l2FinalizedHead", deferJSONString{s.Engine.Finalized()})
 }
 
 type hashAndError struct {
@@ -613,8 +677,8 @@ type hashAndErrorChannel struct {
 // WARNING: This is only an outgoing signal, the blocks are not guaranteed to be retrieved.
 // Results are received through OnUnsafeL2Payload.
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
-	start := s.engineController.UnsafeL2Head()
-	end := s.derivation.LowestQueuedUnsafeBlock()
+	start := s.Engine.UnsafeL2Head()
+	end := s.CLSync.LowestQueuedUnsafeBlock()
 	// Check if we have missing blocks between the start and end. Request them if we do.
 	if end == (eth.L2BlockRef{}) {
 		s.log.Debug("requesting sync with open-end range", "start", start)

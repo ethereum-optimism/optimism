@@ -41,12 +41,12 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, prestateProvider types.PrestateProvider, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:           logger,
 		dir:              dir,
-		prestate:         cfg.CannonAbsolutePreState,
-		generator:        NewExecutor(logger, m, cfg, localInputs),
+		prestate:         prestate,
+		generator:        NewExecutor(logger, m, cfg, prestate, localInputs),
 		gameDepth:        gameDepth,
 		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
@@ -188,7 +188,7 @@ func NewTraceProviderForTest(logger log.Logger, m CannonMetricer, cfg *config.Co
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.CannonAbsolutePreState,
-		generator:      NewExecutor(logger, m, cfg, localInputs),
+		generator:      NewExecutor(logger, m, cfg, cfg.CannonAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 	}

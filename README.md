@@ -64,7 +64,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 <pre>
 ├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
-├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
 ├── <a href="./op-bootnode">op-bootnode</a>: Standalone op-node discovery bootnode
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
@@ -81,16 +80,10 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
-│   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts
-│   ├── <a href="./packages/contracts-ts">contracts-ts</a>: ABI and Address constants
-│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
-│   ├── <a href="./packages/fee-estimation">fee-estimation</a>: Tools for estimating gas on OP chains
 │   ├── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
-│   └── <a href="./packages/web3js-plugin">web3js-plugin</a>: Adds functions to estimate L1 and L2 gas
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
-└── <a href="./ufm-test-services">ufm-test-services</a>: Runs a set of tasks to generate metrics
 </pre>
 
 ## Development and Release Process
@@ -133,7 +126,6 @@ The full set of components that have releases are:
 - `op-proposer`
 - `op-ufm`
 - `proxyd`
-- `ufm-metamask`
 
 All other components and packages should be considered development components only and do not have releases.
 

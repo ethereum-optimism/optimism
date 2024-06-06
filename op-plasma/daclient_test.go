@@ -51,7 +51,7 @@ func TestDAClientPrecomputed(t *testing.T) {
 
 	ctx := context.Background()
 
-	server := NewDAServer("127.0.0.1", 0, store, logger)
+	server := NewDAServer("127.0.0.1", 0, store, logger, false)
 
 	require.NoError(t, server.Start())
 
@@ -108,7 +108,7 @@ func TestDAClientService(t *testing.T) {
 
 	ctx := context.Background()
 
-	server := NewDAServer("127.0.0.1", 0, store, logger)
+	server := NewDAServer("127.0.0.1", 0, store, logger, false)
 
 	require.NoError(t, server.Start())
 

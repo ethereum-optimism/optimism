@@ -3,6 +3,8 @@ package flags
 import (
 	"fmt"
 
+	challengerFlags "github.com/ethereum-optimism/optimism/op-challenger/flags"
+	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
@@ -28,21 +30,22 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
-	FactoryAddressFlag = &cli.StringFlag{
-		Name:    "game-factory-address",
-		Usage:   "Address of the fault game factory contract.",
-		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
-	}
-	// Optional Flags
-	HonestActorsFlag = &cli.StringSliceFlag{
-		Name:    "honest-actors",
-		Usage:   "List of honest actors that are monitored for any claims that are resolved against them.",
-		EnvVars: prefixEnvVars("HONEST_ACTORS"),
-	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
 		Usage:   "HTTP provider URL for the rollup node",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
+	}
+	// Optional Flags
+	GameFactoryAddressFlag = &cli.StringFlag{
+		Name:    "game-factory-address",
+		Usage:   "Address of the fault game factory contract.",
+		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
+	}
+	NetworkFlag      = flags.CLINetworkFlag(envVarPrefix, "")
+	HonestActorsFlag = &cli.StringSliceFlag{
+		Name:    "honest-actors",
+		Usage:   "List of honest actors that are monitored for any claims that are resolved against them.",
+		EnvVars: prefixEnvVars("HONEST_ACTORS"),
 	}
 	MonitorIntervalFlag = &cli.DurationFlag{
 		Name:    "monitor-interval",
@@ -73,12 +76,13 @@ var (
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	FactoryAddressFlag,
+	RollupRpcFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
-	RollupRpcFlag,
+	GameFactoryAddressFlag,
+	NetworkFlag,
 	HonestActorsFlag,
 	MonitorIntervalFlag,
 	GameWindowFlag,
@@ -111,7 +115,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if err := CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
+	gameFactoryAddress, err := challengerFlags.FactoryAddress(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -138,19 +142,24 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		}
 	}
 
+	maxConcurrency := ctx.Uint(MaxConcurrencyFlag.Name)
+	if maxConcurrency == 0 {
+		return nil, fmt.Errorf("%v must not be 0", MaxConcurrencyFlag.Name)
+	}
+
 	metricsConfig := opmetrics.ReadCLIConfig(ctx)
 	pprofConfig := oppprof.ReadCLIConfig(ctx)
 
 	return &config.Config{
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
+		RollupRpc:          ctx.String(RollupRpcFlag.Name),
 
 		HonestActors:    actors,
-		RollupRpc:       ctx.String(RollupRpcFlag.Name),
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),
 		GameWindow:      ctx.Duration(GameWindowFlag.Name),
 		IgnoredGames:    ignoredGames,
-		MaxConcurrency:  ctx.Uint(MaxConcurrencyFlag.Name),
+		MaxConcurrency:  maxConcurrency,
 
 		MetricsConfig: metricsConfig,
 		PprofConfig:   pprofConfig,

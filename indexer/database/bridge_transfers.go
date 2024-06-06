@@ -307,7 +307,7 @@ type L2BridgeWithdrawalsResponse struct {
 	HasNextPage bool
 }
 
-// L2BridgeDepositsByAddress retrieves a list of deposits initiated by the specified address, coupled with the L1/L2 transaction hashes
+// L2BridgeWithdrawalsByAddress retrieves a list of deposits initiated by the specified address, coupled with the L1/L2 transaction hashes
 // that complete the bridge transaction. The hashes that correspond with the Bedrock multi-step withdrawal process are also surfaced
 func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address, cursor string, limit int) (*L2BridgeWithdrawalsResponse, error) {
 	if limit <= 0 {

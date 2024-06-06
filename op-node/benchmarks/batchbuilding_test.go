@@ -19,52 +19,81 @@ const (
 	targetOuput_real = uint64(780120)
 )
 
-var (
-	// compressors used in the benchmark
-	rc, _ = compressor.NewRatioCompressor(compressor.Config{
-		TargetOutputSize: targetOutput_huge,
-		ApproxComprRatio: 0.4,
-	})
-	sc, _ = compressor.NewShadowCompressor(compressor.Config{
-		TargetOutputSize: targetOutput_huge,
-	})
-	nc, _ = compressor.NewNonCompressor(compressor.Config{
-		TargetOutputSize: targetOutput_huge,
-	})
-	realsc, _ = compressor.NewShadowCompressor(compressor.Config{
-		TargetOutputSize: targetOuput_real,
-	})
+// compressorDetails is a helper struct to create compressors or supply the configuration for span batches
+type compressorDetails struct {
+	name         string
+	compressorFn func(compressor.Config) (derive.Compressor, error)
+	config       compressor.Config
+}
 
-	// compressors used in the benchmark mapped by their name
-	// they come paired with a target output size so span batches can use the target size directly
-	compressors = map[string]compressorAndTarget{
-		"NonCompressor":        {nc, targetOutput_huge},
-		"RatioCompressor":      {rc, targetOutput_huge},
-		"ShadowCompressor":     {sc, targetOutput_huge},
-		"RealShadowCompressor": {realsc, targetOuput_real},
-	}
+func (cd compressorDetails) String() string {
+	return fmt.Sprintf("%s-%s-%d", cd.name, cd.config.CompressionAlgo, cd.config.TargetOutputSize)
+}
+func (cd compressorDetails) Compressor() (derive.Compressor, error) {
+	return cd.compressorFn(cd.config)
+}
+
+var (
 	// batch types used in the benchmark
 	batchTypes = []uint{
 		derive.SpanBatchType,
-		// uncomment to include singular batches in the benchmark
-		// singular batches are not included by default because they are not the target of the benchmark
-		//derive.SingularBatchType,
+	}
+
+	compAlgos = []derive.CompressionAlgo{
+		derive.Zlib,
+		derive.Brotli,
+		derive.Brotli9,
+		derive.Brotli11,
+	}
+
+	// compressors used in the benchmark
+	// they are all configured to Zlib compression, which may be overridden in the test cases
+	compressors = map[string]compressorDetails{
+		"NonCompressor": {
+			name:         "NonCompressor",
+			compressorFn: compressor.NewNonCompressor,
+			config: compressor.Config{
+				TargetOutputSize: targetOutput_huge,
+				CompressionAlgo:  derive.Zlib,
+			},
+		},
+		"RatioCompressor": {
+			name:         "RatioCompressor",
+			compressorFn: compressor.NewRatioCompressor,
+			config: compressor.Config{
+				TargetOutputSize: targetOutput_huge,
+				CompressionAlgo:  derive.Zlib,
+			},
+		},
+		"ShadowCompressor": {
+			name:         "ShadowCompressor",
+			compressorFn: compressor.NewShadowCompressor,
+			config: compressor.Config{
+				TargetOutputSize: targetOutput_huge,
+				CompressionAlgo:  derive.Zlib,
+			},
+		},
+		"RealShadowCompressor": {
+			name:         "ShadowCompressor",
+			compressorFn: compressor.NewShadowCompressor,
+			config: compressor.Config{
+				TargetOutputSize: targetOuput_real,
+				CompressionAlgo:  derive.Zlib,
+			},
+		},
 	}
 )
 
-type compressorAndTarget struct {
-	compressor   derive.Compressor
-	targetOutput uint64
-}
-
 // channelOutByType returns a channel out of the given type as a helper for the benchmarks
-func channelOutByType(batchType uint, compKey string, algo derive.CompressionAlgo) (derive.ChannelOut, error) {
+func channelOutByType(b *testing.B, batchType uint, cd compressorDetails) (derive.ChannelOut, error) {
 	chainID := big.NewInt(333)
 	if batchType == derive.SingularBatchType {
-		return derive.NewSingularChannelOut(compressors[compKey].compressor)
+		compressor, err := cd.Compressor()
+		require.NoError(b, err)
+		return derive.NewSingularChannelOut(compressor)
 	}
 	if batchType == derive.SpanBatchType {
-		return derive.NewSpanChannelOut(0, chainID, compressors[compKey].targetOutput, algo)
+		return derive.NewSpanChannelOut(0, chainID, cd.config.TargetOutputSize, cd.config.CompressionAlgo)
 	}
 	return nil, fmt.Errorf("unsupported batch type: %d", batchType)
 }
@@ -75,7 +104,7 @@ type BatchingBenchmarkTC struct {
 	BatchType  uint
 	BatchCount int
 	txPerBatch int
-	compKey    string
+	cd         compressorDetails
 }
 
 func (t BatchingBenchmarkTC) String() string {
@@ -86,7 +115,7 @@ func (t BatchingBenchmarkTC) String() string {
 	if t.BatchType == derive.SpanBatchType {
 		btype = "Span"
 	}
-	return fmt.Sprintf("BatchType=%s, txPerBatch=%d, BatchCount=%d, Compressor=%s", btype, t.txPerBatch, t.BatchCount, t.compKey)
+	return fmt.Sprintf("BatchType=%s, txPerBatch=%d, BatchCount=%d, Compressor=%s", btype, t.txPerBatch, t.BatchCount, t.cd.String())
 }
 
 // BenchmarkChannelOut benchmarks the performance of adding singular batches to a channel out
@@ -97,6 +126,7 @@ func (t BatchingBenchmarkTC) String() string {
 // Hint: Raise the rollup.MaxRLPBytesPerChannel to 10_000_000_000 to avoid hitting limits if adding larger test cases
 func BenchmarkFinalBatchChannelOut(b *testing.B) {
 	// Targets define the number of batches and transactions per batch to test
+	// they will be multiplied by various compressors
 	type target struct{ bs, tpb int }
 	targets := []target{
 		{10, 1},
@@ -107,12 +137,16 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 		{100, 100},
 	}
 
-	// build a set of test cases for each batch type, compressor, and target-pair
+	// make test-cases for every batch type, compressor, compressorAlgo, and target-pair
 	tests := []BatchingBenchmarkTC{}
 	for _, bt := range batchTypes {
-		for compkey := range compressors {
-			for _, t := range targets {
-				tests = append(tests, BatchingBenchmarkTC{bt, t.bs, t.tpb, compkey})
+		for _, compDetails := range compressors {
+			for _, algo := range compAlgos {
+				for _, t := range targets {
+					cd := compDetails
+					cd.config.CompressionAlgo = algo
+					tests = append(tests, BatchingBenchmarkTC{bt, t.bs, t.tpb, cd})
+				}
 			}
 		}
 	}
@@ -129,27 +163,24 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 			// to leverage optimizations in the Batch Linked List
 			batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
 		}
-		for _, algo := range derive.CompressionAlgoTypes {
-			b.Run(tc.String()+"_"+algo.String(), func(b *testing.B) {
-				// reset the compressor used in the test case
-				for bn := 0; bn < b.N; bn++ {
-					// don't measure the setup time
-					b.StopTimer()
-					compressors[tc.compKey].compressor.Reset()
-					cout, _ := channelOutByType(tc.BatchType, tc.compKey, algo)
-					// add all but the final batch to the channel out
-					for i := 0; i < tc.BatchCount-1; i++ {
-						err := cout.AddSingularBatch(batches[i], 0)
-						require.NoError(b, err)
-					}
-					// measure the time to add the final batch
-					b.StartTimer()
-					// add the final batch to the channel out
-					err := cout.AddSingularBatch(batches[tc.BatchCount-1], 0)
+		b.Run(tc.String(), func(b *testing.B) {
+			// reset the compressor used in the test case
+			for bn := 0; bn < b.N; bn++ {
+				// don't measure the setup time
+				b.StopTimer()
+				cout, _ := channelOutByType(b, tc.BatchType, tc.cd)
+				// add all but the final batch to the channel out
+				for i := 0; i < tc.BatchCount-1; i++ {
+					err := cout.AddSingularBatch(batches[i], 0)
 					require.NoError(b, err)
 				}
-			})
-		}
+				// measure the time to add the final batch
+				b.StartTimer()
+				// add the final batch to the channel out
+				err := cout.AddSingularBatch(batches[tc.BatchCount-1], 0)
+				require.NoError(b, err)
+			}
+		})
 
 	}
 }
@@ -165,40 +196,50 @@ func BenchmarkIncremental(b *testing.B) {
 	// use batchCount as the number of batches to add in each benchmark iteration
 	// and use txPerBatch as the number of transactions per batch
 	tcs := []BatchingBenchmarkTC{
-		{derive.SpanBatchType, 5, 1, "RealBlindCompressor"},
-		//{derive.SingularBatchType, 100, 1, "RealShadowCompressor"},
+		{derive.SpanBatchType, 5, 1, compressorDetails{
+			name: "RealThreshold",
+			config: compressor.Config{
+				TargetOutputSize: targetOuput_real,
+				CompressionAlgo:  derive.Zlib,
+			},
+		}},
+		{derive.SpanBatchType, 5, 1, compressorDetails{
+			name: "RealThreshold",
+			config: compressor.Config{
+				TargetOutputSize: targetOuput_real,
+				CompressionAlgo:  derive.Brotli10,
+			},
+		}},
 	}
-	for _, algo := range derive.CompressionAlgoTypes {
-		for _, tc := range tcs {
-			cout, err := channelOutByType(tc.BatchType, tc.compKey, algo)
-			if err != nil {
-				b.Fatal(err)
-			}
-			done := false
-			for base := 0; !done; base += tc.BatchCount {
-				rangeName := fmt.Sprintf("Incremental %s-%s: %d-%d", algo, tc.String(), base, base+tc.BatchCount)
-				b.Run(rangeName+"_"+algo.String(), func(b *testing.B) {
-					b.StopTimer()
-					// prepare the batches
-					t := time.Now()
-					batches := make([]*derive.SingularBatch, tc.BatchCount)
-					for i := 0; i < tc.BatchCount; i++ {
-						t := t.Add(time.Second)
-						batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
-						// set the timestamp to increase with each batch
-						// to leverage optimizations in the Batch Linked List
-						batches[i].Timestamp = uint64(t.Unix())
+	for _, tc := range tcs {
+		cout, err := channelOutByType(b, tc.BatchType, tc.cd)
+		if err != nil {
+			b.Fatal(err)
+		}
+		done := false
+		for base := 0; !done; base += tc.BatchCount {
+			rangeName := fmt.Sprintf("Incremental %s: %d-%d", tc.String(), base, base+tc.BatchCount)
+			b.Run(rangeName, func(b *testing.B) {
+				b.StopTimer()
+				// prepare the batches
+				t := time.Now()
+				batches := make([]*derive.SingularBatch, tc.BatchCount)
+				for i := 0; i < tc.BatchCount; i++ {
+					t := t.Add(time.Second)
+					batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
+					// set the timestamp to increase with each batch
+					// to leverage optimizations in the Batch Linked List
+					batches[i].Timestamp = uint64(t.Unix())
+				}
+				b.StartTimer()
+				for i := 0; i < tc.BatchCount; i++ {
+					err := cout.AddSingularBatch(batches[i], 0)
+					if err != nil {
+						done = true
+						return
 					}
-					b.StartTimer()
-					for i := 0; i < tc.BatchCount; i++ {
-						err := cout.AddSingularBatch(batches[i], 0)
-						if err != nil {
-							done = true
-							return
-						}
-					}
-				})
-			}
+				}
+			})
 		}
 	}
 }
@@ -224,42 +265,43 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 	// build a set of test cases for each batch type, compressor, and target-pair
 	tests := []BatchingBenchmarkTC{}
 	for _, bt := range batchTypes {
-		for compkey := range compressors {
-			for _, t := range targets {
-				tests = append(tests, BatchingBenchmarkTC{bt, t.bs, t.tpb, compkey})
+		for _, compDetails := range compressors {
+			for _, algo := range compAlgos {
+				for _, t := range targets {
+					cd := compDetails
+					cd.config.CompressionAlgo = algo
+					tests = append(tests, BatchingBenchmarkTC{bt, t.bs, t.tpb, cd})
+				}
 			}
 		}
 	}
 
-	for _, algo := range derive.CompressionAlgoTypes {
-		for _, tc := range tests {
-			chainID := big.NewInt(333)
-			rng := rand.New(rand.NewSource(0x543331))
-			// pre-generate batches to keep the benchmark from including the random generation
-			batches := make([]*derive.SingularBatch, tc.BatchCount)
-			t := time.Now()
-			for i := 0; i < tc.BatchCount; i++ {
-				batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
-				// set the timestamp to increase with each batch
-				// to leverage optimizations in the Batch Linked List
-				batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
-			}
-			b.Run(tc.String()+"_"+algo.String(), func(b *testing.B) {
-				// reset the compressor used in the test case
-				for bn := 0; bn < b.N; bn++ {
-					// don't measure the setup time
-					b.StopTimer()
-					compressors[tc.compKey].compressor.Reset()
-					cout, _ := channelOutByType(tc.BatchType, tc.compKey, algo)
-					b.StartTimer()
-					// add all batches to the channel out
-					for i := 0; i < tc.BatchCount; i++ {
-						err := cout.AddSingularBatch(batches[i], 0)
-						require.NoError(b, err)
-					}
-				}
-			})
+	for _, tc := range tests {
+		chainID := big.NewInt(333)
+		rng := rand.New(rand.NewSource(0x543331))
+		// pre-generate batches to keep the benchmark from including the random generation
+		batches := make([]*derive.SingularBatch, tc.BatchCount)
+		t := time.Now()
+		for i := 0; i < tc.BatchCount; i++ {
+			batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
+			// set the timestamp to increase with each batch
+			// to leverage optimizations in the Batch Linked List
+			batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
 		}
+		b.Run(tc.String(), func(b *testing.B) {
+			// reset the compressor used in the test case
+			for bn := 0; bn < b.N; bn++ {
+				// don't measure the setup time
+				b.StopTimer()
+				cout, _ := channelOutByType(b, tc.BatchType, tc.cd)
+				b.StartTimer()
+				// add all batches to the channel out
+				for i := 0; i < tc.BatchCount; i++ {
+					err := cout.AddSingularBatch(batches[i], 0)
+					require.NoError(b, err)
+				}
+			}
+		})
 	}
 }
 
@@ -282,7 +324,7 @@ func BenchmarkGetRawSpanBatch(b *testing.B) {
 
 	tests := []BatchingBenchmarkTC{}
 	for _, t := range targets {
-		tests = append(tests, BatchingBenchmarkTC{derive.SpanBatchType, t.bs, t.tpb, "NonCompressor"})
+		tests = append(tests, BatchingBenchmarkTC{derive.SpanBatchType, t.bs, t.tpb, compressors["NonCompressor"]})
 	}
 
 	for _, tc := range tests {

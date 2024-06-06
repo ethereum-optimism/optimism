@@ -28,8 +28,9 @@ log = logging.getLogger()
 
 # Global environment variables
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
-DEVNET_FPAC = os.getenv('DEVNET_FPAC') == "true"
+DEVNET_L2OO = os.getenv('DEVNET_L2OO') == "true"
 DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
+GENERIC_PLASMA = os.getenv('GENERIC_PLASMA') == "true"
 
 class Bunch:
     def __init__(self, **kwds):
@@ -129,12 +130,12 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
     if update_timestamp:
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
-    if DEVNET_FPAC:
-        deploy_config['useFaultProofs'] = True
-        deploy_config['faultGameMaxClockDuration'] = 10
-        deploy_config['faultGameWithdrawalDelay'] = 0
+    if DEVNET_L2OO:
+        deploy_config['useFaultProofs'] = False
     if DEVNET_PLASMA:
         deploy_config['usePlasma'] = True
+    if GENERIC_PLASMA:
+        deploy_config['daCommitmentType'] = "GenericCommitment"
     write_json(paths.devnet_config_path, deploy_config)
 
 def devnet_l1_allocs(paths):
@@ -183,10 +184,10 @@ def devnet_deploy(paths):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
-        if not os.path.exists(paths.allocs_l1_path) or DEVNET_FPAC or DEVNET_PLASMA:
-            # If this is the FPAC devnet then we need to generate the allocs
+        if not os.path.exists(paths.allocs_l1_path) or DEVNET_L2OO or DEVNET_PLASMA:
+            # If this is a devnet variant then we need to generate the allocs
             # file here always. This is because CI will run devnet-allocs
-            # without DEVNET_FPAC=true which means the allocs will be wrong.
+            # without setting the appropriate env var which means the allocs will be wrong.
             # Re-running this step means the allocs will be correct.
             devnet_l1_allocs(paths)
         else:
@@ -218,9 +219,9 @@ def devnet_deploy(paths):
     else:
         log.info('Generating L2 genesis and rollup configs.')
         l2_allocs_path = pjoin(paths.devnet_dir, 'allocs-l2.json')
-        if os.path.exists(l2_allocs_path) == False or DEVNET_FPAC == True:
-            # Also regenerate if FPAC.
-            # The FPAC flag may affect the L1 deployments addresses, which may affect the L2 genesis.
+        if os.path.exists(l2_allocs_path) == False or DEVNET_L2OO == True:
+            # Also regenerate if L2OO.
+            # The L2OO flag may affect the L1 deployments addresses, which may affect the L2 genesis.
             devnet_l2_allocs(paths)
         else:
             log.info('Re-using existing L2 allocs.')
@@ -262,32 +263,38 @@ def devnet_deploy(paths):
         'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address
     }
 
-    # Selectively set the L2OO_ADDRESS or DGF_ADDRESS if using FPAC.
+    # Selectively set the L2OO_ADDRESS or DGF_ADDRESS if using L2OO.
     # Must be done selectively because op-proposer throws if both are set.
-    if DEVNET_FPAC:
-        docker_env['DGF_ADDRESS'] = dispute_game_factory
-        docker_env['DG_TYPE'] = '0'
-        docker_env['PROPOSAL_INTERVAL'] = '10s'
-    else:
+    if DEVNET_L2OO:
         docker_env['L2OO_ADDRESS'] = l2_output_oracle
+    else:
+        docker_env['DGF_ADDRESS'] = dispute_game_factory
+        docker_env['DG_TYPE'] = '254'
+        docker_env['PROPOSAL_INTERVAL'] = '10s'
 
     if DEVNET_PLASMA:
         docker_env['PLASMA_ENABLED'] = 'true'
-        docker_env['PLASMA_DA_SERVICE'] = 'false'
     else:
         docker_env['PLASMA_ENABLED'] = 'false'
+
+    if GENERIC_PLASMA:
+        docker_env['PLASMA_GENERIC_DA'] = 'true'
+        docker_env['PLASMA_DA_SERVICE'] = 'true'
+    else:
+        docker_env['PLASMA_GENERIC_DA'] = 'false'
         docker_env['PLASMA_DA_SERVICE'] = 'false'
+
 
     # Bring up the rest of the services.
     log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
     run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher', 'artifact-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
     # Optionally bring up op-challenger.
-    if DEVNET_FPAC:
+    if not DEVNET_L2OO:
         log.info('Bringing up `op-challenger`.')
         run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
-    # Optionally bring up OP Plasma.
+    # Optionally bring up Plasma Mode components.
     if DEVNET_PLASMA:
         log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
         run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)

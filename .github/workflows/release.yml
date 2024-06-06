@@ -22,7 +22,6 @@ jobs:
       multisig-mon: ${{ steps.packages.outputs.multisig-mon }}
       replica-mon: ${{ steps.packages.outputs.replica-mon }}
       wd-mon: ${{ steps.packages.outputs.wd-mon }}
-      endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
     # Permissions necessary for Changesets to push a new branch and open PRs
     # (for automated Version Packages PRs), and request the JWT for provenance.
     # More info: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#adding-permissions-settings
@@ -241,40 +240,3 @@ jobs:
           target: replica-mon
           push: true
           tags: ethereumoptimism/replica-mon:${{ needs.release.outputs.replica-mon }},ethereumoptimism/replica-mon:latest
-
-  endpoint-monitor:
-    name: Publish endpoint-monitor Version ${{ needs.release.outputs.endpoint-monitor}}
-    needs: release
-    if: needs.release.outputs.endpoint-monitor != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set build args
-        id: build_args
-        run: |
-          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./endpoint-monitor/package.json)
-          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./endpoint-monitor/Dockerfile
-          push: true
-          tags: ethereumoptimism/endpoint-monitor:${{ needs.release.outputs.endpoint-monitor }},ethereumoptimism/endpoint-monitor:latest
-          build-args: |
-            GITDATE=${{ steps.build_args.outputs.GITDATE }}
-            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
-            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}

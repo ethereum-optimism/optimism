@@ -41,7 +41,7 @@ func StartDAServer(cliCtx *cli.Context) error {
 		store = s3
 	}
 
-	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store, l)
+	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store, l, cfg.UseGenericComm)
 
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("failed to start the DA server")

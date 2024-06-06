@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -34,9 +35,10 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
 	return &SequencerHealthMonitor{
 		log:            log,
+		metrics:        metrics,
 		done:           make(chan struct{}),
 		interval:       interval,
 		healthUpdateCh: make(chan error),
@@ -53,9 +55,10 @@ func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInt
 
 // SequencerHealthMonitor monitors sequencer health.
 type SequencerHealthMonitor struct {
-	log  log.Logger
-	done chan struct{}
-	wg   sync.WaitGroup
+	log     log.Logger
+	metrics metrics.Metricer
+	done    chan struct{}
+	wg      sync.WaitGroup
 
 	rollupCfg          *rollup.Config
 	unsafeInterval     uint64
@@ -112,7 +115,15 @@ func (hm *SequencerHealthMonitor) loop() {
 		case <-hm.done:
 			return
 		case <-ticker.C:
-			hm.healthUpdateCh <- hm.healthCheck()
+			err := hm.healthCheck()
+			hm.metrics.RecordHealthCheck(err == nil, err)
+			// Ensure that we exit cleanly if told to shutdown while still waiting to publish the health update
+			select {
+			case hm.healthUpdateCh <- err:
+				continue
+			case <-hm.done:
+				return
+			}
 		}
 	}
 }

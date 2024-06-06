@@ -147,7 +147,7 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")
-	executor := cannon.NewExecutor(logger, metrics.NoopMetrics, &cfg, inputs)
+	executor := cannon.NewExecutor(logger, metrics.NoopMetrics, &cfg, cfg.CannonAbsolutePreState, inputs)
 
 	t.Log("Running cannon")
 	err := executor.GenerateProof(ctx, proofsDir, math.MaxUint)
@@ -155,6 +155,8 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 
 	state, err := parseState(filepath.Join(proofsDir, "final.json.gz"))
 	require.NoError(t, err, "failed to parse state")
+	require.True(t, state.Exited, "cannon did not exit")
+	require.Zero(t, state.ExitCode, "cannon failed with exit code %d", state.ExitCode)
 	t.Logf("Completed in %d steps", state.Step)
 }
 

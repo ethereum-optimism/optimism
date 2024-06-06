@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/superchain-registry/superchain"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -144,8 +145,8 @@ func TestMultipleTraceTypes(t *testing.T) {
 }
 
 func TestGameFactoryAddress(t *testing.T) {
-	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag game-factory-address is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address"))
+	t.Run("RequiredWhenNetworkNotSupplied", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag game-factory-address or network is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
@@ -156,6 +157,24 @@ func TestGameFactoryAddress(t *testing.T) {
 
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--game-factory-address=foo"))
+	})
+
+	t.Run("OverridesNetwork", func(t *testing.T) {
+		addr := common.Address{0xbb, 0xcc, 0xdd}
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--game-factory-address", addr.Hex(), "--network", "op-sepolia"))
+		require.Equal(t, addr, cfg.GameFactoryAddress)
+	})
+}
+
+func TestNetwork(t *testing.T) {
+	t.Run("Valid", func(t *testing.T) {
+		opSepoliaChainId := uint64(11155420)
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--network=op-sepolia"))
+		require.EqualValues(t, superchain.Addresses[opSepoliaChainId].DisputeGameFactoryProxy, cfg.GameFactoryAddress)
+	})
+
+	t.Run("UnknownNetwork", func(t *testing.T) {
+		verifyArgsInvalid(t, "unknown chain: not-a-network", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--network=not-a-network"))
 	})
 }
 
@@ -364,24 +383,37 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestRequireEitherAsteriscNetworkOrRollupAndGenesis-%v", traceType), func(t *testing.T) {
 			verifyArgsInvalid(
 				t,
-				"flag asterisc-network or asterisc-rollup-config and asterisc-l2-genesis is required",
+				"flag asterisc-network, network or asterisc-rollup-config and asterisc-l2-genesis is required",
 				addRequiredArgsExcept(traceType, "--asterisc-network"))
 			verifyArgsInvalid(
 				t,
-				"flag asterisc-network or asterisc-rollup-config and asterisc-l2-genesis is required",
+				"flag asterisc-network, network or asterisc-rollup-config and asterisc-l2-genesis is required",
 				addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-rollup-config=rollup.json"))
 			verifyArgsInvalid(
 				t,
-				"flag asterisc-network or asterisc-rollup-config and asterisc-l2-genesis is required",
+				"flag asterisc-network, network or asterisc-rollup-config and asterisc-l2-genesis is required",
 				addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-l2-genesis=gensis.json"))
 		})
 
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestMustNotSpecifyAsteriscNetworkAndRollup-%v", traceType), func(t *testing.T) {
 			verifyArgsInvalid(
 				t,
 				"flag asterisc-network can not be used with asterisc-rollup-config and asterisc-l2-genesis",
 				addRequiredArgsExcept(traceType, "--asterisc-network",
 					"--asterisc-network", asteriscNetwork, "--asterisc-rollup-config=rollup.json"))
+		})
+
+		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
+			args := requiredArgs(traceType)
+			delete(args, "--asterisc-network")
+			delete(args, "--game-factory-address")
+			args["--network"] = asteriscNetwork
+			args["--asterisc-rollup-config"] = "rollup.json"
+			args["--asterisc-l2-genesis"] = "gensis.json"
+			verifyArgsInvalid(
+				t,
+				"flag network can not be used with asterisc-rollup-config and asterisc-l2-genesis",
+				toArgList(args))
 		})
 
 		t.Run(fmt.Sprintf("TestAsteriscNetwork-%v", traceType), func(t *testing.T) {
@@ -392,6 +424,20 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 			t.Run("NotRequiredWhenRollupAndGenesIsSpecified", func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network",
 					"--asterisc-rollup-config=rollup.json", "--asterisc-l2-genesis=genesis.json"))
+			})
+
+			t.Run("NotRequiredWhenNetworkSpecified", func(t *testing.T) {
+				args := requiredArgs(traceType)
+				delete(args, "--asterisc-network")
+				delete(args, "--game-factory-address")
+				args["--network"] = "op-sepolia"
+				cfg := configForArgs(t, toArgList(args))
+				require.Equal(t, "op-sepolia", cfg.AsteriscNetwork)
+			})
+
+			t.Run("MustNotSpecifyNetworkAndAsteriscNetwork", func(t *testing.T) {
+				verifyArgsInvalid(t, "flag asterisc-network can not be used with network",
+					addRequiredArgsExcept(traceType, "--game-factory-address", "--network", "op-sepolia"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
@@ -558,24 +604,37 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestRequireEitherCannonNetworkOrRollupAndGenesis-%v", traceType), func(t *testing.T) {
 			verifyArgsInvalid(
 				t,
-				"flag cannon-network or cannon-rollup-config and cannon-l2-genesis is required",
+				"flag cannon-network, network or cannon-rollup-config and cannon-l2-genesis is required",
 				addRequiredArgsExcept(traceType, "--cannon-network"))
 			verifyArgsInvalid(
 				t,
-				"flag cannon-network or cannon-rollup-config and cannon-l2-genesis is required",
+				"flag cannon-network, network or cannon-rollup-config and cannon-l2-genesis is required",
 				addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-rollup-config=rollup.json"))
 			verifyArgsInvalid(
 				t,
-				"flag cannon-network or cannon-rollup-config and cannon-l2-genesis is required",
+				"flag cannon-network, network or cannon-rollup-config and cannon-l2-genesis is required",
 				addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-l2-genesis=gensis.json"))
 		})
 
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestMustNotSpecifyCannonNetworkAndRollup-%v", traceType), func(t *testing.T) {
 			verifyArgsInvalid(
 				t,
 				"flag cannon-network can not be used with cannon-rollup-config and cannon-l2-genesis",
 				addRequiredArgsExcept(traceType, "--cannon-network",
 					"--cannon-network", cannonNetwork, "--cannon-rollup-config=rollup.json"))
+		})
+
+		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
+			args := requiredArgs(traceType)
+			delete(args, "--cannon-network")
+			delete(args, "--game-factory-address")
+			args["--network"] = cannonNetwork
+			args["--cannon-rollup-config"] = "rollup.json"
+			args["--cannon-l2-genesis"] = "gensis.json"
+			verifyArgsInvalid(
+				t,
+				"flag network can not be used with cannon-rollup-config and cannon-l2-genesis",
+				toArgList(args))
 		})
 
 		t.Run(fmt.Sprintf("TestCannonNetwork-%v", traceType), func(t *testing.T) {
@@ -586,6 +645,20 @@ func TestCannonRequiredArgs(t *testing.T) {
 			t.Run("NotRequiredWhenRollupAndGenesIsSpecified", func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network",
 					"--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
+			})
+
+			t.Run("NotRequiredWhenNetworkSpecified", func(t *testing.T) {
+				args := requiredArgs(traceType)
+				delete(args, "--cannon-network")
+				delete(args, "--game-factory-address")
+				args["--network"] = "op-sepolia"
+				cfg := configForArgs(t, toArgList(args))
+				require.Equal(t, "op-sepolia", cfg.CannonNetwork)
+			})
+
+			t.Run("MustNotSpecifyNetworkAndCannonNetwork", func(t *testing.T) {
+				verifyArgsInvalid(t, "flag cannon-network can not be used with network",
+					addRequiredArgsExcept(traceType, "--game-factory-address", "--network", "op-sepolia"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
@@ -605,7 +678,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonL2qGenesis-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonL2Genesis-%v", traceType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-l2-genesis"))
 			})
@@ -660,7 +733,7 @@ func TestGameWindow(t *testing.T) {
 	})
 
 	t.Run("ParsesDefault", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=360h"))
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=672h"))
 		require.Equal(t, config.DefaultGameWindow, cfg.GameWindow)
 	})
 }

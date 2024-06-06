@@ -59,10 +59,10 @@ type Consensus interface {
 	// ClusterMembership returns the current cluster membership configuration.
 	ClusterMembership() ([]*ServerInfo, error)
 
-	// CommitPayload commits latest unsafe payload to the FSM.
+	// CommitPayload commits latest unsafe payload to the FSM in a strongly consistent fashion.
 	CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error
-	// LatestUnsafeBlock returns the latest unsafe payload from FSM.
-	LatestUnsafePayload() *eth.ExecutionPayloadEnvelope
+	// LatestUnsafeBlock returns the latest unsafe payload from FSM in a strongly consistent fashion.
+	LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, error)
 
 	// Shutdown shuts down the consensus protocol client.
 	Shutdown() error

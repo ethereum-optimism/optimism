@@ -8,6 +8,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
@@ -20,6 +21,7 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -27,6 +29,7 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -53,6 +56,7 @@ import { Types } from "scripts/Types.sol";
 import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
+import { Process } from "scripts/libraries/Process.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -76,6 +80,7 @@ contract Deploy is Deployer {
         Claim absolutePrestate;
         IBigStepper faultVm;
         uint256 maxGameDepth;
+        Duration maxClockDuration;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -285,7 +290,11 @@ contract Deploy is Deployer {
         setupSuperchain();
         console.log("set up superchain!");
         if (cfg.usePlasma()) {
-            setupOpPlasma();
+            bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
+            bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
+            if (typeHash == keccakHash) {
+                setupOpPlasma();
+            }
         }
         setupOpChain();
         console.log("set up op chain!");
@@ -335,6 +344,7 @@ contract Deploy is Deployer {
         initializeImplementations();
 
         setAlphabetFaultGameImplementation({ _allowUpgrade: false });
+        setFastFaultGameImplementation({ _allowUpgrade: false });
         setCannonFaultGameImplementation({ _allowUpgrade: false });
         setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
 
@@ -353,9 +363,9 @@ contract Deploy is Deployer {
         deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
         deployERC1967Proxy("L1ERC721BridgeProxy");
 
-        // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardles of whether FPAC is enabled
-        // to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be removed. If
-        // fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
+        // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardless of whether fault proofs is
+        // enabled to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be
+        // removed. If fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
         deployERC1967Proxy("DisputeGameFactoryProxy");
         deployERC1967Proxy("L2OutputOracleProxy");
         deployERC1967Proxy("DelayedWETHProxy");
@@ -388,10 +398,9 @@ contract Deploy is Deployer {
     function initializeImplementations() public {
         console.log("Initializing implementations");
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
-        // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
-        // contract.
+        // the proxy, we cannot initialize both.
         if (cfg.useFaultProofs()) {
-            console.log("WARNING: FPAC is enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
+            console.log("Fault proofs enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
         } else {
             initializeOptimismPortal();
@@ -426,6 +435,13 @@ contract Deploy is Deployer {
         addr_ = deploySafe(_name, owners, 1, true);
     }
 
+    /// @notice Deploy a new Safe contract. If the keepDeployer option is used to enable further setup actions, then
+    ///         the removeDeployerFromSafe() function should be called on that safe after setup is complete.
+    ///         Note this function does not have the broadcast modifier.
+    /// @param _name The name of the Safe to deploy.
+    /// @param _owners The owners of the Safe.
+    /// @param _threshold The threshold of the Safe.
+    /// @param _keepDeployer Wether or not the deployer address will be added as an owner of the Safe.
     function deploySafe(
         string memory _name,
         address[] memory _owners,
@@ -435,7 +451,8 @@ contract Deploy is Deployer {
         public
         returns (address addr_)
     {
-        console.log("Deploying safe: %s ", _name);
+        bytes32 salt = keccak256(abi.encode(_name, _implSalt()));
+        console.log("Deploying safe: %s with salt %s", _name, vm.toString(salt));
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
         address[] memory expandedOwners = new address[](_owners.length + 1);
@@ -452,14 +469,28 @@ contract Deploy is Deployer {
         bytes memory initData = abi.encodeCall(
             Safe.setup, (_owners, _threshold, address(0), hex"", address(0), address(0), 0, payable(address(0)))
         );
-        addr_ = address(
-            safeProxyFactory.createProxyWithNonce(
-                address(safeSingleton), initData, uint256(keccak256(abi.encode(_name)))
-            )
-        );
+        addr_ = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, uint256(salt)));
 
         save(_name, addr_);
         console.log("New safe: %s deployed at %s\n    Note that this safe is owned by the deployer key", _name, addr_);
+    }
+
+    /// @notice If the keepDeployer option was used with deploySafe(), this function can be used to remove the deployer.
+    ///         Note this function does not have the broadcast modifier.
+    function removeDeployerFromSafe(string memory _name, uint256 _newThreshold) public {
+        Safe safe = Safe(mustGetAddress(_name));
+
+        // The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
+        address sentinelOwners = address(0x1);
+
+        // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
+        // will be sentinelOwners.
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(OwnerManager.removeOwner, (sentinelOwners, msg.sender, _newThreshold))
+        });
+        console.log("Removed deployer owner from ", _name);
     }
 
     /// @notice Deploy the AddressManager
@@ -610,20 +641,20 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
-
-        OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }();
-
-        save("OptimismPortal", address(portal));
-        console.log("OptimismPortal deployed at %s", address(portal));
+        if (cfg.useInterop()) {
+            addr_ = address(new OptimismPortalInterop{ salt: _implSalt() }());
+        } else {
+            addr_ = address(new OptimismPortal{ salt: _implSalt() }());
+        }
+        save("OptimismPortal", addr_);
+        console.log("OptimismPortal deployed at %s", addr_);
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal` implementation alongside dependent contracts, which
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal = address(portal);
+        contracts.OptimismPortal = addr_;
         ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(portal);
     }
 
     /// @notice Deploy the OptimismPortal2
@@ -785,19 +816,20 @@ contract Deploy is Deployer {
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
         console.log("Deploying SystemConfig implementation");
-        SystemConfig config = new SystemConfig{ salt: _implSalt() }();
-
-        save("SystemConfig", address(config));
-        console.log("SystemConfig deployed at %s", address(config));
+        if (cfg.useInterop()) {
+            addr_ = address(new SystemConfigInterop{ salt: _implSalt() }());
+        } else {
+            addr_ = address(new SystemConfig{ salt: _implSalt() }());
+        }
+        save("SystemConfig", addr_);
+        console.log("SystemConfig deployed at %s", addr_);
 
         // Override the `SystemConfig` contract to the deployed implementation. This is necessary
         // to check the `SystemConfig` implementation alongside dependent contracts, which
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.SystemConfig = address(config);
+        contracts.SystemConfig = addr_;
         ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(config);
     }
 
     /// @notice Deploy the L1StandardBridge
@@ -925,7 +957,7 @@ contract Deploy is Deployer {
         address anchorStateRegistryProxy = mustGetAddress("AnchorStateRegistryProxy");
         address anchorStateRegistry = mustGetAddress("AnchorStateRegistry");
 
-        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](4);
+        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](5);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.CANNON,
             outputRoot: OutputRoot({
@@ -949,6 +981,13 @@ contract Deploy is Deployer {
         });
         roots[3] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.ASTERISC,
+            outputRoot: OutputRoot({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2BlockNumber: cfg.faultGameGenesisBlock()
+            })
+        });
+        roots[4] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.FAST,
             outputRoot: OutputRoot({
                 root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                 l2BlockNumber: cfg.faultGameGenesisBlock()
@@ -1312,11 +1351,11 @@ contract Deploy is Deployer {
             commands[0] = "bash";
             commands[1] = "-c";
             commands[2] = string.concat("[[ -f ", filePath, " ]] && echo \"present\"");
-            if (vm.ffi(commands).length == 0) {
+            if (Process.run(commands).length == 0) {
                 revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
             }
             commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
-            mipsAbsolutePrestate_ = Claim.wrap(abi.decode(vm.ffi(commands), (bytes32)));
+            mipsAbsolutePrestate_ = Claim.wrap(abi.decode(Process.run(commands), (bytes32)));
             console.log(
                 "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
                 vm.toString(Claim.unwrap(mipsAbsolutePrestate_))
@@ -1345,7 +1384,8 @@ contract Deploy is Deployer {
                 gameType: GameTypes.CANNON,
                 absolutePrestate: loadMipsAbsolutePrestate(),
                 faultVm: IBigStepper(mustGetAddress("Mips")),
-                maxGameDepth: cfg.faultGameMaxDepth()
+                maxGameDepth: cfg.faultGameMaxDepth(),
+                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
             })
         });
     }
@@ -1366,7 +1406,8 @@ contract Deploy is Deployer {
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 absolutePrestate: loadMipsAbsolutePrestate(),
                 faultVm: IBigStepper(mustGetAddress("Mips")),
-                maxGameDepth: cfg.faultGameMaxDepth()
+                maxGameDepth: cfg.faultGameMaxDepth(),
+                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
             })
         });
     }
@@ -1388,8 +1429,32 @@ contract Deploy is Deployer {
                 absolutePrestate: outputAbsolutePrestate,
                 faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
-                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1
+                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
+                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
             })
+        });
+    }
+
+    /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
+    function setFastFaultGameImplementation(bool _allowUpgrade) public onlyDevnet broadcast {
+        console.log("Setting Fast FaultDisputeGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
+
+        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        _setFaultGameImplementation({
+            _factory: factory,
+            _allowUpgrade: _allowUpgrade,
+            _params: FaultDisputeGameParams({
+                anchorStateRegistry: AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
+                weth: weth,
+                gameType: GameTypes.FAST,
+                absolutePrestate: outputAbsolutePrestate,
+                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
+                // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
+                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
+                maxClockDuration: Duration.wrap(0) // Resolvable immediately
+             })
         });
     }
 
@@ -1419,7 +1484,7 @@ contract Deploy is Deployer {
                     _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                    _maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
+                    _maxClockDuration: _params.maxClockDuration,
                     _vm: _params.faultVm,
                     _weth: _params.weth,
                     _anchorStateRegistry: _params.anchorStateRegistry,

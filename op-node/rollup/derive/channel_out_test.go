@@ -15,9 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-var (
-	rollupCfg rollup.Config
-)
+var rollupCfg rollup.Config
 
 // basic implementation of the Compressor interface that does no compression
 type nonCompressor struct {
@@ -248,7 +246,7 @@ func TestSpanChannelOut(t *testing.T) {
 	}
 	for _, test := range tests {
 		test := test
-		for _, algo := range CompressionAlgoTypes {
+		for _, algo := range CompressionAlgos {
 			t.Run(test.name+"_"+algo.String(), func(t *testing.T) {
 				test.f(t, algo)
 			})

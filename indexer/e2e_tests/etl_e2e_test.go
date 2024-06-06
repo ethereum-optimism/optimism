@@ -65,7 +65,7 @@ func TestE2EETL(t *testing.T) {
 	require.NoError(t, wait.For(context.Background(), time.Second, func() (bool, error) {
 		var l2Height *big.Int
 		var err error
-		if e2eutils.UseFPAC() {
+		if e2eutils.UseFaultProofs() {
 			gameCount, err := disputeGameFactory.GameCount(&bind.CallOpts{Context: context.Background()})
 			require.NoError(t, err)
 			if gameCount.Cmp(big.NewInt(0)) == 0 {

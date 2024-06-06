@@ -18,7 +18,7 @@ type RClock interface {
 }
 
 type ClaimMetrics interface {
-	RecordClaims(status metrics.ClaimStatus, count int)
+	RecordClaims(statuses *metrics.ClaimStatuses)
 	RecordHonestActorClaims(address common.Address, data *metrics.HonestActorData)
 }
 
@@ -38,7 +38,7 @@ func NewClaimMonitor(logger log.Logger, clock RClock, honestActors []common.Addr
 }
 
 func (c *ClaimMonitor) CheckClaims(games []*types.EnrichedGameData) {
-	claimStatus := metrics.ZeroClaimStatuses()
+	claimStatuses := &metrics.ClaimStatuses{}
 	honest := make(map[common.Address]*metrics.HonestActorData)
 	for actor := range c.honestActors {
 		honest[actor] = &metrics.HonestActorData{
@@ -48,11 +48,9 @@ func (c *ClaimMonitor) CheckClaims(games []*types.EnrichedGameData) {
 		}
 	}
 	for _, game := range games {
-		c.checkGameClaims(game, claimStatus, honest)
+		c.checkGameClaims(game, claimStatuses, honest)
 	}
-	for status, count := range claimStatus {
-		c.metrics.RecordClaims(status, count)
-	}
+	c.metrics.RecordClaims(claimStatuses)
 	for actor := range c.honestActors {
 		c.metrics.RecordHonestActorClaims(actor, honest[actor])
 	}
@@ -84,20 +82,25 @@ func (c *ClaimMonitor) checkUpdateHonestActorStats(proxy common.Address, claim *
 
 func (c *ClaimMonitor) checkGameClaims(
 	game *types.EnrichedGameData,
-	claimStatus map[metrics.ClaimStatus]int,
+	claimStatuses *metrics.ClaimStatuses,
 	honest map[common.Address]*metrics.HonestActorData,
 ) {
 	// Check if the game is in the first half
-	duration := uint64(c.clock.Now().Unix()) - game.Timestamp
+	now := c.clock.Now()
+	duration := uint64(now.Unix()) - game.Timestamp
 	firstHalf := duration <= game.MaxClockDuration
 
+	minDescendantAccumulatedTimeByIndex := make(map[int]time.Duration)
+
 	// Iterate over the game's claims
-	for _, claim := range game.Claims {
+	// Reverse order so we can track whether the claim has unresolvable children
+	for i := len(game.Claims) - 1; i >= 0; i-- {
+		claim := game.Claims[i]
 		c.checkUpdateHonestActorStats(game.Proxy, &claim, honest)
 
 		// Check if the clock has expired
 		if firstHalf && claim.Resolved {
-			c.logger.Error("Claim resolved in the first half of the game duration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex, "id", claim.ID(), "clock", duration)
+			c.logger.Error("Claim resolved in the first half of the game duration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex, "clock", duration)
 		}
 
 		maxChessTime := time.Duration(game.MaxClockDuration) * time.Second
@@ -105,41 +108,30 @@ func (c *ClaimMonitor) checkGameClaims(
 		if !claim.IsRoot() {
 			parent = game.Claims[claim.ParentContractIndex].Claim
 		}
-		accumulatedTime := faultTypes.ChessClock(c.clock.Now(), claim.Claim, parent)
-		clockExpired := accumulatedTime >= maxChessTime
+		accumulatedTime := faultTypes.ChessClock(now, claim.Claim, parent)
 
-		if claim.Resolved {
-			if clockExpired {
-				if firstHalf {
-					claimStatus[metrics.FirstHalfExpiredResolved]++
-				} else {
-					claimStatus[metrics.SecondHalfExpiredResolved]++
-				}
-			} else {
-				if firstHalf {
-					claimStatus[metrics.FirstHalfNotExpiredResolved]++
-				} else {
-					claimStatus[metrics.SecondHalfNotExpiredResolved]++
-				}
-			}
-		} else {
-			if clockExpired {
-				// SAFETY: accumulatedTime must be larger than or equal to maxChessTime since clockExpired
-				overflow := accumulatedTime - maxChessTime
-				if overflow >= MaximumResolutionResponseBuffer {
-					c.logger.Warn("Claim unresolved after clock expiration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex, "delay", overflow)
-				}
-				if firstHalf {
-					claimStatus[metrics.FirstHalfExpiredUnresolved]++
-				} else {
-					claimStatus[metrics.SecondHalfExpiredUnresolved]++
-				}
-			} else {
-				if firstHalf {
-					claimStatus[metrics.FirstHalfNotExpiredUnresolved]++
-				} else {
-					claimStatus[metrics.SecondHalfNotExpiredUnresolved]++
-				}
+		// Calculate the minimum accumulated time of this claim or any of its descendants
+		minAccumulatedTime, ok := minDescendantAccumulatedTimeByIndex[claim.ContractIndex]
+		if !ok || accumulatedTime < minAccumulatedTime {
+			minAccumulatedTime = accumulatedTime
+		}
+		// Update the minimum accumulated time for the parent claim to include this claim's time.
+		curr, ok := minDescendantAccumulatedTimeByIndex[claim.ParentContractIndex]
+		if !ok || minAccumulatedTime < curr {
+			minDescendantAccumulatedTimeByIndex[claim.ParentContractIndex] = minAccumulatedTime
+		}
+
+		// Our clock is expired based on this claim accumulated time (can any more counter claims be posted)
+		clockExpired := accumulatedTime >= maxChessTime
+		// This claim is only resolvable if it and all it's descendants have expired clocks
+		resolvable := minAccumulatedTime >= maxChessTime
+
+		claimStatuses.RecordClaim(firstHalf, clockExpired, resolvable, claim.Resolved)
+		if !claim.Resolved && resolvable {
+			// SAFETY: minAccumulatedTime must be larger than or equal to maxChessTime since the claim is resolvable
+			overflow := minAccumulatedTime - maxChessTime
+			if overflow >= MaximumResolutionResponseBuffer {
+				c.logger.Warn("Claim unresolved after clock expiration", "game", game.Proxy, "claimContractIndex", claim.ContractIndex, "delay", overflow)
 			}
 		}
 	}

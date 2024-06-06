@@ -213,11 +213,11 @@ jobs:
             FOUNDRY_PROFILE: ci
           command: pnpm build
       - run:
-          name: Generate FPAC allocs
-          command: DEVNET_FPAC="true" make devnet-allocs
+          name: Generate L2OO allocs
+          command: DEVNET_L2OO="true" make devnet-allocs
       - run:
-          name: Copy FPAC allocs to .devnet-fpac
-          command: cp -r .devnet/ .devnet-fault-proofs/
+          name: Copy L2OO allocs to .devnet-l2oo
+          command: cp -r .devnet/ .devnet-l2oo/
       - run:
           name: Generate Plasma allocs
           command: DEVNET_PLASMA="true" make devnet-allocs
@@ -225,7 +225,13 @@ jobs:
           name: Copy Plasma allocs to .devnet-plasma
           command: cp -r .devnet/ .devnet-plasma/
       - run:
-          name: Generate non-FPAC allocs
+          name: Generate Generic Plasma allocs
+          command: DEVNET_PLASMA="true" GENERIC_PLASMA="true" make devnet-allocs
+      - run:
+          name: Copy Plasma allocs to .devnet-plasma
+          command: cp -r .devnet/ .devnet-plasma-generic/
+      - run:
+          name: Generate default allocs
           command: make devnet-allocs
       - persist_to_workspace:
           root: "."
@@ -241,16 +247,21 @@ jobs:
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
             - ".devnet/addresses.json"
-            - ".devnet-fault-proofs/allocs-l1.json"
-            - ".devnet-fault-proofs/addresses.json"
-            - ".devnet-fault-proofs/allocs-l2.json"
-            - ".devnet-fault-proofs/allocs-l2-delta.json"
-            - ".devnet-fault-proofs/allocs-l2-ecotone.json"
+            - ".devnet-l2oo/allocs-l1.json"
+            - ".devnet-l2oo/addresses.json"
+            - ".devnet-l2oo/allocs-l2.json"
+            - ".devnet-l2oo/allocs-l2-delta.json"
+            - ".devnet-l2oo/allocs-l2-ecotone.json"
             - ".devnet-plasma/allocs-l1.json"
             - ".devnet-plasma/addresses.json"
             - ".devnet-plasma/allocs-l2.json"
             - ".devnet-plasma/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l2-ecotone.json"
+            - ".devnet-plasma-generic/allocs-l1.json"
+            - ".devnet-plasma-generic/addresses.json"
+            - ".devnet-plasma-generic/allocs-l2.json"
+            - ".devnet-plasma-generic/allocs-l2-delta.json"
+            - ".devnet-plasma-generic/allocs-l2-ecotone.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -725,28 +736,6 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
-  contracts-ts-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore pnpm Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
-      - check-changed:
-          patterns: sdk,contracts-bedrock,contracts
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: Check generated and build
-          command: pnpm generate:check
-          working_directory: packages/contracts-ts
-
   sdk-next-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -864,14 +853,6 @@ jobs:
       - check-changed:
           patterns: packages
       - run:
-          name: Check common-ts
-          command: npx depcheck
-          working_directory: packages/common-ts
-      - run:
-          name: Check core-utils
-          command: npx depcheck
-          working_directory: packages/core-utils
-      - run:
           name: Check sdk
           command: npx depcheck
           working_directory: packages/sdk
@@ -955,7 +936,7 @@ jobs:
 
   go-e2e-test:
     parameters:
-      fpac:
+      variant:
         type: string
         default: ''
       module:
@@ -977,8 +958,8 @@ jobs:
         type: string
         default: ""
     environment:
-      DEVNET_FPAC: 'false'
-      OP_E2E_USE_FPAC: 'false'
+      DEVNET_L2OO: 'false'
+      OP_E2E_USE_L2OO: 'false'
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -987,17 +968,17 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: ['-fault-proofs', <<parameters.fpac>>]
+            equal: ['-l2oo', <<parameters.variant>>]
           steps:
             - run:
-                name: Set DEVNET_FPAC = true
-                command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+                name: Set DEVNET_L2OO = true
+                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
             - run:
-                name: Set OP_E2E_USE_FPAC = true
-                command: echo 'export OP_E2E_USE_FPAC=true' >> $BASH_ENV
+                name: Set OP_E2E_USE_L2OO = true
+                command: echo 'export OP_E2E_USE_L2OO=true' >> $BASH_ENV
       - when:
           condition:
-            equal: ['-plasma', <<parameters.fpac>>]
+            equal: ['-plasma', <<parameters.variant>>]
           steps:
             - run:
                 name: Set OP_E2E_USE_PLASMA = true
@@ -1019,11 +1000,11 @@ jobs:
           name: Load devnet-allocs
           command: |
             mkdir -p .devnet
-            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l2.json .devnet/allocs-l2.json
-            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
-            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
-            cp /tmp/workspace/.devnet<<parameters.fpac>>/allocs-l1.json .devnet/allocs-l1.json
-            cp /tmp/workspace/.devnet<<parameters.fpac>>/addresses.json .devnet/addresses.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2.json .devnet/allocs-l2.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
             cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
       - run:
@@ -1045,6 +1026,9 @@ jobs:
           working_directory: <<parameters.module>>
       - store_artifacts:
           path: /testlogs
+          when: always
+      - store_artifacts:
+          path: /tmp/test-results
           when: always
       - store_test_results:
           path: /tmp/test-results
@@ -1103,12 +1087,12 @@ jobs:
 
   indexer-tests:
     parameters:
-      fpac:
+      variant:
         type: string
         default: ''
     environment:
-      DEVNET_FPAC: 'false'
-      OP_E2E_USE_FPAC: 'false'
+      DEVNET_L2OO: 'false'
+      OP_E2E_USE_L2OO: 'false'
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
       - image: cimg/postgres:14.1
@@ -1117,14 +1101,14 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: ['fault-proofs', <<parameters.fpac>>]
+            equal: ['l2oo', <<parameters.variant>>]
           steps:
             - run:
-                name: Set DEVNET_FPAC = true
-                command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+                name: Set DEVNET_L2OO = true
+                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
             - run:
-                name: Set OP_E2E_USE_FPAC = true
-                command: echo 'export OP_E2E_USE_FPAC=true' >> $BASH_ENV
+                name: Set OP_E2E_USE_L2OO = true
+                command: echo 'export OP_E2E_USE_L2OO=true' >> $BASH_ENV
       - check-changed:
           patterns: indexer
       - run:
@@ -1220,6 +1204,8 @@ jobs:
               echo 'export EXPECTED_PRESTATE_HASH="0x034c8cc69f22c35ae386a97136715dd48aaf97fd190942a111bfa680c2f2f421"' >> $BASH_ENV
             elif [[ "<<parameters.version>>" == "1.0.0" ]]; then
               echo 'export EXPECTED_PRESTATE_HASH="0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.1.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b"' >> $BASH_ENV
             else
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
@@ -1274,30 +1260,40 @@ jobs:
     machine:
       image: <<pipeline.parameters.base_image>>
     parameters:
-      fpac:
+      variant:
         type: string
     environment:
       DOCKER_BUILDKIT: 1
       DEVNET_NO_BUILD: 'true'
       # Default value; Can be overridden.
-      DEVNET_FPAC: 'false'
+      DEVNET_L2OO: 'false'
       DEVNET_PLASMA: 'false'
     steps:
       - checkout
       - when:
           condition:
-            equal: ['fault-proofs', <<parameters.fpac>>]
+            equal: ['l2oo', <<parameters.variant>>]
           steps:
             - run:
-                name: Set DEVNET_FPAC = true
-                command: echo 'export DEVNET_FPAC=true' >> $BASH_ENV
+                name: Set DEVNET_L2OO = true
+                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
       - when:
           condition:
-            equal: ['plasma', <<parameters.fpac>>]
+            equal: ['plasma', <<parameters.variant>>]
           steps:
             - run:
                 name: Set DEVNET_PLASMA = true
                 command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['plasma-generic', <<parameters.variant>>]
+          steps:
+            - run:
+                name: Set DEVNET_PLASMA = true
+                command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
+            - run:
+                name: Set GENERIC_PLASMA = true
+                command: echo 'export GENERIC_PLASMA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
@@ -1348,11 +1344,11 @@ jobs:
       - when:
           condition:
             not:
-              equal: ['legacy', <<parameters.fpac>>]
+              equal: ['default', <<parameters.variant>>]
           steps:
             - run:
-                name: Use non-legacy devnet allocs
-                command: rm -r .devnet && mv .devnet-<<parameters.fpac>> .devnet
+                name: Use non-default devnet allocs
+                command: rm -r .devnet && mv .devnet-<<parameters.variant>> .devnet
       - run:
           name: Load and tag docker images
           command: |
@@ -1675,18 +1671,6 @@ workflows:
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
-      - js-lint-test:
-          name: common-ts-tests
-          coverage_flag: common-ts-tests
-          package_name: common-ts
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: core-utils-tests
-          coverage_flag: core-utils-tests
-          package_name: core-utils
-          requires:
-            - pnpm-monorepo
       - contracts-bedrock-tests:
           requires:
             - pnpm-monorepo
@@ -1701,21 +1685,14 @@ workflows:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
-          dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: contracts-ts-tests
-          coverage_flag: contracts-ts-tests
-          package_name: contracts-ts
-          dependencies: '(contracts-bedrock|contracts-ts)'
+          dependencies: "(contracts-bedrock|sdk)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: sdk-tests
           coverage_flag: sdk-tests
           package_name: sdk
-          dependencies: "(contracts-bedrock|core-utils)"
+          dependencies: "contracts-bedrock"
           requires:
             - pnpm-monorepo
       - depcheck:
@@ -1726,10 +1703,10 @@ workflows:
           binary_name: proxyd
           working_directory: proxyd
       - indexer-tests:
-          name: indexer-tests<< matrix.fpac >>
+          name: indexer-tests<< matrix.variant >>
           matrix:
             parameters:
-              fpac: ["", "-fault-proofs"]
+              variant: ["", "-l2oo"]
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1805,10 +1782,10 @@ workflows:
           module: op-service
           requires: ["go-mod-download"]
       - go-e2e-test:
-          name: op-e2e-HTTP-tests<< matrix.fpac >>
+          name: op-e2e-HTTP-tests<< matrix.variant >>
           matrix:
             parameters:
-              fpac: ["", "-fault-proofs"]
+              variant: ["", "-l2oo"]
           module: op-e2e
           target: test-http
           parallelism: 4
@@ -1816,10 +1793,10 @@ workflows:
             - go-mod-download
             - pnpm-monorepo
       - go-e2e-test:
-          name: op-e2e-action-tests<< matrix.fpac >>
+          name: op-e2e-action-tests<< matrix.variant >>
           matrix:
             parameters:
-              fpac: ["", "-fault-proofs", "-plasma"]
+              variant: ["", "-l2oo", "-plasma"]
           module: op-e2e
           target: test-actions
           parallelism: 1
@@ -1834,16 +1811,6 @@ workflows:
           requires:
             - pnpm-monorepo
             - cannon-prestate
-      - go-e2e-test:
-          name: op-e2e-ext-geth-tests<< matrix.fpac >>
-          matrix:
-            parameters:
-              fpac: ["", "-fault-proofs"]
-          module: op-e2e
-          target: test-external-geth
-          requires:
-            - go-mod-download
-            - pnpm-monorepo
       - op-service-rethdb-tests:
           requires:
             - go-mod-download
@@ -1873,7 +1840,6 @@ workflows:
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
-            - op-e2e-ext-geth-tests
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
@@ -1925,7 +1891,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              fpac: ["legacy", "fault-proofs", "plasma"]
+              variant: ["default", "l2oo", "plasma", "plasma-generic"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
@@ -1937,10 +1903,6 @@ workflows:
       - docker-build:
           name: indexer-docker-build
           docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-      - docker-build:
-          name: ufm-metamask-docker-build
-          docker_name: ufm-metamask
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
@@ -2220,21 +2182,6 @@ workflows:
             - oplabs-gcr
           requires:
             - hold
-      - docker-build:
-          name: ufm-metamask-docker-release
-          filters:
-            tags:
-              only: /^ufm-metamask\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: ufm-metamask
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr
-          requires:
-            - hold
 
   scheduled-todo-issues:
     when:
@@ -2421,14 +2368,6 @@ workflows:
           context:
             - oplabs-gcr
             - slack
-      - docker-build:
-          name: ufm-metamask-docker-publish
-          docker_name: ufm-metamask
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
 
   scheduled-preimage-reproducibility:
     when:
@@ -2440,6 +2379,6 @@ workflows:
       - preimage-reproducibility:
           matrix:
             parameters:
-              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0"]
+              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0"]
           context:
             slack

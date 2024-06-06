@@ -20,9 +20,10 @@ var (
 
 const (
 	// DefaultGameWindow is the default maximum time duration in the past
-	// to look for games to monitor. The default value is 11 days, which
-	// is a 4 day resolution buffer plus the 7 day game finalization window.
-	DefaultGameWindow = time.Duration(11 * 24 * time.Hour)
+	// to look for games to monitor. The default value is 28 days. The worst case duration
+	// for a game is 16 days (due to clock extension), plus 7 days WETH withdrawal delay
+	// leaving a 5 day buffer to monitor games after they should be fully resolved.
+	DefaultGameWindow = 28 * 24 * time.Hour
 	// DefaultMonitorInterval is the default interval at which the dispute
 	// monitor will check for new games to monitor.
 	DefaultMonitorInterval = time.Second * 30
@@ -48,12 +49,12 @@ type Config struct {
 	PprofConfig   oppprof.CLIConfig
 }
 
-func NewConfig(gameFactoryAddress common.Address, l1EthRpc string) Config {
+func NewConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpc string) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
+		RollupRpc:          rollupRpc,
 		GameFactoryAddress: gameFactoryAddress,
 
-		HonestActors:    []common.Address{},
 		MonitorInterval: DefaultMonitorInterval,
 		GameWindow:      DefaultGameWindow,
 		MaxConcurrency:  DefaultMaxConcurrency,

@@ -24,6 +24,7 @@ func NewOutputAsteriscTraceAccessor(
 	cfg *config.Config,
 	l2Client utils.L2HeaderSource,
 	prestateProvider types.PrestateProvider,
+	asteriscPrestate string,
 	rollupClient OutputRollupClient,
 	dir string,
 	l1Head eth.BlockID,
@@ -39,7 +40,7 @@ func NewOutputAsteriscTraceAccessor(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch asterisc local inputs: %w", err)
 		}
-		provider := asterisc.NewTraceProvider(logger, m, cfg, prestateProvider, localInputs, subdir, depth)
+		provider := asterisc.NewTraceProvider(logger, m, cfg, prestateProvider, asteriscPrestate, localInputs, subdir, depth)
 		return provider, nil
 	}
 

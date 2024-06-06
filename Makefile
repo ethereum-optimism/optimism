@@ -159,7 +159,6 @@ mod-tidy:
 	#
 	# See https://proxy.golang.org/ for more info.
 	export GOPRIVATE="github.com/ethereum-optimism" && go mod tidy
-	make -C ./op-ufm mod-tidy
 .PHONY: mod-tidy
 
 clean:

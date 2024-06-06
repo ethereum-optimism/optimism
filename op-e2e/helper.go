@@ -47,15 +47,15 @@ func UsesCannon(t e2eutils.TestingBase) {
 	}
 }
 
-func SkipOnFPAC(t e2eutils.TestingBase) {
-	if e2eutils.UseFPAC() {
-		t.Skip("Skipping test for FPAC")
+func SkipOnFaultProofs(t e2eutils.TestingBase) {
+	if e2eutils.UseFaultProofs() {
+		t.Skip("Skipping test for fault proofs")
 	}
 }
 
-func SkipOnNotFPAC(t e2eutils.TestingBase) {
-	if !e2eutils.UseFPAC() {
-		t.Skip("Skipping test for non-FPAC")
+func SkipOnL2OO(t e2eutils.TestingBase) {
+	if e2eutils.UseL2OO() {
+		t.Skip("Skipping test for L2OO")
 	}
 }
 

@@ -5,18 +5,6 @@
   },
   "eslint.workingDirectories": [
     {
-      "directory": "packages/core-utils",
-      "changeProcessCWD": true
-    },
-    {
-      "directory": "packages/common-ts",
-      "changeProcessCWD": true
-    },
-    {
-      "directory": "packages/contracts",
-      "changeProcessCWD": true
-    },
-    {
       "directory": "packages/chain-mon",
       "changeProcessCWD": true
     }

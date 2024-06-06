@@ -75,7 +75,7 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, storageDir string, b
 		return nil, errors.Wrap(err, "failed to create raft tcp transport")
 	}
 
-	fsm := &unsafeHeadTracker{}
+	fsm := NewUnsafeHeadTracker(log)
 
 	r, err := raft.NewRaft(rc, fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
@@ -140,8 +140,7 @@ func (rc *RaftConsensus) DemoteVoter(id string) error {
 
 // Leader implements Consensus, it returns true if it is the leader of the cluster.
 func (rc *RaftConsensus) Leader() bool {
-	_, id := rc.r.LeaderWithID()
-	return id == rc.serverID
+	return rc.r.State() == raft.Leader
 }
 
 // LeaderWithID implements Consensus, it returns the leader's server ID and address.
@@ -205,8 +204,10 @@ func (rc *RaftConsensus) Shutdown() error {
 	return nil
 }
 
-// CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM.
+// CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM in a strongly consistent fashion.
 func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error {
+	rc.log.Debug("committing unsafe payload", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash.Hex())
+
 	var buf bytes.Buffer
 	if _, err := payload.MarshalSSZ(&buf); err != nil {
 		return errors.Wrap(err, "failed to marshal payload envelope")
@@ -216,14 +217,18 @@ func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelo
 	if err := f.Error(); err != nil {
 		return errors.Wrap(err, "failed to apply payload envelope")
 	}
+	rc.log.Debug("unsafe payload committed", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash.Hex())
 
 	return nil
 }
 
-// LatestUnsafePayload implements Consensus, it returns the latest unsafe payload from FSM.
-func (rc *RaftConsensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
-	payload := rc.unsafeTracker.UnsafeHead()
-	return payload
+// LatestUnsafePayload implements Consensus, it returns the latest unsafe payload from FSM in a strongly consistent fashion.
+func (rc *RaftConsensus) LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, error) {
+	if err := rc.r.Barrier(defaultTimeout).Error(); err != nil {
+		return nil, errors.Wrap(err, "failed to apply barrier")
+	}
+
+	return rc.unsafeTracker.UnsafeHead(), nil
 }
 
 // ClusterMembership implements Consensus, it returns the current cluster membership configuration.

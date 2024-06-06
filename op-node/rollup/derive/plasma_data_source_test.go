@@ -91,6 +91,7 @@ func TestPlasmaDataSource(t *testing.T) {
 		PlasmaConfig: &rollup.PlasmaConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
+			CommitmentType:    plasma.KeccakCommitmentString,
 		},
 	}
 	// keep track of random input data to validate against
@@ -333,6 +334,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		PlasmaConfig: &rollup.PlasmaConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
+			CommitmentType:    plasma.KeccakCommitmentString,
 		},
 	}
 
@@ -451,6 +453,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		PlasmaConfig: &rollup.PlasmaConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
+			CommitmentType:    plasma.KeccakCommitmentString,
 		},
 	}
 

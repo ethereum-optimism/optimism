@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -143,12 +144,13 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		l2Genesis.Alloc[addr] = val
 	}
 
-	var plasma *rollup.PlasmaConfig
+	var pcfg *rollup.PlasmaConfig
 	if deployConf.UsePlasma {
-		plasma = &rollup.PlasmaConfig{
+		pcfg = &rollup.PlasmaConfig{
 			DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
 			DAChallengeWindow:  deployConf.DAChallengeWindow,
 			DAResolveWindow:    deployConf.DAResolveWindow,
+			CommitmentType:     plasma.KeccakCommitmentString,
 		}
 	}
 
@@ -180,7 +182,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		PlasmaConfig:           plasma,
+		PlasmaConfig:           pcfg,
 	}
 
 	require.NoError(t, rollupCfg.Check())
@@ -226,8 +228,12 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
 }
 
-func UseFPAC() bool {
-	return os.Getenv("OP_E2E_USE_FPAC") == "true"
+func UseFaultProofs() bool {
+	return !UseL2OO()
+}
+
+func UseL2OO() bool {
+	return os.Getenv("OP_E2E_USE_L2OO") == "true"
 }
 
 func UsePlasma() bool {

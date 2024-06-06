@@ -1,9 +1,7 @@
 # Packages
 /packages/chain-mon             @ethereum-optimism/security-reviewers
 /packages/chain-mon/internal/balance-mon             @ethereum-optimism/infra-reviewers
-/packages/common-ts             @ethereum-optimism/typescript-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
-/packages/core-utils            @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
 
 # Bedrock codebases
@@ -38,7 +36,6 @@
 /indexer          @ethereum-optimism/devxpod
 /infra            @ethereum-optimism/infra-reviewers
 /specs            @ethereum-optimism/contract-reviewers @ethereum-optimism/go-reviewers
-/endpoint-monitor @ethereum-optimism/infra-reviewers
 
 # Don't add owners if only package.json is updated
 /packages/*/package.json

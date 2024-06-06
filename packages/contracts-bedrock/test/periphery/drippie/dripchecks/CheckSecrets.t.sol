@@ -26,6 +26,11 @@ contract CheckSecretsTest is Test {
         c = new CheckSecrets();
     }
 
+    /// @notice Test that the `name` function returns the correct value.
+    function test_name_succeeds() external {
+        assertEq(c.name(), "CheckSecrets");
+    }
+
     /// @notice Test that basic secret revealing works.
     function test_reveal_succeeds() external {
         // Simple reveal and check assertions.

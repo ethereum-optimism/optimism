@@ -18,6 +18,10 @@ reqenv "GS_BATCHER_ADDRESS"
 reqenv "GS_PROPOSER_ADDRESS"
 reqenv "GS_SEQUENCER_ADDRESS"
 reqenv "L1_RPC_URL"
+reqenv "L1_CHAIN_ID"
+reqenv "L2_CHAIN_ID"
+reqenv "L1_BLOCK_TIME"
+reqenv "L2_BLOCK_TIME"
 
 # Get the finalized block timestamp and hash
 block=$(cast block finalized --rpc-url "$L1_RPC_URL")
@@ -29,10 +33,10 @@ config=$(cat << EOL
 {
   "l1StartingBlockTag": "$blockhash",
 
-  "l1ChainID": 11155111,
-  "l2ChainID": 42069,
-  "l2BlockTime": 2,
-  "l1BlockTime": 12,
+  "l1ChainID": $L1_CHAIN_ID,
+  "l2ChainID": $L2_CHAIN_ID,
+  "l2BlockTime": $L2_BLOCK_TIME,
+  "l1BlockTime": $L1_BLOCK_TIME,
 
   "maxSequencerDrift": 600,
   "sequencerWindowSize": 3600,
@@ -97,6 +101,7 @@ config=$(cat << EOL
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 14,
+  "faultGameWithdrawalDelay": 604800,
 
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400

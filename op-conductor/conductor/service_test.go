@@ -19,6 +19,7 @@ import (
 	consensusmocks "github.com/ethereum-optimism/optimism/op-conductor/consensus/mocks"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	healthmocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
+	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -88,6 +89,7 @@ type OpConductorTestSuite struct {
 	err     error
 	log     log.Logger
 	cfg     Config
+	metrics metrics.Metricer
 	version string
 	ctrl    *clientmocks.SequencerControl
 	cons    *consensusmocks.Consensus
@@ -101,6 +103,7 @@ type OpConductorTestSuite struct {
 func (s *OpConductorTestSuite) SetupSuite() {
 	s.ctx = context.Background()
 	s.log = testlog.Logger(s.T(), log.LevelDebug)
+	s.metrics = &metrics.NoopMetricsImpl{}
 	s.cfg = mockConfig(s.T())
 	s.version = "v0.0.1"
 	s.next = make(chan struct{}, 1)
@@ -113,8 +116,9 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.hmon = &healthmocks.HealthMonitor{}
 	s.cons.EXPECT().ServerID().Return("SequencerA")
 
-	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.version, s.ctrl, s.cons, s.hmon)
+	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
+	conductor.retryBackoff = func() time.Duration { return 0 } // disable retry backoff for tests
 	s.conductor = conductor
 
 	s.healthUpdateCh = make(chan error, 1)
@@ -298,8 +302,44 @@ func (s *OpConductorTestSuite) TestScenario1() {
 		InfoHash: [32]byte{1, 2, 3},
 	}
 	s.cons.EXPECT().TransferLeader().Return(nil)
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+
+	// become leader
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	// expect to transfer leadership, go back to [follower, not healthy, not sequencing]
+	s.False(s.conductor.leader.Load())
+	s.False(s.conductor.healthy.Load())
+	s.False(s.conductor.seqActive.Load())
+	s.Equal(health.ErrSequencerNotHealthy, s.conductor.hcerr)
+	s.Equal(&state{
+		leader:  true,
+		healthy: false,
+		active:  false,
+	}, s.conductor.prevState)
+	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
+
+// In this test, we have a follower that is not healthy and not sequencing, it becomes leader through election.
+// But since it fails to compare the unsafe head to the value stored in consensus, we expect it to transfer leadership to another node.
+// [follower, not healthy, not sequencing] -- become leader --> [leader, not healthy, not sequencing] -- transfer leadership --> [follower, not healthy, not sequencing]
+func (s *OpConductorTestSuite) TestScenario1Err() {
+	s.enableSynchronization()
+
+	// set initial state
+	s.conductor.leader.Store(false)
+	s.conductor.healthy.Store(false)
+	s.conductor.seqActive.Store(false)
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.prevState = &state{
+		leader:  false,
+		healthy: false,
+		active:  false,
+	}
+
+	s.cons.EXPECT().LatestUnsafePayload().Return(nil, errors.New("fake connection error")).Times(1)
+	s.cons.EXPECT().TransferLeader().Return(nil)
 
 	// become leader
 	s.updateLeaderStatusAndExecuteAction(true)
@@ -353,7 +393,7 @@ func (s *OpConductorTestSuite) TestScenario3() {
 		InfoNum:  1,
 		InfoHash: [32]byte{1, 2, 3},
 	}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().StartSequencer(mock.Anything, mock.Anything).Return(nil).Times(1)
 
@@ -392,7 +432,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 		InfoNum:  1,
 		InfoHash: [32]byte{2, 3, 4},
 	}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mock.Anything).Return(nil).Times(1)
 
@@ -410,7 +450,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	// unsafe caught up, we try to start sequencer at specified block and succeeds
 	mockBlockInfo.InfoNum = 2
 	mockBlockInfo.InfoHash = [32]byte{1, 2, 3}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(1)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
@@ -664,7 +704,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 		InfoNum:  1,
 		InfoHash: [32]byte{1, 2, 3},
 	}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload).Times(2)
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(2)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(2)
 	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
@@ -712,7 +752,7 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 			s.executeAction()
 		}
 		return res
-	}, 2*time.Second, 100*time.Millisecond)
+	}, 2*time.Second, time.Millisecond)
 }
 
 func (s *OpConductorTestSuite) TestHandleInitError() {

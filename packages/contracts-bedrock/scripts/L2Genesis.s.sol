@@ -25,6 +25,7 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Process } from "scripts/libraries/Process.sol";
 
 interface IInitializable {
     function initialize(address _addr) external;
@@ -340,9 +341,16 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL1Block() public {
-        _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
-        // Note: L1 block attributes are set to 0.
-        // Before the first user-tx the state is overwritten with actual L1 attributes.
+        if (cfg.useInterop()) {
+            string memory cname = "L1BlockInterop";
+            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
+            console.log("Setting %s implementation at: %s", cname, impl);
+            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        } else {
+            _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
+            // Note: L1 block attributes are set to 0.
+            // Before the first user-tx the state is overwritten with actual L1 attributes.
+        }
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -550,7 +558,7 @@ contract L2Genesis is Deployer {
         commands[0] = "bash";
         commands[1] = "-c";
         commands[2] = string.concat("cat <<< $(jq -S '.' ", _path, ") > ", _path);
-        vm.ffi(commands);
+        Process.run(commands);
     }
 
     /// @notice Funds the default dev accounts with ether
