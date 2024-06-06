@@ -35,6 +35,7 @@ var (
 	methodClaimCount              = "claimDataLen"
 	methodClaim                   = "claimData"
 	methodL1Head                  = "l1Head"
+	methodResolvedAt              = "resolvedAt"
 	methodResolvedSubgames        = "resolvedSubgames"
 	methodResolve                 = "resolve"
 	methodResolveClaim            = "resolveClaim"
@@ -219,6 +220,16 @@ func (f *FaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, bl
 		L2BlockNumberChallenged: blockChallenged,
 		L2BlockNumberChallenger: blockChallenger,
 	}, nil
+}
+
+func (f *FaultDisputeGameContractLatest) GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error) {
+	defer f.metrics.StartContractRequest("GetResolvedAt")()
+	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodResolvedAt))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to retrieve resolution time: %w", err)
+	}
+	resolvedAt := time.Unix(int64(result.GetUint64(0)), 0)
+	return resolvedAt, nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetStartingRootHash(ctx context.Context) (common.Hash, error) {
@@ -595,6 +606,7 @@ type FaultDisputeGameContract interface {
 	GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error)
 	GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error)
 	GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
+	GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error)
 	GetStartingRootHash(ctx context.Context) (common.Hash, error)
 	GetSplitDepth(ctx context.Context) (types.Depth, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
