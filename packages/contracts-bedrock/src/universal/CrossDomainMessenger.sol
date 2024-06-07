@@ -263,6 +263,10 @@ abstract contract CrossDomainMessenger is
 
         require(successfulMessages[versionedHash] == false, "CrossDomainMessenger: message has already been relayed");
 
+        address relayMessageValidator = relayMessageValidator();
+        bool isMessageValidating = relayMessageValidator == address(0);
+        uint64 messageValidationGas = isMessageValidating ? _relayMessageValidationGas(uint64(_message.length)) : 0;
+
         // If there is not enough gas left to perform the external call and finish the execution,
         // return early and assign the message to the failedMessages mapping.
         // We are asserting that we have enough gas to:
@@ -275,7 +279,7 @@ abstract contract CrossDomainMessenger is
         if (
             !SafeCall.hasMinGas(
                 _minGasLimit,
-                RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER + _relayMessageValidationGas(uint64(_message.length))
+                RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER + messageValidationGas
             ) || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
         ) {
             failedMessages[versionedHash] = true;
@@ -296,10 +300,12 @@ abstract contract CrossDomainMessenger is
         // During forced L1 -> L2 messages we check to make sure any (additional) message validation
         // is passed. On L1, this MUST always return true without additional checks. On L2, this may
         // perform additional checks through the L2MessageValidator.
-        if (!passesDomainMessageValidator(_nonce, _sender, _target, _value, _minGasLimit, _message)) {
-            failedMessages[versionedHash] = true;
-            emit FailedRelayedMessage(versionedHash);
-            return;
+        if (isMessageValidating) {
+            if (!passesDomainMessageValidator(relayMessageValidator, _nonce, _sender, _target, _value, _minGasLimit, _message)) {
+                failedMessages[versionedHash] = true;
+                emit FailedRelayedMessage(versionedHash);
+                return;
+            }
         }
 
         xDomainMsgSender = _sender;
@@ -397,6 +403,7 @@ abstract contract CrossDomainMessenger is
     ///         On L2, forced L1 -> L2 messages may go through additional validation if enabled
     ///         by the system config.
     function passesDomainMessageValidator(
+        address messageValidator,
         uint256 _nonce,
         address _sender,
         address _target,
@@ -409,6 +416,8 @@ abstract contract CrossDomainMessenger is
         virtual
         returns (bool);
 
+    function relayMessageValidator() internal view virtual returns (address);
+
     /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
     ///         of `relayMessage` in the CrossDomainMessenger.
     /// @param _messageLength Length of the message.
@@ -419,7 +428,7 @@ abstract contract CrossDomainMessenger is
     ///         of `relayMessage` in the CrossDomainMessenger on the other chain.
     /// @param _messageLength Length of the message.
     /// @return Gas reserved for message validation.
-    function _sendMessageValidationGas(uint64 _messageLength) internal pure virtual returns (uint64);
+    function _sendMessageValidationGas(uint64 _messageLength) internal view virtual returns (uint64);
 
     /// @notice Computes a dynamic gas expansion overhead based on the length of the message
     ///         for message validation.

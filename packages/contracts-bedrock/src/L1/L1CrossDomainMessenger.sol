@@ -83,7 +83,10 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function _sendMessageValidationGas(uint64 _messageLength) internal pure override returns (uint64) {
+    function _sendMessageValidationGas(uint64 _messageLength) internal view override returns (uint64) {
+        if (systemConfig.l2MessageValidator() == address(0)) {
+            return 0;
+        }
         return _messageLengthValidationGas(_messageLength) + L2_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 

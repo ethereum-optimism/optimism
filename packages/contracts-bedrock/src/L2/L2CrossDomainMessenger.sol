@@ -52,8 +52,13 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
 
+    function relayMessageValidator() internal view override returns (address) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l2MessageValidator();
+    }
+
     /// @inheritdoc CrossDomainMessenger
     function passesDomainMessageValidator(
+        address messageValidator,
         uint256 _nonce,
         address _sender,
         address _target,
@@ -102,11 +107,12 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function _relayMessageValidationGas(uint64 _messageLength) internal pure override returns (uint64) {
+
         return _messageLengthValidationGas(_messageLength) + L2_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function _sendMessageValidationGas(uint64) internal pure override returns (uint64) {
+    function _sendMessageValidationGas(uint64) internal view override returns (uint64) {
         return L1_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 
