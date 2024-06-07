@@ -150,7 +150,7 @@ func (ah *PollerAsyncHandler) Init() {
 
 				log.Info("number of healthy primary candidates", "healthy_candidates", len(healthyCandidates))
 				if len(healthyCandidates) == 0 {
-					log.Info("zero healthy candidates, querying fallback backend",
+					log.Debug("zero healthy candidates, querying fallback backend",
 						"backend_name", be.Name)
 					ah.cp.UpdateBackend(ah.ctx, be)
 				}
@@ -703,6 +703,11 @@ func (cp *ConsensusPoller) FilterCandidates(backends []*Backend) map[*Backend]*b
 			continue
 		}
 		if !be.skipPeerCountCheck && bs.peerCount < cp.minPeerCount {
+			log.Debug("backend peer count too low for inclusion in consensus",
+				"backend_name", be.Name,
+				"peer_count", bs.peerCount,
+				"min_peer_count", cp.minPeerCount,
+			)
 			continue
 		}
 		if !bs.inSync {
