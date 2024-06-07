@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
-import "src/cannon/libraries/MIPSInstructions.sol";
+import "src/cannon/libraries/MIPSInstructions.sol" as ins;
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -355,7 +355,7 @@ contract MIPS is ISemver {
             // If we should branch, update the PC to the branch target
             // Otherwise, proceed to the next instruction
             if (shouldBranch) {
-                state.nextPC = prevPC + 4 + (signExtend(_insn & 0xFFFF, 16) << 2);
+                state.nextPC = prevPC + 4 + (ins.signExtend(_insn & 0xFFFF, 16) << 2);
             } else {
                 state.nextPC = state.nextPC + 4;
             }
@@ -719,7 +719,7 @@ contract MIPS is ISemver {
                     rt = insn & 0xFFFF;
                 } else {
                     // SignExtImm
-                    rt = signExtend(insn & 0xFFFF, 16);
+                    rt = ins.signExtend(insn & 0xFFFF, 16);
                 }
             } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
                 // store rt value with store
@@ -739,7 +739,7 @@ contract MIPS is ISemver {
             uint32 mem;
             if (opcode >= 0x20) {
                 // M[R[rs]+SignExtImm]
-                rs += signExtend(insn & 0xFFFF, 16);
+                rs += ins.signExtend(insn & 0xFFFF, 16);
                 uint32 addr = rs & 0xFFFFFFFC;
                 mem = readMem(addr, 1);
                 if (opcode >= 0x28 && opcode != 0x30) {
@@ -752,7 +752,7 @@ contract MIPS is ISemver {
 
             // ALU
             // Note: swr outputs more than 4 bytes without the mask 0xffFFffFF
-            uint32 val = executeMipsInstruction(insn, rs, rt, mem) & 0xffFFffFF;
+            uint32 val = ins.executeMipsInstruction(insn, rs, rt, mem) & 0xffFFffFF;
 
             uint32 func = insn & 0x3f; // 6-bits
             if (opcode == 0 && func >= 8 && func < 0x1c) {
