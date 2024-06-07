@@ -328,7 +328,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 			"name", be.Name,
 			"infraction_count", be.BlockHeightZeroCount(),
 		)
-		// TODO: Make this value configureable
+		// TODO: Make this threshold value configureable
 		if be.blockHeightZeroSlidingWindow.Count() > 5 {
 			log.Warn("banning backend for too many block height zero responses",
 				"name", be.Name,
