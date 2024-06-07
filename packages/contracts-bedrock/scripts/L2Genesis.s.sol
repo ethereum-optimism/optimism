@@ -5,7 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Deployer } from "scripts/Deployer.sol";
 
-import { Config } from "scripts/Config.sol";
+import { Config, OutputMode, Fork, LATEST_FORK } from "scripts/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -35,20 +35,6 @@ struct L1Dependencies {
     address payable l1CrossDomainMessengerProxy;
     address payable l1StandardBridgeProxy;
     address payable l1ERC721BridgeProxy;
-}
-
-/// @notice Enum representing different ways of outputting genesis allocs.
-/// @custom:value DEFAULT_LATEST Represents only latest L2 allocs, written to output path.
-/// @custom:value LOCAL_LATEST   Represents latest L2 allocs, not output anywhere, but kept in-process.
-/// @custom:value LOCAL_ECOTONE  Represents Ecotone-upgrade L2 allocs, not output anywhere, but kept in-process.
-/// @custom:value LOCAL_DELTA    Represents Delta-upgrade L2 allocs, not output anywhere, but kept in-process.
-/// @custom:value OUTPUT_ALL     Represents creation of one L2 allocs file for every upgrade.
-enum OutputMode {
-    DEFAULT_LATEST,
-    LOCAL_LATEST,
-    LOCAL_ECOTONE,
-    LOCAL_DELTA,
-    OUTPUT_ALL
 }
 
 /// @title L2Genesis
@@ -120,7 +106,7 @@ contract L2Genesis is Deployer {
     ///         Sets the precompiles, proxies, and the implementation accounts to be `vm.dumpState`
     ///         to generate a L2 genesis alloc.
     function runWithStateDump() public {
-        runWithOptions(OutputMode.DEFAULT_LATEST, artifactDependencies());
+        runWithOptions(Config.outputMode(), Config.fork(), artifactDependencies());
     }
 
     /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
@@ -130,11 +116,17 @@ contract L2Genesis is Deployer {
 
     /// @notice This is used by op-e2e to have a version of the L2 allocs for each upgrade.
     function runWithAllUpgrades() public {
-        runWithOptions(OutputMode.OUTPUT_ALL, artifactDependencies());
+        runWithOptions(OutputMode.ALL, LATEST_FORK, artifactDependencies());
+    }
+
+    /// @notice This is used by foundry tests to enable the latest fork with the
+    ///         given L1 dependencies.
+    function runWithLatestLocal(L1Dependencies memory _l1Dependencies) public {
+        runWithOptions(OutputMode.NONE, LATEST_FORK, _l1Dependencies);
     }
 
     /// @notice Build the L2 genesis.
-    function runWithOptions(OutputMode _mode, L1Dependencies memory _l1Dependencies) public {
+    function runWithOptions(OutputMode _mode, Fork _fork, L1Dependencies memory _l1Dependencies) public {
         vm.startPrank(deployer);
         vm.chainId(cfg.l2ChainID());
 
@@ -147,28 +139,29 @@ contract L2Genesis is Deployer {
         }
         vm.stopPrank();
 
-        // Genesis is "complete" at this point, but some hardfork activation steps remain.
-        // Depending on the "Output Mode" we perform the activations and output the necessary state dumps.
-        if (_mode == OutputMode.LOCAL_DELTA) {
-            return;
-        }
-        if (_mode == OutputMode.OUTPUT_ALL) {
+        if (_mode == OutputMode.ALL || _fork == Fork.DELTA && _mode == OutputMode.LATEST) {
             writeGenesisAllocs(Config.stateDumpPath("-delta"));
+        }
+        if (_fork == Fork.DELTA) {
+            return;
         }
 
         activateEcotone();
 
-        if (_mode == OutputMode.LOCAL_ECOTONE) {
-            return;
-        }
-        if (_mode == OutputMode.OUTPUT_ALL) {
+        if (_mode == OutputMode.ALL || _fork == Fork.ECOTONE && _mode == OutputMode.LATEST) {
             writeGenesisAllocs(Config.stateDumpPath("-ecotone"));
+        }
+        if (_fork == Fork.ECOTONE) {
+            return;
         }
 
         activateFjord();
 
-        if (_mode == OutputMode.OUTPUT_ALL || _mode == OutputMode.DEFAULT_LATEST) {
-            writeGenesisAllocs(Config.stateDumpPath(""));
+        if (_mode == OutputMode.ALL || _fork == Fork.FJORD && _mode == OutputMode.LATEST) {
+            writeGenesisAllocs(Config.stateDumpPath("-fjord"));
+        }
+        if (_fork == Fork.FJORD) {
+            return;
         }
     }
 

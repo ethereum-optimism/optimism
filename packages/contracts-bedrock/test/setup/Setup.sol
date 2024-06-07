@@ -25,8 +25,10 @@ import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
+import { Fork, LATEST_FORK } from "scripts/Config.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
-import { L2Genesis, L1Dependencies, OutputMode } from "scripts/L2Genesis.s.sol";
+import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
+import { OutputMode, Fork } from "scripts/Config.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -57,7 +59,7 @@ contract Setup {
         L2Genesis(address(uint160(uint256(keccak256(abi.encode("optimism.l2genesis"))))));
 
     // @notice Allows users of Setup to override what L2 genesis is being created.
-    OutputMode l2OutputMode = OutputMode.LOCAL_LATEST;
+    Fork l2Fork = LATEST_FORK;
 
     OptimismPortal optimismPortal;
     OptimismPortal2 optimismPortal2;
@@ -175,9 +177,10 @@ contract Setup {
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2() public {
-        console.log("Setup: creating L2 genesis, with output mode %d", uint256(l2OutputMode));
+        console.log("Setup: creating L2 genesis with fork %d", uint256(l2Fork));
         l2Genesis.runWithOptions(
-            l2OutputMode,
+            OutputMode.NONE,
+            l2Fork,
             L1Dependencies({
                 l1CrossDomainMessengerProxy: payable(address(l1CrossDomainMessenger)),
                 l1StandardBridgeProxy: payable(address(l1StandardBridge)),
