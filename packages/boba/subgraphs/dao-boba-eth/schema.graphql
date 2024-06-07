@@ -1,0 +1,6 @@
+type ExampleEntity @entity {
+  id: Bytes!
+  count: BigInt!
+  oldAdmin: Bytes! # address
+  newAdmin: Bytes! # address
+}

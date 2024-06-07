@@ -1,0 +1,56 @@
+{
+  "mainnet": {
+    "LightBridge": {
+      "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
+      "startBlock": 1922714
+    }
+  },
+  "sepolia": {
+    "LightBridge": {
+      "address": "0x6550b0B7e3D2dD0E0382E0638B0f56F614921CA5",
+      "startBlock": 5281258
+    }
+  },
+  "optimism-sepolia": {
+    "LightBridge": {
+      "address": "0x3fc06c53aa3Ef19ad7830f5F18C9186C676EdE29",
+      "startBlock": 9968069
+    }
+  },
+  "optimism": {
+    "LightBridge": {
+      "address": "0x3f7Da9C51138E0475aA26E80677d27A568cFD6b9",
+      "startBlock": 116168264
+    }
+  },
+  "chapel": {
+    "LightBridge": {
+      "address": "0x7f6a32bCaA70c65E08F2f221737612F6fC18347A",
+      "startBlock": 0
+    }
+  },
+  "bsc": {
+    "LightBridge": {
+      "address": "0x670b130112C6f03E17192e63c67866e67D77c3ee",
+      "startBlock": 36194993
+    }
+  },
+  "boba": {
+    "LightBridge": {
+      "address": "0x0dfFd3Efe9c3237Ad7bf94252296272c96237FF5",
+      "startBlock": 0
+    }
+  },
+  "arbitrum-sepolia": {
+    "LightBridge": {
+      "address": "0x3f7da9c51138e0475aa26e80677d27a568cfd6b9",
+      "startBlock": 0
+    }
+  },
+  "arbitrum-one": {
+    "LightBridge": {
+      "address": "0x3f7Da9C51138E0475aA26E80677d27A568cFD6b9",
+      "startBlock": 180755075
+    }
+  }
+}
