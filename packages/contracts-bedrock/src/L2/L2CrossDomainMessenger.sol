@@ -91,7 +91,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         // TODO: Remove comment - TOTAL: RELAY_MESSAGE_VALIDATOR_GAS: 5_500 + 20_000 = 25_500
         (bool success, bytes memory returnData) = l2MessageValidator.staticcall{ gas: 20_000 }(callData);
 
-        return !success || !abi.decode(returnData, (bool));
+        return success && abi.decode(returnData, (bool));
     }
 
     /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
