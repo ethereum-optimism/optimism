@@ -66,13 +66,45 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         override
         returns (bool)
     {
+        // Note: We are assuming that if message vaildation is active in the SystemConfig
+        //      the l1MessageValidator enforces the constraint that `_from` on the Deposit
+        //      is the L1CrossDomainMessenger.
+        //
+        // We make sure we only do validation on L1 -> L2 messages, otherwise
+        // this is a replay and should always be allowed.
+        if (!_isOtherMessenger()) {
+            return true;
+        }
+
         address l2MessageValidator = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l2MessageValidator();
         if (l2MessageValidator == address(0)) {
             return true;
         }
-        return IL2MessageValidator(l2MessageValidator).validateMessage(
-            _nonce, _sender, _target, _value, _minGasLimit, _message
+
+        // Check to make sure we have enough gas to continue, otherwise early exit.
+        bytes memory callData = abi.encodeWithSelector(
+            IL2MessageValidator(l2MessageValidator).validateMessage.selector,
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            _minGasLimit,
+            _message
         );
+
+        (bool success, bytes memory returnData) = l2MessageValidator.staticcall{ gas: 20_000 }(callData);
+
+        return success && abi.decode(returnData, (bool));
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _relayMessageValidationGas(uint64 _messageLength) internal pure override returns (uint64) {
+        return _messageLengthValidationGas(_messageLength) + L2_RELAY_MESSAGE_VALIDATOR_GAS;
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _sendMessageValidationGas(uint64) internal pure override returns (uint64) {
+        return L1_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 
     /// @inheritdoc CrossDomainMessenger

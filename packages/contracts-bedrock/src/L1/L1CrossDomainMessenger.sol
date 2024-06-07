@@ -77,6 +77,16 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
         return true;
     }
 
+    /// @inheritdoc CrossDomainMessenger
+    function _relayMessageValidationGas(uint64) internal pure override returns (uint64) {
+        return L1_RELAY_MESSAGE_VALIDATOR_GAS;
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _sendMessageValidationGas(uint64 _messageLength) internal pure override returns (uint64) {
+        return _messageLengthValidationGas(_messageLength) + L2_RELAY_MESSAGE_VALIDATOR_GAS;
+    }
+
     /// @notice Getter function for the OptimismPortal contract on this chain.
     ///         Public getter is legacy and will be removed in the future. Use `portal()` instead.
     /// @return Contract of the OptimismPortal on this chain.
