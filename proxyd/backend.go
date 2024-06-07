@@ -158,9 +158,10 @@ type Backend struct {
 	maxLatencyThreshold         time.Duration
 	maxErrorRateThreshold       float64
 
-	latencySlidingWindow               *sw.AvgSlidingWindow
-	networkRequestsSlidingWindow       *sw.AvgSlidingWindow
-	networkErrorsSlidingWindow         *sw.AvgSlidingWindow
+	latencySlidingWindow         *sw.AvgSlidingWindow
+	networkRequestsSlidingWindow *sw.AvgSlidingWindow
+	networkErrorsSlidingWindow   *sw.AvgSlidingWindow
+
 	blockHeightZeroSlidingWindow       *sw.AvgSlidingWindow
 	blockHeightZeroSlidingWindowLength time.Duration
 
@@ -320,8 +321,6 @@ func NewBackend(
 	rpcSemaphore *semaphore.Weighted,
 	opts ...BackendOpt,
 ) *Backend {
-	// blockHeightZeroSlidingWindowSize :=
-
 	backend := &Backend{
 		Name:            name,
 		rpcURL:          rpcURL,
@@ -342,8 +341,8 @@ func NewBackend(
 		networkRequestsSlidingWindow: sw.NewSlidingWindow(),
 		networkErrorsSlidingWindow:   sw.NewSlidingWindow(),
 
-		// NOTE: use the block height sliding window
-		// 20 ticks in a min = ban
+		// NOTE: default use the block height sliding window 1 min,
+		// we can override later in backend opts
 		blockHeightZeroSlidingWindowLength: 1 * time.Minute,
 	}
 
@@ -700,10 +699,8 @@ func (b *Backend) ErrorRate() (errorRate float64) {
 	return errorRate
 }
 
-// BlockHeightZeroCount returns the instant error rate of the backend
+// BlockHeightZeroCount returns the amount of infractions in the window
 func (b *Backend) BlockHeightZeroCount() uint {
-	// we only really start counting the error rate after a minimum of 10 requests
-	// this is to avoid false positives when the backend is just starting up
 	return b.blockHeightZeroSlidingWindow.Count()
 }
 

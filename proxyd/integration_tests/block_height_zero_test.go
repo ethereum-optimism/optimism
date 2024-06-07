@@ -2,29 +2,16 @@ package integration_tests
 
 import (
 	"context"
-	"time"
-
-	// "encoding/json"
-	// "fmt"
+	"github.com/ethereum-optimism/optimism/proxyd"
+	ms "github.com/ethereum-optimism/optimism/proxyd/tools/mockserver/handler"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"os"
 	"path"
 	"testing"
-
-	// "time"
-
-	"github.com/ethereum/go-ethereum/common/hexutil"
-
-	"github.com/ethereum-optimism/optimism/proxyd"
-	ms "github.com/ethereum-optimism/optimism/proxyd/tools/mockserver/handler"
-	"github.com/stretchr/testify/require"
+	"time"
 )
-
-// type nodeContext struct {
-// 	backend     *proxyd.Backend   // this is the actual backend impl in proxyd
-// 	mockBackend *MockBackend      // this is the fake backend that we can use to mock responses
-// 	handler     *ms.MockedHandler // this is where we control the state of mocked responses
-// }
 
 func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.BackendGroup, *ProxydHTTPClient, func(), proxyd.TOMLDuration) {
 	// setup mock servers

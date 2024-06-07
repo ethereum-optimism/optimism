@@ -18,13 +18,14 @@ block_height_zero_window_length = "100ms"
 [backend_groups.node]
 backends = ["node1", "node2"]
 consensus_aware = true
-consensus_handler = "noop"              # allow more control over the consensus poller for tests
+consensus_handler = "noop"            # allow more control over the consensus poller for tests
 consensus_ban_period = "500ms"
 consensus_max_update_threshold = "2m"
 consensus_max_block_lag = 8
 consensus_min_peer_count = 4
-consensus_zero_block_ban_period = "1m"
-consensus_zero_block_ban_threshold = -1
+## Currently not used below
+# consensus_zero_block_ban_period = "1m"
+# consensus_zero_block_ban_threshold = -1
 
 [rpc_method_mappings]
 eth_call = "node"

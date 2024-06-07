@@ -41,9 +41,6 @@ type ConsensusPoller struct {
 	maxBlockLag        uint64
 	maxBlockRange      uint64
 	interval           time.Duration
-
-	// blockZeroBanPeriod    time.Duration
-	// blockZeroBanThreshold int
 }
 
 type backendState struct {
@@ -252,18 +249,6 @@ func WithPollerInterval(interval time.Duration) ConsensusOpt {
 	}
 }
 
-// func WithZeroBlockBanThreshold(blockZeroBanThreshold int) ConsensusOpt {
-// 	return func(cp *ConsensusPoller) {
-// 		cp.blockZeroBanThreshold = blockZeroBanThreshold
-// 	}
-// }
-//
-// func WithZeroBlockBanPeriod(blockZeroBanPeriod time.Duration) ConsensusOpt {
-// 	return func(cp *ConsensusPoller) {
-// 		cp.blockZeroBanPeriod = blockZeroBanPeriod
-// 	}
-// }
-
 func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -280,8 +265,6 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 		maxBlockLag:        8, // 8*12 seconds = 96 seconds ~ 1.6 minutes
 		minPeerCount:       3,
 		interval:           DefaultPollerInterval,
-		// blockZeroBanThreshold: 5,
-		// blockZeroBanPeriod:    30 * time.Second,
 	}
 
 	for _, opt := range opts {
@@ -345,7 +328,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 			"name", be.Name,
 			"infraction_count", be.BlockHeightZeroCount(),
 		)
-		// TODO: Make this 5 configureable
+		// TODO: Make this value configureable
 		if be.blockHeightZeroSlidingWindow.Count() > 5 {
 			log.Warn("banning backend for too many block height zero responses",
 				"name", be.Name,
@@ -416,7 +399,6 @@ func (cp *ConsensusPoller) checkExpectedBlockTags(
 	currentLatest hexutil.Uint64,
 	oldSafe hexutil.Uint64, currentSafe hexutil.Uint64,
 	oldFinalized hexutil.Uint64, currentFinalized hexutil.Uint64) bool {
-
 	return currentFinalized >= oldFinalized &&
 		currentSafe >= oldSafe &&
 		currentFinalized <= currentSafe &&
@@ -566,7 +548,6 @@ func (cp *ConsensusPoller) Ban(be *Backend) {
 	bs := cp.backendState[be]
 	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
-
 	bs.bannedUntil = time.Now().Add(cp.banPeriod)
 
 	// when we ban a node, we give it the chance to start from any block when it is back
@@ -682,9 +663,7 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync
 	latestBlockNumber hexutil.Uint64, latestBlockHash string,
 	safeBlockNumber hexutil.Uint64,
 	finalizedBlockNumber hexutil.Uint64) bool {
-
 	bs := cp.backendState[be]
-
 	bs.backendStateMux.Lock()
 	changed := bs.latestBlockHash != latestBlockHash
 	bs.peerCount = peerCount
