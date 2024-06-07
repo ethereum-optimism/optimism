@@ -158,13 +158,11 @@ type Backend struct {
 	maxLatencyThreshold         time.Duration
 	maxErrorRateThreshold       float64
 
-	latencySlidingWindow         *sw.AvgSlidingWindow
-	networkRequestsSlidingWindow *sw.AvgSlidingWindow
-	networkErrorsSlidingWindow   *sw.AvgSlidingWindow
-	// NOTE: use the block height sliding window
-	// 20 ticks in a min = ban
-	blockHeightZeroSlidingWindow     *sw.AvgSlidingWindow
-	blockHeightZeroSlidingWindowSize time.Duration
+	latencySlidingWindow               *sw.AvgSlidingWindow
+	networkRequestsSlidingWindow       *sw.AvgSlidingWindow
+	networkErrorsSlidingWindow         *sw.AvgSlidingWindow
+	blockHeightZeroSlidingWindow       *sw.AvgSlidingWindow
+	blockHeightZeroSlidingWindowLength time.Duration
 
 	weight int
 }
@@ -285,7 +283,7 @@ func WithConsensusReceiptTarget(receiptsTarget string) BackendOpt {
 
 func WithBlockHeightZeroSlidingWindowLength(time time.Duration) BackendOpt {
 	return func(b *Backend) {
-		b.blockHeightZeroSlidingWindowSize = time
+		b.blockHeightZeroSlidingWindowLength = time
 	}
 }
 
@@ -344,7 +342,9 @@ func NewBackend(
 		networkRequestsSlidingWindow: sw.NewSlidingWindow(),
 		networkErrorsSlidingWindow:   sw.NewSlidingWindow(),
 
-		blockHeightZeroSlidingWindowSize: 30 * time.Second,
+		// NOTE: use the block height sliding window
+		// 20 ticks in a min = ban
+		blockHeightZeroSlidingWindowLength: 1 * time.Minute,
 	}
 
 	backend.Override(opts...)
@@ -354,15 +354,13 @@ func NewBackend(
 	}
 
 	backend.blockHeightZeroSlidingWindow = sw.NewSlidingWindow(
-		sw.WithWindowLength(backend.blockHeightZeroSlidingWindowSize),
+		sw.WithWindowLength(backend.blockHeightZeroSlidingWindowLength),
 	)
-
 	return backend
 }
 
-// TODO: Make Size and length same word
 func (b *Backend) GetBlockHeightZeroSlidingWindowLength() time.Duration {
-	return b.blockHeightZeroSlidingWindowSize
+	return b.blockHeightZeroSlidingWindowLength
 }
 
 func (b *Backend) GetBlockHeightZeroSlidingWindowCount() uint {

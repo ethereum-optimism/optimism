@@ -26,7 +26,7 @@ import (
 // 	handler     *ms.MockedHandler // this is where we control the state of mocked responses
 // }
 
-func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.BackendGroup, *ProxydHTTPClient, func()) {
+func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.BackendGroup, *ProxydHTTPClient, func(), proxyd.TOMLDuration) {
 	// setup mock servers
 	node1 := NewMockBackend(nil)
 	node2 := NewMockBackend(nil)
@@ -55,6 +55,7 @@ func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.Backend
 
 	// setup proxyd
 	config := ReadConfig("block_height_zero")
+	banPeriod := config.BackendGroups["node"].ConsensusBanPeriod
 	svr, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 
@@ -66,6 +67,12 @@ func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.Backend
 	require.NotNil(t, bg)
 	require.NotNil(t, bg.Consensus)
 	require.Equal(t, 2, len(bg.Backends)) // should match config
+
+	require.Equal(t, bg.Backends[0].GetBlockHeightZeroSlidingWindowLength(),
+		time.Duration(config.Backends["node1"].BlockHeightZeroWindowLength))
+
+	require.Equal(t, bg.Backends[1].GetBlockHeightZeroSlidingWindowLength(),
+		time.Duration(config.Backends["node2"].BlockHeightZeroWindowLength))
 
 	// convenient mapping to access the nodes by name
 	nodes := map[string]nodeContext{
@@ -81,11 +88,11 @@ func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.Backend
 		},
 	}
 
-	return nodes, bg, client, shutdown
+	return nodes, bg, client, shutdown, banPeriod
 }
 
 func TestBlockHeightZero(t *testing.T) {
-	nodes, bg, _, shutdown := setupBlockHeightZero(t)
+	nodes, bg, _, shutdown, banPeriod := setupBlockHeightZero(t)
 	defer nodes["node1"].mockBackend.Close()
 	defer nodes["node2"].mockBackend.Close()
 	defer shutdown()
@@ -100,6 +107,10 @@ func TestBlockHeightZero(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 	}
 
+	// Use this to clear the sliding windows
+	sleepBanPeriod := func() {
+		time.Sleep(time.Duration(banPeriod) * 4)
+	}
 	// convenient methods to manipulate state and mock responses
 	reset := func() {
 		for _, node := range nodes {
@@ -108,6 +119,11 @@ func TestBlockHeightZero(t *testing.T) {
 		}
 		bg.Consensus.ClearListeners()
 		bg.Consensus.Reset()
+		sleepBanPeriod()
+		require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
+		require.Zero(t, nodes["node2"].backend.GetBlockHeightZeroSlidingWindowCount())
+		require.Zero(t, nodes["node1"].backend.GetBlockHeightZeroSlidingWindowCount())
 	}
 
 	override := func(node string, method string, block string, response string) {
@@ -131,39 +147,10 @@ func TestBlockHeightZero(t *testing.T) {
 			}))
 	}
 
-	// overrideBlockHash := func(node string, blockRequest string, number string, hash string) {
-	// 	override(node,
-	// 		"eth_getBlockByNumber",
-	// 		blockRequest,
-	// 		buildResponse(map[string]string{
-	// 			"number": number,
-	// 			"hash":   hash,
-	// 		}))
-	// }
-
 	overridePeerCount := func(node string, count int) {
 		override(node, "net_peerCount", "", buildResponse(hexutil.Uint64(count).String()))
 	}
 
-	// overrideNotInSync := func(node string) {
-	// 	override(node, "eth_syncing", "", buildResponse(map[string]string{
-	// 		"startingblock": "0x0",
-	// 		"currentblock":  "0x0",
-	// 		"highestblock":  "0x100",
-	// 	}))
-	// }
-
-	// force ban node2 and make sure node1 is the only one in consensus
-	// useOnlyNode1 := func() {
-	// 	overridePeerCount("node2", 0)
-	// 	update()
-	//
-	// 	consensusGroup := bg.Consensus.GetConsensusGroup()
-	// 	require.Equal(t, 1, len(consensusGroup))
-	// 	require.Contains(t, consensusGroup, nodes["node1"].backend)
-	// 	nodes["node1"].mockBackend.Reset()
-	// }
-	//
 	t.Run("initial consensus", func(t *testing.T) {
 		reset()
 
@@ -238,17 +225,17 @@ func TestBlockHeightZero(t *testing.T) {
 		require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
 	})
 
-	t.Run("Test Backend BlockHeight Zero Does not activates if only four infractions in window", func(t *testing.T) {
+	t.Run("Test backend does not activate if the ban periood expiries", func(t *testing.T) {
 		reset()
 
 		delay := nodes["node2"].backend.GetBlockHeightZeroSlidingWindowLength() / 2
 		overrideBlock("node2", "latest", "0x0")
 		for i := 0; i < 10; i++ {
 			// require.Equal(t, uint(i), nodes["node2"].backend.GetBlockHeightZeroSlidingWindowCount())
-			require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
-			require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+			require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected Node2 Not to be Banned on iteration %d. NOTE: THIS PASS WILL NOT PASS IN DEBUG", i)
+			require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected Node1 Not to be Banned on interation %d. NOTE: THIS PASS WILL NOT PASS IN DEBUG", i)
 			update()
-			time.Sleep(delay)
+			time.Sleep(time.Duration(banPeriod))
 		}
 		time.Sleep(delay)
 		require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
@@ -258,16 +245,15 @@ func TestBlockHeightZero(t *testing.T) {
 	t.Run("Test Backend BlockHeight Activates then Deactivates", func(t *testing.T) {
 		reset()
 
-		// delay := nodes["node2"].backend.GetBlockHeightZeroSlidingWindowLength()
 		overrideBlock("node2", "latest", "0x0")
 		for i := 0; i < 10; i++ {
 			update()
-			if i > 5 {
-				require.True(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
-				require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+			if i > 4 {
+				require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected node1 not to be banned on iteration %d. NOTE: THIS PASS WILL NOT PASS IN DEBUG", i)
+				require.True(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected node2 not to be banned on iteration %d. NOTE: THIS PASS WILL NOT PASS IN DEBUG", i)
 			} else {
-				require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
-				require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected Node2 Not to be Banned. NOTE: THIS PASS WILL NOT PASS IN DEBUG")
+				require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend), "Expected node1 Not to be Banned on iteration %d. NOTE: THIS PASS WILL NOT PASS IN DEBUG", i)
+				require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend), "Expected node2 Not to be Banned on iteration %d. NOTE: THIS PASS WILL NOT PASS IN DEBUG", i)
 			}
 		}
 		overrideBlock("node2", "latest", "0x1")

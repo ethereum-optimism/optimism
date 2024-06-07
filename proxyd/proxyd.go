@@ -173,7 +173,7 @@ func Start(config *Config) (*Server, func(), error) {
 			return nil, nil, err
 		}
 		opts = append(opts, WithConsensusReceiptTarget(receiptsTarget))
-		opts = append(opts, WithBlockHeightZeroSlidingWindowLength(time.Duration(cfg.ZeroBlockHeightWindowSize)))
+		opts = append(opts, WithBlockHeightZeroSlidingWindowLength(time.Duration(cfg.BlockHeightZeroWindowLength)))
 
 		back := NewBackend(name, rpcURL, wsURL, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
