@@ -1,0 +1,32 @@
+{
+  "mainnet": {
+    "L1CrossDomainMessenger": {
+      "address": "0x3b48597212f2622511585914CC4D4152c9B1B077",
+      "startBlock": 19478407
+    },
+    "Proxy": {
+      "address": "0xA6Ad22bb0E73DEF40a24E510cFbc93807d8bf87e"
+    },
+    "L1ChugSplashProxy": {
+      "address": "0xdc1664458d2f0B6090bEa60A8793A4E66c2F1c00"
+    },
+    "L1StandardBridge": {
+      "address": "0xdc1664458d2f0B6090bEa60A8793A4E66c2F1c00"
+    },
+    "L2OutputOracle": {
+      "address": "0xbB7aD3f9CCbC94085b7F7B1D5258e59F5F068741"
+    },
+    "OptimismPortal": {
+      "address": "0x7B02D13904D8e6E0f0Efaf756aB14Cb0FF21eE7e"
+    }
+  },
+  "sepolia": {
+    "L1StandardBridge": {
+      "address": "0x244d7b81EE3949788Da5F1178D911e83bA24E157",
+      "startBlock": 5662708
+    },
+    "OptimismPortal": {
+      "address": "0xB079E6FA9B3eb072fEbf7F746044834eab308dB6"
+    }
+  }
+}

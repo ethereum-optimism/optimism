@@ -1,0 +1,56 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: dao
+    network: boba
+    source:
+      address: "0x2CC555B5B1a4Cf7fA5401B29ab46fc5ba2e205b0"
+      abi: dao
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - NewAdmin
+        - NewImplementation
+        - NewPendingAdmin
+        - ProposalCanceled
+        - ProposalCreated
+        - ProposalExecuted
+        - ProposalQueued
+        - ProposalThresholdSet
+        - VoteCast
+        - VotingDelaySet
+        - VotingPeriodSet
+      abis:
+        - name: dao
+          file: ./_configs/dao.json
+      eventHandlers:
+        - event: NewAdmin(address,address)
+          handler: handleNewAdmin
+        - event: NewImplementation(address,address)
+          handler: handleNewImplementation
+        - event: NewPendingAdmin(address,address)
+          handler: handleNewPendingAdmin
+        - event: ProposalCanceled(uint256)
+          handler: handleProposalCanceled
+        - event: ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)
+          handler: handleProposalCreated
+        - event: ProposalExecuted(uint256)
+          handler: handleProposalExecuted
+        - event: ProposalQueued(uint256,uint256)
+          handler: handleProposalQueued
+        - event: ProposalThresholdSet(uint256,uint256)
+          handler: handleProposalThresholdSet
+        - event: VoteCast(indexed address,uint256,uint8,uint256,string)
+          handler: handleVoteCast
+        - event: VotingDelaySet(uint256,uint256)
+          handler: handleVotingDelaySet
+        - event: VotingPeriodSet(uint256,uint256)
+          handler: handleVotingPeriodSet
+      file: ./src/dao.ts

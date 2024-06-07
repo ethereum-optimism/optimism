@@ -1,0 +1,131 @@
+type AssetBalanceWithdrawn @entity(immutable: true) {
+  id: Bytes!
+  token: Bytes! # address
+  owner: Bytes! # address
+  balance: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type AssetReceived @entity(immutable: true) {
+  id: Bytes!
+  token: Bytes! # address
+  sourceChainId: BigInt! # uint32
+  toChainId: BigInt! # uint32
+  depositId: BigInt! # uint256
+  emitter: Bytes! # address
+  amount: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DisbursementFailed @entity(immutable: true) {
+  id: Bytes!
+  depositId: BigInt! # uint256
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  sourceChainId: BigInt! # uint32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DisbursementRetrySuccess @entity(immutable: true) {
+  id: Bytes!
+  depositId: BigInt! # uint256
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  sourceChainId: BigInt! # uint32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DisbursementSuccess @entity(immutable: true) {
+  id: Bytes!
+  depositId: BigInt! # uint256
+  to: Bytes! # address
+  token: Bytes! # address
+  amount: BigInt! # uint256
+  sourceChainId: BigInt! # uint32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DisburserTransferred @entity(immutable: true) {
+  id: Bytes!
+  newDisburser: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type MaxDepositAmountSet @entity(immutable: true) {
+  id: Bytes!
+  token: Bytes! # address
+  toChainId: BigInt! # uint32
+  previousAmount: BigInt! # uint256
+  newAmount: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type MaxTransferAmountPerDaySet @entity(immutable: true) {
+  id: Bytes!
+  token: Bytes! # address
+  toChainId: BigInt! # uint32
+  previousAmount: BigInt! # uint256
+  newAmount: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type MinDepositAmountSet @entity(immutable: true) {
+  id: Bytes!
+  token: Bytes! # address
+  toChainId: BigInt! # uint32
+  previousAmount: BigInt! # uint256
+  newAmount: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type OwnershipTransferred @entity(immutable: true) {
+  id: Bytes!
+  newOwner: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Paused @entity(immutable: true) {
+  id: Bytes!
+  account: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type TokenSupported @entity(immutable: true) {
+  id: Bytes!
+  token: Bytes! # address
+  toChainId: BigInt! # uint32
+  supported: Boolean! # bool
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Unpaused @entity(immutable: true) {
+  id: Bytes!
+  account: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
