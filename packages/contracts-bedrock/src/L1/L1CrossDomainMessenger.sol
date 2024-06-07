@@ -78,7 +78,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function _relayMessageValidationGas(uint64 _messageLength) internal pure override returns (uint64) {
+    function _relayMessageValidationGas(uint64) internal pure override returns (uint64) {
         return L1_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 
