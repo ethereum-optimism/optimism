@@ -80,7 +80,7 @@
   "disputeGameFinalityDelaySeconds": 600,
   "respectedGameType": 0,
   "useFaultProofs": true,
-  "fundDevAccounts": false,
+  "fundDevAccounts": true,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000"
 }

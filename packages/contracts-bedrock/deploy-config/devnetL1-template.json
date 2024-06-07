@@ -1,5 +1,5 @@
 {
-  "l1ChainID": 900,
+  "l1ChainID": 11155111,
   "l2ChainID": 901,
   "l2BlockTime": 2,
   "maxSequencerDrift": 300,
@@ -65,8 +65,8 @@
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 0,
   "useFaultProofs": false,
-  "usePlasma": false,
-  "daCommitmentType": "KeccakCommitment",
+  "usePlasma": true,
+  "daCommitmentType": "GenericCommitment",
   "daChallengeWindow": 160,
   "daResolveWindow": 160,
   "daBondSize": 1000000,
