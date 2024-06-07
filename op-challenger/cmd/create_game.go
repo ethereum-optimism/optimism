@@ -76,6 +76,6 @@ var CreateGameCommand = &cli.Command{
 	Name:        "create-game",
 	Usage:       "Creates a dispute game via the factory",
 	Description: "Creates a dispute game via the factory",
-	Action:      CreateGame,
+	Action:      Interruptible(CreateGame),
 	Flags:       createGameFlags(),
 }

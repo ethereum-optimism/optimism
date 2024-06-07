@@ -112,6 +112,6 @@ var ListCreditsCommand = &cli.Command{
 	Name:        "list-credits",
 	Usage:       "List the credits in a dispute game",
 	Description: "Lists the credits in a dispute game",
-	Action:      ListCredits,
+	Action:      Interruptible(ListCredits),
 	Flags:       listCreditsFlags(),
 }

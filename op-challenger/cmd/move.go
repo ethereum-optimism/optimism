@@ -97,6 +97,6 @@ var MoveCommand = &cli.Command{
 	Name:        "move",
 	Usage:       "Creates and sends a move transaction to the dispute game",
 	Description: "Creates and sends a move transaction to the dispute game",
-	Action:      Move,
+	Action:      Interruptible(Move),
 	Flags:       moveFlags(),
 }

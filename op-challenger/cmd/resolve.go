@@ -46,6 +46,6 @@ var ResolveCommand = &cli.Command{
 	Name:        "resolve",
 	Usage:       "Resolves the specified dispute game if possible",
 	Description: "Resolves the specified dispute game if possible",
-	Action:      Resolve,
+	Action:      Interruptible(Resolve),
 	Flags:       resolveFlags(),
 }

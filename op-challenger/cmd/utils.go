@@ -8,6 +8,7 @@ import (
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
@@ -17,6 +18,12 @@ import (
 
 type ContractCreator[T any] func(context.Context, contractMetrics.ContractMetricer, common.Address, *batching.MultiCaller) (T, error)
 
+func Interruptible(action cli.ActionFunc) cli.ActionFunc {
+	return func(ctx *cli.Context) error {
+		ctx.Context = opio.CancelOnInterrupt(ctx.Context)
+		return action(ctx)
+	}
+}
 func AddrFromFlag(flagName string) func(ctx *cli.Context) (common.Address, error) {
 	return func(ctx *cli.Context) (common.Address, error) {
 		gameAddr, err := opservice.ParseAddress(ctx.String(flagName))
