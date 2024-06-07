@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -20,7 +19,7 @@ abstract contract ERC721Bridge is Initializable {
 
     /// @notice Contract of the bridge on the other network.
     /// @custom:network-specific
-    StandardBridge public otherBridge;
+    ERC721Bridge public otherBridge;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
     uint256[46] private __gap;
@@ -71,7 +70,7 @@ abstract contract ERC721Bridge is Initializable {
     /// @param _otherBridge Contract of the ERC721 bridge on the other network.
     function __ERC721Bridge_init(
         CrossDomainMessenger _messenger,
-        StandardBridge _otherBridge
+        ERC721Bridge _otherBridge
     )
         internal
         onlyInitializing
@@ -92,7 +91,7 @@ abstract contract ERC721Bridge is Initializable {
     ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.
     /// @return Contract of the bridge on the other network.
     /// @custom:legacy
-    function OTHER_BRIDGE() external view returns (StandardBridge) {
+    function OTHER_BRIDGE() external view returns (ERC721Bridge) {
         return otherBridge;
     }
 

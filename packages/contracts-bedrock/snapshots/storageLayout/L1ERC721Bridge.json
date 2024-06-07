@@ -32,7 +32,7 @@
     "label": "otherBridge",
     "offset": 0,
     "slot": "2",
-    "type": "contract StandardBridge"
+    "type": "contract ERC721Bridge"
   },
   {
     "bytes": "1472",
