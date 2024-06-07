@@ -110,9 +110,6 @@ abstract contract CrossDomainMessenger is
     /// @notice Gas reserved for finalizing the execution of `relayMessage` after the safe call.
     uint64 public constant RELAY_RESERVED_GAS = 40_000;
 
-    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
-    ///         of `relayMessage` in the L2CrossDomainMessenger.
-    uint64 public constant RELAY_MESSAGE_VALIDATOR_GAS = 25_500;
     /// @notice Gas reserved for the execution between the `hasMinGas` check and the external
     ///         call in `relayMessage`.
     uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
@@ -268,8 +265,8 @@ abstract contract CrossDomainMessenger is
         // If `xDomainMsgSender` is not the default L2 sender, this function
         // is being re-entered. This marks the message as failed to allow it to be replayed.
         if (
-            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER + RELAY_MESSAGE_VALIDATOR_GAS)
-                || xDomainMsgSender != Constants.DEFAULT_L2_SENDER // Require enough gas for !passesDomainMessageValidator
+            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER + _relayMessageValidationGas())
+                || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
         ) {
             failedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
@@ -399,6 +396,10 @@ abstract contract CrossDomainMessenger is
         view
         virtual
         returns (bool);
+
+    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
+    ///         of `relayMessage` in the L2CrossDomainMessenger.
+    function _relayMessageValidationGas() internal view virtual returns (uint64);
 
     /// @notice Initializer.
     /// @param _otherMessenger CrossDomainMessenger contract on the other chain.
