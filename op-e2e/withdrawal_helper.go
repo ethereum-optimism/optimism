@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
@@ -201,9 +201,6 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		require.Nil(t, err)
 		require.NotNil(t, game, "withdrawal should be proven")
 
-		proxy, err := legacybindings.NewFaultDisputeGame(game.DisputeGameProxy, l1Client)
-		require.Nil(t, err)
-
 		caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
 		gameContract, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics.NoopContractMetrics, game.DisputeGameProxy, caller)
 		require.Nil(t, err)
@@ -216,19 +213,13 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 			return err == nil, nil
 		}))
 
-		resolveClaimTx, err := proxy.ResolveClaim(opts, common.Big0, common.Big0)
-		require.Nil(t, err)
+		tx, err := gameContract.ResolveClaimTx(0)
+		require.NoError(t, err, "create resolveClaim tx")
+		_, resolveClaimReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey)
 
-		resolveClaimReceipt, err = wait.ForReceiptOK(ctx, l1Client, resolveClaimTx.Hash())
-		require.Nil(t, err, "resolve claim")
-		require.Equal(t, types.ReceiptStatusSuccessful, resolveClaimReceipt.Status)
-
-		resolveTx, err := proxy.Resolve(opts)
-		require.Nil(t, err)
-
-		resolveReceipt, err = wait.ForReceiptOK(ctx, l1Client, resolveTx.Hash())
-		require.Nil(t, err, "resolve")
-		require.Equal(t, types.ReceiptStatusSuccessful, resolveReceipt.Status)
+		tx, err = gameContract.ResolveTx()
+		require.NoError(t, err, "create resolve tx")
+		_, resolveReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey)
 	}
 
 	if e2eutils.UseFaultProofs() {

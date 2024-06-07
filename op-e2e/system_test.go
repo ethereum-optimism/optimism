@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	metrics2 "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -192,21 +195,21 @@ func TestL2OutputSubmitterFaultProofs(t *testing.T) {
 		require.Nil(t, err)
 
 		if latestGameCount.Cmp(initialGameCount) > 0 {
+			caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
 			committedL2Output, err := disputeGameFactory.GameAtIndex(&bind.CallOpts{}, new(big.Int).Sub(latestGameCount, common.Big1))
 			require.Nil(t, err)
-			proxy, err := bindings.NewFaultDisputeGameCaller(committedL2Output.Proxy, l1Client)
+			proxy, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics2.NoopContractMetrics, committedL2Output.Proxy, caller)
 			require.Nil(t, err)
-			committedOutputRoot, err := proxy.RootClaim(&bind.CallOpts{})
+			claim, err := proxy.GetClaim(context.Background(), 0)
 			require.Nil(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			extradata, err := proxy.ExtraData(&bind.CallOpts{})
+			_, gameBlockNumber, err := proxy.GetBlockRange(ctx)
 			require.Nil(t, err)
-			gameBlockNumber := new(big.Int).SetBytes(extradata[0:32])
-			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber.Uint64())
+			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber)
 			require.Nil(t, err)
-			require.Equal(t, l2Output.OutputRoot[:], committedOutputRoot[:])
+			require.EqualValues(t, l2Output.OutputRoot, claim.Value)
 			break
 		}
 
