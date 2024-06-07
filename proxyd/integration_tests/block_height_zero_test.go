@@ -109,7 +109,7 @@ func TestBlockHeightZero(t *testing.T) {
 
 	// Use this to clear the sliding windows
 	sleepBanPeriod := func() {
-		time.Sleep(time.Duration(banPeriod) * 4)
+		time.Sleep(time.Duration(banPeriod))
 	}
 	// convenient methods to manipulate state and mock responses
 	reset := func() {
