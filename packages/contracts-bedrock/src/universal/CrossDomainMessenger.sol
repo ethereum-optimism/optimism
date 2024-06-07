@@ -423,10 +423,10 @@ abstract contract CrossDomainMessenger is
 
     /// @notice Computes a dynamic gas expansion overhead based on the length of the message
     ///         for message validation.
-    /// @param messageLength Length of the message.
+    /// @param _messageLength Length of the message.
     /// @return Dynamic gas expansion overhead.
-    function _messageLengthValidationGas(uint64 messageLength) internal pure returns (uint64) {
-        return messageLength * MIN_GAS_CALLDATA_OVERHEAD;
+    function _messageLengthValidationGas(uint64 _messageLength) internal pure returns (uint64) {
+        return _messageLength * MIN_GAS_CALLDATA_OVERHEAD;
     }
 
     /// @notice Initializer.
