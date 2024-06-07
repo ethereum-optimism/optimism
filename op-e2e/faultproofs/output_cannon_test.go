@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"io"
 	"net/url"
 	"net/http/httptest"
 	"net/http"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
@@ -204,12 +202,14 @@ func TestOutputCannonRemoteAbsolutePreState(t *testing.T) {
 	absolutePreStateFile := monorepoRoot + "op-program/bin/prestate.json"
 
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		// query := req.URL.Path
-		file, err := os.Open(absolutePreStateFile)
-		require.NoError(t, err)
-		defer file.Close()
-		_, err = io.Copy(rw, file)
-		require.NoError(t, err)
+		fileBytes, err := os.ReadFile(absolutePreStateFile)
+		if err != nil {
+			rw.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		rw.WriteHeader(http.StatusOK)
+		rw.Header().Set("Content-Type", "application/json")
+		rw.Write(fileBytes)
 	}))
 	defer server.Close()
 
