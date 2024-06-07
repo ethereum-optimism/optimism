@@ -1,8 +1,8 @@
 package e2eutils
 
 import (
-	"os"
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"

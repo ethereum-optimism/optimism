@@ -3,10 +3,10 @@ package faultproofs
 import (
 	"context"
 	"fmt"
-	"os"
-	"net/url"
-	"net/http/httptest"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
@@ -209,7 +209,11 @@ func TestOutputCannonRemoteAbsolutePreState(t *testing.T) {
 		}
 		rw.WriteHeader(http.StatusOK)
 		rw.Header().Set("Content-Type", "application/json")
-		rw.Write(fileBytes)
+		_, err = rw.Write(fileBytes)
+		if err != nil {
+			fmt.Println("Failed to write response")
+		}
+
 	}))
 	defer server.Close()
 
