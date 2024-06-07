@@ -106,7 +106,21 @@ contract L2Genesis is Deployer {
     ///         Sets the precompiles, proxies, and the implementation accounts to be `vm.dumpState`
     ///         to generate a L2 genesis alloc.
     function runWithStateDump() public {
-        runWithOptions(Config.outputMode(), Config.fork(), artifactDependencies());
+        Fork fork = Config.fork();
+        if (fork == Fork.NONE) {
+            // Will revert if no deploy config can be found either.
+            fork = latestDeployConfigGenesisFork();
+            console.log("L2Genesis: using deploy config fork: %d", uint256(fork));
+        } else {
+            console.log("L2Genesis: using env var fork: %d", uint256(fork));
+        }
+        runWithOptions(Config.outputMode(), fork, artifactDependencies());
+    }
+
+    function latestDeployConfigGenesisFork() internal returns (Fork) {
+        DeployConfig cfg = DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
+        cfg.read(Config.deployConfigPath());
+        return cfg.latestGenesisFork();
     }
 
     /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
@@ -127,6 +141,7 @@ contract L2Genesis is Deployer {
 
     /// @notice Build the L2 genesis.
     function runWithOptions(OutputMode _mode, Fork _fork, L1Dependencies memory _l1Dependencies) public {
+        console.log("L2Genesis: outputMode: %d, fork: %d", uint256(_mode), uint256(_fork));
         vm.startPrank(deployer);
         vm.chainId(cfg.l2ChainID());
 

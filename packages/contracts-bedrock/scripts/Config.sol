@@ -15,12 +15,12 @@ enum OutputMode {
 
 /// @notice Enum of forks available for selection when generating genesis allocs.
 enum Fork {
+    NONE,
     DELTA,
     ECOTONE,
     FJORD
 }
 
-/// @notice Always points to the latest fork.
 Fork constant LATEST_FORK = Fork.FJORD;
 
 /// @title Config
@@ -89,6 +89,8 @@ library Config {
     }
 
     /// @notice Returns the OutputMode for genesis allocs generation.
+    ///         It reads the mode from the environment variable OUTPUT_MODE.
+    ///         If it is unset, OutputMode.ALL is returned.
     function outputMode() internal view returns (OutputMode) {
         string memory modeStr = vm.envOr("OUTPUT_MODE", string("all"));
         bytes32 modeHash = keccak256(bytes(modeStr));
@@ -104,8 +106,14 @@ library Config {
     }
 
     /// @notice Returns the latest fork to use for genesis allocs generation.
+    ///         It reads the fork from the environment variable FORK. If it is
+    ///         unset, NONE is returned.
+    ///         If set to the special value "latest", the latest fork is returned.
     function fork() internal view returns (Fork) {
-        string memory forkStr = vm.envOr("FORK", string("latest"));
+        string memory forkStr = vm.envOr("FORK", string(""));
+        if (bytes(forkStr).length == 0) {
+            return Fork.NONE;
+        }
         bytes32 forkHash = keccak256(bytes(forkStr));
         if (forkHash == keccak256(bytes("latest"))) {
             return LATEST_FORK;
