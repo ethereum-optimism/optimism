@@ -101,12 +101,12 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function _relayMessageValidationGas() internal pure override returns (uint64) {
-        return L2_RELAY_MESSAGE_VALIDATOR_GAS;
+    function _relayMessageValidationGas(uint64 messageLength) internal pure override returns (uint64) {
+        return _messageLengthValidationGas(messageLength) + L2_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function _sendMessageValidationGas() internal pure override returns (uint64) {
+    function _sendMessageValidationGas(uint64 messageLength) internal pure override returns (uint64) {
         return L1_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 

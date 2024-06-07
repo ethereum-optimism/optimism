@@ -273,8 +273,10 @@ abstract contract CrossDomainMessenger is
         // If `xDomainMsgSender` is not the default L2 sender, this function
         // is being re-entered. This marks the message as failed to allow it to be replayed.
         if (
-            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER + _relayMessageValidationGas())
-                || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
+            !SafeCall.hasMinGas(
+                _minGasLimit,
+                RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER + _relayMessageValidationGas(uint64(_message.length))
+            ) || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
         ) {
             failedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
@@ -378,7 +380,7 @@ abstract contract CrossDomainMessenger is
         // opcode. (Conservative)
         + RELAY_GAS_CHECK_BUFFER
         // Gas reserved for message validation on the other domain
-        + _sendMessageValidationGas();
+        + _sendMessageValidationGas(uint64(_message.length));
     }
 
     /// @notice Returns the address of the gas token and the token's decimals.
@@ -409,11 +411,23 @@ abstract contract CrossDomainMessenger is
 
     /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
     ///         of `relayMessage` in the CrossDomainMessenger.
-    function _relayMessageValidationGas() internal pure virtual returns (uint64);
+    /// @param _messageLength Length of the message.
+    /// @return Gas reserved for message validation.
+    function _relayMessageValidationGas(uint64 _messageLength) internal pure virtual returns (uint64);
 
     /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
     ///         of `relayMessage` in the CrossDomainMessenger on the other chain.
-    function _sendMessageValidationGas() internal pure virtual returns (uint64);
+    /// @param _messageLength Length of the message.
+    /// @return Gas reserved for message validation.
+    function _sendMessageValidationGas(uint64 _messageLength) internal pure virtual returns (uint64);
+
+    /// @notice Computes a dynamic gas expansion overhead based on the length of the message
+    ///         for message validation.
+    /// @param messageLength Length of the message.
+    /// @return Dynamic gas expansion overhead.
+    function _messageLengthValidationGas(uint64 messageLength) internal pure returns (uint64) {
+        return messageLength * MIN_GAS_CALLDATA_OVERHEAD;
+    }
 
     /// @notice Initializer.
     /// @param _otherMessenger CrossDomainMessenger contract on the other chain.
