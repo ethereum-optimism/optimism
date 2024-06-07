@@ -28,10 +28,6 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @custom:semver 2.4.0
     string public constant version = "2.4.0";
 
-    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
-    ///         of `relayMessage` in the L2CrossDomainMessenger.
-    uint64 public constant RELAY_MESSAGE_VALIDATOR_GAS = 50;
-
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {
         initialize({
@@ -81,10 +77,14 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
         return true;
     }
 
-    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
-    ///         of `relayMessage` in the L2CrossDomainMessenger.
-    function _relayMessageValidationGas() internal view virtual override returns (uint64) {
-        return RELAY_MESSAGE_VALIDATOR_GAS;
+    /// @inheritdoc CrossDomainMessenger
+    function _relayMessageValidationGas() internal pure override returns (uint64) {
+        return L1_RELAY_MESSAGE_VALIDATOR_GAS;
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _sendMessageValidationGas() internal pure override returns (uint64) {
+        return L2_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 
     /// @notice Getter function for the OptimismPortal contract on this chain.

@@ -21,10 +21,6 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @custom:semver 2.1.0
     string public constant version = "2.1.0";
 
-    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
-    ///         of `relayMessage` in the L2CrossDomainMessenger.
-    uint64 public constant RELAY_MESSAGE_VALIDATOR_GAS = 25_500;
-
     /// @notice Constructs the L2CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {
         initialize({ _l1CrossDomainMessenger: CrossDomainMessenger(address(0)) });
@@ -70,14 +66,24 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         override
         returns (bool)
     {
+        // Note: We are assuming that if message vaildation is active in the SystemConfig
+        //      the l1MessageValidator enforces the constraint that `_from` on the Deposit
+        //      is the L1CrossDomainMessenger.
+        //
+        // We make sure we only do validation on L1 -> L2 messages, otherwise
+        // this is a replay and should always be allowed.
+        if (!_isOtherMessenger()) {
+            return true;
+        }
+
         // TODO: Remove this comment 5_500 accounted for in this call.
         // Accounting for: Cold Sload (2100) + Cold Static (2600) = 4_700 + 800 (buffer extra logic)
         address l2MessageValidator = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l2MessageValidator();
-
         if (l2MessageValidator == address(0)) {
             return true;
         }
 
+        // Check to make sure we have enough gas to continue, otherwise early exit.
         bytes memory callData = abi.encodeWithSelector(
             IL2MessageValidator(l2MessageValidator).validateMessage.selector,
             _nonce,
@@ -94,10 +100,14 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         return success && abi.decode(returnData, (bool));
     }
 
-    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
-    ///         of `relayMessage` in the L2CrossDomainMessenger.
-    function _relayMessageValidationGas() internal view virtual override returns (uint64) {
-        return RELAY_MESSAGE_VALIDATOR_GAS;
+    /// @inheritdoc CrossDomainMessenger
+    function _relayMessageValidationGas() internal pure override returns (uint64) {
+        return L2_RELAY_MESSAGE_VALIDATOR_GAS;
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _sendMessageValidationGas() internal pure override returns (uint64) {
+        return L1_RELAY_MESSAGE_VALIDATOR_GAS;
     }
 
     /// @inheritdoc CrossDomainMessenger

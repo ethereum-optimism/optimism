@@ -110,6 +110,14 @@ abstract contract CrossDomainMessenger is
     /// @notice Gas reserved for finalizing the execution of `relayMessage` after the safe call.
     uint64 public constant RELAY_RESERVED_GAS = 40_000;
 
+    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
+    ///         of `relayMessage`. For L1, this func MUST be a no-op.
+    uint64 public constant L1_RELAY_MESSAGE_VALIDATOR_GAS = 50;
+
+    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
+    ///         of `relayMessage` in the L2CrossDomainMessenger.
+    uint64 public constant L2_RELAY_MESSAGE_VALIDATOR_GAS = 25_500;
+
     /// @notice Gas reserved for the execution between the `hasMinGas` check and the external
     ///         call in `relayMessage`.
     uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
@@ -368,7 +376,9 @@ abstract contract CrossDomainMessenger is
         + RELAY_RESERVED_GAS
         // Gas reserved for the execution between the `hasMinGas` check and the `CALL`
         // opcode. (Conservative)
-        + RELAY_GAS_CHECK_BUFFER;
+        + RELAY_GAS_CHECK_BUFFER
+        // Gas reserved for message validation on the other domain
+        + _sendMessageValidationGas();
     }
 
     /// @notice Returns the address of the gas token and the token's decimals.
@@ -398,8 +408,12 @@ abstract contract CrossDomainMessenger is
         returns (bool);
 
     /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
-    ///         of `relayMessage` in the L2CrossDomainMessenger.
-    function _relayMessageValidationGas() internal view virtual returns (uint64);
+    ///         of `relayMessage` in the CrossDomainMessenger.
+    function _relayMessageValidationGas() internal pure virtual returns (uint64);
+
+    /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
+    ///         of `relayMessage` in the CrossDomainMessenger on the other chain.
+    function _sendMessageValidationGas() internal pure virtual returns (uint64);
 
     /// @notice Initializer.
     /// @param _otherMessenger CrossDomainMessenger contract on the other chain.
