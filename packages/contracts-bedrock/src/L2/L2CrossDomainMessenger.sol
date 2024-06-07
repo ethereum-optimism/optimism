@@ -96,7 +96,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Gas reserved for message validation within `passesDomainMessageValidator`
     ///         of `relayMessage` in the L2CrossDomainMessenger.
-    function _relayMessageValidationGas() internal view override returns (uint64) {
+    function _relayMessageValidationGas() internal view virtual override returns (uint64) {
         return RELAY_MESSAGE_VALIDATOR_GAS;
     }
 
