@@ -76,8 +76,6 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
             return true;
         }
 
-        // TODO: Remove this comment 5_500 accounted for in this call.
-        // Accounting for: Cold Sload (2100) + Cold Static (2600) = 4_700 + 800 (buffer extra logic)
         address l2MessageValidator = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l2MessageValidator();
         if (l2MessageValidator == address(0)) {
             return true;
@@ -93,8 +91,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
             _minGasLimit,
             _message
         );
-        // TODO: Decide what's a reasonable gas limit for this call.
-        // TODO: Remove comment - TOTAL: RELAY_MESSAGE_VALIDATOR_GAS: 5_500 + 20_000 = 25_500
+
         (bool success, bytes memory returnData) = l2MessageValidator.staticcall{ gas: 20_000 }(callData);
 
         return success && abi.decode(returnData, (bool));
