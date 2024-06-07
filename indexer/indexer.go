@@ -171,7 +171,7 @@ func (ix *Indexer) initFromConfig(ctx context.Context, cfg *config.Config) error
 }
 
 func (ix *Indexer) initRPCClients(ctx context.Context, rpcsConfig config.RPCsConfig) error {
-	if !client.IsURLAvailable(rpcsConfig.L1RPC) {
+	if !client.IsURLAvailable(ctx, rpcsConfig.L1RPC) {
 		return fmt.Errorf("l1 rpc address unavailable (%s)", rpcsConfig.L1RPC)
 	}
 	l1Rpc, err := rpc.DialContext(ctx, rpcsConfig.L1RPC)
@@ -179,7 +179,7 @@ func (ix *Indexer) initRPCClients(ctx context.Context, rpcsConfig config.RPCsCon
 		return fmt.Errorf("failed to dial L1 client: %w", err)
 	}
 
-	if !client.IsURLAvailable(rpcsConfig.L2RPC) {
+	if !client.IsURLAvailable(ctx, rpcsConfig.L2RPC) {
 		return fmt.Errorf("l2 rpc address unavailable (%s)", rpcsConfig.L2RPC)
 	}
 	l2Rpc, err := rpc.DialContext(ctx, rpcsConfig.L2RPC)

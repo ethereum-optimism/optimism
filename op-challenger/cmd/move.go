@@ -46,7 +46,7 @@ func Move(ctx *cli.Context) error {
 		return fmt.Errorf("both attack and defense flags cannot be set")
 	}
 
-	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, GameAddressFlag.Name, contracts.NewFaultDisputeGameContract)
+	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, AddrFromFlag(GameAddressFlag.Name), contracts.NewFaultDisputeGameContract)
 	if err != nil {
 		return fmt.Errorf("failed to create dispute game bindings: %w", err)
 	}
@@ -97,6 +97,6 @@ var MoveCommand = &cli.Command{
 	Name:        "move",
 	Usage:       "Creates and sends a move transaction to the dispute game",
 	Description: "Creates and sends a move transaction to the dispute game",
-	Action:      Move,
+	Action:      Interruptible(Move),
 	Flags:       moveFlags(),
 }

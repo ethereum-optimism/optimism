@@ -24,7 +24,7 @@ key3=$(echo "$wallet3" | awk '/Private key/ { print $3 }')
 key4=$(echo "$wallet4" | awk '/Private key/ { print $3 }')
 
 # Print out the environment variables to copy
-echo "Copy the following into your .envrc file:"
+echo "# Copy the following into your .envrc file:"
 echo
 echo "# Admin account"
 echo "export GS_ADMIN_ADDRESS=$address1"

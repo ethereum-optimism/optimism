@@ -244,13 +244,15 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 // FetchCurrentBlockNumber gets the current block number from the [L2OutputSubmitter]'s [RollupClient]. If the `AllowNonFinalized` configuration
 // option is set, it will return the safe head block number, and if not, it will return the finalized head block number.
 func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (*big.Int, error) {
-	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
-	defer cancel()
-	rollupClient, err := l.RollupProvider.RollupClient(cCtx)
+	rollupClient, err := l.RollupProvider.RollupClient(ctx)
 	if err != nil {
 		l.Log.Error("proposer unable to get rollup client", "err", err)
 		return nil, err
 	}
+
+	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	defer cancel()
+
 	status, err := rollupClient.SyncStatus(cCtx)
 	if err != nil {
 		l.Log.Error("proposer unable to get sync status", "err", err)
@@ -268,15 +270,16 @@ func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (*big.I
 }
 
 func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
-	defer cancel()
-
 	rollupClient, err := l.RollupProvider.RollupClient(ctx)
 	if err != nil {
 		l.Log.Error("proposer unable to get rollup client", "err", err)
 		return nil, false, err
 	}
-	output, err := rollupClient.OutputAtBlock(ctx, block.Uint64())
+
+	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	defer cancel()
+
+	output, err := rollupClient.OutputAtBlock(cCtx, block.Uint64())
 	if err != nil {
 		l.Log.Error("failed to fetch output at block", "block", block, "err", err)
 		return nil, false, err
@@ -431,15 +434,15 @@ func (l *L2OutputSubmitter) loop() {
 }
 
 func (l *L2OutputSubmitter) waitNodeSync() error {
-	ctx, cancel := context.WithTimeout(l.ctx, l.Cfg.NetworkTimeout)
+	cCtx, cancel := context.WithTimeout(l.ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 
-	l1head, err := l.Txmgr.BlockNumber(ctx)
+	l1head, err := l.Txmgr.BlockNumber(cCtx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve current L1 block number: %w", err)
 	}
 
-	rollupClient, err := l.RollupProvider.RollupClient(ctx)
+	rollupClient, err := l.RollupProvider.RollupClient(l.ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get rollup client: %w", err)
 	}

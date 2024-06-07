@@ -54,12 +54,13 @@ type TraceType string
 
 const (
 	TraceTypeAlphabet     TraceType = "alphabet"
+	TraceTypeFast         TraceType = "fast"
 	TraceTypeCannon       TraceType = "cannon"
 	TraceTypeAsterisc     TraceType = "asterisc"
 	TraceTypePermissioned TraceType = "permissioned"
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeFast}
 
 func (t TraceType) String() string {
 	return string(t)

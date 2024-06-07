@@ -225,19 +225,6 @@ target "indexer" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/indexer:${tag}"]
 }
 
-target "ufm-metamask" {
-  dockerfile = "Dockerfile"
-  context = "./ufm-test-services/metamask"
-  args = {
-    // proxyd dockerfile has no _ in the args
-    GITCOMMIT = "${GIT_COMMIT}"
-    GITDATE = "${GIT_DATE}"
-    GITVERSION = "${GIT_VERSION}"
-  }
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ufm-metamask:${tag}"]
-}
-
 target "chain-mon" {
   dockerfile = "./ops/docker/Dockerfile.packages"
   context = "."

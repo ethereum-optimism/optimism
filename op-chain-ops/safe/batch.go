@@ -118,7 +118,7 @@ func (b *Batch) Check() error {
 	return nil
 }
 
-// bathcFileMarshaling is a helper type used for JSON marshaling.
+// batchMarshaling is a helper type used for JSON marshaling.
 type batchMarshaling struct {
 	Version      string             `json:"version"`
 	ChainID      string             `json:"chainId"`

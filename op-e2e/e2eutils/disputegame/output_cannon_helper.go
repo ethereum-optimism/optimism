@@ -18,12 +18,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -233,19 +233,14 @@ func (g *OutputCannonGameHelper) VerifyPreimage(ctx context.Context, outputRootC
 		g.Require.NotNil(oracleData, "Should have had required preimage oracle data")
 		g.Require.Equal(common.Hash(preimageKey.PreimageKey()).Bytes(), oracleData.OracleKey, "Must have correct preimage key")
 
-		tx, err := g.GameBindings.AddLocalData(g.Opts,
-			oracleData.GetIdent(),
-			big.NewInt(outputRootClaim.Index),
-			new(big.Int).SetUint64(uint64(oracleData.OracleOffset)))
-		g.Require.NoError(err)
-		_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
-		g.Require.NoError(err)
+		candidate, err := g.Game.UpdateOracleTx(ctx, uint64(outputRootClaim.Index), oracleData)
+		g.Require.NoError(err, "failed to get oracle")
+		transactions.RequireSendTx(g.T, ctx, g.Client, candidate, g.PrivKey)
 
 		expectedPostState, err := provider.Get(ctx, pos)
 		g.Require.NoError(err, "Failed to get expected post state")
 
-		callOpts := &bind.CallOpts{Context: ctx}
-		vmAddr, err := g.GameBindings.Vm(callOpts)
+		vm, err := g.Game.Vm(ctx)
 		g.Require.NoError(err, "Failed to get VM address")
 
 		abi, err := bindings.MIPSMetaData.GetAbi()
@@ -253,7 +248,7 @@ func (g *OutputCannonGameHelper) VerifyPreimage(ctx context.Context, outputRootC
 		caller := batching.NewMultiCaller(g.Client.Client(), batching.DefaultBatchSize)
 		result, err := caller.SingleCall(ctx, rpcblock.Latest, &batching.ContractCall{
 			Abi:    abi,
-			Addr:   vmAddr,
+			Addr:   vm.Addr(),
 			Method: "step",
 			Args: []interface{}{
 				prestate, proof, localContext,

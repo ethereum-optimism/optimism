@@ -26,7 +26,7 @@ func ResolveClaim(ctx *cli.Context) error {
 	}
 	idx := ctx.Uint64(ClaimIdxFlag.Name)
 
-	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, GameAddressFlag.Name, contracts.NewFaultDisputeGameContract)
+	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, AddrFromFlag(GameAddressFlag.Name), contracts.NewFaultDisputeGameContract)
 	if err != nil {
 		return fmt.Errorf("failed to create dispute game bindings: %w", err)
 	}
@@ -66,6 +66,6 @@ var ResolveClaimCommand = &cli.Command{
 	Name:        "resolve-claim",
 	Usage:       "Resolves the specified claim if possible",
 	Description: "Resolves the specified claim if possible",
-	Action:      ResolveClaim,
+	Action:      Interruptible(ResolveClaim),
 	Flags:       resolveClaimFlags(),
 }

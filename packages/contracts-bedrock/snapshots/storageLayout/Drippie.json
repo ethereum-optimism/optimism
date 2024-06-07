@@ -12,5 +12,12 @@
     "offset": 0,
     "slot": "1",
     "type": "mapping(string => struct Drippie.DripState)"
+  },
+  {
+    "bytes": "32",
+    "label": "created",
+    "offset": 0,
+    "slot": "2",
+    "type": "string[]"
   }
 ]

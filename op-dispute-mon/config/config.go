@@ -49,12 +49,12 @@ type Config struct {
 	PprofConfig   oppprof.CLIConfig
 }
 
-func NewConfig(gameFactoryAddress common.Address, l1EthRpc string) Config {
+func NewConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpc string) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
+		RollupRpc:          rollupRpc,
 		GameFactoryAddress: gameFactoryAddress,
 
-		HonestActors:    []common.Address{},
 		MonitorInterval: DefaultMonitorInterval,
 		GameWindow:      DefaultGameWindow,
 		MaxConcurrency:  DefaultMaxConcurrency,
