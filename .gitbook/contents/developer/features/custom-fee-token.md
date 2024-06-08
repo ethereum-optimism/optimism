@@ -4,6 +4,8 @@
 
 Custom gas token allows for an L1-native ERC20 token to collateralize and act as the gas token on L2. This implementation is based on [Optimism's Custom Fee Token](https://specs.optimism.io/protocol/granite/custom-gas-token.html) and enhances its functionality by enabling the bridging of L1 native tokens to L2 as ERC20 tokens. 
 
+**The codebase is located in the [custom-fee-token](https://github.com/bobanetwork/boba/tree/custom-fee-token) branch.**
+
 ## Configuring the Gas Paying Token and L2 ETH Token
 
 The gas-paying token and the L2 ETH token are set within the L1 `SystemConfig` smart contract. The gas-paying token is set during initialization and cannot be modified by the `SystemConfig` bytecode. The L2 ETH token is set during initialization and can be updated via the `setL2ETHToken` function if the L2 ETH token address is `address(0)`. Since the `SystemConfig` is proxied, it is always possible to modify the storage slot that holds the gas-paying token address and the L2 ETH token address directly during an upgrade.
