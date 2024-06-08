@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// The attributes queue sits in between the batch queue and the engine queue
+// The attributes queue sits after the batch queue.
 // It transforms batches into payload attributes. The outputted payload
 // attributes cannot be buffered because each batch->attributes transformation
 // pulls in data about the current L2 safe head.

@@ -79,9 +79,9 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1Fetcher, l2Source)
 	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchQueue)
 
-	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
-	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
-	// Note: The engine queue stage is the only reset that can fail.
+	// Reset from ResetEngine then up from L1 Traversal. The stages do not talk to each other during
+	// the ResetEngine, but after the ResetEngine, this is the order in which the stages could talk to each other.
+	// Note: The ResetEngine is the only reset that can fail.
 	stages := []ResettableStage{l1Traversal, l1Src, plasma, frameQueue, bank, chInReader, batchQueue, attributesQueue}
 
 	return &DerivationPipeline{
