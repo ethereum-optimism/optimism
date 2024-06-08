@@ -19,6 +19,13 @@ library Config {
         );
     }
 
+    function interopDeploymentOutfile() internal view returns (string memory _env) {
+        _env = vm.envOr(
+            "INTEROP_DEPLOYMENT_OUTFILE",
+            string.concat(vm.projectRoot(), "/deployments/", vm.toString(block.chainid), "-deploy-interop.json")
+        );
+    }
+
     /// @notice Returns the path on the local filesystem where the deploy config is
     function deployConfigPath() internal view returns (string memory _env) {
         if (vm.isContext(VmSafe.ForgeContext.TestGroup)) {
@@ -26,6 +33,15 @@ library Config {
         } else {
             _env = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
             require(bytes(_env).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
+        }
+    }
+
+    function interopDeployConfigPath() internal view returns (string memory _env) {
+        if (vm.isContext(VmSafe.ForgeContext.TestGroup)) {
+            _env = string.concat(vm.projectRoot(), "/deploy-config/hardhat-interop.json");
+        } else {
+            _env = vm.envOr("INTEROP_DEPLOY_CONFIG_PATH", string(""));
+            require(bytes(_env).length > 0, "Config: must set INTEROP_DEPLOY_CONFIG_PATH to filesystem path of deploy config");
         }
     }
 

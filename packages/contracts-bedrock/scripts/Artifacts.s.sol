@@ -34,9 +34,9 @@ abstract contract Artifacts {
     error InvalidDeployment(string);
     /// @notice The set of deployments that have been done during execution.
 
-    mapping(string => Deployment) internal _namedDeployments;
+    mapping(string => mapping(string => Deployment)) internal _namedDeployments;
     /// @notice The same as `_namedDeployments` but as an array.
-    Deployment[] internal _newDeployments;
+    mapping(string => Deployment[]) internal _newDeployments;
     /// @notice Path to the directory containing the hh deploy style artifacts
     string internal deploymentsDir;
     /// @notice The path to the deployment artifact that is being written to.
@@ -49,6 +49,10 @@ abstract contract Artifacts {
         deploymentOutfile = Config.deploymentOutfile();
         console.log("Writing artifact to %s", deploymentOutfile);
         ForgeArtifacts.ensurePath(deploymentOutfile);
+
+        interopDeploymentOutfile = Config.interopDeploymentOutfile();
+        console.log("Writing interop artifact to %s", interopDeploymentOutfile);
+        ForgeArtifacts.ensurePath(interopDeploymentOutfile);
 
         uint256 chainId = Config.chainID();
         console.log("Connected to network with chainid %s", chainId);
@@ -88,8 +92,8 @@ abstract contract Artifacts {
     /// @notice Returns whether or not a particular deployment exists.
     /// @param _name The name of the deployment.
     /// @return Whether the deployment exists or not.
-    function has(string memory _name) public view returns (bool) {
-        Deployment memory existing = _namedDeployments[_name];
+    function has(string memory _name, string memory namespace) public view returns (bool) {
+        Deployment memory existing = _namedDeployments[namespace][_name];
         return bytes(existing.name).length > 0;
     }
 
@@ -97,8 +101,9 @@ abstract contract Artifacts {
     /// @param _name The name of the deployment.
     /// @return The address of the deployment. May be `address(0)` if the deployment does not
     ///         exist.
-    function getAddress(string memory _name) public view returns (address payable) {
-        Deployment memory existing = _namedDeployments[_name];
+    function getAddress(string memory _name, string memory namespace) public view returns (address payable) {
+
+        Deployment memory existing = _namedDeployments[namespace][_name];
         if (existing.addr != address(0)) {
             if (bytes(existing.name).length == 0) {
                 return payable(address(0));
@@ -168,7 +173,7 @@ abstract contract Artifacts {
     /// @param _name The name of the deployment.
     /// @return The deployment.
     function get(string memory _name) public view returns (Deployment memory) {
-        return _namedDeployments[_name];
+        return _namedDeployments[namespace][_name];
     }
 
     /// @notice Appends a deployment to disk as a JSON deploy artifact.
@@ -178,14 +183,14 @@ abstract contract Artifacts {
         if (bytes(_name).length == 0) {
             revert InvalidDeployment("EmptyName");
         }
-        if (bytes(_namedDeployments[_name].name).length > 0) {
+        if (bytes(_namedDeployments[namespace][_name].name).length > 0) {
             revert InvalidDeployment("AlreadyExists");
         }
 
         console.log("Saving %s: %s", _name, _deployed);
         Deployment memory deployment = Deployment({ name: _name, addr: payable(_deployed) });
-        _namedDeployments[_name] = deployment;
-        _newDeployments.push(deployment);
+        _namedDeployments[namespace][_name] = deployment;
+        _newDeployments[namespace].push(deployment);
         _appendDeployment(_name, _deployed);
     }
 
@@ -224,7 +229,7 @@ abstract contract Artifacts {
         }
 
         Deployment memory deployment = Deployment({ name: _name, addr: payable(_addr) });
-        _namedDeployments[_name] = deployment;
+        _namedDeployments[namespace][_name] = deployment;
     }
 
     /// @notice Returns the value of the internal `_initialized` storage slot for a given contract.
