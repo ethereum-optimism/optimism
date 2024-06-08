@@ -51,6 +51,7 @@
       * [Contract Addresses](contents/developer/features/aa-basics/contract-addresses.md)
       * [Account Abstraction Paymasters](contents/developer/features/aa-basics/aa-paymasters.md)
       * [Hybrid Compute](contents/developer/features/aa-basics/hybrid-compute.md)
+    * [Custom Fee Token](contents/developer/features/custom-fee-token.md)
     * [ERC1155 NFT Bridging](contents/developer/features/erc1155-bridge.md)
     * [ERC721 NFT Bridging](contents/developer/features/erc721-bridge.md)
     * [Debugging with Tenderly](contents/developer/features/tenderly.md)
