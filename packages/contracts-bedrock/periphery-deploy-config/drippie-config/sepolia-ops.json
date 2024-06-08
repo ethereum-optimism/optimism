@@ -1,23 +1,26 @@
 {
-  "drippie": "0xd6F935Bd272BEE05bD64096D82970482EF16D64b",
+  "drippie": "0xa0fF2a54AdC3fB33c44a141E67d194CF249258cb",
   "gelato": "0x2A6C106ae13B558BB9E2Ec64Bd2f1f7BEFF3A5E0",
 
-  "note": "Object attributes below are prefixed with numbers because of how foundry parses JSON into structs in alphabetical order",
+  "__comment": "Prefix is used to namespace drips so that drip management can be handled modularly",
+  "prefix": "operations",
+
+  "__comment": "Object attributes below are prefixed with numbers because of how foundry parses JSON into structs in alphabetical order",
   "drips": [
     {
-      "00__name": "OperationsSequencerDrip_V1",
+      "00__name": "sequencer_v2",
       "01__dripcheck": "CheckBalanceLow",
       "02__checkparams": {
         "01__target": "0x8F23BB38F531600e5d8FDDaAEC41F13FaB46E98c",
-        "02__threshold": 100000000000000000000
+        "02__threshold": 1000000000000000000000
       },
       "03__recipient": "0x8F23BB38F531600e5d8FDDaAEC41F13FaB46E98c",
-      "04__value": 20000000000000000000,
-      "05__interval": 86400,
+      "04__value": 100000000000000000000,
+      "05__interval": 3600,
       "06__data": ""
     },
     {
-      "00__name": "OperationsProposerDrip_V1",
+      "00__name": "proposer_v2",
       "01__dripcheck": "CheckBalanceLow",
       "02__checkparams": {
         "01__target": "0x49277EE36A024120Ee218127354c4a3591dc90A9",
@@ -29,27 +32,27 @@
       "06__data": ""
     },
     {
-      "00__name": "OperationsGelatoDrip_V1",
+      "00__name": "gelato_v2",
       "01__dripcheck": "CheckGelatoLow",
       "02__checkparams": {
         "00__treasury": "0x7506C12a824d73D9b08564d5Afc22c949434755e",
         "01__threshold": 1000000000000000000,
-        "02__recipient": "0x03C256F7Ae7518D0fe489F257ab4b928D37CBE16"
+        "02__recipient": "0xCd438409d5Cac9D2E076Ac7Bd0Bf2377E99BB6e4"
       },
       "03__recipient": "0x7506C12a824d73D9b08564d5Afc22c949434755e",
       "04__value": 1000000000000000000,
       "05__interval": 86400,
-      "06__data": "0x00000000000000000000000003c256f7ae7518d0fe489f257ab4b928d37cbe16"
+      "06__data": "0x0000000000000000000000000Cd438409d5Cac9D2E076Ac7Bd0Bf2377E99BB6e4"
     },
     {
-      "00__name": "OperationsSecretsDrip_V1",
+      "00__name": "secrets_v2",
       "01__dripcheck": "CheckSecrets",
       "02__checkparams": {
         "00__delay": 43200,
         "01__secretHashMustExist": "0x565fa8c7daa859353b5b328b97b12c7d66c5832b2a24d4e0f739a65ad266a46f",
         "02__secretHashMustNotExist": "0xbc362b01d69a85dff1793803dde67df1f338f37a36fdc73dddf27283d215e614"
       },
-      "03__recipient": "0x03C256F7Ae7518D0fe489F257ab4b928D37CBE16",
+      "03__recipient": "0xCd438409d5Cac9D2E076Ac7Bd0Bf2377E99BB6e4",
       "04__value": 1000000000000000000,
       "05__interval": 3600,
       "06__data": ""
