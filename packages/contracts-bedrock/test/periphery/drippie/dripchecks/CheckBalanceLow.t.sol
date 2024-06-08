@@ -17,7 +17,7 @@ contract CheckBalanceLowTest is Test {
     }
 
     /// @notice Test that the `name` function returns the correct value.
-    function test_name_succeeds() external {
+    function test_name_succeeds() external view {
         assertEq(c.name(), "CheckBalanceLow");
     }
 
