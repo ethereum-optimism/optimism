@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"io"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
@@ -38,7 +39,7 @@ type Metricer interface {
 	RecordGameMove()
 	RecordGameL2Challenge()
 	RecordCannonExecutionTime(t float64)
-	RecordAsteriscExecutionTime(t float64)
+	RecordVmExecutionTime(vmType string, t time.Duration)
 	RecordClaimResolutionTime(t float64)
 	RecordGameActTime(t float64)
 
@@ -88,10 +89,10 @@ type Metrics struct {
 	steps        prometheus.Counter
 	l2Challenges prometheus.Counter
 
-	claimResolutionTime   prometheus.Histogram
-	gameActTime           prometheus.Histogram
-	cannonExecutionTime   prometheus.Histogram
-	asteriscExecutionTime prometheus.Histogram
+	claimResolutionTime prometheus.Histogram
+	gameActTime         prometheus.Histogram
+	cannonExecutionTime prometheus.Histogram
+	vmExecutionTime     *prometheus.HistogramVec
 
 	trackedGames  prometheus.GaugeVec
 	inflightGames prometheus.Gauge
@@ -174,14 +175,14 @@ func NewMetrics() *Metrics {
 				[]float64{1.0, 2.0, 5.0, 10.0},
 				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
 		}),
-		asteriscExecutionTime: factory.NewHistogram(prometheus.HistogramOpts{
+		vmExecutionTime: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: Namespace,
 			Name:      "asterisc_execution_time",
 			Help:      "Time (in seconds) to execute asterisc",
 			Buckets: append(
 				[]float64{1.0, 10.0},
 				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
-		}),
+		}, []string{"vm"}),
 		bondClaimFailures: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: Namespace,
 			Name:      "claim_failures",
@@ -282,8 +283,8 @@ func (m *Metrics) RecordCannonExecutionTime(t float64) {
 	m.cannonExecutionTime.Observe(t)
 }
 
-func (m *Metrics) RecordAsteriscExecutionTime(t float64) {
-	m.asteriscExecutionTime.Observe(t)
+func (m *Metrics) RecordVmExecutionTime(vmType string, dur time.Duration) {
+	m.vmExecutionTime.WithLabelValues(vmType).Observe(dur.Seconds())
 }
 
 func (m *Metrics) RecordClaimResolutionTime(t float64) {
