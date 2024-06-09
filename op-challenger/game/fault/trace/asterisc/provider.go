@@ -54,17 +54,17 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg *config.Config, pres
 
 func asAsteriscVmConfig(cfg *config.Config) vm.Config {
 	return vm.Config{
-		VmType:       "asterisc",
-		L1:           cfg.L1EthRpc,
-		L1Beacon:     cfg.L1Beacon,
-		L2:           cfg.L2Rpc,
-		VmBin:        cfg.AsteriscBin,
-		Server:       cfg.AsteriscServer,
-		Network:      cfg.AsteriscNetwork,
-		RollupConfig: cfg.AsteriscRollupConfigPath,
-		L2Genesis:    cfg.AsteriscL2GenesisPath,
-		SnapshotFreq: cfg.AsteriscSnapshotFreq,
-		InfoFreq:     cfg.AsteriscInfoFreq,
+		VmType:           "asterisc",
+		L1:               cfg.L1EthRpc,
+		L1Beacon:         cfg.L1Beacon,
+		L2:               cfg.L2Rpc,
+		VmBin:            cfg.AsteriscBin,
+		Server:           cfg.AsteriscServer,
+		Network:          cfg.AsteriscNetwork,
+		RollupConfigPath: cfg.AsteriscRollupConfigPath,
+		L2GenesisPath:    cfg.AsteriscL2GenesisPath,
+		SnapshotFreq:     cfg.AsteriscSnapshotFreq,
+		InfoFreq:         cfg.AsteriscInfoFreq,
 	}
 }
 

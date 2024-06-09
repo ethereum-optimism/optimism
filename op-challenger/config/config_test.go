@@ -178,32 +178,32 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
 			cfg.CannonConfig.Network = ""
-			cfg.CannonConfig.RollupConfig = ""
-			cfg.CannonConfig.L2Genesis = "genesis.json"
+			cfg.CannonConfig.RollupConfigPath = ""
+			cfg.CannonConfig.L2GenesisPath = "genesis.json"
 			require.ErrorIs(t, cfg.Check(), ErrMissingCannonRollupConfig)
 		})
 
 		t.Run(fmt.Sprintf("TestCannonNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
 			cfg.CannonConfig.Network = ""
-			cfg.CannonConfig.RollupConfig = "foo.json"
-			cfg.CannonConfig.L2Genesis = ""
+			cfg.CannonConfig.RollupConfigPath = "foo.json"
+			cfg.CannonConfig.L2GenesisPath = ""
 			require.ErrorIs(t, cfg.Check(), ErrMissingCannonL2Genesis)
 		})
 
 		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
 			cfg.CannonConfig.Network = validCannonNetwork
-			cfg.CannonConfig.RollupConfig = "foo.json"
-			cfg.CannonConfig.L2Genesis = ""
+			cfg.CannonConfig.RollupConfigPath = "foo.json"
+			cfg.CannonConfig.L2GenesisPath = ""
 			require.ErrorIs(t, cfg.Check(), ErrCannonNetworkAndRollupConfig)
 		})
 
 		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndL2Genesis-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
 			cfg.CannonConfig.Network = validCannonNetwork
-			cfg.CannonConfig.RollupConfig = ""
-			cfg.CannonConfig.L2Genesis = "foo.json"
+			cfg.CannonConfig.RollupConfigPath = ""
+			cfg.CannonConfig.L2GenesisPath = "foo.json"
 			require.ErrorIs(t, cfg.Check(), ErrCannonNetworkAndL2Genesis)
 		})
 

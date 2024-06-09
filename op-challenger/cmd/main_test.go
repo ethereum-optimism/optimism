@@ -674,7 +674,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
-				require.Equal(t, "rollup.json", cfg.CannonConfig.RollupConfig)
+				require.Equal(t, "rollup.json", cfg.CannonConfig.RollupConfigPath)
 			})
 		})
 
@@ -685,7 +685,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
-				require.Equal(t, "genesis.json", cfg.CannonConfig.L2Genesis)
+				require.Equal(t, "genesis.json", cfg.CannonConfig.L2GenesisPath)
 			})
 		})
 	}

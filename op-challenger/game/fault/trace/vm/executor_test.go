@@ -71,8 +71,8 @@ func TestGenerateProof(t *testing.T) {
 
 	t.Run("Network", func(t *testing.T) {
 		cfg.Network = "mainnet"
-		cfg.RollupConfig = ""
-		cfg.L2Genesis = ""
+		cfg.RollupConfigPath = ""
+		cfg.L2GenesisPath = ""
 		binary, subcommand, args := captureExec(t, cfg, 150_000_000)
 		require.DirExists(t, filepath.Join(dir, PreimagesDir))
 		require.DirExists(t, filepath.Join(dir, utils.ProofsDir))
@@ -111,18 +111,18 @@ func TestGenerateProof(t *testing.T) {
 
 	t.Run("RollupAndGenesis", func(t *testing.T) {
 		cfg.Network = ""
-		cfg.RollupConfig = "rollup.json"
-		cfg.L2Genesis = "genesis.json"
+		cfg.RollupConfigPath = "rollup.json"
+		cfg.L2GenesisPath = "genesis.json"
 		_, _, args := captureExec(t, cfg, 150_000_000)
 		require.NotContains(t, args, "--network")
-		require.Equal(t, cfg.RollupConfig, args["--rollup.config"])
-		require.Equal(t, cfg.L2Genesis, args["--l2.genesis"])
+		require.Equal(t, cfg.RollupConfigPath, args["--rollup.config"])
+		require.Equal(t, cfg.L2GenesisPath, args["--l2.genesis"])
 	})
 
 	t.Run("NoStopAtWhenProofIsMaxUInt", func(t *testing.T) {
 		cfg.Network = "mainnet"
-		cfg.RollupConfig = "rollup.json"
-		cfg.L2Genesis = "genesis.json"
+		cfg.RollupConfigPath = "rollup.json"
+		cfg.L2GenesisPath = "genesis.json"
 		_, _, args := captureExec(t, cfg, math.MaxUint64)
 		// stop-at would need to be one more than the proof step which would overflow back to 0
 		// so expect that it will be omitted. We'll ultimately want asterisc to execute until the program exits.

@@ -19,17 +19,17 @@ type Metricer interface {
 }
 
 type Config struct {
-	VmType       string
-	L1           string
-	L1Beacon     string
-	L2           string
-	VmBin        string // Path to the vm executable to run when generating trace data
-	Server       string // Path to the executable that provides the pre-image oracle server
-	Network      string
-	RollupConfig string
-	L2Genesis    string
-	SnapshotFreq uint // Frequency of snapshots to create when executing (in VM instructions)
-	InfoFreq     uint // Frequency of progress log messages (in VM instructions)
+	VmType           string
+	L1               string
+	L1Beacon         string
+	L2               string
+	VmBin            string // Path to the vm executable to run when generating trace data
+	Server           string // Path to the executable that provides the pre-image oracle server
+	Network          string
+	RollupConfigPath string
+	L2GenesisPath    string
+	SnapshotFreq     uint // Frequency of snapshots to create when executing (in VM instructions)
+	InfoFreq         uint // Frequency of progress log messages (in VM instructions)
 }
 
 type Executor struct {
@@ -102,11 +102,11 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	if e.cfg.Network != "" {
 		args = append(args, "--network", e.cfg.Network)
 	}
-	if e.cfg.RollupConfig != "" {
-		args = append(args, "--rollup.config", e.cfg.RollupConfig)
+	if e.cfg.RollupConfigPath != "" {
+		args = append(args, "--rollup.config", e.cfg.RollupConfigPath)
 	}
-	if e.cfg.L2Genesis != "" {
-		args = append(args, "--l2.genesis", e.cfg.L2Genesis)
+	if e.cfg.L2GenesisPath != "" {
+		args = append(args, "--l2.genesis", e.cfg.L2GenesisPath)
 	}
 
 	if err := os.MkdirAll(snapshotDir, 0755); err != nil {

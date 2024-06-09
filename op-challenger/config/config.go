@@ -230,17 +230,17 @@ func (c Config) Check() error {
 			return ErrMissingCannonServer
 		}
 		if c.CannonConfig.Network == "" {
-			if c.CannonConfig.RollupConfig == "" {
+			if c.CannonConfig.RollupConfigPath == "" {
 				return ErrMissingCannonRollupConfig
 			}
-			if c.CannonConfig.L2Genesis == "" {
+			if c.CannonConfig.L2GenesisPath == "" {
 				return ErrMissingCannonL2Genesis
 			}
 		} else {
-			if c.CannonConfig.RollupConfig != "" {
+			if c.CannonConfig.RollupConfigPath != "" {
 				return ErrCannonNetworkAndRollupConfig
 			}
-			if c.CannonConfig.L2Genesis != "" {
+			if c.CannonConfig.L2GenesisPath != "" {
 				return ErrCannonNetworkAndL2Genesis
 			}
 			if ch := chaincfg.ChainByName(c.CannonConfig.Network); ch == nil {
