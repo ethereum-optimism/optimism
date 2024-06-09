@@ -54,13 +54,8 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function _relayMessageValidatorConfigGas() internal pure override returns (uint64) {
-        return RELAY_MESSAGE_VALIDATOR_CONFIG_CALL_GAS;
-    }
-
-    /// @inheritdoc CrossDomainMessenger
     function _xDomainRelayMessageValidationGas(uint64) internal pure override returns (uint64) {
-        return RELAY_MESSAGE_VALIDATOR_CONFIG_NOOP_GAS;
+        return RELAY_MESSAGE_VALIDATOR_CONFIG_NOOP_GAS + RELAY_MESSAGE_VALIDATOR_CALL_NOOOP_GAS;
     }
 
     /// @inheritdoc CrossDomainMessenger
@@ -69,13 +64,12 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function isRelayMessageValidated(
-        address messageValidator,
+    function _isRelayMessageValidated(
+        address _messageValidator,
         uint256 _nonce,
         address _sender,
         address _target,
         uint256 _value,
-        uint256 _minGasLimit,
         bytes calldata _message
     )
         internal
@@ -83,22 +77,21 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         override
         returns (bool)
     {
-        // Early exit in case this a replay transaction. NOTE: this assumes that L1 message validation
-        // contract enforces forced arbitrary execution deposits to go through the CrossDomainMessenger contracts.
-        if (!_isOtherMessenger()) {
+        // Early exit in case this a replay transaction OR the _messageValidator is the zero address (for extra sanity
+        // and safety).
+        // NOTE: the `_isOtherMessenger` check assumes the corresponding L1 message validator constrains forced
+        // arbitrary execution
+        // to go through the CrossDomainMessenger contracts.
+        if (_messageValidator == address(0) || !_isOtherMessenger()) {
             return true;
         }
-        // Check that we have enough gas to perform the message validation and finish the `relayMessage` call.
-        uint64 messageValidationBuffer =
-            RELAY_MESSAGE_VALIDATOR_GAS + (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD);
-        if (!SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER + messageValidationBuffer)) {
-            return false;
-        }
+        // Perform the relay message validation call
         bytes memory callData = abi.encodeWithSelector(
-            IL2MessageValidator(messageValidator).validateMessage.selector, _nonce, _sender, _target, _value, _message
+            IL2MessageValidator(_messageValidator).validateMessage.selector, _nonce, _sender, _target, _value, _message
         );
         (bool success, bytes memory returnData) =
-            messageValidator.staticcall{ gas: RELAY_MESSAGE_VALIDATOR_GAS }(callData);
+            _messageValidator.staticcall{ gas: RELAY_MESSAGE_VALIDATOR_CALL_GAS }(callData);
+        // The static call must not have reverted and returned true for validation.
         return success && abi.decode(returnData, (bool));
     }
 

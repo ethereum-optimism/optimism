@@ -114,18 +114,21 @@ abstract contract CrossDomainMessenger is
     ///         call in `relayMessage`. Does not include `relayMessage` validator config check.
     uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
 
-    /// @notice Gas reserved for the execution of message validation between the `hasMinGas` check
-    ///         the external call in `relayMessage` when the message validation is a no-op (L1).
+    /// @notice Gas reserved for setting the relay message validator to the zero address when
+    ///         calling `_relayMessageValidatorConfig` during `relayMessage` (L1).
     uint64 public constant RELAY_MESSAGE_VALIDATOR_CONFIG_NOOP_GAS = 50;
 
-    /// @notice Gas reserved for the execution of checking the message validator config between the
-    ///         `hasMinGas` check and the external call in `relayMessage` when message validation
-    ///         may occur (L2).
+    /// @notice Gas reserved for the checking the message validator config through a
+    ///         static call to the L1_BLOCK_ATTRIBUTES predeploy during `relayMessage` (L2).
     uint64 public constant RELAY_MESSAGE_VALIDATOR_CONFIG_CALL_GAS = 6_000;
 
+    /// @notice Gas reserved for the execution of checking the message validator when
+    ///        `_isRelayMessageValidated` is a no-op and simply returns true (L1).
+    uint64 public constant RELAY_MESSAGE_VALIDATOR_CALL_NOOOP_GAS = 50;
+
     /// @notice Gas reserved for the execution of the message validator once the config
-    ///        has been checked and the resulting message validator address is non-zero.
-    uint64 public constant RELAY_MESSAGE_VALIDATOR_GAS = 60_000;
+    ///        has been checked and the resulting message validator address is non-zero (L2).
+    uint64 public constant RELAY_MESSAGE_VALIDATOR_CALL_GAS = 60_000;
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
@@ -268,21 +271,34 @@ abstract contract CrossDomainMessenger is
 
         require(successfulMessages[versionedHash] == false, "CrossDomainMessenger: message has already been relayed");
 
+        // Check the relay message validator configuration. On L1, this MUST be a no-op and return the zero address.
+        // On L2, this CAN perform a static call to get the message validator config.
+        address messageValidator = _relayMessageValidatorConfig();
+
         // If there is not enough gas left to perform the external call and finish the execution,
         // return early and assign the message to the failedMessages mapping.
         // We are asserting that we have enough gas to:
         // 1. Call the target contract (_minGasLimit + RELAY_CALL_OVERHEAD + RELAY_GAS_CHECK_BUFFER +
         // _relayMessageValidatorConfigGas)
         //   1.a. The RELAY_CALL_OVERHEAD is included in `hasMinGas`.
-        //   1.b. The relay message validation config check is included in `hasMinGas`.
+        //   1.b. The relay message validation check is included in `hasMinGas`.
         // 2. Finish the execution after the external call (RELAY_RESERVED_GAS).
         //
         // If `xDomainMsgSender` is not the default L2 sender, this function
         // is being re-entered. This marks the message as failed to allow it to be replayed.
+        //
+        // If relay message validation fails (only possible on L2), then mark the message as failed to allow
+        // it to be replayed.
+        // TODO: Do we want the estimation address check and reversion after failed message validation? This
+        // can be a valid UX flow for getting messages from L1 -> L2 that are later replayed, we don't want
+        // to confuse users from sending L1 -> L2 messages that are meant to be replayed.
         if (
             !SafeCall.hasMinGas(
-                _minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER + _relayMessageValidatorConfigGas()
+                _minGasLimit,
+                RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER
+                    + _relayMessageValidatorGas(messageValidator, uint64(_message.length))
             ) || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
+                || !_isRelayMessageValidated(messageValidator, _nonce, _sender, _target, _value, _message)
         ) {
             failedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
@@ -297,20 +313,6 @@ abstract contract CrossDomainMessenger is
             }
 
             return;
-        }
-
-        // Check the relay message validator configuration. On L1, this MUST be a no-op and return the zero address.
-        // On L2, this CAN perform a static call to get the message validator config.
-        address relayMessageValidator = _relayMessageValidatorConfig();
-        if (relayMessageValidator != address(0)) {
-            // Check if the validation fails.
-            if (
-                !isRelayMessageValidated(relayMessageValidator, _nonce, _sender, _target, _value, _minGasLimit, _message)
-            ) {
-                failedMessages[versionedHash] = true;
-                emit FailedRelayedMessage(versionedHash);
-                return;
-            }
         }
 
         xDomainMsgSender = _sender;
@@ -403,34 +405,48 @@ abstract contract CrossDomainMessenger is
         return token != Constants.ETHER;
     }
 
-    /// @notice Gas reserved for checking the message validator config within `relayMessage`
-    ///         of the CrossDomainMessenger.
-    /// @return Gas reserved for controlling if we need to static call for the config.
-    function _relayMessageValidatorConfigGas() internal pure virtual returns (uint64);
-
     /// @notice Gas reserved for performing message validation (including message validator config calls)
     ///         on the other domain within `relayMessage` of the CrossDomainMessenger.
     /// @param _messageLength Length of the message.
     /// @return Gas reserved for message validation.
     function _xDomainRelayMessageValidationGas(uint64 _messageLength) internal view virtual returns (uint64);
 
+    /// @notice Gas reserved for performing the actual message validation call - NOT including config calls -
+    ///         within `relayMessage` of the CrossDomainMessenger.
+    /// @param _messageValidator Address of the configured message validator.
+    /// @param _messageLength Length of the message.
+    /// @return Gas reserved for message validation.
+    function _relayMessageValidatorGas(
+        address _messageValidator,
+        uint64 _messageLength
+    )
+        internal
+        pure
+        returns (uint64)
+    {
+        if (_messageValidator == address(0)) {
+            return RELAY_MESSAGE_VALIDATOR_CALL_NOOOP_GAS;
+        }
+        return RELAY_MESSAGE_VALIDATOR_CALL_GAS + (_messageLength * MIN_GAS_CALLDATA_OVERHEAD);
+    }
+
     /// @notice Returns the address used for relay message validation. On L1, this MUST return the zero address.
-    ///         On L2, this CAN static call the L1Block for the relay message validator address.
+    ///         On L2, this CAN return a non-zero relay message validator address set in the L1_BLOCK_ATTRIBUTES.
     /// @return Address used for relay message validation.
     function _relayMessageValidatorConfig() internal view virtual returns (address) {
         return address(0);
     }
 
-    /// @notice Returns whether or not the additional message validator passes for a given message.
-    ///         On L1, this should always be true. On L2 this should always ensure enough gas is
-    ///         available given the size of the message and then static call the message validator.
-    function isRelayMessageValidated(
+    /// @notice Returns whether or not a given `relayMessage` call passes message validation using the
+    //          messageValidator. On L1, this function MUST return true. On L2, this function SHOULD
+    //          ensure that a replay transaction always returns TRUE and otherwise forward a static call
+    //          to the given message validator contract.
+    function _isRelayMessageValidated(
         address, /* messageValidator */
         uint256, /* _nonce */
         address, /* _sender */
         address, /* _target */
         uint256, /* _value */
-        uint256, /* _minGasLimit */
         bytes calldata /* _message */
     )
         internal
