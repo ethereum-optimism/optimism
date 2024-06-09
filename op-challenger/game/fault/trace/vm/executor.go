@@ -38,8 +38,8 @@ type Executor struct {
 	metrics          Metricer
 	absolutePreState string
 	inputs           utils.LocalGameInputs
-	selectSnapshot   utils.SnapshotSelect
-	cmdExecutor      utils.CmdExecutor
+	selectSnapshot   SnapshotSelect
+	cmdExecutor      CmdExecutor
 }
 
 func NewExecutor(logger log.Logger, m Metricer, cfg Config, prestate string, inputs utils.LocalGameInputs) *Executor {
@@ -49,8 +49,8 @@ func NewExecutor(logger log.Logger, m Metricer, cfg Config, prestate string, inp
 		metrics:          m,
 		inputs:           inputs,
 		absolutePreState: prestate,
-		selectSnapshot:   utils.FindStartingSnapshot,
-		cmdExecutor:      utils.RunCmd,
+		selectSnapshot:   FindStartingSnapshot,
+		cmdExecutor:      RunCmd,
 	}
 }
 
@@ -63,14 +63,14 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 // DoGenerateProof executes vm from the specified starting trace index until the end trace index.
 // The proof is stored at the specified directory.
 func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64, end uint64, extraVmArgs ...string) error {
-	snapshotDir := filepath.Join(dir, utils.SnapsDir)
+	snapshotDir := filepath.Join(dir, SnapsDir)
 	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, utils.ProofsDir)
-	dataDir := utils.PreimageDir(dir)
-	lastGeneratedState := filepath.Join(dir, utils.FinalState)
+	dataDir := PreimageDir(dir)
+	lastGeneratedState := filepath.Join(dir, FinalState)
 	args := []string{
 		"run",
 		"--input", start,

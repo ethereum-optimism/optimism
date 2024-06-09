@@ -47,7 +47,7 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg *config.Config, pres
 		prestate:         asteriscPrestate,
 		generator:        vm.NewExecutor(logger, m, vmCfg, asteriscPrestate, localInputs),
 		gameDepth:        gameDepth,
-		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
 	}
 }
@@ -180,7 +180,7 @@ func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*utils
 }
 
 func (c *AsteriscTraceProvider) finalState() (*VMState, error) {
-	state, err := parseState(filepath.Join(c.dir, utils.FinalState))
+	state, err := parseState(filepath.Join(c.dir, vm.FinalState))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read final state: %w", err)
 	}
@@ -201,7 +201,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		prestate:       cfg.AsteriscAbsolutePreState,
 		generator:      vm.NewExecutor(logger, m, vmCfg, cfg.AsteriscAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 	}
 	return &AsteriscTraceProviderForTest{p}
 }

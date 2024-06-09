@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -30,8 +31,8 @@ type Executor struct {
 	absolutePreState string
 	snapshotFreq     uint
 	infoFreq         uint
-	selectSnapshot   utils.SnapshotSelect
-	cmdExecutor      utils.CmdExecutor
+	selectSnapshot   vm.SnapshotSelect
+	cmdExecutor      vm.CmdExecutor
 }
 
 func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, prestate string, inputs utils.LocalGameInputs) *Executor {
@@ -50,8 +51,8 @@ func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, presta
 		absolutePreState: prestate,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
 		infoFreq:         cfg.CannonInfoFreq,
-		selectSnapshot:   utils.FindStartingSnapshot,
-		cmdExecutor:      utils.RunCmd,
+		selectSnapshot:   vm.FindStartingSnapshot,
+		cmdExecutor:      vm.RunCmd,
 	}
 }
 
@@ -64,14 +65,14 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 // generateProof executes cannon from the specified starting trace index until the end trace index.
 // The proof is stored at the specified directory.
 func (e *Executor) generateProof(ctx context.Context, dir string, begin uint64, end uint64, extraCannonArgs ...string) error {
-	snapshotDir := filepath.Join(dir, utils.SnapsDir)
+	snapshotDir := filepath.Join(dir, vm.SnapsDir)
 	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, utils.ProofsDir)
-	dataDir := utils.PreimageDir(dir)
-	lastGeneratedState := filepath.Join(dir, utils.FinalState)
+	dataDir := vm.PreimageDir(dir)
+	lastGeneratedState := filepath.Join(dir, vm.FinalState)
 	args := []string{
 		"run",
 		"--input", start,

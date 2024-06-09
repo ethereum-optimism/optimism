@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -48,7 +49,7 @@ func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, p
 		prestate:         prestate,
 		generator:        NewExecutor(logger, m, cfg, prestate, localInputs),
 		gameDepth:        gameDepth,
-		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
 	}
 }
@@ -170,7 +171,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 }
 
 func (c *CannonTraceProvider) finalState() (*mipsevm.State, error) {
-	state, err := parseState(filepath.Join(c.dir, utils.FinalState))
+	state, err := parseState(filepath.Join(c.dir, vm.FinalState))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read final state: %w", err)
 	}
@@ -190,7 +191,7 @@ func NewTraceProviderForTest(logger log.Logger, m CannonMetricer, cfg *config.Co
 		prestate:       cfg.CannonAbsolutePreState,
 		generator:      NewExecutor(logger, m, cfg, cfg.CannonAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 	}
 	return &CannonTraceProviderForTest{p}
 }
