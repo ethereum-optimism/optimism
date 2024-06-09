@@ -1,4 +1,4 @@
-package derive
+package engine
 
 import (
 	"context"
@@ -7,29 +7,41 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type ResetL2 interface {
 	sync.L2Chain
-	SystemConfigL2Fetcher
+	derive.SystemConfigL2Fetcher
+}
+
+type ResetEngineControl interface {
+	SetUnsafeHead(eth.L2BlockRef)
+	SetSafeHead(eth.L2BlockRef)
+	SetFinalizedHead(eth.L2BlockRef)
+
+	SetBackupUnsafeL2Head(block eth.L2BlockRef, triggerReorg bool)
+	SetPendingSafeL2Head(eth.L2BlockRef)
+
+	ResetBuildingState()
 }
 
 // ResetEngine walks the L2 chain backwards until it finds a plausible unsafe head,
 // and an L2 safe block that is guaranteed to still be from the L1 chain.
-func ResetEngine(ctx context.Context, log log.Logger, cfg *rollup.Config, ec ResetEngineControl, l1 sync.L1Chain, l2 ResetL2, syncCfg *sync.Config, safeHeadNotifs SafeHeadListener) error {
+func ResetEngine(ctx context.Context, log log.Logger, cfg *rollup.Config, ec ResetEngineControl, l1 sync.L1Chain, l2 ResetL2, syncCfg *sync.Config, safeHeadNotifs rollup.SafeHeadListener) error {
 	result, err := sync.FindL2Heads(ctx, cfg, l1, l2, log, syncCfg)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
 	}
 	finalized, safe, unsafe := result.Finalized, result.Safe, result.Unsafe
 	l1Origin, err := l1.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", safe.L1Origin, err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", safe.L1Origin, err))
 	}
 	if safe.Time < l1Origin.Time {
-		return NewResetError(fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
+		return derive.NewResetError(fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
 			safe, safe.Time, l1Origin, l1Origin.Time))
 	}
 

@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -46,7 +47,7 @@ type FakeEngineControl struct {
 
 	makePayload func(onto eth.L2BlockRef, attrs *eth.PayloadAttributes) *eth.ExecutionPayload
 
-	errTyp derive.BlockInsertionErrType
+	errTyp engine.BlockInsertionErrType
 	err    error
 
 	totalBuildingTime time.Duration
@@ -62,7 +63,7 @@ func (m *FakeEngineControl) avgTxsPerBlock() float64 {
 	return float64(m.totalTxs) / float64(m.totalBuiltBlocks)
 }
 
-func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *derive.AttributesWithParent, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
+func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *derive.AttributesWithParent, updateSafe bool) (errType engine.BlockInsertionErrType, err error) {
 	if m.err != nil {
 		return m.errTyp, m.err
 	}
@@ -72,10 +73,10 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	m.buildingSafe = updateSafe
 	m.buildingAttrs = attrs.Attributes
 	m.buildingStart = m.timeNow()
-	return derive.BlockInsertOK, nil
+	return engine.BlockInsertOK, nil
 }
 
-func (m *FakeEngineControl) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
+func (m *FakeEngineControl) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp engine.BlockInsertionErrType, err error) {
 	if m.err != nil {
 		return nil, m.errTyp, m.err
 	}
@@ -94,7 +95,7 @@ func (m *FakeEngineControl) ConfirmPayload(ctx context.Context, agossip async.As
 
 	m.resetBuildingState()
 	m.totalTxs += len(payload.Transactions)
-	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, derive.BlockInsertOK, nil
+	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, engine.BlockInsertOK, nil
 }
 
 func (m *FakeEngineControl) CancelPayload(ctx context.Context, force bool) error {
@@ -127,7 +128,7 @@ func (m *FakeEngineControl) resetBuildingState() {
 	m.buildingAttrs = nil
 }
 
-var _ derive.EngineControl = (*FakeEngineControl)(nil)
+var _ engine.EngineControl = (*FakeEngineControl)(nil)
 
 type testAttrBuilderFn func(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
 
@@ -327,7 +328,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		if engControl.err != mockResetErr { // the mockResetErr requires the sequencer to Reset() to recover.
 			engControl.err = nil
 		}
-		engControl.errTyp = derive.BlockInsertOK
+		engControl.errTyp = engine.BlockInsertOK
 
 		// maybe make something maybe fail, or try a new L1 origin
 		switch rng.Intn(20) { // 9/20 = 45% chance to fail sequencer action (!!!)
@@ -337,10 +338,10 @@ func TestSequencerChaosMonkey(t *testing.T) {
 			attrsErr = errors.New("mock attributes error")
 		case 4, 5:
 			engControl.err = errors.New("mock temporary engine error")
-			engControl.errTyp = derive.BlockInsertTemporaryErr
+			engControl.errTyp = engine.BlockInsertTemporaryErr
 		case 6, 7:
 			engControl.err = errors.New("mock prestate engine error")
-			engControl.errTyp = derive.BlockInsertPrestateErr
+			engControl.errTyp = engine.BlockInsertPrestateErr
 		case 8:
 			engControl.err = mockResetErr
 		default:

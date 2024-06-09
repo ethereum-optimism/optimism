@@ -15,11 +15,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type Engine interface {
-	derive.EngineControl
+	engine.EngineControl
 
 	SetUnsafeHead(eth.L2BlockRef)
 	SetSafeHead(eth.L2BlockRef)
@@ -146,13 +147,13 @@ func (eq *AttributesHandler) forceNextSafeAttributes(ctx context.Context, attrib
 	}
 	if err != nil {
 		switch errType {
-		case derive.BlockInsertTemporaryErr:
+		case engine.BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
 			return derive.NewTemporaryError(fmt.Errorf("temporarily cannot insert new safe block: %w", err))
-		case derive.BlockInsertPrestateErr:
+		case engine.BlockInsertPrestateErr:
 			_ = eq.ec.CancelPayload(ctx, true)
 			return derive.NewResetError(fmt.Errorf("need reset to resolve pre-state problem: %w", err))
-		case derive.BlockInsertPayloadErr:
+		case engine.BlockInsertPayloadErr:
 			_ = eq.ec.CancelPayload(ctx, true)
 			eq.log.Warn("could not process payload derived from L1 data, dropping batch", "err", err)
 			// Count the number of deposits to see if the tx list is deposit only.

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -367,7 +368,7 @@ func (s *Driver) eventLoop() {
 				s.Finalizer.Reset()
 				s.metrics.RecordPipelineReset()
 				reqStep()
-				if err := derive.ResetEngine(s.driverCtx, s.log, s.config, s.Engine, s.l1, s.l2, s.syncCfg, s.SafeHeadNotifs); err != nil {
+				if err := engine.ResetEngine(s.driverCtx, s.log, s.config, s.Engine, s.l1, s.l2, s.syncCfg, s.SafeHeadNotifs); err != nil {
 					s.log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
 					// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
 					continue
@@ -448,7 +449,7 @@ type SyncDeriver struct {
 
 	AttributesHandler AttributesHandler
 
-	SafeHeadNotifs       derive.SafeHeadListener // notified when safe head is updated
+	SafeHeadNotifs       rollup.SafeHeadListener // notified when safe head is updated
 	lastNotifiedSafeHead eth.L2BlockRef
 
 	CLSync CLSync
@@ -469,7 +470,7 @@ func (s *SyncDeriver) SyncStep(ctx context.Context) error {
 	}
 	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
 	// perform a network call, then we should yield even if we did not encounter an error.
-	if err := s.Engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+	if err := s.Engine.TryUpdateEngine(ctx); !errors.Is(err, engine.ErrNoFCUNeeded) {
 		return err
 	}
 

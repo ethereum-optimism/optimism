@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -23,7 +24,7 @@ type EngineMetrics interface {
 
 // MeteredEngine wraps an EngineControl and adds metrics such as block building time diff and sealing time
 type MeteredEngine struct {
-	inner derive.EngineControl
+	inner engine.EngineControl
 
 	cfg     *rollup.Config
 	metrics EngineMetrics
@@ -32,7 +33,7 @@ type MeteredEngine struct {
 	buildingStartTime time.Time
 }
 
-func NewMeteredEngine(cfg *rollup.Config, inner derive.EngineControl, metrics EngineMetrics, log log.Logger) *MeteredEngine {
+func NewMeteredEngine(cfg *rollup.Config, inner engine.EngineControl, metrics EngineMetrics, log log.Logger) *MeteredEngine {
 	return &MeteredEngine{
 		inner:   inner,
 		cfg:     cfg,
@@ -53,7 +54,7 @@ func (m *MeteredEngine) SafeL2Head() eth.L2BlockRef {
 	return m.inner.SafeL2Head()
 }
 
-func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *derive.AttributesWithParent, updateSafe bool) (errType derive.BlockInsertionErrType, err error) {
+func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *derive.AttributesWithParent, updateSafe bool) (errType engine.BlockInsertionErrType, err error) {
 	m.buildingStartTime = time.Now()
 	errType, err = m.inner.StartPayload(ctx, parent, attrs, updateSafe)
 	if err != nil {
@@ -62,7 +63,7 @@ func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef,
 	return errType, err
 }
 
-func (m *MeteredEngine) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
+func (m *MeteredEngine) ConfirmPayload(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (out *eth.ExecutionPayloadEnvelope, errTyp engine.BlockInsertionErrType, err error) {
 	sealingStart := time.Now()
 	// Actually execute the block and add it to the head of the chain.
 	payload, errType, err := m.inner.ConfirmPayload(ctx, agossip, sequencerConductor)
