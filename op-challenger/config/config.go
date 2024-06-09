@@ -134,15 +134,9 @@ type Config struct {
 	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
 
 	// Specific to the asterisc trace provider
-	AsteriscBin                     string   // Path to the asterisc executable to run when generating trace data
-	AsteriscServer                  string   // Path to the op-program executable that provides the pre-image oracle server
+	AsteriscConfig                  vm.Config
 	AsteriscAbsolutePreState        string   // File to load the absolute pre-state for Asterisc traces from
 	AsteriscAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
-	AsteriscNetwork                 string
-	AsteriscRollupConfigPath        string
-	AsteriscL2GenesisPath           string
-	AsteriscSnapshotFreq            uint // Frequency of snapshots to create when executing asterisc (in VM instructions)
-	AsteriscInfoFreq                uint // Frequency of asterisc progress log messages (in VM instructions)
 
 	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
 
@@ -183,13 +177,19 @@ func NewConfig(
 			VmType:       TraceTypeCannon.String(),
 			L1:           l1EthRpc,
 			L1Beacon:     l1BeaconApi,
-			L2:           l2RollupRpc,
+			L2:           l2EthRpc,
 			SnapshotFreq: DefaultCannonSnapshotFreq,
 			InfoFreq:     DefaultCannonInfoFreq,
 		},
-		AsteriscSnapshotFreq: DefaultAsteriscSnapshotFreq,
-		AsteriscInfoFreq:     DefaultAsteriscInfoFreq,
-		GameWindow:           DefaultGameWindow,
+		AsteriscConfig: vm.Config{
+			VmType:       TraceTypeAsterisc.String(),
+			L1:           l1EthRpc,
+			L1Beacon:     l1BeaconApi,
+			L2:           l2EthRpc,
+			SnapshotFreq: DefaultAsteriscSnapshotFreq,
+			InfoFreq:     DefaultAsteriscInfoFreq,
+		},
+		GameWindow: DefaultGameWindow,
 	}
 }
 
@@ -261,28 +261,28 @@ func (c Config) Check() error {
 		}
 	}
 	if c.TraceTypeEnabled(TraceTypeAsterisc) {
-		if c.AsteriscBin == "" {
+		if c.AsteriscConfig.VmBin == "" {
 			return ErrMissingAsteriscBin
 		}
-		if c.AsteriscServer == "" {
+		if c.AsteriscConfig.Server == "" {
 			return ErrMissingAsteriscServer
 		}
-		if c.AsteriscNetwork == "" {
-			if c.AsteriscRollupConfigPath == "" {
+		if c.AsteriscConfig.Network == "" {
+			if c.AsteriscConfig.RollupConfigPath == "" {
 				return ErrMissingAsteriscRollupConfig
 			}
-			if c.AsteriscL2GenesisPath == "" {
+			if c.AsteriscConfig.L2GenesisPath == "" {
 				return ErrMissingAsteriscL2Genesis
 			}
 		} else {
-			if c.AsteriscRollupConfigPath != "" {
+			if c.AsteriscConfig.RollupConfigPath != "" {
 				return ErrAsteriscNetworkAndRollupConfig
 			}
-			if c.AsteriscL2GenesisPath != "" {
+			if c.AsteriscConfig.L2GenesisPath != "" {
 				return ErrAsteriscNetworkAndL2Genesis
 			}
-			if ch := chaincfg.ChainByName(c.AsteriscNetwork); ch == nil {
-				return fmt.Errorf("%w: %v", ErrAsteriscNetworkUnknown, c.AsteriscNetwork)
+			if ch := chaincfg.ChainByName(c.AsteriscConfig.Network); ch == nil {
+				return fmt.Errorf("%w: %v", ErrAsteriscNetworkUnknown, c.AsteriscConfig.Network)
 			}
 		}
 		if c.AsteriscAbsolutePreState == "" && c.AsteriscAbsolutePreStateBaseURL == nil {
@@ -291,10 +291,10 @@ func (c Config) Check() error {
 		if c.AsteriscAbsolutePreState != "" && c.AsteriscAbsolutePreStateBaseURL != nil {
 			return ErrAsteriscAbsolutePreStateAndBaseURL
 		}
-		if c.AsteriscSnapshotFreq == 0 {
+		if c.AsteriscConfig.SnapshotFreq == 0 {
 			return ErrMissingAsteriscSnapshotFreq
 		}
-		if c.AsteriscInfoFreq == 0 {
+		if c.AsteriscConfig.InfoFreq == 0 {
 			return ErrMissingAsteriscInfoFreq
 		}
 	}

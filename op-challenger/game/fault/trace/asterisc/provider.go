@@ -40,31 +40,14 @@ type AsteriscTraceProvider struct {
 }
 
 func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg *config.Config, prestateProvider types.PrestateProvider, asteriscPrestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
-	vmCfg := asAsteriscVmConfig(cfg)
 	return &AsteriscTraceProvider{
 		logger:           logger,
 		dir:              dir,
 		prestate:         asteriscPrestate,
-		generator:        vm.NewExecutor(logger, m, vmCfg, asteriscPrestate, localInputs),
+		generator:        vm.NewExecutor(logger, m, cfg.AsteriscConfig, asteriscPrestate, localInputs),
 		gameDepth:        gameDepth,
 		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
-	}
-}
-
-func asAsteriscVmConfig(cfg *config.Config) vm.Config {
-	return vm.Config{
-		VmType:           "asterisc",
-		L1:               cfg.L1EthRpc,
-		L1Beacon:         cfg.L1Beacon,
-		L2:               cfg.L2Rpc,
-		VmBin:            cfg.AsteriscBin,
-		Server:           cfg.AsteriscServer,
-		Network:          cfg.AsteriscNetwork,
-		RollupConfigPath: cfg.AsteriscRollupConfigPath,
-		L2GenesisPath:    cfg.AsteriscL2GenesisPath,
-		SnapshotFreq:     cfg.AsteriscSnapshotFreq,
-		InfoFreq:         cfg.AsteriscInfoFreq,
 	}
 }
 
@@ -194,12 +177,11 @@ type AsteriscTraceProviderForTest struct {
 }
 
 func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProviderForTest {
-	vmCfg := asAsteriscVmConfig(cfg)
 	p := &AsteriscTraceProvider{
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.AsteriscAbsolutePreState,
-		generator:      vm.NewExecutor(logger, m, vmCfg, cfg.AsteriscAbsolutePreState, localInputs),
+		generator:      vm.NewExecutor(logger, m, cfg.AsteriscConfig, cfg.AsteriscAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 	}

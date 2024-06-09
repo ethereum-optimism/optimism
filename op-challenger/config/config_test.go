@@ -43,10 +43,10 @@ func applyValidConfigForCannon(cfg *Config) {
 }
 
 func applyValidConfigForAsterisc(cfg *Config) {
-	cfg.AsteriscBin = validAsteriscBin
-	cfg.AsteriscServer = validAsteriscOpProgramBin
+	cfg.AsteriscConfig.VmBin = validAsteriscBin
+	cfg.AsteriscConfig.Server = validAsteriscOpProgramBin
 	cfg.AsteriscAbsolutePreStateBaseURL = validAsteriscAbsolutPreStateBaseURL
-	cfg.AsteriscNetwork = validAsteriscNetwork
+	cfg.AsteriscConfig.Network = validAsteriscNetwork
 }
 
 func validConfig(traceType TraceType) Config {
@@ -221,13 +221,13 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 
 		t.Run(fmt.Sprintf("TestAsteriscBinRequired-%v", traceType), func(t *testing.T) {
 			config := validConfig(traceType)
-			config.AsteriscBin = ""
+			config.AsteriscConfig.VmBin = ""
 			require.ErrorIs(t, config.Check(), ErrMissingAsteriscBin)
 		})
 
 		t.Run(fmt.Sprintf("TestAsteriscServerRequired-%v", traceType), func(t *testing.T) {
 			config := validConfig(traceType)
-			config.AsteriscServer = ""
+			config.AsteriscConfig.Server = ""
 			require.ErrorIs(t, config.Check(), ErrMissingAsteriscServer)
 		})
 
@@ -268,7 +268,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", traceType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
 				cfg := validConfig(traceType)
-				cfg.AsteriscSnapshotFreq = 0
+				cfg.AsteriscConfig.SnapshotFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscSnapshotFreq)
 			})
 		})
@@ -276,46 +276,46 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", traceType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
 				cfg := validConfig(traceType)
-				cfg.AsteriscInfoFreq = 0
+				cfg.AsteriscConfig.InfoFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscInfoFreq)
 			})
 		})
 
 		t.Run(fmt.Sprintf("TestAsteriscNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.AsteriscNetwork = ""
-			cfg.AsteriscRollupConfigPath = ""
-			cfg.AsteriscL2GenesisPath = "genesis.json"
+			cfg.AsteriscConfig.Network = ""
+			cfg.AsteriscConfig.RollupConfigPath = ""
+			cfg.AsteriscConfig.L2GenesisPath = "genesis.json"
 			require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscRollupConfig)
 		})
 
 		t.Run(fmt.Sprintf("TestAsteriscNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.AsteriscNetwork = ""
-			cfg.AsteriscRollupConfigPath = "foo.json"
-			cfg.AsteriscL2GenesisPath = ""
+			cfg.AsteriscConfig.Network = ""
+			cfg.AsteriscConfig.RollupConfigPath = "foo.json"
+			cfg.AsteriscConfig.L2GenesisPath = ""
 			require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscL2Genesis)
 		})
 
 		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.AsteriscNetwork = validAsteriscNetwork
-			cfg.AsteriscRollupConfigPath = "foo.json"
-			cfg.AsteriscL2GenesisPath = ""
+			cfg.AsteriscConfig.Network = validAsteriscNetwork
+			cfg.AsteriscConfig.RollupConfigPath = "foo.json"
+			cfg.AsteriscConfig.L2GenesisPath = ""
 			require.ErrorIs(t, cfg.Check(), ErrAsteriscNetworkAndRollupConfig)
 		})
 
 		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndL2Genesis-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.AsteriscNetwork = validAsteriscNetwork
-			cfg.AsteriscRollupConfigPath = ""
-			cfg.AsteriscL2GenesisPath = "foo.json"
+			cfg.AsteriscConfig.Network = validAsteriscNetwork
+			cfg.AsteriscConfig.RollupConfigPath = ""
+			cfg.AsteriscConfig.L2GenesisPath = "foo.json"
 			require.ErrorIs(t, cfg.Check(), ErrAsteriscNetworkAndL2Genesis)
 		})
 
 		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.AsteriscNetwork = "unknown"
+			cfg.AsteriscConfig.Network = "unknown"
 			require.ErrorIs(t, cfg.Check(), ErrAsteriscNetworkUnknown)
 		})
 	}
@@ -415,9 +415,9 @@ func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
 	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutPreState
 
 	// Require cannon specific args
-	cfg.AsteriscServer = ""
+	cfg.AsteriscConfig.Server = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscServer)
-	cfg.AsteriscServer = validAsteriscOpProgramBin
+	cfg.AsteriscConfig.Server = validAsteriscOpProgramBin
 
 	// Check final config is valid
 	require.NoError(t, cfg.Check())
