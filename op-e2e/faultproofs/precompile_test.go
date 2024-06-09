@@ -10,8 +10,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -147,7 +147,20 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")
-	executor := cannon.NewExecutor(logger, metrics.NoopMetrics, &cfg, cfg.CannonAbsolutePreState, inputs)
+	vmCfg := vm.Config{
+		VmType:       "cannon",
+		L1:           cfg.L1EthRpc,
+		L1Beacon:     cfg.L1Beacon,
+		L2:           cfg.L2Rpc,
+		VmBin:        cfg.CannonBin,
+		Server:       cfg.CannonServer,
+		Network:      cfg.CannonNetwork,
+		RollupConfig: cfg.CannonRollupConfigPath,
+		L2Genesis:    cfg.CannonL2GenesisPath,
+		SnapshotFreq: cfg.CannonSnapshotFreq,
+		InfoFreq:     cfg.CannonInfoFreq,
+	}
+	executor := vm.NewExecutor(logger, metrics.NoopMetrics, vmCfg, cfg.CannonAbsolutePreState, inputs)
 
 	t.Log("Running cannon")
 	err := executor.GenerateProof(ctx, proofsDir, math.MaxUint)
