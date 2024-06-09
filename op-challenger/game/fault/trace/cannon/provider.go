@@ -23,10 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
-type CannonMetricer interface {
-	RecordCannonExecutionTime(t float64)
-}
-
 type CannonTraceProvider struct {
 	logger         log.Logger
 	dir            string

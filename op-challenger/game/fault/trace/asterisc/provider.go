@@ -20,10 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type AsteriscMetricer interface {
-	RecordAsteriscExecutionTime(t float64)
-}
-
 type AsteriscTraceProvider struct {
 	logger         log.Logger
 	dir            string
