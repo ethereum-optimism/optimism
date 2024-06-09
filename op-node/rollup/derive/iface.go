@@ -15,7 +15,7 @@ import (
 // The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head
 type SafeHeadListener interface {
 
-	// Enabled reports if this safe head listener is actively using the posted data. This allows the engine queue to
+	// Enabled reports if this safe head listener is actively using the posted data. This allows the ResetEngine to
 	// optionally skip making calls that may be expensive to prepare.
 	// Callbacks may still be made if Enabled returns false but are not guaranteed.
 	Enabled() bool
