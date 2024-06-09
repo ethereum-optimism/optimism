@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { SafeCall } from "src/libraries/SafeCall.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { IL2MessageValidator } from "src/L2/IL2MessageValidator.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
