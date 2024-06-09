@@ -38,12 +38,12 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg *config.Config, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:           logger,
 		dir:              dir,
 		prestate:         prestate,
-		generator:        vm.NewExecutor(logger, m, cfg.CannonConfig, prestate, localInputs),
+		generator:        vm.NewExecutor(logger, m, cfg, prestate, localInputs),
 		gameDepth:        gameDepth,
 		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
