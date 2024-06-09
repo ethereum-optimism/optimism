@@ -147,20 +147,7 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")
-	vmCfg := vm.Config{
-		VmType:       "cannon",
-		L1:           cfg.L1EthRpc,
-		L1Beacon:     cfg.L1Beacon,
-		L2:           cfg.L2Rpc,
-		VmBin:        cfg.CannonBin,
-		Server:       cfg.CannonServer,
-		Network:      cfg.CannonNetwork,
-		RollupConfig: cfg.CannonRollupConfigPath,
-		L2Genesis:    cfg.CannonL2GenesisPath,
-		SnapshotFreq: cfg.CannonSnapshotFreq,
-		InfoFreq:     cfg.CannonInfoFreq,
-	}
-	executor := vm.NewExecutor(logger, metrics.NoopMetrics, vmCfg, cfg.CannonAbsolutePreState, inputs)
+	executor := vm.NewExecutor(logger, metrics.NoopMetrics, cfg.CannonConfig, cfg.CannonAbsolutePreState, inputs)
 
 	t.Log("Running cannon")
 	err := executor.GenerateProof(ctx, proofsDir, math.MaxUint)

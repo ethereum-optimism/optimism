@@ -502,7 +502,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-bin", "--cannon-bin=./cannon"))
-				require.Equal(t, "./cannon", cfg.CannonBin)
+				require.Equal(t, "./cannon", cfg.CannonConfig.VmBin)
 			})
 		})
 
@@ -517,7 +517,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-server", "--cannon-server=./op-program"))
-				require.Equal(t, "./op-program", cfg.CannonServer)
+				require.Equal(t, "./op-program", cfg.CannonConfig.Server)
 			})
 		})
 
@@ -570,12 +570,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonSnapshotFreq-%v", traceType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType))
-				require.Equal(t, config.DefaultCannonSnapshotFreq, cfg.CannonSnapshotFreq)
+				require.Equal(t, config.DefaultCannonSnapshotFreq, cfg.CannonConfig.SnapshotFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType, "--cannon-snapshot-freq=1234"))
-				require.Equal(t, uint(1234), cfg.CannonSnapshotFreq)
+				require.Equal(t, uint(1234), cfg.CannonConfig.SnapshotFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
@@ -587,12 +587,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonInfoFreq-%v", traceType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType))
-				require.Equal(t, config.DefaultCannonInfoFreq, cfg.CannonInfoFreq)
+				require.Equal(t, config.DefaultCannonInfoFreq, cfg.CannonConfig.InfoFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType, "--cannon-info-freq=1234"))
-				require.Equal(t, uint(1234), cfg.CannonInfoFreq)
+				require.Equal(t, uint(1234), cfg.CannonConfig.InfoFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
@@ -653,7 +653,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 				delete(args, "--game-factory-address")
 				args["--network"] = "op-sepolia"
 				cfg := configForArgs(t, toArgList(args))
-				require.Equal(t, "op-sepolia", cfg.CannonNetwork)
+				require.Equal(t, "op-sepolia", cfg.CannonConfig.Network)
 			})
 
 			t.Run("MustNotSpecifyNetworkAndCannonNetwork", func(t *testing.T) {
@@ -663,7 +663,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-network", testNetwork))
-				require.Equal(t, testNetwork, cfg.CannonNetwork)
+				require.Equal(t, testNetwork, cfg.CannonConfig.Network)
 			})
 		})
 
@@ -674,7 +674,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
-				require.Equal(t, "rollup.json", cfg.CannonRollupConfigPath)
+				require.Equal(t, "rollup.json", cfg.CannonConfig.RollupConfig)
 			})
 		})
 
@@ -685,7 +685,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
-				require.Equal(t, "genesis.json", cfg.CannonL2GenesisPath)
+				require.Equal(t, "genesis.json", cfg.CannonConfig.L2Genesis)
 			})
 		})
 	}
@@ -729,7 +729,7 @@ func TestGameWindow(t *testing.T) {
 
 	t.Run("Valid", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=1m"))
-		require.Equal(t, time.Duration(time.Minute), cfg.GameWindow)
+		require.Equal(t, time.Minute, cfg.GameWindow)
 	})
 
 	t.Run("ParsesDefault", func(t *testing.T) {

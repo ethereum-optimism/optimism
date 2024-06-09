@@ -102,22 +102,22 @@ func FindMonorepoRoot(t *testing.T) string {
 func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) {
 	require := require.New(t)
 	root := FindMonorepoRoot(t)
-	c.CannonBin = root + "cannon/bin/cannon"
-	c.CannonServer = root + "op-program/bin/op-program"
+	c.CannonConfig.VmBin = root + "cannon/bin/cannon"
+	c.CannonConfig.Server = root + "op-program/bin/op-program"
 	c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
-	c.CannonSnapshotFreq = 10_000_000
+	c.CannonConfig.SnapshotFreq = 10_000_000
 
 	genesisBytes, err := json.Marshal(l2Genesis)
 	require.NoError(err, "marshall l2 genesis config")
 	genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
 	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
-	c.CannonL2GenesisPath = genesisFile
+	c.CannonConfig.L2Genesis = genesisFile
 
 	rollupBytes, err := json.Marshal(rollupCfg)
 	require.NoError(err, "marshall rollup config")
 	rollupFile := filepath.Join(c.Datadir, "rollup.json")
 	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
-	c.CannonRollupConfigPath = rollupFile
+	c.CannonConfig.RollupConfig = rollupFile
 }
 
 func WithCannon(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) Option {
@@ -177,12 +177,12 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 	require.NotEmpty(t, cfg.TxMgrConfig.PrivateKey, "Missing private key for TxMgrConfig")
 	require.NoError(t, cfg.Check(), "op-challenger config should be valid")
 
-	if cfg.CannonBin != "" {
-		_, err := os.Stat(cfg.CannonBin)
+	if cfg.CannonConfig.VmBin != "" {
+		_, err := os.Stat(cfg.CannonConfig.VmBin)
 		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestate")
 	}
-	if cfg.CannonServer != "" {
-		_, err := os.Stat(cfg.CannonServer)
+	if cfg.CannonConfig.Server != "" {
+		_, err := os.Stat(cfg.CannonConfig.Server)
 		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestate")
 	}
 	if cfg.CannonAbsolutePreState != "" {

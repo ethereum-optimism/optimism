@@ -23,13 +23,13 @@ type Config struct {
 	L1           string
 	L1Beacon     string
 	L2           string
-	VmBin        string
-	Server       string
+	VmBin        string // Path to the vm executable to run when generating trace data
+	Server       string // Path to the executable that provides the pre-image oracle server
 	Network      string
 	RollupConfig string
 	L2Genesis    string
-	SnapshotFreq uint
-	InfoFreq     uint
+	SnapshotFreq uint // Frequency of snapshots to create when executing (in VM instructions)
+	InfoFreq     uint // Frequency of progress log messages (in VM instructions)
 }
 
 type Executor struct {

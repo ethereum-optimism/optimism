@@ -8,12 +8,12 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -129,15 +129,9 @@ type Config struct {
 	L2Rpc string // L2 RPC Url
 
 	// Specific to the cannon trace provider
-	CannonBin                     string   // Path to the cannon executable to run when generating trace data
-	CannonServer                  string   // Path to the op-program executable that provides the pre-image oracle server
+	CannonConfig                  vm.Config
 	CannonAbsolutePreState        string   // File to load the absolute pre-state for Cannon traces from
 	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
-	CannonNetwork                 string
-	CannonRollupConfigPath        string
-	CannonL2GenesisPath           string
-	CannonSnapshotFreq            uint // Frequency of snapshots to create when executing cannon (in VM instructions)
-	CannonInfoFreq                uint // Frequency of cannon progress log messages (in VM instructions)
 
 	// Specific to the asterisc trace provider
 	AsteriscBin                     string   // Path to the asterisc executable to run when generating trace data
@@ -185,8 +179,14 @@ func NewConfig(
 
 		Datadir: datadir,
 
-		CannonSnapshotFreq:   DefaultCannonSnapshotFreq,
-		CannonInfoFreq:       DefaultCannonInfoFreq,
+		CannonConfig: vm.Config{
+			VmType:       TraceTypeCannon.String(),
+			L1:           l1EthRpc,
+			L1Beacon:     l1BeaconApi,
+			L2:           l2RollupRpc,
+			SnapshotFreq: DefaultCannonSnapshotFreq,
+			InfoFreq:     DefaultCannonInfoFreq,
+		},
 		AsteriscSnapshotFreq: DefaultAsteriscSnapshotFreq,
 		AsteriscInfoFreq:     DefaultAsteriscInfoFreq,
 		GameWindow:           DefaultGameWindow,
@@ -223,28 +223,28 @@ func (c Config) Check() error {
 		return ErrMaxConcurrencyZero
 	}
 	if c.TraceTypeEnabled(TraceTypeCannon) || c.TraceTypeEnabled(TraceTypePermissioned) {
-		if c.CannonBin == "" {
+		if c.CannonConfig.VmBin == "" {
 			return ErrMissingCannonBin
 		}
-		if c.CannonServer == "" {
+		if c.CannonConfig.Server == "" {
 			return ErrMissingCannonServer
 		}
-		if c.CannonNetwork == "" {
-			if c.CannonRollupConfigPath == "" {
+		if c.CannonConfig.Network == "" {
+			if c.CannonConfig.RollupConfig == "" {
 				return ErrMissingCannonRollupConfig
 			}
-			if c.CannonL2GenesisPath == "" {
+			if c.CannonConfig.L2Genesis == "" {
 				return ErrMissingCannonL2Genesis
 			}
 		} else {
-			if c.CannonRollupConfigPath != "" {
+			if c.CannonConfig.RollupConfig != "" {
 				return ErrCannonNetworkAndRollupConfig
 			}
-			if c.CannonL2GenesisPath != "" {
+			if c.CannonConfig.L2Genesis != "" {
 				return ErrCannonNetworkAndL2Genesis
 			}
-			if ch := chaincfg.ChainByName(c.CannonNetwork); ch == nil {
-				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
+			if ch := chaincfg.ChainByName(c.CannonConfig.Network); ch == nil {
+				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonConfig.Network)
 			}
 		}
 		if c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
@@ -253,10 +253,10 @@ func (c Config) Check() error {
 		if c.CannonAbsolutePreState != "" && c.CannonAbsolutePreStateBaseURL != nil {
 			return ErrCannonAbsolutePreStateAndBaseURL
 		}
-		if c.CannonSnapshotFreq == 0 {
+		if c.CannonConfig.SnapshotFreq == 0 {
 			return ErrMissingCannonSnapshotFreq
 		}
-		if c.CannonInfoFreq == 0 {
+		if c.CannonConfig.InfoFreq == 0 {
 			return ErrMissingCannonInfoFreq
 		}
 	}

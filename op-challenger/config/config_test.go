@@ -36,10 +36,10 @@ var cannonTraceTypes = []TraceType{TraceTypeCannon, TraceTypePermissioned}
 var asteriscTraceTypes = []TraceType{TraceTypeAsterisc}
 
 func applyValidConfigForCannon(cfg *Config) {
-	cfg.CannonBin = validCannonBin
-	cfg.CannonServer = validCannonOpProgramBin
+	cfg.CannonConfig.VmBin = validCannonBin
+	cfg.CannonConfig.Server = validCannonOpProgramBin
 	cfg.CannonAbsolutePreStateBaseURL = validCannonAbsolutPreStateBaseURL
-	cfg.CannonNetwork = validCannonNetwork
+	cfg.CannonConfig.Network = validCannonNetwork
 }
 
 func applyValidConfigForAsterisc(cfg *Config) {
@@ -115,13 +115,13 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 		t.Run(fmt.Sprintf("TestCannonBinRequired-%v", traceType), func(t *testing.T) {
 			config := validConfig(traceType)
-			config.CannonBin = ""
+			config.CannonConfig.VmBin = ""
 			require.ErrorIs(t, config.Check(), ErrMissingCannonBin)
 		})
 
 		t.Run(fmt.Sprintf("TestCannonServerRequired-%v", traceType), func(t *testing.T) {
 			config := validConfig(traceType)
-			config.CannonServer = ""
+			config.CannonConfig.Server = ""
 			require.ErrorIs(t, config.Check(), ErrMissingCannonServer)
 		})
 
@@ -162,7 +162,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonSnapshotFreq-%v", traceType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
 				cfg := validConfig(traceType)
-				cfg.CannonSnapshotFreq = 0
+				cfg.CannonConfig.SnapshotFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingCannonSnapshotFreq)
 			})
 		})
@@ -170,46 +170,46 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonInfoFreq-%v", traceType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
 				cfg := validConfig(traceType)
-				cfg.CannonInfoFreq = 0
+				cfg.CannonConfig.InfoFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingCannonInfoFreq)
 			})
 		})
 
 		t.Run(fmt.Sprintf("TestCannonNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.CannonNetwork = ""
-			cfg.CannonRollupConfigPath = ""
-			cfg.CannonL2GenesisPath = "genesis.json"
+			cfg.CannonConfig.Network = ""
+			cfg.CannonConfig.RollupConfig = ""
+			cfg.CannonConfig.L2Genesis = "genesis.json"
 			require.ErrorIs(t, cfg.Check(), ErrMissingCannonRollupConfig)
 		})
 
 		t.Run(fmt.Sprintf("TestCannonNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.CannonNetwork = ""
-			cfg.CannonRollupConfigPath = "foo.json"
-			cfg.CannonL2GenesisPath = ""
+			cfg.CannonConfig.Network = ""
+			cfg.CannonConfig.RollupConfig = "foo.json"
+			cfg.CannonConfig.L2Genesis = ""
 			require.ErrorIs(t, cfg.Check(), ErrMissingCannonL2Genesis)
 		})
 
 		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.CannonNetwork = validCannonNetwork
-			cfg.CannonRollupConfigPath = "foo.json"
-			cfg.CannonL2GenesisPath = ""
+			cfg.CannonConfig.Network = validCannonNetwork
+			cfg.CannonConfig.RollupConfig = "foo.json"
+			cfg.CannonConfig.L2Genesis = ""
 			require.ErrorIs(t, cfg.Check(), ErrCannonNetworkAndRollupConfig)
 		})
 
 		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndL2Genesis-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.CannonNetwork = validCannonNetwork
-			cfg.CannonRollupConfigPath = ""
-			cfg.CannonL2GenesisPath = "foo.json"
+			cfg.CannonConfig.Network = validCannonNetwork
+			cfg.CannonConfig.RollupConfig = ""
+			cfg.CannonConfig.L2Genesis = "foo.json"
 			require.ErrorIs(t, cfg.Check(), ErrCannonNetworkAndL2Genesis)
 		})
 
 		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(traceType)
-			cfg.CannonNetwork = "unknown"
+			cfg.CannonConfig.Network = "unknown"
 			require.ErrorIs(t, cfg.Check(), ErrCannonNetworkUnknown)
 		})
 	}
@@ -404,9 +404,9 @@ func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
 	require.NoError(t, cfg.Check())
 
 	// Require cannon specific args
-	cfg.CannonBin = ""
+	cfg.CannonConfig.VmBin = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingCannonBin)
-	cfg.CannonBin = validCannonBin
+	cfg.CannonConfig.VmBin = validCannonBin
 
 	// Require asterisc specific args
 	cfg.AsteriscAbsolutePreState = ""
