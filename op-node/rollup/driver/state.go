@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 var (
@@ -38,6 +37,10 @@ type Driver struct {
 	l1State L1StateIface
 
 	*SyncDeriver
+
+	sched *StepSchedulingDeriver
+
+	synchronousEvents *SynchronousEvents
 
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
@@ -62,16 +65,10 @@ type Driver struct {
 	// sequencerNotifs is notified when the sequencer is started or stopped
 	sequencerNotifs SequencerStateListener
 
-	// Rollup config: rollup chain configuration
-	config *rollup.Config
-
 	sequencerConductor conductor.SequencerConductor
 
 	// Driver config: verifier and sequencer settings
 	driverConfig *Config
-
-	// Sync Mod Config
-	syncCfg *sync.Config
 
 	// L1 Signals:
 	//
@@ -94,8 +91,6 @@ type Driver struct {
 
 	unsafeL2Payloads chan *eth.ExecutionPayloadEnvelope
 
-	l1        L1Chain
-	l2        L2Chain
 	sequencer SequencerIface
 	network   Network // may be nil, network for is optional
 
@@ -191,39 +186,9 @@ func (s *Driver) eventLoop() {
 
 	defer s.driverCancel()
 
-	// stepReqCh is used to request that the driver attempts to step forward by one L1 block.
-	stepReqCh := make(chan struct{}, 1)
-
-	// channel, nil by default (not firing), but used to schedule re-attempts with delay
-	var delayedStepReq <-chan time.Time
-
-	// keep track of consecutive failed attempts, to adjust the backoff time accordingly
-	bOffStrategy := retry.Exponential()
-	stepAttempts := 0
-
-	// step requests a derivation step to be taken. Won't deadlock if the channel is full.
-	step := func() {
-		select {
-		case stepReqCh <- struct{}{}:
-		// Don't deadlock if the channel is already full
-		default:
-		}
-	}
-
 	// reqStep requests a derivation step nicely, with a delay if this is a reattempt, or not at all if we already scheduled a reattempt.
 	reqStep := func() {
-		if stepAttempts > 0 {
-			// if this is not the first attempt, we re-schedule with a backoff, *without blocking other events*
-			if delayedStepReq == nil {
-				delay := bOffStrategy.Duration(stepAttempts)
-				s.log.Debug("scheduling re-attempt with delay", "attempts", stepAttempts, "delay", delay)
-				delayedStepReq = time.After(delay)
-			} else {
-				s.log.Debug("ignoring step request, already scheduled re-attempt after previous failure", "attempts", stepAttempts)
-			}
-		} else {
-			step()
-		}
+		s.Emit(StepReqEvent{})
 	}
 
 	// We call reqStep right away to finish syncing to the tip of the chain if we're behind.
@@ -244,7 +209,7 @@ func (s *Driver) eventLoop() {
 
 	// Create a ticker to check if there is a gap in the engine queue. Whenever
 	// there is, we send requests to sync source to retrieve the missing payloads.
-	syncCheckInterval := time.Duration(s.config.BlockTime) * time.Second * 2
+	syncCheckInterval := time.Duration(s.Config.BlockTime) * time.Second * 2
 	altSyncTicker := time.NewTicker(syncCheckInterval)
 	defer altSyncTicker.Stop()
 	lastUnsafeL2 := s.Engine.UnsafeL2Head()
@@ -252,6 +217,15 @@ func (s *Driver) eventLoop() {
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
 			return
+		}
+
+		// While event-processing is synchronous we have to drain
+		// (i.e. process all queued-up events) before creating any new events.
+		if err := s.synchronousEvents.Drain(); err != nil {
+			if s.driverCtx.Err() != nil {
+				return
+			}
+			s.log.Error("unexpected error from event-draining", "err", err)
 		}
 
 		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
@@ -311,13 +285,13 @@ func (s *Driver) eventLoop() {
 		case envelope := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
-			if s.syncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
+			if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
 				s.CLSync.AddUnsafePayload(envelope)
 				s.metrics.RecordReceivedUnsafePayload(envelope)
 				reqStep()
-			} else if s.syncCfg.SyncMode == sync.ELSync {
-				ref, err := derive.PayloadToBlockRef(s.config, envelope.ExecutionPayload)
+			} else if s.SyncCfg.SyncMode == sync.ELSync {
+				ref, err := derive.PayloadToBlockRef(s.Config, envelope.ExecutionPayload)
 				if err != nil {
 					s.log.Info("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
 					continue
@@ -342,58 +316,10 @@ func (s *Driver) eventLoop() {
 			s.Finalizer.Finalize(ctx, newL1Finalized)
 			cancel()
 			reqStep() // we may be able to mark more L2 data as finalized now
-		case <-delayedStepReq:
-			delayedStepReq = nil
-			step()
-		case <-stepReqCh:
-			// Don't start the derivation pipeline until we are done with EL sync
-			if s.Engine.IsEngineSyncing() {
-				continue
-			}
-			s.log.Debug("Sync process step", "onto_origin", s.Derivation.Origin(), "attempts", stepAttempts)
-			err := s.SyncStep(s.driverCtx)
-			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
-			if err == io.EOF {
-				s.log.Debug("Derivation process went idle", "progress", s.Derivation.Origin(), "err", err)
-				stepAttempts = 0
-				continue
-			} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
-				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.Derivation.Origin(), "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
-				stepAttempts = 0
-				continue
-			} else if err != nil && errors.Is(err, derive.ErrReset) {
-				// If the pipeline corrupts, e.g. due to a reorg, simply reset it
-				s.log.Warn("Derivation pipeline is reset", "err", err)
-				s.Derivation.Reset()
-				s.Finalizer.Reset()
-				s.metrics.RecordPipelineReset()
-				reqStep()
-				if err := engine.ResetEngine(s.driverCtx, s.log, s.config, s.Engine, s.l1, s.l2, s.syncCfg, s.SafeHeadNotifs); err != nil {
-					s.log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
-					// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
-					continue
-				}
-				s.Derivation.ConfirmEngineReset()
-				continue
-			} else if err != nil && errors.Is(err, derive.ErrTemporary) {
-				s.log.Warn("Derivation process temporary error", "attempts", stepAttempts, "err", err)
-				reqStep()
-				continue
-			} else if err != nil && errors.Is(err, derive.ErrCritical) {
-				s.log.Error("Derivation process critical error", "err", err)
-				return
-			} else if err != nil && errors.Is(err, derive.NotEnoughData) {
-				stepAttempts = 0 // don't do a backoff for this error
-				reqStep()
-				continue
-			} else if err != nil {
-				s.log.Error("Derivation process error", "attempts", stepAttempts, "err", err)
-				reqStep()
-				continue
-			} else {
-				stepAttempts = 0
-				reqStep() // continue with the next step if we can
-			}
+		case <-s.sched.NextDelayedStep():
+			s.Emit(StepAttemptEvent{})
+		case <-s.sched.NextStep():
+			s.Emit(StepAttemptEvent{})
 		case respCh := <-s.stateReq:
 			respCh <- struct{}{}
 		case respCh := <-s.forceReset:
@@ -440,6 +366,29 @@ func (s *Driver) eventLoop() {
 	}
 }
 
+// OnEvent handles broadcasted events.
+// The Driver itself is a deriver to catch system-critical events.
+// Other event-handling should be encapsulated into standalone derivers.
+func (s *Driver) OnEvent(ev rollup.Event) {
+	switch x := ev.(type) {
+	case rollup.CriticalErrorEvent:
+		s.Log.Error("Derivation process critical error", "err", x.Err)
+		// we need to unblock event-processing to be able to close
+		go func() {
+			logger := s.Log
+			err := s.Close()
+			if err != nil {
+				logger.Error("Failed to shutdown driver on critical error", "err", err)
+			}
+		}()
+		return
+	}
+}
+
+func (s *Driver) Emit(ev rollup.Event) {
+	s.synchronousEvents.Emit(ev)
+}
+
 type SyncDeriver struct {
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2Safe.
@@ -457,20 +406,93 @@ type SyncDeriver struct {
 	// The engine controller is used by the sequencer & Derivation components.
 	// We will also use it for EL sync in a future PR.
 	Engine EngineController
+
+	// Sync Mod Config
+	SyncCfg *sync.Config
+
+	Config *rollup.Config
+
+	L1 L1Chain
+	L2 L2Chain
+
+	Emitter rollup.EventEmitter
+
+	Log log.Logger
+
+	Ctx context.Context
+
+	Drain func() error
+}
+
+func (s *SyncDeriver) OnEvent(ev rollup.Event) {
+	switch x := ev.(type) {
+	case StepEvent:
+		s.Log.Debug("Sync process step", "onto_origin", s.Derivation.Origin())
+		// Note: while we refactor the SyncStep to be entirely event-based we have an intermediate phase
+		// where some things are triggered through events, and some through this synchronous step function.
+		// We just translate the results into their equivalent events,
+		// to merge the error-handling with that of the new event-based system.
+		err := s.SyncStep(s.Ctx)
+		if err == io.EOF {
+			s.Log.Debug("Derivation process went idle", "progress", s.Derivation.Origin(), "err", err)
+			s.Emitter.Emit(ResetStepBackoffEvent{})
+			s.Emitter.Emit(DeriverIdleEvent{})
+		} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
+			s.Log.Debug("Derivation process went idle because the engine is syncing", "progress", s.Derivation.Origin(), "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
+			s.Emitter.Emit(ResetStepBackoffEvent{})
+		} else if err != nil && errors.Is(err, derive.ErrReset) {
+			s.Emitter.Emit(rollup.ResetEvent{Err: err})
+		} else if err != nil && errors.Is(err, derive.ErrTemporary) {
+			s.Emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
+		} else if err != nil && errors.Is(err, derive.ErrCritical) {
+			s.Emitter.Emit(rollup.CriticalErrorEvent{Err: err})
+		} else if err != nil && errors.Is(err, derive.NotEnoughData) {
+			// don't do a backoff for this error
+			s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
+		} else if err != nil {
+			s.Log.Error("Derivation process error", "err", err)
+			s.Emitter.Emit(StepReqEvent{})
+		} else {
+			s.Emitter.Emit(StepReqEvent{ResetBackoff: true}) // continue with the next step if we can
+		}
+	case rollup.ResetEvent:
+		// If the pipeline corrupts, e.g. due to a reorg, simply reset it
+		s.Log.Warn("Derivation pipeline is reset", "err", x.Err)
+		s.Derivation.Reset()
+		s.Finalizer.Reset()
+		s.Emitter.Emit(StepReqEvent{})
+		if err := engine.ResetEngine(s.Ctx, s.Log, s.Config, s.Engine, s.L1, s.L2, s.SyncCfg, s.SafeHeadNotifs); err != nil {
+			s.Log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
+			// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
+			return
+		}
+		s.Derivation.ConfirmEngineReset()
+	case rollup.EngineTemporaryErrorEvent:
+		s.Log.Warn("Derivation process temporary error", "err", x.Err)
+		s.Emitter.Emit(StepReqEvent{})
+	}
+}
+
+type DeriverIdleEvent struct{}
+
+func (d DeriverIdleEvent) String() string {
+	return "derivation-idle"
 }
 
 // SyncStep performs the sequence of encapsulated syncing steps.
 // Warning: this sequence will be broken apart as outlined in op-node derivers design doc.
 func (s *SyncDeriver) SyncStep(ctx context.Context) error {
-	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
-	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
-	if fcuCalled, err := s.Engine.TryBackupUnsafeReorg(ctx); fcuCalled {
-		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
+	if err := s.Drain(); err != nil {
 		return err
 	}
-	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
-	// perform a network call, then we should yield even if we did not encounter an error.
-	if err := s.Engine.TryUpdateEngine(ctx); !errors.Is(err, engine.ErrNoFCUNeeded) {
+
+	s.Emitter.Emit(engine.TryBackupUnsafeReorgEvent{})
+	if err := s.Drain(); err != nil {
+		return err
+	}
+
+	s.Emitter.Emit(engine.TryUpdateEngineEvent{})
+	if err := s.Drain(); err != nil {
 		return err
 	}
 
@@ -636,7 +658,7 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	select {
 	case s.stateReq <- wait:
 		resp := s.syncStatus()
-		ref, err := s.l2.L2BlockRefByNumber(ctx, num)
+		ref, err := s.L2.L2BlockRefByNumber(ctx, num)
 		<-wait
 		return ref, resp, err
 	case <-ctx.Done():
