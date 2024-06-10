@@ -45,7 +45,7 @@ services:
       - "l1_bn_data:/db"
       - "${PWD}/test-jwt-secret.txt:/config/jwt-secret.txt"
       - "${PWD}/beacon-data/config.yaml:/genesis/config.yaml"
-      - "${PWD}/beacon-data/deploy_block.txt:/genesis/deploy_block.txt"
+      - "${PWD}/beacon-data/deposit_contract_block.txt:/genesis/deposit_contract_block.txt"
       - "${PWD}/../.devnet/genesis-l1.ssz:/genesis/genesis.ssz"
     environment:
       LH_EXECUTION_ENDPOINT: "http://l1:8551"
@@ -65,7 +65,7 @@ services:
       - "${PWD}/beacon-data/data/keys:/validator_setup/validators"
       - "${PWD}/beacon-data/data/secrets:/validator_setup/secrets"
       - "${PWD}/beacon-data/config.yaml:/genesis/config.yaml"
-      - "${PWD}/beacon-data/deploy_block.txt:/genesis/deploy_block.txt"
+      - "${PWD}/beacon-data/deposit_contract_block.txt:/genesis/deposit_contract_block.txt"
       - "${PWD}/../.devnet/genesis-l1.ssz:/genesis/genesis.ssz"
     environment:
       LH_BEACON_NODES: "http://l1-bn:5052/"
