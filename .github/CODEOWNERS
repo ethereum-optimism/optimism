@@ -33,7 +33,6 @@
 
 # Misc
 /proxyd           @ethereum-optimism/infra-reviewers
-/indexer          @ethereum-optimism/devxpod
 /infra            @ethereum-optimism/infra-reviewers
 /specs            @ethereum-optimism/contract-reviewers @ethereum-optimism/go-reviewers
 
