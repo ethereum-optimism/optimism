@@ -13,7 +13,6 @@ Usage:
 """
 
 import sys
-import json
 
 def clean_json(input_file):
     with open(input_file, 'r') as file:
