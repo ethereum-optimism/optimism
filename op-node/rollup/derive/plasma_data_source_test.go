@@ -280,8 +280,6 @@ func TestPlasmaDataSource(t *testing.T) {
 	// finalize based on the second to last block, which will prune the commitment on block 2, and make it finalized
 	da.Finalize(l1Refs[len(l1Refs)-2])
 	finalitySignal.AssertExpectations(t)
-
-	//l1F.AssertExpectations(t)
 }
 
 // This tests makes sure the pipeline returns a temporary error if data is not found.
