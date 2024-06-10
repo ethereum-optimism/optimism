@@ -65,7 +65,7 @@ type NodeProxyAPI interface {
 	RollupConfig(ctx context.Context) (*rollup.Config, error)
 }
 
-// NodeProxyAPI defines the methods proxied to the node rpc backend
+// NodeAdminProxyAPI defines the methods proxied to the node rpc backend
 // This should include all methods that are called by op-batcher or op-proposer
 type NodeAdminProxyAPI interface {
 	SequencerActive(ctx context.Context) (bool, error)

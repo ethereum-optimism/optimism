@@ -14,7 +14,7 @@ import (
 
 type rollupDialer func(ctx context.Context, log log.Logger, url string) (RollupClientInterface, error)
 
-// ActiveL2EndpointProvider is an interface for providing a RollupClient
+// ActiveL2RollupProvider is an interface for providing a RollupClient
 // It manages the lifecycle of the RollupClient for callers
 // It does this by failing over down the list of rollupUrls if the current one is inactive or broken
 type ActiveL2RollupProvider struct {
