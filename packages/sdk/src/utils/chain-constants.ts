@@ -34,7 +34,7 @@ const l1CrossDomainMessengerAddresses = {
 }
 
 const disputeGameFactoryAddresses = {
-  mainnet: ethers.constants.AddressZero,
+  mainnet: '0xe5965Ab5962eDc7477C8520243A95517CD252fA9',
   goerli: ethers.constants.AddressZero,
   sepolia: '0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1',
 }
