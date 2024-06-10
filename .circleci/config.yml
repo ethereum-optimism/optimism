@@ -1370,9 +1370,9 @@ jobs:
             docker tag "$IMAGE_BASE_PREFIX/op-challenger:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-challenger:devnet"
             docker tag "$IMAGE_BASE_PREFIX/da-server:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/da-server:devnet"
       - run:
-          name: pnpm i
+          name: pnpm install and build
           command: |
-            pnpm i && pnpm build
+            pnpm install && pnpm build
       - run:
           name: Bring up the stack
           command: |

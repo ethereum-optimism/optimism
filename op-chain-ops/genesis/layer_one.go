@@ -56,12 +56,14 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *ForgeAllocs, l1Deployme
 	// For 4788, make sure the 4788 beacon-roots contract is there.
 	// (required to be there before L1 Dencun activation)
 	genesis.Alloc[predeploys.EIP4788ContractAddr] = types.Account{
-		Nonce: 1,
-		Code:  predeploys.EIP4788ContractCode,
+		Balance: new(big.Int),
+		Nonce:   1,
+		Code:    predeploys.EIP4788ContractCode,
 	}
 	// Also record the virtual deployer address
 	genesis.Alloc[predeploys.EIP4788ContractDeployer] = types.Account{
-		Nonce: 1,
+		Balance: new(big.Int),
+		Nonce:   1,
 	}
 
 	return genesis, nil
