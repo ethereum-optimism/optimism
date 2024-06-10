@@ -7,8 +7,6 @@ import { stdJson } from "forge-std/StdJson.sol";
 
 import { IAutomate as IGelato } from "gelato/interfaces/IAutomate.sol";
 
-import { Artifacts } from "scripts/Artifacts.s.sol";
-
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
 import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLow.sol";
 import { CheckGelatoLow } from "src/periphery/drippie/dripchecks/CheckGelatoLow.sol";
@@ -16,9 +14,15 @@ import { CheckSecrets } from "src/periphery/drippie/dripchecks/CheckSecrets.sol"
 
 /// @title DrippieConfig
 /// @notice Loads Drippie configuration from a JSON file.
-contract DrippieConfig is Script, Artifacts {
+contract DrippieConfig is Script {
     /// @notice Error emitted when an unknown drip check is encountered.
     error UnknownDripCheck(string name);
+
+    /// @notice Struct describing a dripcheck.
+    struct DripCheck {
+        string name;
+        address addr;
+    }
 
     /// @notice Drip configuration with only name and dripcheck.
     struct CoreDripConfig {
@@ -55,11 +59,11 @@ contract DrippieConfig is Script, Artifacts {
     /// @notice Mapping of drip names in the config.
     mapping(string => bool) public names;
 
+    /// @notice Mapping of dripcheck names to addresses.
+    mapping(string => address) public dripchecks;
+
     /// @param _path Path to the configuration file.
     constructor(string memory _path) {
-        // Make sure artifacts are set up.
-        Artifacts.setUp();
-
         // Load the configuration file.
         console.log("DrippieConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data) {
@@ -88,6 +92,12 @@ contract DrippieConfig is Script, Artifacts {
         CoreDripConfig[] memory corecfg = abi.decode(stdJson.parseRaw(_json, "$.drips"), (CoreDripConfig[]));
         console.log("DrippieConfig: found %d drips", corecfg.length);
 
+        // Load the dripchecks.
+        DripCheck[] memory checks = abi.decode(stdJson.parseRaw(_json, "$.dripchecks"), (DripCheck[]));
+        for (uint256 i = 0; i < checks.length; i++) {
+            dripchecks[checks[i].name] = checks[i].addr;
+        }
+
         // Iterate and parse all of the drips.
         for (uint256 i = 0; i < corecfg.length; i++) {
             // Log so we know what's being loaded.
@@ -98,7 +108,7 @@ contract DrippieConfig is Script, Artifacts {
             // Make sure the dripcheck is deployed.
             string memory dripcheck = corecfg[i].dripcheck;
             console.log("DrippieConfig: attempting to get address for %s", dripcheck);
-            mustGetAddress(dripcheck);
+            mustGetDripCheck(dripcheck);
 
             // Generate the base JSON path string.
             string memory p = string.concat("$.drips[", vm.toString(i), "]");
@@ -147,6 +157,14 @@ contract DrippieConfig is Script, Artifacts {
     /// @notice Returns the drip configuration at the given index as ABI-encoded bytes.
     function drip(uint256 _index) public view returns (bytes memory) {
         return abi.encode(drips[_index]);
+    }
+
+    /// @notice Retrieves the address of a dripcheck and reverts if it is not found.
+    /// @param _name Name of the dripcheck.
+    /// @return addr_ Address of the dripcheck.
+    function mustGetDripCheck(string memory _name) public view returns (address addr_) {
+        addr_ = dripchecks[_name];
+        require(addr_ != address(0), "DrippieConfig: unknown dripcheck");
     }
 
     /// @notice Check if two strings are equal.
