@@ -513,7 +513,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		PollInterval:            ctx.Duration(HTTPPollInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
-		CannonConfig: vm.Config{
+		Cannon: vm.Config{
 			VmType:           config.TraceTypeCannon.String(),
 			L1:               l1EthRpc,
 			L1Beacon:         l1Beacon,
@@ -529,7 +529,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPrestatesURL,
 		Datadir:                       ctx.String(DatadirFlag.Name),
-		AsteriscConfig: vm.Config{
+		Asterisc: vm.Config{
 			VmType:           config.TraceTypeAsterisc.String(),
 			L1:               l1EthRpc,
 			L1Beacon:         l1Beacon,

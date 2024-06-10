@@ -277,7 +277,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-bin", "--asterisc-bin=./asterisc"))
-				require.Equal(t, "./asterisc", cfg.AsteriscConfig.VmBin)
+				require.Equal(t, "./asterisc", cfg.Asterisc.VmBin)
 			})
 		})
 
@@ -292,7 +292,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-server", "--asterisc-server=./op-program"))
-				require.Equal(t, "./op-program", cfg.AsteriscConfig.Server)
+				require.Equal(t, "./op-program", cfg.Asterisc.Server)
 			})
 		})
 
@@ -349,12 +349,12 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", traceType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType))
-				require.Equal(t, config.DefaultAsteriscSnapshotFreq, cfg.AsteriscConfig.SnapshotFreq)
+				require.Equal(t, config.DefaultAsteriscSnapshotFreq, cfg.Asterisc.SnapshotFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType, "--asterisc-snapshot-freq=1234"))
-				require.Equal(t, uint(1234), cfg.AsteriscConfig.SnapshotFreq)
+				require.Equal(t, uint(1234), cfg.Asterisc.SnapshotFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
@@ -366,12 +366,12 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", traceType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType))
-				require.Equal(t, config.DefaultAsteriscInfoFreq, cfg.AsteriscConfig.InfoFreq)
+				require.Equal(t, config.DefaultAsteriscInfoFreq, cfg.Asterisc.InfoFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType, "--asterisc-info-freq=1234"))
-				require.Equal(t, uint(1234), cfg.AsteriscConfig.InfoFreq)
+				require.Equal(t, uint(1234), cfg.Asterisc.InfoFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
@@ -432,7 +432,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 				delete(args, "--game-factory-address")
 				args["--network"] = "op-sepolia"
 				cfg := configForArgs(t, toArgList(args))
-				require.Equal(t, "op-sepolia", cfg.AsteriscConfig.Network)
+				require.Equal(t, "op-sepolia", cfg.Asterisc.Network)
 			})
 
 			t.Run("MustNotSpecifyNetworkAndAsteriscNetwork", func(t *testing.T) {
@@ -442,7 +442,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-network", testNetwork))
-				require.Equal(t, testNetwork, cfg.AsteriscConfig.Network)
+				require.Equal(t, testNetwork, cfg.Asterisc.Network)
 			})
 		})
 
@@ -453,7 +453,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-rollup-config=rollup.json", "--asterisc-l2-genesis=genesis.json"))
-				require.Equal(t, "rollup.json", cfg.AsteriscConfig.RollupConfigPath)
+				require.Equal(t, "rollup.json", cfg.Asterisc.RollupConfigPath)
 			})
 		})
 
@@ -464,7 +464,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-network", "--asterisc-rollup-config=rollup.json", "--asterisc-l2-genesis=genesis.json"))
-				require.Equal(t, "genesis.json", cfg.AsteriscConfig.L2GenesisPath)
+				require.Equal(t, "genesis.json", cfg.Asterisc.L2GenesisPath)
 			})
 		})
 	}
@@ -502,7 +502,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-bin", "--cannon-bin=./cannon"))
-				require.Equal(t, "./cannon", cfg.CannonConfig.VmBin)
+				require.Equal(t, "./cannon", cfg.Cannon.VmBin)
 			})
 		})
 
@@ -517,7 +517,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-server", "--cannon-server=./op-program"))
-				require.Equal(t, "./op-program", cfg.CannonConfig.Server)
+				require.Equal(t, "./op-program", cfg.Cannon.Server)
 			})
 		})
 
@@ -570,12 +570,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonSnapshotFreq-%v", traceType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType))
-				require.Equal(t, config.DefaultCannonSnapshotFreq, cfg.CannonConfig.SnapshotFreq)
+				require.Equal(t, config.DefaultCannonSnapshotFreq, cfg.Cannon.SnapshotFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType, "--cannon-snapshot-freq=1234"))
-				require.Equal(t, uint(1234), cfg.CannonConfig.SnapshotFreq)
+				require.Equal(t, uint(1234), cfg.Cannon.SnapshotFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
@@ -587,12 +587,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonInfoFreq-%v", traceType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType))
-				require.Equal(t, config.DefaultCannonInfoFreq, cfg.CannonConfig.InfoFreq)
+				require.Equal(t, config.DefaultCannonInfoFreq, cfg.Cannon.InfoFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgs(traceType, "--cannon-info-freq=1234"))
-				require.Equal(t, uint(1234), cfg.CannonConfig.InfoFreq)
+				require.Equal(t, uint(1234), cfg.Cannon.InfoFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
@@ -653,7 +653,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 				delete(args, "--game-factory-address")
 				args["--network"] = "op-sepolia"
 				cfg := configForArgs(t, toArgList(args))
-				require.Equal(t, "op-sepolia", cfg.CannonConfig.Network)
+				require.Equal(t, "op-sepolia", cfg.Cannon.Network)
 			})
 
 			t.Run("MustNotSpecifyNetworkAndCannonNetwork", func(t *testing.T) {
@@ -663,7 +663,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-network", testNetwork))
-				require.Equal(t, testNetwork, cfg.CannonConfig.Network)
+				require.Equal(t, testNetwork, cfg.Cannon.Network)
 			})
 		})
 
@@ -674,7 +674,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
-				require.Equal(t, "rollup.json", cfg.CannonConfig.RollupConfigPath)
+				require.Equal(t, "rollup.json", cfg.Cannon.RollupConfigPath)
 			})
 		})
 
@@ -685,7 +685,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
-				require.Equal(t, "genesis.json", cfg.CannonConfig.L2GenesisPath)
+				require.Equal(t, "genesis.json", cfg.Cannon.L2GenesisPath)
 			})
 		})
 	}

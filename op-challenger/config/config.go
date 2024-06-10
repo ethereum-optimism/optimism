@@ -129,12 +129,12 @@ type Config struct {
 	L2Rpc string // L2 RPC Url
 
 	// Specific to the cannon trace provider
-	CannonConfig                  vm.Config
+	Cannon                        vm.Config
 	CannonAbsolutePreState        string   // File to load the absolute pre-state for Cannon traces from
 	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
 
 	// Specific to the asterisc trace provider
-	AsteriscConfig                  vm.Config
+	Asterisc                        vm.Config
 	AsteriscAbsolutePreState        string   // File to load the absolute pre-state for Asterisc traces from
 	AsteriscAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
 
@@ -173,7 +173,7 @@ func NewConfig(
 
 		Datadir: datadir,
 
-		CannonConfig: vm.Config{
+		Cannon: vm.Config{
 			VmType:       TraceTypeCannon.String(),
 			L1:           l1EthRpc,
 			L1Beacon:     l1BeaconApi,
@@ -181,7 +181,7 @@ func NewConfig(
 			SnapshotFreq: DefaultCannonSnapshotFreq,
 			InfoFreq:     DefaultCannonInfoFreq,
 		},
-		AsteriscConfig: vm.Config{
+		Asterisc: vm.Config{
 			VmType:       TraceTypeAsterisc.String(),
 			L1:           l1EthRpc,
 			L1Beacon:     l1BeaconApi,
@@ -223,28 +223,28 @@ func (c Config) Check() error {
 		return ErrMaxConcurrencyZero
 	}
 	if c.TraceTypeEnabled(TraceTypeCannon) || c.TraceTypeEnabled(TraceTypePermissioned) {
-		if c.CannonConfig.VmBin == "" {
+		if c.Cannon.VmBin == "" {
 			return ErrMissingCannonBin
 		}
-		if c.CannonConfig.Server == "" {
+		if c.Cannon.Server == "" {
 			return ErrMissingCannonServer
 		}
-		if c.CannonConfig.Network == "" {
-			if c.CannonConfig.RollupConfigPath == "" {
+		if c.Cannon.Network == "" {
+			if c.Cannon.RollupConfigPath == "" {
 				return ErrMissingCannonRollupConfig
 			}
-			if c.CannonConfig.L2GenesisPath == "" {
+			if c.Cannon.L2GenesisPath == "" {
 				return ErrMissingCannonL2Genesis
 			}
 		} else {
-			if c.CannonConfig.RollupConfigPath != "" {
+			if c.Cannon.RollupConfigPath != "" {
 				return ErrCannonNetworkAndRollupConfig
 			}
-			if c.CannonConfig.L2GenesisPath != "" {
+			if c.Cannon.L2GenesisPath != "" {
 				return ErrCannonNetworkAndL2Genesis
 			}
-			if ch := chaincfg.ChainByName(c.CannonConfig.Network); ch == nil {
-				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonConfig.Network)
+			if ch := chaincfg.ChainByName(c.Cannon.Network); ch == nil {
+				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.Cannon.Network)
 			}
 		}
 		if c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
@@ -253,36 +253,36 @@ func (c Config) Check() error {
 		if c.CannonAbsolutePreState != "" && c.CannonAbsolutePreStateBaseURL != nil {
 			return ErrCannonAbsolutePreStateAndBaseURL
 		}
-		if c.CannonConfig.SnapshotFreq == 0 {
+		if c.Cannon.SnapshotFreq == 0 {
 			return ErrMissingCannonSnapshotFreq
 		}
-		if c.CannonConfig.InfoFreq == 0 {
+		if c.Cannon.InfoFreq == 0 {
 			return ErrMissingCannonInfoFreq
 		}
 	}
 	if c.TraceTypeEnabled(TraceTypeAsterisc) {
-		if c.AsteriscConfig.VmBin == "" {
+		if c.Asterisc.VmBin == "" {
 			return ErrMissingAsteriscBin
 		}
-		if c.AsteriscConfig.Server == "" {
+		if c.Asterisc.Server == "" {
 			return ErrMissingAsteriscServer
 		}
-		if c.AsteriscConfig.Network == "" {
-			if c.AsteriscConfig.RollupConfigPath == "" {
+		if c.Asterisc.Network == "" {
+			if c.Asterisc.RollupConfigPath == "" {
 				return ErrMissingAsteriscRollupConfig
 			}
-			if c.AsteriscConfig.L2GenesisPath == "" {
+			if c.Asterisc.L2GenesisPath == "" {
 				return ErrMissingAsteriscL2Genesis
 			}
 		} else {
-			if c.AsteriscConfig.RollupConfigPath != "" {
+			if c.Asterisc.RollupConfigPath != "" {
 				return ErrAsteriscNetworkAndRollupConfig
 			}
-			if c.AsteriscConfig.L2GenesisPath != "" {
+			if c.Asterisc.L2GenesisPath != "" {
 				return ErrAsteriscNetworkAndL2Genesis
 			}
-			if ch := chaincfg.ChainByName(c.AsteriscConfig.Network); ch == nil {
-				return fmt.Errorf("%w: %v", ErrAsteriscNetworkUnknown, c.AsteriscConfig.Network)
+			if ch := chaincfg.ChainByName(c.Asterisc.Network); ch == nil {
+				return fmt.Errorf("%w: %v", ErrAsteriscNetworkUnknown, c.Asterisc.Network)
 			}
 		}
 		if c.AsteriscAbsolutePreState == "" && c.AsteriscAbsolutePreStateBaseURL == nil {
@@ -291,10 +291,10 @@ func (c Config) Check() error {
 		if c.AsteriscAbsolutePreState != "" && c.AsteriscAbsolutePreStateBaseURL != nil {
 			return ErrAsteriscAbsolutePreStateAndBaseURL
 		}
-		if c.AsteriscConfig.SnapshotFreq == 0 {
+		if c.Asterisc.SnapshotFreq == 0 {
 			return ErrMissingAsteriscSnapshotFreq
 		}
-		if c.AsteriscConfig.InfoFreq == 0 {
+		if c.Asterisc.InfoFreq == 0 {
 			return ErrMissingAsteriscInfoFreq
 		}
 	}
