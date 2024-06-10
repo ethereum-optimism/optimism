@@ -185,7 +185,7 @@ func NewTraceProviderForTest(logger log.Logger, m AsteriscMetricer, cfg *config.
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.AsteriscAbsolutePreState,
-		generator:      NewExecutor(logger, m, cfg, cfg.AsteriscNetwork, localInputs),
+		generator:      NewExecutor(logger, m, cfg, cfg.AsteriscAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
 	}

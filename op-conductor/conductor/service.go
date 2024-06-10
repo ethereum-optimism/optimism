@@ -96,7 +96,6 @@ func NewOpConductor(
 		}
 		return nil, err
 	}
-	oc.prevState = NewState(oc.leader.Load(), oc.healthy.Load(), oc.seqActive.Load())
 
 	return oc, nil
 }
@@ -341,6 +340,10 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 	oc.metrics.RecordUp()
 
 	oc.log.Info("OpConductor started")
+	// queue an action in case sequencer is not in the desired state.
+	oc.prevState = NewState(oc.leader.Load(), oc.healthy.Load(), oc.seqActive.Load())
+	oc.queueAction()
+
 	return nil
 }
 
