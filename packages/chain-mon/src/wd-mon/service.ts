@@ -30,6 +30,7 @@ type Metrics = {
   withdrawalsValidated: Gauge
   isDetectingForgeries: Gauge
   nodeConnectionFailures: Gauge
+  detectedForgeries: Gauge
 }
 
 type State = {
@@ -109,6 +110,11 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
           type: Gauge,
           desc: 'Number of times node connection has failed',
           labels: ['layer', 'section'],
+        },
+        detectedForgeries: {
+          type: Gauge,
+          desc: 'detected forged withdrawals',
+          labels: ['withdrawalHash', 'provenAt', 'blockNumber', 'transaction'],
         },
       },
     })
@@ -223,6 +229,9 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
     this.logger.info(`checking recent blocks`, {
       fromBlockNumber: this.state.highestUncheckedBlockNumber,
       toBlockNumber,
+      latestL1BlockNumber,
+      percentageDone:
+        Math.floor((toBlockNumber / latestL1BlockNumber) * 100) + '% done',
     })
 
     // Query for WithdrawalProven events within the specified block range.
@@ -257,39 +266,50 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
       const hash = event.args.withdrawalHash
       const exists = await this.state.messenger.sentMessages(hash)
 
+      const block = await event.getBlock()
+      const ts = `${dateformat(
+        new Date(block.timestamp * 1000),
+        'mmmm dS, yyyy, h:MM:ss TT',
+        true
+      )} UTC`
+
       // Hopefully the withdrawal exists!
       if (exists) {
         // Unlike below we don't grab the timestamp here because it adds an unnecessary request.
         this.logger.info(`valid withdrawal`, {
           withdrawalHash: event.args.withdrawalHash,
+          provenAt: ts,
+          blockNumber: block.number,
+          transaction: event.transactionHash,
         })
 
         // Bump the withdrawals metric so we can keep track.
         this.metrics.withdrawalsValidated.inc()
       } else {
         // Grab and format the timestamp so it's clear how much time is left.
-        const block = await event.getBlock()
-        const ts = `${dateformat(
-          new Date(block.timestamp * 1000),
-          'mmmm dS, yyyy, h:MM:ss TT',
-          true
-        )} UTC`
 
         // Uh oh!
         this.logger.error(`withdrawalHash not seen on L2`, {
           withdrawalHash: event.args.withdrawalHash,
-          provenAt: ts,
+          provenAt:
+            dateformat(
+              new Date(block.timestamp * 1000),
+              'mmmm dS, yyyy, h:MM:ss TT',
+              true
+            ) + ' UTC',
+          blockNumber: block.number.toString(),
+          transaction: event.transactionHash,
         })
 
         // Change to forgery state.
         this.state.forgeryDetected = true
         this.metrics.isDetectingForgeries.set(1)
-
-        // Return early so that we never increment the highest unchecked block number and therefore
-        // will continue to loop on this forgery indefinitely. We probably want to change this
-        // behavior at some point so that we keep scanning for additional forgeries since the
-        // existence of one forgery likely implies the existence of many others.
-        return sleep(this.options.sleepTimeMs)
+        this.metrics.detectedForgeries.inc({
+          withdrawalHash: hash,
+          provenAt: ts,
+          blockNumber: block.number.toString(),
+          transaction: event.transactionHash,
+        })
       }
     }
 
