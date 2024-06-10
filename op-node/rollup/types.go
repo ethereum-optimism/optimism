@@ -25,7 +25,6 @@ var (
 	ErrGenesisHashesSame             = errors.New("achievement get! rollup inception: L1 and L2 genesis cannot be the same")
 	ErrMissingGenesisL2Time          = errors.New("missing L2 genesis time")
 	ErrMissingBatcherAddr            = errors.New("missing genesis system config batcher address")
-	ErrMissingOverhead               = errors.New("missing genesis system config overhead")
 	ErrMissingScalar                 = errors.New("missing genesis system config scalar")
 	ErrMissingGasLimit               = errors.New("missing genesis system config gas limit")
 	ErrMissingBatchInboxAddress      = errors.New("missing batch inbox address")
@@ -50,6 +49,19 @@ type Genesis struct {
 	SystemConfig eth.SystemConfig `json:"system_config"`
 }
 
+type PlasmaConfig struct {
+	// L1 DataAvailabilityChallenge contract proxy address
+	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
+	// CommitmentType specifies which commitment type can be used. Defaults to Keccak (type 0) if not present
+	CommitmentType string `json:"da_commitment_type"`
+	// DA challenge window value set on the DAC contract. Used in plasma mode
+	// to compute when a commitment can no longer be challenged.
+	DAChallengeWindow uint64 `json:"da_challenge_window"`
+	// DA resolve window value set on the DAC contract. Used in plasma mode
+	// to compute when a challenge expires and trigger a reorg if needed.
+	DAResolveWindow uint64 `json:"da_resolve_window"`
+}
+
 type Config struct {
 	// Genesis anchor point of the rollup
 	Genesis Genesis `json:"genesis"`
@@ -60,7 +72,12 @@ type Config struct {
 	//
 	// Note: When L1 has many 1 second consecutive blocks, and L2 grows at fixed 2 seconds,
 	// the L2 time may still grow beyond this difference.
-	MaxSequencerDrift uint64 `json:"max_sequencer_drift"`
+	//
+	// With Fjord, the MaxSequencerDrift becomes a constant. Use the ChainSpec
+	// instead of reading this rollup configuration field directly to determine
+	// the max sequencer drift for a given block based on the block's L1 origin.
+	// Chains that activate Fjord at genesis may leave this field empty.
+	MaxSequencerDrift uint64 `json:"max_sequencer_drift,omitempty"`
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch L1 origin block itself
 	SeqWindowSize uint64 `json:"seq_window_size"`
 	// Number of L1 blocks between when a channel can be opened and when it must be closed by.
@@ -109,19 +126,22 @@ type Config struct {
 	// L1 address that declares the protocol versions, optional (Beta feature)
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
 
+	// Plasma Config. We are in the process of migrating to the PlasmaConfig from these legacy top level values
+	PlasmaConfig *PlasmaConfig `json:"plasma_config,omitempty"`
+
 	// L1 DataAvailabilityChallenge contract proxy address
-	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
+	LegacyDAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
 
 	// DA challenge window value set on the DAC contract. Used in plasma mode
 	// to compute when a commitment can no longer be challenged.
-	DAChallengeWindow uint64 `json:"da_challenge_window"`
+	LegacyDAChallengeWindow uint64 `json:"da_challenge_window,omitempty"`
 
 	// DA resolve window value set on the DAC contract. Used in plasma mode
 	// to compute when a challenge expires and trigger a reorg if needed.
-	DAResolveWindow uint64 `json:"da_resolve_window"`
+	LegacyDAResolveWindow uint64 `json:"da_resolve_window,omitempty"`
 
-	// UsePlasma is activated when the chain is in plasma mode.
-	UsePlasma bool `json:"use_plasma"`
+	// LegacyUsePlasma is activated when the chain is in plasma mode.
+	LegacyUsePlasma bool `json:"use_plasma,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -259,9 +279,6 @@ func (cfg *Config) Check() error {
 	if cfg.Genesis.SystemConfig.BatcherAddr == (common.Address{}) {
 		return ErrMissingBatcherAddr
 	}
-	if cfg.Genesis.SystemConfig.Overhead == (eth.Bytes32{}) {
-		return ErrMissingOverhead
-	}
 	if cfg.Genesis.SystemConfig.Scalar == (eth.Bytes32{}) {
 		return ErrMissingScalar
 	}
@@ -289,25 +306,65 @@ func (cfg *Config) Check() error {
 	if cfg.L2ChainID.Sign() < 1 {
 		return ErrL2ChainIDNotPositive
 	}
+	if err := validatePlasmaConfig(cfg); err != nil {
+		return err
+	}
 
-	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, "regolith", "canyon"); err != nil {
+	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, Regolith, Canyon); err != nil {
 		return err
 	}
-	if err := checkFork(cfg.CanyonTime, cfg.DeltaTime, "canyon", "delta"); err != nil {
+	if err := checkFork(cfg.CanyonTime, cfg.DeltaTime, Canyon, Delta); err != nil {
 		return err
 	}
-	if err := checkFork(cfg.DeltaTime, cfg.EcotoneTime, "delta", "ecotone"); err != nil {
+	if err := checkFork(cfg.DeltaTime, cfg.EcotoneTime, Delta, Ecotone); err != nil {
 		return err
 	}
-	if err := checkFork(cfg.EcotoneTime, cfg.FjordTime, "ecotone", "fjord"); err != nil {
+	if err := checkFork(cfg.EcotoneTime, cfg.FjordTime, Ecotone, Fjord); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+// validatePlasmaConfig checks the two approaches to configuring plasma mode.
+// If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
+func validatePlasmaConfig(cfg *Config) error {
+	if cfg.LegacyUsePlasma && cfg.PlasmaConfig == nil {
+		// copy from top level to plasma config
+		cfg.PlasmaConfig = &PlasmaConfig{
+			DAChallengeAddress: cfg.LegacyDAChallengeAddress,
+			DAChallengeWindow:  cfg.LegacyDAChallengeWindow,
+			DAResolveWindow:    cfg.LegacyDAResolveWindow,
+		}
+	} else if cfg.LegacyUsePlasma && cfg.PlasmaConfig != nil {
+		// validate that both are the same
+		if cfg.LegacyDAChallengeAddress != cfg.PlasmaConfig.DAChallengeAddress {
+			return fmt.Errorf("LegacyDAChallengeAddress (%v) !=  PlasmaConfig.DAChallengeAddress (%v)", cfg.LegacyDAChallengeAddress, cfg.PlasmaConfig.DAChallengeAddress)
+		}
+		if cfg.LegacyDAChallengeWindow != cfg.PlasmaConfig.DAChallengeWindow {
+			return fmt.Errorf("LegacyDAChallengeWindow (%v) !=  PlasmaConfig.DAChallengeWindow (%v)", cfg.LegacyDAChallengeWindow, cfg.PlasmaConfig.DAChallengeWindow)
+		}
+		if cfg.LegacyDAResolveWindow != cfg.PlasmaConfig.DAResolveWindow {
+			return fmt.Errorf("LegacyDAResolveWindow (%v) !=  PlasmaConfig.DAResolveWindow (%v)", cfg.LegacyDAResolveWindow, cfg.PlasmaConfig.DAResolveWindow)
+		}
+		if cfg.PlasmaConfig.CommitmentType != plasma.KeccakCommitmentString {
+			return errors.New("Cannot set CommitmentType with the legacy config")
+		}
+	} else if cfg.PlasmaConfig != nil {
+		if !(cfg.PlasmaConfig.CommitmentType == plasma.KeccakCommitmentString || cfg.PlasmaConfig.CommitmentType == plasma.GenericCommitmentString) {
+			return fmt.Errorf("invalid commitment type: %v", cfg.PlasmaConfig.CommitmentType)
+		}
+		if cfg.PlasmaConfig.CommitmentType == plasma.KeccakCommitmentString && cfg.PlasmaConfig.DAChallengeAddress == (common.Address{}) {
+			return errors.New("Must set da_challenge_contract_address for keccak commitments")
+		} else if cfg.PlasmaConfig.CommitmentType == plasma.GenericCommitmentString && cfg.PlasmaConfig.DAChallengeAddress != (common.Address{}) {
+			return errors.New("Must set empty da_challenge_contract_address for generic commitments")
+		}
+	}
+	return nil
+}
+
 // checkFork checks that fork A is before or at the same time as fork B
-func checkFork(a, b *uint64, aName, bName string) error {
+func checkFork(a, b *uint64, aName, bName ForkName) error {
 	if a == nil && b == nil {
 		return nil
 	}
@@ -347,6 +404,42 @@ func (c *Config) IsEcotone(timestamp uint64) bool {
 	return c.EcotoneTime != nil && timestamp >= *c.EcotoneTime
 }
 
+// IsFjord returns true if the Fjord hardfork is active at or past the given timestamp.
+func (c *Config) IsFjord(timestamp uint64) bool {
+	return c.FjordTime != nil && timestamp >= *c.FjordTime
+}
+
+// IsFjordActivationBlock returns whether the specified block is the first block subject to the
+// Fjord upgrade.
+func (c *Config) IsFjordActivationBlock(l2BlockTime uint64) bool {
+	return c.IsFjord(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsFjord(l2BlockTime-c.BlockTime)
+}
+
+// IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
+func (c *Config) IsInterop(timestamp uint64) bool {
+	return c.InteropTime != nil && timestamp >= *c.InteropTime
+}
+
+func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {
+	return c.IsRegolith(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsRegolith(l2BlockTime-c.BlockTime)
+}
+
+func (c *Config) IsCanyonActivationBlock(l2BlockTime uint64) bool {
+	return c.IsCanyon(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsCanyon(l2BlockTime-c.BlockTime)
+}
+
+func (c *Config) IsDeltaActivationBlock(l2BlockTime uint64) bool {
+	return c.IsDelta(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsDelta(l2BlockTime-c.BlockTime)
+}
+
 // IsEcotoneActivationBlock returns whether the specified block is the first block subject to the
 // Ecotone upgrade. Ecotone activation at genesis does not count.
 func (c *Config) IsEcotoneActivationBlock(l2BlockTime uint64) bool {
@@ -355,14 +448,10 @@ func (c *Config) IsEcotoneActivationBlock(l2BlockTime uint64) bool {
 		!c.IsEcotone(l2BlockTime-c.BlockTime)
 }
 
-// IsFjord returns true if the Fjord hardfork is active at or past the given timestamp.
-func (c *Config) IsFjord(timestamp uint64) bool {
-	return c.FjordTime != nil && timestamp >= *c.FjordTime
-}
-
-// IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
-func (c *Config) IsInterop(timestamp uint64) bool {
-	return c.InteropTime != nil && timestamp >= *c.InteropTime
+func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
+	return c.IsInterop(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsInterop(l2BlockTime-c.BlockTime)
 }
 
 // ForkchoiceUpdatedVersion returns the EngineAPIMethod suitable for the chain hard fork version.
@@ -405,29 +494,38 @@ func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	}
 }
 
-// PlasmaConfig validates and returns the plasma config from the rollup config.
-func (c *Config) PlasmaConfig() (plasma.Config, error) {
-	if c.DAChallengeAddress == (common.Address{}) {
-		return plasma.Config{}, fmt.Errorf("missing DAChallengeAddress")
+// GetOPPlasmaConfig validates and returns the plasma config from the rollup config.
+func (c *Config) GetOPPlasmaConfig() (plasma.Config, error) {
+	if c.PlasmaConfig == nil {
+		return plasma.Config{}, errors.New("no plasma config")
 	}
-	if c.DAChallengeWindow == uint64(0) {
-		return plasma.Config{}, fmt.Errorf("missing DAChallengeWindow")
+	if c.PlasmaConfig.DAChallengeWindow == uint64(0) {
+		return plasma.Config{}, errors.New("missing DAChallengeWindow")
 	}
-	if c.DAResolveWindow == uint64(0) {
-		return plasma.Config{}, fmt.Errorf("missing DAResolveWindow")
+	if c.PlasmaConfig.DAResolveWindow == uint64(0) {
+		return plasma.Config{}, errors.New("missing DAResolveWindow")
+	}
+	t, err := plasma.CommitmentTypeFromString(c.PlasmaConfig.CommitmentType)
+	if err != nil {
+		return plasma.Config{}, err
 	}
 	return plasma.Config{
-		DAChallengeContractAddress: c.DAChallengeAddress,
-		ChallengeWindow:            c.DAChallengeWindow,
-		ResolveWindow:              c.DAResolveWindow,
+		DAChallengeContractAddress: c.PlasmaConfig.DAChallengeAddress,
+		ChallengeWindow:            c.PlasmaConfig.DAChallengeWindow,
+		ResolveWindow:              c.PlasmaConfig.DAResolveWindow,
+		CommitmentType:             t,
 	}, nil
+}
+
+func (c *Config) PlasmaEnabled() bool {
+	return c.PlasmaConfig != nil
 }
 
 // SyncLookback computes the number of blocks to walk back in order to find the correct L1 origin.
 // In plasma mode longest possible window is challenge + resolve windows.
 func (c *Config) SyncLookback() uint64 {
-	if c.UsePlasma {
-		if win := (c.DAChallengeWindow + c.DAResolveWindow); win > c.SeqWindowSize {
+	if c.PlasmaEnabled() {
+		if win := (c.PlasmaConfig.DAChallengeWindow + c.PlasmaConfig.DAResolveWindow); win > c.SeqWindowSize {
 			return win
 		}
 	}
@@ -468,6 +566,9 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	banner += fmt.Sprintf("  - Interop: %s\n", fmtForkTimeOrUnset(c.InteropTime))
 	// Report the protocol version
 	banner += fmt.Sprintf("Node supports up to OP-Stack Protocol Version: %s\n", OPStackSupport)
+	if c.PlasmaConfig != nil {
+		banner += fmt.Sprintf("Node supports Plasma Mode with CommitmentType %v\n", c.PlasmaConfig.CommitmentType)
+	}
 	return banner
 }
 
@@ -487,6 +588,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	if networkL1 == "" {
 		networkL1 = "unknown L1"
 	}
+
 	log.Info("Rollup Config", "l2_chain_id", c.L2ChainID, "l2_network", networkL2, "l1_chain_id", c.L1ChainID,
 		"l1_network", networkL1, "l2_start_time", c.Genesis.L2Time, "l2_block_hash", c.Genesis.L2.Hash.String(),
 		"l2_block_number", c.Genesis.L2.Number, "l1_block_hash", c.Genesis.L1.Hash.String(),
@@ -496,6 +598,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"ecotone_time", fmtForkTimeOrUnset(c.EcotoneTime),
 		"fjord_time", fmtForkTimeOrUnset(c.FjordTime),
 		"interop_time", fmtForkTimeOrUnset(c.InteropTime),
+		"plasma_mode", c.PlasmaConfig != nil,
 	)
 }
 

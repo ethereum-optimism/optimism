@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { MerkleTrie } from "src/libraries/trie/MerkleTrie.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
+import "src/libraries/rlp/RLPErrors.sol";
 
 contract MerkleTrie_get_Test is Test {
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
@@ -186,7 +187,7 @@ contract MerkleTrie_get_Test is Test {
             hex"f84580a0582eed8dd051b823d13f8648cdcd08aa2d8dac239f458863c4620e8c4d605debca83206262856176616c32ca83206363856176616c3380808080808080808080808080";
         proof[4] = hex"ca83206262856176616c32";
 
-        vm.expectRevert("RLPReader: decoded item type for list is not a list item");
+        vm.expectRevert(UnexpectedString.selector);
         MerkleTrie.get(key, proof, root);
     }
 
@@ -198,7 +199,7 @@ contract MerkleTrie_get_Test is Test {
         proof[1] = hex"d780808080808080808080c32081aac32081ab8080808080";
         proof[2] = hex"c32081aa000000000000000000000000000000";
 
-        vm.expectRevert("RLPReader: list item has an invalid data remainder");
+        vm.expectRevert(InvalidDataRemainder.selector);
         MerkleTrie.get(key, proof, root);
     }
 
@@ -328,7 +329,7 @@ contract MerkleTrie_get_Test is Test {
         // Generate an invalid test case where the proof is malformed.
         (bytes32 root, bytes memory key,, bytes[] memory proof) = ffi.getMerkleTrieFuzzCase("corrupted_proof");
 
-        vm.expectRevert("RLPReader: decoded item type for list is not a list item");
+        vm.expectRevert(UnexpectedString.selector);
         MerkleTrie.get(key, proof, root);
     }
 
@@ -338,7 +339,7 @@ contract MerkleTrie_get_Test is Test {
         // length designates within the RLP list encoding.
         (bytes32 root, bytes memory key,, bytes[] memory proof) = ffi.getMerkleTrieFuzzCase("invalid_data_remainder");
 
-        vm.expectRevert("RLPReader: list item has an invalid data remainder");
+        vm.expectRevert(InvalidDataRemainder.selector);
         MerkleTrie.get(key, proof, root);
     }
 

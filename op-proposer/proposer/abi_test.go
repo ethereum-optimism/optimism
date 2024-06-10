@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
@@ -80,7 +80,7 @@ func TestManualABIPacking(t *testing.T) {
 	txData, err := proposeL2OutputTxData(l2ooAbi, output)
 	require.NoError(t, err)
 
-	// set a gas limit to disable gas estimation. The invariantes that the L2OO tries to uphold
+	// set a gas limit to disable gas estimation. The invariants that the L2OO tries to uphold
 	// are not maintained in this test.
 	opts.GasLimit = 100_000
 	tx, err := l2oo.ProposeL2Output(

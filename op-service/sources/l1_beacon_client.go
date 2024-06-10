@@ -129,6 +129,19 @@ func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSide
 	if err := cl.apiReq(ctx, &resp, reqPath, reqQuery); err != nil {
 		return eth.APIGetBlobSidecarsResponse{}, err
 	}
+
+	indices := make(map[uint64]struct{}, len(hashes))
+	for _, h := range hashes {
+		indices[h.Index] = struct{}{}
+	}
+
+	for _, apisc := range resp.Data {
+		delete(indices, uint64(apisc.Index))
+	}
+
+	if len(indices) > 0 {
+		return eth.APIGetBlobSidecarsResponse{}, fmt.Errorf("#returned blobs(%d) != #requested blobs(%d)", len(hashes)-len(indices), len(hashes))
+	}
 	return resp, nil
 }
 
@@ -166,8 +179,9 @@ func NewL1BeaconClient(cl BeaconClient, cfg L1BeaconClientConfig, fallbacks ...B
 	cs := append([]BlobSideCarsFetcher{cl}, fallbacks...)
 	return &L1BeaconClient{
 		cl:   cl,
-		pool: NewClientPool[BlobSideCarsFetcher](cs...),
-		cfg:  cfg}
+		pool: NewClientPool(cs...),
+		cfg:  cfg,
+	}
 }
 
 type TimeToSlotFn func(timestamp uint64) (uint64, error)

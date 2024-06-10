@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -68,7 +69,7 @@ func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForGameStatus(ctx, types.GameStatusChallengerWon)
 	game.LogGameData(ctx)
 }
 
@@ -110,7 +111,7 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForGameStatus(ctx, types.GameStatusChallengerWon)
 	game.LogGameData(ctx)
 
 	// Expect Alice's credit to be non-zero
@@ -161,7 +162,7 @@ func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+	game.WaitForGameStatus(ctx, types.GameStatusDefenderWon)
 }
 
 func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
@@ -185,7 +186,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 
 		// Start honest challenger
 		game.StartChallenger(ctx, "sequencer", "Challenger",
-			challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
+			challenger.WithAlphabet(),
 			challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 			// Ensures the challenger responds to all claims before test timeout
 			challenger.WithPollInterval(time.Millisecond*400),
@@ -213,9 +214,9 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 		sys.TimeTravelClock.AdvanceTime(gameDuration)
 		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-		expectedStatus := disputegame.StatusChallengerWins
+		expectedStatus := types.GameStatusChallengerWon
 		if isRootCorrect {
-			expectedStatus = disputegame.StatusDefenderWins
+			expectedStatus = types.GameStatusDefenderWon
 		}
 		game.WaitForGameStatus(ctx, expectedStatus)
 		game.LogGameData(ctx)
@@ -288,8 +289,33 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	game.LogGameData(ctx)
 	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+	game.WaitForGameStatus(ctx, types.GameStatusDefenderWon)
 
+	game.LogGameData(ctx)
 	amt := game.Credit(ctx, freeloaderOpts.From)
-	require.True(t, amt.BitLen() == 0, "freeloaders should not be rewarded")
+	require.Truef(t, amt.BitLen() == 0, "freeloaders should not be rewarded. Credit: %v", amt)
+}
+
+func TestHighestActedL1BlockMetric(t *testing.T) {
+	op_e2e.InitParallel(t)
+	ctx := context.Background()
+	sys, l1Client := StartFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	honestChallenger := disputeGameFactory.StartChallenger(ctx, "Honest", challenger.WithAlphabet(), challenger.WithFastGames(), challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	game1 := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, common.Hash{0xaa})
+	sys.AdvanceTime(game1.MaxClockDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game1.WaitForGameStatus(ctx, types.GameStatusDefenderWon)
+
+	disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 2, common.Hash{0xaa})
+	disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, common.Hash{0xaa})
+
+	honestChallenger.WaitL1HeadActedOn(ctx, l1Client)
+
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+	honestChallenger.WaitL1HeadActedOn(ctx, l1Client)
 }

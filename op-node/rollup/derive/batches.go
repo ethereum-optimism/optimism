@@ -11,8 +11,8 @@ import (
 )
 
 type BatchWithL1InclusionBlock struct {
+	Batch
 	L1InclusionBlock eth.L1BlockRef
-	Batch            Batch
 }
 
 type BatchValidity uint8
@@ -32,24 +32,25 @@ const (
 // The first entry of the l1Blocks should match the origin of the l2SafeHead. One or more consecutive l1Blocks should be provided.
 // In case of only a single L1 block, the decision whether a batch is valid may have to stay undecided.
 func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef,
-	l2SafeHead eth.L2BlockRef, batch *BatchWithL1InclusionBlock, l2Fetcher SafeBlockFetcher) BatchValidity {
-	switch batch.Batch.GetBatchType() {
+	l2SafeHead eth.L2BlockRef, batch *BatchWithL1InclusionBlock, l2Fetcher SafeBlockFetcher,
+) BatchValidity {
+	switch typ := batch.GetBatchType(); typ {
 	case SingularBatchType:
-		singularBatch, ok := batch.Batch.(*SingularBatch)
+		singularBatch, ok := batch.AsSingularBatch()
 		if !ok {
 			log.Error("failed type assertion to SingularBatch")
 			return BatchDrop
 		}
 		return checkSingularBatch(cfg, log, l1Blocks, l2SafeHead, singularBatch, batch.L1InclusionBlock)
 	case SpanBatchType:
-		spanBatch, ok := batch.Batch.(*SpanBatch)
+		spanBatch, ok := batch.AsSpanBatch()
 		if !ok {
 			log.Error("failed type assertion to SpanBatch")
 			return BatchDrop
 		}
 		return checkSpanBatch(ctx, cfg, log, l1Blocks, l2SafeHead, spanBatch, batch.L1InclusionBlock, l2Fetcher)
 	default:
-		log.Warn("Unrecognized batch type: %d", batch.Batch.GetBatchType())
+		log.Warn("Unrecognized batch type: %d", typ)
 		return BatchDrop
 	}
 }
@@ -122,8 +123,9 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 		return BatchDrop
 	}
 
+	spec := rollup.NewChainSpec(cfg)
 	// Check if we ran out of sequencer time drift
-	if max := batchOrigin.Time + cfg.MaxSequencerDrift; batch.Timestamp > max {
+	if max := batchOrigin.Time + spec.MaxSequencerDrift(batchOrigin.Time); batch.Timestamp > max {
 		if len(batch.Transactions) == 0 {
 			// If the sequencer is co-operating by producing an empty batch,
 			// then allow the batch if it was the right thing to do to maintain the L2 time >= L1 time invariant.
@@ -166,7 +168,8 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 
 // checkSpanBatch implements SpanBatch validation rule.
 func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
-	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher) BatchValidity {
+	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
+) BatchValidity {
 	// add details to the log
 	log = batch.LogContext(log)
 
@@ -266,10 +269,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 	}
 
 	originIdx := 0
-	originAdvanced := false
-	if startEpochNum == parentBlock.L1Origin.Number+1 {
-		originAdvanced = true
-	}
+	originAdvanced := startEpochNum == parentBlock.L1Origin.Number+1
 
 	for i := 0; i < batch.GetBlockCount(); i++ {
 		if batch.GetBlockTimestamp(i) <= l2SafeHead.Time {
@@ -282,7 +282,6 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 				originIdx = j
 				break
 			}
-
 		}
 		if i > 0 {
 			originAdvanced = false
@@ -296,8 +295,9 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 			return BatchDrop
 		}
 
+		spec := rollup.NewChainSpec(cfg)
 		// Check if we ran out of sequencer time drift
-		if max := l1Origin.Time + cfg.MaxSequencerDrift; blockTimestamp > max {
+		if max := l1Origin.Time + spec.MaxSequencerDrift(l1Origin.Time); blockTimestamp > max {
 			if len(batch.GetBlockTransactions(i)) == 0 {
 				// If the sequencer is co-operating by producing an empty batch,
 				// then allow the batch if it was the right thing to do to maintain the L2 time >= L1 time invariant.

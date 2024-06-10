@@ -25,7 +25,7 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context, rootClaim 
 	depth := d.MaxDepth(ctx)
 	splitDepth := d.SplitDepth(ctx)
 
-	move := func(claimIndex int64, claimData ContractClaim) {
+	move := func(claimIndex int64, claimData types.Claim) {
 		// dishonest level, valid attack
 		// dishonest level, invalid attack
 		// dishonest level, valid defense
@@ -33,22 +33,21 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context, rootClaim 
 		// honest level, invalid attack
 		// honest level, invalid defense
 
-		pos := types.NewPositionFromGIndex(claimData.Position)
-		if pos.Depth() == depth {
+		if claimData.Depth() == depth {
 			return
 		}
 
 		d.LogGameData(ctx)
 		d.OutputGameHelper.T.Logf("Dishonest moves against claimIndex %d", claimIndex)
-		agreeWithLevel := d.defender == (pos.Depth()%2 == 0)
+		agreeWithLevel := d.defender == (claimData.Depth()%2 == 0)
 		if !agreeWithLevel {
 			d.OutputHonestHelper.Attack(ctx, claimIndex, WithIgnoreDuplicates())
-			if claimIndex != 0 && pos.Depth() != splitDepth+1 {
+			if claimIndex != 0 && claimData.Depth() != splitDepth+1 {
 				d.OutputHonestHelper.Defend(ctx, claimIndex, WithIgnoreDuplicates())
 			}
 		}
 		d.OutputGameHelper.Attack(ctx, claimIndex, common.Hash{byte(claimIndex)}, WithIgnoreDuplicates())
-		if claimIndex != 0 && pos.Depth() != splitDepth+1 {
+		if claimIndex != 0 && claimData.Depth() != splitDepth+1 {
 			d.OutputGameHelper.Defend(ctx, claimIndex, common.Hash{byte(claimIndex)}, WithIgnoreDuplicates())
 		}
 	}

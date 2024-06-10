@@ -26,20 +26,20 @@ contract SystemConfig_Init is CommonTest {
 contract SystemConfig_Initialize_Test is SystemConfig_Init {
     address batchInbox;
     address owner;
-    uint256 overhead;
-    uint256 scalar;
     bytes32 batcherHash;
     uint64 gasLimit;
     address unsafeBlockSigner;
     address systemConfigImpl;
     address optimismMintableERC20Factory;
+    uint32 basefeeScalar;
+    uint32 blobbasefeeScalar;
 
     function setUp() public virtual override {
         super.setUp();
         batchInbox = deploy.cfg().batchInboxAddress();
         owner = deploy.cfg().finalSystemOwner();
-        overhead = deploy.cfg().gasPriceOracleOverhead();
-        scalar = deploy.cfg().gasPriceOracleScalar();
+        basefeeScalar = deploy.cfg().basefeeScalar();
+        blobbasefeeScalar = deploy.cfg().blobbasefeeScalar();
         batcherHash = bytes32(uint256(uint160(deploy.cfg().batchSenderAddress())));
         gasLimit = uint64(deploy.cfg().l2GenesisBlockGasLimit());
         unsafeBlockSigner = deploy.cfg().p2pSequencerAddress();
@@ -52,10 +52,12 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         SystemConfig impl = SystemConfig(systemConfigImpl);
         assertEq(impl.owner(), address(0xdEaD));
         assertEq(impl.overhead(), 0);
-        assertEq(impl.scalar(), 0);
+        assertEq(impl.scalar(), uint256(0x01) << 248);
         assertEq(impl.batcherHash(), bytes32(0));
         assertEq(impl.gasLimit(), 1);
         assertEq(impl.unsafeBlockSigner(), address(0));
+        assertEq(impl.basefeeScalar(), 0);
+        assertEq(impl.blobbasefeeScalar(), 0);
         ResourceMetering.ResourceConfig memory actual = impl.resourceConfig();
         assertEq(actual.maxResourceLimit, 1);
         assertEq(actual.elasticityMultiplier, 1);
@@ -78,14 +80,16 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(decimals, 18);
     }
 
-    /// @dev Tests that initailization sets the correct values.
+    /// @dev Tests that initialization sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
-        assertEq(systemConfig.overhead(), overhead);
-        assertEq(systemConfig.scalar(), scalar);
+        assertEq(systemConfig.overhead(), 0);
+        assertEq(systemConfig.scalar() >> 248, 1);
         assertEq(systemConfig.batcherHash(), batcherHash);
         assertEq(systemConfig.gasLimit(), gasLimit);
         assertEq(systemConfig.unsafeBlockSigner(), unsafeBlockSigner);
+        assertEq(systemConfig.basefeeScalar(), basefeeScalar);
+        assertEq(systemConfig.blobbasefeeScalar(), blobbasefeeScalar);
         // Depends on `initialize` being called with defaults
         ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory actual = systemConfig.resourceConfig();
@@ -127,8 +131,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.expectRevert("SystemConfig: gas limit too low");
         systemConfig.initialize({
             _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
@@ -157,8 +161,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.prank(systemConfig.owner());
         systemConfig.initialize({
             _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
@@ -188,8 +192,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.prank(systemConfig.owner());
         systemConfig.initialize({
             _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
@@ -206,6 +210,100 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
             })
         });
         assertEq(systemConfig.startBlock(), 1);
+    }
+}
+
+contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
+    /// @dev Tests that `setResourceConfig` reverts if the min base fee
+    ///      is greater than the maximum allowed base fee.
+    function test_setResourceConfig_badMinMax_reverts() external {
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 2 gwei,
+            maximumBaseFee: 1 gwei
+        });
+        _initializeWithResourceConfig(config, "SystemConfig: min base fee must be less than max base");
+    }
+
+    /// @dev Tests that `setResourceConfig` reverts if the baseFeeMaxChangeDenominator
+    ///      is zero.
+    function test_setResourceConfig_zeroDenominator_reverts() external {
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 0,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        _initializeWithResourceConfig(config, "SystemConfig: denominator must be larger than 1");
+    }
+
+    /// @dev Tests that `setResourceConfig` reverts if the gas limit is too low.
+    function test_setResourceConfig_lowGasLimit_reverts() external {
+        uint64 gasLimit = systemConfig.gasLimit();
+
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: uint32(gasLimit),
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: uint32(gasLimit),
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        _initializeWithResourceConfig(config, "SystemConfig: gas limit too low");
+    }
+
+    /// @dev Tests that `setResourceConfig` reverts if the elasticity multiplier
+    ///      and max resource limit are configured such that there is a loss of precision.
+    function test_setResourceConfig_badPrecision_reverts() external {
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 11,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        _initializeWithResourceConfig(config, "SystemConfig: precision loss with target resource limit");
+    }
+
+    /// @dev Helper to initialize the system config with a resource config and default values, and expect a revert
+    ///      with the given message.
+    function _initializeWithResourceConfig(
+        ResourceMetering.ResourceConfig memory config,
+        string memory revertMessage
+    )
+        internal
+    {
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        // Fetch the current gas limit
+        uint64 gasLimit = uint64(deploy.cfg().l2GenesisBlockGasLimit());
+
+        vm.expectRevert(bytes(revertMessage));
+        systemConfig.initialize({
+            _owner: address(0xdEaD),
+            _basefeeScalar: 0,
+            _blobbasefeeScalar: 0,
+            _batcherHash: bytes32(0),
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: address(0),
+            _config: config,
+            _batchInbox: address(0),
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                disputeGameFactory: address(0),
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0),
+                gasPayingToken: address(0)
+            })
+        });
     }
 }
 
@@ -227,8 +325,8 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
         systemConfig.initialize({
             _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
+            _basefeeScalar: 2100,
+            _blobbasefeeScalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: 30_000_000,
             _unsafeBlockSigner: address(1),
@@ -264,6 +362,17 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     )
         external
     {
+        // don't use vm's address
+        vm.assume(_token != address(vm));
+        // don't use console's address
+        vm.assume(_token != CONSOLE);
+        // don't use create2 deployer's address
+        vm.assume(_token != CREATE2_FACTORY);
+        // don't use default test's address
+        vm.assume(_token != DEFAULT_TEST_CONTRACT);
+        // don't use multicall3's address
+        vm.assume(_token != MULTICALL3_ADDRESS);
+
         vm.assume(bytes(_name).length <= 32);
         vm.assume(bytes(_symbol).length <= 32);
 
@@ -356,7 +465,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
             abi.encodePacked(
                 uint256(0), // mint
                 uint256(0), // value
-                uint64(80000), // gasLimit
+                uint64(200_000), // gasLimit
                 false, // isCreation,
                 abi.encodeCall(L1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
             )
@@ -379,6 +488,18 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         systemConfig.setGasConfig(0, 0);
     }
 
+    /// @notice Ensures that `setGasConfig` reverts if version byte is set.
+    function test_setGasConfig_badValues_reverts() external {
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: scalar exceeds max.");
+        systemConfig.setGasConfig({ _overhead: 0, _scalar: type(uint256).max });
+    }
+
+    function test_setGasConfigEcotone_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setGasConfigEcotone({ _basefeeScalar: 0, _blobbasefeeScalar: 0 });
+    }
+
     /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
     function test_setGasLimit_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
@@ -391,83 +512,27 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         systemConfig.setUnsafeBlockSigner(address(0x20));
     }
 
-    /// @dev Tests that `setResourceConfig` reverts if the caller is not the owner.
-    function test_setResourceConfig_notOwner_reverts() external {
-        ResourceMetering.ResourceConfig memory config = Constants.DEFAULT_RESOURCE_CONFIG();
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setResourceConfig(config);
-    }
-
-    /// @dev Tests that `setResourceConfig` reverts if the min base fee
-    ///      is greater than the maximum allowed base fee.
-    function test_setResourceConfig_badMinMax_reverts() external {
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            systemTxMaxGas: 1_000_000,
-            minimumBaseFee: 2 gwei,
-            maximumBaseFee: 1 gwei
-        });
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: min base fee must be less than max base");
-        systemConfig.setResourceConfig(config);
-    }
-
-    /// @dev Tests that `setResourceConfig` reverts if the baseFeeMaxChangeDenominator
-    ///      is zero.
-    function test_setResourceConfig_zeroDenominator_reverts() external {
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 0,
-            systemTxMaxGas: 1_000_000,
-            minimumBaseFee: 1 gwei,
-            maximumBaseFee: 2 gwei
-        });
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: denominator must be larger than 1");
-        systemConfig.setResourceConfig(config);
-    }
-
-    /// @dev Tests that `setResourceConfig` reverts if the gas limit is too low.
-    function test_setResourceConfig_lowGasLimit_reverts() external {
-        uint64 gasLimit = systemConfig.gasLimit();
-
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: uint32(gasLimit),
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            systemTxMaxGas: uint32(gasLimit),
-            minimumBaseFee: 1 gwei,
-            maximumBaseFee: 2 gwei
-        });
+    /// @dev Tests that `setGasLimit` reverts if the gas limit is too low.
+    function test_setGasLimit_lowGasLimit_reverts() external {
+        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
         vm.prank(systemConfig.owner());
         vm.expectRevert("SystemConfig: gas limit too low");
-        systemConfig.setResourceConfig(config);
+        systemConfig.setGasLimit(minimumGasLimit - 1);
     }
 
-    /// @dev Tests that `setResourceConfig` reverts if the elasticity multiplier
-    ///      and max resource limit are configured such that there is a loss of precision.
-    function test_setResourceConfig_badPrecision_reverts() external {
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 11,
-            baseFeeMaxChangeDenominator: 8,
-            systemTxMaxGas: 1_000_000,
-            minimumBaseFee: 1 gwei,
-            maximumBaseFee: 2 gwei
-        });
+    /// @dev Tests that `setGasLimit` reverts if the gas limit is too high.
+    function test_setGasLimit_highGasLimit_reverts() external {
+        uint64 maximumGasLimit = systemConfig.maximumGasLimit();
         vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: precision loss with target resource limit");
-        systemConfig.setResourceConfig(config);
+        vm.expectRevert("SystemConfig: gas limit too high");
+        systemConfig.setGasLimit(maximumGasLimit + 1);
     }
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {
     /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(newBatcherHash));
 
         vm.prank(systemConfig.owner());
@@ -477,7 +542,9 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
 
     /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
     function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
-        vm.expectEmit(true, true, true, true);
+        // always zero out most significant byte
+        newScalar = (newScalar << 16) >> 16;
+        vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(newOverhead, newScalar));
 
         vm.prank(systemConfig.owner());
@@ -486,12 +553,31 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         assertEq(systemConfig.scalar(), newScalar);
     }
 
+    function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
+        bytes32 encoded =
+            ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
+
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(systemConfig.overhead(), encoded));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
+        assertEq(systemConfig.basefeeScalar(), _basefeeScalar);
+        assertEq(systemConfig.blobbasefeeScalar(), _blobbasefeeScalar);
+        assertEq(systemConfig.scalar(), uint256(encoded));
+
+        (uint32 basefeeScalar, uint32 blobbbasefeeScalar) = ffi.decodeScalarEcotone(encoded);
+        assertEq(uint256(basefeeScalar), uint256(_basefeeScalar));
+        assertEq(uint256(blobbbasefeeScalar), uint256(_blobbasefeeScalar));
+    }
+
     /// @dev Tests that `setGasLimit` updates the gas limit successfully.
     function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
-        newGasLimit = uint64(bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(type(uint64).max)));
+        uint64 maximumGasLimit = systemConfig.maximumGasLimit();
+        newGasLimit = uint64(bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(maximumGasLimit)));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_LIMIT, abi.encode(newGasLimit));
 
         vm.prank(systemConfig.owner());
@@ -501,7 +587,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
 
     /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.
     function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(newUnsafeSigner));
 
         vm.prank(systemConfig.owner());

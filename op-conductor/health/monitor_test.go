@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -58,6 +59,7 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		log:            s.log,
 		done:           make(chan struct{}),
 		interval:       s.interval,
+		metrics:        &metrics.NoopMetricsImpl{},
 		healthUpdateCh: make(chan error),
 		rollupCfg:      s.rollupCfg,
 		unsafeInterval: unsafeInterval,

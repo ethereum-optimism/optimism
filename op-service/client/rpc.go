@@ -8,14 +8,16 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 var httpRegex = regexp.MustCompile("^http(s)?://")
@@ -111,7 +113,7 @@ func NewRPCWithClient(ctx context.Context, lgr log.Logger, addr string, underlyi
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
 	bOff := retry.Exponential()
 	return retry.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
-		if !IsURLAvailable(addr) {
+		if !IsURLAvailable(ctx, addr) {
 			log.Warn("failed to dial address, but may connect later", "addr", addr)
 			return nil, fmt.Errorf("address unavailable (%s)", addr)
 		}
@@ -123,7 +125,7 @@ func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, 
 	})
 }
 
-func IsURLAvailable(address string) bool {
+func IsURLAvailable(ctx context.Context, address string) bool {
 	u, err := url.Parse(address)
 	if err != nil {
 		return false
@@ -140,7 +142,8 @@ func IsURLAvailable(address string) bool {
 			return true
 		}
 	}
-	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	dialer := net.Dialer{Timeout: 5 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return false
 	}
@@ -183,11 +186,11 @@ func (b *BaseRPCClient) EthSubscribe(ctx context.Context, channel any, args ...a
 // Prometheus metrics for each call.
 type InstrumentedRPCClient struct {
 	c RPC
-	m *metrics.Metrics
+	m *metrics.RPCClientMetrics
 }
 
 // NewInstrumentedRPC creates a new instrumented RPC client.
-func NewInstrumentedRPC(c RPC, m *metrics.Metrics) *InstrumentedRPCClient {
+func NewInstrumentedRPC(c RPC, m *metrics.RPCClientMetrics) *InstrumentedRPCClient {
 	return &InstrumentedRPCClient{
 		c: c,
 		m: m,
@@ -219,7 +222,7 @@ func (ic *InstrumentedRPCClient) EthSubscribe(ctx context.Context, channel any, 
 // the batch as a whole using a special <batch> method. Errors are tracked
 // for each individual batch response, unless the overall request fails in
 // which case the <batch> method is used.
-func instrumentBatch(m *metrics.Metrics, cb func() error, b []rpc.BatchElem) error {
+func instrumentBatch(m *metrics.RPCClientMetrics, cb func() error, b []rpc.BatchElem) error {
 	m.RPCClientRequestsTotal.WithLabelValues(metrics.BatchMethod).Inc()
 	for _, elem := range b {
 		m.RPCClientRequestsTotal.WithLabelValues(elem.Method).Inc()

@@ -70,7 +70,7 @@ used in production and are intended to provide convenient manual testing.
   --game-address <GAME_FACTORY_ADDRESS> \
   --output-root <OUTPUT_ROOT> \
   --l2-block-num <L2_BLOCK_NUM> \
-  ...<SIGNER_ARGS>
+  <SIGNER_ARGS>
 ```
 
 Starts a new fault dispute game that disputes the latest output proposal
@@ -80,9 +80,7 @@ in the L2 output oracle.
 * `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
 * `OUTPUT_ROOT` a hex encoded 32 byte hash that is used as the proposed output root.
 * `L2_BLOCK_NUM` the L2 block number the proposed output root is from.
-* `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending
-  transactions. These arguments must specify a way for `cast` to sign the transactions.
-  See `cast send --help` for supported options.
+* `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`)
 
 Optionally, you may specify the game type (aka "trace type") using the `--trace-type`
 flag, which is set to the cannon trace type by default.
@@ -99,7 +97,7 @@ but not both.
   --attack \
   --parent-index <PARENT_INDEX> \
   --claim <CLAIM> \
-  ...<SIGNER_ARGS>
+  <SIGNER_ARGS>
 ```
 
 Performs a move to either attack or defend the latest claim in the specified game.
@@ -114,9 +112,25 @@ Performs a move to either attack or defend the latest claim in the specified gam
 * `PARENT_INDEX` - the index of the parent claim that will be countered by this new claim.
   The special value of `latest` will counter the latest claim added to the game.
 * `CLAIM` - the state hash to include in the counter-claim you are posting.
-* `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending transactions.
-  These arguments must specify a way for `cast` to sign the transactions.
-  See `cast send --help` for supported options.
+* `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`)
+
+### resolve-claim
+
+```shell
+./bin/op-challenger resolve-claim \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-address <GAME_ADDRESS> \
+  --claim <CLAIM_INDEX> \
+  <SIGNER_ARGS>
+```
+
+Resolves a claim in a dispute game. Note that this will fail if the claim has already been resolved or if the claim is
+not yet resolvable. If the claim is resolved successfully, the result is printed.
+
+* `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `GAME_ADDRESS` - the address of the dispute game to resolve.
+* `CLAIM_INDEX` - the index of the claim to resolve.
+* `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`).
 
 ### resolve
 
@@ -124,7 +138,7 @@ Performs a move to either attack or defend the latest claim in the specified gam
 ./bin/op-challenger resolve \
   --l1-eth-rpc <L1_ETH_RPC> \
   --game-address <GAME_ADDRESS> \
-  ...<SIGNER_ARGS>
+  <SIGNER_ARGS>
 ```
 
 Resolves a dispute game. Note that this will fail if the dispute game has already
@@ -133,9 +147,7 @@ If the game is resolved successfully, the result is printed.
 
 * `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_ADDRESS` - the address of the dispute game to resolve.
-* `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending transactions.
-  These arguments must specify a way for `cast` to sign the transactions.
-  See `cast send --help` for supported options.
+* `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`).
 
 ### list-games
 

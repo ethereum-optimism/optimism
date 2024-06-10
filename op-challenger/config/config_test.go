@@ -40,7 +40,6 @@ func applyValidConfigForCannon(cfg *Config) {
 	cfg.CannonServer = validCannonOpProgramBin
 	cfg.CannonAbsolutePreStateBaseURL = validCannonAbsolutPreStateBaseURL
 	cfg.CannonNetwork = validCannonNetwork
-	cfg.L2Rpc = validL2Rpc
 }
 
 func applyValidConfigForAsterisc(cfg *Config) {
@@ -48,18 +47,16 @@ func applyValidConfigForAsterisc(cfg *Config) {
 	cfg.AsteriscServer = validAsteriscOpProgramBin
 	cfg.AsteriscAbsolutePreStateBaseURL = validAsteriscAbsolutPreStateBaseURL
 	cfg.AsteriscNetwork = validAsteriscNetwork
-	cfg.L2Rpc = validL2Rpc
 }
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validDatadir, traceType)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, traceType)
 	if traceType == TraceTypeCannon || traceType == TraceTypePermissioned {
 		applyValidConfigForCannon(&cfg)
 	}
 	if traceType == TraceTypeAsterisc {
 		applyValidConfigForAsterisc(&cfg)
 	}
-	cfg.RollupRpc = validRollupRpc
 	return cfg
 }
 
@@ -401,7 +398,7 @@ func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
 	applyValidConfigForAsterisc(&cfg)
 
-	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAsterisc, TraceTypeAlphabet}
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAsterisc, TraceTypeAlphabet, TraceTypeFast}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())

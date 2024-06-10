@@ -60,14 +60,19 @@ func DialRPCClientWithTimeout(ctx context.Context, timeout time.Duration, log lo
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
 	bOff := retry.Fixed(defaultRetryTime)
 	return retry.Do(ctx, defaultRetryCount, bOff, func() (*rpc.Client, error) {
-		if !client.IsURLAvailable(addr) {
-			log.Warn("failed to dial address, but may connect later", "addr", addr)
-			return nil, fmt.Errorf("address unavailable (%s)", addr)
-		}
-		client, err := rpc.DialOptions(ctx, addr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
-		}
-		return client, nil
+		return dialRPCClient(ctx, log, addr)
 	})
+}
+
+// Dials a JSON-RPC endpoint once.
+func dialRPCClient(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
+	if !client.IsURLAvailable(ctx, addr) {
+		log.Warn("failed to dial address, but may connect later", "addr", addr)
+		return nil, fmt.Errorf("address unavailable (%s)", addr)
+	}
+	client, err := rpc.DialOptions(ctx, addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
+	}
+	return client, nil
 }

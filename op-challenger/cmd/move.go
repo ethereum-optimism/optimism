@@ -46,19 +46,23 @@ func Move(ctx *cli.Context) error {
 		return fmt.Errorf("both attack and defense flags cannot be set")
 	}
 
-	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, GameAddressFlag.Name, contracts.NewFaultDisputeGameContract)
+	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, AddrFromFlag(GameAddressFlag.Name), contracts.NewFaultDisputeGameContract)
 	if err != nil {
 		return fmt.Errorf("failed to create dispute game bindings: %w", err)
 	}
 
+	parentClaim, err := contract.GetClaim(ctx.Context, parentIndex)
+	if err != nil {
+		return fmt.Errorf("failed to get parent claim: %w", err)
+	}
 	var tx txmgr.TxCandidate
 	if attack {
-		tx, err = contract.AttackTx(parentIndex, claim)
+		tx, err = contract.AttackTx(ctx.Context, parentClaim, claim)
 		if err != nil {
 			return fmt.Errorf("failed to create attack tx: %w", err)
 		}
 	} else if defend {
-		tx, err = contract.DefendTx(parentIndex, claim)
+		tx, err = contract.DefendTx(ctx.Context, parentClaim, claim)
 		if err != nil {
 			return fmt.Errorf("failed to create defense tx: %w", err)
 		}
@@ -93,6 +97,6 @@ var MoveCommand = &cli.Command{
 	Name:        "move",
 	Usage:       "Creates and sends a move transaction to the dispute game",
 	Description: "Creates and sends a move transaction to the dispute game",
-	Action:      Move,
+	Action:      Interruptible(Move),
 	Flags:       moveFlags(),
 }

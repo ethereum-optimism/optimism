@@ -8,8 +8,9 @@ import (
 	"strconv"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -35,6 +36,17 @@ var (
 		{Type: fixedBytes},
 	}
 
+	uint32Type, _ = abi.NewType("uint32", "", nil)
+
+	// Plain address type
+	addressType, _ = abi.NewType("address", "", nil)
+
+	// Plain uint8 type
+	uint8Type, _ = abi.NewType("uint8", "", nil)
+
+	// Plain uint256 type
+	uint256Type, _ = abi.NewType("uint256", "", nil)
+
 	// Decoded nonce tuple (nonce, version)
 	decodedNonce, _ = abi.NewType("tuple", "DecodedNonce", []abi.ArgumentMarshaling{
 		{Name: "nonce", Type: "uint256"},
@@ -42,6 +54,12 @@ var (
 	})
 	decodedNonceArgs = abi.Arguments{
 		{Name: "encodedNonce", Type: decodedNonce},
+	}
+
+	// Decoded ecotone scalars (uint32, uint32)
+	decodedScalars = abi.Arguments{
+		{Name: "basefeeScalar", Type: uint32Type},
+		{Name: "blobbasefeeScalar", Type: uint32Type},
 	}
 
 	// WithdrawalHash slot tuple (bytes32, bytes32)
@@ -73,6 +91,17 @@ var (
 	cannonMemoryProofArgs = abi.Arguments{
 		{Name: "encodedCannonMemoryProof", Type: cannonMemoryProof},
 	}
+
+	// Gas paying token tuple (address, uint8, bytes32, bytes32)
+	gasPayingTokenArgs = abi.Arguments{
+		{Name: "token", Type: addressType},
+		{Name: "decimals", Type: uint8Type},
+		{Name: "name", Type: fixedBytes},
+		{Name: "symbol", Type: fixedBytes},
+	}
+
+	// Dependency tuple (uint256)
+	dependencyArgs = abi.Arguments{{Name: "chainId", Type: uint256Type}}
 )
 
 func DiffTestUtils() {
@@ -361,6 +390,89 @@ func DiffTestUtils() {
 		packed, err := cannonMemoryProofArgs.Pack(&output)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(packed[32:]))
+	case "cannonMemoryProofWrongLeaf":
+		// <pc, insn, memAddr, memValue>
+		mem := mipsevm.NewMemory()
+		if len(args) != 5 {
+			panic("Error: cannonMemoryProofWrongLeaf requires 4 arguments")
+		}
+		pc, err := strconv.ParseUint(args[1], 10, 32)
+		checkErr(err, "Error decocding addr")
+		insn, err := strconv.ParseUint(args[2], 10, 32)
+		checkErr(err, "Error decocding insn")
+		mem.SetMemory(uint32(pc), uint32(insn))
+
+		var insnProof, memProof [896]byte
+		memAddr, err := strconv.ParseUint(args[3], 10, 32)
+		checkErr(err, "Error decocding memAddr")
+		memValue, err := strconv.ParseUint(args[4], 10, 32)
+		checkErr(err, "Error decocding memValue")
+		mem.SetMemory(uint32(memAddr), uint32(memValue))
+
+		// Compute a valid proof for the root, but for the wrong leaves.
+		memProof = mem.MerkleProof(uint32(memAddr + 32))
+		insnProof = mem.MerkleProof(uint32(pc + 32))
+
+		output := struct {
+			MemRoot common.Hash
+			Proof   []byte
+		}{
+			MemRoot: mem.MerkleRoot(),
+			Proof:   append(insnProof[:], memProof[:]...),
+		}
+		packed, err := cannonMemoryProofArgs.Pack(&output)
+		checkErr(err, "Error encoding output")
+		fmt.Print(hexutil.Encode(packed[32:]))
+	case "encodeScalarEcotone":
+		basefeeScalar, err := strconv.ParseUint(args[1], 10, 32)
+		checkErr(err, "Error decocding basefeeScalar")
+		blobbasefeeScalar, err := strconv.ParseUint(args[2], 10, 32)
+		checkErr(err, "Error decocding blobbasefeeScalar")
+
+		encoded := eth.EncodeScalar(eth.EcotoneScalars{
+			BaseFeeScalar:     uint32(basefeeScalar),
+			BlobBaseFeeScalar: uint32(blobbasefeeScalar),
+		})
+		fmt.Print(hexutil.Encode(encoded[:]))
+	case "decodeScalarEcotone":
+		scalar := common.HexToHash(args[1])
+		scalars, err := eth.DecodeScalar([32]byte(scalar[:]))
+		checkErr(err, "Error decoding scalar")
+
+		packed, err := decodedScalars.Pack(scalars.BaseFeeScalar, scalars.BlobBaseFeeScalar)
+		checkErr(err, "Error encoding output")
+		fmt.Print(hexutil.Encode(packed))
+	case "encodeGasPayingToken":
+		// Parse input arguments
+		token := common.HexToAddress(args[1])
+		decimals, err := strconv.ParseUint(args[2], 10, 8)
+		checkErr(err, "Error decoding decimals")
+		name := common.HexToHash(args[3])
+		symbol := common.HexToHash(args[4])
+
+		// Encode gas paying token
+		encoded, err := gasPayingTokenArgs.Pack(token, uint8(decimals), name, symbol)
+		checkErr(err, "Error encoding gas paying token")
+
+		// Pack encoded gas paying token
+		packed, err := bytesArgs.Pack(&encoded)
+		checkErr(err, "Error encoding output")
+
+		fmt.Print(hexutil.Encode(packed))
+	case "encodeDependency":
+		// Parse input arguments
+		chainId, ok := new(big.Int).SetString(args[1], 10)
+		checkOk(ok)
+
+		// Encode dependency
+		encoded, err := dependencyArgs.Pack(chainId)
+		checkErr(err, "Error encoding dependency")
+
+		// Pack encoded dependency
+		packed, err := bytesArgs.Pack(&encoded)
+		checkErr(err, "Error encoding output")
+
+		fmt.Print(hexutil.Encode(packed))
 	default:
 		panic(fmt.Errorf("Unknown command: %s", args[0]))
 	}

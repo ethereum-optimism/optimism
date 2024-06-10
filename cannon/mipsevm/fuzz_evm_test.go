@@ -1,6 +1,8 @@
 package mipsevm
 
 import (
+	"bytes"
+	"math/rand"
 	"os"
 	"testing"
 
@@ -398,7 +400,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 
 func FuzzStateHintWrite(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
 		preimageData := []byte("hello world")
 		state := &State{
 			PC:             0,
@@ -413,12 +415,16 @@ func FuzzStateHintWrite(f *testing.F) {
 			Step:           0,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 0,
-
-			// This is only used by mips.go. The reads a zeroed page-sized buffer when reading hint data from memory.
-			// We pre-allocate a buffer for the read hint data to be copied into.
-			LastHint: make(hexutil.Bytes, PageSize),
+			LastHint:       nil,
 		}
+		// Set random data at the target memory range
+		randBytes, err := randomBytes(randSeed, count)
+		require.NoError(t, err)
+		err = state.Memory.SetMemoryRange(addr, bytes.NewReader(randBytes))
+		require.NoError(t, err)
+		// Set syscall instruction
 		state.Memory.SetMemory(0, syscallInsn)
+
 		preStatePreimageKey := state.PreimageKey
 		preStateRoot := state.Memory.MerkleRoot()
 		expectedRegisters := state.Registers
@@ -501,4 +507,13 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
+}
+
+func randomBytes(seed int64, length uint32) ([]byte, error) {
+	r := rand.New(rand.NewSource(seed))
+	randBytes := make([]byte, length)
+	if _, err := r.Read(randBytes); err != nil {
+		return nil, err
+	}
+	return randBytes, nil
 }

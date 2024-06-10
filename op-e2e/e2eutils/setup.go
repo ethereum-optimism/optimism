@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -80,6 +81,7 @@ type SetupData struct {
 	L1Cfg         *core.Genesis
 	L2Cfg         *core.Genesis
 	RollupCfg     *rollup.Config
+	ChainSpec     *rollup.ChainSpec
 	DeploymentsL1 *genesis.L1Deployments
 }
 
@@ -125,7 +127,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	var allocsMode genesis.L2AllocsMode
 	allocsMode = genesis.L2AllocsDelta
-	if ecotoneTime := deployConf.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
+	if ecotoneTime := deployConf.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime == 0 {
 		allocsMode = genesis.L2AllocsEcotone
 	}
 	l2Allocs := config.L2Allocs(allocsMode)
@@ -140,6 +142,16 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	}
 	for addr, val := range alloc.L2Alloc {
 		l2Genesis.Alloc[addr] = val
+	}
+
+	var pcfg *rollup.PlasmaConfig
+	if deployConf.UsePlasma {
+		pcfg = &rollup.PlasmaConfig{
+			DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
+			DAChallengeWindow:  deployConf.DAChallengeWindow,
+			DAResolveWindow:    deployConf.DAResolveWindow,
+			CommitmentType:     plasma.KeccakCommitmentString,
+		}
 	}
 
 	rollupCfg := &rollup.Config{
@@ -170,10 +182,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		DAChallengeAddress:     l1Deployments.DataAvailabilityChallengeProxy,
-		DAChallengeWindow:      deployConf.DAChallengeWindow,
-		DAResolveWindow:        deployConf.DAResolveWindow,
-		UsePlasma:              deployConf.UsePlasma,
+		PlasmaConfig:           pcfg,
 	}
 
 	require.NoError(t, rollupCfg.Check())
@@ -187,6 +196,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L1Cfg:         l1Genesis,
 		L2Cfg:         l2Genesis,
 		RollupCfg:     rollupCfg,
+		ChainSpec:     rollup.NewChainSpec(rollupCfg),
 		DeploymentsL1: l1Deployments,
 	}
 }
@@ -218,8 +228,12 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
 }
 
-func UseFPAC() bool {
-	return os.Getenv("OP_E2E_USE_FPAC") == "true"
+func UseFaultProofs() bool {
+	return !UseL2OO()
+}
+
+func UseL2OO() bool {
+	return os.Getenv("OP_E2E_USE_L2OO") == "true"
 }
 
 func UsePlasma() bool {

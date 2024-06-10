@@ -18,3 +18,9 @@ blob base fee parameters respectively, for example:
 ```sh
 ./bin/ecotone-scalar --scalar=7600 --blob-scalar=862000
 ```
+
+You can also use the utility to decode a versioned value into its components:
+
+```sh
+./bin/ecotone-scalar --decode=452312848583266388373324160190187140051835877600158453279134021569375896653
+```

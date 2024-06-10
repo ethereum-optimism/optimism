@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Safe, OwnerManager } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
@@ -14,11 +14,17 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         If the number of owners falls below the minimum number of owners, the ownership of the
 ///         safe will be transferred to the fallback owner.
 contract LivenessModule is ISemver {
+    /// @notice Error message for failed owner removal.
+    error OwnerRemovalFailed(string);
+
     /// @notice Emitted when an owner is removed due to insufficient liveness
     event RemovedOwner(address indexed owner);
 
     /// @notice Emitted when the fallback owner takes ownership
     event OwnershipTransferredToFallback();
+
+    /// @notice Flag to indicate if the module has been deactivated
+    bool public ownershipTransferredToFallback;
 
     /// @notice The Safe contract instance
     Safe internal immutable SAFE;
@@ -48,7 +54,7 @@ contract LivenessModule is ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    string public constant version = "1.2.0";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(
@@ -67,10 +73,6 @@ contract LivenessModule is ISemver {
         MIN_OWNERS = _minOwners;
         address[] memory owners = _safe.getOwners();
         require(_minOwners <= owners.length, "LivenessModule: minOwners must be less than the number of owners");
-        require(
-            _safe.getThreshold() >= getRequiredThreshold(owners.length),
-            "LivenessModule: Insufficient threshold for the number of owners"
-        );
         require(_thresholdPercentage > 0, "LivenessModule: thresholdPercentage must be greater than 0");
         require(_thresholdPercentage <= 100, "LivenessModule: thresholdPercentage must be less than or equal to 100");
     }
@@ -132,11 +134,16 @@ contract LivenessModule is ISemver {
     /// @param _ownersToRemove The owners to remove
     function removeOwners(address[] memory _previousOwners, address[] memory _ownersToRemove) external {
         require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
+        address[] memory currentOwners = SAFE.getOwners();
+        require(
+            !ownershipTransferredToFallback,
+            "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
+        );
 
         // Initialize the ownersCount count to the current number of owners, so that we can track the number of
         // owners in the Safe after each removal. The Safe will revert if an owner cannot be removed, so it is safe
         // keep a local count of the number of owners this way.
-        uint256 ownersCount = SAFE.getOwners().length;
+        uint256 ownersCount = currentOwners.length;
         for (uint256 i = 0; i < _previousOwners.length; i++) {
             // Validate that the owner can be removed, which means that either:
             //   1. the ownersCount is now less than MIN_OWNERS, in which case all owners should be removed regardless
@@ -188,15 +195,18 @@ contract LivenessModule is ISemver {
     /// @param _prevOwner Owner that pointed to the owner to be replaced in the linked list
     /// @param _oldOwner Owner address to be replaced.
     function _swapToFallbackOwnerSafeCall(address _prevOwner, address _oldOwner) internal {
-        require(
-            SAFE.execTransactionFromModule({
-                to: address(SAFE),
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
-            }),
-            "LivenessModule: failed to swap to fallback owner"
-        );
+        (bool success, bytes memory returnData) = SAFE.execTransactionFromModuleReturnData({
+            to: address(SAFE),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
+        });
+        if (!success) {
+            revert OwnerRemovalFailed(string(returnData));
+        }
+
+        // Deactivate the module to prevent unintended behavior after the fallback owner has taken ownership.
+        ownershipTransferredToFallback = true;
         emit OwnershipTransferredToFallback();
     }
 
@@ -205,15 +215,15 @@ contract LivenessModule is ISemver {
     /// @param _owner Owner address to be removed.
     /// @param _threshold New threshold.
     function _removeOwnerSafeCall(address _prevOwner, address _owner, uint256 _threshold) internal {
-        require(
-            SAFE.execTransactionFromModule({
-                to: address(SAFE),
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
-            }),
-            "LivenessModule: failed to remove owner"
-        );
+        (bool success, bytes memory returnData) = SAFE.execTransactionFromModuleReturnData({
+            to: address(SAFE),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
+        });
+        if (!success) {
+            revert OwnerRemovalFailed(string(returnData));
+        }
         emit RemovedOwner(_owner);
     }
 

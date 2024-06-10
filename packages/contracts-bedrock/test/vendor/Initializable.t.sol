@@ -10,6 +10,7 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
+import { Process } from "scripts/libraries/Process.sol";
 import "src/L1/ProtocolVersions.sol";
 import "src/dispute/lib/Types.sol";
 import "scripts/Deployer.sol";
@@ -351,7 +352,7 @@ contract Initializer_Test is Bridge_Initializer {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
         // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2,
         // DisputeGameFactoryImpl, DisputeGameFactoryProxy, DelayedWETHImpl, DelayedWETHProxy.
-        assertEq(_getNumInitializable() + 5, contracts.length);
+        assertEq(_getNumInitializable() + 1, contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {
@@ -388,7 +389,7 @@ contract Initializer_Test is Bridge_Initializer {
             Executables.jq,
             " -R -s 'split(\"\n\")[:-1]'"
         );
-        string[] memory l1ContractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
+        string[] memory l1ContractNames = abi.decode(vm.parseJson(string(Process.run(command))), (string[]));
 
         for (uint256 i; i < l1ContractNames.length; i++) {
             string memory contractName = l1ContractNames[i];
@@ -404,7 +405,7 @@ contract Initializer_Test is Bridge_Initializer {
                 Executables.jq,
                 " '.[] | select(.name == \"initialize\" and .type == \"function\")'"
             );
-            bytes memory res = vm.ffi(command);
+            bytes memory res = Process.run(command);
 
             // If the contract has an `initialize()` function, the resulting query will be non-empty.
             // In this case, increment the number of `Initializable` contracts.
@@ -425,7 +426,7 @@ contract Initializer_Test is Bridge_Initializer {
             Executables.jq,
             " -R -s 'split(\"\n\")[:-1]'"
         );
-        string[] memory l2ContractNames = abi.decode(vm.parseJson(string(vm.ffi(command))), (string[]));
+        string[] memory l2ContractNames = abi.decode(vm.parseJson(string(Process.run(command))), (string[]));
 
         for (uint256 i; i < l2ContractNames.length; i++) {
             string memory contractName = l2ContractNames[i];
@@ -441,7 +442,7 @@ contract Initializer_Test is Bridge_Initializer {
                 Executables.jq,
                 " '.[] | select(.name == \"initialize\" and .type == \"function\")'"
             );
-            bytes memory res = vm.ffi(command);
+            bytes memory res = Process.run(command);
 
             // If the contract has an `initialize()` function, the resulting query will be non-empty.
             // In this case, increment the number of `Initializable` contracts.

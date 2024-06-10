@@ -3,22 +3,23 @@ package disputegame
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,20 +35,22 @@ type OutputGameHelper struct {
 	Require               *require.Assertions
 	Client                *ethclient.Client
 	Opts                  *bind.TransactOpts
-	Game                  *bindings.FaultDisputeGame
+	PrivKey               *ecdsa.PrivateKey
+	Game                  contracts.FaultDisputeGameContract
 	FactoryAddr           common.Address
 	Addr                  common.Address
 	CorrectOutputProvider *outputs.OutputTraceProvider
 	System                DisputeSystem
 }
 
-func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts,
-	game *bindings.FaultDisputeGame, factoryAddr common.Address, addr common.Address, correctOutputProvider *outputs.OutputTraceProvider, system DisputeSystem) *OutputGameHelper {
+func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts, privKey *ecdsa.PrivateKey,
+	game contracts.FaultDisputeGameContract, factoryAddr common.Address, addr common.Address, correctOutputProvider *outputs.OutputTraceProvider, system DisputeSystem) *OutputGameHelper {
 	return &OutputGameHelper{
 		T:                     t,
 		Require:               require,
 		Client:                client,
 		Opts:                  opts,
+		PrivKey:               privKey,
 		Game:                  game,
 		FactoryAddr:           factoryAddr,
 		Addr:                  addr,
@@ -84,9 +87,9 @@ func WithIgnoreDuplicates() MoveOpt {
 }
 
 func (g *OutputGameHelper) SplitDepth(ctx context.Context) types.Depth {
-	splitDepth, err := g.Game.SplitDepth(&bind.CallOpts{Context: ctx})
+	splitDepth, err := g.Game.GetSplitDepth(ctx)
 	g.Require.NoError(err, "failed to load split depth")
-	return types.Depth(splitDepth.Uint64())
+	return splitDepth
 }
 
 func (g *OutputGameHelper) ExecDepth(ctx context.Context) types.Depth {
@@ -94,15 +97,15 @@ func (g *OutputGameHelper) ExecDepth(ctx context.Context) types.Depth {
 }
 
 func (g *OutputGameHelper) L2BlockNum(ctx context.Context) uint64 {
-	blockNum, err := g.Game.L2BlockNumber(&bind.CallOpts{Context: ctx})
+	_, blockNum, err := g.Game.GetBlockRange(ctx)
 	g.Require.NoError(err, "failed to load l2 block number")
-	return blockNum.Uint64()
+	return blockNum
 }
 
 func (g *OutputGameHelper) StartingBlockNum(ctx context.Context) uint64 {
-	blockNum, err := g.Game.StartingBlockNumber(&bind.CallOpts{Context: ctx})
+	blockNum, _, err := g.Game.GetBlockRange(ctx)
 	g.Require.NoError(err, "failed to load starting block number")
-	return blockNum.Uint64()
+	return blockNum
 }
 
 func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
@@ -162,8 +165,8 @@ func (g *OutputGameHelper) RootClaim(ctx context.Context) *ClaimHelper {
 func (g *OutputGameHelper) WaitForCorrectOutputRoot(ctx context.Context, claimIdx int64) {
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
-	output := g.correctOutputRoot(ctx, types.NewPositionFromGIndex(claim.Position))
-	g.Require.EqualValuesf(output, claim.Claim, "Incorrect output root at claim %v at position %v", claimIdx, claim.Position.Uint64())
+	output := g.correctOutputRoot(ctx, claim.Position)
+	g.Require.EqualValuesf(output, claim.Value, "Incorrect output root at claim %v at position %v", claimIdx, claim.Position.ToGIndex().Uint64())
 }
 
 func (g *OutputGameHelper) correctOutputRoot(ctx context.Context, pos types.Position) common.Hash {
@@ -173,16 +176,16 @@ func (g *OutputGameHelper) correctOutputRoot(ctx context.Context, pos types.Posi
 }
 
 func (g *OutputGameHelper) MaxClockDuration(ctx context.Context) time.Duration {
-	duration, err := g.Game.MaxClockDuration(&bind.CallOpts{Context: ctx})
+	duration, err := g.Game.GetMaxClockDuration(ctx)
 	g.Require.NoError(err, "failed to get max clock duration")
-	return time.Duration(duration) * time.Second
+	return duration
 }
 
 func (g *OutputGameHelper) WaitForNoAvailableCredit(ctx context.Context, addr common.Address) {
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		bal, err := g.Game.Credit(&bind.CallOpts{Context: timedCtx}, addr)
+		bal, _, err := g.Game.GetCredit(timedCtx, addr)
 		if err != nil {
 			return false, err
 		}
@@ -196,28 +199,19 @@ func (g *OutputGameHelper) WaitForNoAvailableCredit(ctx context.Context, addr co
 }
 
 func (g *OutputGameHelper) AvailableCredit(ctx context.Context, addr common.Address) *big.Int {
-	credit, err := g.Game.Credit(&bind.CallOpts{Context: ctx}, addr)
+	credit, _, err := g.Game.GetCredit(ctx, addr)
 	g.Require.NoErrorf(err, "Failed to fetch available credit for %v", addr)
 	return credit
 }
 
 func (g *OutputGameHelper) CreditUnlockDuration(ctx context.Context) time.Duration {
-	weth, err := g.Game.Weth(&bind.CallOpts{Context: ctx})
-	g.Require.NoError(err, "Failed to get WETH contract")
-	contract, err := bindings.NewDelayedWETH(weth, g.Client)
-	g.Require.NoError(err)
-	period, err := contract.Delay(&bind.CallOpts{Context: ctx})
-	g.Require.NoError(err, "Failed to get WETH unlock period")
-	float, _ := period.Float64()
-	return time.Duration(float) * time.Second
+	_, delay, _, err := g.Game.GetBalanceAndDelay(ctx, rpcblock.Latest)
+	g.Require.NoError(err, "Failed to get withdrawal delay")
+	return delay
 }
 
 func (g *OutputGameHelper) WethBalance(ctx context.Context, addr common.Address) *big.Int {
-	weth, err := g.Game.Weth(&bind.CallOpts{Context: ctx})
-	g.Require.NoError(err, "Failed to get WETH contract")
-	contract, err := bindings.NewDelayedWETH(weth, g.Client)
-	g.Require.NoError(err)
-	balance, err := contract.BalanceOf(&bind.CallOpts{Context: ctx}, addr)
+	balance, _, _, err := g.Game.GetBalanceAndDelay(ctx, rpcblock.Latest)
 	g.Require.NoError(err, "Failed to get WETH balance")
 	return balance
 }
@@ -229,12 +223,12 @@ func (g *OutputGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		actual, err := g.Game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
+		actual, err := g.Game.GetClaimCount(timedCtx)
 		if err != nil {
 			return false, err
 		}
 		g.T.Log("Waiting for claim count", "current", actual, "expected", count, "game", g.Addr)
-		return actual.Cmp(big.NewInt(count)) >= 0, nil
+		return int64(actual) >= count, nil
 	})
 	if err != nil {
 		g.LogGameData(ctx)
@@ -253,30 +247,27 @@ type ContractClaim struct {
 }
 
 func (g *OutputGameHelper) MaxDepth(ctx context.Context) types.Depth {
-	depth, err := g.Game.MaxGameDepth(&bind.CallOpts{Context: ctx})
+	depth, err := g.Game.GetMaxGameDepth(ctx)
 	g.Require.NoError(err, "Failed to load game depth")
-	return types.Depth(depth.Uint64())
+	return depth
 }
 
-func (g *OutputGameHelper) waitForClaim(ctx context.Context, timeout time.Duration, errorMsg string, predicate func(claimIdx int64, claim ContractClaim) bool) (int64, ContractClaim) {
+func (g *OutputGameHelper) waitForClaim(ctx context.Context, timeout time.Duration, errorMsg string, predicate func(claimIdx int64, claim types.Claim) bool) (int64, types.Claim) {
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	var matchedClaim ContractClaim
+	var matchedClaim types.Claim
 	var matchClaimIdx int64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		count, err := g.Game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
+		claims, err := g.Game.GetAllClaims(ctx, rpcblock.Latest)
 		if err != nil {
-			return false, fmt.Errorf("retrieve number of claims: %w", err)
+			return false, fmt.Errorf("retrieve all claims: %w", err)
 		}
 		// Search backwards because the new claims are at the end and more likely the ones we want.
-		for i := count.Int64() - 1; i >= 0; i-- {
-			claimData, err := g.Game.ClaimData(&bind.CallOpts{Context: timedCtx}, big.NewInt(i))
-			if err != nil {
-				return false, fmt.Errorf("retrieve claim %v: %w", i, err)
-			}
-			if predicate(i, claimData) {
-				matchClaimIdx = i
-				matchedClaim = claimData
+		for i := len(claims) - 1; i >= 0; i-- {
+			claim := claims[i]
+			if predicate(int64(i), claim) {
+				matchClaimIdx = int64(i)
+				matchedClaim = claim
 				return true, nil
 			}
 		}
@@ -288,21 +279,18 @@ func (g *OutputGameHelper) waitForClaim(ctx context.Context, timeout time.Durati
 	return matchClaimIdx, matchedClaim
 }
 
-func (g *OutputGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
+func (g *OutputGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim types.Claim) bool) {
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		count, err := g.Game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
+		claims, err := g.Game.GetAllClaims(ctx, rpcblock.Latest)
 		if err != nil {
-			return false, fmt.Errorf("retrieve number of claims: %w", err)
+			return false, fmt.Errorf("retrieve all claims: %w", err)
 		}
-		// Search backwards because the new claims are at the end and more likely the ones we will fail on.
-		for i := count.Int64() - 1; i >= 0; i-- {
-			claimData, err := g.Game.ClaimData(&bind.CallOpts{Context: timedCtx}, big.NewInt(i))
-			if err != nil {
-				return false, fmt.Errorf("retrieve claim %v: %w", i, err)
-			}
-			if predicate(claimData) {
+		// Search backwards because the new claims are at the end and more likely the ones we want.
+		for i := len(claims) - 1; i >= 0; i-- {
+			claim := claims[i]
+			if predicate(claim) {
 				return false, nil
 			}
 		}
@@ -316,22 +304,19 @@ func (g *OutputGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, 
 func (g *OutputGameHelper) GetClaimValue(ctx context.Context, claimIdx int64) common.Hash {
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
-	return claim.Claim
+	return claim.Value
 }
 
-func (g *OutputGameHelper) getAllClaims(ctx context.Context) []ContractClaim {
-	count := g.getClaimCount(ctx)
-	var claims []ContractClaim
-	for i := int64(0); i < count; i++ {
-		claims = append(claims, g.getClaim(ctx, i))
-	}
+func (g *OutputGameHelper) getAllClaims(ctx context.Context) []types.Claim {
+	claims, err := g.Game.GetAllClaims(ctx, rpcblock.Latest)
+	g.Require.NoError(err, "Failed to get all claims")
 	return claims
 }
 
 // getClaim retrieves the claim data for a specific index.
 // Note that it is deliberately not exported as tests should use WaitForClaim to avoid race conditions.
-func (g *OutputGameHelper) getClaim(ctx context.Context, claimIdx int64) ContractClaim {
-	claimData, err := g.Game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
+func (g *OutputGameHelper) getClaim(ctx context.Context, claimIdx int64) types.Claim {
+	claimData, err := g.Game.GetClaim(ctx, uint64(claimIdx))
 	if err != nil {
 		g.Require.NoErrorf(err, "retrieve claim %v", claimIdx)
 	}
@@ -343,9 +328,8 @@ func (g *OutputGameHelper) WaitForClaimAtDepth(ctx context.Context, depth types.
 		ctx,
 		defaultTimeout,
 		fmt.Sprintf("Could not find claim depth %v", depth),
-		func(_ int64, claim ContractClaim) bool {
-			pos := types.NewPositionFromGIndex(claim.Position)
-			return pos.Depth() == depth
+		func(_ int64, claim types.Claim) bool {
+			return claim.Depth() == depth
 		})
 }
 
@@ -355,9 +339,8 @@ func (g *OutputGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered
 		ctx,
 		defaultTimeout,
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
-		func(_ int64, claim ContractClaim) bool {
-			pos := types.NewPositionFromGIndex(claim.Position)
-			return pos.Depth() == maxDepth && (claim.CounteredBy != common.Address{}) == countered
+		func(_ int64, claim types.Claim) bool {
+			return claim.Depth() == maxDepth && (claim.CounteredBy != common.Address{}) == countered
 		})
 }
 
@@ -365,7 +348,7 @@ func (g *OutputGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 	g.waitForNoClaim(
 		ctx,
 		"Did not find all claims countered",
-		func(claim ContractClaim) bool {
+		func(claim types.Claim) bool {
 			return claim.CounteredBy == common.Address{}
 		})
 }
@@ -373,31 +356,30 @@ func (g *OutputGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 func (g *OutputGameHelper) Resolve(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	tx, err := g.Game.Resolve(g.Opts)
+	candidate, err := g.Game.ResolveTx()
 	g.Require.NoError(err)
-	_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
-	g.Require.NoError(err)
+	transactions.RequireSendTx(g.T, ctx, g.Client, candidate, g.PrivKey)
 }
 
-func (g *OutputGameHelper) Status(ctx context.Context) Status {
-	status, err := g.Game.Status(&bind.CallOpts{Context: ctx})
+func (g *OutputGameHelper) Status(ctx context.Context) gameTypes.GameStatus {
+	status, err := g.Game.GetStatus(ctx)
 	g.Require.NoError(err)
-	return Status(status)
+	return status
 }
 
-func (g *OutputGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
+func (g *OutputGameHelper) WaitForGameStatus(ctx context.Context, expected gameTypes.GameStatus) {
 	g.T.Logf("Waiting for game %v to have status %v", g.Addr, expected)
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		ctx, cancel := context.WithTimeout(timedCtx, 30*time.Second)
 		defer cancel()
-		status, err := g.Game.Status(&bind.CallOpts{Context: ctx})
+		status, err := g.Game.GetStatus(ctx)
 		if err != nil {
 			return false, fmt.Errorf("game status unavailable: %w", err)
 		}
-		g.T.Logf("Game %v has state %v, waiting for state %v", g.Addr, Status(status), expected)
-		return expected == Status(status), nil
+		g.T.Logf("Game %v has state %v, waiting for state %v", g.Addr, status, expected)
+		return expected == status, nil
 	})
 	g.Require.NoErrorf(err, "wait for Game status. Game state: \n%v", g.GameData(ctx))
 }
@@ -411,7 +393,7 @@ func (g *OutputGameHelper) WaitForInactivity(ctx context.Context, numInactiveBlo
 
 	var lastActiveBlock uint64
 	for {
-		if untilGameEnds && g.Status(ctx) != StatusInProgress {
+		if untilGameEnds && g.Status(ctx) != gameTypes.GameStatusInProgress {
 			break
 		}
 		select {
@@ -440,6 +422,16 @@ func (g *OutputGameHelper) WaitForInactivity(ctx context.Context, numInactiveBlo
 			g.Require.Fail("Context canceled", ctx.Err())
 		}
 	}
+}
+
+func (g *OutputGameHelper) WaitForL2BlockNumberChallenged(ctx context.Context) {
+	g.T.Logf("Waiting for game %v to have L2 block number challenged", g.Addr)
+	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		return g.Game.IsL2BlockNumberChallenged(ctx, rpcblock.Latest)
+	})
+	g.Require.NoError(err, "L2 block number was not challenged in time")
 }
 
 // Mover is a function that either attacks or defends the claim at parentClaimIdx
@@ -509,12 +501,6 @@ func (g *OutputGameHelper) ChallengeClaim(ctx context.Context, claim *ClaimHelpe
 	attemptStep(claim.Index)
 }
 
-func (g *OutputGameHelper) getClaimCount(ctx context.Context) int64 {
-	claimCount, err := g.Game.ClaimDataLen(&bind.CallOpts{Context: ctx})
-	g.Require.NoError(err, "Failed to get current claim count")
-	return claimCount.Int64()
-}
-
 func (g *OutputGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
 	return g.waitForNewClaim(ctx, checkPoint, defaultTimeout)
 }
@@ -524,12 +510,12 @@ func (g *OutputGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64
 	defer cancel()
 	var newClaimLen int64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		actual, err := g.Game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+		actual, err := g.Game.GetClaimCount(ctx)
 		if err != nil {
 			return false, err
 		}
-		newClaimLen = actual.Int64()
-		return actual.Cmp(big.NewInt(checkPoint)) > 0, nil
+		newClaimLen = int64(actual)
+		return int64(actual) > checkPoint, nil
 	})
 	return newClaimLen, err
 }
@@ -548,15 +534,13 @@ func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim com
 	g.T.Logf("Attacking claim %v with value %v", claimIdx, claim)
 	cfg := g.moveCfg(Opts...)
 
-	claimData, err := g.Game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
+	claimData, err := g.Game.GetClaim(ctx, uint64(claimIdx))
 	g.Require.NoError(err, "Failed to get claim data")
-	pos := types.NewPositionFromGIndex(claimData.Position)
-	attackPos := pos.Attack()
-	transactOpts := g.makeBondedTransactOpts(ctx, pos.Attack().ToGIndex(), cfg.Opts)
+	attackPos := claimData.Position.Attack()
 
-	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
-		return g.Game.Attack(transactOpts, big.NewInt(claimIdx), claim)
-	})
+	candidate, err := g.Game.AttackTx(ctx, claimData, claim)
+	g.Require.NoError(err, "Failed to create tx candidate")
+	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey)
 	if err != nil {
 		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, attackPos, claim) {
 			return
@@ -569,15 +553,13 @@ func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim com
 	g.T.Logf("Defending claim %v with value %v", claimIdx, claim)
 	cfg := g.moveCfg(Opts...)
 
-	claimData, err := g.Game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
+	claimData, err := g.Game.GetClaim(ctx, uint64(claimIdx))
 	g.Require.NoError(err, "Failed to get claim data")
-	pos := types.NewPositionFromGIndex(claimData.Position)
-	defendPos := pos.Defend()
-	transactOpts := g.makeBondedTransactOpts(ctx, defendPos.ToGIndex(), cfg.Opts)
+	defendPos := claimData.Position.Defend()
 
-	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
-		return g.Game.Defend(transactOpts, big.NewInt(claimIdx), claim)
-	})
+	candidate, err := g.Game.DefendTx(ctx, claimData, claim)
+	g.Require.NoError(err, "Failed to create tx candidate")
+	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey)
 	if err != nil {
 		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, defendPos, claim) {
 			return
@@ -589,31 +571,11 @@ func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim com
 func (g *OutputGameHelper) hasClaim(ctx context.Context, parentIdx int64, pos types.Position, value common.Hash) bool {
 	claims := g.getAllClaims(ctx)
 	for _, claim := range claims {
-		if int64(claim.ParentIndex) == parentIdx && claim.Position.Cmp(pos.ToGIndex()) == 0 && claim.Claim == value {
+		if int64(claim.ParentContractIndex) == parentIdx && claim.Position.ToGIndex().Cmp(pos.ToGIndex()) == 0 && claim.Value == value {
 			return true
 		}
 	}
 	return false
-}
-
-func (g *OutputGameHelper) sendMove(ctx context.Context, send func() (*gethtypes.Transaction, error)) error {
-	tx, err := send()
-	if err != nil {
-		return fmt.Errorf("transaction did not send: %w", err)
-	}
-	_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
-	if err != nil {
-		return fmt.Errorf("transaction was not ok: %w", err)
-	}
-	return nil
-}
-
-func (g *OutputGameHelper) makeBondedTransactOpts(ctx context.Context, pos *big.Int, Opts *bind.TransactOpts) *bind.TransactOpts {
-	bOpts := *Opts
-	bond, err := g.Game.GetRequiredBond(&bind.CallOpts{Context: ctx}, pos)
-	g.Require.NoError(err, "Failed to get required bond")
-	bOpts.Value = bond
-	return &bOpts
 }
 
 type ErrWithData interface {
@@ -621,20 +583,22 @@ type ErrWithData interface {
 }
 
 // StepFails attempts to call step and verifies that it fails with ValidStep()
-func (g *OutputGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []byte, proof []byte) {
+func (g *OutputGameHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool, stateData []byte, proof []byte) {
 	g.T.Logf("Attempting step against claim %v isAttack: %v", claimIdx, isAttack)
-	_, err := g.Game.Step(g.Opts, big.NewInt(claimIdx), isAttack, stateData, proof)
-	errData, ok := err.(ErrWithData)
+	candidate, err := g.Game.StepTx(uint64(claimIdx), isAttack, stateData, proof)
+	g.Require.NoError(err, "Failed to create tx candidate")
+	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey, transactions.WithReceiptFail())
+	var errData ErrWithData
+	ok := errors.As(err, &errData)
 	g.Require.Truef(ok, "Error should provide ErrorData method: %v", err)
 	g.Require.Equal("0xfb4e40dd", errData.ErrorData(), "Revert reason should be abi encoded ValidStep()")
 }
 
 // ResolveClaim resolves a single subgame
 func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
-	tx, err := g.Game.ResolveClaim(g.Opts, big.NewInt(claimIdx), common.Big0)
-	g.Require.NoError(err, "ResolveClaim transaction did not send")
-	_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
-	g.Require.NoError(err, "ResolveClaim transaction was not OK")
+	candidate, err := g.Game.ResolveClaimTx(uint64(claimIdx))
+	g.Require.NoError(err, "Failed to create resolve claim candidate tx")
+	transactions.RequireSendTx(g.T, ctx, g.Client, candidate, g.PrivKey)
 }
 
 // ChallengePeriod returns the challenge period fetched from the PreimageOracle contract.
@@ -712,26 +676,19 @@ func (g *OutputGameHelper) UploadPreimage(ctx context.Context, data *types.Preim
 }
 
 func (g *OutputGameHelper) oracle(ctx context.Context) *contracts.PreimageOracleContract {
-	caller := batching.NewMultiCaller(g.System.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, g.Addr, caller)
-	g.Require.NoError(err)
-	oracle, err := contract.GetOracle(ctx)
+	oracle, err := g.Game.GetOracle(ctx)
 	g.Require.NoError(err, "Failed to create oracle contract")
 	return oracle
 }
 
 func (g *OutputGameHelper) GameData(ctx context.Context) string {
-	Opts := &bind.CallOpts{Context: ctx}
 	maxDepth := g.MaxDepth(ctx)
 	splitDepth := g.SplitDepth(ctx)
-	claimCount, err := g.Game.ClaimDataLen(Opts)
-	info := fmt.Sprintf("Claim count: %v\n", claimCount)
-	g.Require.NoError(err, "Fetching claim count")
-	for i := int64(0); i < claimCount.Int64(); i++ {
-		claim, err := g.Game.ClaimData(Opts, big.NewInt(i))
-		g.Require.NoErrorf(err, "Fetch claim %v", i)
-
-		pos := types.NewPositionFromGIndex(claim.Position)
+	claims, err := g.Game.GetAllClaims(ctx, rpcblock.Latest)
+	g.Require.NoError(err, "Fetching claims")
+	info := fmt.Sprintf("Claim count: %v\n", len(claims))
+	for i, claim := range claims {
+		pos := claim.Position
 		extra := ""
 		if pos.Depth() <= splitDepth {
 			blockNum, err := g.CorrectOutputProvider.ClaimedBlockNumber(pos)
@@ -741,13 +698,13 @@ func (g *OutputGameHelper) GameData(ctx context.Context) string {
 			}
 		}
 		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, ClaimHash: %v, Countered By: %v, ParentIndex: %v Claimant: %v Bond: %v %v\n",
-			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.CounteredBy, claim.ParentIndex, claim.Claimant, claim.Bond, extra)
+			i, claim.Position.ToGIndex().Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex, claim.Claimant, claim.Bond, extra)
 	}
 	l2BlockNum := g.L2BlockNum(ctx)
-	status, err := g.Game.Status(Opts)
+	status, err := g.Game.GetStatus(ctx)
 	g.Require.NoError(err, "Load game status")
 	return fmt.Sprintf("Game %v - %v - L2 Block: %v - Split Depth: %v - Max Depth: %v:\n%v\n",
-		g.Addr, Status(status), l2BlockNum, splitDepth, maxDepth, info)
+		g.Addr, status, l2BlockNum, splitDepth, maxDepth, info)
 }
 
 func (g *OutputGameHelper) LogGameData(ctx context.Context) {
@@ -755,14 +712,13 @@ func (g *OutputGameHelper) LogGameData(ctx context.Context) {
 }
 
 func (g *OutputGameHelper) Credit(ctx context.Context, addr common.Address) *big.Int {
-	Opts := &bind.CallOpts{Context: ctx}
-	amt, err := g.Game.Credit(Opts, addr)
+	amt, _, err := g.Game.GetCredit(ctx, addr)
 	g.Require.NoError(err)
 	return amt
 }
 
 func (g *OutputGameHelper) GetL1Head(ctx context.Context) eth.BlockID {
-	l1HeadHash, err := g.Game.L1Head(&bind.CallOpts{Context: ctx})
+	l1HeadHash, err := g.Game.GetL1Head(ctx)
 	g.Require.NoError(err, "Failed to load L1 head")
 	l1Header, err := g.Client.HeaderByHash(ctx, l1HeadHash)
 	g.Require.NoError(err, "Failed to load L1 header")

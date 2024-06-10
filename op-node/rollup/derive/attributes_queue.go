@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// The attributes queue sits in between the batch queue and the engine queue
+// The attributes queue sits after the batch queue.
 // It transforms batches into payload attributes. The outputted payload
 // attributes cannot be buffered because each batch->attributes transformation
 // pulls in data about the current L2 safe head.
@@ -25,6 +25,14 @@ import (
 
 type AttributesBuilder interface {
 	PreparePayloadAttributes(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
+}
+
+type AttributesWithParent struct {
+	Attributes   *eth.PayloadAttributes
+	Parent       eth.L2BlockRef
+	IsLastInSpan bool
+
+	DerivedFrom eth.L1BlockRef
 }
 
 type AttributesQueue struct {
@@ -65,7 +73,12 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2Bloc
 		return nil, err
 	} else {
 		// Clear out the local state once we will succeed
-		attr := AttributesWithParent{attrs, parent, aq.isLastInSpan}
+		attr := AttributesWithParent{
+			Attributes:   attrs,
+			Parent:       parent,
+			IsLastInSpan: aq.isLastInSpan,
+			DerivedFrom:  aq.Origin(),
+		}
 		aq.batch = nil
 		aq.isLastInSpan = false
 		return &attr, nil

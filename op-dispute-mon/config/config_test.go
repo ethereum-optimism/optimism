@@ -15,9 +15,7 @@ var (
 )
 
 func validConfig() Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc)
-	cfg.RollupRpc = validRollupRpc
-	return cfg
+	return NewConfig(validGameFactoryAddress, validL1EthRpc, validRollupRpc)
 }
 
 func TestValidConfigIsValid(t *testing.T) {
@@ -40,4 +38,10 @@ func TestRollupRpcRequired(t *testing.T) {
 	config := validConfig()
 	config.RollupRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
+}
+
+func TestMaxConcurrencyRequired(t *testing.T) {
+	config := validConfig()
+	config.MaxConcurrency = 0
+	require.ErrorIs(t, config.Check(), ErrMissingMaxConcurrency)
 }

@@ -16,15 +16,6 @@ volumes:
 
 
 services:
-  op_stack_go_builder:  # Not an actual service, but builds the prerequisite go images
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      args:
-        GIT_COMMIT: "dev"
-        GIT_DATE: "0"
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
-    entrypoint: ["echo", "build complete"]
 
   l1:
     build:
@@ -101,16 +92,14 @@ services:
 
   op-node:
     depends_on:
-      - op_stack_go_builder
       - l1
       - l1-bn
       - l1-vc
       - l2
     build:
       context: ../
-      dockerfile: ./op-node/Dockerfile
-      args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-node-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
     command: >
       op-node
@@ -139,6 +128,7 @@ services:
       --rpc.enable-admin
       --safedb.path=/db
       --plasma.enabled=${PLASMA_ENABLED}
+      --plasma.da-service=${PLASMA_DA_SERVICE}
       --plasma.da-server=http://da-server:3100
     ports:
       - "7545:8545"
@@ -155,15 +145,13 @@ services:
 
   op-proposer:
     depends_on:
-      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
-      dockerfile: ./op-proposer/Dockerfile
-      args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-proposer-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
     ports:
       - "6062:6060"
@@ -187,15 +175,13 @@ services:
 
   op-batcher:
     depends_on:
-      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
-      dockerfile: ./op-batcher/Dockerfile
-      args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-batcher-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
     ports:
       - "6061:6060"
@@ -216,6 +202,7 @@ services:
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_BATCH_TYPE: 0
       OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
+      OP_BATCHER_PLASMA_DA_SERVICE: "${PLASMA_DA_SERVICE}"
       OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
       # uncomment to use blobs
       # (requires L1 Dencun and L2 Ecotone activation first)
@@ -223,15 +210,13 @@ services:
 
   op-challenger:
     depends_on:
-      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
-      dockerfile: ./op-challenger/Dockerfile
-      args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-challenger-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:devnet
     volumes:
       - "challenger_data:/db"
@@ -241,7 +226,7 @@ services:
       # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
       OP_CHALLENGER_L1_BEACON: "unset"
       OP_CHALLENGER_ROLLUP_RPC: http://op-node:8545
-      OP_CHALLENGER_TRACE_TYPE: cannon
+      OP_CHALLENGER_TRACE_TYPE: cannon,fast
       OP_CHALLENGER_GAME_FACTORY_ADDRESS: ${DGF_ADDRESS}
       # The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
       # before the L2 genesis is known.
@@ -258,20 +243,18 @@ services:
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
 
   da-server:
-    depends_on:
-      - op_stack_go_builder
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
     build:
       context: ../
-      dockerfile: ./op-plasma/Dockerfile
-      args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: da-server-target
     command: >
       da-server
       --file.path=/data
       --addr=0.0.0.0
       --port=3100
       --log.level=debug
+      --generic-commitment="${PLASMA_GENERIC_DA}"
     ports:
       - "3100:3100"
     volumes:

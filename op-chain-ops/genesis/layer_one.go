@@ -8,41 +8,15 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 // PrecompileCount represents the number of precompile addresses
 // starting from `address(0)` to PrecompileCount that are funded
 // with a single wei in the genesis state.
 const PrecompileCount = 256
-
-var (
-	// uint128Max is type(uint128).max and is set in the init function.
-	uint128Max = new(big.Int)
-	// The default values for the ResourceConfig, used as part of
-	// an EIP-1559 curve for deposit gas.
-	DefaultResourceConfig = bindings.ResourceMeteringResourceConfig{
-		MaxResourceLimit:            20_000_000,
-		ElasticityMultiplier:        10,
-		BaseFeeMaxChangeDenominator: 8,
-		MinimumBaseFee:              params.GWei,
-		SystemTxMaxGas:              1_000_000,
-	}
-)
-
-func init() {
-	var ok bool
-	uint128Max, ok = new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
-	if !ok {
-		panic("bad uint128Max")
-	}
-	// Set the maximum base fee on the default config.
-	DefaultResourceConfig.MaximumBaseFee = uint128Max
-}
 
 // BuildL1DeveloperGenesis will create a L1 genesis block after creating
 // all of the state required for an Optimism network to function.
@@ -60,7 +34,9 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *ForgeAllocs, l1Deployme
 	}
 	// copy, for safety when the dump is reused (like in e2e testing)
 	genesis.Alloc = dump.Copy().Accounts
-	FundDevAccounts(genesis)
+	if config.FundDevAccounts {
+		FundDevAccounts(genesis)
+	}
 	SetPrecompileBalances(genesis)
 
 	l1Deployments.ForEach(func(name string, addr common.Address) {

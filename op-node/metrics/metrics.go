@@ -26,11 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-const (
-	Namespace = "op_node"
-
-	BatchMethod = "<batch>"
-)
+const Namespace = "op_node"
 
 type Metricer interface {
 	RecordInfo(version string)

@@ -3,21 +3,27 @@ package contracts
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
+	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,9 +38,15 @@ type contractVersion struct {
 	loadAbi func() *abi.ABI
 }
 
+func (c contractVersion) Is(versions ...string) bool {
+	return slices.Contains(versions, c.version)
+}
+
 const (
 	vers080    = "0.8.0"
-	versLatest = "0.18.0"
+	vers0180   = "0.18.0"
+	vers111    = "1.1.1"
+	versLatest = "1.2.0"
 )
 
 var versions = []contractVersion{
@@ -42,6 +54,18 @@ var versions = []contractVersion{
 		version: vers080,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi020)
+		},
+	},
+	{
+		version: vers0180,
+		loadAbi: func() *abi.ABI {
+			return mustParseAbi(faultDisputeGameAbi0180)
+		},
+	},
+	{
+		version: vers111,
+		loadAbi: func() *abi.ABI {
+			return mustParseAbi(faultDisputeGameAbi111)
 		},
 	},
 	{
@@ -134,6 +158,15 @@ func TestSimpleGetters(t *testing.T) {
 				return game.CallResolve(context.Background())
 			},
 		},
+		{
+			methodAlias: "resolvedAt",
+			method:      methodResolvedAt,
+			result:      uint64(240402),
+			expected:    time.Unix(240402, 0),
+			call: func(game FaultDisputeGameContract) (any, error) {
+				return game.GetResolvedAt(context.Background(), rpcblock.Latest)
+			},
+		},
 	}
 	for _, version := range versions {
 		version := version
@@ -161,7 +194,7 @@ func TestSimpleGetters(t *testing.T) {
 
 func TestClock_EncodingDecoding(t *testing.T) {
 	t.Run("DurationAndTimestamp", func(t *testing.T) {
-		by := common.Hex2Bytes("00000000000000050000000000000002")
+		by := common.FromHex("00000000000000050000000000000002")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
 		require.Equal(t, 5*time.Second, clock.Duration)
@@ -170,7 +203,7 @@ func TestClock_EncodingDecoding(t *testing.T) {
 	})
 
 	t.Run("ZeroDuration", func(t *testing.T) {
-		by := common.Hex2Bytes("00000000000000000000000000000002")
+		by := common.FromHex("00000000000000000000000000000002")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
 		require.Equal(t, 0*time.Second, clock.Duration)
@@ -179,7 +212,7 @@ func TestClock_EncodingDecoding(t *testing.T) {
 	})
 
 	t.Run("ZeroTimestamp", func(t *testing.T) {
-		by := common.Hex2Bytes("00000000000000050000000000000000")
+		by := common.FromHex("00000000000000050000000000000000")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
 		require.Equal(t, 5*time.Second, clock.Duration)
@@ -188,7 +221,7 @@ func TestClock_EncodingDecoding(t *testing.T) {
 	})
 
 	t.Run("ZeroClock", func(t *testing.T) {
-		by := common.Hex2Bytes("00000000000000000000000000000000")
+		by := common.FromHex("00000000000000000000000000000000")
 		encoded := new(big.Int).SetBytes(by)
 		clock := decodeClock(encoded)
 		require.Equal(t, 0*time.Second, clock.Duration)
@@ -303,14 +336,19 @@ func TestGetBalance(t *testing.T) {
 		t.Run(version.version, func(t *testing.T) {
 			wethAddr := common.Address{0x11, 0x55, 0x66}
 			balance := big.NewInt(9995877)
+			delaySeconds := big.NewInt(429829)
+			delay := time.Duration(delaySeconds.Int64()) * time.Second
 			block := rpcblock.ByNumber(424)
 			stubRpc, game := setupFaultDisputeGameTest(t, version)
 			stubRpc.SetResponse(fdgAddr, methodWETH, block, nil, []interface{}{wethAddr})
+			stubRpc.AddContract(wethAddr, snapshots.LoadDelayedWETHABI())
+			stubRpc.SetResponse(wethAddr, methodDelay, block, nil, []interface{}{delaySeconds})
 			stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(wethAddr, block, balance))
 
-			actualBalance, actualAddr, err := game.GetBalance(context.Background(), block)
+			actualBalance, actualDelay, actualAddr, err := game.GetBalanceAndDelay(context.Background(), block)
 			require.NoError(t, err)
 			require.Equal(t, wethAddr, actualAddr)
+			require.Equal(t, delay, actualDelay)
 			require.Truef(t, balance.Cmp(actualBalance) == 0, "Expected balance %v but was %v", balance, actualBalance)
 		})
 	}
@@ -367,11 +405,19 @@ func TestAttackTx(t *testing.T) {
 		version := version
 		t.Run(version.version, func(t *testing.T) {
 			stubRpc, game := setupFaultDisputeGameTest(t, version)
+			bond := big.NewInt(1044)
 			value := common.Hash{0xaa}
-			stubRpc.SetResponse(fdgAddr, methodAttack, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
-			tx, err := game.AttackTx(111, value)
+			parent := faultTypes.Claim{ClaimData: faultTypes.ClaimData{Value: common.Hash{0xbb}}, ContractIndex: 111}
+			stubRpc.SetResponse(fdgAddr, methodRequiredBond, rpcblock.Latest, []interface{}{parent.Position.Attack().ToGIndex()}, []interface{}{bond})
+			if version.Is(vers080, vers0180, vers111) {
+				stubRpc.SetResponse(fdgAddr, methodAttack, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
+			} else {
+				stubRpc.SetResponse(fdgAddr, methodAttack, rpcblock.Latest, []interface{}{parent.Value, big.NewInt(111), value}, nil)
+			}
+			tx, err := game.AttackTx(context.Background(), parent, value)
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
+			require.Equal(t, bond, tx.Value)
 		})
 	}
 }
@@ -381,11 +427,19 @@ func TestDefendTx(t *testing.T) {
 		version := version
 		t.Run(version.version, func(t *testing.T) {
 			stubRpc, game := setupFaultDisputeGameTest(t, version)
+			bond := big.NewInt(1044)
 			value := common.Hash{0xaa}
-			stubRpc.SetResponse(fdgAddr, methodDefend, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
-			tx, err := game.DefendTx(111, value)
+			parent := faultTypes.Claim{ClaimData: faultTypes.ClaimData{Value: common.Hash{0xbb}}, ContractIndex: 111}
+			stubRpc.SetResponse(fdgAddr, methodRequiredBond, rpcblock.Latest, []interface{}{parent.Position.Defend().ToGIndex()}, []interface{}{bond})
+			if version.Is(vers080, vers0180, vers111) {
+				stubRpc.SetResponse(fdgAddr, methodDefend, rpcblock.Latest, []interface{}{big.NewInt(111), value}, nil)
+			} else {
+				stubRpc.SetResponse(fdgAddr, methodDefend, rpcblock.Latest, []interface{}{parent.Value, big.NewInt(111), value}, nil)
+			}
+			tx, err := game.DefendTx(context.Background(), parent, value)
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
+			require.Equal(t, bond, tx.Value)
 		})
 	}
 }
@@ -463,23 +517,38 @@ func TestGetGameMetadata(t *testing.T) {
 			expectedMaxClockDuration := uint64(456)
 			expectedRootClaim := common.Hash{0x01, 0x02}
 			expectedStatus := types.GameStatusChallengerWon
+			expectedL2BlockNumberChallenged := true
+			expectedL2BlockNumberChallenger := common.Address{0xee}
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
 			stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
 			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
 			if version.version == vers080 {
+				expectedL2BlockNumberChallenged = false
+				expectedL2BlockNumberChallenger = common.Address{}
 				stubRpc.SetResponse(fdgAddr, methodGameDuration, block, nil, []interface{}{expectedMaxClockDuration * 2})
+			} else if version.version == vers0180 {
+				expectedL2BlockNumberChallenged = false
+				expectedL2BlockNumberChallenger = common.Address{}
+				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
 			} else {
 				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
+				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expectedL2BlockNumberChallenged})
+				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenger, block, nil, []interface{}{expectedL2BlockNumberChallenger})
 			}
-			l1Head, l2BlockNumber, rootClaim, status, duration, err := contract.GetGameMetadata(context.Background(), block)
+			actual, err := contract.GetGameMetadata(context.Background(), block)
+			expected := GameMetadata{
+				L1Head:                  expectedL1Head,
+				L2BlockNum:              expectedL2BlockNumber,
+				RootClaim:               expectedRootClaim,
+				Status:                  expectedStatus,
+				MaxClockDuration:        expectedMaxClockDuration,
+				L2BlockNumberChallenged: expectedL2BlockNumberChallenged,
+				L2BlockNumberChallenger: expectedL2BlockNumberChallenger,
+			}
 			require.NoError(t, err)
-			require.Equal(t, expectedL1Head, l1Head)
-			require.Equal(t, expectedL2BlockNumber, l2BlockNumber)
-			require.Equal(t, expectedRootClaim, rootClaim)
-			require.Equal(t, expectedStatus, status)
-			require.Equal(t, expectedMaxClockDuration, duration)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
@@ -647,6 +716,70 @@ func TestFaultDisputeGame_IsResolved(t *testing.T) {
 			require.Equal(t, len(expected), len(actual))
 			for i := range expected {
 				require.Equal(t, expected[i], actual[i])
+			}
+		})
+	}
+}
+
+func TestFaultDisputeGameContractLatest_IsL2BlockNumberChallenged(t *testing.T) {
+	for _, version := range versions {
+		version := version
+		for _, expected := range []bool{true, false} {
+			expected := expected
+			t.Run(fmt.Sprintf("%v-%v", version.version, expected), func(t *testing.T) {
+				block := rpcblock.ByHash(common.Hash{0x43})
+				stubRpc, game := setupFaultDisputeGameTest(t, version)
+				supportsL2BlockNumChallenge := version.version != vers080 && version.version != vers0180
+				if supportsL2BlockNumChallenge {
+					stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expected})
+				} else if expected {
+					t.Skip("Can't have challenged L2 block number on this contract version")
+				}
+				challenged, err := game.IsL2BlockNumberChallenged(context.Background(), block)
+				require.NoError(t, err)
+				require.Equal(t, expected, challenged)
+			})
+		}
+	}
+}
+
+func TestFaultDisputeGameContractLatest_ChallengeL2BlockNumberTx(t *testing.T) {
+	for _, version := range versions {
+		version := version
+		t.Run(version.version, func(t *testing.T) {
+			rng := rand.New(rand.NewSource(0))
+			stubRpc, game := setupFaultDisputeGameTest(t, version)
+			challenge := &faultTypes.InvalidL2BlockNumberChallenge{
+				Output: &eth.OutputResponse{
+					Version:               eth.Bytes32{},
+					OutputRoot:            eth.Bytes32{0xaa},
+					BlockRef:              eth.L2BlockRef{Hash: common.Hash{0xbb}},
+					WithdrawalStorageRoot: common.Hash{0xcc},
+					StateRoot:             common.Hash{0xdd},
+				},
+				Header: testutils.RandomHeader(rng),
+			}
+			supportsL2BlockNumChallenge := version.version != vers080 && version.version != vers0180
+			if supportsL2BlockNumChallenge {
+				headerRlp, err := rlp.EncodeToBytes(challenge.Header)
+				require.NoError(t, err)
+				stubRpc.SetResponse(fdgAddr, methodChallengeRootL2Block, rpcblock.Latest, []interface{}{
+					outputRootProof{
+						Version:                  challenge.Output.Version,
+						StateRoot:                challenge.Output.StateRoot,
+						MessagePasserStorageRoot: challenge.Output.WithdrawalStorageRoot,
+						LatestBlockhash:          challenge.Output.BlockRef.Hash,
+					},
+					headerRlp,
+				}, nil)
+			}
+			tx, err := game.ChallengeL2BlockNumberTx(challenge)
+			if supportsL2BlockNumChallenge {
+				require.NoError(t, err)
+				stubRpc.VerifyTxCandidate(tx)
+			} else {
+				require.ErrorIs(t, err, ErrChallengeL2BlockNotSupported)
+				require.Equal(t, txmgr.TxCandidate{}, tx)
 			}
 		})
 	}

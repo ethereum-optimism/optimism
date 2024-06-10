@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Safe } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
@@ -28,10 +28,10 @@ contract DeputyGuardianModule is ISemver {
     event Unpaused();
 
     /// @notice Emitted when a DisputeGame is blacklisted
-    event DisputeGameBlacklisted(IDisputeGame game);
+    event DisputeGameBlacklisted(IDisputeGame indexed game);
 
     /// @notice Emitted when the respected game type is set
-    event RespectedGameTypeSet(GameType gameType);
+    event RespectedGameTypeSet(GameType indexed gameType, Timestamp indexed updatedAt);
 
     /// @notice The Safe contract instance
     Safe internal immutable SAFE;
@@ -43,8 +43,8 @@ contract DeputyGuardianModule is ISemver {
     address internal immutable DEPUTY_GUARDIAN;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(Safe _safe, SuperchainConfig _superchainConfig, address _deputyGuardian) {
@@ -139,6 +139,6 @@ contract DeputyGuardianModule is ISemver {
         if (!success) {
             revert ExecutionFailed(string(returnData));
         }
-        emit RespectedGameTypeSet(_gameType);
+        emit RespectedGameTypeSet(_gameType, Timestamp.wrap(uint64(block.timestamp)));
     }
 }

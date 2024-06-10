@@ -32,7 +32,7 @@ const (
 	syncStatusFinishedEL                // EL sync is done & we should be performing consolidation
 )
 
-var errNoFCUNeeded = errors.New("no FCU call was needed")
+var ErrNoFCUNeeded = errors.New("no FCU call was needed")
 
 var _ EngineControl = (*EngineController)(nil)
 var _ LocalEngineControl = (*EngineController)(nil)
@@ -50,6 +50,7 @@ type EngineController struct {
 	metrics    Metrics
 	syncMode   sync.Mode
 	syncStatus syncStatusEnum
+	chainSpec  *rollup.ChainSpec
 	rollupCfg  *rollup.Config
 	elStart    time.Time
 	clock      clock.Clock
@@ -85,6 +86,7 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rol
 		engine:     engine,
 		log:        log,
 		metrics:    metrics,
+		chainSpec:  rollup.NewChainSpec(rollupCfg),
 		rollupCfg:  rollupCfg,
 		syncMode:   syncMode,
 		syncStatus: syncStatus,
@@ -149,6 +151,7 @@ func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_unsafe", r)
 	e.unsafeHead = r
 	e.needFCUCall = true
+	e.chainSpec.CheckForkActivation(e.log, r)
 }
 
 // SetBackupUnsafeL2Head implements LocalEngineControl.
@@ -156,6 +159,50 @@ func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg 
 	e.metrics.RecordL2Ref("l2_backup_unsafe", r)
 	e.backupUnsafeHead = r
 	e.needFCUCallForBackupUnsafeReorg = triggerReorg
+}
+
+// logSyncProgressMaybe helps log forkchoice state-changes when applicable.
+// First, the pre-state is registered.
+// A callback is returned to then log the changes to the pre-state, if any.
+func (e *EngineController) logSyncProgressMaybe() func() {
+	prevFinalized := e.finalizedHead
+	prevSafe := e.safeHead
+	prevPendingSafe := e.pendingSafeHead
+	prevUnsafe := e.unsafeHead
+	prevBackupUnsafe := e.backupUnsafeHead
+	return func() {
+		// if forkchoice still needs to be updated, then the last change was unsuccessful, thus no progress to log.
+		if e.needFCUCall || e.needFCUCallForBackupUnsafeReorg {
+			return
+		}
+		var reason string
+		if prevFinalized != e.finalizedHead {
+			reason = "finalized block"
+		} else if prevSafe != e.safeHead {
+			if prevSafe == prevUnsafe {
+				reason = "derived safe block from L1"
+			} else {
+				reason = "consolidated block with L1"
+			}
+		} else if prevUnsafe != e.unsafeHead {
+			reason = "new chain head block"
+		} else if prevPendingSafe != e.pendingSafeHead {
+			reason = "pending new safe block"
+		} else if prevBackupUnsafe != e.backupUnsafeHead {
+			reason = "new backup unsafe block"
+		}
+		if reason != "" {
+			e.log.Info("Sync progress",
+				"reason", reason,
+				"l2_finalized", e.finalizedHead,
+				"l2_safe", e.safeHead,
+				"l2_pending_safe", e.pendingSafeHead,
+				"l2_unsafe", e.unsafeHead,
+				"l2_backup_unsafe", e.backupUnsafeHead,
+				"l2_time", e.UnsafeL2Head().Time,
+			)
+		}
+	}
 }
 
 // Engine Methods
@@ -174,12 +221,12 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
 
-	id, errTyp, err := startPayload(ctx, e.engine, fc, attrs.attributes)
+	id, errTyp, err := startPayload(ctx, e.engine, fc, attrs.Attributes)
 	if err != nil {
 		return errTyp, err
 	}
 
-	e.buildingInfo = eth.PayloadInfo{ID: id, Timestamp: uint64(attrs.attributes.Timestamp)}
+	e.buildingInfo = eth.PayloadInfo{ID: id, Timestamp: uint64(attrs.Attributes.Timestamp)}
 	e.buildingSafe = updateSafe
 	e.buildingOnto = parent
 	if updateSafe {
@@ -208,7 +255,7 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
 	// Update the safe head if the payload is built with the last attributes in the batch.
-	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.isLastInSpan
+	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.IsLastInSpan
 	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor)
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingInfo.ID, errTyp, err)
@@ -295,7 +342,7 @@ func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloa
 // this is a no-op if the nodes already agree on the forkchoice state.
 func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	if !e.needFCUCall {
-		return errNoFCUNeeded
+		return ErrNoFCUNeeded
 	}
 	if e.IsEngineSyncing() {
 		e.log.Warn("Attempting to update forkchoice state while EL syncing")
@@ -305,6 +352,8 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 		SafeBlockHash:      e.safeHead.Hash,
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
+	logFn := e.logSyncProgressMaybe()
+	defer logFn()
 	_, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		var inputErr eth.InputError
@@ -327,8 +376,8 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-		isTransitionBlock := e.rollupCfg.Genesis.L2.Number != 0 && b.Hash == e.rollupCfg.Genesis.L2.Hash
-		if errors.Is(err, ethereum.NotFound) || isTransitionBlock {
+		rollupGenesisIsFinalized := b.Hash == e.rollupCfg.Genesis.L2.Hash
+		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()
@@ -363,6 +412,8 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		e.SetSafeHead(ref)
 		e.SetFinalizedHead(ref)
 	}
+	logFn := e.logSyncProgressMaybe()
+	defer logFn()
 	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		var inputErr eth.InputError
@@ -430,6 +481,8 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 		SafeBlockHash:      e.safeHead.Hash,
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
+	logFn := e.logSyncProgressMaybe()
+	defer logFn()
 	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		var inputErr eth.InputError

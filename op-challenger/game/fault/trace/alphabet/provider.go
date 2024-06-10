@@ -75,6 +75,10 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 	return alphabetStateHash(claimBytes), nil
 }
 
+func (ap *AlphabetTraceProvider) GetL2BlockNumberChallenge(_ context.Context) (*types.InvalidL2BlockNumberChallenge, error) {
+	return nil, types.ErrL2BlockNumberValid
+}
+
 // BuildAlphabetPreimage constructs the claim bytes for the index and claim.
 func BuildAlphabetPreimage(traceIndex *big.Int, claim *big.Int) []byte {
 	return append(traceIndex.FillBytes(make([]byte, 32)), claim.FillBytes(make([]byte, 32))...)

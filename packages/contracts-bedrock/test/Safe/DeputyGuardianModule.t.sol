@@ -3,13 +3,13 @@ pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { ForgeArtifacts, Abi } from "scripts/ForgeArtifacts.sol";
-import { Safe } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
 
-import { GameType } from "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Types.sol";
 
 contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
@@ -17,8 +17,6 @@ contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     error Unauthorized();
     error ExecutionFailed(string);
 
-    event DisputeGameBlacklisted(IDisputeGame);
-    event RespectedGameTypeSet(GameType);
     event ExecutionFromModuleSuccess(address indexed);
 
     DeputyGuardianModule deputyGuardianModule;
@@ -202,7 +200,7 @@ contract DeputyGuardianModule_setRespectedGameType_Test is DeputyGuardianModule_
         emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
 
         vm.expectEmit(address(deputyGuardianModule));
-        emit RespectedGameTypeSet(_gameType);
+        emit RespectedGameTypeSet(_gameType, Timestamp.wrap(uint64(block.timestamp)));
 
         vm.prank(address(deputyGuardian));
         deputyGuardianModule.setRespectedGameType(optimismPortal2, _gameType);

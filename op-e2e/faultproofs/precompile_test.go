@@ -136,14 +136,16 @@ func TestPrecompiles(t *testing.T) {
 func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, l2Node string) {
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l1Beacon := sys.L1BeaconEndpoint()
-	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis(), sys.RollupEndpoint(l2Node), sys.NodeEndpoint(l2Node))
+	rollupEndpoint := sys.RollupEndpoint("sequencer")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis())
 	dir := t.TempDir()
 	proofsDir := filepath.Join(dir, "cannon-proofs")
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, dir)
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, rollupEndpoint, l2Endpoint, dir)
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")
-	executor := cannon.NewExecutor(logger, metrics.NoopMetrics, &cfg, inputs)
+	executor := cannon.NewExecutor(logger, metrics.NoopMetrics, &cfg, cfg.CannonAbsolutePreState, inputs)
 
 	t.Log("Running cannon")
 	err := executor.GenerateProof(ctx, proofsDir, math.MaxUint)
@@ -151,6 +153,8 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 
 	state, err := parseState(filepath.Join(proofsDir, "final.json.gz"))
 	require.NoError(t, err, "failed to parse state")
+	require.True(t, state.Exited, "cannon did not exit")
+	require.Zero(t, state.ExitCode, "cannon failed with exit code %d", state.ExitCode)
 	t.Logf("Completed in %d steps", state.Step)
 }
 

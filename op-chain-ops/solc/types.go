@@ -83,12 +83,13 @@ type StorageLayoutEntry struct {
 }
 
 type StorageLayoutType struct {
-	Encoding      string `json:"encoding"`
-	Label         string `json:"label"`
-	NumberOfBytes uint   `json:"numberOfBytes,string"`
-	Key           string `json:"key,omitempty"`
-	Value         string `json:"value,omitempty"`
-	Base          string `json:"base,omitempty"`
+	Encoding      string               `json:"encoding"`
+	Label         string               `json:"label"`
+	NumberOfBytes uint                 `json:"numberOfBytes,string"`
+	Key           string               `json:"key,omitempty"`
+	Value         string               `json:"value,omitempty"`
+	Base          string               `json:"base,omitempty"`
+	Members       []StorageLayoutEntry `json:"members,omitempty"`
 }
 
 type CompilerOutputEvm struct {

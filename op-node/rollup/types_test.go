@@ -180,21 +180,87 @@ func TestRandomConfigDescription(t *testing.T) {
 	})
 }
 
-// TestRegolithActivation tests the activation condition of the Regolith upgrade.
-func TestRegolithActivation(t *testing.T) {
-	config := randConfig()
-	config.RegolithTime = nil
-	require.False(t, config.IsRegolith(0), "false if nil time, even if checking 0")
-	require.False(t, config.IsRegolith(123456), "false if nil time")
-	config.RegolithTime = new(uint64)
-	require.True(t, config.IsRegolith(0), "true at zero")
-	require.True(t, config.IsRegolith(123456), "true for any")
-	x := uint64(123)
-	config.RegolithTime = &x
-	require.False(t, config.IsRegolith(0))
-	require.False(t, config.IsRegolith(122))
-	require.True(t, config.IsRegolith(123))
-	require.True(t, config.IsRegolith(124))
+// TestActivations tests the activation condition of the various upgrades.
+func TestActivations(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		setUpgradeTime func(t *uint64, c *Config)
+		checkEnabled   func(t uint64, c *Config) bool
+	}{
+		{
+			name: "Regolith",
+			setUpgradeTime: func(t *uint64, c *Config) {
+				c.RegolithTime = t
+			},
+			checkEnabled: func(t uint64, c *Config) bool {
+				return c.IsRegolith(t)
+			},
+		},
+		{
+			name: "Canyon",
+			setUpgradeTime: func(t *uint64, c *Config) {
+				c.CanyonTime = t
+			},
+			checkEnabled: func(t uint64, c *Config) bool {
+				return c.IsCanyon(t)
+			},
+		},
+		{
+			name: "Delta",
+			setUpgradeTime: func(t *uint64, c *Config) {
+				c.DeltaTime = t
+			},
+			checkEnabled: func(t uint64, c *Config) bool {
+				return c.IsDelta(t)
+			},
+		},
+		{
+			name: "Ecotone",
+			setUpgradeTime: func(t *uint64, c *Config) {
+				c.EcotoneTime = t
+			},
+			checkEnabled: func(t uint64, c *Config) bool {
+				return c.IsEcotone(t)
+			},
+		},
+		{
+			name: "Fjord",
+			setUpgradeTime: func(t *uint64, c *Config) {
+				c.FjordTime = t
+			},
+			checkEnabled: func(t uint64, c *Config) bool {
+				return c.IsFjord(t)
+			},
+		},
+		{
+			name: "Interop",
+			setUpgradeTime: func(t *uint64, c *Config) {
+				c.InteropTime = t
+			},
+			checkEnabled: func(t uint64, c *Config) bool {
+				return c.IsInterop(t)
+			},
+		},
+	} {
+		tt := test
+		t.Run(fmt.Sprintf("TestActivations_%s", tt.name), func(t *testing.T) {
+			config := randConfig()
+			test.setUpgradeTime(nil, config)
+			require.False(t, tt.checkEnabled(0, config), "false if nil time, even if checking 0")
+			require.False(t, tt.checkEnabled(123456, config), "false if nil time")
+
+			test.setUpgradeTime(new(uint64), config)
+			require.True(t, tt.checkEnabled(0, config), "true at zero")
+			require.True(t, tt.checkEnabled(123456, config), "true for any")
+
+			x := uint64(123)
+			test.setUpgradeTime(&x, config)
+			require.False(t, tt.checkEnabled(0, config))
+			require.False(t, tt.checkEnabled(122, config))
+			require.True(t, tt.checkEnabled(123, config))
+			require.True(t, tt.checkEnabled(124, config))
+		})
+	}
 }
 
 type mockL2Client struct {
@@ -338,11 +404,6 @@ func TestConfig_Check(t *testing.T) {
 			name:        "NoBatcherAddr",
 			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.BatcherAddr = common.Address{} },
 			expectedErr: ErrMissingBatcherAddr,
-		},
-		{
-			name:        "NoOverhead",
-			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Overhead = eth.Bytes32{} },
-			expectedErr: ErrMissingOverhead,
 		},
 		{
 			name:        "NoScalar",

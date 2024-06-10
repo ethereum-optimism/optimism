@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
@@ -27,7 +28,7 @@ func TestExtractor_Extract(t *testing.T) {
 	t.Run("FetchGamesError", func(t *testing.T) {
 		extractor, _, games, _ := setupExtractorTest(t)
 		games.err = errors.New("boom")
-		_, _, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		_, _, _, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.ErrorIs(t, err, games.err)
 		require.Equal(t, 1, games.calls)
 	})
@@ -36,8 +37,9 @@ func TestExtractor_Extract(t *testing.T) {
 		extractor, creator, games, logs := setupExtractorTest(t)
 		games.games = []gameTypes.GameMetadata{{}}
 		creator.err = errors.New("boom")
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
+		require.Equal(t, 1, failed)
 		require.Zero(t, ignored)
 		require.Len(t, enriched, 0)
 		require.Equal(t, 1, games.calls)
@@ -51,9 +53,10 @@ func TestExtractor_Extract(t *testing.T) {
 		extractor, creator, games, logs := setupExtractorTest(t)
 		games.games = []gameTypes.GameMetadata{{}}
 		creator.caller.metadataErr = errors.New("boom")
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Equal(t, 1, failed)
 		require.Len(t, enriched, 0)
 		require.Equal(t, 1, games.calls)
 		require.Equal(t, 1, creator.calls)
@@ -66,9 +69,10 @@ func TestExtractor_Extract(t *testing.T) {
 		extractor, creator, games, logs := setupExtractorTest(t)
 		games.games = []gameTypes.GameMetadata{{}}
 		creator.caller.claimsErr = errors.New("boom")
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Equal(t, 1, failed)
 		require.Len(t, enriched, 0)
 		require.Equal(t, 1, games.calls)
 		require.Equal(t, 1, creator.calls)
@@ -80,9 +84,10 @@ func TestExtractor_Extract(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		extractor, creator, games, _ := setupExtractorTest(t)
 		games.games = []gameTypes.GameMetadata{{}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 1)
 		require.Equal(t, 1, games.calls)
 		require.Equal(t, 1, creator.calls)
@@ -94,10 +99,11 @@ func TestExtractor_Extract(t *testing.T) {
 		enricher := &mockEnricher{err: errors.New("whoops")}
 		extractor, _, games, logs := setupExtractorTest(t, enricher)
 		games.games = []gameTypes.GameMetadata{{}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
-		l := logs.FindLogs(testlog.NewMessageFilter("Failed to enrich game"))
+		require.Equal(t, 1, failed)
+		l := logs.FindLogs(testlog.NewAttributesContainsFilter("err", "failed to enrich game"))
 		require.Len(t, l, 1, "Should have logged error")
 		require.Len(t, enriched, 0, "Should not return games that failed to enrich")
 	})
@@ -106,9 +112,10 @@ func TestExtractor_Extract(t *testing.T) {
 		enricher := &mockEnricher{}
 		extractor, _, games, _ := setupExtractorTest(t, enricher)
 		games.games = []gameTypes.GameMetadata{{}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 1)
 		require.Equal(t, 1, enricher.calls)
 	})
@@ -118,9 +125,10 @@ func TestExtractor_Extract(t *testing.T) {
 		enricher2 := &mockEnricher{}
 		extractor, _, games, _ := setupExtractorTest(t, enricher1, enricher2)
 		games.games = []gameTypes.GameMetadata{{}, {}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		require.Zero(t, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 2)
 		require.Equal(t, 2, enricher1.calls)
 		require.Equal(t, 2, enricher2.calls)
@@ -131,10 +139,11 @@ func TestExtractor_Extract(t *testing.T) {
 		extractor, _, games, logs := setupExtractorTest(t, enricher1)
 		// Two games, one of which is ignored
 		games.games = []gameTypes.GameMetadata{{Proxy: ignoredGames[0]}, {Proxy: common.Address{0xaa}}}
-		enriched, ignored, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
 		require.NoError(t, err)
 		// Should ignore one and enrich the other
 		require.Equal(t, 1, ignored)
+		require.Zero(t, failed)
 		require.Len(t, enriched, 1)
 		require.Equal(t, 1, enricher1.calls)
 		require.Equal(t, enriched[0].Proxy, common.Address{0xaa})
@@ -145,18 +154,18 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 }
 
-func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr int, metadataErr int, claimsErr int, durationErr int) {
+func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadataErr, claimsErr, durationErr int) {
 	errorLevelFilter := testlog.NewLevelFilter(log.LevelError)
-	createMessageFilter := testlog.NewMessageFilter("Failed to create game caller")
+	createMessageFilter := testlog.NewAttributesContainsFilter("err", "failed to create contracts")
 	l := logs.FindLogs(errorLevelFilter, createMessageFilter)
 	require.Len(t, l, createErr)
-	fetchMessageFilter := testlog.NewMessageFilter("Failed to fetch game metadata")
+	fetchMessageFilter := testlog.NewAttributesContainsFilter("err", "failed to fetch game metadata")
 	l = logs.FindLogs(errorLevelFilter, fetchMessageFilter)
 	require.Len(t, l, metadataErr)
-	claimsMessageFilter := testlog.NewMessageFilter("Failed to fetch game claims")
+	claimsMessageFilter := testlog.NewAttributesContainsFilter("err", "failed to fetch game claims")
 	l = logs.FindLogs(errorLevelFilter, claimsMessageFilter)
 	require.Len(t, l, claimsErr)
-	durationMessageFilter := testlog.NewMessageFilter("Failed to fetch game duration")
+	durationMessageFilter := testlog.NewAttributesContainsFilter("err", "failed to fetch game duration")
 	l = logs.FindLogs(errorLevelFilter, durationMessageFilter)
 	require.Len(t, l, durationErr)
 }
@@ -171,6 +180,7 @@ func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockG
 		creator.CreateGameCaller,
 		games.FetchGames,
 		ignoredGames,
+		5,
 		enrichers...,
 	)
 	return extractor, creator, games, capturedLogs
@@ -217,6 +227,7 @@ type mockGameCaller struct {
 	extraCredit      []*big.Int
 	balanceErr       error
 	balance          *big.Int
+	delayDuration    time.Duration
 	balanceAddr      common.Address
 	withdrawalsCalls int
 	withdrawalsErr   error
@@ -225,7 +236,7 @@ type mockGameCaller struct {
 	resolved         map[int]bool
 }
 
-func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
 	m.withdrawalsCalls++
 	if m.withdrawalsErr != nil {
 		return nil, m.withdrawalsErr
@@ -245,12 +256,15 @@ func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ c
 	}, nil
 }
 
-func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
+func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (contracts.GameMetadata, error) {
 	m.metadataCalls++
 	if m.metadataErr != nil {
-		return common.Hash{}, 0, common.Hash{}, 0, 0, m.metadataErr
+		return contracts.GameMetadata{}, m.metadataErr
 	}
-	return common.Hash{0xaa}, 0, mockRootClaim, 0, 0, nil
+	return contracts.GameMetadata{
+		L1Head:    common.Hash{0xaa},
+		RootClaim: mockRootClaim,
+	}, nil
 }
 
 func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {
@@ -278,11 +292,11 @@ func (m *mockGameCaller) GetCredits(_ context.Context, _ rpcblock.Block, recipie
 	return response, nil
 }
 
-func (m *mockGameCaller) GetBalance(_ context.Context, _ rpcblock.Block) (*big.Int, common.Address, error) {
+func (m *mockGameCaller) GetBalanceAndDelay(_ context.Context, _ rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
 	if m.balanceErr != nil {
-		return nil, common.Address{}, m.balanceErr
+		return nil, 0, common.Address{}, m.balanceErr
 	}
-	return m.balance, m.balanceAddr, nil
+	return m.balance, m.delayDuration, m.balanceAddr, nil
 }
 
 func (m *mockGameCaller) IsResolved(_ context.Context, _ rpcblock.Block, claims ...faultTypes.Claim) ([]bool, error) {

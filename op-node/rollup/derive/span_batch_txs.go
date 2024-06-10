@@ -47,6 +47,9 @@ func (btx *spanBatchTxs) encodeContractCreationBits(w io.Writer) error {
 }
 
 func (btx *spanBatchTxs) decodeContractCreationBits(r *bytes.Reader) error {
+	if btx.totalBlockTxCount > MaxSpanBatchElementCount {
+		return ErrTooBigSpanBatchSize
+	}
 	bits, err := decodeSpanBatchBits(r, btx.totalBlockTxCount)
 	if err != nil {
 		return fmt.Errorf("failed to decode contract creation bits: %w", err)
@@ -63,6 +66,9 @@ func (btx *spanBatchTxs) encodeProtectedBits(w io.Writer) error {
 }
 
 func (btx *spanBatchTxs) decodeProtectedBits(r *bytes.Reader) error {
+	if btx.totalLegacyTxCount > MaxSpanBatchElementCount {
+		return ErrTooBigSpanBatchSize
+	}
 	bits, err := decodeSpanBatchBits(r, btx.totalLegacyTxCount)
 	if err != nil {
 		return fmt.Errorf("failed to decode protected bits: %w", err)

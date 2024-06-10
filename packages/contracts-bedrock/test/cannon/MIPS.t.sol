@@ -892,6 +892,26 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_div_byZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1a); // div t1, t2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 5; // t1
+        state.registers[10] = 0; // t2
+
+        vm.expectRevert("MIPS: division by zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_divu_byZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1b); // divu t1, t2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 5; // t1
+        state.registers[10] = 0; // t2
+
+        vm.expectRevert("MIPS: division by zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
     function test_beq_succeeds() external {
         uint16 boff = 0x10;
         uint32 insn = encodeitype(0x4, 0x9, 0x8, boff); // beq $t0, $t1, 16
@@ -1507,6 +1527,25 @@ contract MIPS_Test is CommonTest {
         for (uint256 i = 0; i < proof.length; i++) {
             proof[i] = 0x0;
         }
+        vm.expectRevert(hex"000000000000000000000000000000000000000000000000000000000badf00d");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_invalid_root_different_leaf_fails() external {
+        uint32 insn = 0x0000000c; // syscall
+
+        // Initialize the state, though for the proof, use valid proofs for the instruction
+        // and the memory address, but for a different leaf that does not contain the
+        // instruction @ pc nor the memory address being read.
+        uint32 pc = 0;
+        MIPS.State memory state;
+        bytes memory proof;
+        (state.memRoot, proof) = ffi.getCannonMemoryProofWrongLeaf(pc, insn, 0x4, 0);
+        state.pc = pc;
+        state.nextPC = pc + 4;
+        state.registers[2] = 4246; // exit_group syscall
+        state.registers[4] = 0x5; // a0
+
         vm.expectRevert(hex"000000000000000000000000000000000000000000000000000000000badf00d");
         mips.step(encodeState(state), proof, 0);
     }

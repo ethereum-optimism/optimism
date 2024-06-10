@@ -5,6 +5,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -17,10 +18,12 @@ func TestResolutionMonitor_CheckResolutions(t *testing.T) {
 	games := newTestGames(uint64(cl.Now().Unix()))
 	r.CheckResolutions(games)
 
-	require.Equal(t, 1, m.calls[true][true])
-	require.Equal(t, 1, m.calls[true][false])
-	require.Equal(t, 1, m.calls[false][true])
-	require.Equal(t, 1, m.calls[false][false])
+	require.Equal(t, 1, m.calls[metrics.CompleteMaxDuration])
+	require.Equal(t, 1, m.calls[metrics.CompleteBeforeMaxDuration])
+	require.Equal(t, 1, m.calls[metrics.ResolvableMaxDuration])
+	require.Equal(t, 1, m.calls[metrics.ResolvableBeforeMaxDuration])
+	require.Equal(t, 1, m.calls[metrics.InProgressMaxDuration])
+	require.Equal(t, 1, m.calls[metrics.InProgressBeforeMaxDuration])
 }
 
 func newTestResolutionMonitor(t *testing.T) (*ResolutionMonitor, *clock.DeterministicClock, *stubResolutionMetrics) {
@@ -31,26 +34,37 @@ func newTestResolutionMonitor(t *testing.T) (*ResolutionMonitor, *clock.Determin
 }
 
 type stubResolutionMetrics struct {
-	calls map[bool]map[bool]int // completed -> max duration reached -> call count
+	calls map[metrics.ResolutionStatus]int
 }
 
-func (s *stubResolutionMetrics) RecordGameResolutionStatus(complete bool, maxDurationReached bool, count int) {
+func (s *stubResolutionMetrics) RecordGameResolutionStatus(status metrics.ResolutionStatus, count int) {
 	if s.calls == nil {
-		s.calls = make(map[bool]map[bool]int)
-		s.calls[true] = make(map[bool]int)
-		s.calls[false] = make(map[bool]int)
+		s.calls = make(map[metrics.ResolutionStatus]int)
 	}
-	s.calls[complete][maxDurationReached] += count
+	s.calls[status] += count
 }
 
 func newTestGames(duration uint64) []*types.EnrichedGameData {
-	newTestGame := func(duration uint64, status gameTypes.GameStatus) *types.EnrichedGameData {
-		return &types.EnrichedGameData{MaxClockDuration: duration, Status: status}
+	newTestGame := func(duration uint64, status gameTypes.GameStatus, resolvable bool) *types.EnrichedGameData {
+		game := &types.EnrichedGameData{
+			MaxClockDuration: duration,
+			Status:           status,
+		}
+		if !resolvable {
+			game.Claims = []types.EnrichedClaim{
+				{
+					Resolved: false,
+				},
+			}
+		}
+		return game
 	}
 	return []*types.EnrichedGameData{
-		newTestGame(duration, gameTypes.GameStatusInProgress),
-		newTestGame(duration*10, gameTypes.GameStatusInProgress),
-		newTestGame(duration, gameTypes.GameStatusDefenderWon),
-		newTestGame(duration*10, gameTypes.GameStatusChallengerWon),
+		newTestGame(duration/2, gameTypes.GameStatusInProgress, false),
+		newTestGame(duration*5, gameTypes.GameStatusInProgress, false),
+		newTestGame(duration/2, gameTypes.GameStatusInProgress, true),
+		newTestGame(duration*5, gameTypes.GameStatusInProgress, true),
+		newTestGame(duration/2, gameTypes.GameStatusDefenderWon, false),
+		newTestGame(duration*5, gameTypes.GameStatusChallengerWon, false),
 	}
 }

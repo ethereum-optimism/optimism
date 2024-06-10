@@ -14,6 +14,9 @@ import { Clone } from "@solady/utils/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
@@ -60,9 +63,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
+    /// @notice The index of the block number in the RLP-encoded block header.
+    /// @dev Consensus encoding reference:
+    /// https://github.com/paradigmxyz/reth/blob/5f82993c23164ce8ccdc7bf3ae5085205383a5c8/crates/primitives/src/header.rs#L368
+    uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
+
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -75,6 +83,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
     /// @notice Flag for the `initialize` function to prevent re-initialization.
     bool internal initialized;
+
+    /// @notice Flag for whether or not the L2 block number claim has been invalidated via `challengeRootL2Block`.
+    bool public l2BlockNumberChallenged;
+
+    /// @notice The challenger of the L2 block number claim. Should always be `address(0)` if `l2BlockNumberChallenged`
+    ///         is `false`. Should be the address of the challenger if `l2BlockNumberChallenged` is `true`.
+    address public l2BlockNumberChallenger;
 
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
@@ -297,15 +312,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @notice Generic move function, used for both `attack` and `defend` moves.
+    /// @param _disputed The disputed `Claim`.
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
-    function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable virtual {
+    function move(Claim _disputed, uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable virtual {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData memory parent = claimData[_challengeIndex];
+
+        // INVARIANT: The claim at the _challengeIndex must be the disputed claim.
+        if (Claim.unwrap(parent.claim) != Claim.unwrap(_disputed)) revert InvalidDisputedClaimIndex();
 
         // Compute the position that the claim commits to. Because the parent's position is already
         // known, we can compute the next position by moving left or right depending on whether
@@ -320,6 +339,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if ((_challengeIndex == 0 || nextPositionDepth == SPLIT_DEPTH + 2) && !_isAttack) {
             revert CannotDefendRootClaim();
         }
+
+        // INVARIANT: No moves against the root claim can be made after it has been challenged with
+        //            `challengeRootL2Block`.`
+        if (l2BlockNumberChallenged && _challengeIndex == 0) revert L2BlockNumberChallenged();
 
         // INVARIANT: A move can never surpass the `MAX_GAME_DEPTH`. The only option to counter a
         //            claim at this depth is to perform a single instruction step on-chain via
@@ -393,13 +416,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function attack(uint256 _parentIndex, Claim _claim) external payable {
-        move(_parentIndex, _claim, true);
+    function attack(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable {
+        move(_disputed, _parentIndex, _claim, true);
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function defend(uint256 _parentIndex, Claim _claim) external payable {
-        move(_parentIndex, _claim, false);
+    function defend(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable {
+        move(_disputed, _parentIndex, _claim, false);
     }
 
     /// @inheritdoc IFaultDisputeGame
@@ -460,6 +483,54 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @inheritdoc IFaultDisputeGame
     function startingRootHash() external view returns (Hash startingRootHash_) {
         startingRootHash_ = startingOutputRoot.root;
+    }
+
+    /// @notice Challenges the root L2 block number by providing the preimage of the output root and the L2 block header
+    ///         and showing that the committed L2 block number is incorrect relative to the claimed L2 block number.
+    /// @param _outputRootProof The output root proof.
+    /// @param _headerRLP The RLP-encoded L2 block header.
+    function challengeRootL2Block(
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes calldata _headerRLP
+    )
+        external
+    {
+        // INVARIANT: Moves cannot be made unless the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
+
+        // The root L2 block claim can only be challenged once.
+        if (l2BlockNumberChallenged) revert L2BlockNumberChallenged();
+
+        // Verify the output root preimage.
+        if (Hashing.hashOutputRootProof(_outputRootProof) != rootClaim().raw()) revert InvalidOutputRootProof();
+
+        // Verify the block hash preimage.
+        if (keccak256(_headerRLP) != _outputRootProof.latestBlockhash) revert InvalidHeaderRLP();
+
+        // Decode the header RLP to find the number of the block. In the consensus encoding, the timestamp
+        // is the 9th element in the list that represents the block header.
+        RLPReader.RLPItem[] memory headerContents = RLPReader.readList(RLPReader.toRLPItem(_headerRLP));
+        bytes memory rawBlockNumber = RLPReader.readBytes(headerContents[HEADER_BLOCK_NUMBER_INDEX]);
+
+        // Sanity check the block number string length.
+        if (rawBlockNumber.length > 32) revert InvalidHeaderRLP();
+
+        // Convert the raw, left-aligned block number to a uint256 by aligning it as a big-endian
+        // number in the low-order bytes of a 32-byte word.
+        //
+        // SAFETY: The length of `rawBlockNumber` is checked above to ensure it is at most 32 bytes.
+        uint256 blockNumber;
+        assembly {
+            blockNumber := shr(shl(0x03, sub(0x20, mload(rawBlockNumber))), mload(add(rawBlockNumber, 0x20)))
+        }
+
+        // Ensure the block number does not match the block number claimed in the dispute game.
+        if (blockNumber == l2BlockNumber()) revert BlockNumberMatches();
+
+        // Issue a special counter to the root claim. This counter will always win the root claim subgame, and receive
+        // the bond from the root claimant.
+        l2BlockNumberChallenger = msg.sender;
+        l2BlockNumberChallenged = true;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -565,16 +636,25 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (checkpoint.subgameIndex == challengeIndicesLen) {
             address countered = checkpoint.counteredBy;
 
-            // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
-            // resolveClaim will not need to traverse this subgame.
-            subgameRootClaim.counteredBy = countered;
-
             // Mark the subgame as resolved.
             resolvedSubgames[_claimIndex] = true;
 
-            // If the parent was not successfully countered, pay out the parent's bond to the claimant.
-            // If the parent was successfully countered, pay out the parent's bond to the challenger.
-            _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
+            // Distribute the bond to the appropriate party.
+            if (_claimIndex == 0 && l2BlockNumberChallenged) {
+                // Special case: If the root claim has been challenged with the `challengeRootL2Block` function,
+                // the bond is always paid out to the issuer of that challenge.
+                address challenger = l2BlockNumberChallenger;
+                _distributeBond(challenger, subgameRootClaim);
+                subgameRootClaim.counteredBy = challenger;
+            } else {
+                // If the parent was not successfully countered, pay out the parent's bond to the claimant.
+                // If the parent was successfully countered, pay out the parent's bond to the challenger.
+                _distributeBond(countered == address(0) ? subgameRootClaim.claimant : countered, subgameRootClaim);
+
+                // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
+                // resolveClaim will not need to traverse this subgame.
+                subgameRootClaim.counteredBy = countered;
+            }
         }
     }
 
@@ -670,9 +750,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         credit[_recipient] = 0;
 
         // Revert if the recipient has no credit to claim.
-        if (recipientCredit == 0) {
-            revert NoCreditToClaim();
-        }
+        if (recipientCredit == 0) revert NoCreditToClaim();
 
         // Try to withdraw the WETH amount so it can be used here.
         WETH.withdraw(_recipient, recipientCredit);

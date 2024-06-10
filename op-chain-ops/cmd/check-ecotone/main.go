@@ -26,8 +26,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-ecotone/bindings"
+	nbindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -702,7 +703,7 @@ func checkUpgradeTxs(ctx context.Context, env *actionEnv) error {
 }
 
 func checkL1Block(ctx context.Context, env *actionEnv) error {
-	cl, err := bindings.NewL1Block(predeploys.L1BlockAddr, env.l2)
+	cl, err := nbindings.NewL1Block(predeploys.L1BlockAddr, env.l2)
 	if err != nil {
 		return fmt.Errorf("failed to create bindings around L1Block contract: %w", err)
 	}
@@ -843,7 +844,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("expected %d L1 gas, but only spent %d", expectedCalldataGas, receipt.L1GasUsed)
 	}
 	if big.NewInt(0).Cmp(receipt.L1Fee) >= 0 {
-		return fmt.Errorf("calculated to low L1 fee: %d", receipt.L1Fee)
+		return fmt.Errorf("calculated too low L1 fee: %d", receipt.L1Fee)
 	}
 	env.log.Info("L1 fees test: success")
 	return nil

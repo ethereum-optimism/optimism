@@ -136,6 +136,19 @@
   },
   {
     "inputs": [],
+    "name": "basefeeScalar",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "batchInbox",
     "outputs": [
       {
@@ -155,6 +168,19 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "blobbasefeeScalar",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -238,14 +264,14 @@
         "type": "address"
       },
       {
-        "internalType": "uint256",
-        "name": "_overhead",
-        "type": "uint256"
+        "internalType": "uint32",
+        "name": "_basefeeScalar",
+        "type": "uint32"
       },
       {
-        "internalType": "uint256",
-        "name": "_scalar",
-        "type": "uint256"
+        "internalType": "uint32",
+        "name": "_blobbasefeeScalar",
+        "type": "uint32"
       },
       {
         "internalType": "bytes32",
@@ -402,6 +428,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maximumGasLimit",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -568,12 +607,17 @@
   {
     "inputs": [
       {
-        "internalType": "uint64",
-        "name": "_gasLimit",
-        "type": "uint64"
+        "internalType": "uint32",
+        "name": "_basefeeScalar",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_blobbasefeeScalar",
+        "type": "uint32"
       }
     ],
-    "name": "setGasLimit",
+    "name": "setGasConfigEcotone",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -581,44 +625,12 @@
   {
     "inputs": [
       {
-        "components": [
-          {
-            "internalType": "uint32",
-            "name": "maxResourceLimit",
-            "type": "uint32"
-          },
-          {
-            "internalType": "uint8",
-            "name": "elasticityMultiplier",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint8",
-            "name": "baseFeeMaxChangeDenominator",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint32",
-            "name": "minimumBaseFee",
-            "type": "uint32"
-          },
-          {
-            "internalType": "uint32",
-            "name": "systemTxMaxGas",
-            "type": "uint32"
-          },
-          {
-            "internalType": "uint128",
-            "name": "maximumBaseFee",
-            "type": "uint128"
-          }
-        ],
-        "internalType": "struct ResourceMetering.ResourceConfig",
-        "name": "_config",
-        "type": "tuple"
+        "internalType": "uint64",
+        "name": "_gasLimit",
+        "type": "uint64"
       }
     ],
-    "name": "setResourceConfig",
+    "name": "setGasLimit",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -685,7 +697,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {

@@ -20,6 +20,7 @@ const (
 	LevelFlagName  = "log.level"
 	FormatFlagName = "log.format"
 	ColorFlagName  = "log.color"
+	PidFlagName    = "log.pid"
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
@@ -49,6 +50,12 @@ func CLIFlagsWithCategory(envPrefix string, category string) []cli.Flag {
 			Name:     ColorFlagName,
 			Usage:    "Color the log output if in terminal mode",
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
+			Category: category,
+		},
+		&cli.BoolFlag{
+			Name:     PidFlagName,
+			Usage:    "Show pid in the log",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_PID"),
 			Category: category,
 		},
 	}
@@ -187,6 +194,7 @@ type CLIConfig struct {
 	Level  slog.Level
 	Color  bool
 	Format FormatType
+	Pid    bool
 }
 
 // AppOut returns an io.Writer to write app output to, like logs.
@@ -208,7 +216,11 @@ func NewLogHandler(wr io.Writer, cfg CLIConfig) slog.Handler {
 // The log handler of the logger is a LvlSetter, i.e. the log level can be changed as needed.
 func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 	h := NewLogHandler(wr, cfg)
-	return log.NewLogger(h)
+	l := log.NewLogger(h)
+	if cfg.Pid {
+		l = l.With("pid", os.Getpid())
+	}
+	return l
 }
 
 // SetGlobalLogHandler sets the log handles as the handler of the global default logger.
@@ -237,5 +249,6 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	if ctx.IsSet(ColorFlagName) {
 		cfg.Color = ctx.Bool(ColorFlagName)
 	}
+	cfg.Pid = ctx.Bool(PidFlagName)
 	return cfg
 }

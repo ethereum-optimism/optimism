@@ -29,6 +29,10 @@ func NewVMContract(addr common.Address, caller *batching.MultiCaller) *VMContrac
 	}
 }
 
+func (c *VMContract) Addr() common.Address {
+	return c.contract.Addr()
+}
+
 func (c *VMContract) Oracle(ctx context.Context) (*PreimageOracleContract, error) {
 	results, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, c.contract.Call(methodOracle))
 	if err != nil {

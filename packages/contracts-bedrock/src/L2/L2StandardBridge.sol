@@ -52,8 +52,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.9.0
-    string public constant version = "1.9.0";
+    /// @custom:semver 1.10.0
+    string public constant version = "1.10.0";
 
     /// @notice Constructs the L2StandardBridge contract.
     constructor() StandardBridge() {
@@ -132,36 +132,6 @@ contract L2StandardBridge is StandardBridge, ISemver {
     {
         require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
-    }
-
-    /// @custom:legacy
-    /// @notice Finalizes a deposit from L1 to L2. To finalize a deposit of ether, use address(0)
-    ///         and the l1Token and the Legacy ERC20 ether predeploy address as the l2Token.
-    ///         Subject to be deprecated in the future.
-    /// @param _l1Token   Address of the L1 token to deposit.
-    /// @param _l2Token   Address of the corresponding L2 token.
-    /// @param _from      Address of the depositor.
-    /// @param _to        Address of the recipient.
-    /// @param _amount    Amount of the tokens being deposited.
-    /// @param _extraData Extra data attached to the deposit.
-    function finalizeDeposit(
-        address _l1Token,
-        address _l2Token,
-        address _from,
-        address _to,
-        uint256 _amount,
-        bytes calldata _extraData
-    )
-        external
-        payable
-        virtual
-    {
-        require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
-        if (_l1Token == address(0) && _l2Token == Predeploys.LEGACY_ERC20_ETH) {
-            finalizeBridgeETH(_from, _to, _amount, _extraData);
-        } else {
-            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
-        }
     }
 
     /// @custom:legacy

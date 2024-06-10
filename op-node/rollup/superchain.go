@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 6, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
+var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 7, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
 
 const (
 	pgnSepolia = 58008
@@ -48,6 +48,15 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		return nil, fmt.Errorf("unable to retrieve deposit contract address")
 	}
 
+	var plasma *PlasmaConfig
+	if chConfig.Plasma != nil {
+		plasma = &PlasmaConfig{
+			DAChallengeAddress: common.Address(*chConfig.Plasma.DAChallengeAddress),
+			DAChallengeWindow:  *chConfig.Plasma.DAChallengeWindow,
+			DAResolveWindow:    *chConfig.Plasma.DAResolveWindow,
+		}
+	}
+
 	regolithTime := uint64(0)
 	cfg := &Config{
 		Genesis: Genesis{
@@ -80,6 +89,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
 		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
+		PlasmaConfig:           plasma,
 	}
 
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
