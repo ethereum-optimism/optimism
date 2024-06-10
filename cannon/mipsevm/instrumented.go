@@ -78,7 +78,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 	m.lastPreimageOffset = ^uint32(0)
 
 	if proof {
-		insnProof := m.state.Memory.MerkleProof(m.state.PC)
+		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
 		wit = &StepWitness{
 			State:    m.state.EncodeWitness(),
 			MemProof: insnProof[:],

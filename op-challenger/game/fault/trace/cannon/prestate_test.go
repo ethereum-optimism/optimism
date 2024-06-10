@@ -44,15 +44,17 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 			Memory:         mipsevm.NewMemory(),
 			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 			PreimageOffset: 0,
-			PC:             0,
-			NextPC:         1,
-			LO:             0,
-			HI:             0,
-			Heap:           0,
-			ExitCode:       0,
-			Exited:         false,
-			Step:           0,
-			Registers:      [32]uint32{},
+			Cpu: mipsevm.CpuScalars{
+				PC:     0,
+				NextPC: 1,
+				LO:     0,
+				HI:     0,
+			},
+			Heap:      0,
+			ExitCode:  0,
+			Exited:    false,
+			Step:      0,
+			Registers: [32]uint32{},
 		}
 		expected, err := state.EncodeWitness().StateHash()
 		require.NoError(t, err)

@@ -174,3 +174,37 @@ func signExtend(dat uint32, idx uint32) uint32 {
 		return dat & mask
 	}
 }
+
+func handleBranch(m *InstrumentedState, opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
+	if m.state.Cpu.NextPC != m.state.Cpu.PC+4 {
+		panic("branch in delay slot")
+	}
+
+	shouldBranch := false
+	if opcode == 4 || opcode == 5 { // beq/bne
+		rt := m.state.Registers[rtReg]
+		shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
+	} else if opcode == 6 {
+		shouldBranch = int32(rs) <= 0 // blez
+	} else if opcode == 7 {
+		shouldBranch = int32(rs) > 0 // bgtz
+	} else if opcode == 1 {
+		// regimm
+		rtv := (insn >> 16) & 0x1F
+		if rtv == 0 { // bltz
+			shouldBranch = int32(rs) < 0
+		}
+		if rtv == 1 { // bgez
+			shouldBranch = int32(rs) >= 0
+		}
+	}
+
+	prevPC := m.state.Cpu.PC
+	m.state.Cpu.PC = m.state.Cpu.NextPC // execute the delay slot first
+	if shouldBranch {
+		m.state.Cpu.NextPC = prevPC + 4 + (signExtend(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
+	} else {
+		m.state.Cpu.NextPC = m.state.Cpu.NextPC + 4 // branch not taken
+	}
+	return nil
+}

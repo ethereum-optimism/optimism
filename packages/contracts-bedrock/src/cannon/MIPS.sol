@@ -5,6 +5,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import "src/cannon/libraries/MIPSInstructions.sol" as ins;
+import "src/cannon/libraries/MIPSState.sol" as st;
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -29,10 +30,7 @@ contract MIPS is ISemver {
         bytes32 memRoot;
         bytes32 preimageKey;
         uint32 preimageOffset;
-        uint32 pc;
-        uint32 nextPC;
-        uint32 lo;
-        uint32 hi;
+        st.CpuScalars cpu;
         uint32 heap;
         uint8 exitCode;
         bool exited;
@@ -70,70 +68,6 @@ contract MIPS is ISemver {
     /// @return oracle_ The IPreimageOracle contract.
     function oracle() external view returns (IPreimageOracle oracle_) {
         oracle_ = ORACLE;
-    }
-
-    /// @notice Computes the hash of the MIPS state.
-    /// @return out_ The hashed MIPS state.
-    function outputState() internal returns (bytes32 out_) {
-        assembly {
-            // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
-            function copyMem(from, to, size) -> fromOut, toOut {
-                mstore(to, mload(add(from, sub(32, size))))
-                fromOut := add(from, 32)
-                toOut := add(to, size)
-            }
-
-            // From points to the MIPS State
-            let from := 0x80
-
-            // Copy to the free memory pointer
-            let start := mload(0x40)
-            let to := start
-
-            // Copy state to free memory
-            from, to := copyMem(from, to, 32) // memRoot
-            from, to := copyMem(from, to, 32) // preimageKey
-            from, to := copyMem(from, to, 4) // preimageOffset
-            from, to := copyMem(from, to, 4) // pc
-            from, to := copyMem(from, to, 4) // nextPC
-            from, to := copyMem(from, to, 4) // lo
-            from, to := copyMem(from, to, 4) // hi
-            from, to := copyMem(from, to, 4) // heap
-            let exitCode := mload(from)
-            from, to := copyMem(from, to, 1) // exitCode
-            let exited := mload(from)
-            from, to := copyMem(from, to, 1) // exited
-            from, to := copyMem(from, to, 8) // step
-            from := add(from, 32) // offset to registers
-
-            // Copy registers
-            for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
-
-            // Clean up end of memory
-            mstore(to, 0)
-
-            // Log the resulting MIPS state, for debugging
-            log0(start, sub(to, start))
-
-            // Determine the VM status
-            let status := 0
-            switch exited
-            case 1 {
-                switch exitCode
-                // VMStatusValid
-                case 0 { status := 0 }
-                // VMStatusInvalid
-                case 1 { status := 1 }
-                // VMStatusPanic
-                default { status := 2 }
-            }
-            // VMStatusUnfinished
-            default { status := 3 }
-
-            // Compute the hash of the resulting MIPS state and set the status byte
-            out_ := keccak256(start, sub(to, start))
-            out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
-        }
     }
 
     /// @notice Handles a syscall.
@@ -183,7 +117,7 @@ contract MIPS is ISemver {
             else if (syscall_no == 4246) {
                 state.exited = true;
                 state.exitCode = uint8(a0);
-                return outputState();
+                return ins.outputState();
             }
             // read: Like Linux read syscall. Splits unaligned reads into aligned reads.
             else if (syscall_no == 4003) {
@@ -294,74 +228,10 @@ contract MIPS is ISemver {
             state.registers[7] = v1;
 
             // Update the PC and nextPC
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
+            state.cpu.pc = state.cpu.nextPC;
+            state.cpu.nextPC = state.cpu.nextPC + 4;
 
-            out_ = outputState();
-        }
-    }
-
-    /// @notice Handles a branch instruction, updating the MIPS state PC where needed.
-    /// @param _opcode The opcode of the branch instruction.
-    /// @param _insn The instruction to be executed.
-    /// @param _rtReg The register to be used for the branch.
-    /// @param _rs The register to be compared with the branch register.
-    /// @return out_ The hashed MIPS state.
-    function handleBranch(uint32 _opcode, uint32 _insn, uint32 _rtReg, uint32 _rs) internal returns (bytes32 out_) {
-        unchecked {
-            // Load state from memory
-            State memory state;
-            assembly {
-                state := 0x80
-            }
-
-            bool shouldBranch = false;
-
-            if (state.nextPC != state.pc + 4) {
-                revert("branch in delay slot");
-            }
-
-            // beq/bne: Branch on equal / not equal
-            if (_opcode == 4 || _opcode == 5) {
-                uint32 rt = state.registers[_rtReg];
-                shouldBranch = (_rs == rt && _opcode == 4) || (_rs != rt && _opcode == 5);
-            }
-            // blez: Branches if instruction is less than or equal to zero
-            else if (_opcode == 6) {
-                shouldBranch = int32(_rs) <= 0;
-            }
-            // bgtz: Branches if instruction is greater than zero
-            else if (_opcode == 7) {
-                shouldBranch = int32(_rs) > 0;
-            }
-            // bltz/bgez: Branch on less than zero / greater than or equal to zero
-            else if (_opcode == 1) {
-                // regimm
-                uint32 rtv = ((_insn >> 16) & 0x1F);
-                if (rtv == 0) {
-                    shouldBranch = int32(_rs) < 0;
-                }
-                if (rtv == 1) {
-                    shouldBranch = int32(_rs) >= 0;
-                }
-            }
-
-            // Update the state's previous PC
-            uint32 prevPC = state.pc;
-
-            // Execute the delay slot first
-            state.pc = state.nextPC;
-
-            // If we should branch, update the PC to the branch target
-            // Otherwise, proceed to the next instruction
-            if (shouldBranch) {
-                state.nextPC = prevPC + 4 + (ins.signExtend(_insn & 0xFFFF, 16) << 2);
-            } else {
-                state.nextPC = state.nextPC + 4;
-            }
-
-            // Return the hash of the resulting state
-            out_ = outputState();
+            out_ = ins.outputState();
         }
     }
 
@@ -383,31 +253,31 @@ contract MIPS is ISemver {
 
             // mfhi: Move the contents of the HI register into the destination
             if (_func == 0x10) {
-                val = state.hi;
+                val = state.cpu.hi;
             }
             // mthi: Move the contents of the source into the HI register
             else if (_func == 0x11) {
-                state.hi = _rs;
+                state.cpu.hi = _rs;
             }
             // mflo: Move the contents of the LO register into the destination
             else if (_func == 0x12) {
-                val = state.lo;
+                val = state.cpu.lo;
             }
             // mtlo: Move the contents of the source into the LO register
             else if (_func == 0x13) {
-                state.lo = _rs;
+                state.cpu.lo = _rs;
             }
             // mult: Multiplies `rs` by `rt` and stores the result in HI and LO registers
             else if (_func == 0x18) {
                 uint64 acc = uint64(int64(int32(_rs)) * int64(int32(_rt)));
-                state.hi = uint32(acc >> 32);
-                state.lo = uint32(acc);
+                state.cpu.hi = uint32(acc >> 32);
+                state.cpu.lo = uint32(acc);
             }
             // multu: Unsigned multiplies `rs` by `rt` and stores the result in HI and LO registers
             else if (_func == 0x19) {
                 uint64 acc = uint64(uint64(_rs) * uint64(_rt));
-                state.hi = uint32(acc >> 32);
-                state.lo = uint32(acc);
+                state.cpu.hi = uint32(acc >> 32);
+                state.cpu.lo = uint32(acc);
             }
             // div: Divides `rs` by `rt`.
             // Stores the quotient in LO
@@ -416,8 +286,8 @@ contract MIPS is ISemver {
                 if (int32(_rt) == 0) {
                     revert("MIPS: division by zero");
                 }
-                state.hi = uint32(int32(_rs) % int32(_rt));
-                state.lo = uint32(int32(_rs) / int32(_rt));
+                state.cpu.hi = uint32(int32(_rs) % int32(_rt));
+                state.cpu.lo = uint32(int32(_rs) / int32(_rt));
             }
             // divu: Unsigned divides `rs` by `rt`.
             // Stores the quotient in LO
@@ -426,8 +296,8 @@ contract MIPS is ISemver {
                 if (_rt == 0) {
                     revert("MIPS: division by zero");
                 }
-                state.hi = _rs % _rt;
-                state.lo = _rs / _rt;
+                state.cpu.hi = _rs % _rt;
+                state.cpu.lo = _rs / _rt;
             }
 
             // Store the result in the destination register, if applicable
@@ -436,11 +306,11 @@ contract MIPS is ISemver {
             }
 
             // Update the PC
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
+            state.cpu.pc = state.cpu.nextPC;
+            state.cpu.nextPC = state.cpu.nextPC + 4;
 
             // Return the hash of the resulting state
-            out_ = outputState();
+            out_ = ins.outputState();
         }
     }
 
@@ -456,14 +326,14 @@ contract MIPS is ISemver {
                 state := 0x80
             }
 
-            if (state.nextPC != state.pc + 4) {
+            if (state.cpu.nextPC != state.cpu.pc + 4) {
                 revert("jump in delay slot");
             }
 
             // Update the next PC to the jump destination.
-            uint32 prevPC = state.pc;
-            state.pc = state.nextPC;
-            state.nextPC = _dest;
+            uint32 prevPC = state.cpu.pc;
+            state.cpu.pc = state.cpu.nextPC;
+            state.cpu.nextPC = _dest;
 
             // Update the link-register to the instruction after the delay slot instruction.
             if (_linkReg != 0) {
@@ -471,7 +341,7 @@ contract MIPS is ISemver {
             }
 
             // Return the hash of the resulting state.
-            out_ = outputState();
+            out_ = ins.outputState();
         }
     }
 
@@ -497,11 +367,11 @@ contract MIPS is ISemver {
             }
 
             // Update the PC.
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
+            state.cpu.pc = state.cpu.nextPC;
+            state.cpu.nextPC = state.cpu.nextPC + 4;
 
             // Return the hash of the resulting state.
-            out_ = outputState();
+            out_ = ins.outputState();
         }
     }
 
@@ -682,19 +552,19 @@ contract MIPS is ISemver {
 
             // Don't change state once exited
             if (state.exited) {
-                return outputState();
+                return ins.outputState();
             }
 
             state.step += 1;
 
             // instruction fetch
-            uint32 insn = readMem(state.pc, 0);
+            uint32 insn = readMem(state.cpu.pc, 0);
             uint32 opcode = insn >> 26; // 6-bits
 
             // j-type j/jal
             if (opcode == 2 || opcode == 3) {
                 // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-                uint32 target = (state.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
+                uint32 target = (state.cpu.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
                 return handleJump(opcode == 2 ? 0 : 31, target);
             }
 
@@ -730,7 +600,7 @@ contract MIPS is ISemver {
             }
 
             if ((opcode >= 4 && opcode < 8) || opcode == 1) {
-                return handleBranch(opcode, insn, rtReg, rs);
+                return ins.handleBranch(state.cpu, state.registers, opcode, insn, rtReg, rs);
             }
 
             uint32 storeAddr = 0xFF_FF_FF_FF;

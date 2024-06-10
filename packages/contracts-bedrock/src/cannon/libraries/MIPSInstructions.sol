@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import "src/cannon/libraries/MIPSState.sol" as st;
+
 /// @notice Execute an instruction.
 function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) pure returns (uint32 out) {
     unchecked {
@@ -261,5 +263,138 @@ function signExtend(uint32 _dat, uint32 _idx) pure returns (uint32 out_) {
         uint256 signed = ((1 << (32 - _idx)) - 1) << _idx;
         uint256 mask = (1 << _idx) - 1;
         return uint32(_dat & mask | (isSigned ? signed : 0));
+    }
+}
+
+/// @notice Handles a branch instruction, updating the MIPS state PC where needed.
+/// @param cpu Holds the current state of the cpu scalars.
+/// @param registers Holds the current state of the cpu registers.
+/// @param _opcode The opcode of the branch instruction.
+/// @param _insn The instruction to be executed.
+/// @param _rtReg The register to be used for the branch.
+/// @param _rs The register to be compared with the branch register.
+/// @return out_ The hashed MIPS state.
+function handleBranch(
+    st.CpuScalars memory cpu,
+    uint32[32] memory registers,
+    uint32 _opcode,
+    uint32 _insn,
+    uint32 _rtReg,
+    uint32 _rs
+)
+    returns (bytes32 out_)
+{
+    unchecked {
+        bool shouldBranch = false;
+
+        if (cpu.nextPC != cpu.pc + 4) {
+            revert("branch in delay slot");
+        }
+
+        // beq/bne: Branch on equal / not equal
+        if (_opcode == 4 || _opcode == 5) {
+            uint32 rt = registers[_rtReg];
+            shouldBranch = (_rs == rt && _opcode == 4) || (_rs != rt && _opcode == 5);
+        }
+        // blez: Branches if instruction is less than or equal to zero
+        else if (_opcode == 6) {
+            shouldBranch = int32(_rs) <= 0;
+        }
+        // bgtz: Branches if instruction is greater than zero
+        else if (_opcode == 7) {
+            shouldBranch = int32(_rs) > 0;
+        }
+        // bltz/bgez: Branch on less than zero / greater than or equal to zero
+        else if (_opcode == 1) {
+            // regimm
+            uint32 rtv = ((_insn >> 16) & 0x1F);
+            if (rtv == 0) {
+                shouldBranch = int32(_rs) < 0;
+            }
+            if (rtv == 1) {
+                shouldBranch = int32(_rs) >= 0;
+            }
+        }
+
+        // Update the state's previous PC
+        uint32 prevPC = cpu.pc;
+
+        // Execute the delay slot first
+        cpu.pc = cpu.nextPC;
+
+        // If we should branch, update the PC to the branch target
+        // Otherwise, proceed to the next instruction
+        if (shouldBranch) {
+            cpu.nextPC = prevPC + 4 + (signExtend(_insn & 0xFFFF, 16) << 2);
+        } else {
+            cpu.nextPC = cpu.nextPC + 4;
+        }
+
+        // Return the hash of the resulting state
+        out_ = outputState();
+    }
+}
+
+/// @notice Computes the hash of the MIPS state.
+/// @return out_ The hashed MIPS state.
+function outputState() returns (bytes32 out_) {
+    assembly {
+        // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
+        function copyMem(from, to, size) -> fromOut, toOut {
+            mstore(to, mload(add(from, sub(32, size))))
+            fromOut := add(from, 32)
+            toOut := add(to, size)
+        }
+
+        // From points to the MIPS State
+        let from := 0x80
+
+        // Copy to the free memory pointer
+        let start := mload(0x40)
+        let to := start
+
+        // Copy state to free memory
+        from, to := copyMem(from, to, 32) // memRoot
+        from, to := copyMem(from, to, 32) // preimageKey
+        from, to := copyMem(from, to, 4) // preimageOffset
+        from, to := copyMem(from, to, 4) // pc
+        from, to := copyMem(from, to, 4) // nextPC
+        from, to := copyMem(from, to, 4) // lo
+        from, to := copyMem(from, to, 4) // hi
+        from, to := copyMem(from, to, 4) // heap
+        let exitCode := mload(from)
+        from, to := copyMem(from, to, 1) // exitCode
+        let exited := mload(from)
+        from, to := copyMem(from, to, 1) // exited
+        from, to := copyMem(from, to, 8) // step
+        from := add(from, 32) // offset to registers
+
+        // Copy registers
+        for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
+
+        // Clean up end of memory
+        mstore(to, 0)
+
+        // Log the resulting MIPS state, for debugging
+        log0(start, sub(to, start))
+
+        // Determine the VM status
+        let status := 0
+        switch exited
+        case 1 {
+            switch exitCode
+            // VMStatusValid
+            case 0 { status := 0 }
+            // VMStatusInvalid
+            case 1 { status := 1 }
+            // VMStatusPanic
+            default { status := 2 }
+        }
+        // VMStatusUnfinished
+        default { status := 3 }
+
+        // Compute the hash of the resulting MIPS state and set the status byte
+        out_ := keccak256(start, sub(to, start))
+        out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
     }
 }
