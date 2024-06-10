@@ -459,7 +459,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, sendState *SendState, bumpFeesImmediately bool) (*types.Transaction, bool) {
 	l := m.txLogger(tx, true)
 
-	l.Info("Publishing transaction")
+	l.Info("Publishing transaction", "tx", tx.Hash())
 
 	for {
 		// if the tx manager closed, give up without bumping fees or retrying
@@ -493,7 +493,7 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 
 		if err == nil {
 			m.metr.TxPublished("")
-			l.Info("Transaction successfully published")
+			l.Info("Transaction successfully published", "tx", tx.Hash())
 			return tx, true
 		}
 
