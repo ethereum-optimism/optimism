@@ -1085,69 +1085,6 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
-  indexer-tests:
-    parameters:
-      variant:
-        type: string
-        default: ''
-    environment:
-      DEVNET_L2OO: 'false'
-      OP_E2E_USE_L2OO: 'false'
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-      - image: cimg/postgres:14.1
-    resource_class: xlarge
-    steps:
-      - checkout
-      - when:
-          condition:
-            equal: ['l2oo', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set DEVNET_L2OO = true
-                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
-            - run:
-                name: Set OP_E2E_USE_L2OO = true
-                command: echo 'export OP_E2E_USE_L2OO=true' >> $BASH_ENV
-      - check-changed:
-          patterns: indexer
-      - run:
-          name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 4m -e "errors.As" -e "errors.Is" ./...
-          working_directory: indexer
-      - run:
-          name: git submodules
-          command: make submodules
-      - run:
-          name: generate cannon prestate
-          command: make cannon-prestate
-      - run:
-          name: generate L1 state
-          command: make devnet-allocs
-      - run:
-          name: Test
-          command: |
-            mkdir -p /test-results
-            DB_USER=postgres gotestsum --format=standard-verbose --junitfile=/test-results/indexer_tests.xml -- -parallel=4 ./...
-          working_directory: indexer
-      - store_test_results:
-          path: /test-results
-      - run:
-          name: Build
-          command: make indexer
-          working_directory: indexer
-      - run:
-          name: Install node_modules
-          command: pnpm install:ci
-      - run:
-          name: Install tygo
-          command: go install github.com/gzuidhof/tygo@latest
-          working_directory: indexer/api-ts
-      - run:
-          name: Check generated code
-          command: npm run generate && git diff --exit-code
-          working_directory: indexer/api-ts
-
   cannon-prestate:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -1702,11 +1639,6 @@ workflows:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
-      - indexer-tests:
-          name: indexer-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-l2oo"]
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1900,10 +1832,6 @@ workflows:
             - op-challenger-docker-build
             - da-server-docker-build
             - cannon-prestate
-      - docker-build:
-          name: indexer-docker-build
-          docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test:
@@ -1926,7 +1854,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|proxyd|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build:
@@ -2112,21 +2040,6 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: proxyd
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-build:
-          name: indexer-docker-release
-          filters:
-            tags:
-              only: /^indexer\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: indexer
           docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
@@ -2340,15 +2253,6 @@ workflows:
           context:
             - oplabs-gcr
             - slack
-      - docker-build:
-          name: indexer-docker-publish
-          docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: chain-mon-docker-publish
           docker_name: chain-mon

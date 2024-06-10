@@ -117,7 +117,6 @@ The full set of components that have releases are:
 - `chain-mon`
 - `ci-builder`
 - `ci-builder`
-- `indexer`
 - `op-batcher`
 - `op-contracts`
 - `op-challenger`

@@ -7,7 +7,6 @@ SERVICES  = [
     'ci-builder',
     'ci-builder-rust',
     'chain-mon',
-    'indexer',
     'op-node',
     'op-batcher',
     'op-challenger',
