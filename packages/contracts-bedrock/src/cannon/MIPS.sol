@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
-import "src/cannon/libraries/MIPSInstructions.sol" as ins;
+import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import "src/cannon/libraries/MIPSState.sol" as st;
 
 /// @title MIPS
