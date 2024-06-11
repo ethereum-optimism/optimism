@@ -5,7 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Deployer } from "scripts/Deployer.sol";
 
-import { Config, OutputMode, Fork, LATEST_FORK } from "scripts/Config.sol";
+import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -45,6 +45,9 @@ struct L1Dependencies {
 ///         2. A contract must be deployed using the `new` syntax if there are immutables in the code.
 ///         Any other side effects from the init code besides setting the immutables must be cleaned up afterwards.
 contract L2Genesis is Deployer {
+    using ForkUtils for Fork;
+    using OutputModeUtils for OutputMode;
+
     uint256 public constant PRECOMPILE_COUNT = 256;
 
     uint80 internal constant DEV_ACCOUNT_FUND_AMT = 10_000 ether;
@@ -106,21 +109,7 @@ contract L2Genesis is Deployer {
     ///         Sets the precompiles, proxies, and the implementation accounts to be `vm.dumpState`
     ///         to generate a L2 genesis alloc.
     function runWithStateDump() public {
-        Fork fork = Config.fork();
-        if (fork == Fork.NONE) {
-            // Will revert if no deploy config can be found either.
-            fork = latestDeployConfigGenesisFork();
-            console.log("L2Genesis: using deploy config fork: %d", uint256(fork));
-        } else {
-            console.log("L2Genesis: using env var fork: %d", uint256(fork));
-        }
-        runWithOptions(Config.outputMode(), fork, artifactDependencies());
-    }
-
-    function latestDeployConfigGenesisFork() internal returns (Fork) {
-        DeployConfig cfg = DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
-        cfg.read(Config.deployConfigPath());
-        return cfg.latestGenesisFork();
+        runWithOptions(Config.outputMode(), cfg.fork(), artifactDependencies());
     }
 
     /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
@@ -141,7 +130,7 @@ contract L2Genesis is Deployer {
 
     /// @notice Build the L2 genesis.
     function runWithOptions(OutputMode _mode, Fork _fork, L1Dependencies memory _l1Dependencies) public {
-        console.log("L2Genesis: outputMode: %d, fork: %d", uint256(_mode), uint256(_fork));
+        console.log("L2Genesis: outputMode: %s, fork: %s", _mode.toString(), _fork.toString());
         vm.startPrank(deployer);
         vm.chainId(cfg.l2ChainID());
 
@@ -154,29 +143,30 @@ contract L2Genesis is Deployer {
         }
         vm.stopPrank();
 
-        if (_mode == OutputMode.ALL || _fork == Fork.DELTA && _mode == OutputMode.LATEST) {
-            writeGenesisAllocs(Config.stateDumpPath("-delta"));
-        }
-        if (_fork == Fork.DELTA) {
+        if (writeForkGenesisAllocs(_fork, Fork.DELTA, _mode)) {
             return;
         }
 
         activateEcotone();
 
-        if (_mode == OutputMode.ALL || _fork == Fork.ECOTONE && _mode == OutputMode.LATEST) {
-            writeGenesisAllocs(Config.stateDumpPath("-ecotone"));
-        }
-        if (_fork == Fork.ECOTONE) {
+        if (writeForkGenesisAllocs(_fork, Fork.ECOTONE, _mode)) {
             return;
         }
 
         activateFjord();
 
-        if (_mode == OutputMode.ALL || _fork == Fork.FJORD && _mode == OutputMode.LATEST) {
-            writeGenesisAllocs(Config.stateDumpPath("-fjord"));
-        }
-        if (_fork == Fork.FJORD) {
+        if (writeForkGenesisAllocs(_fork, Fork.FJORD, _mode)) {
             return;
+        }
+    }
+
+    function writeForkGenesisAllocs(Fork _latest, Fork _current, OutputMode _mode) internal returns (bool isLatest_) {
+        if (_mode == OutputMode.ALL || _latest == _current && _mode == OutputMode.LATEST) {
+            string memory suffix = string.concat("-", _current.toString());
+            writeGenesisAllocs(Config.stateDumpPath(suffix));
+        }
+        if (_latest == _current) {
+            isLatest_ = true;
         }
     }
 

@@ -13,6 +13,20 @@ enum OutputMode {
     ALL
 }
 
+library OutputModeUtils {
+    function toString(OutputMode _mode) internal pure returns (string memory) {
+        if (_mode == OutputMode.NONE) {
+            return "none";
+        } else if (_mode == OutputMode.LATEST) {
+            return "latest";
+        } else if (_mode == OutputMode.ALL) {
+            return "all";
+        } else {
+            return "unknown";
+        }
+    }
+}
+
 /// @notice Enum of forks available for selection when generating genesis allocs.
 enum Fork {
     NONE,
@@ -22,6 +36,22 @@ enum Fork {
 }
 
 Fork constant LATEST_FORK = Fork.FJORD;
+
+library ForkUtils {
+    function toString(Fork _fork) internal pure returns (string memory) {
+        if (_fork == Fork.NONE) {
+            return "none";
+        } else if (_fork == Fork.DELTA) {
+            return "delta";
+        } else if (_fork == Fork.ECOTONE) {
+            return "ecotone";
+        } else if (_fork == Fork.FJORD) {
+            return "fjord";
+        } else {
+            return "unknown";
+        }
+    }
+}
 
 /// @title Config
 /// @notice Contains all env var based config. Add any new env var parsing to this file
