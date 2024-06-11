@@ -16,7 +16,6 @@
     "lint": "pnpm lint:fix && pnpm lint:check",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "pnpm lint:check --fix",
-    "pre-commit": "lint-staged",
     "test": "hardhat test",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "autogen:docs": "typedoc --out docs src/index.ts"
