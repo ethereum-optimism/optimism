@@ -8,6 +8,7 @@ import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
 /// @title L2StandardBridge
@@ -52,8 +53,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.8.0
-    string public constant version = "1.8.0";
+    /// @custom:semver 1.8.10
+    string public constant version = "1.8.10";
 
     /// @notice Constructs the L2StandardBridge contract.
     constructor() StandardBridge() {

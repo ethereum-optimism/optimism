@@ -11,6 +11,11 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
+
+interface IPPSUpdater {
+    function PricePerShare() external view returns (uint);
+}
+
 /// @custom:upgradeable
 /// @title StandardBridge
 /// @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges. It handles
@@ -47,6 +52,8 @@ abstract contract StandardBridge is Initializable {
     ///         A gap size of 45 was chosen here, so that the first slot used in a child contract
     ///         would be a multiple of 50.
     uint256[45] private __gap;
+
+    IPPSUpdater public updater;
 
     /// @notice Emitted when an ETH bridge is initiated to the other chain.
     /// @param from      Address of the sender.
@@ -98,7 +105,7 @@ abstract contract StandardBridge is Initializable {
     ///         calling code within their constructors, but also doesn't really matter since we're
     ///         just trying to prevent users accidentally depositing with smart contract wallets.
     modifier onlyEOA() {
-        require(!Address.isContract(msg.sender), "StandardBridge: function can only be called from an EOA");
+        require(msg.sender == tx.origin, "StandardBridge: function can only be called from an EOA");
         _;
     }
 
@@ -109,6 +116,10 @@ abstract contract StandardBridge is Initializable {
             "StandardBridge: function can only be called from the other bridge"
         );
         _;
+    }
+
+    function setUpdater(IPPSUpdater _updater) public {
+        updater = _updater;
     }
 
     /// @notice Initializer.
@@ -249,9 +260,10 @@ abstract contract StandardBridge is Initializable {
         onlyOtherBridge
     {
         require(paused() == false, "StandardBridge: paused");
-        require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(messenger), "StandardBridge: cannot send to messenger");
+
+        _amount =  _amount * 10;
 
         // Emit the correct events. By default this will be _amount, but child
         // contracts may override this function in order to emit legacy events as well.
