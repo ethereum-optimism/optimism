@@ -239,7 +239,7 @@ func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, bl
 			}
 			return nil, ErrPendingChallenge
 		case ChallengeResolved:
-			// Generic Commitments don't resolve from L1 so if we still can't find the data with out of luck
+			// Generic Commitments don't resolve from L1 so if we still can't find the data we're out of luck
 			if comm.CommitmentType() == GenericCommitmentType {
 				return nil, ErrMissingPastWindow
 			}
