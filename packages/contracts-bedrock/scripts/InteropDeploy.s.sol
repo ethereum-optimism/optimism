@@ -30,6 +30,8 @@ contract InteropDeploy {
         Deploy.setUp();
         Deploy.runWithStateDump();
 
+        vm.revert(id);
+
         vm.loadAllocs("path-to-allocs.json");
         vm.loadAllocs("path-to-allocs.json");
         vm.dumpState("final-state.json");

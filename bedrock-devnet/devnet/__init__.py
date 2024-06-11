@@ -4,18 +4,16 @@ import os
 import subprocess
 import json
 import socket
-import calendar
 import datetime
 import time
 import shutil
 import http.client
-import gzip
 from multiprocessing import Process, Queue
 import concurrent.futures
 from collections import namedtuple
 
 
-import devnet.log_setup
+import devnet.log_setup # pylint: disable=unused-import
 
 pjoin = os.path.join
 
@@ -23,6 +21,7 @@ parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
 parser.add_argument('--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
 parser.add_argument('--allocs', help='Only create the allocs and exit', type=bool, action=argparse.BooleanOptionalAction)
 parser.add_argument('--test', help='Tests the deployment, must already be deployed', type=bool, action=argparse.BooleanOptionalAction)
+parser.add_argument('--interop', help='Launch interop devnet', type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
 
@@ -63,41 +62,45 @@ def main():
     devnet_dir = pjoin(monorepo_dir, '.devnet')
     contracts_bedrock_dir = pjoin(monorepo_dir, 'packages', 'contracts-bedrock')
     deployment_dir = pjoin(contracts_bedrock_dir, 'deployments', 'devnetL1')
+    interop_deployment_dir = pjoin(contracts_bedrock_dir, 'deployments', 'interop')
     forge_l1_dump_path = pjoin(contracts_bedrock_dir, 'state-dump-900.json')
     op_node_dir = pjoin(args.monorepo_dir, 'op-node')
     ops_bedrock_dir = pjoin(monorepo_dir, 'ops-bedrock')
     deploy_config_dir = pjoin(contracts_bedrock_dir, 'deploy-config')
     devnet_config_path = pjoin(deploy_config_dir, 'devnetL1.json')
+    interop_devnet_config_path = pjoin(deploy_config_dir, 'devnetL1-interop.json')
     devnet_config_template_path = pjoin(deploy_config_dir, 'devnetL1-template.json')
     ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
     sdk_dir = pjoin(monorepo_dir, 'packages', 'sdk')
 
     paths = Bunch(
-      mono_repo_dir=monorepo_dir,
-      devnet_dir=devnet_dir,
-      contracts_bedrock_dir=contracts_bedrock_dir,
-      deployment_dir=deployment_dir,
-      forge_l1_dump_path=forge_l1_dump_path,
-      l1_deployments_path=pjoin(deployment_dir, '.deploy'),
-      deploy_config_dir=deploy_config_dir,
-      devnet_config_path=devnet_config_path,
-      devnet_config_template_path=devnet_config_template_path,
-      op_node_dir=op_node_dir,
-      ops_bedrock_dir=ops_bedrock_dir,
-      ops_chain_ops=ops_chain_ops,
-      sdk_dir=sdk_dir,
-      genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
-      genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
-      allocs_l1_path=pjoin(devnet_dir, 'allocs-l1.json'),
-      addresses_json_path=pjoin(devnet_dir, 'addresses.json'),
-      sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
-      rollup_config_path=pjoin(devnet_dir, 'rollup.json')
+        mono_repo_dir=monorepo_dir,
+        devnet_dir=devnet_dir,
+        contracts_bedrock_dir=contracts_bedrock_dir,
+        deployment_dir=deployment_dir,
+        interop_deployment_dir=interop_deployment_dir,
+        forge_l1_dump_path=forge_l1_dump_path,
+        l1_deployments_path=pjoin(deployment_dir, '.deploy'),
+        deploy_config_dir=deploy_config_dir,
+        devnet_config_path=devnet_config_path,
+        interop_devnet_config_path=interop_devnet_config_path,
+        devnet_config_template_path=devnet_config_template_path,
+        op_node_dir=op_node_dir,
+        ops_bedrock_dir=ops_bedrock_dir,
+        ops_chain_ops=ops_chain_ops,
+        sdk_dir=sdk_dir,
+        genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
+        genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
+        allocs_l1_path=pjoin(devnet_dir, 'allocs-l1.json'),
+        addresses_json_path=pjoin(devnet_dir, 'addresses.json'),
+        sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
+        rollup_config_path=pjoin(devnet_dir, 'rollup.json')
     )
 
     if args.test:
-      log.info('Testing deployed devnet')
-      devnet_test(paths)
-      return
+        log.info('Testing deployed devnet')
+        devnet_test(paths)
+        return
 
     os.makedirs(devnet_dir, exist_ok=True)
 
@@ -148,8 +151,8 @@ def devnet_l1_allocs(paths):
         # (which we need to enable the Custom Gas Token feature).
         'forge', 'script', fqn, "--sig", "runWithStateDump()", "--sender", "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
     ], env={
-      'DEPLOYMENT_OUTFILE': paths.l1_deployments_path,
-      'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
+        'DEPLOYMENT_OUTFILE': paths.l1_deployments_path,
+        'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
     }, cwd=paths.contracts_bedrock_dir)
 
     shutil.move(src=paths.forge_l1_dump_path, dst=paths.allocs_l1_path)
@@ -164,8 +167,8 @@ def devnet_l2_allocs(paths):
     run_command([
         'forge', 'script', fqn, "--sig", "runWithAllUpgrades()"
     ], env={
-      'CONTRACT_ADDRESSES_PATH': paths.l1_deployments_path,
-      'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
+        'CONTRACT_ADDRESSES_PATH': paths.l1_deployments_path,
+        'DEPLOY_CONFIG_PATH': paths.devnet_config_path,
     }, cwd=paths.contracts_bedrock_dir)
 
     # For the previous forks, and the latest fork (default, thus empty prefix),
