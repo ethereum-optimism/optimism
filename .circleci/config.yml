@@ -1264,6 +1264,16 @@ jobs:
             docker logs ops-bedrock-l1-1 || echo "No logs."
           when: on_fail
       - run:
+          name: Dump l1-bn logs
+          command: |
+            docker logs ops-bedrock-l1-bn-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1-vc logs
+          command: |
+            docker logs ops-bedrock-l1-vc-1 || echo "No logs."
+          when: on_fail
+      - run:
           name: Dump op-batcher logs
           command: |
             docker logs ops-bedrock-op-batcher-1 || echo "No logs."
