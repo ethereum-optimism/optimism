@@ -253,7 +253,7 @@ pull_request_rules:
           - M-deletion
   - name: Add M-ci label when ci files are modified
     conditions:
-      - 'files~=^\.(github|circleci|husky)\/'
+      - 'files~=^\.(github|circleci)\/'
       - '#label<5'
     actions:
       label:

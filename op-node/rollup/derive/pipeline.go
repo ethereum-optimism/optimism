@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -34,6 +35,15 @@ type L1Fetcher interface {
 type ResettableStage interface {
 	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
 	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
+}
+
+type L2Source interface {
+	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
+	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	SystemConfigL2Fetcher
 }
 
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to generate attributes

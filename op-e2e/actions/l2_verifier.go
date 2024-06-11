@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -31,19 +32,19 @@ type L2Verifier struct {
 	log log.Logger
 
 	eng interface {
-		derive.Engine
+		engine.Engine
 		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	}
 
 	syncDeriver *driver.SyncDeriver
 
 	// L2 rollup
-	engine     *derive.EngineController
+	engine     *engine.EngineController
 	derivation *derive.DerivationPipeline
 	clSync     *clsync.CLSync
 
 	attributesHandler driver.AttributesHandler
-	safeHeadListener  derive.SafeHeadListener
+	safeHeadListener  rollup.SafeHeadListener
 	finalizer         driver.Finalizer
 	syncCfg           *sync.Config
 
@@ -61,7 +62,7 @@ type L2Verifier struct {
 }
 
 type L2API interface {
-	derive.Engine
+	engine.Engine
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
@@ -70,13 +71,13 @@ type L2API interface {
 }
 
 type safeDB interface {
-	derive.SafeHeadListener
+	rollup.SafeHeadListener
 	node.SafeDBReader
 }
 
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
-	engine := derive.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode)
+	engine := engine.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode)
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, engine)
 
@@ -273,7 +274,7 @@ func (s *L2Verifier) ActL2PipelineStep(t Testing) {
 	} else if err != nil && errors.Is(err, derive.ErrReset) {
 		s.log.Warn("Derivation pipeline is reset", "err", err)
 		s.derivation.Reset()
-		if err := derive.ResetEngine(t.Ctx(), s.log, s.rollupCfg, s.engine, s.l1, s.eng, s.syncCfg, s.safeHeadListener); err != nil {
+		if err := engine.ResetEngine(t.Ctx(), s.log, s.rollupCfg, s.engine, s.l1, s.eng, s.syncCfg, s.safeHeadListener); err != nil {
 			s.log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
 			// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
 			return
