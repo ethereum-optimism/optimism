@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { L2Genesis, OutputMode, L1Dependencies } from "scripts/L2Genesis.s.sol";
+import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Process } from "scripts/libraries/Process.sol";
@@ -181,7 +181,7 @@ contract L2GenesisTest is Test {
     /// @notice Tests the number of accounts in the genesis setup
     function _test_allocs_size(string memory _path) internal {
         genesis.cfg().setFundDevAccounts(false);
-        genesis.runWithOptions(OutputMode.LOCAL_LATEST, _dummyL1Deps());
+        genesis.runWithLatestLocal(_dummyL1Deps());
         genesis.writeGenesisAllocs(_path);
 
         uint256 expected = 0;

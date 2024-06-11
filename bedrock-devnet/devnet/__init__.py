@@ -26,6 +26,9 @@ parser.add_argument('--test', help='Tests the deployment, must already be deploy
 
 log = logging.getLogger()
 
+# Global constants
+FORKS = ["delta", "ecotone", "fjord"]
+
 # Global environment variables
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_L2OO = os.getenv('DEVNET_L2OO') == "true"
@@ -171,9 +174,9 @@ def devnet_l2_allocs(paths):
 
     # For the previous forks, and the latest fork (default, thus empty prefix),
     # move the forge-dumps into place as .devnet allocs.
-    for suffix in ["-delta", "-ecotone", ""]:
-        input_path = pjoin(paths.contracts_bedrock_dir, f"state-dump-901{suffix}.json")
-        output_path = pjoin(paths.devnet_dir, f'allocs-l2{suffix}.json')
+    for fork in FORKS:
+        input_path = pjoin(paths.contracts_bedrock_dir, f"state-dump-901-{fork}.json")
+        output_path = pjoin(paths.devnet_dir, f'allocs-l2-{fork}.json')
         shutil.move(src=input_path, dst=output_path)
         log.info("Generated L2 allocs: "+output_path)
 
@@ -218,7 +221,7 @@ def devnet_deploy(paths):
         log.info('L2 genesis and rollup configs already generated.')
     else:
         log.info('Generating L2 genesis and rollup configs.')
-        l2_allocs_path = pjoin(paths.devnet_dir, 'allocs-l2.json')
+        l2_allocs_path = pjoin(paths.devnet_dir, f'allocs-l2-{FORKS[-1]}.json')
         if os.path.exists(l2_allocs_path) == False or DEVNET_L2OO == True:
             # Also regenerate if L2OO.
             # The L2OO flag may affect the L1 deployments addresses, which may affect the L2 genesis.

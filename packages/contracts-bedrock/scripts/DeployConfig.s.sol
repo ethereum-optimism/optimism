@@ -7,12 +7,19 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Executables } from "scripts/Executables.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { Chains } from "scripts/Chains.sol";
+import { Config, Fork, ForkUtils } from "scripts/Config.sol";
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
 ///         to read the file from JSON. A future improvement would be to have fallback
 ///         values if they are not defined in the JSON themselves.
 contract DeployConfig is Script {
+    using stdJson for string;
+    using ForkUtils for Fork;
+
+    /// @notice Represents an unset offset value, as opposed to 0, which denotes no-offset.
+    uint256 constant NULL_OFFSET = type(uint256).max;
+
     string internal _json;
 
     address public finalSystemOwner;
@@ -20,6 +27,9 @@ contract DeployConfig is Script {
     uint256 public l1ChainID;
     uint256 public l2ChainID;
     uint256 public l2BlockTime;
+    uint256 public l2GenesisDeltaTimeOffset;
+    uint256 public l2GenesisEcotoneTimeOffset;
+    uint256 public l2GenesisFjordTimeOffset;
     uint256 public maxSequencerDrift;
     uint256 public sequencerWindowSize;
     uint256 public channelTimeout;
@@ -94,6 +104,11 @@ contract DeployConfig is Script {
         l1ChainID = stdJson.readUint(_json, "$.l1ChainID");
         l2ChainID = stdJson.readUint(_json, "$.l2ChainID");
         l2BlockTime = stdJson.readUint(_json, "$.l2BlockTime");
+
+        l2GenesisDeltaTimeOffset = _readOr(_json, "$.l2GenesisDeltaTimeOffset", NULL_OFFSET);
+        l2GenesisEcotoneTimeOffset = _readOr(_json, "$.l2GenesisEcotoneTimeOffset", NULL_OFFSET);
+        l2GenesisFjordTimeOffset = _readOr(_json, "$.l2GenesisFjordTimeOffset", NULL_OFFSET);
+
         maxSequencerDrift = stdJson.readUint(_json, "$.maxSequencerDrift");
         sequencerWindowSize = stdJson.readUint(_json, "$.sequencerWindowSize");
         channelTimeout = stdJson.readUint(_json, "$.channelTimeout");
@@ -161,6 +176,18 @@ contract DeployConfig is Script {
         useInterop = _readOr(_json, "$.useInterop", false);
     }
 
+    function fork() public view returns (Fork fork_) {
+        // let env var take precedence
+        fork_ = Config.fork();
+        if (fork_ == Fork.NONE) {
+            // Will revert if no deploy config can be found either.
+            fork_ = latestGenesisFork();
+            console.log("DeployConfig: using deploy config fork: %s", fork_.toString());
+        } else {
+            console.log("DeployConfig: using env var fork: %s", fork_.toString());
+        }
+    }
+
     function l1StartingBlockTag() public returns (bytes32) {
         try vm.parseJsonBytes32(_json, "$.l1StartingBlockTag") returns (bytes32 tag) {
             return tag;
@@ -215,6 +242,17 @@ contract DeployConfig is Script {
         customGasTokenAddress = _token;
     }
 
+    function latestGenesisFork() internal view returns (Fork) {
+        if (l2GenesisFjordTimeOffset == 0) {
+            return Fork.FJORD;
+        } else if (l2GenesisEcotoneTimeOffset == 0) {
+            return Fork.ECOTONE;
+        } else if (l2GenesisDeltaTimeOffset == 0) {
+            return Fork.DELTA;
+        }
+        revert("DeployConfig: no supported fork active at genesis");
+    }
+
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
@@ -225,15 +263,20 @@ contract DeployConfig is Script {
     }
 
     function _readOr(string memory json, string memory key, bool defaultValue) internal view returns (bool) {
-        return vm.keyExists(json, key) ? stdJson.readBool(json, key) : defaultValue;
+        return vm.keyExistsJson(json, key) ? json.readBool(key) : defaultValue;
     }
 
     function _readOr(string memory json, string memory key, uint256 defaultValue) internal view returns (uint256) {
-        return vm.keyExists(json, key) ? stdJson.readUint(json, key) : defaultValue;
+        return (vm.keyExistsJson(json, key) && !_isNull(json, key)) ? json.readUint(key) : defaultValue;
     }
 
     function _readOr(string memory json, string memory key, address defaultValue) internal view returns (address) {
-        return vm.keyExists(json, key) ? stdJson.readAddress(json, key) : defaultValue;
+        return vm.keyExistsJson(json, key) ? json.readAddress(key) : defaultValue;
+    }
+
+    function _isNull(string memory json, string memory key) internal pure returns (bool) {
+        string memory value = json.readString(key);
+        return (keccak256(bytes(value)) == keccak256(bytes("null")));
     }
 
     function _readOr(
@@ -245,6 +288,6 @@ contract DeployConfig is Script {
         view
         returns (string memory)
     {
-        return vm.keyExists(json, key) ? stdJson.readString(json, key) : defaultValue;
+        return vm.keyExists(json, key) ? json.readString(key) : defaultValue;
     }
 }
