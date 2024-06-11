@@ -2,18 +2,38 @@ package integration_tests
 
 import (
 	"context"
-	"github.com/ethereum-optimism/optimism/proxyd"
-	ms "github.com/ethereum-optimism/optimism/proxyd/tools/mockserver/handler"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"os"
 	"path"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/proxyd"
+	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
+	ms "github.com/ethereum-optimism/optimism/proxyd/tools/mockserver/handler"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
 )
 
-func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.BackendGroup, *ProxydHTTPClient, func(), proxyd.TOMLDuration) {
+type bhZeroNodeContext struct {
+	// NOTE: maybe reuse the node context from consensus test here
+	backend      *proxyd.Backend   // this is the actual backend impl in proxyd
+	mockBackend  *MockBackend      // this is the fake backend that we can use to mock responses
+	handler      *ms.MockedHandler // this is where we control the state of mocked responses
+	bhZeroWindow *sw.AvgSlidingWindow
+	clock        *sw.AdjustableClock // this is where we control backend time
+}
+
+// ts is a convenient method that must parse a time.Time from a string in format `"2006-01-02 15:04:05"`
+func ts(s string) time.Time {
+	t, err := time.Parse(time.DateTime, s)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func setupBlockHeightZero(t *testing.T) (map[string]bhZeroNodeContext, *proxyd.BackendGroup, *ProxydHTTPClient, func(), proxyd.TOMLDuration) {
 	// setup mock servers
 	node1 := NewMockBackend(nil)
 	node2 := NewMockBackend(nil)
@@ -55,23 +75,37 @@ func setupBlockHeightZero(t *testing.T) (map[string]nodeContext, *proxyd.Backend
 	require.NotNil(t, bg.Consensus)
 	require.Equal(t, 2, len(bg.Backends)) // should match config
 
+	now := ts("2023-04-21 15:04:05")
+
+	clock := sw.NewAdjustableClock(now)
+	sw1 := sw.NewSlidingWindow(
+		sw.WithWindowLength(10*time.Second),
+		sw.WithBucketSize(time.Second),
+		sw.WithClock(clock))
+
+	bg.Backends[0].Override(proxyd.WithBlockHeightZeroSlidingWindow(sw1))
+	bg.Backends[1].Override(proxyd.WithBlockHeightZeroSlidingWindow(sw1))
+
 	require.Equal(t, bg.Backends[0].GetBlockHeightZeroSlidingWindowLength(),
 		time.Duration(config.Backends["node1"].BlockHeightZeroWindowLength))
 
 	require.Equal(t, bg.Backends[1].GetBlockHeightZeroSlidingWindowLength(),
 		time.Duration(config.Backends["node2"].BlockHeightZeroWindowLength))
 
-	// convenient mapping to access the nodes by name
-	nodes := map[string]nodeContext{
+	// convenient mapping to access the nodes, and sliding windows by name
+	nodes := map[string]bhZeroNodeContext{
 		"node1": {
-			mockBackend: node1,
-			backend:     bg.Backends[0],
-			handler:     &h1,
+			mockBackend:  node1,
+			backend:      bg.Backends[0],
+			handler:      &h1,
+			bhZeroWindow: sw1,
 		},
 		"node2": {
-			mockBackend: node2,
-			backend:     bg.Backends[1],
-			handler:     &h2,
+			mockBackend:  node2,
+			backend:      bg.Backends[1],
+			handler:      &h2,
+			bhZeroWindow: sw1,
+			clock:        clock,
 		},
 	}
 
@@ -95,8 +129,16 @@ func TestBlockHeightZero(t *testing.T) {
 	}
 
 	// Use this to clear the sliding windows
-	sleepBanPeriod := func() {
-		time.Sleep(time.Duration(banPeriod))
+	// sleepBanPeriod := func() {
+	// 	time.Sleep(time.Duration(banPeriod))
+	// }
+	// ts is a convenient method that must parse a time.Time from a string in format `"2006-01-02 15:04:05"`
+	ts := func(s string) time.Time {
+		t, err := time.Parse(time.DateTime, s)
+		if err != nil {
+			panic(err)
+		}
+		return t
 	}
 	// convenient methods to manipulate state and mock responses
 	reset := func() {
@@ -106,9 +148,32 @@ func TestBlockHeightZero(t *testing.T) {
 		}
 		bg.Consensus.ClearListeners()
 		bg.Consensus.Reset()
-		sleepBanPeriod()
+		b1 := nodes["node1"]
+		b2 := nodes["node2"]
+
 		require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
 		require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
+
+		require.Zero(t, nodes["node2"].backend.GetBlockHeightZeroSlidingWindowCount())
+		require.Zero(t, nodes["node1"].backend.GetBlockHeightZeroSlidingWindowCount())
+
+		now := ts("2023-04-21 15:04:05")
+		clock := sw.NewAdjustableClock(now)
+		b1.bhZeroWindow = sw.NewSlidingWindow(
+			sw.WithWindowLength(10*time.Second),
+			sw.WithBucketSize(time.Second),
+			sw.WithClock(clock))
+
+		b2.bhZeroWindow = sw.NewSlidingWindow(
+			sw.WithWindowLength(10*time.Second),
+			sw.WithBucketSize(time.Second),
+			sw.WithClock(clock))
+
+		b1.clock = clock
+		nodes["node1"] = b1
+		b2.clock = clock
+		nodes["node2"] = b1
+
 		require.Zero(t, nodes["node2"].backend.GetBlockHeightZeroSlidingWindowCount())
 		require.Zero(t, nodes["node1"].backend.GetBlockHeightZeroSlidingWindowCount())
 	}
@@ -132,6 +197,12 @@ func TestBlockHeightZero(t *testing.T) {
 				"number": blockResponse,
 				"hash":   "hash_" + blockResponse,
 			}))
+	}
+
+	addTimeToBackend := func(node string, ts time.Duration) {
+		mockBackend, ok := nodes[node]
+		require.True(t, ok, "Fatal error bad node key for override clock")
+		mockBackend.clock.Set(mockBackend.clock.Now().Add(ts))
 	}
 
 	overridePeerCount := func(node string, count int) {
@@ -199,6 +270,20 @@ func TestBlockHeightZero(t *testing.T) {
 		require.Equal(t, 2, len(bg.Consensus.GetConsensusGroup()))
 	})
 
+	t.Run("Test Backend BlockHeight Zero Does not if the infractions occur outside window", func(t *testing.T) {
+		reset()
+		overrideBlock("node1", "latest", "0x0")
+		for i := 0; i < 6; i++ {
+			require.Equal(t, uint(i), nodes["node1"].backend.GetBlockHeightZeroSlidingWindowCount())
+			require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+			require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
+			addTimeToBackend("node1", 20*time.Second)
+			update()
+		}
+		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
+	})
+
 	t.Run("Test Backend BlockHeight Zero Activates at after 5 infratctions", func(t *testing.T) {
 		reset()
 		overrideBlock("node1", "latest", "0x0")
@@ -212,7 +297,7 @@ func TestBlockHeightZero(t *testing.T) {
 		require.False(t, bg.Consensus.IsBanned(nodes["node2"].backend))
 	})
 
-	t.Run("Test backend does not activate if the ban periood expiries", func(t *testing.T) {
+	t.Run("Test backend does not activate if the ban period expiries", func(t *testing.T) {
 		reset()
 
 		delay := nodes["node2"].backend.GetBlockHeightZeroSlidingWindowLength() / 2

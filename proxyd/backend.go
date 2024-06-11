@@ -276,6 +276,12 @@ func WithMaxErrorRateThreshold(maxErrorRateThreshold float64) BackendOpt {
 	}
 }
 
+func WithBlockHeightZeroSlidingWindow(sw *sw.AvgSlidingWindow) BackendOpt {
+	return func(b *Backend) {
+		b.blockHeightZeroSlidingWindow = sw
+	}
+}
+
 func WithConsensusReceiptTarget(receiptsTarget string) BackendOpt {
 	return func(b *Backend) {
 		b.receiptsTarget = receiptsTarget
@@ -287,6 +293,12 @@ func WithBlockHeightZeroSlidingWindowLength(time time.Duration) BackendOpt {
 		b.blockHeightZeroSlidingWindowLength = time
 	}
 }
+
+// func WithBlockHeightZeroClock(sw *sw.AvgSlidingWindow) BackendOpt {
+// 	return func(b *Backend) {
+// 		b.blockHeightZeroSlidingWindow = sw
+// 	}
+// }
 
 type indexedReqRes struct {
 	index int
