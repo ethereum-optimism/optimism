@@ -5,7 +5,7 @@ import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-deploy'
 
-import './tasks'
+import './src/tasks'
 
 const config: HardhatUserConfig = {
   solidity: {
