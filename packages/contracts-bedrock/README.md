@@ -319,6 +319,18 @@ STATE_DUMP_PATH=<PATH_TO_WRITE_L2_ALLOCS> \
 Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./deploy-config/) folder.
 Use the env var `DEPLOY_CONFIG_PATH` to use a particular deploy config file at runtime.
 
+The script will read the latest active fork from the deploy config and the L2 genesis allocs generated will be
+compatible with this fork. The automatically detected fork can be overwritten by setting the environment variable
+`FORK` either to the lower-case fork name (currently `delta`, `ecotone`, or `fjord`) or to `latest`, which will select
+the latest fork available (currently `fjord`).
+
+By default, the script will dump the L2 genesis allocs of the detected or selected fork only, to the file at `STATE_DUMP_PATH`.
+The optional environment variable `OUTPUT_MODE` allows to modify this behavior by setting it to one of the following values:
+* `latest` (default) - only dump the selected fork's allocs.
+* `all` - also dump all intermediary fork's allocs. This only works if `STATE_DUMP_PATH` is _not_ set. In this case, all allocs
+          will be written to files `/state-dump-<fork>.json`. Another path cannot currently be specified for this use case.
+* `none` - won't dump any allocs. Only makes sense for internal test usage.
+
 #### Custom Gas Token
 
 The Custom Gas Token feature is a Beta feature of the MIT licensed OP Stack.

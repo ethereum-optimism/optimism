@@ -92,7 +92,7 @@ library Config {
     ///         It reads the mode from the environment variable OUTPUT_MODE.
     ///         If it is unset, OutputMode.ALL is returned.
     function outputMode() internal view returns (OutputMode) {
-        string memory modeStr = vm.envOr("OUTPUT_MODE", string("all"));
+        string memory modeStr = vm.envOr("OUTPUT_MODE", string("latest"));
         bytes32 modeHash = keccak256(bytes(modeStr));
         if (modeHash == keccak256(bytes("none"))) {
             return OutputMode.NONE;
