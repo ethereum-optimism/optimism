@@ -9,8 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
 func TestSourcesMatchSpec(t *testing.T) {
@@ -71,14 +69,14 @@ func TestEcotoneNetworkTransactions(t *testing.T) {
 	require.Equal(t, deployL1BlockSource.SourceHash(), deployL1Block.SourceHash())
 	require.Nil(t, deployL1Block.To())
 	require.Equal(t, uint64(375_000), deployL1Block.Gas())
-	require.Equal(t, bindings.L1BlockMetaData.Bin, hexutil.Bytes(deployL1Block.Data()).String())
+	require.Equal(t, l1BlockDeploymentBytecode, deployL1Block.Data())
 
 	deployGasPriceOracleSender, deployGasPriceOracle := toDepositTxn(t, upgradeTxns[1])
 	require.Equal(t, deployGasPriceOracleSender, common.HexToAddress("0x4210000000000000000000000000000000000001"))
 	require.Equal(t, deployGasPriceOracleSource.SourceHash(), deployGasPriceOracle.SourceHash())
 	require.Nil(t, deployGasPriceOracle.To())
 	require.Equal(t, uint64(1_000_000), deployGasPriceOracle.Gas())
-	require.Equal(t, bindings.GasPriceOracleMetaData.Bin, hexutil.Bytes(deployGasPriceOracle.Data()).String())
+	require.Equal(t, gasPriceOracleDeploymentBytecode, deployGasPriceOracle.Data())
 
 	updateL1BlockProxySender, updateL1BlockProxy := toDepositTxn(t, upgradeTxns[2])
 	require.Equal(t, updateL1BlockProxySender, common.Address{})
@@ -110,9 +108,11 @@ func TestEcotoneNetworkTransactions(t *testing.T) {
 	require.Nil(t, beaconRoots.To())
 	require.Equal(t, uint64(250_000), beaconRoots.Gas())
 	require.Equal(t, eip4788CreationData, beaconRoots.Data())
+	require.NotEmpty(t, beaconRoots.Data())
 }
 
 func TestEip4788Params(t *testing.T) {
 	require.Equal(t, EIP4788From, common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875"))
-	require.Equal(t, eip4788CreationData, common.Hex2Bytes("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"))
+	require.Equal(t, eip4788CreationData, common.FromHex("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"))
+	require.NotEmpty(t, eip4788CreationData)
 }

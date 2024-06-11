@@ -3,9 +3,14 @@ package sources
 import (
 	"embed"
 	"encoding/json"
+	"math/big"
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +42,7 @@ func TestBlockHeaderJSON(t *testing.T) {
 		var metadata testMetadata
 		readJsonTestdata(t, "testdata/data/headers/"+entry.Name(), &metadata)
 		t.Run(metadata.Name, func(t *testing.T) {
-			var header rpcHeader
+			var header RPCHeader
 			readJsonTestdata(t, "testdata/data/headers/"+strings.Replace(entry.Name(), "_metadata.json", "_data.json", 1), &header)
 
 			h := header.computeBlockHash()
@@ -62,7 +67,7 @@ func TestBlockJSON(t *testing.T) {
 		var metadata testMetadata
 		readJsonTestdata(t, "testdata/data/blocks/"+entry.Name(), &metadata)
 		t.Run(metadata.Name, func(t *testing.T) {
-			var block rpcBlock
+			var block RPCBlock
 			readJsonTestdata(t, "testdata/data/blocks/"+strings.Replace(entry.Name(), "_metadata.json", "_data.json", 1), &block)
 
 			err := block.verify()
@@ -74,4 +79,70 @@ func TestBlockJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBlockToExecutionPayloadIncludesEcotoneProperties(t *testing.T) {
+	zero := uint64(0)
+
+	hdr := &types.Header{
+		ParentHash:       randHash(),
+		UncleHash:        types.EmptyUncleHash,
+		Coinbase:         common.Address{},
+		Root:             randHash(),
+		TxHash:           types.EmptyTxsHash,
+		ReceiptHash:      randHash(),
+		Bloom:            types.Bloom{},
+		Difficulty:       big.NewInt(0),
+		Number:           big.NewInt(1234),
+		GasLimit:         0,
+		GasUsed:          0,
+		Time:             123456,
+		Extra:            make([]byte, 0),
+		MixDigest:        randHash(),
+		Nonce:            types.BlockNonce{},
+		BaseFee:          big.NewInt(100),
+		WithdrawalsHash:  &types.EmptyWithdrawalsHash,
+		ExcessBlobGas:    &zero,
+		BlobGasUsed:      &zero,
+		ParentBeaconRoot: &common.Hash{},
+	}
+	rhdr := RPCHeader{
+		ParentBeaconRoot: hdr.ParentBeaconRoot,
+		ParentHash:       hdr.ParentHash,
+		WithdrawalsRoot:  hdr.WithdrawalsHash,
+		UncleHash:        hdr.UncleHash,
+		Coinbase:         hdr.Coinbase,
+		Root:             hdr.Root,
+		TxHash:           hdr.TxHash,
+		ReceiptHash:      hdr.ReceiptHash,
+		Bloom:            eth.Bytes256(hdr.Bloom),
+		Difficulty:       *(*hexutil.Big)(hdr.Difficulty),
+		Number:           hexutil.Uint64(hdr.Number.Uint64()),
+		GasLimit:         hexutil.Uint64(hdr.GasLimit),
+		GasUsed:          hexutil.Uint64(hdr.GasUsed),
+		Time:             hexutil.Uint64(hdr.Time),
+		Extra:            hdr.Extra,
+		MixDigest:        hdr.MixDigest,
+		Nonce:            hdr.Nonce,
+		BaseFee:          (*hexutil.Big)(hdr.BaseFee),
+		Hash:             hdr.Hash(),
+		BlobGasUsed:      (*hexutil.Uint64)(hdr.BlobGasUsed),
+		ExcessBlobGas:    (*hexutil.Uint64)(hdr.ExcessBlobGas),
+	}
+
+	block := RPCBlock{
+		RPCHeader:    rhdr,
+		Transactions: types.Transactions{},
+		Withdrawals:  &types.Withdrawals{},
+	}
+
+	envelope, err := block.ExecutionPayloadEnvelope(false)
+	require.NoError(t, err)
+
+	require.NotNil(t, envelope.ParentBeaconBlockRoot)
+	require.Equal(t, *envelope.ParentBeaconBlockRoot, *hdr.ParentBeaconRoot)
+	require.NotNil(t, envelope.ExecutionPayload.ExcessBlobGas)
+	require.Equal(t, *envelope.ExecutionPayload.ExcessBlobGas, *rhdr.ExcessBlobGas)
+	require.NotNil(t, envelope.ExecutionPayload.BlobGasUsed)
+	require.Equal(t, *envelope.ExecutionPayload.BlobGasUsed, *rhdr.BlobGasUsed)
 }

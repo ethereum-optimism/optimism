@@ -142,6 +142,10 @@ func (s *L2Engine) AddPeers(peers ...*enode.Node) {
 	}
 }
 
+func (s *L2Engine) PeerCount() int {
+	return s.node.Server().PeerCount()
+}
+
 func (s *L2Engine) EthClient() *ethclient.Client {
 	cl := s.node.Attach()
 	return ethclient.NewClient(cl)
@@ -170,13 +174,13 @@ func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineCl
 	return l2Cl
 }
 
-// ActL2RPCFail makes the next L2 RPC request fail
-func (e *L2Engine) ActL2RPCFail(t Testing) {
+// ActL2RPCFail makes the next L2 RPC request fail with given error
+func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
 	if e.failL2RPC != nil { // already set to fail?
 		t.InvalidAction("already set a mock L2 rpc error")
 		return
 	}
-	e.failL2RPC = errors.New("mock L2 RPC error")
+	e.failL2RPC = err
 }
 
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built

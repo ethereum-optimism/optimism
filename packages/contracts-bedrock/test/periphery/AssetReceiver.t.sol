@@ -44,7 +44,7 @@ contract AssetReceiver_Initializer is Test {
 
 contract AssetReceiverTest is AssetReceiver_Initializer {
     /// @notice Tests if the owner was set correctly during deploy.
-    function test_constructor_succeeds() external {
+    function test_constructor_succeeds() external view {
         assertEq(address(alice), assetReceiver.owner());
     }
 

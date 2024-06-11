@@ -36,6 +36,18 @@ func OpenCompressed(file string, flag int, perm os.FileMode) (io.WriteCloser, er
 	return CompressByFileType(file, out), nil
 }
 
+// WriteCompressedBytes writes a byte slice to the specified file.
+// If the filename ends with .gz, a byte slice is compressed and written.
+func WriteCompressedBytes(file string, data []byte, flag int, perm os.FileMode) error {
+	out, err := OpenCompressed(file, flag, perm)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = out.Write(data)
+	return err
+}
+
 // WriteCompressedJson writes the object to the specified file as a compressed json object
 // if the filename ends with .gz.
 func WriteCompressedJson(file string, obj any) error {

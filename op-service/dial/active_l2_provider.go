@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 const DefaultActiveSequencerFollowerCheckDuration = 2 * DefaultDialTimeout
 
-type ethDialer func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (EthClientInterface, error)
+type ethDialer func(ctx context.Context, log log.Logger, url string) (EthClientInterface, error)
 
 // ActiveL2EndpointProvider is an interface for providing a RollupClient and l2 eth client
 // It manages the lifecycle of the RollupClient and eth client for callers
@@ -33,15 +36,21 @@ func NewActiveL2EndpointProvider(ctx context.Context,
 	networkTimeout time.Duration,
 	logger log.Logger,
 ) (*ActiveL2EndpointProvider, error) {
-	ethDialer := func(ctx context.Context, timeout time.Duration,
-		log log.Logger, url string,
-	) (EthClientInterface, error) {
-		return DialEthClientWithTimeout(ctx, timeout, log, url)
+	ethDialer := func(ctx context.Context, log log.Logger, url string) (EthClientInterface, error) {
+		rpcCl, err := dialRPCClient(ctx, log, url)
+		if err != nil {
+			return nil, err
+		}
+
+		return ethclient.NewClient(rpcCl), nil
 	}
-	rollupDialer := func(ctx context.Context, timeout time.Duration,
-		log log.Logger, url string,
-	) (RollupClientInterface, error) {
-		return DialRollupClientWithTimeout(ctx, timeout, log, url)
+	rollupDialer := func(ctx context.Context, log log.Logger, url string) (RollupClientInterface, error) {
+		rpcCl, err := dialRPCClient(ctx, log, url)
+		if err != nil {
+			return nil, err
+		}
+
+		return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
 	}
 	return newActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, checkDuration, networkTimeout, logger, ethDialer, rollupDialer)
 }
@@ -93,7 +102,7 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 		idx := p.rollupIndex
 		ep := p.ethUrls[idx]
 		log.Info("sequencer changed (or ethClient was nil due to startup), dialing new eth client", "new_index", idx, "new_url", ep)
-		ethClient, err := p.ethDialer(cctx, p.networkTimeout, p.log, ep)
+		ethClient, err := p.ethDialer(cctx, p.log, ep)
 		if err != nil {
 			return nil, fmt.Errorf("dialing eth client: %w", err)
 		}

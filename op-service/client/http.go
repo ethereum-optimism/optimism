@@ -23,16 +23,40 @@ type HTTP interface {
 
 type BasicHTTPClient struct {
 	endpoint string
-	log      log.Logger
-	client   *http.Client
+	header   http.Header // optional header to use in every request
+
+	log    log.Logger
+	client *http.Client
 }
 
-func NewBasicHTTPClient(endpoint string, log log.Logger) *BasicHTTPClient {
-	return &BasicHTTPClient{
+func NewBasicHTTPClient(endpoint string, log log.Logger, opts ...BasicHTTPClientOption) *BasicHTTPClient {
+	c := &BasicHTTPClient{
 		endpoint: endpoint,
 		log:      log,
 		client:   &http.Client{Timeout: DefaultTimeoutSeconds * time.Second},
 	}
+
+	for _, opt := range opts {
+		opt.Apply(c)
+	}
+
+	return c
+}
+
+type BasicHTTPClientOption interface {
+	Apply(c *BasicHTTPClient)
+}
+
+type BasicHTTPClientOptionFn func(*BasicHTTPClient)
+
+func (fn BasicHTTPClientOptionFn) Apply(c *BasicHTTPClient) {
+	fn(c)
+}
+
+func WithHeader(h http.Header) BasicHTTPClientOption {
+	return BasicHTTPClientOptionFn(func(c *BasicHTTPClient) {
+		c.header = h
+	})
 }
 
 var ErrNoEndpoint = errors.New("no endpoint is configured")
@@ -54,10 +78,16 @@ func (cl *BasicHTTPClient) Get(ctx context.Context, p string, query url.Values, 
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to construct request", err)
 	}
-	for k, values := range headers {
-		for _, v := range values {
-			req.Header.Add(k, v)
+	addHTTPHeaders(req.Header, cl.header, headers)
+	return cl.client.Do(req)
+}
+
+func addHTTPHeaders(header http.Header, hs ...http.Header) {
+	for _, h := range hs {
+		for key, values := range h {
+			for _, value := range values {
+				header.Add(key, value)
+			}
 		}
 	}
-	return cl.client.Do(req)
 }

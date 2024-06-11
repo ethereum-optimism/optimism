@@ -13,6 +13,10 @@ func bi(i int) *big.Int {
 	return big.NewInt(int64(i))
 }
 
+func TestRootPosition(t *testing.T) {
+	require.True(t, RootPosition.IsRootPosition())
+}
+
 func TestBigMSB(t *testing.T) {
 	large, ok := new(big.Int).SetString("18446744073709551615", 10)
 	require.True(t, ok)

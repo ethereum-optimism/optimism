@@ -61,29 +61,37 @@ func DefaultCLIConfig() CLIConfig {
 }
 
 func CLIFlags(envPrefix string) []cli.Flag {
+	return CLIFlagsWithCategory(envPrefix, "")
+}
+
+func CLIFlagsWithCategory(envPrefix string, category string) []cli.Flag {
 	return []cli.Flag{
 		&cli.BoolFlag{
-			Name:    EnabledFlagName,
-			Usage:   "Enable the pprof server",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ENABLED"),
+			Name:     EnabledFlagName,
+			Usage:    "Enable the pprof server",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "PPROF_ENABLED"),
+			Category: category,
 		},
 		&cli.StringFlag{
-			Name:    ListenAddrFlagName,
-			Usage:   "pprof listening address",
-			Value:   defaultListenAddr, // TODO(CLI-4159): Switch to 127.0.0.1
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
+			Name:     ListenAddrFlagName,
+			Usage:    "pprof listening address",
+			Value:    defaultListenAddr, // TODO(CLI-4159): Switch to 127.0.0.1
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
+			Category: category,
 		},
 		&cli.IntFlag{
-			Name:    PortFlagName,
-			Usage:   "pprof listening port",
-			Value:   defaultListenPort,
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_PORT"),
+			Name:     PortFlagName,
+			Usage:    "pprof listening port",
+			Value:    defaultListenPort,
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "PPROF_PORT"),
+			Category: category,
 		},
 		&cli.GenericFlag{
-			Name:    ProfilePathFlagName,
-			Usage:   "pprof file path. If it is a directory, the path is {dir}/{profileType}.prof",
-			Value:   new(flags.PathFlag),
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_PATH"),
+			Name:     ProfilePathFlagName,
+			Usage:    "pprof file path. If it is a directory, the path is {dir}/{profileType}.prof",
+			Value:    new(flags.PathFlag),
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "PPROF_PATH"),
+			Category: category,
 		},
 		&cli.GenericFlag{
 			Name:  ProfileTypeFlagName,
@@ -92,7 +100,8 @@ func CLIFlags(envPrefix string) []cli.Flag {
 				defaultProfType := profileType("")
 				return &defaultProfType
 			}(),
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_TYPE"),
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "PPROF_TYPE"),
+			Category: category,
 		},
 	}
 }

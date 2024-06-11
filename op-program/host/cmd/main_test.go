@@ -9,7 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -23,8 +25,8 @@ var (
 	l2ClaimValue       = common.HexToHash("0x333333").Hex()
 	l2OutputRoot       = common.HexToHash("0x444444").Hex()
 	l2ClaimBlockNumber = uint64(1203)
-	// Note: This is actually the L1 goerli genesis config. Just using it as an arbitrary, valid genesis config
-	l2Genesis       = core.DefaultGoerliGenesisBlock()
+	// Note: This is actually the L1 Sepolia genesis config. Just using it as an arbitrary, valid genesis config
+	l2Genesis       = core.DefaultSepoliaGenesisBlock()
 	l2GenesisConfig = l2Genesis.Config
 )
 
@@ -48,7 +50,12 @@ func TestLogFormat(t *testing.T) {
 		verifyArgsInvalid(t, `unrecognized log-format: "foo"`, addRequiredArgs("--log.format=foo"))
 	})
 
-	for _, lvl := range []string{"json", "json-pretty", "terminal", "text", "logfmt"} {
+	for _, lvl := range []string{
+		oplog.FormatJSON.String(),
+		oplog.FormatTerminal.String(),
+		oplog.FormatText.String(),
+		oplog.FormatLogFmt.String(),
+	} {
 		lvl := lvl
 		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
 			logger, _, err := runWithArgs(addRequiredArgs("--log.format", lvl))
@@ -60,11 +67,11 @@ func TestLogFormat(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	rollupCfg, err := chaincfg.GetRollupConfig("op-goerli")
+	rollupCfg, err := chaincfg.GetRollupConfig("op-sepolia")
 	require.NoError(t, err)
 	defaultCfg := config.NewConfig(
 		rollupCfg,
-		chainconfig.OPGoerliChainConfig,
+		chainconfig.OPSepoliaChainConfig,
 		common.HexToHash(l1HeadValue),
 		common.HexToHash(l2HeadValue),
 		common.HexToHash(l2OutputRoot),
@@ -91,7 +98,7 @@ func TestNetwork(t *testing.T) {
 		genesisFile := writeValidGenesis(t)
 
 		cfg := configForArgs(t, addRequiredArgsExcept("--network", "--rollup.config", configFile, "--l2.genesis", genesisFile))
-		require.Equal(t, *chaincfg.Goerli, *cfg.Rollup)
+		require.Equal(t, *chaincfg.Sepolia, *cfg.Rollup)
 	})
 
 	for _, name := range chaincfg.AvailableNetworks() {
@@ -132,8 +139,8 @@ func TestL2Genesis(t *testing.T) {
 	})
 
 	t.Run("NotRequiredForGoerli", func(t *testing.T) {
-		cfg := configForArgs(t, replaceRequiredArg("--network", "goerli"))
-		require.Equal(t, chainconfig.OPGoerliChainConfig, cfg.L2ChainConfig)
+		cfg := configForArgs(t, replaceRequiredArg("--network", "sepolia"))
+		require.Equal(t, chainconfig.OPSepoliaChainConfig, cfg.L2ChainConfig)
 	})
 }
 
@@ -345,7 +352,7 @@ func replaceRequiredArg(name string, value string) []string {
 // to create a valid Config
 func requiredArgs() map[string]string {
 	return map[string]string{
-		"--network":        "goerli",
+		"--network":        "sepolia",
 		"--l1.head":        l1HeadValue,
 		"--l2.head":        l2HeadValue,
 		"--l2.outputroot":  l2OutputRoot,
@@ -365,7 +372,7 @@ func writeValidGenesis(t *testing.T) string {
 
 func writeValidRollupConfig(t *testing.T) string {
 	dir := t.TempDir()
-	j, err := json.Marshal(chaincfg.Goerli)
+	j, err := json.Marshal(chaincfg.Sepolia)
 	require.NoError(t, err)
 	cfgFile := dir + "/rollup.json"
 	require.NoError(t, os.WriteFile(cfgFile, j, 0666))

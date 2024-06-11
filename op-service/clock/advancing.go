@@ -55,6 +55,7 @@ func (c *AdvancingClock) Stop() {
 		// Already stopped
 		return
 	}
+	c.ticker.Stop()
 	c.quit <- nil
 }
 

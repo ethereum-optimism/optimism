@@ -3,11 +3,9 @@ package disputegame
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -23,37 +21,30 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 	options ...challenger.Option,
 ) *challenger.Helper {
 	opts := []challenger.Option{
-		challenger.WithAlphabet(g.system.RollupEndpoint(l2Node)),
-		challenger.WithFactoryAddress(g.factoryAddr),
-		challenger.WithGameAddress(g.addr),
+		challenger.WithAlphabet(),
+		challenger.WithFactoryAddress(g.FactoryAddr),
+		challenger.WithGameAddress(g.Addr),
 	}
 	opts = append(opts, options...)
-	c := challenger.NewChallenger(g.t, ctx, g.system.NodeEndpoint("l1"), name, opts...)
-	g.t.Cleanup(func() {
+	c := challenger.NewChallenger(g.T, ctx, g.System, name, opts...)
+	g.T.Cleanup(func() {
 		_ = c.Close()
 	})
 	return c
 }
 
 func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node string) *OutputHonestHelper {
-	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "HonestHelper", "game", g.addr)
-	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(g.addr, caller)
-	g.require.NoError(err, "Failed to create game contact")
-	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
-	g.require.NoError(err, "Get block range")
+	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
+	prestateBlock, poststateBlock, err := g.Game.GetBlockRange(ctx)
+	g.Require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
-	rollupClient := g.system.RollupClient(l2Node)
-	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
-	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
-	g.require.NoError(err, "Create trace accessor")
-	return &OutputHonestHelper{
-		t:            g.t,
-		require:      g.require,
-		game:         &g.OutputGameHelper,
-		contract:     contract,
-		correctTrace: correctTrace,
-	}
+	l1Head := g.GetL1Head(ctx)
+	rollupClient := g.System.RollupClient(l2Node)
+	l2Client := g.System.NodeClient(l2Node)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
+	g.Require.NoError(err, "Create trace accessor")
+	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, g.Game, correctTrace)
 }
 
 func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, l2Node string, defender bool) *DishonestHelper {

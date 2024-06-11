@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -66,6 +66,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		ShanghaiTime:                  config.CanyonTime(block.Time()),
 		CancunTime:                    config.EcotoneTime(block.Time()),
 		EcotoneTime:                   config.EcotoneTime(block.Time()),
+		FjordTime:                     config.FjordTime(block.Time()),
 		InteropTime:                   config.InteropTime(block.Time()),
 		Optimism: &params.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,
@@ -97,7 +98,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		return nil, fmt.Errorf("transition block extradata too long: %d", size)
 	}
 
-	return &core.Genesis{
+	genesis := &core.Genesis{
 		Config:     &optimismChainConfig,
 		Nonce:      uint64(config.L2GenesisBlockNonce),
 		Timestamp:  block.Time(),
@@ -110,8 +111,15 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		GasUsed:    uint64(config.L2GenesisBlockGasUsed),
 		ParentHash: config.L2GenesisBlockParentHash,
 		BaseFee:    baseFee.ToInt(),
-		Alloc:      map[common.Address]core.GenesisAccount{},
-	}, nil
+		Alloc:      map[common.Address]types.Account{},
+	}
+
+	if optimismChainConfig.IsEcotone(genesis.Timestamp) {
+		genesis.BlobGasUsed = u64ptr(0)
+		genesis.ExcessBlobGas = u64ptr(0)
+	}
+
+	return genesis, nil
 }
 
 // NewL1Genesis will create a new L1 genesis config
@@ -192,7 +200,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		GasUsed:    uint64(config.L1GenesisBlockGasUsed),
 		ParentHash: config.L1GenesisBlockParentHash,
 		BaseFee:    baseFee.ToInt(),
-		Alloc:      map[common.Address]core.GenesisAccount{},
+		Alloc:      map[common.Address]types.Account{},
 	}, nil
 }
 

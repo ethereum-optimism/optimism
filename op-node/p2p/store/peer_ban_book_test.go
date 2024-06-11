@@ -33,7 +33,7 @@ func TestRoundTripPeerBan(t *testing.T) {
 
 func createMemoryPeerBanBook(t *testing.T) *peerBanBook {
 	store := sync.MutexWrap(ds.NewMapDatastore())
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	c := clock.NewDeterministicClock(time.UnixMilli(100))
 	book, err := newPeerBanBook(context.Background(), logger, c, store)
 	require.NoError(t, err)

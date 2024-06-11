@@ -69,15 +69,28 @@ typedef struct ReceiptsResult {
 } ReceiptsResult;
 
 /**
+ * A [OpenDBResult] is a wrapper of DB instance [BlockchainProvider]
+ * as well as an error status that is compatible with FFI.
+ *
+ * # Safety
+ * - When the `error` field is false, the `data` pointer is guaranteed to be valid.
+ * - When the `error` field is true, the `data` pointer is guaranteed to be null.
+ */
+typedef struct OpenDBResult {
+  const void *data;
+  bool error;
+} OpenDBResult;
+
+/**
  * Read the receipts for a blockhash from the RETH database directly.
  *
  * # Safety
- * - All possible nil pointer dereferences are checked, and the function will return a
- *   failing [ReceiptsResult] if any are found.
+ * - All possible nil pointer dereferences are checked, and the function will return a failing
+ *   [ReceiptsResult] if any are found.
  */
 struct ReceiptsResult rdb_read_receipts(const uint8_t *block_hash,
                                         uintptr_t block_hash_len,
-                                        const char *db_path);
+                                        const void *db_instance);
 
 /**
  * Free a string that was allocated in Rust and passed to C.
@@ -86,6 +99,15 @@ struct ReceiptsResult rdb_read_receipts(const uint8_t *block_hash,
  * - All possible nil pointer dereferences are checked.
  */
 void rdb_free_string(char *string);
+
+/**
+ * Open a DB instance and return.
+ *
+ * # Safety
+ * - All possible nil pointer dereferences are checked, and the function will return a failing
+ *   [OpenDBResult] if any are found.
+ */
+struct OpenDBResult open_db_read_only(const char *db_path);
 ```
 
 [rust-toolchain]: https://rustup.rs/

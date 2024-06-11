@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// channel is a lightweight wrapper around a channelBuilder which keeps track of pending
+// channel is a lightweight wrapper around a ChannelBuilder which keeps track of pending
 // and confirmed transactions for a single channel.
 type channel struct {
 	log  log.Logger
@@ -20,11 +20,11 @@ type channel struct {
 	cfg  ChannelConfig
 
 	// pending channel builder
-	channelBuilder *channelBuilder
-	// Set of unconfirmed txID -> frame data. For tx resubmission
-	pendingTransactions map[txID]txData
+	channelBuilder *ChannelBuilder
+	// Set of unconfirmed txID -> tx data. For tx resubmission
+	pendingTransactions map[string]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
-	confirmedTransactions map[txID]eth.BlockID
+	confirmedTransactions map[string]eth.BlockID
 
 	// True if confirmed TX list is updated. Set to false after updated min/max inclusion blocks.
 	confirmedTxUpdated bool
@@ -34,30 +34,31 @@ type channel struct {
 	maxInclusionBlock uint64
 }
 
-func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config) (*channel, error) {
-	cb, err := newChannelBuilder(cfg, *rollupCfg)
+func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*channel, error) {
+	cb, err := NewChannelBuilder(cfg, *rollupCfg, latestL1OriginBlockNum)
 	if err != nil {
 		return nil, fmt.Errorf("creating new channel: %w", err)
 	}
+
 	return &channel{
 		log:                   log,
 		metr:                  metr,
 		cfg:                   cfg,
 		channelBuilder:        cb,
-		pendingTransactions:   make(map[txID]txData),
-		confirmedTransactions: make(map[txID]eth.BlockID),
+		pendingTransactions:   make(map[string]txData),
+		confirmedTransactions: make(map[string]eth.BlockID),
 	}, nil
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
 // in the failed transaction.
-func (s *channel) TxFailed(id txID) {
+func (s *channel) TxFailed(id string) {
 	if data, ok := s.pendingTransactions[id]; ok {
 		s.log.Trace("marked transaction as failed", "id", id)
 		// Note: when the batcher is changed to send multiple frames per tx,
 		// this needs to be changed to iterate over all frames of the tx data
 		// and re-queue them.
-		s.channelBuilder.PushFrame(data.Frame())
+		s.channelBuilder.PushFrames(data.Frames()...)
 		delete(s.pendingTransactions, id)
 	} else {
 		s.log.Warn("unknown transaction marked as failed", "id", id)
@@ -70,7 +71,7 @@ func (s *channel) TxFailed(id txID) {
 // a channel have been marked as confirmed on L1 the channel may be invalid & need to be
 // resubmitted.
 // This function may reset the pending channel if the pending channel has timed out.
-func (s *channel) TxConfirmed(id txID, inclusionBlock eth.BlockID) (bool, []*types.Block) {
+func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*types.Block) {
 	s.metr.RecordBatchTxSubmitted()
 	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 	if _, ok := s.pendingTransactions[id]; !ok {
@@ -99,6 +100,11 @@ func (s *channel) TxConfirmed(id txID, inclusionBlock eth.BlockID) (bool, []*typ
 	}
 
 	return false, nil
+}
+
+// Timeout returns the channel timeout L1 block number. If there is no timeout set, it returns 0.
+func (s *channel) Timeout() uint64 {
+	return s.channelBuilder.Timeout()
 }
 
 // updateInclusionBlocks finds the first & last confirmed tx and saves its inclusion numbers
@@ -146,20 +152,33 @@ func (s *channel) ID() derive.ChannelID {
 	return s.channelBuilder.ID()
 }
 
+// NextTxData returns the next tx data packet.
+// If cfg.MultiFrameTxs is false, it returns txData with a single frame.
+// If cfg.MultiFrameTxs is true, it will read frames from its channel builder
+// until it either doesn't have more frames or the target number of frames is reached.
+//
+// NextTxData should only be called after HasTxData returned true.
 func (s *channel) NextTxData() txData {
-	frame := s.channelBuilder.NextFrame()
+	nf := s.cfg.MaxFramesPerTx()
+	txdata := txData{frames: make([]frameData, 0, nf)}
+	for i := 0; i < nf && s.channelBuilder.HasFrame(); i++ {
+		frame := s.channelBuilder.NextFrame()
+		txdata.frames = append(txdata.frames, frame)
+	}
 
-	txdata := txData{frame}
-	id := txdata.ID()
-
-	s.log.Trace("returning next tx data", "id", id)
+	id := txdata.ID().String()
+	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames))
 	s.pendingTransactions[id] = txdata
 
 	return txdata
 }
 
-func (s *channel) HasFrame() bool {
-	return s.channelBuilder.HasFrame()
+func (s *channel) HasTxData() bool {
+	if s.IsFull() || !s.cfg.MultiFrameTxs {
+		return s.channelBuilder.HasFrame()
+	}
+	// collect enough frames if channel is not full yet
+	return s.channelBuilder.PendingFrames() >= int(s.cfg.MaxFramesPerTx())
 }
 
 func (s *channel) IsFull() bool {
@@ -170,8 +189,8 @@ func (s *channel) FullErr() error {
 	return s.channelBuilder.FullErr()
 }
 
-func (s *channel) RegisterL1Block(l1BlockNum uint64) {
-	s.channelBuilder.RegisterL1Block(l1BlockNum)
+func (s *channel) CheckTimeout(l1BlockNum uint64) {
+	s.channelBuilder.CheckTimeout(l1BlockNum)
 }
 
 func (s *channel) AddBlock(block *types.Block) (*derive.L1BlockInfo, error) {
@@ -200,6 +219,11 @@ func (s *channel) PendingFrames() int {
 
 func (s *channel) OutputFrames() error {
 	return s.channelBuilder.OutputFrames()
+}
+
+// LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel
+func (c *channel) LatestL1Origin() eth.BlockID {
+	return c.channelBuilder.LatestL1Origin()
 }
 
 func (s *channel) Close() {

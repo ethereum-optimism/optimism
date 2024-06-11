@@ -30,7 +30,7 @@ type PeerScorerTestSuite struct {
 func (testSuite *PeerScorerTestSuite) SetupTest() {
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.ScoreMetrics{}
-	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
+	testSuite.logger = testlog.Logger(testSuite.T(), log.LevelError)
 }
 
 // TestPeerScorer runs the PeerScorerTestSuite.

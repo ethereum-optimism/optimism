@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-var Mainnet, Goerli, Sepolia *rollup.Config
+var Mainnet, Sepolia *rollup.Config
 
 func init() {
 	mustCfg := func(name string) *rollup.Config {
@@ -20,7 +20,6 @@ func init() {
 		return cfg
 	}
 	Mainnet = mustCfg("op-mainnet")
-	Goerli = mustCfg("op-goerli")
 	Sepolia = mustCfg("op-sepolia")
 }
 
@@ -43,8 +42,6 @@ func AvailableNetworks() []string {
 
 func handleLegacyName(name string) string {
 	switch name {
-	case "goerli":
-		return "op-goerli"
 	case "mainnet":
 		return "op-mainnet"
 	case "sepolia":

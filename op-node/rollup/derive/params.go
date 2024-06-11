@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 )
 
 // count the tagging info as 200 in terms of buffer size.
@@ -19,19 +21,12 @@ func frameSize(frame Frame) uint64 {
 
 const DerivationVersion0 = 0
 
-// MaxSpanBatchSize is the maximum amount of bytes that will be needed
-// to decode every span batch field. This value cannot be larger than
-// MaxRLPBytesPerChannel because single batch cannot be larger than channel size.
-const MaxSpanBatchSize = MaxRLPBytesPerChannel
+// DerivationVersion1 is reserved for batcher transactions containing plasma commitments.
+const DerivationVersion1 = plasma.TxDataVersion1
 
-// MaxChannelBankSize is the amount of memory space, in number of bytes,
-// till the bank is pruned by removing channels,
-// starting with the oldest channel.
-const MaxChannelBankSize = 100_000_000
-
-// MaxRLPBytesPerChannel is the maximum amount of bytes that will be read from
-// a channel. This limit is set when decoding the RLP.
-const MaxRLPBytesPerChannel = 10_000_000
+// MaxSpanBatchElementCount is the maximum number of blocks, transactions in total,
+// or transaction per block allowed in a span batch.
+const MaxSpanBatchElementCount = 10_000_000
 
 // DuplicateErr is returned when a newly read frame is already known
 var DuplicateErr = errors.New("duplicate frame")

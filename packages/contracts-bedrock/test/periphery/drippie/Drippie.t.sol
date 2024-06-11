@@ -125,6 +125,9 @@ contract Drippie_Test is Test {
             assertTrue(cfg.interval > 0);
         }
 
+        // Drip count is 0 before creating the drip.
+        assertEq(drippie.getDripCount(), 0);
+
         vm.prank(drippie.owner());
         drippie.create(dripName, cfg);
 
@@ -148,6 +151,12 @@ contract Drippie_Test is Test {
             assertEq(a.data, b.data);
             assertEq(a.value, b.value);
         }
+
+        // Drip count is 1 after creating the drip.
+        assertEq(drippie.getDripCount(), 1);
+
+        // Name of the first created drip is the same as the name of the drip.
+        assertEq(drippie.created(0), dripName);
     }
 
     /// @notice Ensures that the same drip cannot be created two times.

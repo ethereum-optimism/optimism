@@ -9,23 +9,23 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
     event Mint(address indexed account, uint256 amount);
     event Burn(address indexed account, uint256 amount);
 
-    function test_remoteToken_succeeds() external {
+    function test_remoteToken_succeeds() external view {
         assertEq(L2Token.remoteToken(), address(L1Token));
     }
 
-    function test_bridge_succeeds() external {
+    function test_bridge_succeeds() external view {
         assertEq(L2Token.bridge(), address(l2StandardBridge));
     }
 
-    function test_l1Token_succeeds() external {
+    function test_l1Token_succeeds() external view {
         assertEq(L2Token.l1Token(), address(L1Token));
     }
 
-    function test_l2Bridge_succeeds() external {
+    function test_l2Bridge_succeeds() external view {
         assertEq(L2Token.l2Bridge(), address(l2StandardBridge));
     }
 
-    function test_legacy_succeeds() external {
+    function test_legacy_succeeds() external view {
         // Getters for the remote token
         assertEq(L2Token.REMOTE_TOKEN(), address(L1Token));
         assertEq(L2Token.remoteToken(), address(L1Token));
@@ -73,7 +73,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         L2Token.burn(alice, 100);
     }
 
-    function test_erc165_supportsInterface_succeeds() external {
+    function test_erc165_supportsInterface_succeeds() external view {
         // The assertEq calls in this test are comparing the manual calculation of the iface,
         // with what is returned by the solidity's type().interfaceId, just to be safe.
         bytes4 iface1 = bytes4(keccak256("supportsInterface(bytes4)"));

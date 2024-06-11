@@ -194,10 +194,12 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 	val, err := ct.client.Get(ct.ctx, key).Result()
 	if err != nil && err != redis.Nil {
 		log.Error("failed to read the lock", "err", err)
+		RecordGroupConsensusError(ct.backendGroup, "read_lock", err)
 		if ct.leader {
 			ok, err := ct.redlock.Unlock()
 			if err != nil || !ok {
 				log.Error("failed to release the lock after error", "err", err)
+				RecordGroupConsensusError(ct.backendGroup, "leader_release_lock", err)
 				return
 			}
 			ct.leader = false
@@ -210,9 +212,11 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 			ok, err := ct.redlock.Extend()
 			if err != nil || !ok {
 				log.Error("failed to extend lock", "err", err, "mutex", ct.redlock.Name(), "val", ct.redlock.Value())
+				RecordGroupConsensusError(ct.backendGroup, "leader_extend_lock", err)
 				ok, err := ct.redlock.Unlock()
 				if err != nil || !ok {
 					log.Error("failed to release the lock after error", "err", err)
+					RecordGroupConsensusError(ct.backendGroup, "leader_release_lock", err)
 					return
 				}
 				ct.leader = false
@@ -224,6 +228,7 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 			leaderName, err := ct.client.Get(ct.ctx, ct.key(fmt.Sprintf("leader:%s", val))).Result()
 			if err != nil && err != redis.Nil {
 				log.Error("failed to read the remote leader", "err", err)
+				RecordGroupConsensusError(ct.backendGroup, "read_leader", err)
 				return
 			}
 			ct.leaderName = leaderName
@@ -232,16 +237,19 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 			val, err := ct.client.Get(ct.ctx, ct.key(fmt.Sprintf("state:%s", val))).Result()
 			if err != nil && err != redis.Nil {
 				log.Error("failed to read the remote state", "err", err)
+				RecordGroupConsensusError(ct.backendGroup, "read_state", err)
 				return
 			}
 			if val == "" {
 				log.Error("remote state is missing (recent leader election maybe?)")
+				RecordGroupConsensusError(ct.backendGroup, "read_state_missing", err)
 				return
 			}
 			state := &ConsensusTrackerState{}
 			err = json.Unmarshal([]byte(val), state)
 			if err != nil {
 				log.Error("failed to unmarshal the remote state", "err", err)
+				RecordGroupConsensusError(ct.backendGroup, "read_unmarshal_state", err)
 				return
 			}
 
@@ -316,13 +324,26 @@ func (ct *RedisConsensusTracker) postPayload(mutexVal string) {
 	jsonState, err := json.Marshal(ct.local.state)
 	if err != nil {
 		log.Error("failed to marshal local", "err", err)
+		RecordGroupConsensusError(ct.backendGroup, "leader_marshal_local_state", err)
 		ct.leader = false
 		return
 	}
-	ct.client.Set(ct.ctx, ct.key(fmt.Sprintf("state:%s", mutexVal)), jsonState, ct.lockPeriod)
+	err = ct.client.Set(ct.ctx, ct.key(fmt.Sprintf("state:%s", mutexVal)), jsonState, ct.lockPeriod).Err()
+	if err != nil {
+		log.Error("failed to post the state", "err", err)
+		RecordGroupConsensusError(ct.backendGroup, "leader_post_state", err)
+		ct.leader = false
+		return
+	}
 
 	leader, _ := os.LookupEnv("HOSTNAME")
-	ct.client.Set(ct.ctx, ct.key(fmt.Sprintf("leader:%s", mutexVal)), leader, ct.lockPeriod)
+	err = ct.client.Set(ct.ctx, ct.key(fmt.Sprintf("leader:%s", mutexVal)), leader, ct.lockPeriod).Err()
+	if err != nil {
+		log.Error("failed to post the leader", "err", err)
+		RecordGroupConsensusError(ct.backendGroup, "leader_post_leader", err)
+		ct.leader = false
+		return
+	}
 
 	log.Debug("posted state", "state", string(jsonState), "leader", leader)
 

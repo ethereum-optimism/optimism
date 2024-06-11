@@ -42,6 +42,7 @@ for file in "$DIR"/*.json; do
     filename=$(basename "$file" .json)
 
     # If SDK mode is on and the filename is not in the list, skip it
+    # shellcheck disable=SC2199,SC2076
     if $SDK_MODE && [[ ! " ${SDK_FILES[@]} " =~ " ${filename} " ]]; then
         continue
     fi

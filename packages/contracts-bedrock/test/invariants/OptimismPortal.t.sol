@@ -6,8 +6,6 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
@@ -148,7 +146,7 @@ contract OptimismPortal_Deposit_Invariant is CommonTest {
     ///
     ///                   All deposits, barring creation transactions and transactions
     ///                   sent to `address(0)`, should always succeed.
-    function invariant_deposit_completes() external {
+    function invariant_deposit_completes() external view {
         assertEq(actor.failedToComplete(), false);
     }
 }

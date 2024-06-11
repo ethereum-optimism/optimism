@@ -4,25 +4,44 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"time"
 
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
-	ErrGameDepthReached = errors.New("game depth reached")
-
-	// NoLocalContext is the LocalContext value used when the cannon trace provider is used alone instead of as part
-	// of a split game.
-	NoLocalContext = common.Hash{}
+	ErrGameDepthReached   = errors.New("game depth reached")
+	ErrL2BlockNumberValid = errors.New("l2 block number is valid")
 )
+
+const (
+	CannonGameType       uint32 = 0
+	PermissionedGameType uint32 = 1
+	AsteriscGameType     uint32 = 2
+	FastGameType         uint32 = 254
+	AlphabetGameType     uint32 = 255
+)
+
+type ClockReader interface {
+	Now() time.Time
+}
 
 // PreimageOracleData encapsulates the preimage oracle data
 // to load into the onchain oracle.
 type PreimageOracleData struct {
 	IsLocal      bool
 	OracleKey    []byte
-	OracleData   []byte
+	oracleData   []byte
 	OracleOffset uint32
+
+	// 4844 blob data
+	BlobFieldIndex uint64
+	BlobCommitment []byte
+	BlobProof      []byte
 }
 
 // GetIdent returns the ident for the preimage oracle data.
@@ -32,16 +51,41 @@ func (p *PreimageOracleData) GetIdent() *big.Int {
 
 // GetPreimageWithoutSize returns the preimage for the preimage oracle data.
 func (p *PreimageOracleData) GetPreimageWithoutSize() []byte {
-	return p.OracleData[8:]
+	return p.oracleData[8:]
+}
+
+// GetPreimageWithSize returns the preimage with its length prefix.
+func (p *PreimageOracleData) GetPreimageWithSize() []byte {
+	return p.oracleData
+}
+
+func (p *PreimageOracleData) GetPrecompileAddress() common.Address {
+	return common.BytesToAddress(p.oracleData[8:28])
+}
+
+func (p *PreimageOracleData) GetPrecompileInput() []byte {
+	return p.oracleData[28:]
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
 func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
 	return &PreimageOracleData{
-		IsLocal:      len(key) > 0 && key[0] == byte(1),
+		IsLocal:      len(key) > 0 && key[0] == byte(preimage.LocalKeyType),
 		OracleKey:    key,
-		OracleData:   data,
+		oracleData:   data,
 		OracleOffset: offset,
+	}
+}
+
+func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldIndex uint64, commitment []byte, proof []byte) *PreimageOracleData {
+	return &PreimageOracleData{
+		IsLocal:        false,
+		OracleKey:      key,
+		oracleData:     data,
+		OracleOffset:   offset,
+		BlobFieldIndex: fieldIndex,
+		BlobCommitment: commitment,
+		BlobProof:      proof,
 	}
 }
 
@@ -63,6 +107,10 @@ type TraceAccessor interface {
 	// GetStepData returns the data required to execute the step at the specified position,
 	// evaluated in the context of the specified claim (ref).
 	GetStepData(ctx context.Context, game Game, ref Claim, pos Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
+
+	// GetL2BlockNumberChallenge returns the data required to prove the correct L2 block number of the root claim.
+	// Returns ErrL2BlockNumberValid if the root claim is known to come from the same block as the claimed L2 block.
+	GetL2BlockNumberChallenge(ctx context.Context, game Game) (*InvalidL2BlockNumberChallenge, error)
 }
 
 // PrestateProvider defines an interface to request the absolute prestate.
@@ -84,6 +132,10 @@ type TraceProvider interface {
 	// and any pre-image data that needs to be loaded into the oracle prior to execution (may be nil)
 	// The prestate returned from GetStepData for trace 10 should be the pre-image of the claim from trace 9
 	GetStepData(ctx context.Context, i Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
+
+	// GetL2BlockNumberChallenge returns the data required to prove the correct L2 block number of the root claim.
+	// Returns ErrL2BlockNumberValid if the root claim is known to come from the same block as the claimed L2 block.
+	GetL2BlockNumberChallenge(ctx context.Context) (*InvalidL2BlockNumberChallenge, error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.
@@ -100,6 +152,8 @@ func (c *ClaimData) ValueBytes() [32]byte {
 	return responseArr
 }
 
+type ClaimID common.Hash
+
 // Claim extends ClaimData with information about the relationship between two claims.
 // It uses ClaimData to break cyclicity without using pointers.
 // If the position of the game is Depth 0, IndexAtDepth 0 it is the root claim
@@ -112,14 +166,51 @@ type Claim struct {
 	//       to be changed/removed to avoid invalid/stale contract state.
 	CounteredBy common.Address
 	Claimant    common.Address
-	Clock       uint64
+	Clock       Clock
 	// Location of the claim & it's parent inside the contract. Does not exist
 	// for claims that have not made it to the contract.
 	ContractIndex       int
 	ParentContractIndex int
 }
 
+func (c Claim) ID() ClaimID {
+	return ClaimID(crypto.Keccak256Hash(
+		c.Position.ToGIndex().Bytes(),
+		c.Value.Bytes(),
+		big.NewInt(int64(c.ParentContractIndex)).Bytes(),
+	))
+}
+
 // IsRoot returns true if this claim is the root claim.
-func (c *Claim) IsRoot() bool {
+func (c Claim) IsRoot() bool {
 	return c.Position.IsRootPosition()
+}
+
+// Clock tracks the chess clock for a claim.
+type Clock struct {
+	// Duration is the time elapsed on the chess clock at the last update.
+	Duration time.Duration
+
+	// Timestamp is the time that the clock was last updated.
+	Timestamp time.Time
+}
+
+// NewClock creates a new Clock instance.
+func NewClock(duration time.Duration, timestamp time.Time) Clock {
+	return Clock{
+		Duration:  duration,
+		Timestamp: timestamp,
+	}
+}
+
+type InvalidL2BlockNumberChallenge struct {
+	Output *eth.OutputResponse
+	Header *ethTypes.Header
+}
+
+func NewInvalidL2BlockNumberProof(output *eth.OutputResponse, header *ethTypes.Header) *InvalidL2BlockNumberChallenge {
+	return &InvalidL2BlockNumberChallenge{
+		Output: output,
+		Header: header,
+	}
 }

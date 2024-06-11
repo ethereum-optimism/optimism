@@ -92,7 +92,7 @@ func TestL1RetrievalReset(t *testing.T) {
 	dataSrc.ExpectOpenData(a, &fakeDataIter{}, l1Cfg.BatcherAddr)
 	defer dataSrc.AssertExpectations(t)
 
-	l1r := NewL1Retrieval(testlog.Logger(t, log.LvlError), dataSrc, nil)
+	l1r := NewL1Retrieval(testlog.Logger(t, log.LevelError), dataSrc, nil)
 
 	// We assert that it opens up the correct data on a reset
 	_ = l1r.Reset(context.Background(), a, l1Cfg)
@@ -149,7 +149,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 			dataSrc := &MockDataSource{}
 			dataSrc.ExpectOpenData(test.prevBlock, &fakeDataIter{data: test.datas, errs: test.datasErrs}, test.sysCfg.BatcherAddr)
 
-			ret := NewL1Retrieval(testlog.Logger(t, log.LvlCrit), dataSrc, l1t)
+			ret := NewL1Retrieval(testlog.Logger(t, log.LevelCrit), dataSrc, l1t)
 
 			// If prevErr != nil we forced an error while getting data from the previous stage
 			if test.openErr != nil {

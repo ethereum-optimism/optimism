@@ -11,19 +11,21 @@ import (
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/fetch"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type ChannelWithMetadata struct {
-	ID             derive.ChannelID    `json:"id"`
-	IsReady        bool                `json:"is_ready"`
-	InvalidFrames  bool                `json:"invalid_frames"`
-	InvalidBatches bool                `json:"invalid_batches"`
-	Frames         []FrameWithMetadata `json:"frames"`
-	Batches        []derive.Batch      `json:"batches"`
-	BatchTypes     []int               `json:"batch_types"`
+	ID             derive.ChannelID         `json:"id"`
+	IsReady        bool                     `json:"is_ready"`
+	InvalidFrames  bool                     `json:"invalid_frames"`
+	InvalidBatches bool                     `json:"invalid_batches"`
+	Frames         []FrameWithMetadata      `json:"frames"`
+	Batches        []derive.Batch           `json:"batches"`
+	BatchTypes     []int                    `json:"batch_types"`
+	ComprAlgos     []derive.CompressionAlgo `json:"compr_alogs"`
 }
 
 type FrameWithMetadata struct {
@@ -53,7 +55,6 @@ func LoadFrames(directory string, inbox common.Address) []FrameWithMetadata {
 		} else {
 			return txns[i].BlockNumber < txns[j].BlockNumber
 		}
-
 	})
 	return transactionsToFrames(txns)
 }
@@ -61,7 +62,7 @@ func LoadFrames(directory string, inbox common.Address) []FrameWithMetadata {
 // Channels loads all transactions from the given input directory that are submitted to the
 // specified batch inbox and then re-assembles all channels & writes the re-assembled channels
 // to the out directory.
-func Channels(config Config) {
+func Channels(config Config, rollupCfg *rollup.Config) {
 	if err := os.MkdirAll(config.OutDirectory, 0750); err != nil {
 		log.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func Channels(config Config) {
 		framesByChannel[frame.Frame.ID] = append(framesByChannel[frame.Frame.ID], frame)
 	}
 	for id, frames := range framesByChannel {
-		ch := processFrames(config, id, frames)
+		ch := processFrames(config, rollupCfg, id, frames)
 		filename := path.Join(config.OutDirectory, fmt.Sprintf("%s.json", id.String()))
 		if err := writeChannel(ch, filename); err != nil {
 			log.Fatal(err)
@@ -89,7 +90,8 @@ func writeChannel(ch ChannelWithMetadata, filename string) error {
 	return enc.Encode(ch)
 }
 
-func processFrames(cfg Config, id derive.ChannelID, frames []FrameWithMetadata) ChannelWithMetadata {
+func processFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, frames []FrameWithMetadata) ChannelWithMetadata {
+	spec := rollup.NewChainSpec(rollupCfg)
 	ch := derive.NewChannel(id, eth.L1BlockRef{Number: frames[0].InclusionBlock})
 	invalidFrame := false
 
@@ -105,17 +107,22 @@ func processFrames(cfg Config, id derive.ChannelID, frames []FrameWithMetadata) 
 		}
 	}
 
-	var batches []derive.Batch
-	var batchTypes []int
+	var (
+		batches    []derive.Batch
+		batchTypes []int
+		comprAlgos []derive.CompressionAlgo
+	)
+
 	invalidBatches := false
 	if ch.IsReady() {
-		br, err := derive.BatchReader(ch.Reader())
+		br, err := derive.BatchReader(ch.Reader(), spec.MaxRLPBytesPerChannel(ch.HighestBlock().Time), rollupCfg.IsFjord(ch.HighestBlock().Time))
 		if err == nil {
 			for batchData, err := br(); err != io.EOF; batchData, err = br() {
 				if err != nil {
 					fmt.Printf("Error reading batchData for channel %v. Err: %v\n", id.String(), err)
 					invalidBatches = true
 				} else {
+					comprAlgos = append(comprAlgos, batchData.ComprAlgo)
 					batchType := batchData.GetBatchType()
 					batchTypes = append(batchTypes, int(batchType))
 					switch batchType {
@@ -155,6 +162,7 @@ func processFrames(cfg Config, id derive.ChannelID, frames []FrameWithMetadata) 
 		InvalidBatches: invalidBatches,
 		Batches:        batches,
 		BatchTypes:     batchTypes,
+		ComprAlgos:     comprAlgos,
 	}
 }
 

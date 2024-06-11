@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type StubOracle struct {
@@ -19,16 +20,25 @@ type StubOracle struct {
 
 	// Rcpts maps Block hash to receipts
 	Rcpts map[common.Hash]types.Receipts
+
+	// Blobs maps indexed blob hash to l1 block ref to blob
+	Blobs map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob
+
+	// PcmpResults maps hashed input to the results of precompile calls
+	PcmpResults map[common.Hash][]byte
 }
 
 func NewStubOracle(t *testing.T) *StubOracle {
 	return &StubOracle{
-		t:      t,
-		Blocks: make(map[common.Hash]eth.BlockInfo),
-		Txs:    make(map[common.Hash]types.Transactions),
-		Rcpts:  make(map[common.Hash]types.Receipts),
+		t:           t,
+		Blocks:      make(map[common.Hash]eth.BlockInfo),
+		Txs:         make(map[common.Hash]types.Transactions),
+		Rcpts:       make(map[common.Hash]types.Receipts),
+		Blobs:       make(map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob),
+		PcmpResults: make(map[common.Hash][]byte),
 	}
 }
+
 func (o StubOracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
 	info, ok := o.Blocks[blockHash]
 	if !ok {
@@ -51,4 +61,24 @@ func (o StubOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, t
 		o.t.Fatalf("unknown rcpts %s", blockHash)
 	}
 	return o.HeaderByBlockHash(blockHash), rcpts
+}
+
+func (o StubOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
+	blobMap, ok := o.Blobs[ref]
+	if !ok {
+		o.t.Fatalf("unknown blob ref %s", ref)
+	}
+	blob, ok := blobMap[blobHash]
+	if !ok {
+		o.t.Fatalf("unknown blob hash %s %d", blobHash.Hash, blobHash.Index)
+	}
+	return blob
+}
+
+func (o StubOracle) Precompile(addr common.Address, input []byte) ([]byte, bool) {
+	result, ok := o.PcmpResults[crypto.Keccak256Hash(append(addr.Bytes(), input...))]
+	if !ok {
+		o.t.Fatalf("unknown kzg point evaluation %x", input)
+	}
+	return result, true
 }

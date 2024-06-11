@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 )
 
@@ -121,4 +122,24 @@ func (o *StubStateOracle) CodeByHash(hash common.Hash) []byte {
 		o.t.Fatalf("no value for code %v", hash)
 	}
 	return data
+}
+
+type StubPrecompileOracle struct {
+	t       *testing.T
+	Results map[common.Hash]PrecompileResult
+	Calls   int
+}
+
+type PrecompileResult struct {
+	Result []byte
+	Ok     bool
+}
+
+func (o *StubPrecompileOracle) Precompile(address common.Address, input []byte) ([]byte, bool) {
+	result, ok := o.Results[crypto.Keccak256Hash(append(address.Bytes(), input...))]
+	if !ok {
+		o.t.Fatalf("no value for point evaluation %v", input)
+	}
+	o.Calls++
+	return result.Result, result.Ok
 }

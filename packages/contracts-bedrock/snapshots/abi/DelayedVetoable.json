@@ -185,17 +185,7 @@
   },
   {
     "inputs": [],
-    "name": "AlreadyDelayed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "ForwardingEarly",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "TargetUnitialized",
     "type": "error"
   },
   {

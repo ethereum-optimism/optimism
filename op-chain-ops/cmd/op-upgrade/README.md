@@ -36,3 +36,25 @@ be read out of the directory as needed.
 
 The file that the bundle should be written to. If omitted, the file
 will be written to stdout.
+
+#### Usage
+
+Build and run using the [Makefile](../../Makefile) `op-upgrade` target.
+Inside `/op-chain-ops`, run:
+
+```sh
+make op-upgrade
+```
+
+to create a binary in [../../bin/op-upgrade](../../bin/op-upgrade) that can
+be executed. Execute the following command inside `/op-chain-ops` to
+create the Safe transaction bundle in an output file called `input.json`.
+
+```sh
+./bin/op-upgrade \
+  --l1-rpc-url https://ethereum-rpc.publicnode.com  \
+  --chain-ids 10 \
+  --superchain-target mainnet \
+  --outfile input.json \
+  --deploy-config ../packages/contracts-bedrock/deploy-config
+```

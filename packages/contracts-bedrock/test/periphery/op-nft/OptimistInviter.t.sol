@@ -139,7 +139,7 @@ contract OptimistInviter_Initializer is Test {
                 optimistInviterHelper.getDigestWithEIP712Domain(
                     claimableInvite, _eip712Name, _eip712Version, _eip712Chainid, _eip712VerifyingContract
                 )
-                )
+            )
         );
     }
 
@@ -222,7 +222,7 @@ contract OptimistInviter_Initializer is Test {
 }
 
 contract OptimistInviterTest is OptimistInviter_Initializer {
-    function test_initialize_succeeds() external {
+    function test_initialize_succeeds() external view {
         // expect attestationStation to be set
         assertEq(address(optimistInviter.ATTESTATION_STATION()), address(attestationStation));
         assertEq(optimistInviter.INVITE_GRANTER(), alice_inviteGranter);

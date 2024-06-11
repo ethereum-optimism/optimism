@@ -1,6 +1,8 @@
 package mipsevm
 
 import (
+	"bytes"
+	"math/rand"
 	"os"
 	"testing"
 
@@ -322,6 +324,7 @@ func FuzzStateHintRead(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
+		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
@@ -397,7 +400,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 
 func FuzzStateHintWrite(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
 		preimageData := []byte("hello world")
 		state := &State{
 			PC:             0,
@@ -412,12 +415,16 @@ func FuzzStateHintWrite(f *testing.F) {
 			Step:           0,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 0,
-
-			// This is only used by mips.go. The reads a zeroed page-sized buffer when reading hint data from memory.
-			// We pre-allocate a buffer for the read hint data to be copied into.
-			LastHint: make(hexutil.Bytes, PageSize),
+			LastHint:       nil,
 		}
+		// Set random data at the target memory range
+		randBytes, err := randomBytes(randSeed, count)
+		require.NoError(t, err)
+		err = state.Memory.SetMemoryRange(addr, bytes.NewReader(randBytes))
+		require.NoError(t, err)
+		// Set syscall instruction
 		state.Memory.SetMemory(0, syscallInsn)
+
 		preStatePreimageKey := state.PreimageKey
 		preStateRoot := state.Memory.MerkleRoot()
 		expectedRegisters := state.Registers
@@ -439,6 +446,7 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
+		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
@@ -471,9 +479,9 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		expectedRegisters := state.Registers
 		sz := 4 - (addr & 0x3)
 		if sz < count {
-			sz = count
+			count = sz
 		}
-		expectedRegisters[2] = sz
+		expectedRegisters[2] = count
 
 		oracle := staticOracle(t, preimageData)
 		goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
@@ -491,6 +499,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, uint32(0), state.PreimageOffset)
+		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
@@ -498,4 +507,13 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
+}
+
+func randomBytes(seed int64, length uint32) ([]byte, error) {
+	r := rand.New(rand.NewSource(seed))
+	randBytes := make([]byte, length)
+	if _, err := r.Read(randBytes); err != nil {
+		return nil, err
+	}
+	return randBytes, nil
 }

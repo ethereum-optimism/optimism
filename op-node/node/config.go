@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -43,6 +44,9 @@ type Config struct {
 
 	ConfigPersistence ConfigPersistence
 
+	// Path to store safe head database. Disabled when set to empty string
+	SafeDBPath string
+
 	// RuntimeConfigReloadInterval defines the interval between runtime config reloads.
 	// Disabled if <= 0.
 	// Runtime config changes should be picked up from log-events,
@@ -64,6 +68,14 @@ type Config struct {
 
 	// [OPTIONAL] The reth DB path to read receipts from
 	RethDBPath string
+
+	// Conductor is used to determine this node is the leader sequencer.
+	ConductorEnabled    bool
+	ConductorRpc        string
+	ConductorRpcTimeout time.Duration
+
+	// Plasma DA config
+	Plasma plasma.CLIConfig
 }
 
 type RPCConfig struct {
@@ -150,6 +162,20 @@ func (cfg *Config) Check() error {
 	}
 	if !(cfg.RollupHalt == "" || cfg.RollupHalt == "major" || cfg.RollupHalt == "minor" || cfg.RollupHalt == "patch") {
 		return fmt.Errorf("invalid rollup halting option: %q", cfg.RollupHalt)
+	}
+	if cfg.ConductorEnabled {
+		if state, _ := cfg.ConfigPersistence.SequencerState(); state != StateUnset {
+			return fmt.Errorf("config persistence must be disabled when conductor is enabled")
+		}
+		if !cfg.Driver.SequencerEnabled {
+			return fmt.Errorf("sequencer must be enabled when conductor is enabled")
+		}
+	}
+	if err := cfg.Plasma.Check(); err != nil {
+		return fmt.Errorf("plasma config error: %w", err)
+	}
+	if cfg.Plasma.Enabled {
+		log.Warn("Plasma Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
 	}
 	return nil
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -15,33 +17,29 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
-// LoadContracts loads the Cannon contracts, from op-bindings package
-func LoadContracts() (*Contracts, error) {
-	var mips, oracle Contract
-	mips.DeployedBytecode.Object = hexutil.MustDecode(bindings.MIPSDeployedBin)
-	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.PreimageOracleDeployedBin)
-	return &Contracts{
-		MIPS:   &mips,
-		Oracle: &oracle,
+// LoadArtifacts loads the Cannon contracts, from the contracts package.
+func LoadArtifacts() (*Artifacts, error) {
+	mips, err := foundry.ReadArtifact("../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
+	}
+
+	oracle, err := foundry.ReadArtifact("../../packages/contracts-bedrock/forge-artifacts/PreimageOracle.sol/PreimageOracle.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Oracle contract: %w", err)
+	}
+
+	return &Artifacts{
+		MIPS:   mips,
+		Oracle: oracle,
 	}, nil
 }
 
-type Contract struct {
-	DeployedBytecode struct {
-		Object    hexutil.Bytes `json:"object"`
-		SourceMap string        `json:"sourceMap"`
-	} `json:"deployedBytecode"`
-
-	// ignore abi,bytecode,etc.
-}
-
-type Contracts struct {
-	MIPS   *Contract
-	Oracle *Contract
+type Artifacts struct {
+	MIPS   *foundry.Artifact
+	Oracle *foundry.Artifact
 }
 
 type Addresses struct {
@@ -51,10 +49,15 @@ type Addresses struct {
 	FeeRecipient common.Address
 }
 
-func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
-	chainCfg := params.MainnetChainConfig
-	offsetBlocks := uint64(1000) // blocks after shanghai fork
-	bc := &testChain{startTime: *chainCfg.ShanghaiTime + offsetBlocks*12}
+func NewEVMEnv(artifacts *Artifacts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
+	// Temporary hack until Cancun is activated on mainnet
+	cpy := *params.MainnetChainConfig
+	chainCfg := &cpy // don't modify the global chain config
+	// Activate Cancun for EIP-4844 KZG point evaluation precompile
+	cancunActivation := *chainCfg.ShanghaiTime + 10
+	chainCfg.CancunTime = &cancunActivation
+	offsetBlocks := uint64(1000) // blocks after cancun fork
+	bc := &testChain{startTime: *chainCfg.CancunTime + offsetBlocks*12}
 	header := bc.GetHeader(common.Hash{}, 17034870+offsetBlocks)
 	db := rawdb.NewMemoryDatabase()
 	statedb := state.NewDatabase(db)
@@ -67,13 +70,13 @@ func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	env := vm.NewEVM(blockContext, vm.TxContext{}, state, chainCfg, vmCfg)
 	// pre-deploy the contracts
-	env.StateDB.SetCode(addrs.Oracle, contracts.Oracle.DeployedBytecode.Object)
+	env.StateDB.SetCode(addrs.Oracle, artifacts.Oracle.DeployedBytecode.Object)
 
 	var mipsCtorArgs [32]byte
 	copy(mipsCtorArgs[12:], addrs.Oracle[:])
-	mipsDeploy := append(hexutil.MustDecode(bindings.MIPSMetaData.Bin), mipsCtorArgs[:]...)
+	mipsDeploy := append(hexutil.MustDecode(artifacts.MIPS.Bytecode.Object.String()), mipsCtorArgs[:]...)
 	startingGas := uint64(30_000_000)
-	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, big.NewInt(0))
+	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, common.U2560)
 	if err != nil {
 		panic(fmt.Errorf("failed to deploy MIPS contract: %w. took %d gas", err, startingGas-leftOverGas))
 	}

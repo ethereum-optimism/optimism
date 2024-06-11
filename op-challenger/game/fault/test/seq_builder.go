@@ -12,24 +12,24 @@ type SequenceBuilder struct {
 // Seq starts building a claim by following a sequence of attack and defend moves from the root
 // The returned SequenceBuilder can be used to add additional moves. e.g:
 // claim := Seq(true).Attack(false).Attack(true).Defend(true).Get()
-func (c *ClaimBuilder) Seq(rootCorrect bool) *SequenceBuilder {
-	claim := c.CreateRootClaim(rootCorrect)
+func (c *ClaimBuilder) Seq(rootOpts ...ClaimOpt) *SequenceBuilder {
+	claim := c.CreateRootClaim(rootOpts...)
 	return &SequenceBuilder{
 		builder:   c,
 		lastClaim: claim,
 	}
 }
 
-func (s *SequenceBuilder) Attack(correct bool) *SequenceBuilder {
-	claim := s.builder.AttackClaim(s.lastClaim, correct)
+func (s *SequenceBuilder) Attack(opts ...ClaimOpt) *SequenceBuilder {
+	claim := s.builder.AttackClaim(s.lastClaim, opts...)
 	return &SequenceBuilder{
 		builder:   s.builder,
 		lastClaim: claim,
 	}
 }
 
-func (s *SequenceBuilder) Defend(correct bool) *SequenceBuilder {
-	claim := s.builder.DefendClaim(s.lastClaim, correct)
+func (s *SequenceBuilder) Defend(opts ...ClaimOpt) *SequenceBuilder {
+	claim := s.builder.DefendClaim(s.lastClaim, opts...)
 	return &SequenceBuilder{
 		builder:   s.builder,
 		lastClaim: claim,

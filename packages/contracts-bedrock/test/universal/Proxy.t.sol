@@ -76,7 +76,7 @@ contract Proxy_Test is Test {
         // The implementation does not have a `upgradeTo`
         // method, calling `upgradeTo` not as the owner
         // should revert.
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         proxy.upgradeTo(address(64));
 
         // Call `upgradeTo` as the owner, it should succeed
@@ -95,7 +95,7 @@ contract Proxy_Test is Test {
     function test_ownerProxyCall_notAdmin_succeeds() external {
         // Calling `changeAdmin` not as the owner should revert
         // as the implementation does not have a `changeAdmin` method.
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         proxy.changeAdmin(address(1));
 
         // Call `changeAdmin` as the owner, it should succeed
@@ -108,7 +108,7 @@ contract Proxy_Test is Test {
         // Calling `admin` not as the owner should
         // revert as the implementation does not have
         // a `admin` method.
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         proxy.admin();
 
         // Calling `admin` as the owner should work.
@@ -186,7 +186,7 @@ contract Proxy_Test is Test {
 
         // The attempt to `upgradeToAndCall`
         // should revert when it is not called by the owner.
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         proxy.upgradeToAndCall(address(simpleStorage), abi.encodeWithSelector(simpleStorage.set.selector, 1, 1));
     }
 

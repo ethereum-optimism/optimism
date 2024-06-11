@@ -9,7 +9,7 @@ import (
 )
 
 func TestAlphabetPrestateProvider_AbsolutePreStateCommitment_Succeeds(t *testing.T) {
-	provider := AlphabetPrestateProvider{}
+	provider := alphabetPrestateProvider{}
 	hash, err := provider.AbsolutePreStateCommitment(context.Background())
 	require.NoError(t, err)
 	expected := common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98")

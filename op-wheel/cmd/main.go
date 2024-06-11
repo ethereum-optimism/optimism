@@ -27,12 +27,8 @@ func main() {
 	app.Description = "Optimism Wheel is a CLI tool to direct the engine one way or the other with DB cheats and Engine API routines."
 	app.Flags = []cli.Flag{wheel.GlobalGethLogLvlFlag}
 	app.Before = func(c *cli.Context) error {
-		log.Root().SetHandler(
-			log.LvlFilterHandler(
-				c.Generic(wheel.GlobalGethLogLvlFlag.Name).(*oplog.LvlFlagValue).LogLvl(),
-				log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
-			),
-		)
+		lvl := c.Generic(wheel.GlobalGethLogLvlFlag.Name).(*oplog.LevelFlagValue).Level()
+		oplog.SetGlobalLogHandler(log.NewTerminalHandlerWithLevel(os.Stdout, lvl, true))
 		return nil
 	}
 	app.Action = cli.ActionFunc(func(c *cli.Context) error {

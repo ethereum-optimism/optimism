@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Burn } from "src/libraries/Burn.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
 contract Burn_GasBurner is StdUtils {
     Vm internal vm;
@@ -42,10 +43,11 @@ contract Burn_GasBurner is StdUtils {
     }
 }
 
-contract Burn_BurnGas_Invariant is StdInvariant, Test {
+contract Burn_BurnGas_Invariant is StdInvariant, InvariantTest {
     Burn_GasBurner internal actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a gas burner actor.
         actor = new Burn_GasBurner(vm);
 
@@ -61,7 +63,7 @@ contract Burn_BurnGas_Invariant is StdInvariant, Test {
     ///
     ///                   Asserts that when `Burn.gas(uint256)` is called, it always burns
     ///                   at least the amount of gas passed to the function.
-    function invariant_burn_gas() external {
+    function invariant_burn_gas() external view {
         // ASSERTION: The amount burned should always match the amount passed exactly
         assertEq(actor.failedGasBurn(), false);
     }

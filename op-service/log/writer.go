@@ -3,29 +3,31 @@ package log
 import (
 	"sync"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type Writer struct {
-	log     func(str string, ctx ...interface{})
+	log     func(str string, ctx ...any)
 	lock    sync.Mutex
 	pending []byte
 }
 
-func NewWriter(l log.Logger, lvl log.Lvl) *Writer {
-	var logMethod func(str string, ctx ...interface{})
+func NewWriter(l log.Logger, lvl slog.Level) *Writer {
+	var logMethod func(str string, ctx ...any)
 	switch lvl {
-	case log.LvlTrace:
+	case log.LevelTrace:
 		logMethod = l.Trace
-	case log.LvlDebug:
+	case log.LevelDebug:
 		logMethod = l.Debug
-	case log.LvlInfo:
+	case log.LevelInfo:
 		logMethod = l.Info
-	case log.LvlWarn:
+	case log.LevelWarn:
 		logMethod = l.Warn
-	case log.LvlError:
+	case log.LevelError:
 		logMethod = l.Error
-	case log.LvlCrit:
+	case log.LevelCrit:
 		logMethod = l.Crit
 	default:
 		// Cast lvl to int to avoid trying to convert it to a string which will fail for unknown types

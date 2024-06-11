@@ -36,7 +36,7 @@ func TestL1TraversalNext(t *testing.T) {
 		Genesis:               rollup.Genesis{SystemConfig: l1Cfg},
 		L1SystemConfigAddress: sysCfgAddr,
 	}
-	tr := NewL1Traversal(testlog.Logger(t, log.LvlError), cfg, nil)
+	tr := NewL1Traversal(testlog.Logger(t, log.LevelError), cfg, nil)
 
 	_ = tr.Reset(context.Background(), a, l1Cfg)
 
@@ -132,7 +132,7 @@ func TestL1TraversalAdvance(t *testing.T) {
 				Genesis:               rollup.Genesis{SystemConfig: test.initialL1Cfg},
 				L1SystemConfigAddress: sysCfgAddr,
 			}
-			tr := NewL1Traversal(testlog.Logger(t, log.LvlError), cfg, src)
+			tr := NewL1Traversal(testlog.Logger(t, log.LevelError), cfg, src)
 			// Load up the initial state with a reset
 			_ = tr.Reset(context.Background(), test.startBlock, test.initialL1Cfg)
 

@@ -19,6 +19,19 @@
   },
   {
     "inputs": [],
+    "name": "DISPUTE_GAME_FACTORY_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "L1_CROSS_DOMAIN_MESSENGER_SLOT",
     "outputs": [
       {
@@ -46,19 +59,6 @@
   {
     "inputs": [],
     "name": "L1_STANDARD_BRIDGE_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "L2_OUTPUT_ORACLE_SLOT",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -136,6 +136,19 @@
   },
   {
     "inputs": [],
+    "name": "basefeeScalar",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "batchInbox",
     "outputs": [
       {
@@ -162,12 +175,82 @@
   },
   {
     "inputs": [],
+    "name": "blobbasefeeScalar",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disputeGameFactory",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gasLimit",
     "outputs": [
       {
         "internalType": "uint64",
         "name": "",
         "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gasPayingToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "decimals_",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gasPayingTokenName",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "name_",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gasPayingTokenSymbol",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "symbol_",
+        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -181,14 +264,14 @@
         "type": "address"
       },
       {
-        "internalType": "uint256",
-        "name": "_overhead",
-        "type": "uint256"
+        "internalType": "uint32",
+        "name": "_basefeeScalar",
+        "type": "uint32"
       },
       {
-        "internalType": "uint256",
-        "name": "_scalar",
-        "type": "uint256"
+        "internalType": "uint32",
+        "name": "_blobbasefeeScalar",
+        "type": "uint32"
       },
       {
         "internalType": "bytes32",
@@ -266,7 +349,7 @@
           },
           {
             "internalType": "address",
-            "name": "l2OutputOracle",
+            "name": "disputeGameFactory",
             "type": "address"
           },
           {
@@ -278,6 +361,11 @@
             "internalType": "address",
             "name": "optimismMintableERC20Factory",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "gasPayingToken",
+            "type": "address"
           }
         ],
         "internalType": "struct SystemConfig.Addresses",
@@ -288,6 +376,19 @@
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isCustomGasToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -331,15 +432,15 @@
   },
   {
     "inputs": [],
-    "name": "l2OutputOracle",
+    "name": "maximumGasLimit",
     "outputs": [
       {
-        "internalType": "address",
-        "name": "addr_",
-        "type": "address"
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -506,12 +607,17 @@
   {
     "inputs": [
       {
-        "internalType": "uint64",
-        "name": "_gasLimit",
-        "type": "uint64"
+        "internalType": "uint32",
+        "name": "_basefeeScalar",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_blobbasefeeScalar",
+        "type": "uint32"
       }
     ],
-    "name": "setGasLimit",
+    "name": "setGasConfigEcotone",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -519,44 +625,12 @@
   {
     "inputs": [
       {
-        "components": [
-          {
-            "internalType": "uint32",
-            "name": "maxResourceLimit",
-            "type": "uint32"
-          },
-          {
-            "internalType": "uint8",
-            "name": "elasticityMultiplier",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint8",
-            "name": "baseFeeMaxChangeDenominator",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint32",
-            "name": "minimumBaseFee",
-            "type": "uint32"
-          },
-          {
-            "internalType": "uint32",
-            "name": "systemTxMaxGas",
-            "type": "uint32"
-          },
-          {
-            "internalType": "uint128",
-            "name": "maximumBaseFee",
-            "type": "uint128"
-          }
-        ],
-        "internalType": "struct ResourceMetering.ResourceConfig",
-        "name": "_config",
-        "type": "tuple"
+        "internalType": "uint64",
+        "name": "_gasLimit",
+        "type": "uint64"
       }
     ],
-    "name": "setResourceConfig",
+    "name": "setGasLimit",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -623,7 +697,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {

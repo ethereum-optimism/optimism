@@ -1,81 +1,98 @@
-package log
+package log_test
 
 import (
 	"io"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
+
+	"github.com/ethereum/go-ethereum/log"
+
+	. "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 var _ io.Writer = (*Writer)(nil)
 
 func TestLogWriter(t *testing.T) {
-	setup := func(t *testing.T, lvl log.Lvl) (*Writer, *testlog.CapturingHandler) {
-		logger := testlog.Logger(t, lvl)
-		logs := testlog.Capture(logger)
+	setup := func(t *testing.T, lvl slog.Level) (*Writer, *testlog.CapturingHandler) {
+		logger, logs := testlog.CaptureLogger(t, lvl)
 		writer := NewWriter(logger, lvl)
 		return writer, logs
 	}
 
 	t.Run("LogSingleLine", func(t *testing.T) {
-		writer, logs := setup(t, log.LvlInfo)
+		writer, logs := setup(t, log.LevelInfo)
 		line := []byte("Test line\n")
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LvlInfo, "Test line"))
+		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		msgFilter := testlog.NewMessageFilter("Test line")
+		require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 	})
 
 	t.Run("LogMultipleLines", func(t *testing.T) {
-		writer, logs := setup(t, log.LvlInfo)
+		writer, logs := setup(t, log.LevelInfo)
 		line := []byte("Line 1\nLine 2\n")
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LvlInfo, "Line 1"))
-		require.NotNil(t, logs.FindLog(log.LvlInfo, "Line 2"))
+		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		lineOneFilter := testlog.NewMessageFilter("Line 1")
+		lineTwoFilter := testlog.NewMessageFilter("Line 2")
+		require.NotNil(t, logs.FindLog(levelFilter, lineOneFilter))
+		require.NotNil(t, logs.FindLog(levelFilter, lineTwoFilter))
 	})
 
 	t.Run("LogLineAcrossMultipleCalls", func(t *testing.T) {
-		writer, logs := setup(t, log.LvlInfo)
+		writer, logs := setup(t, log.LevelInfo)
 		line := []byte("First line\nSplit ")
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LvlInfo, "First line"))
+		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		msgFilter := testlog.NewMessageFilter("First line")
+		require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 
 		line = []byte("Line\nLast Line\n")
 		count, err = writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LvlInfo, "Split Line"))
-		require.NotNil(t, logs.FindLog(log.LvlInfo, "Last Line"))
+		levelFilter = testlog.NewLevelFilter(log.LevelInfo)
+		splitLineFilter := testlog.NewMessageFilter("Split Line")
+		lastLineFilter := testlog.NewMessageFilter("Last Line")
+		require.NotNil(t, logs.FindLog(levelFilter, splitLineFilter))
+		require.NotNil(t, logs.FindLog(levelFilter, lastLineFilter))
 	})
 
-	// Can't test LvlCrit or it will call os.Exit
-	for _, lvl := range []log.Lvl{log.LvlTrace, log.LvlDebug, log.LvlInfo, log.LvlWarn, log.LvlError} {
+	// Can't test LevelCrit or it will call os.Exit
+	for _, lvl := range []slog.Level{log.LevelTrace, log.LevelDebug, log.LevelInfo, log.LevelWarn, log.LevelError} {
 		lvl := lvl
-		t.Run("LogLvl_"+lvl.String(), func(t *testing.T) {
+		t.Run("LogLevel_"+lvl.String(), func(t *testing.T) {
 			writer, logs := setup(t, lvl)
 			line := []byte("Log line\n")
 			count, err := writer.Write(line)
 			require.NoError(t, err)
 			require.Equal(t, len(line), count)
-			require.NotNil(t, logs.FindLog(lvl, "Log line"))
+			levelFilter := testlog.NewLevelFilter(lvl)
+			msgFilter := testlog.NewMessageFilter("Log line")
+			require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 		})
 	}
 
 	t.Run("UseErrorForUnknownLevels", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlInfo)
-		logs := testlog.Capture(logger)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 		writer := NewWriter(logger, 60027)
 		line := []byte("Log line\n")
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		require.NotNil(t, logs.FindLog(log.LvlError, "Unknown log level. Using Error"))
-		require.NotNil(t, logs.FindLog(log.LvlError, "Log line"))
+		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		unknownFilter := testlog.NewMessageFilter("Unknown log level. Using Error")
+		logLineFilter := testlog.NewMessageFilter("Log line")
+		require.NotNil(t, logs.FindLog(levelFilter, unknownFilter))
+		require.NotNil(t, logs.FindLog(levelFilter, logLineFilter))
 	})
 }

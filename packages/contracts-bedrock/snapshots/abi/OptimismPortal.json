@@ -10,41 +10,53 @@
   },
   {
     "inputs": [],
-    "name": "GUARDIAN",
+    "name": "balance",
     "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "_to",
         "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "L2_ORACLE",
-    "outputs": [
+      },
       {
-        "internalType": "contract L2OutputOracle",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "SYSTEM_CONFIG",
-    "outputs": [
+        "internalType": "uint256",
+        "name": "_mint",
+        "type": "uint256"
+      },
       {
-        "internalType": "contract SystemConfig",
-        "name": "",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_gasLimit",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isCreation",
+        "type": "bool"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_data",
+        "type": "bytes"
       }
     ],
-    "stateMutability": "view",
+    "name": "depositERC20Transaction",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -399,6 +411,34 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "_decimals",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_name",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_symbol",
+        "type": "bytes32"
+      }
+    ],
+    "name": "setGasPayingToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "superchainConfig",
     "outputs": [
@@ -434,7 +474,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -524,5 +564,90 @@
     ],
     "name": "WithdrawalProven",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "BadTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CallPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ContentLengthMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmptyItem",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GasEstimation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDataRemainder",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidHeader",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LargeCalldata",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoValue",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NonReentrant",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyCustomGasToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutOfGas",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SmallGasLimit",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedList",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedString",
+    "type": "error"
   }
 ]

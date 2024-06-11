@@ -34,8 +34,6 @@
   "governanceTokenOwner": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
   "l2GenesisBlockGasLimit": "0x17D7840",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
-  "gasPriceOracleOverhead": 2100,
-  "gasPriceOracleScalar": 1000000,
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10,
   "systemConfigStartBlock": 8364212,

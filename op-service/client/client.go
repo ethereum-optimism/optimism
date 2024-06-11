@@ -4,16 +4,18 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 )
 
 type Client interface {
 	Close()
+	RPC() RPC
 	ChainID(ctx context.Context) (*big.Int, error)
 	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
@@ -52,22 +54,28 @@ type Client interface {
 // InstrumentedClient is an Ethereum client that tracks
 // Prometheus metrics for each call.
 type InstrumentedClient struct {
-	c *ethclient.Client
-	m *metrics.Metrics
+	c   *ethclient.Client
+	m   *metrics.RPCClientMetrics
+	rpc RPC
 }
 
 // NewInstrumentedClient creates a new instrumented client. It takes
 // a concrete *rpc.Client to prevent people from passing in an already
 // instrumented client.
-func NewInstrumentedClient(c *rpc.Client, m *metrics.Metrics) *InstrumentedClient {
+func NewInstrumentedClient(c *rpc.Client, m *metrics.RPCClientMetrics) *InstrumentedClient {
 	return &InstrumentedClient{
-		c: ethclient.NewClient(c),
-		m: m,
+		c:   ethclient.NewClient(c),
+		m:   m,
+		rpc: NewInstrumentedRPC(NewBaseRPCClient(c), m),
 	}
 }
 
 func (ic *InstrumentedClient) Close() {
 	ic.c.Close()
+}
+
+func (ic *InstrumentedClient) RPC() RPC {
+	return ic.rpc
 }
 
 func (ic *InstrumentedClient) ChainID(ctx context.Context) (*big.Int, error) {
@@ -263,14 +271,14 @@ func (ic *InstrumentedClient) SendTransaction(ctx context.Context, tx *types.Tra
 	})
 }
 
-func instrument1(m *metrics.Metrics, name string, cb func() error) error {
+func instrument1(m metrics.RPCClientMetricer, name string, cb func() error) error {
 	record := m.RecordRPCClientRequest(name)
 	err := cb()
 	record(err)
 	return err
 }
 
-func instrument2[O any](m *metrics.Metrics, name string, cb func() (O, error)) (O, error) {
+func instrument2[O any](m metrics.RPCClientMetricer, name string, cb func() (O, error)) (O, error) {
 	record := m.RecordRPCClientRequest(name)
 	res, err := cb()
 	record(err)

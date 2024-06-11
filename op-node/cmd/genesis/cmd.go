@@ -7,19 +7,17 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -36,13 +34,10 @@ var (
 		Usage:    "Path to deploy config file",
 		Required: true,
 	}
-	deploymentDirFlag = &cli.PathFlag{
-		Name:  "deployment-dir",
-		Usage: "Path to network deployment directory. Cannot be used with --l1-deployments",
-	}
 	l1DeploymentsFlag = &cli.PathFlag{
-		Name:  "l1-deployments",
-		Usage: "Path to L1 deployments JSON file. Cannot be used with --deployment-dir",
+		Name:     "l1-deployments",
+		Usage:    "Path to L1 deployments JSON file as in superchain-registry",
+		Required: true,
 	}
 	outfileL2Flag = &cli.PathFlag{
 		Name:  "outfile.l2",
@@ -61,6 +56,10 @@ var (
 		Name:  "outfile.l1",
 		Usage: "Path to L1 genesis output file",
 	}
+	l2AllocsFlag = &cli.StringFlag{
+		Name:  "l2-allocs",
+		Usage: "Path to L2 genesis state dump",
+	}
 
 	l1Flags = []cli.Flag{
 		deployConfigFlag,
@@ -73,7 +72,7 @@ var (
 		l1RPCFlag,
 		l1StartingBlockFlag,
 		deployConfigFlag,
-		deploymentDirFlag,
+		l2AllocsFlag,
 		l1DeploymentsFlag,
 		outfileL2Flag,
 		outfileRollupFlag,
@@ -113,20 +112,20 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 
-			var dump *state.Dump
+			var dump *genesis.ForgeAllocs
 			if l1Allocs := ctx.String("l1-allocs"); l1Allocs != "" {
-				dump, err = genesis.NewStateDump(l1Allocs)
+				dump, err = genesis.LoadForgeAllocs(l1Allocs)
 				if err != nil {
 					return err
 				}
 			}
 
-			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, deployments, true)
+			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, deployments)
 			if err != nil {
 				return err
 			}
 
-			return writeJSONFile(ctx.String("outfile.l1"), l1Genesis)
+			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis, 0o666)
 		},
 	},
 	{
@@ -146,16 +145,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			deployDir := ctx.Path("deployment-dir")
 			l1Deployments := ctx.Path("l1-deployments")
-
-			if deployDir != "" && l1Deployments != "" {
-				return errors.New("cannot specify both --deployment-dir and --l1-deployments")
-			}
-			if deployDir == "" && l1Deployments == "" {
-				return errors.New("must specify either --deployment-dir or --l1-deployments")
-			}
-
 			l1StartBlockPath := ctx.Path("l1-starting-block")
 			l1RPC := ctx.String("l1-rpc")
 
@@ -166,33 +156,27 @@ var Subcommands = cli.Commands{
 				return errors.New("cannot specify both --l1-starting-block and --l1-rpc")
 			}
 
-			if deployDir != "" {
-				log.Info("Deployment directory", "path", deployDir)
-				depPath, network := filepath.Split(deployDir)
-				hh, err := hardhat.New(network, nil, []string{depPath})
-				if err != nil {
-					return err
-				}
-
-				// Read the appropriate deployment addresses from disk
-				if err := config.GetDeployedAddresses(hh); err != nil {
-					return err
-				}
+			deployments, err := genesis.NewL1Deployments(l1Deployments)
+			if err != nil {
+				return fmt.Errorf("cannot read L1 deployments at %s: %w", l1Deployments, err)
 			}
-
-			if l1Deployments != "" {
-				deployments, err := genesis.NewL1Deployments(l1Deployments)
-				if err != nil {
-					return fmt.Errorf("cannot read L1 deployments at %s: %w", l1Deployments, err)
-				}
-				config.SetDeployments(deployments)
-			}
+			config.SetDeployments(deployments)
 
 			var l1StartBlock *types.Block
 			if l1StartBlockPath != "" {
 				if l1StartBlock, err = readBlockJSON(l1StartBlockPath); err != nil {
 					return fmt.Errorf("cannot read L1 starting block at %s: %w", l1StartBlockPath, err)
 				}
+			}
+
+			var l2Allocs *genesis.ForgeAllocs
+			if l2AllocsPath := ctx.String("l2-allocs"); l2AllocsPath != "" {
+				l2Allocs, err = genesis.LoadForgeAllocs(l2AllocsPath)
+				if err != nil {
+					return err
+				}
+			} else {
+				return errors.New("missing l2-allocs")
 			}
 
 			if l1RPC != "" {
@@ -235,7 +219,7 @@ var Subcommands = cli.Commands{
 			log.Info("Using L1 Start Block", "number", l1StartBlock.Number(), "hash", l1StartBlock.Hash().Hex())
 
 			// Build the L2 genesis block
-			l2Genesis, err := genesis.BuildL2Genesis(config, l1StartBlock)
+			l2Genesis, err := genesis.BuildL2Genesis(config, l2Allocs, l1StartBlock)
 			if err != nil {
 				return fmt.Errorf("error creating l2 genesis: %w", err)
 			}
@@ -249,26 +233,12 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
 
-			if err := writeJSONFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
+			if err := jsonutil.WriteJSON(ctx.String("outfile.l2"), l2Genesis, 0o666); err != nil {
 				return err
 			}
-			return writeJSONFile(ctx.String("outfile.rollup"), rollupConfig)
+			return jsonutil.WriteJSON(ctx.String("outfile.rollup"), rollupConfig, 0o666)
 		},
 	},
-}
-
-// writeJSONFile will write a JSON file to disk at the given path
-// containing the JSON serialized input value.
-func writeJSONFile(outfile string, input any) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(input)
 }
 
 // rpcBlock represents the JSON serialization of a block from an Ethereum RPC.

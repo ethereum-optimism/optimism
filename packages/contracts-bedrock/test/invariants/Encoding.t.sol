@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
 contract Encoding_Converter {
     bool public failedRoundtripAToB;
@@ -48,10 +49,11 @@ contract Encoding_Converter {
     }
 }
 
-contract Encoding_Invariant is StdInvariant, Test {
+contract Encoding_Invariant is StdInvariant, InvariantTest {
     Encoding_Converter internal actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a converter actor.
         actor = new Encoding_Converter();
 
@@ -68,7 +70,7 @@ contract Encoding_Invariant is StdInvariant, Test {
     ///
     ///                   Asserts that a raw versioned nonce can be encoded / decoded
     ///                   to reach the same raw value.
-    function invariant_round_trip_encoding_AToB() external {
+    function invariant_round_trip_encoding_AToB() external view {
         // ASSERTION: The round trip encoding done in testRoundTripAToB(...)
         assertEq(actor.failedRoundtripAToB(), false);
     }
@@ -77,7 +79,7 @@ contract Encoding_Invariant is StdInvariant, Test {
     ///
     ///                   Asserts that an encoded versioned nonce can always be decoded /
     ///                   re-encoded to reach the same encoded value.
-    function invariant_round_trip_encoding_BToA() external {
+    function invariant_round_trip_encoding_BToA() external view {
         // ASSERTION: The round trip encoding done in testRoundTripBToA should never
         // fail.
         assertEq(actor.failedRoundtripBToA(), false);

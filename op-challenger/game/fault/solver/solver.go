@@ -10,9 +10,7 @@ import (
 )
 
 var (
-	ErrStepNonLeafNode       = errors.New("cannot step on non-leaf claims")
-	ErrStepAgreedClaim       = errors.New("cannot step on claims we agree with")
-	ErrStepIgnoreInvalidPath = errors.New("cannot step on claims that dispute invalid paths")
+	ErrStepNonLeafNode = errors.New("cannot step on non-leaf claims")
 )
 
 // claimSolver uses a [TraceProvider] to determine the moves to make in a dispute game.
@@ -29,34 +27,54 @@ func newClaimSolver(gameDepth types.Depth, trace types.TraceAccessor) *claimSolv
 	}
 }
 
+func (s *claimSolver) shouldCounter(game types.Game, claim types.Claim, honestClaims *honestClaimTracker) (bool, error) {
+	// Do not counter honest claims
+	if honestClaims.IsHonest(claim) {
+		return false, nil
+	}
+
+	if claim.IsRoot() {
+		// Always counter the root claim if it is not honest
+		return true, nil
+	}
+
+	parent, err := game.GetParent(claim)
+	if err != nil {
+		return false, fmt.Errorf("no parent for claim %v: %w", claim.ContractIndex, err)
+	}
+
+	// Counter all claims that are countering an honest claim
+	if honestClaims.IsHonest(parent) {
+		return true, nil
+	}
+
+	counter, hasCounter := honestClaims.HonestCounter(parent)
+	// Do not respond to any claim countering a claim the honest actor ignored
+	if !hasCounter {
+		return false, nil
+	}
+
+	// Do not counter sibling to an honest claim that are right of the honest claim.
+	honestIdx := counter.TraceIndex(game.MaxDepth())
+	claimIdx := claim.TraceIndex(game.MaxDepth())
+	return claimIdx.Cmp(honestIdx) <= 0, nil
+}
+
 // NextMove returns the next move to make given the current state of the game.
-func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game) (*types.Claim, error) {
+func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game, honestClaims *honestClaimTracker) (*types.Claim, error) {
 	if claim.Depth() == s.gameDepth {
 		return nil, types.ErrGameDepthReached
 	}
 
-	// Before challenging this claim, first check that the move wasn't warranted.
-	// If the parent claim is on a dishonest path, then we would have moved against it anyways. So we don't move.
-	// Avoiding dishonest paths ensures that there's always a valid claim available to support ours during step.
-	if !claim.IsRoot() {
-		parent, err := game.GetParent(claim)
-		if err != nil {
-			return nil, err
-		}
-		agreeWithParent, err := s.agreeWithClaimPath(ctx, game, parent)
-		if err != nil {
-			return nil, err
-		}
-		if !agreeWithParent {
-			return nil, nil
-		}
+	if counter, err := s.shouldCounter(game, claim, honestClaims); err != nil {
+		return nil, fmt.Errorf("failed to determine if claim should be countered: %w", err)
+	} else if !counter {
+		return nil, nil
 	}
 
-	agree, err := s.agreeWithClaim(ctx, game, claim)
-	if err != nil {
+	if agree, err := s.agreeWithClaim(ctx, game, claim); err != nil {
 		return nil, err
-	}
-	if agree {
+	} else if agree {
 		return s.defend(ctx, game, claim)
 	} else {
 		return s.attack(ctx, game, claim)
@@ -71,30 +89,23 @@ type StepData struct {
 	OracleData *types.PreimageOracleData
 }
 
-// AttemptStep determines what step should occur for a given leaf claim.
+// AttemptStep determines what step, if any, should occur for a given leaf claim.
 // An error will be returned if the claim is not at the max depth.
-// Returns ErrStepIgnoreInvalidPath if the claim disputes an invalid path
-func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim types.Claim) (StepData, error) {
+// Returns nil, nil if no step should be performed.
+func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim types.Claim, honestClaims *honestClaimTracker) (*StepData, error) {
 	if claim.Depth() != s.gameDepth {
-		return StepData{}, ErrStepNonLeafNode
+		return nil, ErrStepNonLeafNode
 	}
 
-	// Step only on claims that dispute a valid path
-	parent, err := game.GetParent(claim)
-	if err != nil {
-		return StepData{}, err
-	}
-	parentValid, err := s.agreeWithClaimPath(ctx, game, parent)
-	if err != nil {
-		return StepData{}, err
-	}
-	if !parentValid {
-		return StepData{}, ErrStepIgnoreInvalidPath
+	if counter, err := s.shouldCounter(game, claim, honestClaims); err != nil {
+		return nil, fmt.Errorf("failed to determine if claim should be countered: %w", err)
+	} else if !counter {
+		return nil, nil
 	}
 
 	claimCorrect, err := s.agreeWithClaim(ctx, game, claim)
 	if err != nil {
-		return StepData{}, err
+		return nil, err
 	}
 
 	var position types.Position
@@ -109,10 +120,10 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 
 	preState, proofData, oracleData, err := s.trace.GetStepData(ctx, game, claim, position)
 	if err != nil {
-		return StepData{}, err
+		return nil, err
 	}
 
-	return StepData{
+	return &StepData{
 		LeafClaim:  claim,
 		IsAttack:   !claimCorrect,
 		PreState:   preState,
@@ -154,30 +165,4 @@ func (s *claimSolver) defend(ctx context.Context, game types.Game, claim types.C
 func (s *claimSolver) agreeWithClaim(ctx context.Context, game types.Game, claim types.Claim) (bool, error) {
 	ourValue, err := s.trace.Get(ctx, game, claim, claim.Position)
 	return bytes.Equal(ourValue[:], claim.Value[:]), err
-}
-
-// agreeWithClaimPath returns true if the every other claim in the path to root is correct according to the internal [TraceProvider].
-func (s *claimSolver) agreeWithClaimPath(ctx context.Context, game types.Game, claim types.Claim) (bool, error) {
-	agree, err := s.agreeWithClaim(ctx, game, claim)
-	if err != nil {
-		return false, err
-	}
-	if !agree {
-		return false, nil
-	}
-	if claim.IsRoot() {
-		return true, nil
-	}
-	parent, err := game.GetParent(claim)
-	if err != nil {
-		return false, fmt.Errorf("failed to get parent of claim %v: %w", claim.ContractIndex, err)
-	}
-	if parent.IsRoot() {
-		return true, nil
-	}
-	grandParent, err := game.GetParent(parent)
-	if err != nil {
-		return false, err
-	}
-	return s.agreeWithClaimPath(ctx, game, grandParent)
 }

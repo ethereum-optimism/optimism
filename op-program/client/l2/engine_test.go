@@ -161,13 +161,13 @@ func createOracleEngine(t *testing.T) (*OracleEngine, *stubEngineBackend) {
 	}
 	engine := OracleEngine{
 		backend:   backend,
-		rollupCfg: chaincfg.Goerli,
+		rollupCfg: chaincfg.Sepolia,
 	}
 	return &engine, backend
 }
 
 func createL2Block(t *testing.T, number int) *types.Block {
-	tx, err := derive.L1InfoDeposit(chaincfg.Goerli, eth.SystemConfig{}, uint64(1), eth.HeaderBlockInfo(&types.Header{
+	tx, err := derive.L1InfoDeposit(chaincfg.Sepolia, eth.SystemConfig{}, uint64(1), eth.HeaderBlockInfo(&types.Header{
 		Number:  big.NewInt(32),
 		BaseFee: big.NewInt(7),
 	}), 0)

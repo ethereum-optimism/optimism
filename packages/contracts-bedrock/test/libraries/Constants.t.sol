@@ -6,7 +6,7 @@ import { Constants } from "src/libraries/Constants.sol";
 
 contract Constants_Test is Test {
     /// @notice Check EIP1967 related constants.
-    function test_eip1967Constants_succeeds() external {
+    function test_eip1967Constants_succeeds() external pure {
         assertEq(
             bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1), Constants.PROXY_IMPLEMENTATION_ADDRESS
         );

@@ -21,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/sec/insecure"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
@@ -52,6 +53,8 @@ type extraHost struct {
 
 	staticPeers []*peer.AddrInfo
 
+	pinging *PingService
+
 	quitC chan struct{}
 }
 
@@ -65,6 +68,9 @@ func (e *extraHost) ConnectionManager() connmgr.ConnManager {
 
 func (e *extraHost) Close() error {
 	close(e.quitC)
+	if e.pinging != nil {
+		e.pinging.Close()
+	}
 	return e.Host.Close()
 }
 
@@ -249,6 +255,14 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 		staticPeers: staticPeers,
 		quitC:       make(chan struct{}),
 	}
+
+	if conf.EnablePingService {
+		out.pinging = NewPingService(log,
+			func(ctx context.Context, peerID peer.ID) <-chan ping.Result {
+				return ping.Ping(ctx, h, peerID)
+			}, h.Network().Peers, clock.SystemClock)
+	}
+
 	out.initStaticPeers()
 	if len(conf.StaticPeers) > 0 {
 		go out.monitorStaticPeers()

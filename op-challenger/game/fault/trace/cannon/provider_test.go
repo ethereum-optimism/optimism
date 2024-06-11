@@ -3,7 +3,6 @@ package cannon
 import (
 	"context"
 	"embed"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -13,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -84,9 +84,9 @@ func TestGetStepData(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, new(big.Int)))
 		require.NoError(t, err)
-		expected := common.Hex2Bytes("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
+		expected := common.FromHex("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
 		require.Equal(t, expected, value)
-		expectedProof := common.Hex2Bytes("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
+		expectedProof := common.FromHex("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
 		require.Equal(t, expectedProof, proof)
 		// TODO: Need to add some oracle data
 		require.Nil(t, data)
@@ -110,7 +110,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -136,7 +136,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -162,7 +162,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		initGenerator.proof = &proofData{
+		initGenerator.proof = &utils.ProofData{
 			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
@@ -180,7 +180,7 @@ func TestGetStepData(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		generator.proof = &proofData{
+		generator.proof = &utils.ProofData{
 			ClaimValue: common.Hash{0xaa},
 			StateData:  []byte{0xbb},
 			ProofData:  []byte{0xcc},
@@ -207,9 +207,9 @@ func TestGetStepData(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, proof, data, err := provider.GetStepData(context.Background(), PositionFromTraceIndex(provider, big.NewInt(2)))
 		require.NoError(t, err)
-		expected := common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+		expected := common.FromHex("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 		require.Equal(t, expected, value)
-		expectedProof := common.Hex2Bytes("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+		expectedProof := common.FromHex("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
 		require.Equal(t, expectedProof, proof)
 		require.Empty(t, generator.generated)
 		require.Nil(t, data)
@@ -221,12 +221,13 @@ func setupTestData(t *testing.T) (string, string) {
 	entries, err := testData.ReadDir(srcDir)
 	require.NoError(t, err)
 	dataDir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(dataDir, proofsDir), 0o777))
+	require.NoError(t, os.Mkdir(filepath.Join(dataDir, utils.ProofsDir), 0o777))
 	for _, entry := range entries {
 		path := filepath.Join(srcDir, entry.Name())
 		file, err := testData.ReadFile(path)
 		require.NoErrorf(t, err, "reading %v", path)
-		err = writeGzip(filepath.Join(dataDir, proofsDir, entry.Name()+".gz"), file)
+		proofFile := filepath.Join(dataDir, utils.ProofsDir, entry.Name()+".gz")
+		err = ioutil.WriteCompressedBytes(proofFile, file, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 		require.NoErrorf(t, err, "writing %v", path)
 	}
 	return dataDir, "state.json"
@@ -235,7 +236,7 @@ func setupTestData(t *testing.T) (string, string) {
 func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator) {
 	generator := &stubGenerator{}
 	return &CannonTraceProvider{
-		logger:    testlog.Logger(t, log.LvlInfo),
+		logger:    testlog.Logger(t, log.LevelInfo),
 		dir:       dataDir,
 		generator: generator,
 		prestate:  filepath.Join(dataDir, prestate),
@@ -246,36 +247,30 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTr
 type stubGenerator struct {
 	generated  []int // Using int makes assertions easier
 	finalState *mipsevm.State
-	proof      *proofData
+	proof      *utils.ProofData
 }
 
 func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {
 	e.generated = append(e.generated, int(i))
+	var proofFile string
+	var data []byte
+	var err error
 	if e.finalState != nil && e.finalState.Step <= i {
 		// Requesting a trace index past the end of the trace
-		data, err := json.Marshal(e.finalState)
+		proofFile = filepath.Join(dir, utils.FinalState)
+		data, err = json.Marshal(e.finalState)
 		if err != nil {
 			return err
 		}
-		return writeGzip(filepath.Join(dir, finalState), data)
+		return ioutil.WriteCompressedBytes(proofFile, data, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 	}
 	if e.proof != nil {
-		proofFile := filepath.Join(dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
-		data, err := json.Marshal(e.proof)
+		proofFile = filepath.Join(dir, utils.ProofsDir, fmt.Sprintf("%d.json.gz", i))
+		data, err = json.Marshal(e.proof)
 		if err != nil {
 			return err
 		}
-		return writeGzip(proofFile, data)
+		return ioutil.WriteCompressedBytes(proofFile, data, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 	}
 	return nil
-}
-
-func writeGzip(path string, data []byte) error {
-	writer, err := ioutil.OpenCompressed(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
-	if err != nil {
-		return err
-	}
-	defer writer.Close()
-	_, err = writer.Write(data)
-	return err
 }

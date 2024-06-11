@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
 contract AddressAliasHelper_Converter {
     bool public failedRoundtrip;
@@ -23,10 +24,11 @@ contract AddressAliasHelper_Converter {
     }
 }
 
-contract AddressAliasHelper_AddressAliasing_Invariant is StdInvariant, Test {
+contract AddressAliasHelper_AddressAliasing_Invariant is StdInvariant, InvariantTest {
     AddressAliasHelper_Converter internal actor;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Create a converter actor.
         actor = new AddressAliasHelper_Converter();
 
@@ -43,7 +45,7 @@ contract AddressAliasHelper_AddressAliasing_Invariant is StdInvariant, Test {
     ///                   Asserts that an address that has been aliased with
     ///                   `applyL1ToL2Alias` can always be unaliased with
     ///                   `undoL1ToL2Alias`.
-    function invariant_round_trip_aliasing() external {
+    function invariant_round_trip_aliasing() external view {
         // ASSERTION: The round trip aliasing done in testRoundTrip(...) should never fail.
         assertEq(actor.failedRoundtrip(), false);
     }

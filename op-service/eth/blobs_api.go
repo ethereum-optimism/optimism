@@ -1,7 +1,6 @@
 package eth
 
 type BlobSidecar struct {
-	Slot          Uint64String `json:"slot"`
 	Blob          Blob         `json:"blob"`
 	Index         Uint64String `json:"index"`
 	KZGCommitment Bytes48      `json:"kzg_commitment"`
@@ -20,7 +19,6 @@ type APIBlobSidecar struct {
 
 func (sc *APIBlobSidecar) BlobSidecar() *BlobSidecar {
 	return &BlobSidecar{
-		Slot:          sc.SignedBlockHeader.Message.Slot,
 		Blob:          sc.Blob,
 		Index:         sc.Index,
 		KZGCommitment: sc.KZGCommitment,

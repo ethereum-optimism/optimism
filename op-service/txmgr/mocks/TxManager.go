@@ -64,6 +64,20 @@ func (_m *TxManager) From() common.Address {
 	return r0
 }
 
+// IsClosed provides a mock function with given fields:
+func (_m *TxManager) IsClosed() bool {
+	ret := _m.Called()
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func() bool); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
 // Send provides a mock function with given fields: ctx, candidate
 func (_m *TxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*types.Receipt, error) {
 	ret := _m.Called(ctx, candidate)

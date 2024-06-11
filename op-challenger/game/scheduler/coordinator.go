@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/exp/slices"
 )
 
 var errUnknownGame = errors.New("unknown game")
@@ -45,6 +45,8 @@ type coordinator struct {
 	createPlayer PlayerCreator
 	states       map[common.Address]*gameState
 	disk         DiskManager
+
+	allowInvalidPrestate bool
 
 	// lastScheduledBlockNum is the highest block number that the coordinator has seen and scheduled jobs.
 	lastScheduledBlockNum uint64
@@ -133,16 +135,20 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, bl
 			return nil, fmt.Errorf("failed to create game player: %w", err)
 		}
 		if err := player.ValidatePrestate(ctx); err != nil {
-			return nil, fmt.Errorf("failed to validate prestate: %w", err)
+			if !c.allowInvalidPrestate || !errors.Is(err, types.ErrInvalidPrestate) {
+				return nil, fmt.Errorf("failed to validate prestate: %w", err)
+			}
+			c.logger.Error("Invalid prestate", "game", game.Proxy, "err", err)
 		}
 		state.player = player
 		state.status = player.Status()
 	}
-	state.inflight = true
 	if state.status != types.GameStatusInProgress {
 		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
+		state.lastProcessedBlockNum = blockNumber
 		return nil, nil
 	}
+	state.inflight = true
 	return newJob(blockNumber, game.Proxy, state.player, state.status), nil
 }
 
@@ -186,14 +192,15 @@ func (c *coordinator) deleteResolvedGameFiles() {
 	}
 }
 
-func newCoordinator(logger log.Logger, m CoordinatorMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager) *coordinator {
+func newCoordinator(logger log.Logger, m CoordinatorMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager, allowInvalidPrestate bool) *coordinator {
 	return &coordinator{
-		logger:       logger,
-		m:            m,
-		jobQueue:     jobQueue,
-		resultQueue:  resultQueue,
-		createPlayer: createPlayer,
-		disk:         disk,
-		states:       make(map[common.Address]*gameState),
+		logger:               logger,
+		m:                    m,
+		jobQueue:             jobQueue,
+		resultQueue:          resultQueue,
+		createPlayer:         createPlayer,
+		disk:                 disk,
+		states:               make(map[common.Address]*gameState),
+		allowInvalidPrestate: allowInvalidPrestate,
 	}
 }

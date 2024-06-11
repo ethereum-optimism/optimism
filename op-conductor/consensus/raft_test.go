@@ -17,7 +17,7 @@ import (
 )
 
 func TestCommitAndRead(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	serverID := "SequencerA"
 	serverAddr := "127.0.0.1:0"
 	bootstrap := true
@@ -70,6 +70,7 @@ func TestCommitAndRead(t *testing.T) {
 	// ExecutionPayloadEnvelope is expected to succeed when unmarshalling a blockV3
 	require.NoError(t, err)
 
-	unsafeHead := cons.LatestUnsafePayload()
+	unsafeHead, err := cons.LatestUnsafePayload()
+	require.NoError(t, err)
 	require.Equal(t, payload, unsafeHead)
 }

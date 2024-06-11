@@ -61,7 +61,6 @@ func TestDeprecatedFlagsAreHidden(t *testing.T) {
 		flagName := flag.Names()[0]
 
 		t.Run(flagName, func(t *testing.T) {
-
 			visibleFlag, ok := flag.(interface {
 				IsVisible() bool
 			})
@@ -72,6 +71,11 @@ func TestDeprecatedFlagsAreHidden(t *testing.T) {
 }
 
 func TestHasEnvVar(t *testing.T) {
+	// known exceptions to the number of env vars
+	expEnvVars := map[string]int{
+		BeaconFallbackAddrs.Name: 2,
+	}
+
 	for _, flag := range Flags {
 		flag := flag
 		flagName := flag.Names()[0]
@@ -83,38 +87,42 @@ func TestHasEnvVar(t *testing.T) {
 			envFlagGetter, ok := flag.(interface {
 				GetEnvVars() []string
 			})
-			envFlags := envFlagGetter.GetEnvVars()
 			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
-			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			envFlags := envFlagGetter.GetEnvVars()
+			if numEnvVars, ok := expEnvVars[flagName]; ok {
+				require.Equalf(t, numEnvVars, len(envFlags), "flags should have %d env vars", numEnvVars)
+			} else {
+				require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			}
 		})
 	}
 }
 
 func TestEnvVarFormat(t *testing.T) {
+	skippedFlags := []string{
+		L1NodeAddr.Name,
+		L2EngineAddr.Name,
+		L2EngineJWTSecret.Name,
+		L1TrustRPC.Name,
+		L1RPCProviderKind.Name,
+		SnapshotLog.Name,
+		BackupL2UnsafeSyncRPC.Name,
+		BackupL2UnsafeSyncRPCTrustRPC.Name,
+		"p2p.scoring",
+		"p2p.ban.peers",
+		"p2p.ban.threshold",
+		"p2p.ban.duration",
+		"p2p.listen.tcp",
+		"p2p.listen.udp",
+		"p2p.useragent",
+		"p2p.gossip.mesh.lo",
+		"p2p.gossip.mesh.floodpublish",
+		"l2.engine-sync",
+	}
+
 	for _, flag := range Flags {
 		flag := flag
 		flagName := flag.Names()[0]
-
-		skippedFlags := []string{
-			L1NodeAddr.Name,
-			L2EngineAddr.Name,
-			L2EngineJWTSecret.Name,
-			L1TrustRPC.Name,
-			L1RPCProviderKind.Name,
-			SnapshotLog.Name,
-			BackupL2UnsafeSyncRPC.Name,
-			BackupL2UnsafeSyncRPCTrustRPC.Name,
-			"p2p.scoring",
-			"p2p.ban.peers",
-			"p2p.ban.threshold",
-			"p2p.ban.duration",
-			"p2p.listen.tcp",
-			"p2p.listen.udp",
-			"p2p.useragent",
-			"p2p.gossip.mesh.lo",
-			"p2p.gossip.mesh.floodpublish",
-			"l2.engine-sync",
-		}
 
 		t.Run(flagName, func(t *testing.T) {
 			if slices.Contains(skippedFlags, flagName) {
@@ -126,9 +134,8 @@ func TestEnvVarFormat(t *testing.T) {
 			envFlagGetter, ok := flag.(interface {
 				GetEnvVars() []string
 			})
-			envFlags := envFlagGetter.GetEnvVars()
 			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
-			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			envFlags := envFlagGetter.GetEnvVars()
 			expectedEnvVar := opservice.FlagNameToEnvVarName(flagName, "OP_NODE")
 			require.Equal(t, expectedEnvVar, envFlags[0])
 		})

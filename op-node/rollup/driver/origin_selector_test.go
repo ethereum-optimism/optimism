@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ import (
 // is no conf depth to stop the origin selection so block `b` should
 // be the next L1 origin
 func TestOriginSelectorAdvances(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 500,
 		BlockTime:         2,
@@ -62,7 +63,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 // but it should select block `a` because the L2 block time must be ahead
 // of the the timestamp of it's L1 origin.
 func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 500,
 		BlockTime:         2,
@@ -102,7 +103,7 @@ func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
 // as the origin, however block `b` is the L1 Head & the sequencer
 // needs to wait until that block is confirmed enough before advancing.
 func TestOriginSelectorRespectsConfDepth(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 500,
 		BlockTime:         2,
@@ -145,7 +146,7 @@ func TestOriginSelectorRespectsConfDepth(t *testing.T) {
 // This is because 29 (next L2 time) > 20 (origin) + 8 (seq drift) => invalid block.
 // We maintain confirmation distance, even though we would shift to the next origin if we could.
 func TestOriginSelectorStrictConfDepth(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 8,
 		BlockTime:         2,
@@ -176,6 +177,42 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 	require.ErrorContains(t, err, "sequencer time drift")
 }
 
+func u64ptr(n uint64) *uint64 {
+	return &n
+}
+
+// TestOriginSelector_FjordSeqDrift has a similar setup to the previous test
+// TestOriginSelectorStrictConfDepth but with Fjord activated at the l1 origin.
+// This time the same L1 origin is returned if no new L1 head is seen, instead of an error,
+// because the Fjord max sequencer drift is higher.
+func TestOriginSelector_FjordSeqDrift(t *testing.T) {
+	log := testlog.Logger(t, log.LevelCrit)
+	cfg := &rollup.Config{
+		MaxSequencerDrift: 8,
+		BlockTime:         2,
+		FjordTime:         u64ptr(20), // a's timestamp
+	}
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	a := eth.L1BlockRef{
+		Hash:   common.Hash{'a'},
+		Number: 10,
+		Time:   20,
+	}
+	l2Head := eth.L2BlockRef{
+		L1Origin: a.ID(),
+		Time:     27, // next L2 block time would be past pre-Fjord seq drift
+	}
+
+	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
+	l1.ExpectL1BlockRefByNumber(a.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
+	s := NewL1OriginSelector(log, cfg, l1)
+
+	l1O, err := s.FindL1Origin(context.Background(), l2Head)
+	require.NoError(t, err, "with Fjord activated, have increased max seq drift")
+	require.Equal(t, a, l1O)
+}
+
 // TestOriginSelectorSeqDriftRespectsNextOriginTime
 //
 // There are 2 L1 blocks at time 20 & 100. The L2 Head is at time 27.
@@ -183,7 +220,7 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 // drift, the origin should remain on block `a` because the next origin's
 // time is greater than the next L2 time.
 func TestOriginSelectorSeqDriftRespectsNextOriginTime(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 8,
 		BlockTime:         2,
@@ -225,7 +262,7 @@ func TestOriginSelectorSeqDriftRespectsNextOriginTime(t *testing.T) {
 // Due to a conf depth of 2, block `b` is not immediately visible,
 // and the origin selection should fail until it is visible, by waiting for block `c`.
 func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
 		MaxSequencerDrift: 8,
 		BlockTime:         2,

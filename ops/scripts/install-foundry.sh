@@ -6,7 +6,7 @@ SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 MONOREPO_DIR=$(cd "$SCRIPTS_DIR/../../" && pwd)
 
 # Grab the foundry commit hash.
-SHA=$(jq -r .foundry < $MONOREPO_DIR/versions.json)
+SHA=$(jq -r .foundry < "$MONOREPO_DIR"/versions.json)
 
 # Check if there is a nightly tag corresponding to the commit hash
 TAG="nightly-$SHA"
@@ -39,11 +39,19 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   foundryup -v "$TAG"
 else
   echo "Nightly tag doesn't exist! Building from source..."
-  foundryup -C "$SHA"
+  git checkout "$SHA"
+
+  # Use native `cargo` build to avoid any rustc environment variables `foundryup` sets. We explicitly
+  # ignore chisel, as it is not a part of `ci-builder`.
+  cargo build --bin forge --release
+  cargo build --bin cast --release
+  cargo build --bin anvil --release
+  mkdir -p ~/.foundry/bin
+  mv target/release/forge ~/.foundry/bin
+  mv target/release/cast ~/.foundry/bin
+  mv target/release/anvil ~/.foundry/bin
 fi
 
 # Remove the temporary foundry repo; Used just for checking the nightly tag's existence.
 rm -rf "$TMP_DIR"
 echo "Removed tempdir @ $TMP_DIR"
-
-

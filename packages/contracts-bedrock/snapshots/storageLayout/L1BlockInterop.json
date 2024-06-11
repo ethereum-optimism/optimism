@@ -1,0 +1,86 @@
+[
+  {
+    "bytes": "8",
+    "label": "number",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint64"
+  },
+  {
+    "bytes": "8",
+    "label": "timestamp",
+    "offset": 8,
+    "slot": "0",
+    "type": "uint64"
+  },
+  {
+    "bytes": "32",
+    "label": "basefee",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "hash",
+    "offset": 0,
+    "slot": "2",
+    "type": "bytes32"
+  },
+  {
+    "bytes": "8",
+    "label": "sequenceNumber",
+    "offset": 0,
+    "slot": "3",
+    "type": "uint64"
+  },
+  {
+    "bytes": "4",
+    "label": "blobBaseFeeScalar",
+    "offset": 8,
+    "slot": "3",
+    "type": "uint32"
+  },
+  {
+    "bytes": "4",
+    "label": "baseFeeScalar",
+    "offset": 12,
+    "slot": "3",
+    "type": "uint32"
+  },
+  {
+    "bytes": "32",
+    "label": "batcherHash",
+    "offset": 0,
+    "slot": "4",
+    "type": "bytes32"
+  },
+  {
+    "bytes": "32",
+    "label": "l1FeeOverhead",
+    "offset": 0,
+    "slot": "5",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "l1FeeScalar",
+    "offset": 0,
+    "slot": "6",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "blobBaseFee",
+    "offset": 0,
+    "slot": "7",
+    "type": "uint256"
+  },
+  {
+    "bytes": "64",
+    "label": "dependencySet",
+    "offset": 0,
+    "slot": "8",
+    "type": "struct EnumerableSet.UintSet"
+  }
+]

@@ -14,10 +14,12 @@ var _ types.PrestateProvider = (*CannonPrestateProvider)(nil)
 
 type CannonPrestateProvider struct {
 	prestate string
+
+	prestateCommitment common.Hash
 }
 
 func NewPrestateProvider(prestate string) *CannonPrestateProvider {
-	return &CannonPrestateProvider{prestate}
+	return &CannonPrestateProvider{prestate: prestate}
 }
 
 func (p *CannonPrestateProvider) absolutePreState() ([]byte, error) {
@@ -29,6 +31,9 @@ func (p *CannonPrestateProvider) absolutePreState() ([]byte, error) {
 }
 
 func (p *CannonPrestateProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
+	if p.prestateCommitment != (common.Hash{}) {
+		return p.prestateCommitment, nil
+	}
 	state, err := p.absolutePreState()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
@@ -37,5 +42,6 @@ func (p *CannonPrestateProvider) AbsolutePreStateCommitment(_ context.Context) (
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("cannot hash absolute pre-state: %w", err)
 	}
+	p.prestateCommitment = hash
 	return hash, nil
 }

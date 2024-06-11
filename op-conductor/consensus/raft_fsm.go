@@ -16,8 +16,15 @@ var _ raft.FSM = (*unsafeHeadTracker)(nil)
 
 // unsafeHeadTracker implements raft.FSM for storing unsafe head payload into raft consensus layer.
 type unsafeHeadTracker struct {
+	log        log.Logger
 	mtx        sync.RWMutex
 	unsafeHead *eth.ExecutionPayloadEnvelope
+}
+
+func NewUnsafeHeadTracker(log log.Logger) *unsafeHeadTracker {
+	return &unsafeHeadTracker{
+		log: log,
+	}
 }
 
 // Apply implements raft.FSM, it applies the latest change (latest unsafe head payload) to FSM.
@@ -33,6 +40,7 @@ func (t *unsafeHeadTracker) Apply(l *raft.Log) interface{} {
 
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
+	t.log.Debug("applying new unsafe head", "number", uint64(data.ExecutionPayload.BlockNumber), "hash", data.ExecutionPayload.BlockHash.Hex())
 	if t.unsafeHead == nil || t.unsafeHead.ExecutionPayload.BlockNumber < data.ExecutionPayload.BlockNumber {
 		t.unsafeHead = data
 	}

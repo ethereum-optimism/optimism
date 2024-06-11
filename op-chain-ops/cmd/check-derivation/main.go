@@ -14,9 +14,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -28,7 +30,8 @@ import (
 )
 
 func main() {
-	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
+	color := isatty.IsTerminal(os.Stderr.Fd())
+	oplog.SetGlobalLogHandler(log.NewTerminalHandler(os.Stderr, color))
 
 	app := cli.NewApp()
 	app.Name = "check-derivation"
@@ -157,7 +160,7 @@ func detectL2Reorg(cliCtx *cli.Context) error {
 		return err
 	}
 
-	var pollingInterval = cliCtx.Duration("polling-interval")
+	pollingInterval := cliCtx.Duration("polling-interval")
 	// blockMap maps blockNumber to blockHash
 	blockMap := make(map[uint64]common.Hash)
 	var prevUnsafeHeadNum uint64
@@ -326,7 +329,7 @@ func checkConsolidation(cliCtx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	var pollingInterval = cliCtx.Duration("polling-interval")
+	pollingInterval := cliCtx.Duration("polling-interval")
 	privateKey, err := getPrivateKey(cliCtx)
 	if err != nil {
 		return err

@@ -31,7 +31,7 @@ contract CrossDomainMessenger_BaseGas_Test is Bridge_Initializer {
     ///         or equal to the minimum gas limit value on the OptimismPortal.
     ///         This guarantees that the messengers will always pass sufficient
     ///         gas to the OptimismPortal.
-    function testFuzz_baseGas_portalMinGasLimit_succeeds(bytes memory _data, uint32 _minGasLimit) external {
+    function testFuzz_baseGas_portalMinGasLimit_succeeds(bytes memory _data, uint32 _minGasLimit) external view {
         vm.assume(_data.length <= type(uint64).max);
         uint64 baseGas = l1CrossDomainMessenger.baseGas(_data, _minGasLimit);
         uint64 minGasLimit = optimismPortal.minimumGasLimit(uint64(_data.length));

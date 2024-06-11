@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Safe, OwnerManager } from "safe-contracts/Safe.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
@@ -14,6 +14,18 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         If the number of owners falls below the minimum number of owners, the ownership of the
 ///         safe will be transferred to the fallback owner.
 contract LivenessModule is ISemver {
+    /// @notice Error message for failed owner removal.
+    error OwnerRemovalFailed(string);
+
+    /// @notice Emitted when an owner is removed due to insufficient liveness
+    event RemovedOwner(address indexed owner);
+
+    /// @notice Emitted when the fallback owner takes ownership
+    event OwnershipTransferredToFallback();
+
+    /// @notice Flag to indicate if the module has been deactivated
+    bool public ownershipTransferredToFallback;
+
     /// @notice The Safe contract instance
     Safe internal immutable SAFE;
 
@@ -29,6 +41,9 @@ contract LivenessModule is ISemver {
     ///         This can be updated by replacing with a new module.
     uint256 internal immutable MIN_OWNERS;
 
+    /// @notice The percentage used to calculate the threshold for the Safe.
+    uint256 internal immutable THRESHOLD_PERCENTAGE;
+
     /// @notice The fallback owner of the Safe
     ///         This can be updated by replacing with a new module.
     address internal immutable FALLBACK_OWNER;
@@ -38,8 +53,8 @@ contract LivenessModule is ISemver {
     uint256 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.2.0";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(
@@ -47,25 +62,25 @@ contract LivenessModule is ISemver {
         LivenessGuard _livenessGuard,
         uint256 _livenessInterval,
         uint256 _minOwners,
+        uint256 _thresholdPercentage,
         address _fallbackOwner
     ) {
         SAFE = _safe;
         LIVENESS_GUARD = _livenessGuard;
         LIVENESS_INTERVAL = _livenessInterval;
+        THRESHOLD_PERCENTAGE = _thresholdPercentage;
         FALLBACK_OWNER = _fallbackOwner;
         MIN_OWNERS = _minOwners;
         address[] memory owners = _safe.getOwners();
         require(_minOwners <= owners.length, "LivenessModule: minOwners must be less than the number of owners");
-        require(
-            _safe.getThreshold() >= get75PercentThreshold(owners.length),
-            "LivenessModule: Safe must have a threshold of at least 75% of the number of owners"
-        );
+        require(_thresholdPercentage > 0, "LivenessModule: thresholdPercentage must be greater than 0");
+        require(_thresholdPercentage <= 100, "LivenessModule: thresholdPercentage must be less than or equal to 100");
     }
 
-    /// @notice For a given number of owners, return the lowest threshold which is greater than 75.
+    /// @notice For a given number of owners, return the lowest threshold which is greater than the required percentage.
     ///         Note: this function returns 1 for numOwners == 1.
-    function get75PercentThreshold(uint256 _numOwners) public pure returns (uint256 threshold_) {
-        threshold_ = (_numOwners * 75 + 99) / 100;
+    function getRequiredThreshold(uint256 _numOwners) public view returns (uint256 threshold_) {
+        threshold_ = (_numOwners * THRESHOLD_PERCENTAGE + 99) / 100;
     }
 
     /// @notice Getter function for the Safe contract instance
@@ -92,7 +107,13 @@ contract LivenessModule is ISemver {
         minOwners_ = MIN_OWNERS;
     }
 
-    /// @notice Getter function for the fallback owner
+    /// @notice Getter function for the required threshold percentage
+    /// @return thresholdPercentage_ The minimum number of owners
+    function thresholdPercentage() public view returns (uint256 thresholdPercentage_) {
+        thresholdPercentage_ = THRESHOLD_PERCENTAGE;
+    }
+
+    /// @notice Getter function for the fallback
     /// @return fallbackOwner_ The fallback owner of the Safe
     function fallbackOwner() public view returns (address fallbackOwner_) {
         fallbackOwner_ = FALLBACK_OWNER;
@@ -113,11 +134,16 @@ contract LivenessModule is ISemver {
     /// @param _ownersToRemove The owners to remove
     function removeOwners(address[] memory _previousOwners, address[] memory _ownersToRemove) external {
         require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
+        address[] memory currentOwners = SAFE.getOwners();
+        require(
+            !ownershipTransferredToFallback,
+            "LivenessModule: The safe has been shutdown, the LivenessModule and LivenessGuard should be removed or replaced."
+        );
 
         // Initialize the ownersCount count to the current number of owners, so that we can track the number of
         // owners in the Safe after each removal. The Safe will revert if an owner cannot be removed, so it is safe
         // keep a local count of the number of owners this way.
-        uint256 ownersCount = SAFE.getOwners().length;
+        uint256 ownersCount = currentOwners.length;
         for (uint256 i = 0; i < _previousOwners.length; i++) {
             // Validate that the owner can be removed, which means that either:
             //   1. the ownersCount is now less than MIN_OWNERS, in which case all owners should be removed regardless
@@ -155,7 +181,7 @@ contract LivenessModule is ISemver {
     /// @param _newOwnersCount New number of owners after removal.
     function _removeOwner(address _prevOwner, address _ownerToRemove, uint256 _newOwnersCount) internal {
         if (_newOwnersCount > 0) {
-            uint256 newThreshold = get75PercentThreshold(_newOwnersCount);
+            uint256 newThreshold = getRequiredThreshold(_newOwnersCount);
             // Remove the owner and update the threshold
             _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: newThreshold });
         } else {
@@ -169,15 +195,19 @@ contract LivenessModule is ISemver {
     /// @param _prevOwner Owner that pointed to the owner to be replaced in the linked list
     /// @param _oldOwner Owner address to be replaced.
     function _swapToFallbackOwnerSafeCall(address _prevOwner, address _oldOwner) internal {
-        require(
-            SAFE.execTransactionFromModule({
-                to: address(SAFE),
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
-            }),
-            "LivenessModule: failed to swap to fallback owner"
-        );
+        (bool success, bytes memory returnData) = SAFE.execTransactionFromModuleReturnData({
+            to: address(SAFE),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
+        });
+        if (!success) {
+            revert OwnerRemovalFailed(string(returnData));
+        }
+
+        // Deactivate the module to prevent unintended behavior after the fallback owner has taken ownership.
+        ownershipTransferredToFallback = true;
+        emit OwnershipTransferredToFallback();
     }
 
     /// @notice Removes the owner `owner` from the Safe and updates the threshold to `_threshold`.
@@ -185,15 +215,16 @@ contract LivenessModule is ISemver {
     /// @param _owner Owner address to be removed.
     /// @param _threshold New threshold.
     function _removeOwnerSafeCall(address _prevOwner, address _owner, uint256 _threshold) internal {
-        require(
-            SAFE.execTransactionFromModule({
-                to: address(SAFE),
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
-            }),
-            "LivenessModule: failed to remove owner"
-        );
+        (bool success, bytes memory returnData) = SAFE.execTransactionFromModuleReturnData({
+            to: address(SAFE),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
+        });
+        if (!success) {
+            revert OwnerRemovalFailed(string(returnData));
+        }
+        emit RemovedOwner(_owner);
     }
 
     /// @notice A FREI-PI invariant check enforcing requirements on number of owners and threshold.
@@ -215,11 +246,11 @@ contract LivenessModule is ISemver {
 
         // Check that"LivenessModule: must remove all owners and transfer to fallback owner if numOwners < minOwners"
         // the threshold is correct. This check is also correct when there is a single
-        // owner, because get75PercentThreshold(1) returns 1.
+        // owner, because getRequiredThreshold(1) returns 1.
         uint256 threshold = SAFE.getThreshold();
         require(
-            threshold == get75PercentThreshold(numOwners),
-            "LivenessModule: Safe must have a threshold of 75% of the number of owners"
+            threshold == getRequiredThreshold(numOwners),
+            "LivenessModule: Insufficient threshold for the number of owners"
         );
 
         // Check that the guard has not been changed

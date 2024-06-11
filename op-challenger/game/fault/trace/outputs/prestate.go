@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var _ types.PrestateProvider = (*OutputPrestateProvider)(nil)
@@ -17,7 +15,7 @@ type OutputPrestateProvider struct {
 	rollupClient  OutputRollupClient
 }
 
-func NewPrestateProvider(ctx context.Context, logger log.Logger, rollupClient OutputRollupClient, prestateBlock uint64) *OutputPrestateProvider {
+func NewPrestateProvider(rollupClient OutputRollupClient, prestateBlock uint64) *OutputPrestateProvider {
 	return &OutputPrestateProvider{
 		prestateBlock: prestateBlock,
 		rollupClient:  rollupClient,

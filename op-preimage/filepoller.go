@@ -30,12 +30,12 @@ func (f *FilePoller) Read(b []byte) (int, error) {
 			return 0, err
 		}
 		n, err := f.File.Read(b[read:])
+		read += n
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			if cerr := f.ctx.Err(); cerr != nil {
 				return read, cerr
 			}
 		} else {
-			read += n
 			if read >= len(b) {
 				return read, err
 			}
@@ -50,12 +50,12 @@ func (f *FilePoller) Write(b []byte) (int, error) {
 			return 0, err
 		}
 		n, err := f.File.Write(b[written:])
+		written += n
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			if cerr := f.ctx.Err(); cerr != nil {
 				return written, cerr
 			}
 		} else {
-			written += n
 			if written >= len(b) {
 				return written, err
 			}

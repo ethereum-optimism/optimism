@@ -22,7 +22,7 @@ func TestDencunL1ForkAfterGenesis(gt *testing.T) {
 	offset := hexutil.Uint64(24)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	l1Head := miner.l1Chain.CurrentBlock()
@@ -65,7 +65,7 @@ func TestDencunL1ForkAtGenesis(gt *testing.T) {
 	offset := hexutil.Uint64(0)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	l1Head := miner.l1Chain.CurrentBlock()
@@ -130,7 +130,7 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 
 	// start op-nodes
@@ -167,7 +167,7 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 
 	// start op-nodes
@@ -209,7 +209,7 @@ func TestDencunBlobTxRPC(gt *testing.T) {
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	engine := newEngine(t, sd, log)
 	cl := engine.EthClient()
 	tx := aliceSimpleBlobTx(t, dp)
@@ -228,7 +228,7 @@ func TestDencunBlobTxInTxPool(gt *testing.T) {
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	engine := newEngine(t, sd, log)
 	tx := aliceSimpleBlobTx(t, dp)
 	errs := engine.eth.TxPool().Add([]*types.Transaction{tx}, true, true)
@@ -246,7 +246,7 @@ func TestDencunBlobTxInclusion(gt *testing.T) {
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	_, engine, sequencer := setupSequencerTest(t, sd, log)
 	sequencer.ActL2PipelineFull(t)

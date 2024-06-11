@@ -46,7 +46,7 @@ type PeerScoresTestSuite struct {
 func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.ScoreMetrics{}
-	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
+	testSuite.logger = testlog.Logger(testSuite.T(), log.LevelError)
 }
 
 // TestPeerScores runs the PeerScoresTestSuite.
@@ -71,7 +71,7 @@ func (c *customPeerstoreNetwork) Close() error {
 // getNetHosts generates a slice of hosts using the [libp2p/go-libp2p] library.
 func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []host.Host {
 	var out []host.Host
-	log := testlog.Logger(testSuite.T(), log.LvlError)
+	log := testlog.Logger(testSuite.T(), log.LevelError)
 	for i := 0; i < n; i++ {
 		swarm := tswarm.GenSwarm(testSuite.T())
 		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()), 1*time.Hour)
@@ -99,7 +99,7 @@ func (d *discriminatingAppScorer) ApplicationScore(id peer.ID) float64 {
 func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []host.Host) []*pubsub.PubSub {
 	var psubs []*pubsub.PubSub
 
-	logger := testlog.Logger(testSuite.T(), log.LvlCrit)
+	logger := testlog.Logger(testSuite.T(), log.LevelCrit)
 
 	// For each host, create a default gossipsub router.
 	for _, h := range hosts {

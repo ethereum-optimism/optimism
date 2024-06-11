@@ -1,0 +1,9 @@
+{
+  "foo": 0,
+  "bar": "0x71f9eb93ff904e5c03c3425228ef75766db0c906ad239df9a7a7f0d9c6a89705",
+  "step": 0,
+  "pre": "0x03abd5c535c08bae7c4ad48fcae39b65f9c25239f65b4376c58638d262c97381",
+  "post": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "state-data": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "proof-data": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}

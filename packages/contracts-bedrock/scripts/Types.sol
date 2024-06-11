@@ -7,8 +7,12 @@ library Types {
         address L1CrossDomainMessenger;
         address L1StandardBridge;
         address L2OutputOracle;
+        address DisputeGameFactory;
+        address DelayedWETH;
+        address AnchorStateRegistry;
         address OptimismMintableERC20Factory;
         address OptimismPortal;
+        address OptimismPortal2;
         address SystemConfig;
         address L1ERC721Bridge;
         address ProtocolVersions;

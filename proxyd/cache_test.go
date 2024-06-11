@@ -183,7 +183,7 @@ func TestRPCCacheUnsupportedMethod(t *testing.T) {
 			name: "eth_call",
 			req: &RPCReq{
 				JSONRPC: "2.0",
-				Method:  "eth_gasPrice",
+				Method:  "eth_call",
 				ID:      ID,
 			},
 		},

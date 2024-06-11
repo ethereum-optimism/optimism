@@ -31,6 +31,7 @@ func AtomicEncode(path string, val any) error {
 	if err != nil {
 		return err
 	}
+	defer atomicFile.Close()
 	if err = json.NewEncoder(atomicFile).Encode(val); err != nil {
 		return err
 	}
@@ -53,7 +54,7 @@ type TestParms struct {
 	SkipTests map[string]string `json:"skip_tests"`
 }
 
-func (tp TestParms) SkipIfNecessary(t *testing.T) {
+func (tp TestParms) SkipIfNecessary(t testing.TB) {
 	if len(tp.SkipTests) == 0 {
 		return
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -46,10 +47,10 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 	defer ticker.Stop()
 	for {
 		receipt, err := client.TransactionReceipt(ctx, hash)
-		if errors.Is(err, ethereum.NotFound) {
+		if errors.Is(err, ethereum.NotFound) || (err != nil && strings.Contains(err.Error(), "transaction indexing is in progress")) {
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return nil, fmt.Errorf("timed out waiting for tx %s: %w: %w", hash, err, ctx.Err())
 			case <-ticker.C:
 				continue
 			}
@@ -58,7 +59,7 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to get receipt: %w", err)
+			return nil, fmt.Errorf("failed to get receipt for tx %s: %w", hash, err)
 		}
 		if receipt.Status != status {
 			printDebugTrace(ctx, client, hash)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -34,6 +35,7 @@ type SequencerMetrics interface {
 type Sequencer struct {
 	log       log.Logger
 	rollupCfg *rollup.Config
+	spec      *rollup.ChainSpec
 
 	engine derive.EngineControl
 
@@ -52,6 +54,7 @@ func NewSequencer(log log.Logger, rollupCfg *rollup.Config, engine derive.Engine
 	return &Sequencer{
 		log:              log,
 		rollupCfg:        rollupCfg,
+		spec:             rollup.NewChainSpec(rollupCfg),
 		engine:           engine,
 		timeNow:          time.Now,
 		attrBuilder:      attributesBuilder,
@@ -90,7 +93,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 	// empty blocks (other than the L1 info deposit and any user deposits). We handle this by
 	// setting NoTxPool to true, which will cause the Sequencer to not include any transactions
 	// from the transaction pool.
-	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+d.rollupCfg.MaxSequencerDrift
+	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+d.spec.MaxSequencerDrift(l1Origin.Time)
 
 	// For the Ecotone activation block we shouldn't include any sequencer transactions.
 	if d.rollupCfg.IsEcotoneActivationBlock(uint64(attrs.Timestamp)) {
@@ -98,12 +101,18 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 		d.log.Info("Sequencing Ecotone upgrade block")
 	}
 
+	// For the Fjord activation block we shouldn't include any sequencer transactions.
+	if d.rollupCfg.IsFjordActivationBlock(uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+		d.log.Info("Sequencing Fjord upgrade block")
+	}
+
 	d.log.Debug("prepared attributes for new block",
 		"num", l2Head.Number+1, "time", uint64(attrs.Timestamp),
 		"origin", l1Origin, "origin_time", l1Origin.Time, "noTxPool", attrs.NoTxPool)
 
 	// Start a payload building process.
-	withParent := derive.NewAttributesWithParent(attrs, l2Head, false)
+	withParent := &derive.AttributesWithParent{Attributes: attrs, Parent: l2Head, IsLastInSpan: false}
 	errTyp, err := d.engine.StartPayload(ctx, l2Head, withParent, false)
 	if err != nil {
 		return fmt.Errorf("failed to start building on top of L2 chain %s, error (%d): %w", l2Head, errTyp, err)
@@ -114,8 +123,8 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 // CompleteBuildingBlock takes the current block that is being built, and asks the engine to complete the building, seal the block, and persist it as canonical.
 // Warning: the safe and finalized L2 blocks as viewed during the initiation of the block building are reused for completion of the block building.
 // The Execution engine should not change the safe and finalized blocks between start and completion of block building.
-func (d *Sequencer) CompleteBuildingBlock(ctx context.Context, agossip async.AsyncGossiper) (*eth.ExecutionPayloadEnvelope, error) {
-	envelope, errTyp, err := d.engine.ConfirmPayload(ctx, agossip)
+func (d *Sequencer) CompleteBuildingBlock(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (*eth.ExecutionPayloadEnvelope, error) {
+	envelope, errTyp, err := d.engine.ConfirmPayload(ctx, agossip, sequencerConductor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to complete building block: error (%d): %w", errTyp, err)
 	}
@@ -131,18 +140,17 @@ func (d *Sequencer) CancelBuildingBlock(ctx context.Context) {
 
 // PlanNextSequencerAction returns a desired delay till the RunNextSequencerAction call.
 func (d *Sequencer) PlanNextSequencerAction() time.Duration {
+	buildingOnto, buildingID, safe := d.engine.BuildingPayload()
 	// If the engine is busy building safe blocks (and thus changing the head that we would sync on top of),
 	// then give it time to sync up.
-	if onto, _, safe := d.engine.BuildingPayload(); safe {
-		d.log.Warn("delaying sequencing to not interrupt safe-head changes", "onto", onto, "onto_time", onto.Time)
+	if safe {
+		d.log.Warn("delaying sequencing to not interrupt safe-head changes", "onto", buildingOnto, "onto_time", buildingOnto.Time)
 		// approximates the worst-case time it takes to build a block, to reattempt sequencing after.
 		return time.Second * time.Duration(d.rollupCfg.BlockTime)
 	}
 
 	head := d.engine.UnsafeL2Head()
 	now := d.timeNow()
-
-	buildingOnto, buildingID, _ := d.engine.BuildingPayload()
 
 	// We may have to wait till the next sequencing action, e.g. upon an error.
 	// If the head changed we need to respond and will not delay the sequencing.
@@ -204,7 +212,7 @@ func (d *Sequencer) BuildingOnto() eth.L2BlockRef {
 // If the derivation pipeline does force a conflicting block, then an ongoing sequencer task might still finish,
 // but the derivation can continue to reset until the chain is correct.
 // If the engine is currently building safe blocks, then that building is not interrupted, and sequencing is delayed.
-func (d *Sequencer) RunNextSequencerAction(ctx context.Context, agossip async.AsyncGossiper) (*eth.ExecutionPayloadEnvelope, error) {
+func (d *Sequencer) RunNextSequencerAction(ctx context.Context, agossip async.AsyncGossiper, sequencerConductor conductor.SequencerConductor) (*eth.ExecutionPayloadEnvelope, error) {
 	// if the engine returns a non-empty payload, OR if the async gossiper already has a payload, we can CompleteBuildingBlock
 	if onto, buildingID, safe := d.engine.BuildingPayload(); buildingID != (eth.PayloadID{}) || agossip.Get() != nil {
 		if safe {
@@ -213,7 +221,7 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context, agossip async.As
 			d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.rollupCfg.BlockTime))
 			return nil, nil
 		}
-		envelope, err := d.CompleteBuildingBlock(ctx, agossip)
+		envelope, err := d.CompleteBuildingBlock(ctx, agossip, sequencerConductor)
 		if err != nil {
 			if errors.Is(err, derive.ErrCritical) {
 				return nil, err // bubble up critical errors.

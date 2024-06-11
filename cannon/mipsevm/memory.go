@@ -114,9 +114,6 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 			return zeroHashes[28-l] // page does not exist
 		}
 	}
-	if l > PageKeySize+1 {
-		panic("cannot jump into intermediate node of page")
-	}
 	n, ok := m.nodes[gindex]
 	if !ok {
 		// if the node doesn't exist, the whole sub-tree is zeroed

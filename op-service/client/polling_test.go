@@ -73,8 +73,7 @@ func (m *MockRPC) popResult() {
 }
 
 func TestPollingClientSubscribeUnsubscribe(t *testing.T) {
-	lgr := log.New()
-	lgr.SetHandler(log.DiscardHandler())
+	lgr := log.NewLogger(log.DiscardHandler())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -134,8 +133,7 @@ func TestPollingClientSubscribeUnsubscribe(t *testing.T) {
 }
 
 func TestPollingClientErrorRecovery(t *testing.T) {
-	lgr := log.New()
-	lgr.SetHandler(log.DiscardHandler())
+	lgr := log.NewLogger(log.DiscardHandler())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -165,8 +163,7 @@ func TestPollingClientErrorRecovery(t *testing.T) {
 }
 
 func TestPollingClientClose(t *testing.T) {
-	lgr := log.New()
-	lgr.SetHandler(log.DiscardHandler())
+	lgr := log.NewLogger(log.DiscardHandler())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

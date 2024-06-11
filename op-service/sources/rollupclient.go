@@ -3,9 +3,10 @@ package sources
 import (
 	"context"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -23,6 +24,12 @@ func NewRollupClient(rpc client.RPC) *RollupClient {
 func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
 	var output *eth.OutputResponse
 	err := r.rpc.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
+	return output, err
+}
+
+func (r *RollupClient) SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error) {
+	var output *eth.SafeHeadResponse
+	err := r.rpc.CallContext(ctx, &output, "optimism_safeHeadAtL1Block", hexutil.Uint64(blockNum))
 	return output, err
 }
 
@@ -64,7 +71,7 @@ func (r *RollupClient) PostUnsafePayload(ctx context.Context, payload *eth.Execu
 	return r.rpc.CallContext(ctx, nil, "admin_postUnsafePayload", payload)
 }
 
-func (r *RollupClient) SetLogLevel(ctx context.Context, lvl log.Lvl) error {
+func (r *RollupClient) SetLogLevel(ctx context.Context, lvl slog.Level) error {
 	return r.rpc.CallContext(ctx, nil, "admin_setLogLevel", lvl.String())
 }
 

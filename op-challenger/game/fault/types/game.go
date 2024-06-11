@@ -3,9 +3,7 @@ package types
 import (
 	"errors"
 	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"time"
 )
 
 var (
@@ -25,6 +23,10 @@ type Game interface {
 	// its parent.
 	DefendsParent(claim Claim) bool
 
+	// ChessClock returns the amount of time elapsed on the chess clock of the potential challenger to the supplied claim.
+	// Specifically, this returns the chess clock of the team that *disagrees* with the supplied claim.
+	ChessClock(now time.Time, claim Claim) time.Duration
+
 	// IsDuplicate returns true if the provided [Claim] already exists in the game state
 	// referencing the same parent claim
 	IsDuplicate(claim Claim) bool
@@ -33,16 +35,10 @@ type Game interface {
 	AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bool
 
 	MaxDepth() Depth
-}
 
-type claimID common.Hash
-
-func computeClaimID(claim Claim) claimID {
-	return claimID(crypto.Keccak256Hash(
-		claim.Position.ToGIndex().Bytes(),
-		claim.Value.Bytes(),
-		big.NewInt(int64(claim.ParentContractIndex)).Bytes(),
-	))
+	// AncestorWithTraceIndex finds the ancestor of claim with trace index idx if present.
+	// Returns the claim and true if the ancestor is found, or Claim{}, false if not.
+	AncestorWithTraceIndex(claim Claim, idx *big.Int) (Claim, bool)
 }
 
 // gameState is a struct that represents the state of a dispute game.
@@ -50,16 +46,16 @@ func computeClaimID(claim Claim) claimID {
 type gameState struct {
 	// claims is the list of claims in the same order as the contract
 	claims   []Claim
-	claimIDs map[claimID]bool
+	claimIDs map[ClaimID]bool
 	depth    Depth
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(claims []Claim, depth Depth) *gameState {
-	claimIDs := make(map[claimID]bool)
+	claimIDs := make(map[ClaimID]bool)
 	for _, claim := range claims {
-		claimIDs[computeClaimID(claim)] = true
+		claimIDs[claim.ID()] = true
 	}
 	return &gameState{
 		claims:   claims,
@@ -81,7 +77,7 @@ func (g *gameState) AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bo
 }
 
 func (g *gameState) IsDuplicate(claim Claim) bool {
-	return g.claimIDs[computeClaimID(claim)]
+	return g.claimIDs[claim.ID()]
 }
 
 func (g *gameState) Claims() []Claim {
@@ -109,6 +105,27 @@ func (g *gameState) DefendsParent(claim Claim) bool {
 	return claim.RightOf(parent.Position)
 }
 
+// ChessClock returns the amount of time elapsed on the chess clock of the potential challenger to the supplied claim.
+// Specifically, this returns the chess clock of the team that *disagrees* with the supplied claim.
+func (g *gameState) ChessClock(now time.Time, claim Claim) time.Duration {
+	parentRef := g.getParent(claim)
+	var parent Claim
+	if parentRef != nil {
+		parent = *parentRef
+	}
+	return ChessClock(now, claim, parent)
+}
+
+func ChessClock(now time.Time, claim Claim, parent Claim) time.Duration {
+	// Calculate the time elapsed since the claim was created
+	duration := now.Sub(claim.Clock.Timestamp)
+	if parent != (Claim{}) {
+		// Add total time elapsed from previous turns
+		duration = parent.Clock.Duration + duration
+	}
+	return duration
+}
+
 func (g *gameState) getParent(claim Claim) *Claim {
 	if claim.IsRoot() {
 		return nil
@@ -118,4 +135,20 @@ func (g *gameState) getParent(claim Claim) *Claim {
 	}
 	parent := g.claims[claim.ParentContractIndex]
 	return &parent
+}
+
+func (g *gameState) AncestorWithTraceIndex(claim Claim, idx *big.Int) (Claim, bool) {
+	for {
+		if claim.Position.TraceIndex(g.depth).Cmp(idx) == 0 {
+			return claim, true
+		}
+		if claim.IsRoot() {
+			return Claim{}, false
+		}
+		next := g.getParent(claim)
+		if next == nil {
+			return Claim{}, false
+		}
+		claim = *next
+	}
 }

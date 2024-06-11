@@ -13,6 +13,9 @@ error InvalidPreimage();
 /// @notice Thrown when a leaf with an invalid input size is added.
 error InvalidInputSize();
 
+/// @notice Thrown when data is submitted out of order in a large preimage proposal.
+error WrongStartingBlock();
+
 /// @notice Thrown when the pre and post states passed aren't contiguous.
 error StatesNotContiguous();
 
@@ -36,3 +39,9 @@ error NotInitialized();
 
 /// @notice Thrown when the caller of a function is not an EOA.
 error NotEOA();
+
+/// @notice Thrown when an insufficient bond is provided for a large preimage proposal.
+error InsufficientBond();
+
+/// @notice Thrown when a bond transfer fails.
+error BondTransferFailed();

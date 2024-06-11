@@ -40,4 +40,12 @@ func (t *Accessor) GetStepData(ctx context.Context, game types.Game, ref types.C
 	return provider.GetStepData(ctx, pos)
 }
 
+func (t *Accessor) GetL2BlockNumberChallenge(ctx context.Context, game types.Game) (*types.InvalidL2BlockNumberChallenge, error) {
+	provider, err := t.selector(ctx, game, game.Claims()[0], types.RootPosition)
+	if err != nil {
+		return nil, err
+	}
+	return provider.GetL2BlockNumberChallenge(ctx)
+}
+
 var _ types.TraceAccessor = (*Accessor)(nil)

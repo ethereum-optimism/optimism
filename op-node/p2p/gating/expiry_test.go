@@ -20,7 +20,7 @@ import (
 
 func expiryTestSetup(t *testing.T) (*clock.DeterministicClock, *mocks.ExpiryStore, *mocks.BlockingConnectionGater, *ExpiryConnectionGater) {
 	mockGater := mocks.NewBlockingConnectionGater(t)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	cl := clock.NewDeterministicClock(time.Now())
 	mockExpiryStore := mocks.NewExpiryStore(t)
 	gater := AddBanExpiry(mockGater, mockExpiryStore, log, cl, metrics.NoopMetrics)
