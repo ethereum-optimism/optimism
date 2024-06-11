@@ -217,8 +217,10 @@ contract Setup {
         labelPreinstall(Preinstalls.DeterministicDeploymentProxy);
         labelPreinstall(Preinstalls.MultiSend_v130);
         labelPreinstall(Preinstalls.Permit2);
-        labelPreinstall(Preinstalls.SenderCreator);
-        labelPreinstall(Preinstalls.EntryPoint);
+        labelPreinstall(Preinstalls.SenderCreator_v060);
+        labelPreinstall(Preinstalls.EntryPoint_v060);
+        labelPreinstall(Preinstalls.SenderCreator_v070);
+        labelPreinstall(Preinstalls.EntryPoint_v070);
         labelPreinstall(Preinstalls.BeaconBlockRoots);
 
         console.log("Setup: completed L2 genesis");

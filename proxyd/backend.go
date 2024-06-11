@@ -705,12 +705,35 @@ func sortBatchRPCResponse(req []*RPCReq, res []*RPCRes) {
 }
 
 type BackendGroup struct {
-	Name            string
-	Backends        []*Backend
-	WeightedRouting bool
-	Consensus       *ConsensusPoller
+	Name             string
+	Backends         []*Backend
+	WeightedRouting  bool
+	Consensus        *ConsensusPoller
+	FallbackBackends map[string]bool
 }
 
+func (bg *BackendGroup) Fallbacks() []*Backend {
+	fallbacks := []*Backend{}
+	for _, a := range bg.Backends {
+		if fallback, ok := bg.FallbackBackends[a.Name]; ok && fallback {
+			fallbacks = append(fallbacks, a)
+		}
+	}
+	return fallbacks
+}
+
+func (bg *BackendGroup) Primaries() []*Backend {
+	primaries := []*Backend{}
+	for _, a := range bg.Backends {
+		fallback, ok := bg.FallbackBackends[a.Name]
+		if ok && !fallback {
+			primaries = append(primaries, a)
+		}
+	}
+	return primaries
+}
+
+// NOTE: BackendGroup Forward contains the log for balancing with consensus aware
 func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, string, error) {
 	if len(rpcReqs) == 0 {
 		return nil, "", nil

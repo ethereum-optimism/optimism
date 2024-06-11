@@ -20,7 +20,6 @@ on:
         options:
           - ci-builder
           - ci-builder-rust
-          - indexer
           - op-heartbeat
           - chain-mon
           - op-node

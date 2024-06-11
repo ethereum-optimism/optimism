@@ -114,7 +114,7 @@ func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error 
 		if offset != 0 || p.currentRollupClient == nil {
 			if err := p.dialSequencer(ctx, idx); err != nil {
 				errs = errors.Join(errs, err)
-				p.log.Warn("Error dialing next sequencer.", "err", err, "index", p.rollupIndex)
+				p.log.Warn("Error dialing next sequencer.", "err", err, "index", idx)
 				continue
 			}
 		}

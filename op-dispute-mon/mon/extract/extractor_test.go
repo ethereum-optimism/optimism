@@ -236,7 +236,7 @@ type mockGameCaller struct {
 	resolved         map[int]bool
 }
 
-func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
 	m.withdrawalsCalls++
 	if m.withdrawalsErr != nil {
 		return nil, m.withdrawalsErr

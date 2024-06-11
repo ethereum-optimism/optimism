@@ -410,6 +410,24 @@ var (
 	}, []string{
 		"backend_name",
 	})
+
+	healthyPrimaryCandidates = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "healthy_candidates",
+		Help:      "Record the number of healthy primary candidates",
+	}, []string{
+		"backend_group_name",
+	})
+
+	backendGroupFallbackBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_group_fallback_backenend",
+		Help:      "Bool gauge for if a backend is a fallback for a backend group",
+	}, []string{
+		"backend_group",
+		"backend_name",
+		"fallback",
+	})
 )
 
 func RecordRedisError(source string) {
@@ -541,6 +559,10 @@ func RecordConsensusBackendBanned(b *Backend, banned bool) {
 	consensusBannedBackends.WithLabelValues(b.Name).Set(boolToFloat64(banned))
 }
 
+func RecordHealthyCandidates(b *BackendGroup, candidates int) {
+	healthyPrimaryCandidates.WithLabelValues(b.Name).Set(float64(candidates))
+}
+
 func RecordConsensusBackendPeerCount(b *Backend, peerCount uint64) {
 	consensusPeerCountBackend.WithLabelValues(b.Name).Set(float64(peerCount))
 }
@@ -565,6 +587,10 @@ func RecordBackendNetworkLatencyAverageSlidingWindow(b *Backend, avgLatency time
 
 func RecordBackendNetworkErrorRateSlidingWindow(b *Backend, rate float64) {
 	networkErrorRateBackend.WithLabelValues(b.Name).Set(rate)
+}
+
+func RecordBackendGroupFallbacks(bg *BackendGroup, name string, fallback bool) {
+	backendGroupFallbackBackend.WithLabelValues(bg.Name, name, strconv.FormatBool(fallback)).Set(boolToFloat64(fallback))
 }
 
 func boolToFloat64(b bool) float64 {

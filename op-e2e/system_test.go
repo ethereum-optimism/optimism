@@ -90,7 +90,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestL2OutputSubmitter(t *testing.T) {
-	InitParallel(t, SkipOnFPAC)
+	InitParallel(t, SkipOnFaultProofs)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
@@ -158,8 +158,8 @@ func TestL2OutputSubmitter(t *testing.T) {
 	}
 }
 
-func TestL2OutputSubmitterFPAC(t *testing.T) {
-	InitParallel(t, SkipOnNotFPAC)
+func TestL2OutputSubmitterFaultProofs(t *testing.T) {
+	InitParallel(t, SkipOnL2OO)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
@@ -1150,7 +1150,7 @@ func TestWithdrawals(t *testing.T) {
 	proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
 	finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
 	fees = new(big.Int).Add(proveFee, finalizeFee)
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
 		resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
 		fees = new(big.Int).Add(fees, resolveClaimFee)

@@ -16,16 +16,8 @@ import (
 // TestCheckFjordScript ensures the op-chain-ops/cmd/check-fjord script runs successfully
 // against a test chain with the fjord hardfork activated/unactivated
 func TestCheckFjordScript(t *testing.T) {
-	log := testlog.Logger(t, log.LevelInfo)
-
-	cfg := DefaultSystemConfig(t)
+	InitParallel(t)
 	genesisActivation := hexutil.Uint64(0)
-	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2GenesisCanyonTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
-
 	tests := []struct {
 		name            string
 		fjordActivation *hexutil.Uint64
@@ -46,6 +38,16 @@ func TestCheckFjordScript(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			InitParallel(t)
+
+			log := testlog.Logger(t, log.LevelInfo)
+
+			cfg := DefaultSystemConfig(t)
+			cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
+			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &genesisActivation
+			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &genesisActivation
+			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
+			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
+
 			cfg.DeployConfig.L2GenesisFjordTimeOffset = tt.fjordActivation
 
 			sys, err := cfg.Start(t)

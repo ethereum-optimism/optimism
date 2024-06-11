@@ -33,6 +33,10 @@ library GameTypes {
     /// @notice A dispute game type the uses the asterisc VM
     GameType internal constant ASTERISC = GameType.wrap(2);
 
+    /// @notice A dispute game type with short game duration for testing withdrawals.
+    ///         Not intended for production use.
+    GameType internal constant FAST = GameType.wrap(254);
+
     /// @notice A dispute game type that uses an alphabet vm.
     ///         Not intended for production use.
     GameType internal constant ALPHABET = GameType.wrap(255);

@@ -6,7 +6,6 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "src/universal/IOptimismMintableERC721.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -21,8 +20,8 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, ISemver {
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
+    /// @custom:semver 1.7.1+beta.1
+    string public constant version = "1.7.1+beta.1";
 
     /// @notice Constructs the L2ERC721Bridge contract.
     constructor() ERC721Bridge() {
@@ -34,7 +33,7 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
     function initialize(address payable _l1ERC721Bridge) public initializer {
         __ERC721Bridge_init({
             _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
-            _otherBridge: StandardBridge(_l1ERC721Bridge)
+            _otherBridge: ERC721Bridge(_l1ERC721Bridge)
         });
     }
 

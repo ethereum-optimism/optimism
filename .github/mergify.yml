@@ -89,17 +89,6 @@ pull_request_rules:
       label:
         add:
           - A-cannon
-  - name: Add A-indexer label and ecopod reviewers
-    conditions:
-      - 'files~=^indexer/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-indexer
-      request_reviews:
-        users:
-          - roninjin10
   - name: Add A-op-batcher label
     conditions:
       - 'files~=^op-batcher/'

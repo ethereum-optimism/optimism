@@ -118,6 +118,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 
 	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
+	conductor.retryBackoff = func() time.Duration { return 0 } // disable retry backoff for tests
 	s.conductor = conductor
 
 	s.healthUpdateCh = make(chan error, 1)
@@ -159,6 +160,7 @@ func (s *OpConductorTestSuite) enableSynchronization() {
 		s.wg.Done()
 	}
 	s.startConductor()
+	s.executeAction()
 }
 
 func (s *OpConductorTestSuite) disableSynchronization() {
@@ -292,7 +294,7 @@ func (s *OpConductorTestSuite) TestScenario1() {
 	// unsafe in consensus is different than unsafe in node.
 	mockPayload := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
-			BlockNumber: 2,
+			BlockNumber: 3,
 			BlockHash:   [32]byte{4, 5, 6},
 		},
 	}
@@ -433,7 +435,8 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	}
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
-	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mock.Anything).Return(nil).Times(1)
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(errors.New("simulated PostUnsafePayload failure")).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
 
 	s.updateLeaderStatusAndExecuteAction(true)
 
@@ -441,16 +444,14 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.True(s.conductor.leader.Load())
 	s.True(s.conductor.healthy.Load())
 	s.False(s.conductor.seqActive.Load())
-	s.ctrl.AssertNotCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
+	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 1)
 	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 1)
 	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 1)
-	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 1)
+	s.ctrl.AssertNotCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
 
-	// unsafe caught up, we try to start sequencer at specified block and succeeds
-	mockBlockInfo.InfoNum = 2
-	mockBlockInfo.InfoHash = [32]byte{1, 2, 3}
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
 	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
 	s.executeAction()
@@ -459,10 +460,10 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.True(s.conductor.leader.Load())
 	s.True(s.conductor.healthy.Load())
 	s.True(s.conductor.seqActive.Load())
-	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 2)
-	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 1)
-	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
 	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 2)
+	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 2)
+	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 2)
+	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
 }
 
 // In this test, we have a follower that is healthy and not sequencing, we send a unhealthy update to it and expect it to stay as follower and not start sequencing.
@@ -717,8 +718,104 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 		healthy: false,
 		active:  false,
 	}, s.conductor.prevState)
-	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 2)
-	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 2)
+	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 1)
+	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 1)
+	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
+
+	s.log.Info("4. stay unhealthy for a bit while catching up")
+	s.updateHealthStatusAndExecuteAction(health.ErrSequencerNotHealthy)
+
+	s.True(s.conductor.leader.Load())
+	s.False(s.conductor.healthy.Load())
+	s.True(s.conductor.seqActive.Load())
+	s.Equal(&state{
+		leader:  true,
+		healthy: false,
+		active:  false,
+	}, s.conductor.prevState)
+
+	s.log.Info("5. become healthy again")
+	s.updateHealthStatusAndExecuteAction(nil)
+
+	// need to use eventually here because starting from step 4, the loop is gonna queue an action and retry until it became healthy again.
+	// use eventually here avoids the situation where health update is consumed after the action is executed.
+	s.Eventually(func() bool {
+		res := s.conductor.leader.Load() == true &&
+			s.conductor.healthy.Load() == true &&
+			s.conductor.seqActive.Load() == true &&
+			s.conductor.prevState.Equal(&state{
+				leader:  true,
+				healthy: true,
+				active:  true,
+			})
+		if !res {
+			s.executeAction()
+		}
+		return res
+	}, 2*time.Second, time.Millisecond)
+}
+
+// This test is similar to TestFailureAndRetry3, but the consensus payload is one block ahead of the new leader's unsafe head.
+// Then leadership transfer happened, and the follower became leader. We expect it to start sequencing and catch up eventually.
+// 1. [follower, healthy, not sequencing] -- become unhealthy -->
+// 2. [follower, unhealthy, not sequencing] -- gained leadership -->
+// 3. [leader, unhealthy, not sequencing] -- start sequencing -->
+// 4. [leader, unhealthy, sequencing] -> become healthy again -->
+// 5. [leader, healthy, sequencing]
+func (s *OpConductorTestSuite) TestFailureAndRetry4() {
+	s.enableSynchronization()
+
+	// set initial state, healthy follower
+	s.conductor.leader.Store(false)
+	s.conductor.healthy.Store(true)
+	s.conductor.seqActive.Store(false)
+	s.conductor.prevState = &state{
+		leader:  false,
+		healthy: true,
+		active:  false,
+	}
+
+	s.log.Info("1. become unhealthy")
+	s.updateHealthStatusAndExecuteAction(health.ErrSequencerNotHealthy)
+
+	s.False(s.conductor.leader.Load())
+	s.False(s.conductor.healthy.Load())
+	s.False(s.conductor.seqActive.Load())
+	s.Equal(&state{
+		leader:  false,
+		healthy: false,
+		active:  false,
+	}, s.conductor.prevState)
+
+	s.log.Info("2 & 3. gained leadership, post unsafe payload and start sequencing")
+	mockPayload := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: 2,
+			BlockHash:   [32]byte{4, 5, 6},
+		},
+	}
+	mockBlockInfo := &testutils.MockBlockInfo{
+		InfoNum:  1,
+		InfoHash: [32]byte{1, 2, 3},
+	}
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(2)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(2)
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	s.True(s.conductor.leader.Load())
+	s.False(s.conductor.healthy.Load())
+	s.True(s.conductor.seqActive.Load())
+	s.Equal(&state{
+		leader:  true,
+		healthy: false,
+		active:  false,
+	}, s.conductor.prevState)
+	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 1)
+	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 1)
+	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 1)
 	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
 
 	s.log.Info("4. stay unhealthy for a bit while catching up")
@@ -752,6 +849,22 @@ func (s *OpConductorTestSuite) TestFailureAndRetry3() {
 		}
 		return res
 	}, 2*time.Second, 100*time.Millisecond)
+}
+
+func (s *OpConductorTestSuite) TestConductorRestart() {
+	// set initial state
+	s.conductor.leader.Store(false)
+	s.conductor.healthy.Store(true)
+	s.conductor.seqActive.Store(true)
+	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, nil).Times(1)
+
+	s.enableSynchronization()
+
+	// expect to stay as follower, go to [follower, healthy, not sequencing]
+	s.False(s.conductor.leader.Load())
+	s.True(s.conductor.healthy.Load())
+	s.False(s.conductor.seqActive.Load())
+	s.ctrl.AssertCalled(s.T(), "StopSequencer", mock.Anything)
 }
 
 func (s *OpConductorTestSuite) TestHandleInitError() {

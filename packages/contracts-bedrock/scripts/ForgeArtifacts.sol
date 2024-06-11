@@ -162,7 +162,7 @@ library ForgeArtifacts {
     {
         string memory pathExcludesPat;
         for (uint256 i = 0; i < pathExcludes.length; i++) {
-            pathExcludesPat = string.concat(pathExcludesPat, " -path ", pathExcludes[i]);
+            pathExcludesPat = string.concat(pathExcludesPat, " -path \"", pathExcludes[i], "\"");
             if (i != pathExcludes.length - 1) {
                 pathExcludesPat = string.concat(pathExcludesPat, " -o ");
             }

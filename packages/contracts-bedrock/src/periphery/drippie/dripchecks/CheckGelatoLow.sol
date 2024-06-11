@@ -22,6 +22,9 @@ contract CheckGelatoLow is IDripCheck {
     event _EventToExposeStructInABI__Params(Params params);
 
     /// @inheritdoc IDripCheck
+    string public name = "CheckGelatoLow";
+
+    /// @inheritdoc IDripCheck
     function check(bytes memory _params) external view returns (bool execute_) {
         Params memory params = abi.decode(_params, (Params));
 

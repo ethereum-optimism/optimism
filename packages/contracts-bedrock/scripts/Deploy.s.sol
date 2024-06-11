@@ -80,6 +80,7 @@ contract Deploy is Deployer {
         Claim absolutePrestate;
         IBigStepper faultVm;
         uint256 maxGameDepth;
+        Duration maxClockDuration;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -343,6 +344,7 @@ contract Deploy is Deployer {
         initializeImplementations();
 
         setAlphabetFaultGameImplementation({ _allowUpgrade: false });
+        setFastFaultGameImplementation({ _allowUpgrade: false });
         setCannonFaultGameImplementation({ _allowUpgrade: false });
         setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
 
@@ -361,9 +363,9 @@ contract Deploy is Deployer {
         deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
         deployERC1967Proxy("L1ERC721BridgeProxy");
 
-        // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardles of whether FPAC is enabled
-        // to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be removed. If
-        // fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
+        // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardless of whether fault proofs is
+        // enabled to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be
+        // removed. If fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
         deployERC1967Proxy("DisputeGameFactoryProxy");
         deployERC1967Proxy("L2OutputOracleProxy");
         deployERC1967Proxy("DelayedWETHProxy");
@@ -396,10 +398,9 @@ contract Deploy is Deployer {
     function initializeImplementations() public {
         console.log("Initializing implementations");
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
-        // the proxy, we cannot initialize both. FPAC warning can be removed once we're done with the old OptimismPortal
-        // contract.
+        // the proxy, we cannot initialize both.
         if (cfg.useFaultProofs()) {
-            console.log("WARNING: FPAC is enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
+            console.log("Fault proofs enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
         } else {
             initializeOptimismPortal();
@@ -956,7 +957,7 @@ contract Deploy is Deployer {
         address anchorStateRegistryProxy = mustGetAddress("AnchorStateRegistryProxy");
         address anchorStateRegistry = mustGetAddress("AnchorStateRegistry");
 
-        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](4);
+        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](5);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.CANNON,
             outputRoot: OutputRoot({
@@ -980,6 +981,13 @@ contract Deploy is Deployer {
         });
         roots[3] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.ASTERISC,
+            outputRoot: OutputRoot({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2BlockNumber: cfg.faultGameGenesisBlock()
+            })
+        });
+        roots[4] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.FAST,
             outputRoot: OutputRoot({
                 root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                 l2BlockNumber: cfg.faultGameGenesisBlock()
@@ -1376,7 +1384,8 @@ contract Deploy is Deployer {
                 gameType: GameTypes.CANNON,
                 absolutePrestate: loadMipsAbsolutePrestate(),
                 faultVm: IBigStepper(mustGetAddress("Mips")),
-                maxGameDepth: cfg.faultGameMaxDepth()
+                maxGameDepth: cfg.faultGameMaxDepth(),
+                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
             })
         });
     }
@@ -1397,7 +1406,8 @@ contract Deploy is Deployer {
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 absolutePrestate: loadMipsAbsolutePrestate(),
                 faultVm: IBigStepper(mustGetAddress("Mips")),
-                maxGameDepth: cfg.faultGameMaxDepth()
+                maxGameDepth: cfg.faultGameMaxDepth(),
+                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
             })
         });
     }
@@ -1419,8 +1429,32 @@ contract Deploy is Deployer {
                 absolutePrestate: outputAbsolutePrestate,
                 faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
-                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1
+                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
+                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
             })
+        });
+    }
+
+    /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
+    function setFastFaultGameImplementation(bool _allowUpgrade) public onlyDevnet broadcast {
+        console.log("Setting Fast FaultDisputeGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
+
+        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        _setFaultGameImplementation({
+            _factory: factory,
+            _allowUpgrade: _allowUpgrade,
+            _params: FaultDisputeGameParams({
+                anchorStateRegistry: AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
+                weth: weth,
+                gameType: GameTypes.FAST,
+                absolutePrestate: outputAbsolutePrestate,
+                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
+                // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
+                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
+                maxClockDuration: Duration.wrap(0) // Resolvable immediately
+             })
         });
     }
 
@@ -1450,7 +1484,7 @@ contract Deploy is Deployer {
                     _maxGameDepth: _params.maxGameDepth,
                     _splitDepth: cfg.faultGameSplitDepth(),
                     _clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                    _maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
+                    _maxClockDuration: _params.maxClockDuration,
                     _vm: _params.faultVm,
                     _weth: _params.weth,
                     _anchorStateRegistry: _params.anchorStateRegistry,

@@ -70,7 +70,7 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	_, _ = crand.Read(m.buildingID[:])
 	m.buildingOnto = parent
 	m.buildingSafe = updateSafe
-	m.buildingAttrs = attrs.Attributes()
+	m.buildingAttrs = attrs.Attributes
 	m.buildingStart = m.timeNow()
 	return derive.BlockInsertOK, nil
 }

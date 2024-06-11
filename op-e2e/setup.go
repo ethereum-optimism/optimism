@@ -776,13 +776,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	// L2Output Submitter
 	var proposerCLIConfig *l2os.CLIConfig
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
 			L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
 			RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
 			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
 			ProposalInterval:  6 * time.Second,
-			DisputeGameType:   0,
+			DisputeGameType:   254, // Fast game type
 			PollInterval:      50 * time.Millisecond,
 			TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,

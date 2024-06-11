@@ -212,19 +212,6 @@ target "proxyd" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proxyd:${tag}"]
 }
 
-target "indexer" {
-  dockerfile = "./indexer/Dockerfile"
-  context = "./"
-  args = {
-    // proxyd dockerfile has no _ in the args
-    GITCOMMIT = "${GIT_COMMIT}"
-    GITDATE = "${GIT_DATE}"
-    GITVERSION = "${GIT_VERSION}"
-  }
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/indexer:${tag}"]
-}
-
 target "chain-mon" {
   dockerfile = "./ops/docker/Dockerfile.packages"
   context = "."

@@ -3,7 +3,6 @@ package faultproofs
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
@@ -15,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -312,7 +310,7 @@ func TestOutputCannonStepWithKZGPointEvaluation(t *testing.T) {
 
 		// NOTE: Flake prevention
 		// Ensure that the L1 origin including the point eval tx isn't on the genesis epoch.
-		safeBlock, err := sys.Clients["sequencer"].BlockByNumber(ctx, big.NewInt(int64(rpc.SafeBlockNumber)))
+		safeBlock, err := wait.ForNextSafeBlock(ctx, sys.NodeClient("sequencer"))
 		require.NoError(t, err)
 		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeBlock.NumberU64()+3))
 

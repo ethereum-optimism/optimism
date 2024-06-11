@@ -356,30 +356,32 @@ func sequencerCfg(rpcPort int) *rollupNode.Config {
 }
 
 func waitForLeadership(t *testing.T, c *conductor) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	condition := func() (bool, error) {
-		isLeader, err := c.client.Leader(context.Background())
+		isLeader, err := c.client.Leader(ctx)
 		if err != nil {
 			return false, err
 		}
 		return isLeader, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	return wait.For(ctx, 1*time.Second, condition)
 }
 
 func waitForLeadershipChange(t *testing.T, prev *conductor, prevID string, conductors map[string]*conductor, sys *System) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	condition := func() (bool, error) {
-		isLeader, err := prev.client.Leader(context.Background())
+		isLeader, err := prev.client.Leader(ctx)
 		if err != nil {
 			return false, err
 		}
 		return !isLeader, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	err := wait.For(ctx, 1*time.Second, condition)
 	require.NoError(t, err)
 
@@ -394,16 +396,17 @@ func waitForLeadershipChange(t *testing.T, prev *conductor, prevID string, condu
 }
 
 func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClient, active bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	condition := func() (bool, error) {
-		isActive, err := rollupClient.SequencerActive(context.Background())
+		isActive, err := rollupClient.SequencerActive(ctx)
 		if err != nil {
 			return false, err
 		}
 		return isActive == active, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	return wait.For(ctx, 1*time.Second, condition)
 }
 
@@ -482,9 +485,11 @@ func findFollower(t *testing.T, conductors map[string]*conductor) (string, *cond
 }
 
 func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*conductor) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	condition := func() (bool, error) {
 		leaders := 0
-		ctx := context.Background()
 		for name, con := range conductors {
 			leader, err := con.client.Leader(ctx)
 			if err != nil {
@@ -501,8 +506,5 @@ func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*condu
 		}
 		return leaders == 1, nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	require.NoError(t, wait.For(ctx, 1*time.Second, condition))
 }

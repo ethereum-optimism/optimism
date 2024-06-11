@@ -186,7 +186,7 @@ contract L2GenesisTest is Test {
 
         uint256 expected = 0;
         expected += 2048 - 2; // predeploy proxies
-        expected += 19; // predeploy implementations (excl. legacy erc20-style eth and legacy message sender)
+        expected += 21; // predeploy implementations (excl. legacy erc20-style eth and legacy message sender)
         expected += 256; // precompiles
         expected += 12; // preinstalls
         expected += 1; // 4788 deployer account
