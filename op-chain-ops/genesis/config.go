@@ -690,9 +690,9 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 }
 
 // L1Deployments represents a set of L1 contracts that are deployed.
+// This should be consolidated with https://github.com/ethereum-optimism/superchain-registry/blob/f9702a89214244c8dde39e45f5c2955f26d857d0/superchain/superchain.go#L227
 type L1Deployments struct {
 	AddressManager                    common.Address `json:"AddressManager"`
-	BlockOracle                       common.Address `json:"BlockOracle"`
 	DisputeGameFactory                common.Address `json:"DisputeGameFactory"`
 	DisputeGameFactoryProxy           common.Address `json:"DisputeGameFactoryProxy"`
 	L1CrossDomainMessenger            common.Address `json:"L1CrossDomainMessenger"`
@@ -738,10 +738,9 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 	}
 	for i := 0; i < val.NumField(); i++ {
 		name := val.Type().Field(i).Name
-		// Skip the non production ready contracts
-		if name == "DisputeGameFactory" ||
-			name == "DisputeGameFactoryProxy" ||
-			name == "BlockOracle" {
+		if !deployConfig.UseFaultProofs &&
+			(name == "DisputeGameFactory" ||
+				name == "DisputeGameFactoryProxy") {
 			continue
 		}
 		if !deployConfig.UsePlasma &&
