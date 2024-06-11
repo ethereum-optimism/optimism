@@ -738,10 +738,10 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 	}
 	for i := 0; i < val.NumField(); i++ {
 		name := val.Type().Field(i).Name
-		// Skip the non production ready contracts
-		if name == "DisputeGameFactory" ||
-			name == "DisputeGameFactoryProxy" ||
-			name == "BlockOracle" {
+		if !deployConfig.UseFaultProofs &&
+			(name == "DisputeGameFactory" ||
+				name == "DisputeGameFactoryProxy" ||
+				name == "BlockOracle") {
 			continue
 		}
 		if !deployConfig.UsePlasma &&
