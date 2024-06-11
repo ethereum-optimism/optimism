@@ -1,26 +1,25 @@
 import { promises as fs } from 'fs'
 
 import { task, types } from 'hardhat/config'
+import { Deployment } from 'hardhat-deploy/types'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
-import { Deployment } from 'hardhat-deploy/types'
 import { predeploys } from '@eth-optimism/core-utils'
 import { providers, utils, ethers } from 'ethers'
-
-import Artifact__L2ToL1MessagePasser from '../src/forge-artifacts/L2ToL1MessagePasser.json'
-import Artifact__L2CrossDomainMessenger from '../src/forge-artifacts/L2CrossDomainMessenger.json'
-import Artifact__L2StandardBridge from '../src/forge-artifacts/L2StandardBridge.json'
-import Artifact__OptimismPortal from '../src/forge-artifacts/OptimismPortal.json'
-import Artifact__L1CrossDomainMessenger from '../src/forge-artifacts/L1CrossDomainMessenger.json'
-import Artifact__L1StandardBridge from '../src/forge-artifacts/L1StandardBridge.json'
-import Artifact__L2OutputOracle from '../src/forge-artifacts/L2OutputOracle.json'
+import Artifact__L2ToL1MessagePasser from '@eth-optimism/sdk/dist/forge-artifacts/L2ToL1MessagePasser.json'
+import Artifact__L2CrossDomainMessenger from '@eth-optimism/sdk/dist/forge-artifacts/L2CrossDomainMessenger.json'
+import Artifact__L2StandardBridge from '@eth-optimism/sdk/dist/forge-artifacts/L2StandardBridge.json'
+import Artifact__OptimismPortal from '@eth-optimism/sdk/dist/forge-artifacts/OptimismPortal.json'
+import Artifact__L1CrossDomainMessenger from '@eth-optimism/sdk/dist/forge-artifacts/L1CrossDomainMessenger.json'
+import Artifact__L1StandardBridge from '@eth-optimism/sdk/dist/forge-artifacts/L1StandardBridge.json'
+import Artifact__L2OutputOracle from '@eth-optimism/sdk/dist/forge-artifacts/L2OutputOracle.json'
 import {
   CrossChainMessenger,
   MessageStatus,
   CONTRACT_ADDRESSES,
   OEContractsLike,
   DEFAULT_L2_CONTRACT_ADDRESSES,
-} from '../src'
+} from '@eth-optimism/sdk'
 
 const { formatEther } = utils
 

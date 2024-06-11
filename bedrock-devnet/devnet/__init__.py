@@ -71,7 +71,7 @@ def main():
     devnet_config_path = pjoin(deploy_config_dir, 'devnetL1.json')
     devnet_config_template_path = pjoin(deploy_config_dir, 'devnetL1-template.json')
     ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
-    sdk_dir = pjoin(monorepo_dir, 'packages', 'sdk')
+    tasks_dir = pjoin(monorepo_dir, 'packages', 'devnet-tasks')
 
     paths = Bunch(
       mono_repo_dir=monorepo_dir,
@@ -86,7 +86,7 @@ def main():
       op_node_dir=op_node_dir,
       ops_bedrock_dir=ops_bedrock_dir,
       ops_chain_ops=ops_chain_ops,
-      sdk_dir=sdk_dir,
+      tasks_dir=tasks_dir,
       genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
       genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
       allocs_l1_path=pjoin(devnet_dir, 'allocs-l1.json'),
@@ -334,11 +334,11 @@ def devnet_test(paths):
         CommandPreset('erc20-test',
           ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1',
            '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '14'],
-          cwd=paths.sdk_dir, timeout=8*60),
+          cwd=paths.tasks_dir, timeout=8*60),
         CommandPreset('eth-test',
           ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
            '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
-          cwd=paths.sdk_dir, timeout=8*60)
+          cwd=paths.tasks_dir, timeout=8*60)
     ], max_workers=1)
 
 
