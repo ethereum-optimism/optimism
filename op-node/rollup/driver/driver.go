@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
@@ -52,7 +53,7 @@ type L1Chain interface {
 }
 
 type L2Chain interface {
-	derive.Engine
+	engine.Engine
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
@@ -67,7 +68,7 @@ type DerivationPipeline interface {
 }
 
 type EngineController interface {
-	derive.LocalEngineControl
+	engine.LocalEngineControl
 	IsEngineSyncing() bool
 	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
 	TryUpdateEngine(ctx context.Context) error
@@ -81,14 +82,20 @@ type CLSync interface {
 }
 
 type AttributesHandler interface {
+	// HasAttributes returns if there are any block attributes to process.
+	// HasAttributes is for EngineQueue testing only, and can be removed when attribute processing is fully independent.
+	HasAttributes() bool
+	// SetAttributes overwrites the set of attributes. This may be nil, to clear what may be processed next.
 	SetAttributes(attributes *derive.AttributesWithParent)
+	// Proceed runs one attempt of processing attributes, if any.
+	// Proceed returns io.EOF if there are no attributes to process.
 	Proceed(ctx context.Context) error
 }
 
 type Finalizer interface {
 	Finalize(ctx context.Context, ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
-	derive.FinalizerHooks
+	engine.FinalizerHooks
 }
 
 type PlasmaIface interface {
@@ -161,7 +168,7 @@ func NewDriver(
 	snapshotLog log.Logger,
 	metrics Metrics,
 	sequencerStateListener SequencerStateListener,
-	safeHeadListener derive.SafeHeadListener,
+	safeHeadListener rollup.SafeHeadListener,
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
 	plasma PlasmaIface,
@@ -171,7 +178,7 @@ func NewDriver(
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+	engine := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
 	clSync := clsync.NewCLSync(log, cfg, metrics, engine)
 
 	var finalizer Finalizer

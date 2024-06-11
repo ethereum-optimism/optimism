@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -181,7 +182,7 @@ func TestAttributesHandler(t *testing.T) {
 	t.Run("drop stale attributes", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := derive.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 		defer eng.AssertExpectations(t)
 
@@ -195,7 +196,7 @@ func TestAttributesHandler(t *testing.T) {
 	t.Run("pending gets reorged", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := derive.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 		defer eng.AssertExpectations(t)
 
@@ -210,7 +211,7 @@ func TestAttributesHandler(t *testing.T) {
 		t.Run("consolidation fails", func(t *testing.T) {
 			logger := testlog.Logger(t, log.LevelInfo)
 			eng := &testutils.MockEngine{}
-			ec := derive.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+			ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 			ah := NewAttributesHandler(logger, cfg, ec, eng)
 
 			ec.SetUnsafeHead(refA1)
@@ -264,7 +265,7 @@ func TestAttributesHandler(t *testing.T) {
 			fn := func(t *testing.T, lastInSpan bool) {
 				logger := testlog.Logger(t, log.LevelInfo)
 				eng := &testutils.MockEngine{}
-				ec := derive.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+				ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 				ah := NewAttributesHandler(logger, cfg, ec, eng)
 
 				ec.SetUnsafeHead(refA1)
@@ -323,7 +324,7 @@ func TestAttributesHandler(t *testing.T) {
 
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := derive.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 
 		ec.SetUnsafeHead(refA0)
@@ -374,7 +375,7 @@ func TestAttributesHandler(t *testing.T) {
 
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := derive.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 
 		ec.SetUnsafeHead(refA0)
@@ -398,7 +399,7 @@ func TestAttributesHandler(t *testing.T) {
 	t.Run("no attributes", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := derive.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 		defer eng.AssertExpectations(t)
 

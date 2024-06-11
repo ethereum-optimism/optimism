@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -33,11 +34,11 @@ type Engine interface {
 	SafeL2Head() eth.L2BlockRef
 	PendingSafeL2Head() eth.L2BlockRef
 	TryUpdateEngine(ctx context.Context) error
-	derive.ResetEngineControl
+	engine.ResetEngineControl
 }
 
 type L2Source interface {
-	derive.Engine
+	engine.Engine
 	L2OutputRoot(uint64) (eth.Bytes32, error)
 }
 
@@ -64,17 +65,17 @@ func (d *MinimalSyncDeriver) SafeL2Head() eth.L2BlockRef {
 
 func (d *MinimalSyncDeriver) SyncStep(ctx context.Context) error {
 	if !d.initialResetDone {
-		if err := d.engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+		if err := d.engine.TryUpdateEngine(ctx); !errors.Is(err, engine.ErrNoFCUNeeded) {
 			return err
 		}
-		if err := derive.ResetEngine(ctx, d.logger, d.cfg, d.engine, d.l1Source, d.l2Source, d.syncCfg, nil); err != nil {
+		if err := engine.ResetEngine(ctx, d.logger, d.cfg, d.engine, d.l1Source, d.l2Source, d.syncCfg, nil); err != nil {
 			return err
 		}
 		d.pipeline.ConfirmEngineReset()
 		d.initialResetDone = true
 	}
 
-	if err := d.engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+	if err := d.engine.TryUpdateEngine(ctx); !errors.Is(err, engine.ErrNoFCUNeeded) {
 		return err
 	}
 	if err := d.attributesHandler.Proceed(ctx); err != io.EOF {
@@ -100,7 +101,7 @@ type Driver struct {
 }
 
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l1BlobsSource derive.L1BlobsFetcher, l2Source L2Source, targetBlockNum uint64) *Driver {
-	engine := derive.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+	engine := engine.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync)
 	attributesHandler := attributes.NewAttributesHandler(logger, cfg, engine, l2Source)
 	syncCfg := &sync.Config{SyncMode: sync.CLSync}
 	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, metrics.NoopMetrics)
