@@ -20,7 +20,7 @@ require (
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/hashicorp/raft v1.6.1
+	github.com/hashicorp/raft v1.7.0
 	github.com/hashicorp/raft-boltdb v0.0.0-20231211162105-6c830fa4535e
 	github.com/holiman/uint256 v1.2.4
 	github.com/ipfs/go-datastore v0.6.0
