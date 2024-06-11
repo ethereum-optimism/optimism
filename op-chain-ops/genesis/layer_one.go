@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -18,7 +20,7 @@ const PrecompileCount = 256
 // all of the state required for an Optimism network to function.
 // It is expected that the dump contains all of the required state to bootstrap
 // the L1 chain.
-func BuildL1DeveloperGenesis(config *DeployConfig, dump *ForgeAllocs, l1Deployments *L1Deployments) (*core.Genesis, error) {
+func BuildL1DeveloperGenesis(config *DeployConfig, dump *foundry.ForgeAllocs, l1Deployments *L1Deployments) (*core.Genesis, error) {
 	log.Info("Building developer L1 genesis block")
 	genesis, err := NewL1Genesis(config)
 	if err != nil {
