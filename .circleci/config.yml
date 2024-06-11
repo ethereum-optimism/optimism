@@ -736,61 +736,6 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
-  sdk-next-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore pnpm Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
-      - check-changed:
-          patterns: sdk
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: sepolia-fork
-          background: true
-          # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_SEPOLIA_FORK_URL --fork-block-number 5580113 --port 8545
-
-      - run:
-          name: op-sepolia-fork
-          background: true
-          # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_OP_SEPOLIA_FORK_URL --port 9545 --fork-block-number 9925328
-
-      - run:
-          name: build
-          command: pnpm build
-          working_directory: packages/sdk
-      - run:
-          name: lint
-          command: pnpm lint:check
-          working_directory: packages/sdk
-      - run:
-          name: make sure anvil l1 is up
-          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
-      - run:
-          name: make sure anvil l2 is up
-          command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
-      - run:
-          name: test:next
-          command: pnpm test:next:run
-          no_output_timeout: 5m
-          working_directory: packages/sdk
-          environment:
-            # anvil[0] test private key
-            VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-            VITE_E2E_RPC_URL_L1: http://localhost:8545
-            VITE_E2E_RPC_URL_L2: http://localhost:9545
-      - notify-failures-on-develop
-
   todo-issues:
     machine:
       image: <<pipeline.parameters.base_image>>
@@ -2134,26 +2079,6 @@ workflows:
            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - kontrol-tests:
-          context:
-            - slack
-
-  develop-sdk-next-tests:
-    when:
-      and:
-        - or:
-          - equal: [ "develop", <<pipeline.git.branch>> ]
-          - equal: [ true, <<pipeline.parameters.sdk_dispatch>> ]
-        - not:
-           equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
-    jobs:
-      - pnpm-monorepo:
-          name: pnpm-monorepo
-          context:
-            - slack
-      - sdk-next-tests:
-          name: sdk-next-tests
-          requires:
-            - pnpm-monorepo
           context:
             - slack
 
