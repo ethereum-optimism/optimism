@@ -1071,6 +1071,8 @@ jobs:
               echo 'export EXPECTED_PRESTATE_HASH="0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55"' >> $BASH_ENV
             elif [[ "<<parameters.version>>" == "1.1.0" ]]; then
               echo 'export EXPECTED_PRESTATE_HASH="0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.2.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x03617abec0b255dc7fc7a0513a2c2220140a1dcd7a1c8eca567659bd67e05cea"' >> $BASH_ENV
             else
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
@@ -2188,6 +2190,6 @@ workflows:
       - preimage-reproducibility:
           matrix:
             parameters:
-              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0"]
+              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0"]
           context:
             slack
