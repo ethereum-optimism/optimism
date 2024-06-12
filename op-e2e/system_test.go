@@ -1350,7 +1350,7 @@ func testFees(t *testing.T, cfg SystemConfig) {
 
 	// Tally BaseFee
 	baseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(receipt.GasUsed))
-	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee fee mismatch")
+	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee mismatch")
 
 	// Tally L1 Fee
 	tx, _, err := l2Seq.TransactionByHash(context.Background(), receipt.TxHash)
