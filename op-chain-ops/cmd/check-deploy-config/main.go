@@ -27,7 +27,13 @@ func main() {
 				Usage:    "File system path to the deploy config",
 			},
 		},
-		Action: entrypoint,
+		Action: func(ctx *cli.Context) error {
+			if ctx.NumFlags() == 0 {
+				cli.ShowAppHelp(ctx)
+				return nil
+			}
+			return entrypoint(ctx)
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {

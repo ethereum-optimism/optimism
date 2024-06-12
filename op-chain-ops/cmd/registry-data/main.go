@@ -65,7 +65,13 @@ func main() {
 			BytecodesDirFlag,
 			OutputFlag,
 		},
-		Action: entrypoint,
+		Action: func(ctx *cli.Context) error {
+			if ctx.NumFlags() == 0 {
+				cli.ShowAppHelp(ctx)
+				return nil
+			}
+			return entrypoint(ctx)
+		},
 	}
 	app.Commands = []*cli.Command{
 		{

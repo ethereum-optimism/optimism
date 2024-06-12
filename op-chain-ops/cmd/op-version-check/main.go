@@ -54,7 +54,13 @@ func main() {
 				EnvVars: []string{"OUTFILE"},
 			},
 		},
-		Action: entrypoint,
+		Action: func(ctx *cli.Context) error {
+			if ctx.NumFlags() == 0 {
+				cli.ShowAppHelp(ctx)
+				return nil
+			}
+			return entrypoint(ctx)
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
