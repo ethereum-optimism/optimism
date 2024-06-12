@@ -25,7 +25,7 @@ parameters:
     default: false
   reproducibility_dispatch:
     type: boolean
-    default: false
+    default: true
   kontrol_dispatch:
     type: boolean
     default: false
