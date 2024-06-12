@@ -34,7 +34,7 @@ const finalityDelay = 64
 // calcFinalityLookback calculates the default finality lookback based on DA challenge window if plasma
 // mode is activated or L1 finality lookback.
 func calcFinalityLookback(cfg *rollup.Config) uint64 {
-	// in plasma mode the longest finality lookback is a commitment is challenged on the last block of
+	// in alt-da mode the longest finality lookback is a commitment is challenged on the last block of
 	// the challenge window in which case it will be both challenge + resolve window.
 	if cfg.PlasmaEnabled() {
 		lkb := cfg.PlasmaConfig.DAChallengeWindow + cfg.PlasmaConfig.DAResolveWindow + 1

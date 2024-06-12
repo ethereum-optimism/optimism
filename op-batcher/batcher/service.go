@@ -248,7 +248,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		"channel_timeout", cc.ChannelTimeout,
 		"sub_safety_margin", cc.SubSafetyMargin)
 	if bs.UsePlasma {
-		bs.Log.Warn("Plasma Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
+		bs.Log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
 	}
 	bs.ChannelConfig = cc
 	return nil

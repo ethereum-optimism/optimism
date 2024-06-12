@@ -31,7 +31,7 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 		&cli.BoolFlag{
 			Name:     EnabledFlagName,
 			Aliases:  []string{EnabledFlagAlias},
-			Usage:    "Enable plasma mode\nAlt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.",
+			Usage:    "Enable Alt-DA mode\nAlt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.",
 			Value:    false,
 			EnvVars:  altDAEnvs(envPrefix, "ENABLED"),
 			Category: category,

@@ -32,7 +32,7 @@ func NewPlasmaFinalizer(log log.Logger, cfg *rollup.Config,
 
 	inner := NewFinalizer(log, cfg, l1Fetcher, ec)
 
-	// In plasma mode, the finalization signal is proxied through the plasma manager.
+	// In alt-da mode, the finalization signal is proxied through the plasma manager.
 	// Finality signal will come from the DA contract or L1 finality whichever is last.
 	// The plasma module will then call the inner.Finalize function when applicable.
 	backend.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
