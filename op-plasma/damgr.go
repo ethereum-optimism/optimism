@@ -219,6 +219,7 @@ func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, bl
 
 	// If the data is not found, things are handled differently based on the challenge status.
 	if notFound {
+		log.Warn("data not found for the given commitment", "comm", comm, "status", status, "block", blockId.Number)
 		switch status {
 		case ChallengeUninitialized:
 			// If this commitment was never challenged & we can't find the data, treat it as unrecoverable.
