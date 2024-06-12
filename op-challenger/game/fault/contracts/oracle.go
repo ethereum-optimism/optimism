@@ -129,8 +129,17 @@ func (c *PreimageOracleContract) AddGlobalDataTx(data *types.PreimageOracleData)
 }
 
 func (c *PreimageOracleContract) InitLargePreimage(uuid *big.Int, partOffset uint32, claimedSize uint32) (txmgr.TxCandidate, error) {
+	bond, err := c.GetMinBondLPP(context.Background())
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to get min bond for large preimage proposal: %w", err)
+	}
 	call := c.contract.Call(methodInitLPP, uuid, partOffset, claimedSize)
-	return call.ToTxCandidate()
+	candidate, err := call.ToTxCandidate()
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to create initLPP tx candidate: %w", err)
+	}
+	candidate.Value = bond
+	return candidate, nil
 }
 
 func (c *PreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex *big.Int, input []byte, commitments []common.Hash, finalize bool) (txmgr.TxCandidate, error) {
