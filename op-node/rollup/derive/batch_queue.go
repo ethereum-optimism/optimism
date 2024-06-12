@@ -166,7 +166,8 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		}
 	}
 
-	// Finally attempt to derive more batches
+	// Finally attempt to derive and validate batches per
+	// https://specs.optimism.io/protocol/derivation.html#batch-queue
 	batch, err := bq.deriveNextBatch(ctx, outOfData, parent)
 	if err == io.EOF && outOfData {
 		return nil, false, io.EOF
