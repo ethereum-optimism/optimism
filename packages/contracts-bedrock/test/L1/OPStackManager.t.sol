@@ -29,6 +29,18 @@ contract OPStackManagerTest is Test {
 
     OPStackManager.ImplementationSetter[] impls;
 
+    struct OPChainConfig {
+        address batchSubmitterAddress;
+        uint64 chainId;
+        address challenger;
+        uint256 overhead;
+        address proposer;
+        address proxyAdminOwner;
+        uint256 scalar;
+        address systemConfigOwner;
+        address unsafeBlockSigner;
+    }
+
     constructor() {
         impls.push(
             OPStackManager.ImplementationSetter(
@@ -115,21 +127,28 @@ contract OPStackManagerTest is Test {
     }
 
     function test_DeployGasCost() public {
-        uint64 l2ChainId = 0x999;
-        address dummyProxyAdminOwner = makeAddr("dummyProxyAdminOwner");
+        // Read the input file.
+        string memory inputFile = "test/L1/DeployOPChain.json";
+        string memory inputs = vm.readFile(inputFile);
+        OPChainConfig memory opChainConfig = abi.decode(vm.parseJson(inputs), (OPChainConfig));
+
+        // Extract the config parameters.
+        uint64 l2ChainId = opChainConfig.chainId;
+        address _proxyAdminOwner = opChainConfig.proxyAdminOwner;
         OPStackManager.SystemConfigInputs memory systemConfigInputs = OPStackManager.SystemConfigInputs({
-            systemConfigOwner: makeAddr("dummySystemConfigOwner"),
-            overhead: 1,
-            scalar: 2,
-            batcherHash: bytes32(uint256(0x1234)),
-            unsafeBlockSigner: makeAddr("dummyUnsafeBlockSigner")
+            systemConfigOwner: opChainConfig.systemConfigOwner,
+            overhead: opChainConfig.overhead,
+            scalar: opChainConfig.scalar,
+            batcherHash: bytes32(uint256(uint160(opChainConfig.batchSubmitterAddress))),
+            unsafeBlockSigner: opChainConfig.unsafeBlockSigner
         });
         OPStackManager.L2OutputOracleInputs memory l2OutputOracleInputs = OPStackManager.L2OutputOracleInputs({
-            submissionInterval: 1800,
-            proposer: makeAddr("proposer"),
-            challenger: makeAddr("challenger")
+            submissionInterval: 43200,
+            proposer: opChainConfig.proposer,
+            challenger: opChainConfig.challenger
         });
 
-        opStackManager.deploy(l2ChainId, dummyProxyAdminOwner, systemConfigInputs, l2OutputOracleInputs);
+        // Deploy.
+        opStackManager.deploy(l2ChainId, _proxyAdminOwner, systemConfigInputs, l2OutputOracleInputs);
     }
 }

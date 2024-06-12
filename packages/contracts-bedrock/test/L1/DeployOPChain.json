@@ -1,0 +1,11 @@
+{
+  "chainId": 999,
+  "systemConfigOwner": "0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD",
+  "overhead": 188,
+  "scalar": 684000,
+  "batchSubmitterAddress": "0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD",
+  "unsafeBlockSigner": "0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD",
+  "proxyAdminOwner": "0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD",
+  "proposer": "0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD",
+  "challenger": "0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD"
+}
