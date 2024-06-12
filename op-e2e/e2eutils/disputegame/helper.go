@@ -124,15 +124,14 @@ func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
 	opts := &bind.CallOpts{Context: ctx}
 	gameAddr, err := h.Factory.GameImpls(opts, cannonGameType)
 	h.Require.NoError(err)
-	game, err := bindings.NewFaultDisputeGameCaller(gameAddr, h.Client)
+	caller := batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize)
+	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, gameAddr, caller)
 	h.Require.NoError(err)
-	vmAddr, err := game.Vm(opts)
+	vm, err := game.Vm(ctx)
 	h.Require.NoError(err)
-	vm, err := bindings.NewMIPSCaller(vmAddr, h.Client)
+	oracle, err := vm.Oracle(ctx)
 	h.Require.NoError(err)
-	oracleAddr, err := vm.Oracle(opts)
-	h.Require.NoError(err)
-	return preimage.NewHelper(h.T, h.Opts, h.Client, oracleAddr)
+	return preimage.NewHelper(h.T, h.PrivKey, h.Client, oracle)
 }
 
 func NewGameCfg(opts ...GameOpt) *GameCfg {
