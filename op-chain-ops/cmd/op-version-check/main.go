@@ -141,12 +141,22 @@ func entrypoint(ctx *cli.Context) error {
 			contracts["L1CrossDomainMessenger"] = Contract{Version: versions.L1CrossDomainMessenger, Address: addresses.L1CrossDomainMessengerProxy}
 			contracts["L1ERC721Bridge"] = Contract{Version: versions.L1ERC721Bridge, Address: addresses.L1ERC721BridgeProxy}
 			contracts["L1StandardBridge"] = Contract{Version: versions.L1ERC721Bridge, Address: addresses.L1StandardBridgeProxy}
-			contracts["L2OutputOracle"] = Contract{Version: versions.L2OutputOracle, Address: addresses.L2OutputOracleProxy}
 			contracts["OptimismMintableERC20Factory"] = Contract{Version: versions.OptimismMintableERC20Factory, Address: addresses.OptimismMintableERC20FactoryProxy}
 			contracts["OptimismPortal"] = Contract{Version: versions.OptimismPortal, Address: addresses.OptimismPortalProxy}
 			contracts["SystemConfig"] = Contract{Version: versions.SystemConfig, Address: addresses.SystemConfigProxy}
 			contracts["ProxyAdmin"] = Contract{Version: "null", Address: addresses.ProxyAdmin}
-
+			// If L2OutputOracle is the nil, it indicates that the fault-proof system is enabled.
+			if versions.L2OutputOracle == "" {
+				contracts["AnchorStateRegistry"] = Contract{Version: versions.AnchorStateRegistry, Address: addresses.AnchorStateRegistryProxy}
+				contracts["DelayedWETH"] = Contract{Version: versions.DelayedWETH, Address: addresses.DelayedWETHProxy}
+				contracts["DisputeGameFactory"] = Contract{Version: versions.DisputeGameFactory, Address: addresses.DisputeGameFactoryProxy}
+				contracts["FaultDisputeGame"] = Contract{Version: versions.FaultDisputeGame, Address: addresses.FaultDisputeGame}
+				contracts["MIPS"] = Contract{Version: versions.MIPS, Address: addresses.MIPS}
+				contracts["PermissionedDisputeGame"] = Contract{Version: versions.PermissionedDisputeGame, Address: addresses.PermissionedDisputeGame}
+				contracts["PreimageOracle"] = Contract{Version: versions.PreimageOracle, Address: addresses.PreimageOracle}
+			} else {
+				contracts["L2OutputOracle"] = Contract{Version: versions.L2OutputOracle, Address: addresses.L2OutputOracleProxy}
+			}
 			output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: l2ChainID, Contracts: contracts})
 
 			log.Info("Successfully processed contract versions", "chain", chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", l2ChainID)
