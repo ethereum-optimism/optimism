@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
-import "src/cannon/libraries/MIPSState.sol" as st;
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import "src/dispute/lib/Types.sol";
 
@@ -27,7 +26,10 @@ contract MIPS_Test is CommonTest {
             memRoot: hex"30be14bdf94d7a93989a6263f1e116943dc052d584730cae844bf330dfddce2f",
             preimageKey: bytes32(0),
             preimageOffset: 0,
-            cpu: st.CpuScalars({ pc: 4, nextPC: 8, lo: 0, hi: 0 }),
+            pc: 4,
+            nextPC: 8,
+            lo: 0,
+            hi: 0,
             heap: 0,
             exitCode: 0,
             exited: false,
@@ -50,8 +52,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] + state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
@@ -70,8 +72,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] + state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
@@ -91,8 +93,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] + imm;
         expect.registers[17] = state.registers[17];
@@ -111,8 +113,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0;
         expect.registers[17] = state.registers[17];
@@ -131,8 +133,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] + imm;
         expect.registers[17] = state.registers[17];
@@ -150,8 +152,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] - state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
@@ -170,8 +172,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] - state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
@@ -190,8 +192,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] & state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
@@ -211,8 +213,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] & imm;
         expect.registers[17] = state.registers[17];
@@ -230,8 +232,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] | state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
@@ -251,8 +253,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] | imm;
         expect.registers[17] = state.registers[17];
@@ -270,8 +272,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] ^ state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
@@ -291,8 +293,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] ^ imm;
         expect.registers[17] = state.registers[17];
@@ -310,8 +312,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = ~(state.registers[17] | state.registers[18]); // t0
         expect.registers[17] = state.registers[17];
@@ -329,8 +331,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 1; // t0
         expect.registers[17] = state.registers[17];
@@ -359,8 +361,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[17] < state.registers[18] ? 1 : 0; // t0
         expect.registers[17] = state.registers[17];
@@ -380,8 +382,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0x12; // t0
         expect.registers[9] = t1;
@@ -402,8 +404,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0x12_23; // t0
         expect.registers[9] = t1;
@@ -424,8 +426,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = val; // t0
         expect.registers[9] = t1;
@@ -444,8 +446,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0x12; // t0
         expect.registers[9] = t1;
@@ -464,8 +466,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0x12_23; // t0
         expect.registers[9] = t1;
@@ -483,8 +485,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0x12_34_56_78; // t0
         expect.registers[9] = t1;
@@ -510,8 +512,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0xaa_bb_cc_12; // t0
         expect.registers[9] = t1;
@@ -538,8 +540,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, t1 + 4, 0xdd_00_00_00);
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[8];
         expect.registers[9] = state.registers[9];
@@ -557,8 +559,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, t1 + 4, 0xcc_dd_00_00);
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[8];
         expect.registers[9] = state.registers[9];
@@ -576,8 +578,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, t1 + 4, 0xaa_bb_cc_dd);
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[8];
         expect.registers[9] = state.registers[9];
@@ -595,8 +597,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, t1 + 4, 0xaa_bb_cc_dd);
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[8];
         expect.registers[9] = state.registers[9];
@@ -614,8 +616,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, t1 + 4, 0xcc_dd_00_00);
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[8];
         expect.registers[9] = state.registers[9];
@@ -636,8 +638,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = val; // t0
         expect.registers[9] = t1;
@@ -655,8 +657,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, t1 + 4, 0xaa_bb_cc_dd);
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0x1;
         expect.registers[9] = state.registers[9];
@@ -675,8 +677,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[9];
         expect.registers[9] = state.registers[9];
@@ -702,8 +704,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[9];
         expect.registers[9] = state.registers[9];
@@ -722,15 +724,15 @@ contract MIPS_Test is CommonTest {
     function test_mflo_succeeds() external {
         uint32 insn = encodespec(0x0, 0x0, 0x8, 0x12); // mflo $t0
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.cpu.lo = 0xdeadbeef;
+        state.lo = 0xdeadbeef;
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
-        expect.cpu.lo = state.cpu.lo;
-        expect.registers[8] = state.cpu.lo;
+        expect.lo = state.lo;
+        expect.registers[8] = state.lo;
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
@@ -739,15 +741,15 @@ contract MIPS_Test is CommonTest {
     function test_mfhi_succeeds() external {
         uint32 insn = encodespec(0x0, 0x0, 0x8, 0x10); // mfhi $t0
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.cpu.hi = 0xdeadbeef;
+        state.hi = 0xdeadbeef;
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
-        expect.cpu.hi = state.cpu.hi;
-        expect.registers[8] = state.cpu.hi;
+        expect.hi = state.hi;
+        expect.registers[8] = state.hi;
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
@@ -760,10 +762,10 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
-        expect.cpu.hi = state.registers[8];
+        expect.hi = state.registers[8];
         expect.registers[8] = state.registers[8];
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
@@ -777,10 +779,10 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
-        expect.cpu.lo = state.registers[8];
+        expect.lo = state.registers[8];
         expect.registers[8] = state.registers[8];
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
@@ -795,8 +797,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[9] * state.registers[10]; // t0
         expect.registers[9] = 5;
@@ -814,13 +816,13 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[9] = state.registers[9];
         expect.registers[10] = state.registers[10];
-        expect.cpu.lo = 0x3F_9C_00_00;
-        expect.cpu.hi = 0x6;
+        expect.lo = 0x3F_9C_00_00;
+        expect.hi = 0x6;
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof, 0);
@@ -835,13 +837,13 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[9] = state.registers[9];
         expect.registers[10] = state.registers[10];
-        expect.cpu.lo = 0x3F_9C_00_00;
-        expect.cpu.hi = 0x6;
+        expect.lo = 0x3F_9C_00_00;
+        expect.hi = 0x6;
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof, 0);
@@ -856,13 +858,13 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[9] = state.registers[9];
         expect.registers[10] = state.registers[10];
-        expect.cpu.lo = 2;
-        expect.cpu.hi = 1;
+        expect.lo = 2;
+        expect.hi = 1;
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof, 0);
@@ -877,13 +879,13 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[9] = state.registers[9];
         expect.registers[10] = state.registers[10];
-        expect.cpu.lo = 2;
-        expect.cpu.hi = 1;
+        expect.lo = 2;
+        expect.hi = 1;
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof, 0);
@@ -919,8 +921,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + (uint32(boff) << 2);
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + (uint32(boff) << 2);
         expect.step = state.step + 1;
         expect.registers[8] = 0xdeadbeef;
         expect.registers[9] = 0xdeadbeef;
@@ -931,7 +933,7 @@ contract MIPS_Test is CommonTest {
         // branch not taken
         state.registers[8] = 0xaa;
         expect.registers[8] = 0xaa;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.nextPC = state.nextPC + 4;
         postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
@@ -945,8 +947,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + (uint32(boff) << 2);
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + (uint32(boff) << 2);
         expect.step = state.step + 1;
         expect.registers[8] = 0xdeadbeef;
         expect.registers[9] = 0xaa;
@@ -963,8 +965,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + (uint32(boff) << 2);
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + (uint32(boff) << 2);
         expect.step = state.step + 1;
         expect.registers[8] = 0;
 
@@ -980,8 +982,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + (uint32(boff) << 2);
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + (uint32(boff) << 2);
         expect.step = state.step + 1;
         expect.registers[8] = 1;
 
@@ -998,8 +1000,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + (uint32(boff) << 2);
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + (uint32(boff) << 2);
         expect.step = state.step + 1;
         expect.registers[8] = 0xF0_00_00_00;
 
@@ -1015,8 +1017,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + (uint32(boff) << 2);
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + (uint32(boff) << 2);
         expect.step = state.step + 1;
         expect.registers[8] = 0x00_00_00_01;
 
@@ -1031,8 +1033,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = label << 2;
+        expect.pc = state.nextPC;
+        expect.nextPC = label << 2;
         expect.step = state.step + 1;
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
@@ -1047,8 +1049,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = (state.cpu.nextPC & 0xF0_00_00_00) | (uint32(label) << 2);
+        expect.pc = state.nextPC;
+        expect.nextPC = (state.nextPC & 0xF0_00_00_00) | (uint32(label) << 2);
         expect.step = state.step + 1;
 
         bytes memory witness = encodeState(state);
@@ -1063,10 +1065,10 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = label << 2;
+        expect.pc = state.nextPC;
+        expect.nextPC = label << 2;
         expect.step = state.step + 1;
-        expect.registers[31] = state.cpu.pc + 8; // ra
+        expect.registers[31] = state.pc + 8; // ra
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
@@ -1080,10 +1082,10 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = (state.cpu.nextPC & 0xF0_00_00_00) | (uint32(label) << 2);
+        expect.pc = state.nextPC;
+        expect.nextPC = (state.nextPC & 0xF0_00_00_00) | (uint32(label) << 2);
         expect.step = state.step + 1;
-        expect.registers[31] = state.cpu.pc + 8; // ra
+        expect.registers[31] = state.pc + 8; // ra
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
@@ -1097,8 +1099,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = tgt;
+        expect.pc = state.nextPC;
+        expect.nextPC = tgt;
         expect.step = state.step + 1;
         expect.registers[8] = tgt;
 
@@ -1114,11 +1116,11 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = tgt;
+        expect.pc = state.nextPC;
+        expect.nextPC = tgt;
         expect.step = state.step + 1;
         expect.registers[8] = tgt;
-        expect.registers[9] = state.cpu.pc + 8; // t1
+        expect.registers[9] = state.pc + 8; // t1
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
@@ -1132,8 +1134,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[9] << shiftamt;
         expect.registers[9] = state.registers[9];
@@ -1151,8 +1153,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[9] >> shiftamt;
         expect.registers[9] = state.registers[9];
@@ -1170,8 +1172,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0xF8_00_00_02; // 4 shifts while preserving sign bit
         expect.registers[9] = state.registers[9];
@@ -1189,8 +1191,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[9] << state.registers[10]; // t0
         expect.registers[9] = state.registers[9];
@@ -1209,8 +1211,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[9] >> state.registers[10]; // t0
         expect.registers[9] = state.registers[9];
@@ -1229,8 +1231,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = state.registers[9] >> state.registers[10]; // t0
         expect.registers[9] = state.registers[9];
@@ -1248,8 +1250,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 0x00_04_00_00; // t0
 
@@ -1264,8 +1266,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 8; // t0
         expect.registers[9] = state.registers[9];
@@ -1281,8 +1283,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = 16; // t0
         expect.registers[9] = state.registers[9];
@@ -1309,7 +1311,10 @@ contract MIPS_Test is CommonTest {
             preimageKey: bytes32(uint256(1) << 248 | 0x01),
             preimageOffset: 8,
             // start reading past the pre-image length prefix
-            cpu: st.CpuScalars({ pc: pc, nextPC: pc + 4, lo: 0, hi: 0 }),
+            pc: pc,
+            nextPC: pc + 4,
+            lo: 0,
+            hi: 0,
             heap: 0,
             exitCode: 0,
             exited: false,
@@ -1326,8 +1331,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect = state;
         expect.preimageOffset += 4;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC += 4;
+        expect.pc = state.nextPC;
+        expect.nextPC += 4;
         expect.step += 1;
         expect.registers[2] = 4; // return
         expect.registers[7] = 0; // errno
@@ -1355,7 +1360,10 @@ contract MIPS_Test is CommonTest {
             memRoot: memRoot,
             preimageKey: bytes32(0),
             preimageOffset: 1,
-            cpu: st.CpuScalars({ pc: pc, nextPC: 4, lo: 0, hi: 0 }),
+            pc: pc,
+            nextPC: 4,
+            lo: 0,
+            hi: 0,
             heap: 0,
             exitCode: 0,
             exited: false,
@@ -1366,8 +1374,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect = state;
         expect.preimageOffset = 0; // preimage write resets offset
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC += 4;
+        expect.pc = state.nextPC;
+        expect.nextPC += 4;
         expect.step += 1;
         expect.preimageKey = bytes32(uint256(0xabba));
         expect.registers[2] = 4; // return
@@ -1383,7 +1391,7 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory state;
         state.memRoot = memRoot;
-        state.cpu.nextPC = 4;
+        state.nextPC = 4;
         state.registers[2] = 4090; // mmap syscall
         state.registers[4] = 0x0; // a0
         state.registers[5] = 4095; // a1
@@ -1393,8 +1401,8 @@ contract MIPS_Test is CommonTest {
         expect.memRoot = state.memRoot;
         // assert page allocation is aligned to 4k
         expect.step = state.step + 1;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.heap = state.heap + 4096;
         expect.registers[2] = 0; // return old heap
         expect.registers[4] = 0x0; // a0
@@ -1414,8 +1422,8 @@ contract MIPS_Test is CommonTest {
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
         expect.step = state.step + 1;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.registers[2] = 0x40000000;
         expect.registers[4] = state.registers[4]; // registers unchanged
 
@@ -1431,8 +1439,8 @@ contract MIPS_Test is CommonTest {
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
         expect.step = state.step + 1;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.registers[2] = 1;
 
         bytes memory enc = encodeState(state);
@@ -1448,8 +1456,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.pc;
-        expect.cpu.nextPC = state.cpu.nextPC;
+        expect.pc = state.pc;
+        expect.nextPC = state.nextPC;
         expect.step = state.step + 1;
         expect.registers[2] = state.registers[2]; // unchanged
         expect.registers[4] = state.registers[4]; // unchanged
@@ -1469,8 +1477,8 @@ contract MIPS_Test is CommonTest {
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
-        expect.cpu.pc = state.cpu.nextPC;
-        expect.cpu.nextPC = state.cpu.nextPC + 4;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[2] = 0;
         expect.registers[5] = state.registers[5];
@@ -1534,8 +1542,8 @@ contract MIPS_Test is CommonTest {
         MIPS.State memory state;
         bytes memory proof;
         (state.memRoot, proof) = ffi.getCannonMemoryProofWrongLeaf(pc, insn, 0x4, 0);
-        state.cpu.pc = pc;
-        state.cpu.nextPC = pc + 4;
+        state.pc = pc;
+        state.nextPC = pc + 4;
         state.registers[2] = 4246; // exit_group syscall
         state.registers[4] = 0x5; // a0
 
@@ -1547,7 +1555,7 @@ contract MIPS_Test is CommonTest {
         uint16 label = 0x2;
         uint32 insn = uint32(0x08_00_00_00) | label; // j label
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.cpu.nextPC = 0xa;
+        state.nextPC = 0xa;
 
         vm.expectRevert("jump in delay slot");
         mips.step(encodeState(state), proof, 0);
@@ -1559,7 +1567,7 @@ contract MIPS_Test is CommonTest {
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
         state.registers[8] = 0xdeadbeef; // t0
         state.registers[9] = 0xdeadbeef; // t1
-        state.cpu.nextPC = 0xa;
+        state.nextPC = 0xa;
 
         vm.expectRevert("branch in delay slot");
         mips.step(encodeState(state), proof, 0);
@@ -1574,10 +1582,10 @@ contract MIPS_Test is CommonTest {
             state.memRoot,
             state.preimageKey,
             state.preimageOffset,
-            state.cpu.pc,
-            state.cpu.nextPC,
-            state.cpu.lo,
-            state.cpu.hi,
+            state.pc,
+            state.nextPC,
+            state.lo,
+            state.hi,
             state.heap,
             state.exitCode,
             state.exited,
@@ -1622,8 +1630,8 @@ contract MIPS_Test is CommonTest {
         returns (MIPS.State memory state, bytes memory proof)
     {
         (state.memRoot, proof) = ffi.getCannonMemoryProof(pc, insn, addr, val);
-        state.cpu.pc = pc;
-        state.cpu.nextPC = pc + 4;
+        state.pc = pc;
+        state.nextPC = pc + 4;
     }
 
     function encodeitype(uint8 opcode, uint8 rs, uint8 rt, uint16 imm) internal pure returns (uint32 insn) {

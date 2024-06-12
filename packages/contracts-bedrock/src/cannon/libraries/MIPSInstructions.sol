@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import "src/cannon/libraries/MIPSState.sol" as st;
-
 library MIPSInstructions {
     /// @notice Execute an instruction.
     function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32 out) {
@@ -268,15 +266,24 @@ library MIPSInstructions {
     }
 
     /// @notice Handles a branch instruction, updating the MIPS state PC where needed.
-    /// @param cpu Holds the current state of the cpu scalars.
+    /// @param pc Holds the current program counter value.
+    /// @param nextPC Holds the next program counter value.
+    /// @param lo The value of the LO register.
+    /// @param hi The value of the HI register.
     /// @param registers Holds the current state of the cpu registers.
     /// @param _opcode The opcode of the branch instruction.
     /// @param _insn The instruction to be executed.
     /// @param _rtReg The register to be used for the branch.
     /// @param _rs The register to be compared with the branch register.
-    /// @return out_ The hashed MIPS state.
+    /// @return pc_ The updated program counter value.
+    /// @return nextPC_ The updated next program counter value.
+    /// @return lo_ The updated value of the LO register.
+    /// @return hi_ The updated value of the HI register..
     function handleBranch(
-        st.CpuScalars memory cpu,
+        uint32 pc,
+        uint32 nextPC,
+        uint32 lo,
+        uint32 hi,
         uint32[32] memory registers,
         uint32 _opcode,
         uint32 _insn,
@@ -284,12 +291,12 @@ library MIPSInstructions {
         uint32 _rs
     )
         internal
-        returns (bytes32 out_)
+        returns (uint32 pc_, uint32 nextPC_, uint32 lo_, uint32 hi_)
     {
         unchecked {
             bool shouldBranch = false;
 
-            if (cpu.nextPC != cpu.pc + 4) {
+            if (nextPC != pc + 4) {
                 revert("branch in delay slot");
             }
 
@@ -319,21 +326,24 @@ library MIPSInstructions {
             }
 
             // Update the state's previous PC
-            uint32 prevPC = cpu.pc;
+            uint32 prevPC = pc;
 
             // Execute the delay slot first
-            cpu.pc = cpu.nextPC;
+            pc = nextPC;
 
             // If we should branch, update the PC to the branch target
             // Otherwise, proceed to the next instruction
             if (shouldBranch) {
-                cpu.nextPC = prevPC + 4 + (signExtend(_insn & 0xFFFF, 16) << 2);
+                nextPC = prevPC + 4 + (signExtend(_insn & 0xFFFF, 16) << 2);
             } else {
-                cpu.nextPC = cpu.nextPC + 4;
+                nextPC = nextPC + 4;
             }
 
             // Return the hash of the resulting state
-            out_ = outputState();
+            pc_ = pc;
+            nextPC_ = nextPC;
+            lo_ = lo;
+            hi_ = hi;
         }
     }
 
