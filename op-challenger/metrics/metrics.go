@@ -38,7 +38,6 @@ type Metricer interface {
 	RecordGameStep()
 	RecordGameMove()
 	RecordGameL2Challenge()
-	RecordCannonExecutionTime(t float64)
 	RecordVmExecutionTime(vmType string, t time.Duration)
 	RecordClaimResolutionTime(t float64)
 	RecordGameActTime(t float64)
@@ -91,7 +90,6 @@ type Metrics struct {
 
 	claimResolutionTime prometheus.Histogram
 	gameActTime         prometheus.Histogram
-	cannonExecutionTime prometheus.Histogram
 	vmExecutionTime     *prometheus.HistogramVec
 
 	trackedGames  prometheus.GaugeVec
@@ -152,14 +150,6 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "l2_challenges",
 			Help:      "Number of L2 challenges made by the challenge agent",
-		}),
-		cannonExecutionTime: factory.NewHistogram(prometheus.HistogramOpts{
-			Namespace: Namespace,
-			Name:      "cannon_execution_time",
-			Help:      "Time (in seconds) to execute cannon",
-			Buckets: append(
-				[]float64{1.0, 10.0},
-				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
 		}),
 		claimResolutionTime: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: Namespace,
@@ -277,10 +267,6 @@ func (m *Metrics) RecordBondClaimFailed() {
 
 func (m *Metrics) RecordBondClaimed(amount uint64) {
 	m.bondsClaimed.Add(float64(amount))
-}
-
-func (m *Metrics) RecordCannonExecutionTime(t float64) {
-	m.cannonExecutionTime.Observe(t)
 }
 
 func (m *Metrics) RecordVmExecutionTime(vmType string, dur time.Duration) {
