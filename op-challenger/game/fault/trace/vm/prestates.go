@@ -1,4 +1,4 @@
-package utils
+package vm
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strconv"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	log2 "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -31,10 +31,10 @@ func PreimageDir(dir string) string {
 
 func RunCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	stdOut := oplog.NewWriter(l, log.LevelInfo)
+	stdOut := log2.NewWriter(l, log.LevelInfo)
 	defer stdOut.Close()
 	// Keep stdErr at info level because FPVM uses stderr for progress messages
-	stdErr := oplog.NewWriter(l, log.LevelInfo)
+	stdErr := log2.NewWriter(l, log.LevelInfo)
 	defer stdErr.Close()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr

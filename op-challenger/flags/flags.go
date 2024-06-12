@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 	"github.com/ethereum/go-ethereum/common"
@@ -496,39 +497,53 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	if ctx.IsSet(flags.NetworkFlagName) {
 		asteriscNetwork = ctx.String(flags.NetworkFlagName)
 	}
+	l1EthRpc := ctx.String(L1EthRpcFlag.Name)
+	l1Beacon := ctx.String(L1BeaconFlag.Name)
 	return &config.Config{
 		// Required Flags
-		L1EthRpc:                        ctx.String(L1EthRpcFlag.Name),
-		L1Beacon:                        ctx.String(L1BeaconFlag.Name),
-		TraceTypes:                      traceTypes,
-		GameFactoryAddress:              gameFactoryAddress,
-		GameAllowlist:                   allowedGames,
-		GameWindow:                      ctx.Duration(GameWindowFlag.Name),
-		MaxConcurrency:                  maxConcurrency,
-		L2Rpc:                           l2Rpc,
-		MaxPendingTx:                    ctx.Uint64(MaxPendingTransactionsFlag.Name),
-		PollInterval:                    ctx.Duration(HTTPPollInterval.Name),
-		AdditionalBondClaimants:         claimants,
-		RollupRpc:                       ctx.String(RollupRpcFlag.Name),
-		CannonNetwork:                   cannonNetwork,
-		CannonRollupConfigPath:          ctx.String(CannonRollupConfigFlag.Name),
-		CannonL2GenesisPath:             ctx.String(CannonL2GenesisFlag.Name),
-		CannonBin:                       ctx.String(CannonBinFlag.Name),
-		CannonServer:                    ctx.String(CannonServerFlag.Name),
-		CannonAbsolutePreState:          ctx.String(CannonPreStateFlag.Name),
-		CannonAbsolutePreStateBaseURL:   cannonPrestatesURL,
-		Datadir:                         ctx.String(DatadirFlag.Name),
-		CannonSnapshotFreq:              ctx.Uint(CannonSnapshotFreqFlag.Name),
-		CannonInfoFreq:                  ctx.Uint(CannonInfoFreqFlag.Name),
-		AsteriscNetwork:                 asteriscNetwork,
-		AsteriscRollupConfigPath:        ctx.String(AsteriscRollupConfigFlag.Name),
-		AsteriscL2GenesisPath:           ctx.String(AsteriscL2GenesisFlag.Name),
-		AsteriscBin:                     ctx.String(AsteriscBinFlag.Name),
-		AsteriscServer:                  ctx.String(AsteriscServerFlag.Name),
+		L1EthRpc:                l1EthRpc,
+		L1Beacon:                l1Beacon,
+		TraceTypes:              traceTypes,
+		GameFactoryAddress:      gameFactoryAddress,
+		GameAllowlist:           allowedGames,
+		GameWindow:              ctx.Duration(GameWindowFlag.Name),
+		MaxConcurrency:          maxConcurrency,
+		L2Rpc:                   l2Rpc,
+		MaxPendingTx:            ctx.Uint64(MaxPendingTransactionsFlag.Name),
+		PollInterval:            ctx.Duration(HTTPPollInterval.Name),
+		AdditionalBondClaimants: claimants,
+		RollupRpc:               ctx.String(RollupRpcFlag.Name),
+		Cannon: vm.Config{
+			VmType:           config.TraceTypeCannon.String(),
+			L1:               l1EthRpc,
+			L1Beacon:         l1Beacon,
+			L2:               l2Rpc,
+			VmBin:            ctx.String(CannonBinFlag.Name),
+			Server:           ctx.String(CannonServerFlag.Name),
+			Network:          cannonNetwork,
+			RollupConfigPath: ctx.String(CannonRollupConfigFlag.Name),
+			L2GenesisPath:    ctx.String(CannonL2GenesisFlag.Name),
+			SnapshotFreq:     ctx.Uint(CannonSnapshotFreqFlag.Name),
+			InfoFreq:         ctx.Uint(CannonInfoFreqFlag.Name),
+		},
+		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
+		CannonAbsolutePreStateBaseURL: cannonPrestatesURL,
+		Datadir:                       ctx.String(DatadirFlag.Name),
+		Asterisc: vm.Config{
+			VmType:           config.TraceTypeAsterisc.String(),
+			L1:               l1EthRpc,
+			L1Beacon:         l1Beacon,
+			L2:               l2Rpc,
+			VmBin:            ctx.String(AsteriscBinFlag.Name),
+			Server:           ctx.String(AsteriscServerFlag.Name),
+			Network:          asteriscNetwork,
+			RollupConfigPath: ctx.String(AsteriscRollupConfigFlag.Name),
+			L2GenesisPath:    ctx.String(AsteriscL2GenesisFlag.Name),
+			SnapshotFreq:     ctx.Uint(AsteriscSnapshotFreqFlag.Name),
+			InfoFreq:         ctx.Uint(AsteriscInfoFreqFlag.Name),
+		},
 		AsteriscAbsolutePreState:        ctx.String(AsteriscPreStateFlag.Name),
 		AsteriscAbsolutePreStateBaseURL: asteriscPreStatesURL,
-		AsteriscSnapshotFreq:            ctx.Uint(AsteriscSnapshotFreqFlag.Name),
-		AsteriscInfoFreq:                ctx.Uint(AsteriscInfoFreqFlag.Name),
 		TxMgrConfig:                     txMgrConfig,
 		MetricsConfig:                   metricsConfig,
 		PprofConfig:                     pprofConfig,
