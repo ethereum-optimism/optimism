@@ -371,7 +371,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 }
 
 // publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is
-// no more data to queue for publishing or if there was an error queing the data.
+// no more data to queue for publishing or if there was an error queuing the data.
 func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txID], receiptsCh chan txmgr.TxReceipt[txID]) {
 	for {
 		// if the txmgr is closed, we stop the transaction sending
