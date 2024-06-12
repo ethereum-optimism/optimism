@@ -2,8 +2,8 @@ name: Docker Build Scan
 on:
   pull_request:
     branches:
-      - "master"
-      - "celo*"
+      - 'master'
+      - 'celo*'
   workflow_dispatch:
 
 jobs:
@@ -23,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-files-changed
     if: |
-      contains(needs.detect-files-changed.outputs.files-changed, 'op-chain-ops/cmd/celo-dbmigrate') ||
-      contains(needs.detect-files-changed.outputs.files-changed, 'op-chain-ops/cmd/celo-migrate') ||
+      contains(needs.detect-files-changed.outputs.files-changed, 'op-chain-ops/cmd/celo-migrate-blocks') ||
+      contains(needs.detect-files-changed.outputs.files-changed, 'op-chain-ops/cmd/celo-migrate-state') ||
       contains(needs.detect-files-changed.outputs.files-changed, 'op-chain-ops/Dockerfile')
     permissions:
       contents: read

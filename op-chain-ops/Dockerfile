@@ -14,7 +14,7 @@ COPY ./op-service /app/op-service
 COPY ./op-node /app/op-node
 COPY ./op-chain-ops /app/op-chain-ops
 WORKDIR /app/op-chain-ops
-RUN make celo-dbmigrate celo-migrate
+RUN make celo-migrate-blocks celo-migrate-state
 
 FROM alpine:3.18
 RUN apk --no-cache add ca-certificates bash rsync
@@ -23,8 +23,8 @@ RUN apk --no-cache add ca-certificates bash rsync
 # USER app
 WORKDIR /app
 
-COPY --from=builder /app/op-chain-ops/bin/celo-dbmigrate /app
-COPY --from=builder /app/op-chain-ops/bin/celo-migrate /app
+COPY --from=builder /app/op-chain-ops/bin/celo-migrate-blocks /app
+COPY --from=builder /app/op-chain-ops/bin/celo-migrate-state /app
 ENV PATH="/app:${PATH}"
 
-ENTRYPOINT ["/app/celo-dbmigrate"]
+ENTRYPOINT ["/app/celo-migrate-blocks"]
