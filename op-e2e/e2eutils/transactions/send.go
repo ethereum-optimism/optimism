@@ -44,9 +44,10 @@ func WithReceiptFail() SendTxOpt {
 	}
 }
 
-func RequireSendTx(t *testing.T, ctx context.Context, client *ethclient.Client, candidate txmgr.TxCandidate, privKey *ecdsa.PrivateKey, opts ...SendTxOpt) {
-	_, _, err := SendTx(ctx, client, candidate, privKey, opts...)
+func RequireSendTx(t *testing.T, ctx context.Context, client *ethclient.Client, candidate txmgr.TxCandidate, privKey *ecdsa.PrivateKey, opts ...SendTxOpt) (*types.Transaction, *types.Receipt) {
+	tx, rcpt, err := SendTx(ctx, client, candidate, privKey, opts...)
 	require.NoError(t, err, "Failed to send transaction")
+	return tx, rcpt
 }
 
 func SendTx(ctx context.Context, client *ethclient.Client, candidate txmgr.TxCandidate, privKey *ecdsa.PrivateKey, opts ...SendTxOpt) (*types.Transaction, *types.Receipt, error) {

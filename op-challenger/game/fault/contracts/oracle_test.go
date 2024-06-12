@@ -164,6 +164,8 @@ func TestPreimageOracleContract_InitLargePreimage(t *testing.T) {
 	uuid := big.NewInt(123)
 	partOffset := uint32(1)
 	claimedSize := uint32(2)
+	bond := big.NewInt(42984)
+	stubRpc.SetResponse(oracleAddr, methodMinBondSizeLPP, rpcblock.Latest, nil, []interface{}{bond})
 	stubRpc.SetResponse(oracleAddr, methodInitLPP, rpcblock.Latest, []interface{}{
 		uuid,
 		partOffset,
@@ -173,6 +175,7 @@ func TestPreimageOracleContract_InitLargePreimage(t *testing.T) {
 	tx, err := oracle.InitLargePreimage(uuid, partOffset, claimedSize)
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
+	require.Truef(t, bond.Cmp(tx.Value) == 0, "Expected bond %v got %v", bond, tx.Value)
 }
 
 func TestPreimageOracleContract_AddLeaves(t *testing.T) {
