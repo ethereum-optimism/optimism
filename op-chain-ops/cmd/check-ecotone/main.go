@@ -725,11 +725,11 @@ func checkGPO(ctx context.Context, env *actionEnv) error {
 	}
 	_, err = cl.Overhead(nil)
 	if err == nil || !strings.Contains(err.Error(), "revert") {
-		return fmt.Errorf("expected revert on legacy overhead attribute acccess, but got %w", err)
+		return fmt.Errorf("expected revert on legacy overhead attribute access, but got %w", err)
 	}
 	_, err = cl.Scalar(nil)
 	if err == nil || !strings.Contains(err.Error(), "revert") {
-		return fmt.Errorf("expected revert on legacy scalar attribute acccess, but got %w", err)
+		return fmt.Errorf("expected revert on legacy scalar attribute access, but got %w", err)
 	}
 	isEcotone, err := cl.IsEcotone(nil)
 	if err != nil {
