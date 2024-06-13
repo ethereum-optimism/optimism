@@ -175,14 +175,14 @@ func signExtend(dat uint32, idx uint32) uint32 {
 	}
 }
 
-func handleBranch(m *InstrumentedState, opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
-	if m.state.Cpu.NextPC != m.state.Cpu.PC+4 {
+func handleBranch(cpu *CpuScalars, registers *[32]uint32, opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
+	if cpu.NextPC != cpu.PC+4 {
 		panic("branch in delay slot")
 	}
 
 	shouldBranch := false
 	if opcode == 4 || opcode == 5 { // beq/bne
-		rt := m.state.Registers[rtReg]
+		rt := registers[rtReg]
 		shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
 	} else if opcode == 6 {
 		shouldBranch = int32(rs) <= 0 // blez
@@ -199,12 +199,12 @@ func handleBranch(m *InstrumentedState, opcode uint32, insn uint32, rtReg uint32
 		}
 	}
 
-	prevPC := m.state.Cpu.PC
-	m.state.Cpu.PC = m.state.Cpu.NextPC // execute the delay slot first
+	prevPC := cpu.PC
+	cpu.PC = cpu.NextPC // execute the delay slot first
 	if shouldBranch {
-		m.state.Cpu.NextPC = prevPC + 4 + (signExtend(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
+		cpu.NextPC = prevPC + 4 + (signExtend(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
 	} else {
-		m.state.Cpu.NextPC = m.state.Cpu.NextPC + 4 // branch not taken
+		cpu.NextPC = cpu.NextPC + 4 // branch not taken
 	}
 	return nil
 }

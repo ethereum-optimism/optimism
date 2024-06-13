@@ -335,7 +335,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		return handleBranch(m, opcode, insn, rtReg, rs)
+		return handleBranch(&m.state.Cpu, &m.state.Registers, opcode, insn, rtReg, rs)
 	}
 
 	storeAddr := uint32(0xFF_FF_FF_FF)
