@@ -66,7 +66,7 @@ type DeployedBytecode struct {
 	ImmutableReferences json.RawMessage `json:"immutableReferences,omitempty"`
 }
 
-// DeployedBytecode represents the bytecode section of the solc compiler output.
+// Bytecode represents the bytecode section of the solc compiler output.
 type Bytecode struct {
 	SourceMap           string          `json:"sourceMap"`
 	Object              hexutil.Bytes   `json:"object"`

@@ -82,7 +82,7 @@ type ChannelBuilder struct {
 	outputBytes int
 }
 
-// newChannelBuilder creates a new channel builder or returns an error if the
+// NewChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 // it acts as a factory for either a span or singular channel out
 func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1OriginBlockNum uint64) (*ChannelBuilder, error) {
