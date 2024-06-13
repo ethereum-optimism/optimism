@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
@@ -54,6 +55,8 @@ func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 		NetworkId:                 genesis.Config.ChainID.Uint64(),
 		Genesis:                   genesis,
 		RollupDisableTxPoolGossip: true,
+		StateScheme:               rawdb.HashScheme,
+		NoPruning:                 true,
 		BlobPool: blobpool.Config{
 			Datadir:   t.TempDir(),
 			Datacap:   blobpool.DefaultConfig.Datacap,
@@ -80,7 +83,6 @@ func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 
 	backend, err := eth.New(n, ethCfg)
 	require.NoError(t, err)
-	backend.Merger().FinalizePoS()
 
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 

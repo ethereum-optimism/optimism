@@ -160,8 +160,9 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	offset := hexutil.Uint64(0)
-	dp.DeployConfig.L2GenesisRegolithTimeOffset = &offset
 	dp.DeployConfig.L1CancunTimeOffset = &offset
+
+	dp.DeployConfig.L2GenesisRegolithTimeOffset = &offset
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset

@@ -1,7 +1,7 @@
 {
   "abigen": "v1.10.25",
   "foundry": "626221f5ef44b4af950a08e09bd714650d9eb77d",
-  "geth": "v1.13.14",
+  "geth": "v1.14.7",
   "eth2_testnet_genesis": "v0.10.0",
   "nvm": "v20.9.0",
   "slither": "0.10.2",
