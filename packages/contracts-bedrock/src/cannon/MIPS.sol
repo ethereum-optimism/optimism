@@ -739,11 +739,11 @@ contract MIPS is ISemver {
         }
     }
 
-    function getCpuScalars(State memory _state) internal returns (st.CpuScalars memory) {
+    function getCpuScalars(State memory _state) internal pure returns (st.CpuScalars memory) {
         return st.CpuScalars({ pc: _state.pc, nextPC: _state.nextPC, lo: _state.lo, hi: _state.hi });
     }
 
-    function setStateCpuScalars(State memory _state, st.CpuScalars memory _cpu) internal {
+    function setStateCpuScalars(State memory _state, st.CpuScalars memory _cpu) internal pure {
         _state.pc = _cpu.pc;
         _state.nextPC = _cpu.nextPC;
         _state.lo = _cpu.lo;

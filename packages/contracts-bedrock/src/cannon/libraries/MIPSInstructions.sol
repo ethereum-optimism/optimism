@@ -283,6 +283,7 @@ library MIPSInstructions {
         uint32 _rs
     )
         internal
+        pure
     {
         unchecked {
             bool shouldBranch = false;
