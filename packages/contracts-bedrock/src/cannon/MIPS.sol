@@ -46,7 +46,7 @@ contract MIPS is ISemver {
 
     /// @notice The semantic version of the MIPS contract.
     /// @custom:semver 1.0.1
-    string public constant version = "1.1.0-beta.1";
+    string public constant version = "1.1.0-beta.2";
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
