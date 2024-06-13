@@ -16,10 +16,10 @@ finalized and may change without notice.
 ### Contents
 
  * Specifications
-   * [Generic Fault Proof System](../../specs/fault-proof.md)
-   * [Generic Dispute Game Interface](../../specs/dispute-game-interface.md)
-   * [Fault Dispute Game](../../specs/fault-dispute-game.md)
-   * [Cannon VM](../../specs/cannon-fault-proof-vm.md)
+   * [Generic Fault Proof System](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/index.md)
+   * [Generic Dispute Game Interface](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/stage-one/dispute-game-interface.md)
+   * [Fault Dispute Game](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/stage-one/fault-dispute-game.md)
+   * [Cannon VM](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/cannon-fault-proof-vm.md)
  * [Deployment Details](./deployments.md)
  * [Manual Usage](./manual.md)
    * [Creating Traces with Cannon](./cannon.md)
