@@ -73,6 +73,70 @@ contract MIPS is ISemver {
         oracle_ = ORACLE;
     }
 
+    /// @notice Computes the hash of the MIPS state.
+    /// @return out_ The hashed MIPS state.
+    function outputState() internal returns (bytes32 out_) {
+        assembly {
+            // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
+            function copyMem(from, to, size) -> fromOut, toOut {
+                mstore(to, mload(add(from, sub(32, size))))
+                fromOut := add(from, 32)
+                toOut := add(to, size)
+            }
+
+            // From points to the MIPS State
+            let from := 0x80
+
+            // Copy to the free memory pointer
+            let start := mload(0x40)
+            let to := start
+
+            // Copy state to free memory
+            from, to := copyMem(from, to, 32) // memRoot
+            from, to := copyMem(from, to, 32) // preimageKey
+            from, to := copyMem(from, to, 4) // preimageOffset
+            from, to := copyMem(from, to, 4) // pc
+            from, to := copyMem(from, to, 4) // nextPC
+            from, to := copyMem(from, to, 4) // lo
+            from, to := copyMem(from, to, 4) // hi
+            from, to := copyMem(from, to, 4) // heap
+            let exitCode := mload(from)
+            from, to := copyMem(from, to, 1) // exitCode
+            let exited := mload(from)
+            from, to := copyMem(from, to, 1) // exited
+            from, to := copyMem(from, to, 8) // step
+            from := add(from, 32) // offset to registers
+
+            // Copy registers
+            for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
+
+            // Clean up end of memory
+            mstore(to, 0)
+
+            // Log the resulting MIPS state, for debugging
+            log0(start, sub(to, start))
+
+            // Determine the VM status
+            let status := 0
+            switch exited
+            case 1 {
+                switch exitCode
+                // VMStatusValid
+                case 0 { status := 0 }
+                // VMStatusInvalid
+                case 1 { status := 1 }
+                // VMStatusPanic
+                default { status := 2 }
+            }
+            // VMStatusUnfinished
+            default { status := 3 }
+
+            // Compute the hash of the resulting MIPS state and set the status byte
+            out_ := keccak256(start, sub(to, start))
+            out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
+        }
+    }
+
     /// @notice Handles a syscall.
     /// @param _localContext The local key context for the preimage oracle.
     /// @return out_ The hashed MIPS state.
@@ -120,7 +184,7 @@ contract MIPS is ISemver {
             else if (syscall_no == 4246) {
                 state.exited = true;
                 state.exitCode = uint8(a0);
-                return ins.outputState();
+                return outputState();
             }
             // read: Like Linux read syscall. Splits unaligned reads into aligned reads.
             else if (syscall_no == 4003) {
@@ -234,7 +298,7 @@ contract MIPS is ISemver {
             state.pc = state.nextPC;
             state.nextPC = state.nextPC + 4;
 
-            out_ = ins.outputState();
+            out_ = outputState();
         }
     }
 
@@ -313,7 +377,7 @@ contract MIPS is ISemver {
             state.nextPC = state.nextPC + 4;
 
             // Return the hash of the resulting state
-            out_ = ins.outputState();
+            out_ = outputState();
         }
     }
 
@@ -344,7 +408,7 @@ contract MIPS is ISemver {
             }
 
             // Return the hash of the resulting state.
-            out_ = ins.outputState();
+            out_ = outputState();
         }
     }
 
@@ -374,7 +438,7 @@ contract MIPS is ISemver {
             state.nextPC = state.nextPC + 4;
 
             // Return the hash of the resulting state.
-            out_ = ins.outputState();
+            out_ = outputState();
         }
     }
 
@@ -555,7 +619,7 @@ contract MIPS is ISemver {
 
             // Don't change state once exited
             if (state.exited) {
-                return ins.outputState();
+                return outputState();
             }
 
             state.step += 1;
@@ -608,7 +672,7 @@ contract MIPS is ISemver {
                 ins.handleBranch(cpu, state.registers, opcode, insn, rtReg, rs);
                 setStateCpuScalars(state, cpu);
 
-                return ins.outputState();
+                return outputState();
             }
 
             uint32 storeAddr = 0xFF_FF_FF_FF;
