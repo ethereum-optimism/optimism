@@ -1139,13 +1139,6 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: ['l2oo', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set DEVNET_L2OO = true
-                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
-      - when:
-          condition:
             equal: ['plasma', <<parameters.variant>>]
           steps:
             - run:
@@ -1750,7 +1743,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              variant: ["default", "l2oo", "plasma", "plasma-generic"]
+              variant: ["default", "plasma", "plasma-generic"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
