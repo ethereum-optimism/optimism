@@ -5,6 +5,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
+import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -602,7 +603,12 @@ contract MIPS is ISemver {
             }
 
             if ((opcode >= 4 && opcode < 8) || opcode == 1) {
-                return handleBranchAndCalculateOutput(state, opcode, insn, rtReg, rs);
+                st.CpuScalars memory cpu = getCpuScalars(state);
+
+                ins.handleBranch(cpu, state.registers, opcode, insn, rtReg, rs);
+                setStateCpuScalars(state, cpu);
+
+                return ins.outputState();
             }
 
             uint32 storeAddr = 0xFF_FF_FF_FF;
@@ -669,25 +675,14 @@ contract MIPS is ISemver {
         }
     }
 
-    function handleBranchAndCalculateOutput(
-        State memory _state,
-        uint32 _opcode,
-        uint32 _insn,
-        uint32 _rtReg,
-        uint32 _rs
-    )
-        internal
-        returns (bytes32)
-    {
-        (uint32 pc, uint32 nextPC, uint32 hi, uint32 lo) = ins.handleBranch(
-            _state.pc, _state.nextPC, _state.hi, _state.lo, _state.registers, _opcode, _insn, _rtReg, _rs
-        );
+    function getCpuScalars(State memory _state) internal returns (st.CpuScalars memory) {
+        return st.CpuScalars({ pc: _state.pc, nextPC: _state.nextPC, lo: _state.lo, hi: _state.hi });
+    }
 
-        _state.pc = pc;
-        _state.nextPC = nextPC;
-        _state.hi = hi;
-        _state.lo = lo;
-
-        return ins.outputState();
+    function setStateCpuScalars(State memory _state, st.CpuScalars memory _cpu) internal {
+        _state.pc = _cpu.pc;
+        _state.nextPC = _cpu.nextPC;
+        _state.lo = _cpu.lo;
+        _state.hi = _cpu.hi;
     }
 }
