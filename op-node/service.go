@@ -286,6 +286,7 @@ func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
 	cfg := &sync.Config{
 		SyncMode:           mode,
 		SkipSyncStartCheck: ctx.Bool(flags.SkipSyncStartCheck.Name),
+		L2EngineClientKind: sync.EngineClientKind(ctx.String(flags.L2EngineKind.Name)),
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync

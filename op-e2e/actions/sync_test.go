@@ -2,7 +2,6 @@ package actions
 
 import (
 	"errors"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -11,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -925,7 +925,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(12), id.Number)
 
-	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync
+	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and default geth engine kind.
 	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener)
 
 	// Build another 10 L1 blocks on the sequencer
@@ -956,7 +956,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 
 	// Verify that op-node has skipped ELSync and started CL sync because geth has finalized block from ELSync.
 	record = captureLogHandler.FindLog(testlog.NewMessageFilter("Skipping EL sync and going straight to CL sync because there is a finalized block"))
-	require.NotNil(t, record, "The verifier should not request to sync to block number 22 because it is in CL mode, not EL mode at this point.")
+	require.NotNil(t, record, "The verifier should skip EL Sync at this point.")
 }
 
 func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
@@ -1053,7 +1053,8 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(12), id.Number)
 
-	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ForceELSync}, defaultVerifierCfg().safeHeadListener)
+	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and erigon engine kind.
+	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync, L2EngineClientKind: sync.EngineClientErigon}, defaultVerifierCfg().safeHeadListener)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -1084,7 +1085,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	// Verify that op-node is starting ELSync.
 	record = captureLogHandler.FindLog(testlog.NewMessageFilter("Skipping EL sync and going straight to CL sync because there is a finalized block"))
 	require.Nil(t, record, "The verifier should start EL Sync when l2.engineKind is not geth")
-	record = captureLogHandler.FindLog(testlog.NewMessageFilter("Starting EL Sync"))
+	record = captureLogHandler.FindLog(testlog.NewMessageFilter("Starting EL sync"))
 	require.NotNil(t, record, "The verifier should start EL Sync when l2.engineKind is not geth")
 }
 

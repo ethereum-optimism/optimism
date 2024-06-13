@@ -191,6 +191,17 @@ var (
 		Value:    time.Second * 12,
 		Category: L1RPCCategory,
 	}
+	L2EngineKind = &cli.GenericFlag{
+		Name: "l2.enginekind",
+		Usage: "The kind of engine client, used to control the behavior of optimism in respect to different types of engine clients. Valid options: " +
+			openum.EnumString(sync.EngineClientKinds),
+		EnvVars: prefixEnvVars("L2_ENGINE_KIND"),
+		Value: func() *sync.EngineClientKind {
+			out := sync.EngineClientGeth
+			return &out
+		}(),
+		Category: RollupCategory,
+	}
 	VerifierL1Confs = &cli.Uint64Flag{
 		Name:     "verifier.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.",

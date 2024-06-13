@@ -48,6 +48,7 @@ type EngineController struct {
 	log        log.Logger
 	metrics    derive.Metrics
 	syncMode   sync.Mode
+	engineKind sync.EngineClientKind
 	syncStatus syncStatusEnum
 	chainSpec  *rollup.ChainSpec
 	rollupCfg  *rollup.Config
@@ -75,10 +76,15 @@ type EngineController struct {
 	safeAttrs    *derive.AttributesWithParent
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics, rollupCfg *rollup.Config, syncMode sync.Mode) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics, rollupCfg *rollup.Config, syncCfg *sync.Config) *EngineController {
 	syncStatus := syncStatusCL
-	if syncMode.IsELSync() {
+	if syncCfg.SyncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
+	}
+
+	engineKind := syncCfg.L2EngineClientKind
+	if !sync.ValidEngineClientKind(syncCfg.L2EngineClientKind) {
+		engineKind = sync.EngineClientGeth
 	}
 
 	return &EngineController{
@@ -87,7 +93,8 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metri
 		metrics:    metrics,
 		chainSpec:  rollup.NewChainSpec(rollupCfg),
 		rollupCfg:  rollupCfg,
-		syncMode:   syncMode,
+		syncMode:   syncCfg.SyncMode,
+		engineKind: engineKind,
 		syncStatus: syncStatus,
 		clock:      clock.SystemClock,
 	}
@@ -314,7 +321,7 @@ func (e *EngineController) resetBuildingState() {
 // checkNewPayloadStatus checks returned status of engine_newPayloadV1 request for next unsafe payload.
 // It returns true if the status is acceptable.
 func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus) bool {
-	if e.syncMode.IsELSync() {
+	if e.syncMode == sync.ELSync {
 		if status == eth.ExecutionValid && e.syncStatus == syncStatusStartedEL {
 			e.syncStatus = syncStatusFinishedELButNotFinalized
 		}
@@ -327,7 +334,7 @@ func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus
 // checkForkchoiceUpdatedStatus checks returned status of engine_forkchoiceUpdatedV1 request for next unsafe payload.
 // It returns true if the status is acceptable.
 func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloadStatus) bool {
-	if e.syncMode.IsELSync() {
+	if e.syncMode == sync.ELSync {
 		if status == eth.ExecutionValid && e.syncStatus == syncStatusStartedEL {
 			e.syncStatus = syncStatusFinishedELButNotFinalized
 		}
@@ -376,7 +383,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		rollupGenesisIsFinalized := b.Hash == e.rollupCfg.Genesis.L2.Hash
-		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized || e.syncMode == sync.ForceELSync {
+		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized || e.engineKind != sync.EngineClientGeth {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()

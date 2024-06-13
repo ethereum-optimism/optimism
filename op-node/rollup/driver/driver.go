@@ -178,7 +178,7 @@ func NewDriver(
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg)
 	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 
 	var finalizer Finalizer
