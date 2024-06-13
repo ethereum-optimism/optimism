@@ -25,7 +25,7 @@ const (
 	SequencerCategory  = "3. SEQUENCER"
 	OperationsCategory = "4. LOGGING, METRICS, DEBUGGING, AND API"
 	P2PCategory        = "5. PEER-TO-PEER"
-	PlasmaCategory     = "6. PLASMA (EXPERIMENTAL)"
+	AltDACategory      = "6. ALT-DA (EXPERIMENTAL)"
 	MiscCategory       = "7. MISC"
 )
 
@@ -424,7 +424,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, RollupCategory)...)
-	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, PlasmaCategory)...)
+	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, AltDACategory)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 

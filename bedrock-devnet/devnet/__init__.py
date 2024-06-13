@@ -297,7 +297,7 @@ def devnet_deploy(paths):
         log.info('Bringing up `op-challenger`.')
         run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
-    # Optionally bring up Plasma Mode components.
+    # Optionally bring up Alt-DA Mode components.
     if DEVNET_PLASMA:
         log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
         run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
