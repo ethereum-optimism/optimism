@@ -2,10 +2,10 @@ package log
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 
 	"github.com/ethereum/go-ethereum/log"
 )

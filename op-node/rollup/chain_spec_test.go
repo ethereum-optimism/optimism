@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"log/slog"
 	"math/big"
 	"testing"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 )
 
 func u64ptr(n uint64) *uint64 {

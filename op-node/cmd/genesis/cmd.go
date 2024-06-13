@@ -291,5 +291,5 @@ func readBlockJSON(path string) (*types.Block, error) {
 	for i, tx := range body.Transactions {
 		txs[i] = tx.tx
 	}
-	return types.NewBlockWithHeader(&header).WithBody(txs, nil).WithWithdrawals(body.Withdrawals), nil
+	return types.NewBlockWithHeader(&header).WithBody(types.Body{Transactions: txs, Withdrawals: body.Withdrawals}), nil
 }
