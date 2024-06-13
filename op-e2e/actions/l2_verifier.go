@@ -33,10 +33,7 @@ import (
 type L2Verifier struct {
 	log log.Logger
 
-	eng interface {
-		engine.Engine
-		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
-	}
+	eng L2API
 
 	syncDeriver *driver.SyncDeriver
 
