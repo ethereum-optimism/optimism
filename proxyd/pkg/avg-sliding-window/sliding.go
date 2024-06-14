@@ -187,6 +187,6 @@ func (sw *AvgSlidingWindow) Count() uint {
 	return sw.qty
 }
 
-func (sw *AvgSlidingWindow) GetWindowLength() time.Duration {
-	return sw.windowLength
+func (sw *AvgSlidingWindow) GetTime() time.Time {
+	return sw.clock.Now()
 }

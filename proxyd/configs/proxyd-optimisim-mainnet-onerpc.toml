@@ -1,0 +1,86 @@
+[server]
+log_level = "info"
+max_body_size_bytes = 10485760
+rpc_host = "0.0.0.0"
+rpc_port = 8081
+
+[metrics]
+enabled = true
+host = "0.0.0.0"
+port = 7300
+
+[cache]
+enabled = true
+
+[backend]
+max_response_size_bytes = 104857600
+max_retries = 0
+out_of_service_seconds = 0
+response_timeout_seconds = 5
+
+[backends]
+# [backends.sequencer]
+# max_ws_conns = 1
+# rpc_url = "https://mainnet-sequencer.optimism.io"
+# ws_url = "wss://mainnet-sequencer.optimism.io"
+[backends.ankr]
+# rpc_url = "https://opt-mainnet.g.alchemy.com/v2/VAIvqtfRHxKEjSm402HL-QTraUYvvK45"
+rpc_url = "https://icy-fragrant-hexagon.optimism-sepolia.quiknode.pro/fa0ff7f3999349f81325b7d0ebe86ba2582625d2/"
+# consensus_skip_peer_count = true
+
+[backend_groups]
+# [backend_groups.sequencer]
+# backends = ["sequencer"]
+[backend_groups.ankr]
+backends = ["ankr"]
+
+[rpc_method_mappings]
+debug_traceBlockByHash = "ankr"
+debug_traceBlockByNumber = "ankr"
+debug_traceTransaction = "ankr"
+eth_accounts = "ankr"
+eth_blockNumber = "ankr"
+eth_call = "ankr"
+eth_chainId = "ankr"
+eth_estimateGas = "ankr"
+eth_feeHistory = "ankr"
+eth_gasPrice = "ankr"
+eth_getBalance = "ankr"
+eth_getBlockByHash = "ankr"
+eth_getBlockByNumber = "ankr"
+eth_getBlockTransactionCountByHash = "ankr"
+eth_getBlockTransactionCountByNumber = "ankr"
+eth_getCode = "ankr"
+eth_getLogs = "ankr"
+eth_getProof = "ankr"
+eth_getStorageAt = "ankr"
+eth_getTransactionByBlockHashAndIndex = "ankr"
+eth_getTransactionByHash = "ankr"
+eth_getTransactionCount = "ankr"
+eth_getTransactionReceipt = "ankr"
+eth_getUncleByBlockHashAndIndex = "ankr"
+eth_maxPriorityFeePerGas = "ankr"
+# eth_sendRawTransaction = "sequencer"
+eth_syncing = "ankr"
+net_version = "ankr"
+net_peerCount = "ankr"
+web3_clientVersion = "ankr"
+
+[batch]
+error_message = "To send batches over 10 items, consider using a dedicated API provider: https://community.optimism.io/docs/useful-tools/providers"
+max_size = 10
+
+[rate_limit]
+base_interval = "1m"
+base_rate = 200
+enable_backend_rate_limiter = false
+error_message = "Your IP has exceeded its requests per second capacity. Please consider using a dedicated API provider: https://community.optimism.io/docs/useful-tools/providers"
+exempt_origins = [
+  # MM Chrome
+  "chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn", # MM Edge
+  "chrome-extension://ejbalbakoplchlghecdalmeeeajnimhm", # Firefox (allow all extensions here since the extension ID keeps changing)
+  "^moz-extension://([a-f0-9\\-]+)$",
+  "https://app.rubicon.finance",
+  "https://app.hop.exchange",
+  "https://delegation.tools",
+]

@@ -1,0 +1,90 @@
+  [server]
+log_level = "info"
+max_body_size_bytes = 10485760
+rpc_host = "0.0.0.0"
+rpc_port = 8080
+
+[metrics]
+enabled = false
+host = "0.0.0.0"
+port = 7300
+
+# [redis]
+# url = "redis://10.128.24.35:6379"
+
+# [cache]
+# enabled = true
+#
+[backend]
+max_response_size_bytes = 104857600
+max_retries = 3
+out_of_service_seconds = 0
+response_timeout_seconds = 5
+
+[backends]
+[backends.sequencer]
+max_ws_conns = 1
+rpc_url = "https://mainnet-sequencer.optimism.io"
+ws_url = "wss://mainnet-sequencer.optimism.io"
+[backends.alchemy]
+max_ws_conns = 2000
+rpc_url = "https://opt-mainnet.g.alchemy.com/v2/VAIvqtfRHxKEjSm402HL-QTraUYvvK45"
+ws_url = "wss://opt-mainnet.g.alchemy.com/v2/VAIvqtfRHxKEjSm402HL-QTraUYvvK45"
+
+[backend_groups]
+[backend_groups.sequencer]
+backends = ["sequencer"]
+[backend_groups.alchemy]
+backends = ["alchemy"]
+
+[rpc_method_mappings]
+debug_traceBlockByHash = "alchemy"
+debug_traceBlockByNumber = "alchemy"
+debug_traceTransaction = "alchemy"
+eth_accounts = "alchemy"
+eth_blockNumber = "alchemy"
+eth_call = "alchemy"
+eth_chainId = "alchemy"
+eth_estimateGas = "alchemy"
+eth_feeHistory = "alchemy"
+eth_gasPrice = "alchemy"
+eth_getBalance = "alchemy"
+eth_getBlockByHash = "alchemy"
+eth_getBlockByNumber = "alchemy"
+eth_getBlockTransactionCountByHash = "alchemy"
+eth_getBlockTransactionCountByNumber = "alchemy"
+eth_getCode = "alchemy"
+eth_getLogs = "alchemy"
+eth_getProof = "alchemy"
+eth_getStorageAt = "alchemy"
+eth_getTransactionByBlockHashAndIndex = "alchemy"
+eth_getTransactionByHash = "alchemy"
+eth_getTransactionCount = "alchemy"
+eth_getTransactionReceipt = "alchemy"
+eth_getUncleByBlockHashAndIndex = "alchemy"
+eth_maxPriorityFeePerGas = "alchemy"
+eth_sendRawTransaction = "sequencer"
+eth_syncing = "alchemy"
+net_version = "alchemy"
+net_peerCount = "alchemy"
+web3_clientVersion = "alchemy"
+
+[batch]
+error_message = "To send batches over 10 items, consider using a dedicated API provider: https://community.optimism.io/docs/useful-tools/providers"
+max_size = 10
+
+[rate_limit]
+base_interval = "1m"
+base_rate = 200
+enable_backend_rate_limiter = false
+error_message = "Your IP has exceeded its requests per second capacity. Please consider using a dedicated API provider: https://community.optimism.io/docs/useful-tools/providers"
+exempt_origins = [
+  # MM Chrome
+  "chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn", # MM Edge
+  "chrome-extension://ejbalbakoplchlghecdalmeeeajnimhm", # Firefox (allow all extensions here since the extension ID keeps changing)
+  "^moz-extension://([a-f0-9\\-]+)$",
+  "https://app.rubicon.finance",
+  "https://app.hop.exchange",
+  "https://delegation.tools",
+]
+# use_redis = true

@@ -377,6 +377,9 @@ func (b *Backend) GetBlockHeightZeroSlidingWindowLength() time.Duration {
 func (b *Backend) GetBlockHeightZeroSlidingWindowCount() uint {
 	return b.blockHeightZeroSlidingWindow.Count()
 }
+func (b *Backend) GetBlockHeightZeroSlidingWindowTime() time.Time {
+	return b.blockHeightZeroSlidingWindow.GetTime()
+}
 
 func (b *Backend) Override(opts ...BackendOpt) {
 	for _, opt := range opts {
