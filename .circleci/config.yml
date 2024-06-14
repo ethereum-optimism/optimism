@@ -316,7 +316,10 @@ jobs:
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
-          condition: "<<parameters.release>>"
+          condition:
+            or:
+              - "<<parameters.publish>>"
+              - "<<parameters.release>>"
           steps:
             - gcp-cli/install
       - when:
