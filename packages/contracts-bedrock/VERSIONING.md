@@ -42,7 +42,7 @@ Versioning for individual contracts works as follows:
   - Example 1: A contract is currently on `1.2.3`.
     - We don't yet know when the next release of this contract will be. However, you are simply fixing typos in comments so you bump the version to `1.2.4-beta.1`.
     - The next PR made to that same contract clarifies some comments, so it bumps the version to `1.2.4-beta.2`.
-    - The last PR introduces a breaking change, which bumps the version from `1.2.4-beta.2` to `2.0.0-beta.1`. A `1.2.4-rc.1` and `1.2.4` version both never exist.
+    - The next PR introduces a breaking change, which bumps the version from `1.2.4-beta.2` to `2.0.0-beta.1`. A `1.2.4-rc.1` and `1.2.4` version both never exist.
   - Example 2: A contract is currently on `2.4.7`.
     - We know the next release of this contract will be a breaking change. Regardless, as you start development by fixing typos in comments, bump the version to `2.4.8-beta.1`. This is because we may end up putting out a release before the breaking change is added.
     - Once you start working on the breaking change, bump the version to `3.0.0-beta.1`.
