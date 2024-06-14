@@ -1555,10 +1555,6 @@ workflows:
           dependencies: "contracts-bedrock"
           requires:
             - pnpm-monorepo
-      - go-lint-test-build:
-          name: proxyd-tests
-          binary_name: proxyd
-          working_directory: proxyd
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1774,7 +1770,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|proxyd|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build:
@@ -1945,21 +1941,6 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-ufm
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-build:
-          name: proxyd-docker-release
-          filters:
-            tags:
-              only: /^proxyd\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: proxyd
           docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true

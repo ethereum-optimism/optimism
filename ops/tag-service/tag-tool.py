@@ -12,7 +12,6 @@ SERVICES  = [
     'op-dispute-mon',
     'op-proposer',
     'da-server',
-    'proxyd',
     'op-heartbeat',
     'op-contracts',
     'test',
