@@ -4,12 +4,10 @@ import os
 import subprocess
 import json
 import socket
-import calendar
 import datetime
 import time
 import shutil
 import http.client
-import gzip
 from multiprocessing import Process, Queue
 import concurrent.futures
 from collections import namedtuple
