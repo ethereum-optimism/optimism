@@ -4,7 +4,7 @@
 
 Custom gas token allows for an L1-native ERC20 token to collateralize and act as the gas token on L2. This implementation is based on [Optimism's Custom Fee Token](https://specs.optimism.io/protocol/granite/custom-gas-token.html) and enhances its functionality by enabling the bridging of L1 native tokens to L2 as ERC20 tokens. 
 
-**The codebase is located in the [custom-fee-token](https://github.com/bobanetwork/boba/tree/custom-fee-token) branch.**
+**The codebase is located in the [custom-fee-token](https://github.com/bobanetwork/boba/tree/custom-fee-token) branch.** **The smart contract is UNDER audit. Please use it with caution.**
 
 ## Configuring the Gas Paying Token and L2 ETH Token
 
@@ -55,6 +55,22 @@ The following table describes the arguments to `depositERC20Transaction`
 #### depositTransaction
 
 The `depositTransaction` function has been modified to support `ether` deposits when the custom fee token is enabled. If the custom fee token is enabled and `msg.value` is not zero, this function can only be called by an EOA (Externally Owned Account) to prevent incorrect minting on L2.
+
+#### setGasPayingToken
+
+This function MUST only be callable by the `SystemConfig`. When called, it creates a special deposit transaction from the `DEPOSITOR_ACCOUNT` that calls the `L1Block.setGasPayingToken` function. The ERC20 `name` and `symbol` are passed as `bytes32` to prevent the usage of dynamically sized `string`arguments.
+
+```solidity
+function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external;
+```
+
+#### SetL2ETHToken
+
+This function MUST only be callable by the `SystemConfig`. When called, it creates a special deposit transaction from the `DEPOSITOR_ACCOUNT` that calls the `L1Block.setL2ETHToken` function. 
+
+```solidity
+function setL2ETHToken(address _token) external;
+```
 
 ### L1CrossDomainMessenger
 
@@ -113,3 +129,17 @@ Users should deposit ETH by calling `depositTransaction` on the `OptimismPortal`
 The following diagram shows the control flow for when a user sends `ether`.
 
   <img src="../../../assets/feature gas paying token eth.png" alt="">
+
+## Technical Review
+
+### Deposit
+
+The deposit of the custom paying token can only be triggered in the `OptimismPortal` contract. The `depositERC20Transaction` function overrides the `_mint` value, allowing layer 2 to mint the native token.
+
+The deposit of ETH can only be triggered in the `OptimismPortal` when the `L2ETHToken` is set. Users can either transfer ETH to `OptimismPortal` or call the `depositTransaction` function. The `depositTransaction` function retrieves the `opaqueData` in the `L1CrossDomainMessenger` contract. This `opaqueData` triggers the `RelayMessage` in the `L2CrossDomainMessenger` contract, allowing the `L2StandardBridge` to mint the L2 ETH ERC20 token.
+
+### Withdrawal
+
+The withdrawal of the custom paying token can only be triggered in the `L2ToL1MessagePasser` contract by either sending the custom paying token to this contract or calling the `initiateWithdrawal` function. The `_data` passed in the `MessagePassed` event is decoded in the L1 `OptimismPortal` contract. The `l2sender` decoded from the `_data` is `OptimismPortal`, allowing the `OptimismPortal` contract to transfer the custom paying token to the receiver's address.
+
+The withdrawal of ETH can be triggered in the `L2StandardBridge` contract. The `L2StandardBridge` contract burns the token and calls the `L2ToL1MessagePasser` contract to forward the message to the L1 `OptimismPortal` contract. In this case, the `l2sender` in `_data` is `L2StandardBridge`, enabling the `OptimismPortal` contract to transfer ETH to the receiver's address.
