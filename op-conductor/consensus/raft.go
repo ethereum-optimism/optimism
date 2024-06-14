@@ -238,9 +238,9 @@ func (rc *RaftConsensus) ClusterMembership() (*ClusterMembership, error) {
 		return nil, future.Error()
 	}
 
-	var servers []*ServerInfo
+	var servers []ServerInfo
 	for _, srv := range future.Configuration().Servers {
-		servers = append(servers, &ServerInfo{
+		servers = append(servers, ServerInfo{
 			ID:       string(srv.ID),
 			Addr:     string(srv.Address),
 			Suffrage: ServerSuffrage(srv.Suffrage),

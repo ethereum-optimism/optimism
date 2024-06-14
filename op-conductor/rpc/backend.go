@@ -61,13 +61,30 @@ func (api *APIBackend) Active(_ context.Context) (bool, error) {
 }
 
 // AddServerAsNonvoter implements API.
-func (api *APIBackend) AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error {
-	return api.con.AddServerAsNonvoter(ctx, id, addr, version)
+func (api *APIBackend) AddServerAsNonvoter(ctx context.Context, id string, addr string, version *uint64) error {
+	var v uint64
+	if version != nil {
+		v = *version
+	}
+	return api.con.AddServerAsNonvoter(ctx, id, addr, v)
 }
 
 // AddServerAsVoter implements API.
-func (api *APIBackend) AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error {
-	return api.con.AddServerAsVoter(ctx, id, addr, version)
+func (api *APIBackend) AddServerAsVoter(ctx context.Context, id string, addr string, version *uint64) error {
+	var v uint64
+	if version != nil {
+		v = *version
+	}
+	return api.con.AddServerAsVoter(ctx, id, addr, v)
+}
+
+// RemoveServer implements API.
+func (api *APIBackend) RemoveServer(ctx context.Context, id string, version *uint64) error {
+	var v uint64
+	if version != nil {
+		v = *version
+	}
+	return api.con.RemoveServer(ctx, id, v)
 }
 
 // CommitUnsafePayload implements API.
@@ -88,11 +105,6 @@ func (api *APIBackend) LeaderWithID(ctx context.Context) (*consensus.ServerInfo,
 // Pause implements API.
 func (api *APIBackend) Pause(ctx context.Context) error {
 	return api.con.Pause(ctx)
-}
-
-// RemoveServer implements API.
-func (api *APIBackend) RemoveServer(ctx context.Context, id string, version uint64) error {
-	return api.con.RemoveServer(ctx, id, version)
 }
 
 // Resume implements API.

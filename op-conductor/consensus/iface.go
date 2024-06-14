@@ -1,6 +1,8 @@
 package consensus
 
 import (
+	"encoding/json"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -27,8 +29,22 @@ func (s ServerSuffrage) String() string {
 
 // ClusterMembership defines a versioned list of servers in the cluster.
 type ClusterMembership struct {
-	Servers []*ServerInfo `json:"servers"`
-	Version uint64        `json:"version"`
+	Servers []ServerInfo `json:"servers"`
+	Version uint64       `json:"version"`
+}
+
+// UnmarshalJSON unmarshals a ClusterMembership object, providing backwards compatibility
+// with the previous format of an unwrapped list of servers.
+func (c *ClusterMembership) UnmarshalJSON(data []byte) error {
+	if data[0] == '[' {
+		// This is a list of servers, not a full ClusterMembership object.
+		// Unmarshal it as a list of servers and return.
+		return json.Unmarshal(data, &c.Servers)
+	}
+
+	type Alias ClusterMembership
+	aux := (*Alias)(c)
+	return json.Unmarshal(data, aux)
 }
 
 // ServerInfo defines the server information.
