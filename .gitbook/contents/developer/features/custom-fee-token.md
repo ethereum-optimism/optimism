@@ -128,7 +128,7 @@ Users should deposit ETH by calling `depositTransaction` on the `OptimismPortal`
 
 The following diagram shows the control flow for when a user sends `ether`.
 
-  <img src="../../../assets/feature gas paying token eth.png" alt="">
+<figure><img src="../../../assets/feature gas paying token eth.png" alt=""><figcaption></figcaption></figure>
 
 ## Technical Review
 
