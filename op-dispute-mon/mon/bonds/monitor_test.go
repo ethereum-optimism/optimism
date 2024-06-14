@@ -17,7 +17,10 @@ import (
 )
 
 var (
-	frozen = time.Unix(int64(time.Hour.Seconds()), 0)
+	frozen       = time.Unix(int64(time.Hour.Seconds()), 0)
+	honestActor1 = common.Address{0x11, 0xaa}
+	honestActor2 = common.Address{0x22, 0xbb}
+	honestActor3 = common.Address{0x33, 0xcc}
 )
 
 func TestCheckBonds(t *testing.T) {
@@ -61,8 +64,8 @@ func TestCheckBonds(t *testing.T) {
 }
 
 func TestCheckRecipientCredit(t *testing.T) {
-	addr1 := common.Address{0x1a}
-	addr2 := common.Address{0x2b}
+	addr1 := honestActor1
+	addr2 := honestActor2
 	addr3 := common.Address{0x3c}
 	addr4 := common.Address{0x4d}
 	notRootPosition := types.NewPositionFromGIndex(big.NewInt(2))
@@ -273,7 +276,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 		MaxClockDuration: 10,
 		WETHDelay:        10 * time.Second,
 		GameMetadata: gameTypes.GameMetadata{
-			Proxy:     common.Address{44},
+			Proxy:     common.Address{0x44},
 			Timestamp: uint64(frozen.Unix()) - 22,
 		},
 		BlockNumberChallenged: true,
@@ -346,6 +349,14 @@ func TestCheckRecipientCredit(t *testing.T) {
 	require.Equal(t, 2, m.credits[metrics.CreditEqualNonWithdrawable], "CreditEqualNonWithdrawable")
 	require.Equal(t, 2, m.credits[metrics.CreditAboveNonWithdrawable], "CreditAboveNonWithdrawable")
 
+	require.Len(t, m.honestWithdrawable, 3)
+	requireBigInt := func(name string, expected, actual *big.Int) {
+		require.Truef(t, expected.Cmp(actual) == 0, "Expected %v withdrawable to be %v but was %v", name, expected, actual)
+	}
+	requireBigInt("honest addr1", m.honestWithdrawable[addr1], big.NewInt(19))
+	requireBigInt("honest addr2", m.honestWithdrawable[addr2], big.NewInt(13))
+	requireBigInt("honest addr3", m.honestWithdrawable[honestActor3], big.NewInt(0))
+
 	// Logs from game1
 	// addr1 is correct so has no logs
 	// addr2 is below expected before max duration, so warn about early withdrawal
@@ -371,8 +382,18 @@ func TestCheckRecipientCredit(t *testing.T) {
 		testlog.NewAttributesFilter("withdrawable", "non_withdrawable")))
 
 	// Logs from game 2
-	// addr1 is below expected - no warning as withdrawals may now be possible
-	// addr2 is correct
+	// addr1 is below expected - no warning as withdrawals may now be possible, but has unclaimed credit
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Found unclaimed credit"),
+		testlog.NewAttributesFilter("game", game2.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr1.Hex())))
+	// addr2 is correct but has unclaimed credit
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Found unclaimed credit"),
+		testlog.NewAttributesFilter("game", game2.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr2.Hex())))
 	// addr3 is above expected - warn
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
@@ -401,8 +422,18 @@ func TestCheckRecipientCredit(t *testing.T) {
 		testlog.NewAttributesFilter("withdrawable", "non_withdrawable")))
 
 	// Logs from game 4
-	// addr1 is correct so has no logs
-	// addr2 is below expected before max duration, no long because withdrawals may be possible
+	// addr1 is correct but has unclaimed credit
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Found unclaimed credit"),
+		testlog.NewAttributesFilter("game", game4.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr1.Hex())))
+	// addr2 is below expected before max duration, no log because withdrawals may be possible but warn about unclaimed
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(log.LevelWarn),
+		testlog.NewMessageFilter("Found unclaimed credit"),
+		testlog.NewAttributesFilter("game", game4.Proxy.Hex()),
+		testlog.NewAttributesFilter("recipient", addr2.Hex())))
 	// addr3 is not involved so no logs
 	// addr4 is above expected before max duration, so warn
 	require.NotNil(t, logs.FindLog(
@@ -419,13 +450,19 @@ func setupBondMetricsTest(t *testing.T) (*Bonds, *stubBondMetrics, *testlog.Capt
 		credits:  make(map[metrics.CreditExpectation]int),
 		recorded: make(map[common.Address]Collateral),
 	}
-	bonds := NewBonds(logger, metrics, clock.NewDeterministicClock(frozen))
+	honestActors := monTypes.NewHonestActors([]common.Address{honestActor1, honestActor2, honestActor3})
+	bonds := NewBonds(logger, metrics, honestActors, clock.NewDeterministicClock(frozen))
 	return bonds, metrics, logs
 }
 
 type stubBondMetrics struct {
-	credits  map[metrics.CreditExpectation]int
-	recorded map[common.Address]Collateral
+	credits            map[metrics.CreditExpectation]int
+	recorded           map[common.Address]Collateral
+	honestWithdrawable map[common.Address]*big.Int
+}
+
+func (s *stubBondMetrics) RecordHonestWithdrawableAmounts(values map[common.Address]*big.Int) {
+	s.honestWithdrawable = values
 }
 
 func (s *stubBondMetrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
