@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -79,6 +80,63 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		DriverSetup: setup,
 		state:       NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig),
 	}
+}
+
+func (l *BatchSubmitter) SanityCheckConfigUpdate(daType flags.DataAvailabilityType, frameCount *uint) error {
+	ogChannelConfig := l.DriverSetup.ChannelConfig
+	switch daType {
+	case flags.BlobsType:
+		ogChannelConfig.MultiFrameTxs = true
+		ogChannelConfig.MaxFrameSize = eth.MaxBlobDataSize - 1
+		ogChannelConfig.TargetNumFrames = int(*frameCount)
+	case flags.CalldataType:
+		ogChannelConfig.MultiFrameTxs = false
+		ogChannelConfig.TargetNumFrames = 1
+		ogChannelConfig.MaxFrameSize = flags.MaxL1TxSizeBytesFlag.Value - 1
+	}
+
+	if err := ogChannelConfig.Check(); err != nil {
+		return fmt.Errorf("invalid channel configuration update: %w", err)
+	}
+	return nil
+}
+
+func (l *BatchSubmitter) ChangeDataAvailability(
+	daType flags.DataAvailabilityType, frameCount *uint,
+) {
+	ogConfig, ogChannelConfig := l.DriverSetup.Config, l.DriverSetup.ChannelConfig
+	usedBlobs := ogConfig.UseBlobs
+	frameCountBefore := ogChannelConfig.TargetNumFrames
+	driverSetup := &l.DriverSetup
+
+	switch daType {
+	case flags.BlobsType:
+		driverSetup.Config.UseBlobs = true
+		driverSetup.ChannelConfig.MultiFrameTxs = true
+		driverSetup.ChannelConfig.MaxFrameSize = eth.MaxBlobDataSize - 1
+		driverSetup.ChannelConfig.TargetNumFrames = int(*frameCount)
+	case flags.CalldataType:
+		driverSetup.Config.UseBlobs = false
+		driverSetup.ChannelConfig.MultiFrameTxs = false
+		driverSetup.ChannelConfig.TargetNumFrames = 1
+		driverSetup.ChannelConfig.MaxFrameSize = flags.MaxL1TxSizeBytesFlag.Value - 1
+	}
+
+	if err := l.state.Close(); err != nil {
+		l.Log.Warn("closing existing channel manager issue", "issue", err)
+	}
+	l.state = NewChannelManager(
+		l.Log, driverSetup.Metr, driverSetup.ChannelConfig, driverSetup.RollupConfig,
+	)
+	l.lastL1Tip = eth.L1BlockRef{}
+	l.lastStoredBlock = eth.BlockID{}
+	l.Log.Info(
+		"changed da type",
+		"was using blobs prior to change", usedBlobs,
+		"frame-count prior to change", frameCountBefore,
+		"new data availability type", daType,
+		"current config use blobs", l.Config.UseBlobs,
+	)
 }
 
 func (l *BatchSubmitter) StartBatchSubmitting() error {
