@@ -47,7 +47,7 @@ Versioning for individual contracts works as follows:
     - We know the next release of this contract will be a breaking change. Regardless, as you start development by fixing typos in comments, bump the version to `2.4.8-beta.1`. This is because we may end up putting out a release before the breaking change is added.
     - Once you start working on the breaking change, bump the version to `3.0.0-beta.1`.
     - Continue to bump the beta version as you make changes. When the contract is ready for release, bump the version to `3.0.0-rc.1`.
-- New contracts start at `0.y.z` and only become `1.0.0` when they are ready for production.
+- New contracts start at `1.0.0-beta.1`, increment the `-beta.n` counter during development, and become `1.0.0` when they are ready for production.
 
 ## Monorepo Contracts Release Versioning
 
