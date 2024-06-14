@@ -91,10 +91,12 @@ config=$(cat << EOL
 
   "faultGameAbsolutePrestate": "0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98",
   "faultGameMaxDepth": 44,
-  "faultGameMaxDuration": 1200,
+  "faultGameClockExtension": 0,
+  "faultGameMaxClockDuration": 1200,
   "faultGameGenesisBlock": 0,
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 14,
+  "faultGameWithdrawalDelay": 604800,
 
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 86400,
