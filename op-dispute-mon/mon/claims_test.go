@@ -194,10 +194,10 @@ func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock
 	logger, handler := testlog.CaptureLogger(t, log.LvlInfo)
 	cl := clock.NewDeterministicClock(frozen)
 	metrics := &stubClaimMetrics{}
-	honestActors := []common.Address{
+	honestActors := types.NewHonestActors([]common.Address{
 		{0x01},
 		{0x02},
-	}
+	})
 	monitor := NewClaimMonitor(logger, cl, honestActors, metrics)
 	return monitor, cl, metrics, handler
 }

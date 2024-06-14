@@ -25,16 +25,12 @@ type ClaimMetrics interface {
 type ClaimMonitor struct {
 	logger       log.Logger
 	clock        RClock
-	honestActors map[common.Address]bool // Map for efficient lookup
+	honestActors types.HonestActors
 	metrics      ClaimMetrics
 }
 
-func NewClaimMonitor(logger log.Logger, clock RClock, honestActors []common.Address, metrics ClaimMetrics) *ClaimMonitor {
-	actors := make(map[common.Address]bool)
-	for _, actor := range honestActors {
-		actors[actor] = true
-	}
-	return &ClaimMonitor{logger, clock, actors, metrics}
+func NewClaimMonitor(logger log.Logger, clock RClock, honestActors types.HonestActors, metrics ClaimMetrics) *ClaimMonitor {
+	return &ClaimMonitor{logger, clock, honestActors, metrics}
 }
 
 func (c *ClaimMonitor) CheckClaims(games []*types.EnrichedGameData) {
