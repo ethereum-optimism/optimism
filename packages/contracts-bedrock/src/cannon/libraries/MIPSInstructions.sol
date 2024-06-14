@@ -5,12 +5,21 @@ import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 
 library MIPSInstructions {
     /// @notice Execute an instruction.
-    function executeMipsInstruction(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32 out) {
+    function executeMipsInstruction(
+        uint32 _insn,
+        uint32 _rs,
+        uint32 _rt,
+        uint32 _mem
+    )
+        internal
+        pure
+        returns (uint32 out_)
+    {
         unchecked {
-            uint32 opcode = insn >> 26; // 6-bits
+            uint32 opcode = _insn >> 26; // 6-bits
 
             if (opcode == 0 || (opcode >= 8 && opcode < 0xF)) {
-                uint32 func = insn & 0x3f; // 6-bits
+                uint32 func = _insn & 0x3f; // 6-bits
                 assembly {
                     // transform ArithLogI to SPECIAL
                     switch opcode
@@ -32,223 +41,223 @@ library MIPSInstructions {
 
                 // sll
                 if (func == 0x00) {
-                    return rt << ((insn >> 6) & 0x1F);
+                    return _rt << ((_insn >> 6) & 0x1F);
                 }
                 // srl
                 else if (func == 0x02) {
-                    return rt >> ((insn >> 6) & 0x1F);
+                    return _rt >> ((_insn >> 6) & 0x1F);
                 }
                 // sra
                 else if (func == 0x03) {
-                    uint32 shamt = (insn >> 6) & 0x1F;
-                    return signExtend(rt >> shamt, 32 - shamt);
+                    uint32 shamt = (_insn >> 6) & 0x1F;
+                    return signExtend(_rt >> shamt, 32 - shamt);
                 }
                 // sllv
                 else if (func == 0x04) {
-                    return rt << (rs & 0x1F);
+                    return _rt << (_rs & 0x1F);
                 }
                 // srlv
                 else if (func == 0x6) {
-                    return rt >> (rs & 0x1F);
+                    return _rt >> (_rs & 0x1F);
                 }
                 // srav
                 else if (func == 0x07) {
-                    return signExtend(rt >> rs, 32 - rs);
+                    return signExtend(_rt >> _rs, 32 - _rs);
                 }
                 // functs in range [0x8, 0x1b] are handled specially by other functions
                 // Explicitly enumerate each funct in range to reduce code diff against Go Vm
                 // jr
                 else if (func == 0x08) {
-                    return rs;
+                    return _rs;
                 }
                 // jalr
                 else if (func == 0x09) {
-                    return rs;
+                    return _rs;
                 }
                 // movz
                 else if (func == 0x0a) {
-                    return rs;
+                    return _rs;
                 }
                 // movn
                 else if (func == 0x0b) {
-                    return rs;
+                    return _rs;
                 }
                 // syscall
                 else if (func == 0x0c) {
-                    return rs;
+                    return _rs;
                 }
                 // 0x0d - break not supported
                 // sync
                 else if (func == 0x0f) {
-                    return rs;
+                    return _rs;
                 }
                 // mfhi
                 else if (func == 0x10) {
-                    return rs;
+                    return _rs;
                 }
                 // mthi
                 else if (func == 0x11) {
-                    return rs;
+                    return _rs;
                 }
                 // mflo
                 else if (func == 0x12) {
-                    return rs;
+                    return _rs;
                 }
                 // mtlo
                 else if (func == 0x13) {
-                    return rs;
+                    return _rs;
                 }
                 // mult
                 else if (func == 0x18) {
-                    return rs;
+                    return _rs;
                 }
                 // multu
                 else if (func == 0x19) {
-                    return rs;
+                    return _rs;
                 }
                 // div
                 else if (func == 0x1a) {
-                    return rs;
+                    return _rs;
                 }
                 // divu
                 else if (func == 0x1b) {
-                    return rs;
+                    return _rs;
                 }
                 // The rest includes transformed R-type arith imm instructions
                 // add
                 else if (func == 0x20) {
-                    return (rs + rt);
+                    return (_rs + _rt);
                 }
                 // addu
                 else if (func == 0x21) {
-                    return (rs + rt);
+                    return (_rs + _rt);
                 }
                 // sub
                 else if (func == 0x22) {
-                    return (rs - rt);
+                    return (_rs - _rt);
                 }
                 // subu
                 else if (func == 0x23) {
-                    return (rs - rt);
+                    return (_rs - _rt);
                 }
                 // and
                 else if (func == 0x24) {
-                    return (rs & rt);
+                    return (_rs & _rt);
                 }
                 // or
                 else if (func == 0x25) {
-                    return (rs | rt);
+                    return (_rs | _rt);
                 }
                 // xor
                 else if (func == 0x26) {
-                    return (rs ^ rt);
+                    return (_rs ^ _rt);
                 }
                 // nor
                 else if (func == 0x27) {
-                    return ~(rs | rt);
+                    return ~(_rs | _rt);
                 }
                 // slti
                 else if (func == 0x2a) {
-                    return int32(rs) < int32(rt) ? 1 : 0;
+                    return int32(_rs) < int32(_rt) ? 1 : 0;
                 }
                 // sltiu
                 else if (func == 0x2b) {
-                    return rs < rt ? 1 : 0;
+                    return _rs < _rt ? 1 : 0;
                 } else {
                     revert("invalid instruction");
                 }
             } else {
                 // SPECIAL2
                 if (opcode == 0x1C) {
-                    uint32 func = insn & 0x3f; // 6-bits
+                    uint32 func = _insn & 0x3f; // 6-bits
                     // mul
                     if (func == 0x2) {
-                        return uint32(int32(rs) * int32(rt));
+                        return uint32(int32(_rs) * int32(_rt));
                     }
                     // clz, clo
                     else if (func == 0x20 || func == 0x21) {
                         if (func == 0x20) {
-                            rs = ~rs;
+                            _rs = ~_rs;
                         }
                         uint32 i = 0;
-                        while (rs & 0x80000000 != 0) {
+                        while (_rs & 0x80000000 != 0) {
                             i++;
-                            rs <<= 1;
+                            _rs <<= 1;
                         }
                         return i;
                     }
                 }
                 // lui
                 else if (opcode == 0x0F) {
-                    return rt << 16;
+                    return _rt << 16;
                 }
                 // lb
                 else if (opcode == 0x20) {
-                    return signExtend((mem >> (24 - (rs & 3) * 8)) & 0xFF, 8);
+                    return signExtend((_mem >> (24 - (_rs & 3) * 8)) & 0xFF, 8);
                 }
                 // lh
                 else if (opcode == 0x21) {
-                    return signExtend((mem >> (16 - (rs & 2) * 8)) & 0xFFFF, 16);
+                    return signExtend((_mem >> (16 - (_rs & 2) * 8)) & 0xFFFF, 16);
                 }
                 // lwl
                 else if (opcode == 0x22) {
-                    uint32 val = mem << ((rs & 3) * 8);
-                    uint32 mask = uint32(0xFFFFFFFF) << ((rs & 3) * 8);
-                    return (rt & ~mask) | val;
+                    uint32 val = _mem << ((_rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) << ((_rs & 3) * 8);
+                    return (_rt & ~mask) | val;
                 }
                 // lw
                 else if (opcode == 0x23) {
-                    return mem;
+                    return _mem;
                 }
                 // lbu
                 else if (opcode == 0x24) {
-                    return (mem >> (24 - (rs & 3) * 8)) & 0xFF;
+                    return (_mem >> (24 - (_rs & 3) * 8)) & 0xFF;
                 }
                 //  lhu
                 else if (opcode == 0x25) {
-                    return (mem >> (16 - (rs & 2) * 8)) & 0xFFFF;
+                    return (_mem >> (16 - (_rs & 2) * 8)) & 0xFFFF;
                 }
                 //  lwr
                 else if (opcode == 0x26) {
-                    uint32 val = mem >> (24 - (rs & 3) * 8);
-                    uint32 mask = uint32(0xFFFFFFFF) >> (24 - (rs & 3) * 8);
-                    return (rt & ~mask) | val;
+                    uint32 val = _mem >> (24 - (_rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) >> (24 - (_rs & 3) * 8);
+                    return (_rt & ~mask) | val;
                 }
                 //  sb
                 else if (opcode == 0x28) {
-                    uint32 val = (rt & 0xFF) << (24 - (rs & 3) * 8);
-                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24 - (rs & 3) * 8));
-                    return (mem & mask) | val;
+                    uint32 val = (_rt & 0xFF) << (24 - (_rs & 3) * 8);
+                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24 - (_rs & 3) * 8));
+                    return (_mem & mask) | val;
                 }
                 //  sh
                 else if (opcode == 0x29) {
-                    uint32 val = (rt & 0xFFFF) << (16 - (rs & 2) * 8);
-                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFFFF << (16 - (rs & 2) * 8));
-                    return (mem & mask) | val;
+                    uint32 val = (_rt & 0xFFFF) << (16 - (_rs & 2) * 8);
+                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFFFF << (16 - (_rs & 2) * 8));
+                    return (_mem & mask) | val;
                 }
                 //  swl
                 else if (opcode == 0x2a) {
-                    uint32 val = rt >> ((rs & 3) * 8);
-                    uint32 mask = uint32(0xFFFFFFFF) >> ((rs & 3) * 8);
-                    return (mem & ~mask) | val;
+                    uint32 val = _rt >> ((_rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) >> ((_rs & 3) * 8);
+                    return (_mem & ~mask) | val;
                 }
                 //  sw
                 else if (opcode == 0x2b) {
-                    return rt;
+                    return _rt;
                 }
                 //  swr
                 else if (opcode == 0x2e) {
-                    uint32 val = rt << (24 - (rs & 3) * 8);
-                    uint32 mask = uint32(0xFFFFFFFF) << (24 - (rs & 3) * 8);
-                    return (mem & ~mask) | val;
+                    uint32 val = _rt << (24 - (_rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) << (24 - (_rs & 3) * 8);
+                    return (_mem & ~mask) | val;
                 }
                 // ll
                 else if (opcode == 0x30) {
-                    return mem;
+                    return _mem;
                 }
                 // sc
                 else if (opcode == 0x38) {
-                    return rt;
+                    return _rt;
                 } else {
                     revert("invalid instruction");
                 }
@@ -268,15 +277,15 @@ library MIPSInstructions {
     }
 
     /// @notice Handles a branch instruction, updating the MIPS state PC where needed.
-    /// @param cpu Holds the state of cpu scalars pc, nextPC, hi, lo.
-    /// @param registers Holds the current state of the cpu registers.
+    /// @param _cpu Holds the state of cpu scalars pc, nextPC, hi, lo.
+    /// @param _registers Holds the current state of the cpu registers.
     /// @param _opcode The opcode of the branch instruction.
     /// @param _insn The instruction to be executed.
     /// @param _rtReg The register to be used for the branch.
     /// @param _rs The register to be compared with the branch register.
     function handleBranch(
-        st.CpuScalars memory cpu,
-        uint32[32] memory registers,
+        st.CpuScalars memory _cpu,
+        uint32[32] memory _registers,
         uint32 _opcode,
         uint32 _insn,
         uint32 _rtReg,
@@ -288,13 +297,13 @@ library MIPSInstructions {
         unchecked {
             bool shouldBranch = false;
 
-            if (cpu.nextPC != cpu.pc + 4) {
+            if (_cpu.nextPC != _cpu.pc + 4) {
                 revert("branch in delay slot");
             }
 
             // beq/bne: Branch on equal / not equal
             if (_opcode == 4 || _opcode == 5) {
-                uint32 rt = registers[_rtReg];
+                uint32 rt = _registers[_rtReg];
                 shouldBranch = (_rs == rt && _opcode == 4) || (_rs != rt && _opcode == 5);
             }
             // blez: Branches if instruction is less than or equal to zero
@@ -318,17 +327,17 @@ library MIPSInstructions {
             }
 
             // Update the state's previous PC
-            uint32 prevPC = cpu.pc;
+            uint32 prevPC = _cpu.pc;
 
             // Execute the delay slot first
-            cpu.pc = cpu.nextPC;
+            _cpu.pc = _cpu.nextPC;
 
             // If we should branch, update the PC to the branch target
             // Otherwise, proceed to the next instruction
             if (shouldBranch) {
-                cpu.nextPC = prevPC + 4 + (signExtend(_insn & 0xFFFF, 16) << 2);
+                _cpu.nextPC = prevPC + 4 + (signExtend(_insn & 0xFFFF, 16) << 2);
             } else {
-                cpu.nextPC = cpu.nextPC + 4;
+                _cpu.nextPC = _cpu.nextPC + 4;
             }
         }
     }
