@@ -74,8 +74,8 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor, f
 	c3 := conductors[Sequencer3Name]
 
 	require.NoError(t, waitForLeadership(t, c1))
-	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint()))
-	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint()))
+	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint(), 0))
+	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint(), 0))
 	require.True(t, leader(t, ctx, c1))
 	require.False(t, leader(t, ctx, c2))
 	require.False(t, leader(t, ctx, c3))
