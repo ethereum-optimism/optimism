@@ -3,12 +3,12 @@ package transactions
 import (
 	"context"
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,10 +19,6 @@ import (
 )
 
 type SendTxOpt func(cfg *sendTxCfg)
-
-type ErrWithData interface {
-	ErrorData() interface{}
-}
 
 type sendTxCfg struct {
 	receiptStatus uint64
@@ -83,11 +79,7 @@ func SendTx(ctx context.Context, client *ethclient.Client, candidate txmgr.TxCan
 	}
 	gas, err := client.EstimateGas(ctx, msg)
 	if err != nil {
-		var errWithData ErrWithData
-		if errors.As(err, &errWithData) {
-			return nil, nil, fmt.Errorf("failed to estimate gas. errdata: %v err: %w", errWithData.ErrorData(), err)
-		}
-		return nil, nil, fmt.Errorf("failed to estimate gas: %w", err)
+		return nil, nil, fmt.Errorf("failed to estimate gas: %w", errutil.TryAddRevertReason(err))
 	}
 
 	tx := types.MustSignNewTx(privKey, types.LatestSignerForChainID(chainID), &types.DynamicFeeTx{
@@ -102,7 +94,7 @@ func SendTx(ctx context.Context, client *ethclient.Client, candidate txmgr.TxCan
 	})
 	err = client.SendTransaction(ctx, tx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to send transaction: %w", err)
+		return nil, nil, fmt.Errorf("failed to send transaction: %w", errutil.TryAddRevertReason(err))
 	}
 	receipt, err := wait.ForReceipt(ctx, client, tx.Hash(), cfg.receiptStatus)
 	if err != nil {
