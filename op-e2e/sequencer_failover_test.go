@@ -134,7 +134,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 3, len(membership.Servers), "Expected 2 members in cluster after removal")
-	require.NotContains(t, membership.Servers, VerifierName, "Expected follower to be removed from cluster")
+	require.NotContains(t, memberIDs(membership), VerifierName, "Expected follower to be removed from cluster")
 
 	t.Log("Testing RemoveServer, call remove on leader with incorrect version, expect voter not to be removed")
 	err = leader.client.RemoveServer(ctx, fid, membership.Version-1)
@@ -142,7 +142,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster after failed removal")
-	require.Contains(t, membership.Servers, fid, "Expected follower to not be removed from cluster")
+	require.Contains(t, memberIDs(membership), fid, "Expected follower to not be removed from cluster")
 
 	t.Log("Testing RemoveServer, call remove on leader, expect voter to be removed")
 	err = leader.client.RemoveServer(ctx, fid, membership.Version)
@@ -150,7 +150,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 2, len(membership.Servers), "Expected 2 members in cluster after removal")
-	require.NotContains(t, membership.Servers, fid, "Expected follower to be removed from cluster")
+	require.NotContains(t, memberIDs(membership), fid, "Expected follower to be removed from cluster")
 }
 
 // [Category: Sequencer Failover]
