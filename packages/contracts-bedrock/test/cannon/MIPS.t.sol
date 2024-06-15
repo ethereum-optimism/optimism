@@ -1309,8 +1309,7 @@ contract MIPS_Test is CommonTest {
         MIPS.State memory state = MIPS.State({
             memRoot: memRoot,
             preimageKey: bytes32(uint256(1) << 248 | 0x01),
-            preimageOffset: 8,
-            // start reading past the pre-image length prefix
+            preimageOffset: 8, // start reading past the pre-image length prefix
             pc: pc,
             nextPC: pc + 4,
             lo: 0,
