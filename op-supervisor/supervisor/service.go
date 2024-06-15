@@ -103,19 +103,19 @@ func (su *SupervisorService) initPProf(cfg *CLIConfig) error {
 
 func (su *SupervisorService) initMetricsServer(cfg *CLIConfig) error {
 	if !cfg.MetricsConfig.Enabled {
-		su.log.Info("metrics disabled")
+		su.log.Info("Metrics disabled")
 		return nil
 	}
 	m, ok := su.metrics.(opmetrics.RegistryMetricer)
 	if !ok {
 		return fmt.Errorf("metrics were enabled, but metricer %T does not expose registry for metrics-server", su.metrics)
 	}
-	su.log.Debug("starting metrics server", "addr", cfg.MetricsConfig.ListenAddr, "port", cfg.MetricsConfig.ListenPort)
+	su.log.Debug("Starting metrics server", "addr", cfg.MetricsConfig.ListenAddr, "port", cfg.MetricsConfig.ListenPort)
 	metricsSrv, err := opmetrics.StartServer(m.Registry(), cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort)
 	if err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	su.log.Info("started metrics server", "addr", metricsSrv.Addr())
+	su.log.Info("Started metrics server", "addr", metricsSrv.Addr())
 	su.metricsSrv = metricsSrv
 	return nil
 }
