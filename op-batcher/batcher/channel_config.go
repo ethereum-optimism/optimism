@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
 type ChannelConfig struct {
@@ -53,7 +54,7 @@ type ChannelConfig struct {
 // value consistent with cc.TargetNumFrames and cc.MaxFrameSize.
 // comprKind can be the empty string, in which case the default compressor will
 // be used.
-func (cc *ChannelConfig) InitCompressorConfig(approxComprRatio float64, comprKind string, compressionAlgo derive.CompressionAlgo) {
+func (cc *ChannelConfig) InitCompressorConfig(approxComprRatio float64, comprKind string, compressionAlgo compression.CompressionAlgo) {
 	cc.CompressorConfig = compressor.Config{
 		// Compressor output size needs to account for frame encoding overhead
 		TargetOutputSize: MaxDataSize(cc.TargetNumFrames, cc.MaxFrameSize),
@@ -63,16 +64,16 @@ func (cc *ChannelConfig) InitCompressorConfig(approxComprRatio float64, comprKin
 	}
 }
 
-func (cc *ChannelConfig) InitRatioCompressor(approxComprRatio float64, compressionAlgo derive.CompressionAlgo) {
+func (cc *ChannelConfig) InitRatioCompressor(approxComprRatio float64, compressionAlgo compression.CompressionAlgo) {
 	cc.InitCompressorConfig(approxComprRatio, compressor.RatioKind, compressionAlgo)
 }
 
-func (cc *ChannelConfig) InitShadowCompressor(compressionAlgo derive.CompressionAlgo) {
+func (cc *ChannelConfig) InitShadowCompressor(compressionAlgo compression.CompressionAlgo) {
 	cc.InitCompressorConfig(0, compressor.ShadowKind, compressionAlgo)
 }
 
 func (cc *ChannelConfig) InitNoneCompressor() {
-	cc.InitCompressorConfig(0, compressor.NoneKind, derive.Zlib)
+	cc.InitCompressorConfig(0, compressor.NoneKind, compression.Zlib)
 }
 
 func (cc *ChannelConfig) MaxFramesPerTx() int {

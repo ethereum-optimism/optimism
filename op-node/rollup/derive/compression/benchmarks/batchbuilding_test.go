@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,14 +23,14 @@ const (
 // compressorDetails is a helper struct to create compressors or supply the configuration for span batches
 type compressorDetails struct {
 	name         string
-	compressorFn func(compressor.Config) (derive.Compressor, error)
+	compressorFn func(compressor.Config) (compression.Compressor, error)
 	config       compressor.Config
 }
 
 func (cd compressorDetails) String() string {
 	return fmt.Sprintf("%s-%s-%d", cd.name, cd.config.CompressionAlgo, cd.config.TargetOutputSize)
 }
-func (cd compressorDetails) Compressor() (derive.Compressor, error) {
+func (cd compressorDetails) Compressor() (compression.Compressor, error) {
 	return cd.compressorFn(cd.config)
 }
 
@@ -39,11 +40,11 @@ var (
 		derive.SpanBatchType,
 	}
 
-	compAlgos = []derive.CompressionAlgo{
-		derive.Zlib,
-		derive.Brotli,
-		derive.Brotli9,
-		derive.Brotli11,
+	compAlgos = []compression.CompressionAlgo{
+		compression.Zlib,
+		compression.Brotli,
+		compression.Brotli9,
+		compression.Brotli11,
 	}
 
 	// compressors used in the benchmark
@@ -54,7 +55,7 @@ var (
 			compressorFn: compressor.NewNonCompressor,
 			config: compressor.Config{
 				TargetOutputSize: targetOutput_huge,
-				CompressionAlgo:  derive.Zlib,
+				CompressionAlgo:  compression.Zlib,
 			},
 		},
 		"RatioCompressor": {
@@ -62,7 +63,7 @@ var (
 			compressorFn: compressor.NewRatioCompressor,
 			config: compressor.Config{
 				TargetOutputSize: targetOutput_huge,
-				CompressionAlgo:  derive.Zlib,
+				CompressionAlgo:  compression.Zlib,
 			},
 		},
 		"ShadowCompressor": {
@@ -70,7 +71,7 @@ var (
 			compressorFn: compressor.NewShadowCompressor,
 			config: compressor.Config{
 				TargetOutputSize: targetOutput_huge,
-				CompressionAlgo:  derive.Zlib,
+				CompressionAlgo:  compression.Zlib,
 			},
 		},
 		"RealShadowCompressor": {
@@ -78,7 +79,7 @@ var (
 			compressorFn: compressor.NewShadowCompressor,
 			config: compressor.Config{
 				TargetOutputSize: targetOuput_real,
-				CompressionAlgo:  derive.Zlib,
+				CompressionAlgo:  compression.Zlib,
 			},
 		},
 	}
@@ -200,14 +201,14 @@ func BenchmarkIncremental(b *testing.B) {
 			name: "RealThreshold",
 			config: compressor.Config{
 				TargetOutputSize: targetOuput_real,
-				CompressionAlgo:  derive.Zlib,
+				CompressionAlgo:  compression.Zlib,
 			},
 		}},
 		{derive.SpanBatchType, 5, 1, compressorDetails{
 			name: "RealThreshold",
 			config: compressor.Config{
 				TargetOutputSize: targetOuput_real,
-				CompressionAlgo:  derive.Brotli10,
+				CompressionAlgo:  compression.Brotli10,
 			},
 		}},
 	}

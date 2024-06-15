@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
@@ -102,10 +102,10 @@ var (
 	}
 	CompressionAlgoFlag = &cli.GenericFlag{
 		Name:    "compression-algo",
-		Usage:   "The compression algorithm to use. Valid options: " + openum.EnumString(derive.CompressionAlgos),
+		Usage:   "The compression algorithm to use. Valid options: " + openum.EnumString(compression.CompressionAlgos),
 		EnvVars: prefixEnvVars("COMPRESSION_ALGO"),
-		Value: func() *derive.CompressionAlgo {
-			out := derive.Zlib
+		Value: func() *compression.CompressionAlgo {
+			out := compression.Zlib
 			return &out
 		}(),
 	}

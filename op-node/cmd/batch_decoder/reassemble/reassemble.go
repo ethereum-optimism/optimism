@@ -13,19 +13,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/fetch"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type ChannelWithMetadata struct {
-	ID             derive.ChannelID         `json:"id"`
-	IsReady        bool                     `json:"is_ready"`
-	InvalidFrames  bool                     `json:"invalid_frames"`
-	InvalidBatches bool                     `json:"invalid_batches"`
-	Frames         []FrameWithMetadata      `json:"frames"`
-	Batches        []derive.Batch           `json:"batches"`
-	BatchTypes     []int                    `json:"batch_types"`
-	ComprAlgos     []derive.CompressionAlgo `json:"compr_alogs"`
+	ID             derive.ChannelID              `json:"id"`
+	IsReady        bool                          `json:"is_ready"`
+	InvalidFrames  bool                          `json:"invalid_frames"`
+	InvalidBatches bool                          `json:"invalid_batches"`
+	Frames         []FrameWithMetadata           `json:"frames"`
+	Batches        []derive.Batch                `json:"batches"`
+	BatchTypes     []int                         `json:"batch_types"`
+	ComprAlgos     []compression.CompressionAlgo `json:"compr_alogs"`
 }
 
 type FrameWithMetadata struct {
@@ -110,7 +111,7 @@ func processFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, fr
 	var (
 		batches    []derive.Batch
 		batchTypes []int
-		comprAlgos []derive.CompressionAlgo
+		comprAlgos []compression.CompressionAlgo
 	)
 
 	invalidBatches := false

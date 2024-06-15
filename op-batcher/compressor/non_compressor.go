@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
 type NonCompressor struct {
@@ -23,7 +24,7 @@ type NonCompressor struct {
 // The NonCompressor can be used in tests to create a partially flushed channel.
 // If the output buffer size after a write exceeds TargetFrameSize*TargetNumFrames,
 // the compressor is marked as full, but the write succeeds.
-func NewNonCompressor(config Config) (derive.Compressor, error) {
+func NewNonCompressor(config Config) (compression.Compressor, error) {
 	c := &NonCompressor{
 		config: config,
 	}

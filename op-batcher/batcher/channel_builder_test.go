@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	dtest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -430,7 +431,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 }
 
 func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
-	for _, algo := range derive.CompressionAlgos {
+	for _, algo := range compression.CompressionAlgos {
 		t.Run("ChannelBuilder_OutputFrames_SpanBatch_"+algo.String(), func(t *testing.T) {
 			if algo.IsBrotli() {
 				ChannelBuilder_OutputFrames_SpanBatch(t, algo) // to fill faster for brotli
@@ -441,7 +442,7 @@ func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
 	}
 }
 
-func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.CompressionAlgo) {
+func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo compression.CompressionAlgo) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
 	if algo.IsBrotli() {
@@ -524,7 +525,7 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = math.MaxUint16 + 1
-	channelConfig.InitRatioCompressor(.1, derive.Zlib)
+	channelConfig.InitRatioCompressor(.1, compression.Zlib)
 	channelConfig.BatchType = batchType
 
 	rng := rand.New(rand.NewSource(123))
@@ -567,7 +568,7 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 		BatchType:       derive.SpanBatchType,
 	}
 
-	cfg.InitShadowCompressor(derive.Zlib)
+	cfg.InitShadowCompressor(compression.Zlib)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err)
 
@@ -597,7 +598,7 @@ func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
 	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
 	channelConfig.TargetNumFrames = 2
 	// Configure the Input Threshold params so we observe a full channel
-	channelConfig.InitRatioCompressor(1, derive.Zlib)
+	channelConfig.InitRatioCompressor(1, compression.Zlib)
 
 	// Construct the channel builder
 	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
@@ -786,7 +787,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = tnf
 	cfg.BatchType = batchType
-	cfg.InitShadowCompressor(derive.Zlib)
+	cfg.InitShadowCompressor(compression.Zlib)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err)
 
@@ -868,7 +869,7 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 	cfg.MaxFrameSize = 1000
 	cfg.TargetNumFrames = 16
 	cfg.BatchType = batchType
-	cfg.InitRatioCompressor(1.0, derive.Zlib)
+	cfg.InitRatioCompressor(1.0, compression.Zlib)
 	cb, err := NewChannelBuilder(cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err, "NewChannelBuilder")
 

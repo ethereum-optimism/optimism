@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -25,7 +26,7 @@ func channelManagerTestConfig(maxFrameSize uint64, batchType uint) ChannelConfig
 		TargetNumFrames: 1,
 		BatchType:       batchType,
 	}
-	cfg.InitRatioCompressor(1, derive.Zlib)
+	cfg.InitRatioCompressor(1, compression.Zlib)
 	return cfg
 }
 
@@ -123,7 +124,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// channels on confirmation. This would result in [TxConfirmed]
 	// clearing confirmed transactions, and resetting the pendingChannels map
 	cfg.ChannelTimeout = 10
-	cfg.InitRatioCompressor(1, derive.Zlib)
+	cfg.InitRatioCompressor(1, compression.Zlib)
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 
 	// Channel Manager state should be empty by default

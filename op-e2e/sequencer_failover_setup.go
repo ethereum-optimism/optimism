@@ -22,6 +22,7 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -296,7 +297,7 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		BatchType:                    derive.SpanBatchType,
 		DataAvailabilityType:         batcherFlags.CalldataType,
 		ActiveSequencerCheckDuration: 0,
-		CompressionAlgo:              derive.Zlib,
+		CompressionAlgo:              compression.Zlib,
 	}
 
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

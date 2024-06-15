@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/andybalholm/brotli"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -167,7 +168,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 	}
 
 	var zr io.Reader
-	var comprAlgo CompressionAlgo
+	var comprAlgo compression.CompressionAlgo
 	// For zlib, the last 4 bits must be either 8 or 15 (both are reserved value)
 	if compressionType[0]&0x0F == ZlibCM8 || compressionType[0]&0x0F == ZlibCM15 {
 		var err error
@@ -176,7 +177,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 			return nil, err
 		}
 		// If the bits equal to 1, then it is a brotli reader
-		comprAlgo = Zlib
+		comprAlgo = compression.Zlib
 	} else if compressionType[0] == ChannelVersionBrotli {
 		// If before Fjord, we cannot accept brotli compressed batch
 		if !isFjord {
@@ -188,7 +189,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 			return nil, err
 		}
 		zr = brotli.NewReader(bufReader)
-		comprAlgo = Brotli
+		comprAlgo = compression.Brotli
 	} else {
 		return nil, fmt.Errorf("cannot distinguish the compression algo used given type byte %v", compressionType[0])
 	}

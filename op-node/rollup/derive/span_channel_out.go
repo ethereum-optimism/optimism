@@ -8,10 +8,10 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type SpanChannelOut struct {
@@ -47,7 +47,7 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo) (*SpanChannelOut, error) {
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo compression.CompressionAlgo) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:        ChannelID{},
 		frame:     0,

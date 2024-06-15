@@ -53,6 +53,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
@@ -828,10 +829,10 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		batcherTargetNumFrames = 1
 	}
 
-	var compressionAlgo derive.CompressionAlgo = derive.Zlib
+	var compressionAlgo compression.CompressionAlgo = compression.Zlib
 	// if opt has brotli key, set the compression algo as brotli
 	if _, ok := opts.Get("compressionAlgo", "brotli"); ok {
-		compressionAlgo = derive.Brotli10
+		compressionAlgo = compression.Brotli10
 	}
 
 	batcherCLIConfig := &bss.CLIConfig{

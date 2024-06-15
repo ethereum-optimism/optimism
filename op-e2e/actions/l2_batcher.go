@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -192,7 +193,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			target := batcher.MaxDataSize(1, s.l2BatcherCfg.MaxL1TxSize)
 			c, e := compressor.NewShadowCompressor(compressor.Config{
 				TargetOutputSize: target,
-				CompressionAlgo:  derive.Zlib,
+				CompressionAlgo:  compression.Zlib,
 			})
 			require.NoError(t, e, "failed to create compressor")
 
@@ -201,7 +202,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			} else {
 				// use span batch if we're forcing it or if we're at/beyond delta
 				if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
-					ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target, derive.Zlib)
+					ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target, compression.Zlib)
 					// use singular batches in all other cases
 				} else {
 					ch, err = derive.NewSingularChannelOut(c)

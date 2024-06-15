@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -26,7 +27,7 @@ import (
 )
 
 func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
-	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib)
+	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, compression.Zlib)
 	require.NoError(t, err)
 	return channelOut
 }

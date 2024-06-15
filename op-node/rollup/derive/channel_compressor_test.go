@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,23 +23,23 @@ func randomBytes(length int) []byte {
 func TestChannelCompressor_NewReset(t *testing.T) {
 	testCases := []struct {
 		name              string
-		algo              CompressionAlgo
+		algo              compression.CompressionAlgo
 		expectedResetSize int
 		expectErr         bool
 	}{
 		{
 			name:              "zlib",
-			algo:              Zlib,
+			algo:              compression.Zlib,
 			expectedResetSize: 0,
 		},
 		{
 			name:              "brotli10",
-			algo:              Brotli10,
+			algo:              compression.Brotli10,
 			expectedResetSize: 1,
 		},
 		{
 			name:              "zstd",
-			algo:              CompressionAlgo("zstd"),
+			algo:              compression.CompressionAlgo("zstd"),
 			expectedResetSize: 0,
 			expectErr:         true,
 		},

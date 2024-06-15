@@ -2,6 +2,7 @@ package compressor
 
 import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
 const (
@@ -33,7 +34,7 @@ type ShadowCompressor struct {
 // exception to this rule: the first write to the buffer is not checked against the
 // target, which allows individual blocks larger than the target to be included (and will
 // be split across multiple channel frames).
-func NewShadowCompressor(config Config) (derive.Compressor, error) {
+func NewShadowCompressor(config Config) (compression.Compressor, error) {
 	c := &ShadowCompressor{
 		config: config,
 	}

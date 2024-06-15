@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,7 +32,7 @@ func TestChannelTimeout(t *testing.T) {
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		ChannelTimeout: 100,
 		CompressorConfig: compressor.Config{
-			CompressionAlgo: derive.Zlib,
+			CompressionAlgo: compression.Zlib,
 		},
 	}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
@@ -76,7 +77,7 @@ func TestChannelTimeout(t *testing.T) {
 func TestChannelManager_NextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
-		CompressionAlgo: derive.Zlib,
+		CompressionAlgo: compression.Zlib,
 	}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
@@ -125,7 +126,7 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 		MultiFrameTxs:   false,
 		TargetNumFrames: n,
 		CompressorConfig: compressor.Config{
-			CompressionAlgo: derive.Zlib,
+			CompressionAlgo: compression.Zlib,
 		},
 	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
@@ -166,7 +167,7 @@ func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 		MultiFrameTxs:   true,
 		TargetNumFrames: n,
 		CompressorConfig: compressor.Config{
-			CompressionAlgo: derive.Zlib,
+			CompressionAlgo: compression.Zlib,
 		},
 	}, &rollup.Config{}, latestL1BlockOrigin)
 	require.NoError(err)
@@ -215,7 +216,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 		// clearing confirmed transactions, and resetting the pendingChannels map
 		ChannelTimeout: 10,
 		CompressorConfig: compressor.Config{
-			CompressionAlgo: derive.Zlib,
+			CompressionAlgo: compression.Zlib,
 		},
 	}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
@@ -267,7 +268,7 @@ func TestChannelTxFailed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
-		CompressionAlgo: derive.Zlib,
+		CompressionAlgo: compression.Zlib,
 	}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 

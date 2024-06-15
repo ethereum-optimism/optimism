@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -43,7 +44,7 @@ type Batch interface {
 
 type batchWithMetadata struct {
 	Batch
-	comprAlgo CompressionAlgo
+	comprAlgo compression.CompressionAlgo
 }
 
 func (b batchWithMetadata) LogContext(l log.Logger) log.Logger {
@@ -60,7 +61,7 @@ func (b batchWithMetadata) LogContext(l log.Logger) log.Logger {
 // Similar design with op-geth's types.Transaction struct.
 type BatchData struct {
 	inner     InnerBatchData
-	ComprAlgo CompressionAlgo
+	ComprAlgo compression.CompressionAlgo
 }
 
 // InnerBatchData is the underlying data of a BatchData.

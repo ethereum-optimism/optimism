@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +64,7 @@ func TestShadowCompressor(t *testing.T) {
 
 			sc, err := NewShadowCompressor(Config{
 				TargetOutputSize: test.targetOutputSize,
-				CompressionAlgo:  derive.Zlib,
+				CompressionAlgo:  compression.Zlib,
 			})
 			require.NoError(t, err)
 
@@ -116,7 +117,7 @@ func TestBoundInaccurateForLargeRandomData(t *testing.T) {
 
 	sc, err := NewShadowCompressor(Config{
 		TargetOutputSize: sizeLimit + 100,
-		CompressionAlgo:  derive.Zlib,
+		CompressionAlgo:  compression.Zlib,
 	})
 	require.NoError(t, err)
 

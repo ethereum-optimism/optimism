@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,7 @@ func defaultTestChannelConfig() ChannelConfig {
 		TargetNumFrames:    1,
 		BatchType:          derive.SingularBatchType,
 	}
-	c.InitRatioCompressor(0.4, derive.Zlib)
+	c.InitRatioCompressor(0.4, compression.Zlib)
 	return c
 }
 

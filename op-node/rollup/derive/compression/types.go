@@ -1,4 +1,4 @@
-package derive
+package compression
 
 import (
 	"fmt"

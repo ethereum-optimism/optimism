@@ -2,6 +2,7 @@ package compressor
 
 import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
 type RatioCompressor struct {
@@ -16,7 +17,7 @@ type RatioCompressor struct {
 // the compressor before it's considered full. The full calculation is as follows:
 //
 //	full = uncompressedLength * approxCompRatio >= targetFrameSize * targetNumFrames
-func NewRatioCompressor(config Config) (derive.Compressor, error) {
+func NewRatioCompressor(config Config) (compression.Compressor, error) {
 	c := &RatioCompressor{
 		config: config,
 	}

@@ -1,10 +1,10 @@
 package compressor
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
-type FactoryFunc func(Config) (derive.Compressor, error)
+type FactoryFunc func(Config) (compression.Compressor, error)
 
 const (
 	RatioKind  = "ratio"

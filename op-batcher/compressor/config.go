@@ -1,7 +1,7 @@
 package compressor
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
 type Config struct {
@@ -18,10 +18,10 @@ type Config struct {
 	Kind string
 
 	// Type of compression algorithm to use. Must be one of [zlib, brotli-(9|10|11)]
-	CompressionAlgo derive.CompressionAlgo
+	CompressionAlgo compression.CompressionAlgo
 }
 
-func (c Config) NewCompressor() (derive.Compressor, error) {
+func (c Config) NewCompressor() (compression.Compressor, error) {
 	if k, ok := Kinds[c.Kind]; ok {
 		return k(c)
 	}

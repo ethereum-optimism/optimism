@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
 var rollupCfg rollup.Config
@@ -50,7 +51,7 @@ var channelTypes = []struct {
 	{
 		Name: "Span",
 		ChannelOut: func(t *testing.T) ChannelOut {
-			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000, Zlib)
+			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000, compression.Zlib)
 			require.NoError(t, err)
 			return cout
 		},
@@ -218,7 +219,7 @@ func TestBlockToBatchValidity(t *testing.T) {
 	require.ErrorContains(t, err, "has no transactions")
 }
 
-func SpanChannelAndBatches(t *testing.T, target uint64, len int, algo CompressionAlgo) (*SpanChannelOut, []*SingularBatch) {
+func SpanChannelAndBatches(t *testing.T, target uint64, len int, algo compression.CompressionAlgo) (*SpanChannelOut, []*SingularBatch) {
 	// target is larger than one batch, but smaller than two batches
 	rng := rand.New(rand.NewSource(0x543331))
 	chainID := big.NewInt(rng.Int63n(1000))
@@ -238,7 +239,7 @@ func SpanChannelAndBatches(t *testing.T, target uint64, len int, algo Compressio
 func TestSpanChannelOut(t *testing.T) {
 	tests := []struct {
 		name string
-		f    func(t *testing.T, algo CompressionAlgo)
+		f    func(t *testing.T, algo compression.CompressionAlgo)
 	}{
 		{"SpanChannelOutCompressionOnlyOneBatch", SpanChannelOutCompressionOnlyOneBatch},
 		{"SpanChannelOutCompressionUndo", SpanChannelOutCompressionUndo},
@@ -246,7 +247,7 @@ func TestSpanChannelOut(t *testing.T) {
 	}
 	for _, test := range tests {
 		test := test
-		for _, algo := range CompressionAlgos {
+		for _, algo := range compression.CompressionAlgos {
 			t.Run(test.name+"_"+algo.String(), func(t *testing.T) {
 				test.f(t, algo)
 			})
@@ -256,7 +257,7 @@ func TestSpanChannelOut(t *testing.T) {
 
 // TestSpanChannelOutCompressionOnlyOneBatch tests that the SpanChannelOut compression works as expected when there is only one batch
 // and it is larger than the target size. The single batch should be compressed, and the channel should now be full
-func SpanChannelOutCompressionOnlyOneBatch(t *testing.T, algo CompressionAlgo) {
+func SpanChannelOutCompressionOnlyOneBatch(t *testing.T, algo compression.CompressionAlgo) {
 	cout, singularBatches := SpanChannelAndBatches(t, 300, 2, algo)
 
 	err := cout.AddSingularBatch(singularBatches[0], 0)
@@ -273,14 +274,14 @@ func SpanChannelOutCompressionOnlyOneBatch(t *testing.T, algo CompressionAlgo) {
 }
 
 // TestSpanChannelOutCompressionUndo tests that the SpanChannelOut compression rejects a batch that would cause the channel to be overfull
-func SpanChannelOutCompressionUndo(t *testing.T, algo CompressionAlgo) {
+func SpanChannelOutCompressionUndo(t *testing.T, algo compression.CompressionAlgo) {
 	// target is larger than one batch, but smaller than two batches
 	cout, singularBatches := SpanChannelAndBatches(t, 750, 2, algo)
 
 	err := cout.AddSingularBatch(singularBatches[0], 0)
 	require.NoError(t, err)
 	// confirm that the first compression was skipped
-	if algo == Zlib {
+	if algo == compression.Zlib {
 		require.Equal(t, 0, cout.compressor.Len())
 	} else {
 		require.Equal(t, 1, cout.compressor.Len()) // 1 because of brotli channel version
@@ -299,7 +300,7 @@ func SpanChannelOutCompressionUndo(t *testing.T, algo CompressionAlgo) {
 
 // TestSpanChannelOutClose tests that the SpanChannelOut compression works as expected when the channel is closed.
 // it should compress the batch even if it is smaller than the target size because the channel is closing
-func SpanChannelOutClose(t *testing.T, algo CompressionAlgo) {
+func SpanChannelOutClose(t *testing.T, algo compression.CompressionAlgo) {
 	target := uint64(600)
 	cout, singularBatches := SpanChannelAndBatches(t, target, 1, algo)
 
@@ -307,7 +308,7 @@ func SpanChannelOutClose(t *testing.T, algo CompressionAlgo) {
 	require.NoError(t, err)
 	// confirm no compression has happened yet
 
-	if algo == Zlib {
+	if algo == compression.Zlib {
 		require.Equal(t, 0, cout.compressor.Len())
 	} else {
 		require.Equal(t, 1, cout.compressor.Len()) // 1 because of brotli channel version

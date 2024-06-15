@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/andybalholm/brotli"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
@@ -121,10 +122,10 @@ func TestBatchReader(t *testing.T) {
 	err := batchDataInput.EncodeRLP(encodedBatch)
 	require.NoError(t, err)
 
-	const Zstd CompressionAlgo = "zstd" // invalid algo
-	compressor := func(ca CompressionAlgo) func(buf *bytes.Buffer, t *testing.T) {
+	const Zstd compression.CompressionAlgo = "zstd" // invalid algo
+	compressor := func(ca compression.CompressionAlgo) func(buf *bytes.Buffer, t *testing.T) {
 		switch {
-		case ca == Zlib:
+		case ca == compression.Zlib:
 			return func(buf *bytes.Buffer, t *testing.T) {
 				writer := zlib.NewWriter(buf)
 				_, err := writer.Write(encodedBatch.Bytes())
@@ -134,7 +135,7 @@ func TestBatchReader(t *testing.T) {
 		case ca.IsBrotli():
 			return func(buf *bytes.Buffer, t *testing.T) {
 				buf.WriteByte(ChannelVersionBrotli)
-				lvl := GetBrotliLevel(ca)
+				lvl := compression.GetBrotliLevel(ca)
 				writer := brotli.NewWriterLevel(buf, lvl)
 				_, err := writer.Write(encodedBatch.Bytes())
 				require.NoError(t, err)
@@ -156,50 +157,50 @@ func TestBatchReader(t *testing.T) {
 
 	testCases := []struct {
 		name      string
-		algo      CompressionAlgo
+		algo      compression.CompressionAlgo
 		isFjord   bool
 		expectErr bool
 	}{
 		{
 			name:    "zlib-post-fjord",
-			algo:    Zlib,
+			algo:    compression.Zlib,
 			isFjord: true,
 		},
 		{
 			name:    "zlib-pre-fjord",
-			algo:    Zlib,
+			algo:    compression.Zlib,
 			isFjord: false,
 		},
 		{
 			name:    "brotli-post-fjord",
-			algo:    Brotli,
+			algo:    compression.Brotli,
 			isFjord: true,
 		},
 		{
 			name:      "brotli-pre-fjord",
-			algo:      Brotli,
+			algo:      compression.Brotli,
 			isFjord:   false,
 			expectErr: true, // expect an error because brotli is not supported before Fjord
 		},
 		{
 			name:    "brotli9-post-fjord",
-			algo:    Brotli9,
+			algo:    compression.Brotli9,
 			isFjord: true,
 		},
 		{
 			name:      "brotli9-pre-fjord",
-			algo:      Brotli9,
+			algo:      compression.Brotli9,
 			isFjord:   false,
 			expectErr: true, // expect an error because brotli is not supported before Fjord
 		},
 		{
 			name:    "brotli10-post-fjord",
-			algo:    Brotli10,
+			algo:    compression.Brotli10,
 			isFjord: true,
 		},
 		{
 			name:    "brotli11-post-fjord",
-			algo:    Brotli11,
+			algo:    compression.Brotli11,
 			isFjord: true,
 		},
 		{
@@ -228,7 +229,7 @@ func TestBatchReader(t *testing.T) {
 			require.NotNil(t, batchData)
 			if tc.algo.IsBrotli() {
 				// special case because reader doesn't decode level
-				batchDataInput.ComprAlgo = Brotli
+				batchDataInput.ComprAlgo = compression.Brotli
 			} else {
 				batchDataInput.ComprAlgo = tc.algo
 			}
