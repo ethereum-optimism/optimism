@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -18,7 +19,6 @@ var (
 	ErrNotDepositTx            = errors.New("first transaction in block is not a deposit tx")
 	ErrTooManyRLPBytes         = errors.New("batch would cause RLP bytes to go over limit")
 	ErrChannelOutAlreadyClosed = errors.New("channel-out already closed")
-	ErrCompressorFull          = errors.New("compressor is full")
 )
 
 // FrameV0OverHeadSize is the absolute minimum size of a frame.
@@ -27,28 +27,6 @@ var (
 //
 // [Frame Format]: https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md#frame-format
 const FrameV0OverHeadSize = 23
-
-type Compressor interface {
-	// Writer is used to write uncompressed data which will be compressed. Should return
-	// ErrCompressorFull if the compressor is full and no more data should be written.
-	io.Writer
-	// Closer Close function should be called before reading any data.
-	io.Closer
-	// Reader is used to Read compressed data; should only be called after Close.
-	io.Reader
-	// Reset will reset all written data
-	Reset()
-	// Len returns an estimate of the current length of the compressed data; calling Flush will
-	// increase the accuracy at the expense of a poorer compression ratio.
-	Len() int
-	// Flush flushes any uncompressed data to the compression buffer. This will result in a
-	// non-optimal compression ratio.
-	Flush() error
-	// FullErr returns ErrCompressorFull if the compressor is known to be full. Note that
-	// calls to Write will fail if an error is returned from this method, but calls to Write
-	// can still return ErrCompressorFull even if this does not.
-	FullErr() error
-}
 
 type ChannelOut interface {
 	ID() ChannelID
@@ -71,7 +49,7 @@ type SingularChannelOut struct {
 	rlpLength int
 
 	// Compressor stage. Write input data to it
-	compress Compressor
+	compress compression.Compressor
 
 	closed bool
 }
@@ -80,7 +58,7 @@ func (co *SingularChannelOut) ID() ChannelID {
 	return co.id
 }
 
-func NewSingularChannelOut(compress Compressor) (*SingularChannelOut, error) {
+func NewSingularChannelOut(compress compression.Compressor) (*SingularChannelOut, error) {
 	c := &SingularChannelOut{
 		id:        ChannelID{},
 		frame:     0,

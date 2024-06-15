@@ -266,11 +266,11 @@ func SpanChannelOutCompressionOnlyOneBatch(t *testing.T, algo compression.Compre
 	require.NoError(t, err)
 
 	// confirm the channel is full
-	require.ErrorIs(t, cout.FullErr(), ErrCompressorFull)
+	require.ErrorIs(t, cout.FullErr(), compression.ErrCompressorFull)
 
 	// confirm adding another batch would cause the same full error
 	err = cout.AddSingularBatch(singularBatches[1], 0)
-	require.ErrorIs(t, err, ErrCompressorFull)
+	require.ErrorIs(t, err, compression.ErrCompressorFull)
 }
 
 // TestSpanChannelOutCompressionUndo tests that the SpanChannelOut compression rejects a batch that would cause the channel to be overfull
@@ -290,7 +290,7 @@ func SpanChannelOutCompressionUndo(t *testing.T, algo compression.CompressionAlg
 	rlp1 := cout.activeRLP().Len()
 
 	err = cout.AddSingularBatch(singularBatches[1], 0)
-	require.ErrorIs(t, err, ErrCompressorFull)
+	require.ErrorIs(t, err, compression.ErrCompressorFull)
 	// confirm that the second compression was not skipped
 	require.Greater(t, cout.compressor.Len(), 0)
 

@@ -134,7 +134,7 @@ func TestBatchReader(t *testing.T) {
 			}
 		case ca.IsBrotli():
 			return func(buf *bytes.Buffer, t *testing.T) {
-				buf.WriteByte(ChannelVersionBrotli)
+				buf.WriteByte(compression.ChannelVersionBrotli)
 				lvl := compression.GetBrotliLevel(ca)
 				writer := brotli.NewWriterLevel(buf, lvl)
 				_, err := writer.Write(encodedBatch.Bytes())

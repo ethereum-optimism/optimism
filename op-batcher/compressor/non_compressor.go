@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/zlib"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
@@ -46,7 +45,7 @@ func (t *NonCompressor) Write(p []byte) (int, error) {
 		return 0, err
 	}
 	if uint64(t.buf.Len()) > t.config.TargetOutputSize {
-		t.fullErr = derive.ErrCompressorFull
+		t.fullErr = compression.ErrCompressorFull
 	}
 	return n, nil
 }

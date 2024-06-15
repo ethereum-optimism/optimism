@@ -1,6 +1,13 @@
 package compression
 
-import "io"
+import (
+	"errors"
+	"io"
+)
+
+var (
+	ErrCompressorFull = errors.New("compressor is full")
+)
 
 type Compressor interface {
 	// Writer is used to write uncompressed data which will be compressed. Should return

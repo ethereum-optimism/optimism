@@ -27,7 +27,7 @@ type SpanChannelOut struct {
 	// it is used to measure the growth of the RLP buffer when adding a new batch to optimize compression
 	lastCompressedRLPSize int
 	// the compressor for the channel
-	compressor ChannelCompressor
+	compressor compression.ChannelCompressor
 	// target is the target size of the compressed data
 	target uint64
 	// closed indicates if the channel is closed
@@ -60,7 +60,7 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		return nil, err
 	}
 
-	if c.compressor, err = NewChannelCompressor(compressionAlgo); err != nil {
+	if c.compressor, err = compression.NewChannelCompressor(compressionAlgo); err != nil {
 		return nil, err
 	}
 
@@ -223,7 +223,7 @@ func (co *SpanChannelOut) checkFull() {
 		return
 	}
 	if uint64(co.compressor.Len()) >= co.target {
-		co.full = ErrCompressorFull
+		co.full = compression.ErrCompressorFull
 	}
 }
 

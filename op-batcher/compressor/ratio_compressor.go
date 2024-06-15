@@ -1,7 +1,6 @@
 package compressor
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
@@ -9,7 +8,7 @@ type RatioCompressor struct {
 	config Config
 
 	inputBytes int
-	compressor derive.ChannelCompressor
+	compressor compression.ChannelCompressor
 }
 
 // NewRatioCompressor creates a new derive.Compressor implementation that uses the target
@@ -22,7 +21,7 @@ func NewRatioCompressor(config Config) (compression.Compressor, error) {
 		config: config,
 	}
 
-	compressor, err := derive.NewChannelCompressor(config.CompressionAlgo)
+	compressor, err := compression.NewChannelCompressor(config.CompressionAlgo)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +61,7 @@ func (t *RatioCompressor) Flush() error {
 
 func (t *RatioCompressor) FullErr() error {
 	if t.inputTargetReached() {
-		return derive.ErrCompressorFull
+		return compression.ErrCompressorFull
 	}
 	return nil
 }

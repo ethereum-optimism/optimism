@@ -1,4 +1,4 @@
-package derive
+package compression
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"github.com/andybalholm/brotli"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
 const (
@@ -67,9 +66,9 @@ func (bc *BrotliCompressor) Reset() {
 	bc.CompressorWriter.Reset(bc.compressed)
 }
 
-func NewChannelCompressor(algo compression.CompressionAlgo) (ChannelCompressor, error) {
+func NewChannelCompressor(algo CompressionAlgo) (ChannelCompressor, error) {
 	compressed := &bytes.Buffer{}
-	if algo == compression.Zlib {
+	if algo == Zlib {
 		writer, err := zlib.NewWriterLevel(compressed, zlib.BestCompression)
 		if err != nil {
 			return nil, err
@@ -82,7 +81,7 @@ func NewChannelCompressor(algo compression.CompressionAlgo) (ChannelCompressor, 
 		}, nil
 	} else if algo.IsBrotli() {
 		compressed.WriteByte(ChannelVersionBrotli)
-		writer := brotli.NewWriterLevel(compressed, compression.GetBrotliLevel(algo))
+		writer := brotli.NewWriterLevel(compressed, GetBrotliLevel(algo))
 		return &BrotliCompressor{
 			BaseChannelCompressor{
 				CompressorWriter: writer,

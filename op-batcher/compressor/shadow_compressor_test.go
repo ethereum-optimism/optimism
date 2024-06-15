@@ -42,19 +42,19 @@ func TestShadowCompressor(t *testing.T) {
 		targetOutputSize: 1 + derive.FrameV0OverHeadSize,
 		data:             [][]byte{bytes.Repeat([]byte{0}, 1024)},
 		errs:             []error{nil},
-		fullErr:          derive.ErrCompressorFull,
+		fullErr:          compression.ErrCompressorFull,
 	}, {
 		name:             "large second block",
 		targetOutputSize: 1 + derive.FrameV0OverHeadSize,
 		data:             [][]byte{bytes.Repeat([]byte{0}, 512), bytes.Repeat([]byte{0}, 1024)},
-		errs:             []error{nil, derive.ErrCompressorFull},
-		fullErr:          derive.ErrCompressorFull,
+		errs:             []error{nil, compression.ErrCompressorFull},
+		fullErr:          compression.ErrCompressorFull,
 	}, {
 		name:             "random data",
 		targetOutputSize: 1 << 17,
 		data:             [][]byte{randomBytes((1 << 17) - 1000), randomBytes(512), randomBytes(512)},
-		errs:             []error{nil, nil, derive.ErrCompressorFull},
-		fullErr:          derive.ErrCompressorFull,
+		errs:             []error{nil, nil, compression.ErrCompressorFull},
+		fullErr:          compression.ErrCompressorFull,
 	}}
 	for _, test := range tests {
 		test := test

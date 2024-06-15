@@ -178,7 +178,7 @@ func BatchReader(r io.Reader, maxRLPBytesPerChannel uint64, isFjord bool) (func(
 		}
 		// If the bits equal to 1, then it is a brotli reader
 		comprAlgo = compression.Zlib
-	} else if compressionType[0] == ChannelVersionBrotli {
+	} else if compressionType[0] == compression.ChannelVersionBrotli {
 		// If before Fjord, we cannot accept brotli compressed batch
 		if !isFjord {
 			return nil, fmt.Errorf("cannot accept brotli compressed batch before Fjord")

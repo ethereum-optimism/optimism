@@ -478,7 +478,7 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo compression.Compre
 			// There should be no ready bytes until the channel is full
 			require.Equal(t, cb.co.ReadyBytes(), 0)
 		} else {
-			require.ErrorIs(t, err, derive.ErrCompressorFull)
+			require.ErrorIs(t, err, compression.ErrCompressorFull)
 			break
 		}
 	}
@@ -543,7 +543,7 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 		_, err = cb.AddBlock(a)
 		if cb.IsFull() {
 			fullErr := cb.FullErr()
-			require.ErrorIs(t, fullErr, derive.ErrCompressorFull)
+			require.ErrorIs(t, fullErr, compression.ErrCompressorFull)
 			break
 		}
 		require.NoError(t, err)
@@ -577,7 +577,7 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	_, err = cb.AddBlock(a)
 	require.NoError(err)
 	_, err = cb.AddBlock(a)
-	require.ErrorIs(err, derive.ErrCompressorFull)
+	require.ErrorIs(err, compression.ErrCompressorFull)
 	// without fix, adding the second block would succeed and then adding a
 	// third block would fail with full error and the compressor would be full.
 
@@ -620,7 +620,7 @@ func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
 
 	// Since the channel output is full, the next call to AddBlock
 	// should return the channel out full error
-	require.ErrorIs(t, addMiniBlock(cb), derive.ErrCompressorFull)
+	require.ErrorIs(t, addMiniBlock(cb), compression.ErrCompressorFull)
 }
 
 func TestChannelBuilder_CheckTimeout(t *testing.T) {
@@ -879,7 +879,7 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 	for i := 0; ; i++ {
 		block := dtest.RandomL2BlockWithChainIdAndTime(rng, rng.Intn(32), defaultTestRollupConfig.L2ChainID, ti.Add(time.Duration(i)*time.Second))
 		_, err := cb.AddBlock(block)
-		if errors.Is(err, derive.ErrCompressorFull) {
+		if errors.Is(err, compression.ErrCompressorFull) {
 			break
 		}
 		require.NoError(err)

@@ -1,7 +1,6 @@
 package compressor
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
@@ -19,8 +18,8 @@ const (
 type ShadowCompressor struct {
 	config Config
 
-	compressor       derive.ChannelCompressor
-	shadowCompressor derive.ChannelCompressor
+	compressor       compression.ChannelCompressor
+	shadowCompressor compression.ChannelCompressor
 
 	fullErr error
 
@@ -40,11 +39,11 @@ func NewShadowCompressor(config Config) (compression.Compressor, error) {
 	}
 
 	var err error
-	c.compressor, err = derive.NewChannelCompressor(config.CompressionAlgo)
+	c.compressor, err = compression.NewChannelCompressor(config.CompressionAlgo)
 	if err != nil {
 		return nil, err
 	}
-	c.shadowCompressor, err = derive.NewChannelCompressor(config.CompressionAlgo)
+	c.shadowCompressor, err = compression.NewChannelCompressor(config.CompressionAlgo)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +70,7 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 		}
 		newBound = uint64(t.shadowCompressor.Len()) + CloseOverheadZlib
 		if newBound > t.config.TargetOutputSize {
-			t.fullErr = derive.ErrCompressorFull
+			t.fullErr = compression.ErrCompressorFull
 			if t.Len() > 0 {
 				// only return an error if we've already written data to this compressor before
 				// (otherwise single blocks over the target would never be written)
