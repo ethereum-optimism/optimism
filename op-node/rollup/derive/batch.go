@@ -7,7 +7,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )

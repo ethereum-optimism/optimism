@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 )
 
 var rollupCfg rollup.Config

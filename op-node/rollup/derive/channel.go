@@ -8,7 +8,7 @@ import (
 	"io"
 
 	"github.com/andybalholm/brotli"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
 )

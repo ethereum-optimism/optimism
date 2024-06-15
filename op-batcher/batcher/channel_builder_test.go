@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 	dtest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"

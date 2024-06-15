@@ -5,8 +5,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 
 	"github.com/stretchr/testify/require"
 )

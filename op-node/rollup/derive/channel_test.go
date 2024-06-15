@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/andybalholm/brotli"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"

@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
 )
 
 type ChannelConfig struct {

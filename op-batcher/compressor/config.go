@@ -1,7 +1,7 @@
 package compressor
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 )
 
 type Config struct {

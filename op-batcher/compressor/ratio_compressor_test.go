@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/compression"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/compression"
 	"github.com/stretchr/testify/require"
 )
 
