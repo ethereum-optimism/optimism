@@ -3,7 +3,6 @@ package actions
 import (
 	"context"
 	"errors"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum/go-ethereum/log"
@@ -15,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
