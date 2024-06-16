@@ -172,13 +172,14 @@ func NewDriver(
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
 	plasma PlasmaIface,
+	engineClientKind engine.EngineClientKind,
 ) *Driver {
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg)
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg, engineClientKind)
 	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 
 	var finalizer Finalizer

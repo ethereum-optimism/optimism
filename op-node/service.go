@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"io"
 	"os"
 	"strings"
@@ -74,6 +75,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		haltOption = ""
 	}
 
+	engineKind := engine.EngineClientKind(ctx.String(flags.L2EngineKind.Name))
+	if !engine.ValidEngineClientKind(engineKind) {
+		engineKind = engine.EngineClientGeth
+	}
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
@@ -111,6 +117,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
 
 		Plasma: plasma.ReadCLIConfig(ctx),
+
+		L2EngineClientKind: engineKind,
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -286,7 +294,6 @@ func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
 	cfg := &sync.Config{
 		SyncMode:           mode,
 		SkipSyncStartCheck: ctx.Bool(flags.SkipSyncStartCheck.Name),
-		L2EngineClientKind: sync.EngineClientKind(ctx.String(flags.L2EngineKind.Name)),
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync

@@ -6,6 +6,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
@@ -194,10 +195,10 @@ var (
 	L2EngineKind = &cli.GenericFlag{
 		Name: "l2.enginekind",
 		Usage: "The kind of engine client, used to control the behavior of optimism in respect to different types of engine clients. Valid options: " +
-			openum.EnumString(sync.EngineClientKinds),
+			openum.EnumString(engine.EngineClientKinds),
 		EnvVars: prefixEnvVars("L2_ENGINE_KIND"),
-		Value: func() *sync.EngineClientKind {
-			out := sync.EngineClientGeth
+		Value: func() *engine.EngineClientKind {
+			out := engine.EngineClientGeth
 			return &out
 		}(),
 		Category: RollupCategory,
