@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -37,9 +36,6 @@ const (
 var (
 	priceBumpPercent     = big.NewInt(100 + priceBump)
 	blobPriceBumpPercent = big.NewInt(100 + blobPriceBump)
-
-	// geth enforces a 1 gwei minimum for blob tx fee
-	minBlobTxFee = big.NewInt(params.GWei)
 
 	oneHundred = big.NewInt(100)
 	ninetyNine = big.NewInt(99)
@@ -72,6 +68,21 @@ type TxManager interface {
 
 	// BlockNumber returns the most recent block number from the underlying network.
 	BlockNumber(ctx context.Context) (uint64, error)
+
+	GetMinBaseFee() *big.Int
+	SetMinBaseFee(*big.Int)
+
+	GetPriorityFee() *big.Int
+	SetPriorityFee(*big.Int)
+
+	GetMinBlobFee() *big.Int
+	SetMinBlobFee(*big.Int)
+
+	GetFeeThreshold() *big.Int
+	SetFeeThreshold(*big.Int)
+
+	GetBumpFeeRetryTime() time.Duration
+	SetBumpFeeRetryTime(time.Duration)
 
 	// Close the underlying connection
 	Close()
@@ -294,7 +305,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		if blobBaseFee == nil {
 			return nil, fmt.Errorf("expected non-nil blobBaseFee")
 		}
-		blobFeeCap := calcBlobFeeCap(blobBaseFee)
+		blobFeeCap := m.calcBlobFeeCap(blobBaseFee)
 		message := &types.BlobTx{
 			To:         *candidate.To,
 			Data:       candidate.TxData,
@@ -318,6 +329,46 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		}
 	}
 	return m.signWithNextNonce(ctx, txMessage) // signer sets the nonce field of the tx
+}
+
+func (m *SimpleTxManager) GetMinBaseFee() *big.Int {
+	return m.cfg.MinBaseFee
+}
+
+func (m *SimpleTxManager) SetMinBaseFee(val *big.Int) {
+	m.cfg.MinBaseFee = val
+}
+
+func (m *SimpleTxManager) GetPriorityFee() *big.Int {
+	return m.cfg.MinTipCap
+}
+
+func (m *SimpleTxManager) SetPriorityFee(val *big.Int) {
+	m.cfg.MinTipCap = val
+}
+
+func (m *SimpleTxManager) GetMinBlobFee() *big.Int {
+	return m.cfg.MinBlobTxFee
+}
+
+func (m *SimpleTxManager) SetMinBlobFee(val *big.Int) {
+	m.cfg.MinBlobTxFee = val
+}
+
+func (m *SimpleTxManager) GetFeeThreshold() *big.Int {
+	return m.cfg.FeeLimitThreshold
+}
+
+func (m *SimpleTxManager) SetFeeThreshold(val *big.Int) {
+	m.cfg.FeeLimitThreshold = val
+}
+
+func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
+	return m.cfg.ResubmissionTimeout
+}
+
+func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
+	m.cfg.ResubmissionTimeout = val
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
@@ -793,7 +844,7 @@ func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int
 	if thr := m.cfg.FeeLimitThreshold; thr != nil && thr.Cmp(bumpedBlobFee) == 1 {
 		return nil
 	}
-	maxBlobFee := new(big.Int).Mul(calcBlobFeeCap(blobBaseFee), big.NewInt(int64(m.cfg.FeeLimitMultiplier)))
+	maxBlobFee := new(big.Int).Mul(m.calcBlobFeeCap(blobBaseFee), big.NewInt(int64(m.cfg.FeeLimitMultiplier)))
 	if bumpedBlobFee.Cmp(maxBlobFee) > 0 {
 		return fmt.Errorf(
 			"bumped blob fee %v is over %dx multiple of the suggested value: %w",
@@ -866,10 +917,10 @@ func calcGasFeeCap(baseFee, gasTipCap *big.Int) *big.Int {
 
 // calcBlobFeeCap computes a suggested blob fee cap that is twice the current header's blob base fee
 // value, with a minimum value of minBlobTxFee.
-func calcBlobFeeCap(blobBaseFee *big.Int) *big.Int {
+func (m *SimpleTxManager) calcBlobFeeCap(blobBaseFee *big.Int) *big.Int {
 	cap := new(big.Int).Mul(blobBaseFee, two)
-	if cap.Cmp(minBlobTxFee) < 0 {
-		cap.Set(minBlobTxFee)
+	if cap.Cmp(m.cfg.MinBlobTxFee) < 0 {
+		cap.Set(m.cfg.MinBlobTxFee)
 	}
 	return cap
 }

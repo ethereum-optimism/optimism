@@ -112,6 +112,7 @@ func configWithNumConfs(numConfirmations uint64) Config {
 		NumConfirmations:          numConfirmations,
 		SafeAbortNonceTooLowCount: 3,
 		FeeLimitMultiplier:        5,
+		MinBlobTxFee:              defaultMinBlobTxFee,
 		TxNotInMempoolTimeout:     1 * time.Hour,
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
@@ -547,7 +548,7 @@ func TestTxMgr_CraftBlobTx(t *testing.T) {
 	// Validate the gas tip cap and fee cap.
 	require.Equal(t, gasTipCap, tx.GasTipCap())
 	require.Equal(t, gasFeeCap, tx.GasFeeCap())
-	require.Equal(t, minBlobTxFee, tx.BlobGasFeeCap())
+	require.Equal(t, defaultMinBlobTxFee, tx.BlobGasFeeCap())
 
 	// Validate the nonce was set correctly using the backend.
 	require.Equal(t, uint64(startingNonce), tx.Nonce())
@@ -955,6 +956,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
+			MinBlobTxFee:              defaultMinBlobTxFee,
 		},
 		name:    "TEST",
 		backend: &borkedBackend,
@@ -989,6 +991,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
 			FeeLimitMultiplier:        5,
+			MinBlobTxFee:              defaultMinBlobTxFee,
 			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return tx, nil
 			},
@@ -1160,6 +1163,7 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 			SafeAbortNonceTooLowCount: 3,
 			FeeLimitMultiplier:        5,
 			FeeLimitThreshold:         lt.thr,
+			MinBlobTxFee:              defaultMinBlobTxFee,
 			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return tx, nil
 			},

@@ -74,6 +74,46 @@ func (f fakeTxMgr) IsClosed() bool {
 	return false
 }
 
+func (f fakeTxMgr) GetMinBaseFee() *big.Int {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) SetMinBaseFee(*big.Int) {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) GetPriorityFee() *big.Int {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) SetPriorityFee(*big.Int) {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) GetMinBlobFee() *big.Int {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) SetMinBlobFee(*big.Int) {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) GetFeeThreshold() *big.Int {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) SetFeeThreshold(*big.Int) {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) GetBumpFeeRetryTime() time.Duration {
+	panic("unimplemented")
+}
+
+func (f fakeTxMgr) SetBumpFeeRetryTime(time.Duration) {
+	panic("unimplemented")
+}
+
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
 	proposerConfig := proposer.ProposerConfig{
 		PollInterval:           time.Second,
