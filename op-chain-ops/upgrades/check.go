@@ -3,6 +3,7 @@ package upgrades
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -91,10 +92,6 @@ func GetContractVersions(ctx context.Context, addresses *superchain.AddressList,
 	if err != nil {
 		return versions, fmt.Errorf("L1StandardBridge: %w", err)
 	}
-	versions.L2OutputOracle, err = getVersion(ctx, common.Address(addresses.L2OutputOracleProxy), backend)
-	if err != nil {
-		return versions, fmt.Errorf("L2OutputOracle: %w", err)
-	}
 	versions.OptimismMintableERC20Factory, err = getVersion(ctx, common.Address(addresses.OptimismMintableERC20FactoryProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("OptimismMintableERC20Factory: %w", err)
@@ -106,6 +103,55 @@ func GetContractVersions(ctx context.Context, addresses *superchain.AddressList,
 	versions.SystemConfig, err = getVersion(ctx, common.Address(addresses.SystemConfigProxy), backend)
 	if err != nil {
 		return versions, fmt.Errorf("SystemConfig: %w", err)
+	}
+	majorVersion, err := strconv.ParseInt(strings.Split(versions.OptimismPortal, ".")[0], 10, 32)
+	if err != nil {
+		fmt.Println("Error parsing major version:", err)
+		return versions, fmt.Errorf("error parsing major version: %w", err)
+	}
+	// Portal version `3` is the first version of the `OptimismPortal` that supported the fault proof system.
+	isFPAC := majorVersion >= 3
+
+    if isFPAC {
+		versions.AnchorStateRegistry, err = getVersion(ctx, common.Address(addresses.AnchorStateRegistryProxy), backend)
+		if err != nil {
+			return versions, fmt.Errorf("AnchorStateRegistryProxy: %w", err)
+		}
+
+		versions.DelayedWETH, err = getVersion(ctx, common.Address(addresses.DelayedWETHProxy), backend)
+		if err != nil {
+			return versions, fmt.Errorf("DelayedWETHProxy: %w", err)
+		}
+
+		versions.DisputeGameFactory, err = getVersion(ctx, common.Address(addresses.DisputeGameFactoryProxy), backend)
+		if err != nil {
+			return versions, fmt.Errorf("DisputeGameFactoryProxy: %w", err)
+		}
+
+		versions.FaultDisputeGame, err = getVersion(ctx, common.Address(addresses.FaultDisputeGame), backend)
+		if err != nil {
+			return versions, fmt.Errorf("FaultDisputeGame: %w", err)
+		}
+
+		versions.MIPS, err = getVersion(ctx, common.Address(addresses.MIPS), backend)
+		if err != nil {
+			return versions, fmt.Errorf("MIPS: %w", err)
+		}
+
+		versions.PermissionedDisputeGame, err = getVersion(ctx, common.Address(addresses.PermissionedDisputeGame), backend)
+		if err != nil {
+			return versions, fmt.Errorf("PermissionedDisputeGame: %w", err)
+		}
+
+		versions.PreimageOracle, err = getVersion(ctx, common.Address(addresses.PreimageOracle), backend)
+		if err != nil {
+			return versions, fmt.Errorf("PreimageOracle: %w", err)
+		}
+    } else {
+		versions.L2OutputOracle, err = getVersion(ctx, common.Address(addresses.L2OutputOracleProxy), backend)
+		if err != nil {
+			return versions, fmt.Errorf("L2OutputOracle: %w", err)
+		}
 	}
 	return versions, err
 }

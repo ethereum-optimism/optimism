@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
+
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -141,11 +144,29 @@ func entrypoint(ctx *cli.Context) error {
 			contracts["L1CrossDomainMessenger"] = Contract{Version: versions.L1CrossDomainMessenger, Address: addresses.L1CrossDomainMessengerProxy}
 			contracts["L1ERC721Bridge"] = Contract{Version: versions.L1ERC721Bridge, Address: addresses.L1ERC721BridgeProxy}
 			contracts["L1StandardBridge"] = Contract{Version: versions.L1ERC721Bridge, Address: addresses.L1StandardBridgeProxy}
-			contracts["L2OutputOracle"] = Contract{Version: versions.L2OutputOracle, Address: addresses.L2OutputOracleProxy}
 			contracts["OptimismMintableERC20Factory"] = Contract{Version: versions.OptimismMintableERC20Factory, Address: addresses.OptimismMintableERC20FactoryProxy}
 			contracts["OptimismPortal"] = Contract{Version: versions.OptimismPortal, Address: addresses.OptimismPortalProxy}
 			contracts["SystemConfig"] = Contract{Version: versions.SystemConfig, Address: addresses.SystemConfigProxy}
 			contracts["ProxyAdmin"] = Contract{Version: "null", Address: addresses.ProxyAdmin}
+			majorVersion, err := strconv.ParseInt(strings.Split(versions.OptimismPortal, ".")[0], 10, 32)
+			if err != nil {
+				fmt.Println("Error parsing major version:", err)
+				return fmt.Errorf("error parsing major version: %w", err)
+			}
+			// Portal version `3` is the first version of the `OptimismPortal` that supported the fault proof system.
+			isFPAC := majorVersion >= 3
+
+			if isFPAC {
+				contracts["AnchorStateRegistry"] = Contract{Version: versions.AnchorStateRegistry, Address: addresses.AnchorStateRegistryProxy}
+				contracts["DelayedWETH"] = Contract{Version: versions.DelayedWETH, Address: addresses.DelayedWETHProxy}
+				contracts["DisputeGameFactory"] = Contract{Version: versions.DisputeGameFactory, Address: addresses.DisputeGameFactoryProxy}
+				contracts["FaultDisputeGame"] = Contract{Version: versions.FaultDisputeGame, Address: addresses.FaultDisputeGame}
+				contracts["MIPS"] = Contract{Version: versions.MIPS, Address: addresses.MIPS}
+				contracts["PermissionedDisputeGame"] = Contract{Version: versions.PermissionedDisputeGame, Address: addresses.PermissionedDisputeGame}
+				contracts["PreimageOracle"] = Contract{Version: versions.PreimageOracle, Address: addresses.PreimageOracle}
+			} else {
+				contracts["L2OutputOracle"] = Contract{Version: versions.L2OutputOracle, Address: addresses.L2OutputOracleProxy}
+			}
 
 			output = append(output, ChainVersionCheck{Name: chainConfig.Name, ChainID: l2ChainID, Contracts: contracts})
 
