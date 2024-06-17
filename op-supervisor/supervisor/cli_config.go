@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"errors"
+	"github.com/ethereum-optimism/optimism/op-supervisor/flags"
 
 	"github.com/urfave/cli/v2"
 
@@ -30,6 +31,7 @@ func CLIConfigFromCLI(ctx *cli.Context, version string) *CLIConfig {
 		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:   oppprof.ReadCLIConfig(ctx),
 		RPC:           oprpc.ReadCLIConfig(ctx),
+		MockRun:       ctx.Bool(flags.MockRunFlag.Name),
 	}
 }
 
