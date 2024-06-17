@@ -2,9 +2,19 @@
 
 ## Overview
 
-Custom gas token allows for an L1-native ERC20 token to collateralize and act as the gas token on L2. This implementation is based on [Optimism's Custom Fee Token](https://specs.optimism.io/protocol/granite/custom-gas-token.html) and enhances its functionality by enabling the bridging of L1 native tokens to L2 as ERC20 tokens. 
+Custom gas token allows for an L1-native ERC20 token to collateralize and act as the gas token on L2. This implementation is based on [Optimism's Custom Fee Token](https://specs.optimism.io/protocol/granite/custom-gas-token.html) and enhances its functionality by enabling the bridging of the L1 native token to L2 (ETH) as an ERC20 token.
 
 **The codebase is located in the [custom-fee-token](https://github.com/bobanetwork/boba/tree/custom-fee-token) branch.** **The smart contract is UNDER audit. Please use it with caution.**
+
+## Native Gas Tokens
+
+By default, L2 OP Stack chains allow users to deposit ETH from L1 into the L2 chain, where it becomes the native L2 token used to pay for gas fees. However, chain operators wanted the ability to configure the stack to use a custom token for gas payments instead of ETH.
+
+With custom gas tokens, chain operators can now specify an L1 ERC-20 token address when deploying their L2 chain contracts. When this L1 ERC-20 token is deposited, it becomes the native gas token on the L2, usable for gas fees.
+
+### ETH Support
+
+Our codebase allows you to configure ETH as an ERC-20 token on L2, enabling users to bridge ETH between L1 and L2. This feature is not supported by the standard OP Stack.
 
 ## Configuring the Gas Paying Token and L2 ETH Token
 
