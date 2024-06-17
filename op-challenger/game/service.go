@@ -281,6 +281,11 @@ func (s *Service) Stop(ctx context.Context) error {
 	if s.monitor != nil {
 		s.monitor.StopMonitoring()
 	}
+	if s.claimer != nil {
+		if err := s.claimer.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close claimer: %w", err))
+		}
+	}
 	if s.faultGamesCloser != nil {
 		s.faultGamesCloser()
 	}
