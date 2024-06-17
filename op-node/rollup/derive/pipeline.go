@@ -22,6 +22,7 @@ type Metrics interface {
 	RecordFrame()
 	RecordDerivedBatches(batchType string)
 	SetDerivationIdle(idle bool)
+	RecordPipelineReset()
 }
 
 type L1Fetcher interface {
@@ -194,6 +195,8 @@ func (dp *DerivationPipeline) Step(ctx context.Context, pendingSafeHead eth.L2Bl
 // initialReset does the initial reset work of finding the L1 point to rewind back to
 func (dp *DerivationPipeline) initialReset(ctx context.Context, resetL2Safe eth.L2BlockRef) error {
 	dp.log.Info("Rewinding derivation-pipeline L1 traversal to handle reset")
+
+	dp.metrics.RecordPipelineReset()
 
 	// Walk back L2 chain to find the L1 origin that is old enough to start buffering channel data from.
 	pipelineL2 := resetL2Safe

@@ -178,48 +178,62 @@ func NewDriver(
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	engine := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
-	clSync := clsync.NewCLSync(log, cfg, metrics, engine)
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, engine, plasma)
+		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, ec, plasma)
 	} else {
-		finalizer = finality.NewFinalizer(log, cfg, l1, engine)
+		finalizer = finality.NewFinalizer(log, cfg, l1, ec)
 	}
 
-	attributesHandler := attributes.NewAttributesHandler(log, cfg, engine, l2)
+	attributesHandler := attributes.NewAttributesHandler(log, cfg, ec, l2)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
-	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
+	meteredEngine := NewMeteredEngine(cfg, ec, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
-	return &Driver{
-		l1State: l1State,
-		SyncDeriver: &SyncDeriver{
-			Derivation:        derivationPipeline,
-			Finalizer:         finalizer,
-			AttributesHandler: attributesHandler,
-			SafeHeadNotifs:    safeHeadListener,
-			CLSync:            clSync,
-			Engine:            engine,
-		},
+
+	rootDeriver := &rollup.SynchronousDerivers{}
+	synchronousEvents := NewSynchronousEvents(log, driverCtx, rootDeriver)
+
+	syncDeriver := &SyncDeriver{
+		Derivation:        derivationPipeline,
+		Finalizer:         finalizer,
+		AttributesHandler: attributesHandler,
+		SafeHeadNotifs:    safeHeadListener,
+		CLSync:            clSync,
+		Engine:            ec,
+		SyncCfg:           syncCfg,
+		Config:            cfg,
+		L1:                l1,
+		L2:                l2,
+		Emitter:           synchronousEvents,
+		Log:               log,
+		Ctx:               driverCtx,
+		Drain:             synchronousEvents.Drain,
+	}
+	engDeriv := engine.NewEngDeriver(log, driverCtx, cfg, ec, synchronousEvents)
+	schedDeriv := NewStepSchedulingDeriver(log, synchronousEvents)
+
+	driver := &Driver{
+		l1State:            l1State,
+		SyncDeriver:        syncDeriver,
+		sched:              schedDeriv,
+		synchronousEvents:  synchronousEvents,
 		stateReq:           make(chan chan struct{}),
 		forceReset:         make(chan chan struct{}, 10),
 		startSequencer:     make(chan hashAndErrorChannel, 10),
 		stopSequencer:      make(chan chan hashAndError, 10),
 		sequencerActive:    make(chan chan bool, 10),
 		sequencerNotifs:    sequencerStateListener,
-		config:             cfg,
-		syncCfg:            syncCfg,
 		driverConfig:       driverCfg,
 		driverCtx:          driverCtx,
 		driverCancel:       driverCancel,
 		log:                log,
 		snapshotLog:        snapshotLog,
-		l1:                 l1,
-		l2:                 l2,
 		sequencer:          sequencer,
 		network:            network,
 		metrics:            metrics,
@@ -231,4 +245,13 @@ func NewDriver(
 		asyncGossiper:      asyncGossiper,
 		sequencerConductor: sequencerConductor,
 	}
+
+	*rootDeriver = []rollup.Deriver{
+		syncDeriver,
+		engDeriv,
+		schedDeriv,
+		driver,
+	}
+
+	return driver
 }
