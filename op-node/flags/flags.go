@@ -158,7 +158,7 @@ var (
 	}
 	L1RethDBPath = &cli.StringFlag{
 		Name:     "l1.rethdb",
-		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
+		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks.",
 		EnvVars:  prefixEnvVars("L1_RETHDB"),
 		Hidden:   true,
 		Category: L1RPCCategory,
