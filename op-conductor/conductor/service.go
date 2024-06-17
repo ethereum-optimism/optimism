@@ -311,7 +311,7 @@ var _ cliapp.Lifecycle = (*OpConductor)(nil)
 func (oc *OpConductor) Start(ctx context.Context) error {
 	oc.log.Info("starting OpConductor")
 
-	if err := oc.hmon.Start(); err != nil {
+	if err := oc.hmon.Start(ctx); err != nil {
 		return errors.Wrap(err, "failed to start health monitor")
 	}
 
