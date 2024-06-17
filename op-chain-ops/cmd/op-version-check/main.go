@@ -142,7 +142,7 @@ func entrypoint(ctx *cli.Context) error {
 			contracts["AddressManager"] = Contract{Version: "null", Address: addresses.AddressManager}
 			contracts["L1CrossDomainMessenger"] = Contract{Version: versions.L1CrossDomainMessenger, Address: addresses.L1CrossDomainMessengerProxy}
 			contracts["L1ERC721Bridge"] = Contract{Version: versions.L1ERC721Bridge, Address: addresses.L1ERC721BridgeProxy}
-			contracts["L1StandardBridge"] = Contract{Version: versions.L1ERC721Bridge, Address: addresses.L1StandardBridgeProxy}
+			contracts["L1StandardBridge"] = Contract{Version: versions.L1StandardBridge, Address: addresses.L1StandardBridgeProxy}
 			contracts["OptimismMintableERC20Factory"] = Contract{Version: versions.OptimismMintableERC20Factory, Address: addresses.OptimismMintableERC20FactoryProxy}
 			contracts["OptimismPortal"] = Contract{Version: versions.OptimismPortal, Address: addresses.OptimismPortalProxy}
 			contracts["SystemConfig"] = Contract{Version: versions.SystemConfig, Address: addresses.SystemConfigProxy}
