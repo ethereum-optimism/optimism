@@ -15,7 +15,7 @@ const sanityEventLimit = 1000
 
 // SynchronousEvents is a rollup.EventEmitter that a rollup.Deriver can emit events to.
 // The events will be queued up, and can then be executed synchronously by calling the Drain function,
-// which will apply all events to the root Deriver that
+// which will apply all events to the root Deriver.
 // New events may be queued up while events are being processed by the root rollup.Deriver.
 type SynchronousEvents struct {
 	// The lock is no-op in FP execution, if running in synchronous FP-VM.
@@ -51,7 +51,7 @@ func (s *SynchronousEvents) Emit(event rollup.Event) {
 
 	// sanity limit, never queue too many events
 	if len(s.events) >= sanityEventLimit {
-		s.log.Error("something is very wrong, queued up too many events! Dropping event", "ev", event)
+		s.log.Error("Something is very wrong, queued up too many events! Dropping event", "ev", event)
 		return
 	}
 	s.events = append(s.events, event)

@@ -427,50 +427,58 @@ type SyncDeriver struct {
 func (s *SyncDeriver) OnEvent(ev rollup.Event) {
 	switch x := ev.(type) {
 	case StepEvent:
-		s.Log.Debug("Sync process step", "onto_origin", s.Derivation.Origin())
-		// Note: while we refactor the SyncStep to be entirely event-based we have an intermediate phase
-		// where some things are triggered through events, and some through this synchronous step function.
-		// We just translate the results into their equivalent events,
-		// to merge the error-handling with that of the new event-based system.
-		err := s.SyncStep(s.Ctx)
-		if err == io.EOF {
-			s.Log.Debug("Derivation process went idle", "progress", s.Derivation.Origin(), "err", err)
-			s.Emitter.Emit(ResetStepBackoffEvent{})
-			s.Emitter.Emit(DeriverIdleEvent{})
-		} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
-			s.Log.Debug("Derivation process went idle because the engine is syncing", "progress", s.Derivation.Origin(), "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
-			s.Emitter.Emit(ResetStepBackoffEvent{})
-		} else if err != nil && errors.Is(err, derive.ErrReset) {
-			s.Emitter.Emit(rollup.ResetEvent{Err: err})
-		} else if err != nil && errors.Is(err, derive.ErrTemporary) {
-			s.Emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
-		} else if err != nil && errors.Is(err, derive.ErrCritical) {
-			s.Emitter.Emit(rollup.CriticalErrorEvent{Err: err})
-		} else if err != nil && errors.Is(err, derive.NotEnoughData) {
-			// don't do a backoff for this error
-			s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
-		} else if err != nil {
-			s.Log.Error("Derivation process error", "err", err)
-			s.Emitter.Emit(StepReqEvent{})
-		} else {
-			s.Emitter.Emit(StepReqEvent{ResetBackoff: true}) // continue with the next step if we can
-		}
+		s.onStepEvent()
 	case rollup.ResetEvent:
-		// If the pipeline corrupts, e.g. due to a reorg, simply reset it
-		s.Log.Warn("Derivation pipeline is reset", "err", x.Err)
-		s.Derivation.Reset()
-		s.Finalizer.Reset()
-		s.Emitter.Emit(StepReqEvent{})
-		if err := engine.ResetEngine(s.Ctx, s.Log, s.Config, s.Engine, s.L1, s.L2, s.SyncCfg, s.SafeHeadNotifs); err != nil {
-			s.Log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
-			// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
-			return
-		}
-		s.Derivation.ConfirmEngineReset()
+		s.onResetEvent(x)
 	case rollup.EngineTemporaryErrorEvent:
 		s.Log.Warn("Derivation process temporary error", "err", x.Err)
 		s.Emitter.Emit(StepReqEvent{})
 	}
+}
+
+func (s *SyncDeriver) onStepEvent() {
+	s.Log.Debug("Sync process step", "onto_origin", s.Derivation.Origin())
+	// Note: while we refactor the SyncStep to be entirely event-based we have an intermediate phase
+	// where some things are triggered through events, and some through this synchronous step function.
+	// We just translate the results into their equivalent events,
+	// to merge the error-handling with that of the new event-based system.
+	err := s.SyncStep(s.Ctx)
+	if err == io.EOF {
+		s.Log.Debug("Derivation process went idle", "progress", s.Derivation.Origin(), "err", err)
+		s.Emitter.Emit(ResetStepBackoffEvent{})
+		s.Emitter.Emit(DeriverIdleEvent{})
+	} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
+		s.Log.Debug("Derivation process went idle because the engine is syncing", "progress", s.Derivation.Origin(), "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
+		s.Emitter.Emit(ResetStepBackoffEvent{})
+	} else if err != nil && errors.Is(err, derive.ErrReset) {
+		s.Emitter.Emit(rollup.ResetEvent{Err: err})
+	} else if err != nil && errors.Is(err, derive.ErrTemporary) {
+		s.Emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
+	} else if err != nil && errors.Is(err, derive.ErrCritical) {
+		s.Emitter.Emit(rollup.CriticalErrorEvent{Err: err})
+	} else if err != nil && errors.Is(err, derive.NotEnoughData) {
+		// don't do a backoff for this error
+		s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
+	} else if err != nil {
+		s.Log.Error("Derivation process error", "err", err)
+		s.Emitter.Emit(StepReqEvent{})
+	} else {
+		s.Emitter.Emit(StepReqEvent{ResetBackoff: true}) // continue with the next step if we can
+	}
+}
+
+func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
+	// If the pipeline corrupts, e.g. due to a reorg, simply reset it
+	s.Log.Warn("Derivation pipeline is reset", "err", x.Err)
+	s.Derivation.Reset()
+	s.Finalizer.Reset()
+	s.Emitter.Emit(StepReqEvent{})
+	if err := engine.ResetEngine(s.Ctx, s.Log, s.Config, s.Engine, s.L1, s.L2, s.SyncCfg, s.SafeHeadNotifs); err != nil {
+		s.Log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
+		// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
+		return
+	}
+	s.Derivation.ConfirmEngineReset()
 }
 
 type DeriverIdleEvent struct{}

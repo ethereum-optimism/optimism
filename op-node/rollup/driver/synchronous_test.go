@@ -63,3 +63,33 @@ func TestSynchronousEventsSanityLimit(t *testing.T) {
 	require.NoError(t, syncEv.Drain())
 	require.Equal(t, sanityEventLimit+1, count, "back to normal after drain")
 }
+
+type CyclicEvent struct {
+	Count int
+}
+
+func (ev CyclicEvent) String() string {
+	return "cyclic-event"
+}
+
+func TestSynchronousCyclic(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelError)
+	var emitter rollup.EventEmitter
+	result := false
+	deriver := rollup.DeriverFunc(func(ev rollup.Event) {
+		logger.Info("received event", "event", ev)
+		switch x := ev.(type) {
+		case CyclicEvent:
+			if x.Count < 10 {
+				emitter.Emit(CyclicEvent{Count: x.Count + 1})
+			} else {
+				result = true
+			}
+		}
+	})
+	syncEv := NewSynchronousEvents(logger, context.Background(), deriver)
+	emitter = syncEv
+	syncEv.Emit(CyclicEvent{Count: 0})
+	require.NoError(t, syncEv.Drain())
+	require.True(t, result, "expecting event processing to fully recurse")
+}

@@ -4,6 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	gnode "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
@@ -18,11 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/safego"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	gnode "github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 )
 
 // L2Verifier is an actor that functions like a rollup node,
@@ -286,12 +289,12 @@ func (s *L2Verifier) OnEvent(ev rollup.Event) {
 	case rollup.EngineTemporaryErrorEvent:
 		s.log.Warn("Derivation process temporary error", "err", x.Err)
 		if errors.Is(x.Err, sync.WrongChainErr) { // action-tests don't back off on temporary errors. Avoid a bad genesis setup from looping.
-			panic(fmt.Errorf("genesis setup issue: %v", x.Err))
+			panic(fmt.Errorf("genesis setup issue: %w", x.Err))
 		}
 	case rollup.ResetEvent:
 		s.log.Warn("Derivation pipeline is being reset", "err", x.Err)
 	case rollup.CriticalErrorEvent:
-		panic(fmt.Errorf("derivation failed critically: %v", x.Err))
+		panic(fmt.Errorf("derivation failed critically: %w", x.Err))
 	case driver.DeriverIdleEvent:
 		s.l2PipelineIdle = true
 	}

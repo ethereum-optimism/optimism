@@ -8,12 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
-
-type Resource string
 
 type TryBackupUnsafeReorgEvent struct {
 }
@@ -27,21 +23,6 @@ type TryUpdateEngineEvent struct {
 
 func (ev TryUpdateEngineEvent) String() string {
 	return "try-update-engine"
-}
-
-type NewPayloadEvent struct {
-	Envelope *eth.ExecutionPayloadEnvelope
-}
-
-type ForkchoiceState struct {
-	Unsafe    eth.L2BlockRef
-	Safe      eth.L2BlockRef
-	Finalized eth.L2BlockRef
-	// ...
-}
-
-type EngineUpdatedEvent struct {
-	State ForkchoiceState
 }
 
 type EngDeriver struct {
@@ -100,27 +81,5 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 				d.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err)})
 			}
 		}
-		// TODO handle more events:
-		//case NewPayloadEvent:
-		//	ref, err := derive.PayloadToBlockRef(d.cfg, x.Envelope.ExecutionPayload)
-		//	err := d.ec.InsertUnsafePayload(ctx, x.Envelope, ref)
-		//	// TODO emit events for error / success
-		//	// CancelPayload
-		//	// SetPendingSafeL2Head
-		//	// SetBackupUnsafeL2Head
-		//	// SetSafeHead
-		//	// InsertUnsafePayload
-		//	// SetFinalizedHead
 	}
-	// TODO emit more events:
-	// Emit:
-	// - payload processing success
-	// - payload processing error
-	// - attributes processing success (incl original AttributesWithParent data)
-	// - attributes processing error
-	// - forkchoice needs update
-	// - unsafe head changed
-	// - safe head changed
-	// - finalized head changed
-	//
 }
