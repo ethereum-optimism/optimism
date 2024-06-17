@@ -6,15 +6,19 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supervisor/flags"
 )
 
+type MainFn func(ctx context.Context, cfg *CLIConfig, logger log.Logger) (cliapp.Lifecycle, error)
+
 // Main is the entrypoint into the Supervisor.
 // This method returns a cliapp.LifecycleAction, to create an op-service CLI-lifecycle-managed supervisor with.
-func Main(version string) cliapp.LifecycleAction {
+func Main(version string, fn MainFn) cliapp.LifecycleAction {
 	return func(cliCtx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		if err := flags.CheckRequired(cliCtx); err != nil {
 			return nil, err
@@ -29,6 +33,6 @@ func Main(version string) cliapp.LifecycleAction {
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("Initializing Supervisor")
-		return SupervisorFromCLIConfig(cliCtx.Context, cfg, l)
+		return fn(cliCtx.Context, cfg, l)
 	}
 }

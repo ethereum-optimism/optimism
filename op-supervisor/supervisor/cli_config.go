@@ -2,7 +2,6 @@ package supervisor
 
 import (
 	"errors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/flags"
 
 	"github.com/urfave/cli/v2"
 
@@ -10,6 +9,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-supervisor/flags"
 )
 
 type CLIConfig struct {
@@ -22,6 +22,8 @@ type CLIConfig struct {
 
 	// MockRun runs the service with a mock backend
 	MockRun bool
+
+	L2RPCs []string
 }
 
 func CLIConfigFromCLI(ctx *cli.Context, version string) *CLIConfig {
@@ -32,6 +34,7 @@ func CLIConfigFromCLI(ctx *cli.Context, version string) *CLIConfig {
 		PprofConfig:   oppprof.ReadCLIConfig(ctx),
 		RPC:           oprpc.ReadCLIConfig(ctx),
 		MockRun:       ctx.Bool(flags.MockRunFlag.Name),
+		L2RPCs:        ctx.StringSlice(flags.L2RPCsFlag.Name),
 	}
 }
 
@@ -41,4 +44,16 @@ func (c *CLIConfig) Check() error {
 	result = errors.Join(result, c.PprofConfig.Check())
 	result = errors.Join(result, c.RPC.Check())
 	return result
+}
+
+func DefaultCLIConfig() *CLIConfig {
+	return &CLIConfig{
+		Version:       "",
+		LogConfig:     oplog.DefaultCLIConfig(),
+		MetricsConfig: opmetrics.DefaultCLIConfig(),
+		PprofConfig:   oppprof.DefaultCLIConfig(),
+		RPC:           oprpc.DefaultCLIConfig(),
+		MockRun:       false,
+		L2RPCs:        flags.L2RPCsFlag.Value.Value(),
+	}
 }

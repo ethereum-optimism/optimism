@@ -25,6 +25,14 @@ var (
 )
 
 func main() {
+	ctx := opio.WithInterruptBlocker(context.Background())
+	err := run(ctx, os.Args, fromConfig)
+	if err != nil {
+		log.Crit("Application failed", "message", err)
+	}
+}
+
+func run(ctx context.Context, args []string, fn supervisor.MainFn) error {
 	oplog.SetupDefaults()
 
 	app := cli.NewApp()
@@ -33,17 +41,16 @@ func main() {
 	app.Name = "op-supervisor"
 	app.Usage = "op-supervisor monitors cross-L2 interop messaging"
 	app.Description = "The op-supervisor monitors cross-L2 interop messaging by pre-fetching events and then resolving the cross-L2 dependencies to answer safety queries."
-	app.Action = cliapp.LifecycleCmd(supervisor.Main(Version))
+	app.Action = cliapp.LifecycleCmd(supervisor.Main(Version, fn))
 	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
 			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
 		},
 	}
+	return app.RunContext(ctx, args)
+}
 
-	ctx := opio.WithInterruptBlocker(context.Background())
-	err := app.RunContext(ctx, os.Args)
-	if err != nil {
-		log.Crit("Application failed", "message", err)
-	}
+func fromConfig(ctx context.Context, cfg *supervisor.CLIConfig, logger log.Logger) (cliapp.Lifecycle, error) {
+	return supervisor.SupervisorFromCLIConfig(ctx, cfg, logger)
 }

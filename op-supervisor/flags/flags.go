@@ -23,6 +23,7 @@ var (
 		Name:    "l2-rpcs",
 		Usage:   "L2 RPC sources.",
 		EnvVars: prefixEnvVars("L2_RPCS"),
+		Value:   cli.NewStringSlice("http://localhost:8545"),
 	}
 	MockRunFlag = &cli.BoolFlag{
 		Name:    "mock-run",
