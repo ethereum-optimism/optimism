@@ -16,6 +16,21 @@ With custom gas tokens, chain operators can now specify an L1 ERC-20 token addre
 
 Our codebase allows you to configure ETH as an ERC-20 token on L2, enabling users to bridge ETH between L1 and L2. This feature is not supported by the standard OP Stack.
 
+### Considerations
+
+The custom gas paying token on L1 must adhere to the following constraints
+
+- must be a valid ERC-20 token
+
+* the number of decimals on the token MUST be exactly 18
+* the name of the token MUST be less than or equal to 32 bytes
+* symbol MUST be less than or equal to 32 bytes.
+
+The ETH ERC20 token on L2 must adhere to the following constraints:
+
+* must be a valid [OptimismMintableERC20](https://github.com/bobanetwork/boba/blob/custom-fee-token/packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol) token on L2
+* the `l1Token` address MUST be `0x0000000000000000000000000000000000000000`
+
 ## Configuring the Gas Paying Token and L2 ETH Token
 
 The gas-paying token and the L2 ETH token are set within the L1 `SystemConfig` smart contract. The gas-paying token is set during initialization and cannot be modified by the `SystemConfig` bytecode. The L2 ETH token is set during initialization and can be updated via the `setL2ETHToken` function if the L2 ETH token address is `address(0)`. Since the `SystemConfig` is proxied, it is always possible to modify the storage slot that holds the gas-paying token address and the L2 ETH token address directly during an upgrade.
