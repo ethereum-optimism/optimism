@@ -103,6 +103,12 @@ var (
 		Name:  "debug",
 		Usage: "enable debug mode, which includes stack traces and other debug info in the output. Requires --meta.",
 	}
+	RunDebugInfoFlag = &cli.PathFlag{
+		Name:      "debug-info",
+		Usage:     "path to write debug info to",
+		TakesFile: true,
+		Required:  false,
+	}
 
 	OutFilePerm = os.FileMode(0o755)
 )
@@ -466,6 +472,11 @@ func Run(ctx *cli.Context) error {
 	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
+	if debugInfoFile := ctx.Path(RunDebugInfoFlag.Name); debugInfoFile != "" {
+		if err := jsonutil.WriteJSON(debugInfoFile, us.GetDebugInfo(), OutFilePerm); err != nil {
+			return fmt.Errorf("failed to write benchmark data: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -489,5 +500,6 @@ var RunCommand = &cli.Command{
 		RunInfoAtFlag,
 		RunPProfCPU,
 		RunDebugFlag,
+		RunDebugInfoFlag,
 	},
 }

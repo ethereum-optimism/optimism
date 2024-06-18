@@ -127,15 +127,7 @@ func TestStateHash(t *testing.T) {
 }
 
 func TestHello(t *testing.T) {
-	elfProgram, err := elf.Open("../example/bin/hello.elf")
-	require.NoError(t, err, "open ELF file")
-
-	state, err := LoadELF(elfProgram)
-	require.NoError(t, err, "load ELF into state")
-
-	err = PatchGo(elfProgram, state)
-	require.NoError(t, err, "apply Go runtime patches")
-	require.NoError(t, PatchStack(state), "add initial stack")
+	state := loadELFProgram(t, "../example/bin/hello.elf")
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
@@ -225,15 +217,7 @@ func claimTestOracle(t *testing.T) (po PreimageOracle, stdOut string, stdErr str
 }
 
 func TestClaim(t *testing.T) {
-	elfProgram, err := elf.Open("../example/bin/claim.elf")
-	require.NoError(t, err, "open ELF file")
-
-	state, err := LoadELF(elfProgram)
-	require.NoError(t, err, "load ELF into state")
-
-	err = PatchGo(elfProgram, state)
-	require.NoError(t, err, "apply Go runtime patches")
-	require.NoError(t, PatchStack(state), "add initial stack")
+	state := loadELFProgram(t, "../example/bin/claim.elf")
 
 	oracle, expectedStdOut, expectedStdErr := claimTestOracle(t)
 
@@ -253,6 +237,44 @@ func TestClaim(t *testing.T) {
 
 	require.Equal(t, expectedStdOut, stdOutBuf.String(), "stdout")
 	require.Equal(t, expectedStdErr, stdErrBuf.String(), "stderr")
+}
+
+func TestAlloc(t *testing.T) {
+	t.Skip("TODO(client-pod#906): Currently fails on Single threaded Cannon. Re-enable for the MT FPVM")
+
+	state := loadELFProgram(t, "../example/bin/alloc.elf")
+	const numAllocs = 100 // where each alloc is a 32 MiB chunk
+	oracle := allocOracle(t, numAllocs)
+
+	// completes in ~870 M steps
+	us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+	for i := 0; i < 20_000_000_000; i++ {
+		if us.state.Exited {
+			break
+		}
+		_, err := us.Step(false)
+		require.NoError(t, err)
+		if state.Step%10_000_000 == 0 {
+			t.Logf("Completed %d steps", state.Step)
+		}
+	}
+	t.Logf("Completed in %d steps", state.Step)
+	require.True(t, state.Exited, "must complete program")
+	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
+	require.Less(t, state.Memory.PageCount()*PageSize, 1*1024*1024*1024, "must not allocate more than 1 GiB")
+}
+
+func loadELFProgram(t *testing.T, name string) *State {
+	elfProgram, err := elf.Open(name)
+	require.NoError(t, err, "open ELF file")
+
+	state, err := LoadELF(elfProgram)
+	require.NoError(t, err, "load ELF into state")
+
+	err = PatchGo(elfProgram, state)
+	require.NoError(t, err, "apply Go runtime patches")
+	require.NoError(t, PatchStack(state), "add initial stack")
+	return state
 }
 
 func staticOracle(t *testing.T, preimageData []byte) *testOracle {
@@ -285,6 +307,18 @@ func staticPrecompileOracle(t *testing.T, precompile common.Address, input []byt
 				return result
 			}
 			panic("unreachable")
+		},
+	}
+}
+
+func allocOracle(t *testing.T, numAllocs int) *testOracle {
+	return &testOracle{
+		hint: func(v []byte) {},
+		getPreimage: func(k [32]byte) []byte {
+			if k != preimage.LocalIndexKey(0).PreimageKey() {
+				t.Fatalf("invalid preimage request for %x", k)
+			}
+			return binary.LittleEndian.AppendUint64(nil, uint64(numAllocs))
 		},
 	}
 }

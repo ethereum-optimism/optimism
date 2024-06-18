@@ -135,7 +135,7 @@ func TestPrecompiles(t *testing.T) {
 	}
 }
 
-func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, l2Node string) {
+func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, l2Node string, extraVmArgs ...string) {
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l1Beacon := sys.L1BeaconEndpoint()
 	rollupEndpoint := sys.RollupEndpoint("sequencer")
@@ -150,7 +150,7 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	executor := vm.NewExecutor(logger, metrics.NoopMetrics, cfg.Cannon, cfg.CannonAbsolutePreState, inputs)
 
 	t.Log("Running cannon")
-	err := executor.GenerateProof(ctx, proofsDir, math.MaxUint)
+	err := executor.DoGenerateProof(ctx, proofsDir, math.MaxUint, math.MaxUint, extraVmArgs...)
 	require.NoError(t, err, "failed to generate proof")
 
 	state, err := parseState(filepath.Join(proofsDir, "final.json.gz"))
