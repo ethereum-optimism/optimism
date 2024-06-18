@@ -669,7 +669,14 @@ contract MIPS is ISemver {
             if ((opcode >= 4 && opcode < 8) || opcode == 1) {
                 st.CpuScalars memory cpu = getCpuScalars(state);
 
-                ins.handleBranch(cpu, state.registers, opcode, insn, rtReg, rs);
+                ins.handleBranch({
+                    _cpu: cpu,
+                    _registers: state.registers,
+                    _opcode: opcode,
+                    _insn: insn,
+                    _rtReg: rtReg,
+                    _rs: rs
+                });
                 setStateCpuScalars(state, cpu);
 
                 return outputState();
