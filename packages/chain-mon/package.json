@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "dev:balance-mon": "tsx watch ./internal/balance-mon/service.ts",
-    "dev:drippie-mon": "tsx watch ./contrib/drippie/service.ts",
     "dev:fault-mon": "tsx watch ./src/fault-mon/service.ts",
     "dev:multisig-mon": "tsx watch ./internal/multisig-mon/service.ts",
     "dev:replica-mon": "tsx watch ./contrib/replica-mon/service.ts",
@@ -19,7 +18,6 @@
     "dev:faultproof-wd-mon": "tsx ./src/faultproof-wd-mon/service.ts",
     "dev:initialized-upgraded-mon": "tsx watch ./contrib/initialized-upgraded-mon/service.ts",
     "start:balance-mon": "tsx ./internal/balance-mon/service.ts",
-    "start:drippie-mon": "tsx ./contrib/drippie/service.ts",
     "start:fault-mon": "tsx ./src/fault-mon/service.ts",
     "start:multisig-mon": "tsx ./internal/multisig-mon/service.ts",
     "start:replica-mon": "tsx ./contrib/replica-mon/service.ts",
