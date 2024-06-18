@@ -49,17 +49,17 @@ func (c *APIClient) Active(ctx context.Context) (bool, error) {
 }
 
 // AddServerAsNonvoter implements API.
-func (c *APIClient) AddServerAsNonvoter(ctx context.Context, id string, addr string, version *uint64) error {
+func (c *APIClient) AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("addServerAsNonvoter"), id, addr, version)
 }
 
 // AddServerAsVoter implements API.
-func (c *APIClient) AddServerAsVoter(ctx context.Context, id string, addr string, version *uint64) error {
+func (c *APIClient) AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("addServerAsVoter"), id, addr, version)
 }
 
 // RemoveServer implements API.
-func (c *APIClient) RemoveServer(ctx context.Context, id string, version *uint64) error {
+func (c *APIClient) RemoveServer(ctx context.Context, id string, version uint64) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("removeServer"), id, version)
 }
 
