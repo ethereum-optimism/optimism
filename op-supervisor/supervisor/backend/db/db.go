@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -22,7 +23,8 @@ type dataAccess interface {
 }
 
 type DB struct {
-	data dataAccess
+	data   dataAccess
+	rwLock sync.RWMutex
 
 	lastEntryIdx int64
 	lastBlockNum uint64
@@ -64,6 +66,8 @@ func (db *DB) init() error {
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
 // logIdx is the index of the log in the array of all logs the block.
 func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (bool, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
 	_, entry, found, err := db.search(blockNum, logIdx)
 	if err != nil {
 		return false, err
@@ -115,6 +119,8 @@ func (db *DB) search(blockNum uint64, logIdx uint32) (int64, common.Hash, bool, 
 // Add a block to the database with the specified logHashes. The logs are recorded in the order they are specified
 // and must be the full set of logs for the block.
 func (db *DB) Add(blockNum uint64, logHashes []common.Hash) error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
 	if db.lastBlockNum >= blockNum {
 		return fmt.Errorf("%w: adding %v, head: %v", ErrBlockOutOfOrder, blockNum, db.lastBlockNum)
 	}
@@ -132,6 +138,8 @@ func (db *DB) Add(blockNum uint64, logHashes []common.Hash) error {
 // Rewind the database to remove any blocks after headBlockNum
 // The block at headBlockNum itself is not removed.
 func (db *DB) Rewind(headBlockNum uint64) error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
 	if headBlockNum > db.lastBlockNum {
 		// Nothing to do
 		return nil
