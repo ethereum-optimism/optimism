@@ -12,10 +12,12 @@ const HEAP_START = 0x05000000
 
 func LoadELF(f *elf.File) (*State, error) {
 	s := &State{
-		PC:        uint32(f.Entry),
-		NextPC:    uint32(f.Entry + 4),
-		HI:        0,
-		LO:        0,
+		Cpu: CpuScalars{
+			PC:     uint32(f.Entry),
+			NextPC: uint32(f.Entry + 4),
+			LO:     0,
+			HI:     0,
+		},
 		Heap:      HEAP_START,
 		Registers: [32]uint32{},
 		Memory:    NewMemory(),

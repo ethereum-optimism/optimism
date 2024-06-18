@@ -4,7 +4,8 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
-import "src/cannon/libraries/MIPSInstructions.sol" as ins;
+import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
+import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -45,7 +46,7 @@ contract MIPS is ISemver {
 
     /// @notice The semantic version of the MIPS contract.
     /// @custom:semver 1.0.1
-    string public constant version = "1.1.0-beta.1";
+    string public constant version = "1.1.0-beta.2";
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
@@ -297,70 +298,6 @@ contract MIPS is ISemver {
             state.pc = state.nextPC;
             state.nextPC = state.nextPC + 4;
 
-            out_ = outputState();
-        }
-    }
-
-    /// @notice Handles a branch instruction, updating the MIPS state PC where needed.
-    /// @param _opcode The opcode of the branch instruction.
-    /// @param _insn The instruction to be executed.
-    /// @param _rtReg The register to be used for the branch.
-    /// @param _rs The register to be compared with the branch register.
-    /// @return out_ The hashed MIPS state.
-    function handleBranch(uint32 _opcode, uint32 _insn, uint32 _rtReg, uint32 _rs) internal returns (bytes32 out_) {
-        unchecked {
-            // Load state from memory
-            State memory state;
-            assembly {
-                state := 0x80
-            }
-
-            bool shouldBranch = false;
-
-            if (state.nextPC != state.pc + 4) {
-                revert("branch in delay slot");
-            }
-
-            // beq/bne: Branch on equal / not equal
-            if (_opcode == 4 || _opcode == 5) {
-                uint32 rt = state.registers[_rtReg];
-                shouldBranch = (_rs == rt && _opcode == 4) || (_rs != rt && _opcode == 5);
-            }
-            // blez: Branches if instruction is less than or equal to zero
-            else if (_opcode == 6) {
-                shouldBranch = int32(_rs) <= 0;
-            }
-            // bgtz: Branches if instruction is greater than zero
-            else if (_opcode == 7) {
-                shouldBranch = int32(_rs) > 0;
-            }
-            // bltz/bgez: Branch on less than zero / greater than or equal to zero
-            else if (_opcode == 1) {
-                // regimm
-                uint32 rtv = ((_insn >> 16) & 0x1F);
-                if (rtv == 0) {
-                    shouldBranch = int32(_rs) < 0;
-                }
-                if (rtv == 1) {
-                    shouldBranch = int32(_rs) >= 0;
-                }
-            }
-
-            // Update the state's previous PC
-            uint32 prevPC = state.pc;
-
-            // Execute the delay slot first
-            state.pc = state.nextPC;
-
-            // If we should branch, update the PC to the branch target
-            // Otherwise, proceed to the next instruction
-            if (shouldBranch) {
-                state.nextPC = prevPC + 4 + (ins.signExtend(_insn & 0xFFFF, 16) << 2);
-            } else {
-                state.nextPC = state.nextPC + 4;
-            }
-
-            // Return the hash of the resulting state
             out_ = outputState();
         }
     }
@@ -730,7 +667,19 @@ contract MIPS is ISemver {
             }
 
             if ((opcode >= 4 && opcode < 8) || opcode == 1) {
-                return handleBranch(opcode, insn, rtReg, rs);
+                st.CpuScalars memory cpu = getCpuScalars(state);
+
+                ins.handleBranch({
+                    _cpu: cpu,
+                    _registers: state.registers,
+                    _opcode: opcode,
+                    _insn: insn,
+                    _rtReg: rtReg,
+                    _rs: rs
+                });
+                setStateCpuScalars(state, cpu);
+
+                return outputState();
             }
 
             uint32 storeAddr = 0xFF_FF_FF_FF;
@@ -795,5 +744,16 @@ contract MIPS is ISemver {
             // write back the value to destination register
             return handleRd(rdReg, val, true);
         }
+    }
+
+    function getCpuScalars(State memory _state) internal pure returns (st.CpuScalars memory) {
+        return st.CpuScalars({ pc: _state.pc, nextPC: _state.nextPC, lo: _state.lo, hi: _state.hi });
+    }
+
+    function setStateCpuScalars(State memory _state, st.CpuScalars memory _cpu) internal pure {
+        _state.pc = _cpu.pc;
+        _state.nextPC = _cpu.nextPC;
+        _state.lo = _cpu.lo;
+        _state.hi = _cpu.hi;
     }
 }

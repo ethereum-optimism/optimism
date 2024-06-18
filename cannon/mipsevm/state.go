@@ -12,17 +12,22 @@ import (
 // StateWitnessSize is the size of the state witness encoding in bytes.
 var StateWitnessSize = 226
 
+type CpuScalars struct {
+	PC     uint32 `json:"pc"`
+	NextPC uint32 `json:"nextPC"`
+	LO     uint32 `json:"lo"`
+	HI     uint32 `json:"hi"`
+}
+
 type State struct {
 	Memory *Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
 
-	PC     uint32 `json:"pc"`
-	NextPC uint32 `json:"nextPC"`
-	LO     uint32 `json:"lo"`
-	HI     uint32 `json:"hi"`
-	Heap   uint32 `json:"heap"` // to handle mmap growth
+	Cpu CpuScalars `json:"cpu"`
+
+	Heap uint32 `json:"heap"` // to handle mmap growth
 
 	ExitCode uint8 `json:"exit"`
 	Exited   bool  `json:"exited"`
@@ -54,10 +59,10 @@ func (s *State) EncodeWitness() StateWitness {
 	out = append(out, memRoot[:]...)
 	out = append(out, s.PreimageKey[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
-	out = binary.BigEndian.AppendUint32(out, s.PC)
-	out = binary.BigEndian.AppendUint32(out, s.NextPC)
-	out = binary.BigEndian.AppendUint32(out, s.LO)
-	out = binary.BigEndian.AppendUint32(out, s.HI)
+	out = binary.BigEndian.AppendUint32(out, s.Cpu.PC)
+	out = binary.BigEndian.AppendUint32(out, s.Cpu.NextPC)
+	out = binary.BigEndian.AppendUint32(out, s.Cpu.LO)
+	out = binary.BigEndian.AppendUint32(out, s.Cpu.HI)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
 	if s.Exited {
