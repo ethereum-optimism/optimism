@@ -28,6 +28,7 @@
     * [Software release](contents/developer/node-operators/software-release.md)
     * [Replica node (Legacy)](https://github.com/bobanetwork/boba_legacy/blob/docs-in-monrepo/boba_community/boba-node/README.md)
   * [Oracles](contents/developer/oracles/README.md)
+    * [Introduction to Pyth Oracles](contents/developer/oracles/introduction-to-pyth.md)
     * [Introduction to DIA Oracles](contents/developer/oracles/introduction-to-dia-oracles.md)
     * [Introduction to SupraOracles](contents/developer/oracles/introduction-to-supraoracles.md)
   * [Indexer](contents/developer/indexer/README.md)
