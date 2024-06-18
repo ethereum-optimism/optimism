@@ -9,7 +9,43 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+type InvalidPayloadEvent struct {
+	Envelope *eth.ExecutionPayloadEnvelope
+}
+
+func (ev InvalidPayloadEvent) String() string {
+	return "invalid-payload"
+}
+
+// ForkchoiceRequestEvent signals to the engine that it should emit an artificial
+// forkchoice-update event, to signal the latest forkchoice to other derivers.
+// This helps decouple derivers from the actual engine state,
+// while also not making the derivers wait for a forkchoice update at random.
+type ForkchoiceRequestEvent struct {
+}
+
+func (ev ForkchoiceRequestEvent) String() string {
+	return "forkchoice-request"
+}
+
+type ForkchoiceUpdateEvent struct {
+	UnsafeL2Head, SafeL2Head, FinalizedL2Head eth.L2BlockRef
+}
+
+func (ev ForkchoiceUpdateEvent) String() string {
+	return "forkchoice-update"
+}
+
+type ProcessUnsafePayloadEvent struct {
+	Envelope *eth.ExecutionPayloadEnvelope
+}
+
+func (ev ProcessUnsafePayloadEvent) String() string {
+	return "process-unsafe-payload"
+}
 
 type TryBackupUnsafeReorgEvent struct {
 }
@@ -47,7 +83,7 @@ func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
 }
 
 func (d *EngDeriver) OnEvent(ev rollup.Event) {
-	switch ev.(type) {
+	switch x := ev.(type) {
 	case TryBackupUnsafeReorgEvent:
 		// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
 		// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
@@ -81,5 +117,34 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 				d.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err)})
 			}
 		}
+	case ProcessUnsafePayloadEvent:
+		ref, err := derive.PayloadToBlockRef(d.cfg, x.Envelope.ExecutionPayload)
+		if err != nil {
+			d.log.Error("failed to decode L2 block ref from payload", "err", err)
+			return
+		}
+		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref); err != nil {
+			d.log.Info("failed to insert payload", "ref", ref,
+				"txs", len(x.Envelope.ExecutionPayload.Transactions), "err", err)
+			// yes, duplicate error-handling. After all derivers are interacting with the engine
+			// through events, we can drop the engine-controller interface:
+			// unify the events handler with the engine-controller,
+			// remove a lot of code, and not do this error translation.
+			if errors.Is(err, derive.ErrReset) {
+				d.emitter.Emit(rollup.ResetEvent{Err: err})
+			} else if errors.Is(err, derive.ErrTemporary) {
+				d.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
+			} else {
+				d.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unexpected InsertUnsafePayload error type: %w", err)})
+			}
+		} else {
+			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
+		}
+	case ForkchoiceRequestEvent:
+		d.emitter.Emit(ForkchoiceUpdateEvent{
+			UnsafeL2Head:    d.ec.UnsafeL2Head(),
+			SafeL2Head:      d.ec.SafeL2Head(),
+			FinalizedL2Head: d.ec.Finalized(),
+		})
 	}
 }

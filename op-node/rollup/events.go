@@ -80,3 +80,7 @@ type DeriverFunc func(ev Event)
 func (fn DeriverFunc) OnEvent(ev Event) {
 	fn(ev)
 }
+
+type NoopEmitter struct{}
+
+func (e NoopEmitter) Emit(ev Event) {}

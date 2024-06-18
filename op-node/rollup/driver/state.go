@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -40,7 +41,7 @@ type Driver struct {
 
 	sched *StepSchedulingDeriver
 
-	synchronousEvents *SynchronousEvents
+	synchronousEvents *rollup.SynchronousEvents
 
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
@@ -287,7 +288,7 @@ func (s *Driver) eventLoop() {
 			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 			if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-				s.CLSync.AddUnsafePayload(envelope)
+				s.Emitter.Emit(clsync.ReceivedUnsafePayloadEvent{Envelope: envelope})
 				s.metrics.RecordReceivedUnsafePayload(envelope)
 				reqStep()
 			} else if s.SyncCfg.SyncMode == sync.ELSync {
@@ -509,12 +510,8 @@ func (s *SyncDeriver) SyncStep(ctx context.Context) error {
 		return derive.EngineELSyncing
 	}
 
-	// Trying unsafe payload should be done before safe attributes
-	// It allows the unsafe head to move forward while the long-range consolidation is in progress.
-	if err := s.CLSync.Proceed(ctx); err != io.EOF {
-		// EOF error means we can't process the next unsafe payload. Then we should process next safe attributes.
-		return err
-	}
+	// Any now processed forkchoice updates will trigger CL-sync payload processing, if any payload is queued up.
+
 	// Try safe attributes now.
 	if err := s.AttributesHandler.Proceed(ctx); err != io.EOF {
 		// EOF error means we can't process the next attributes. Then we should derive the next attributes.
