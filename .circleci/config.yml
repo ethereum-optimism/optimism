@@ -1706,6 +1706,8 @@ workflows:
           save_image_tag: <<pipeline.git.revision>> # for devnet later
           platforms: "linux/amd64,linux/arm64"
           publish: true
+          context:
+            - oplabs-gcr
       - check-cross-platform:
           name: op-node-cross-platform
           op_component: op-node
