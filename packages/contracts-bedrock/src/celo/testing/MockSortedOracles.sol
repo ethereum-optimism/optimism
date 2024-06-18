@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+import { IOracle } from "../interfaces/IOracle.sol";
+
 /**
  * @title A mock SortedOracles for testing.
  */
-contract MockSortedOracles {
+contract MockSortedOracles is IOracle {
     uint256 public constant DENOMINATOR = 1000000000000000000000000;
     mapping(address => uint256) public numerators;
     mapping(address => uint256) public medianTimestamp;
@@ -29,7 +31,11 @@ contract MockSortedOracles {
         numRates[token] = rate; // This change may break something, TODO
     }
 
-    function medianRate(address token) external view returns (uint256, uint256) {
+    function getExchangeRate(address token) external view returns (uint256 numerator, uint256 denominator) {
+        return medianRate(token);
+    }
+
+    function medianRate(address token) public view returns (uint256, uint256) {
         if (numerators[token] > 0) {
             return (numerators[token], DENOMINATOR);
         }
