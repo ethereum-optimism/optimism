@@ -361,7 +361,7 @@ library MIPSInstructions {
         pure
     {
         unchecked {
-            uint32 val;
+            uint32 val = 0;
 
             // mfhi: Move the contents of the HI register into the destination
             if (_func == 0x10) {
