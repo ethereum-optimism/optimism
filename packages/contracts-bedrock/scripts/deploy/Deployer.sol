@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { Script } from "forge-std/Script.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { Config } from "scripts/Config.sol";
-import { DeployConfig } from "scripts/DeployConfig.s.sol";
+import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Executables } from "scripts/Executables.sol";
 import { console } from "forge-std/console.sol";
 
