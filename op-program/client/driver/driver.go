@@ -66,9 +66,18 @@ func (d *MinimalSyncDeriver) SyncStep(ctx context.Context) error {
 		if err := d.engine.TryUpdateEngine(ctx); !errors.Is(err, engine.ErrNoFCUNeeded) {
 			return err
 		}
-		if err := engine.ResetEngine(ctx, d.logger, d.cfg, d.engine, d.l1Source, d.l2Source, d.syncCfg, nil); err != nil {
-			return err
+		// The below two calls emulate ResetEngine, without event-processing.
+		// This will be omitted after op-program adopts events, and the deriver code is used instead.
+		result, err := sync.FindL2Heads(ctx, d.cfg, d.l1Source, d.l2Source, d.logger, d.syncCfg)
+		if err != nil {
+			// not really a temporary error in this context, but preserves old ResetEngine behavior.
+			return derive.NewTemporaryError(fmt.Errorf("failed to determine starting point: %w", err))
 		}
+		engine.ForceEngineReset(d.engine, engine.ForceEngineResetEvent{
+			Unsafe:    result.Unsafe,
+			Safe:      result.Safe,
+			Finalized: result.Finalized,
+		})
 		d.pipeline.ConfirmEngineReset()
 		d.initialResetDone = true
 	}
