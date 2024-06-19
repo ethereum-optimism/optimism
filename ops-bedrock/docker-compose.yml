@@ -191,7 +191,7 @@ services:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
       OP_BATCHER_ROLLUP_RPC: http://op-node:8545
-      OP_BATCHER_MAX_CHANNEL_DURATION: 1
+      OP_BATCHER_MAX_CHANNEL_DURATION: 2
       OP_BATCHER_SUB_SAFETY_MARGIN: 4 # SWS is 15, ChannelTimeout is 40
       OP_BATCHER_POLL_INTERVAL: 1s
       OP_BATCHER_NUM_CONFIRMATIONS: 1
@@ -211,6 +211,7 @@ services:
   op-challenger:
     depends_on:
       - l1
+      - l1-bn
       - l2
       - op-node
     build:
@@ -223,8 +224,7 @@ services:
       - "../op-program/bin:/op-program"
     environment:
       OP_CHALLENGER_L1_ETH_RPC: http://l1:8545
-      # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
-      OP_CHALLENGER_L1_BEACON: "unset"
+      OP_CHALLENGER_L1_BEACON: http://l1-bn:5052
       OP_CHALLENGER_ROLLUP_RPC: http://op-node:8545
       OP_CHALLENGER_TRACE_TYPE: cannon,fast
       OP_CHALLENGER_GAME_FACTORY_ADDRESS: ${DGF_ADDRESS}
