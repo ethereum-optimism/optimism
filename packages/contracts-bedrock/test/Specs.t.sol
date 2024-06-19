@@ -747,11 +747,11 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("decimals()") });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("delay()") });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("deposit()") });
-        _addSpec({ _name: "DelayedWETH", _sel: _getSel("hold(address,uint256)"), _auth: Role.DISPUTEGAMEFACTORYOWNER });
+        _addSpec({ _name: "DelayedWETH", _sel: _getSel("hold(address,uint256)"), _auth: Role.DELAYEDWETHOWNER });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("initialize(address,address)") });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("name()") });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("owner()") });
-        _addSpec({ _name: "DelayedWETH", _sel: _getSel("recover(uint256)"), _auth: Role.DISPUTEGAMEFACTORYOWNER });
+        _addSpec({ _name: "DelayedWETH", _sel: _getSel("recover(uint256)"), _auth: Role.DELAYEDWETHOWNER });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("renounceOwnership()"), _auth: Role.DELAYEDWETHOWNER });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("symbol()") });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("totalSupply()") });
