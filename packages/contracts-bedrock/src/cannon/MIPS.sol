@@ -5,6 +5,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
+import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 
 /// @title MIPS
@@ -148,15 +149,11 @@ contract MIPS is ISemver {
                 state := 0x80
             }
 
-            // Load the syscall number from the registers
-            uint32 syscall_no = state.registers[2];
+            // Load the syscall numbers and args from the registers
+            (uint32 syscall_no, uint32 a0, uint32 a1, uint32 a2) = sys.getSyscallArgs(state.registers);
+
             uint32 v0 = 0;
             uint32 v1 = 0;
-
-            // Load the syscall arguments from the registers
-            uint32 a0 = state.registers[4];
-            uint32 a1 = state.registers[5];
-            uint32 a2 = state.registers[6];
 
             // mmap: Allocates a page from the heap.
             if (syscall_no == 4090) {

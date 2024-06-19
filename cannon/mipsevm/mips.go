@@ -43,13 +43,10 @@ func (m *InstrumentedState) trackMemAccess(effAddr uint32) {
 }
 
 func (m *InstrumentedState) handleSyscall() error {
-	syscallNum := m.state.Registers[2] // v0
+	syscallNum, a0, a1, a2 := getSyscallArgs(&m.state.Registers)
+
 	v0 := uint32(0)
 	v1 := uint32(0)
-
-	a0 := m.state.Registers[4]
-	a1 := m.state.Registers[5]
-	a2 := m.state.Registers[6]
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
