@@ -2,7 +2,6 @@ package attributes
 
 import (
 	"context"
-	"io"
 	"math/big"
 	"math/rand" // nosemgrep
 	"testing"
@@ -14,11 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -153,161 +150,147 @@ func TestAttributesHandler(t *testing.T) {
 	refA1Alt, err := derive.PayloadToBlockRef(cfg, payloadA1Alt.ExecutionPayload)
 	require.NoError(t, err)
 
-	refA2 := eth.L2BlockRef{
-		Hash:           testutils.RandomHash(rng),
-		Number:         refA1.Number + 1,
-		ParentHash:     refA1.Hash,
-		Time:           refA1.Time + cfg.BlockTime,
-		L1Origin:       refA.ID(),
-		SequenceNumber: 1,
-	}
+	t.Run("drop invalid attributes", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelInfo)
+		l2 := &testutils.MockL2Client{}
+		emitter := &testutils.MockEmitter{}
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
 
-	a2L1Info, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA2.SequenceNumber, aL1Info, refA2.Time)
-	require.NoError(t, err)
-	attrA2 := &derive.AttributesWithParent{
-		Attributes: &eth.PayloadAttributes{
-			Timestamp:             eth.Uint64Quantity(refA2.Time),
-			PrevRandao:            eth.Bytes32{},
-			SuggestedFeeRecipient: common.Address{},
-			Withdrawals:           nil,
-			ParentBeaconBlockRoot: &common.Hash{},
-			Transactions:          []eth.Data{a2L1Info},
-			NoTxPool:              false,
-			GasLimit:              &gasLimit,
-		},
-		Parent:       refA1,
-		IsLastInSpan: true,
-	}
+		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		ah.OnEvent(derive.DerivedAttributesEvent{
+			Attributes: attrA1,
+		})
+		emitter.AssertExpectations(t)
+		require.NotNil(t, ah.attributes, "queue the invalid attributes")
 
+		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		ah.OnEvent(engine.InvalidPayloadAttributesEvent{
+			Attributes: attrA1,
+		})
+		emitter.AssertExpectations(t)
+		require.Nil(t, ah.attributes, "drop the invalid attributes")
+	})
 	t.Run("drop stale attributes", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
-		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
-		ah := NewAttributesHandler(logger, cfg, ec, eng)
-		defer eng.AssertExpectations(t)
+		l2 := &testutils.MockL2Client{}
+		emitter := &testutils.MockEmitter{}
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
 
-		ec.SetPendingSafeL2Head(refA1Alt)
-		ah.SetAttributes(attrA1)
-		require.True(t, ah.HasAttributes())
-		require.NoError(t, ah.Proceed(context.Background()), "drop stale attributes")
-		require.False(t, ah.HasAttributes())
+		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		ah.OnEvent(derive.DerivedAttributesEvent{
+			Attributes: attrA1,
+		})
+		emitter.AssertExpectations(t)
+		require.NotNil(t, ah.attributes)
+		ah.OnEvent(engine.PendingSafeUpdateEvent{
+			PendingSafe: refA1Alt,
+			Unsafe:      refA1Alt,
+		})
+		l2.AssertExpectations(t)
+		emitter.AssertExpectations(t)
+		require.Nil(t, ah.attributes, "drop stale attributes")
 	})
 
 	t.Run("pending gets reorged", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
-		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
-		ah := NewAttributesHandler(logger, cfg, ec, eng)
-		defer eng.AssertExpectations(t)
+		l2 := &testutils.MockL2Client{}
+		emitter := &testutils.MockEmitter{}
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
 
-		ec.SetPendingSafeL2Head(refA0Alt)
-		ah.SetAttributes(attrA1)
-		require.True(t, ah.HasAttributes())
-		require.ErrorIs(t, ah.Proceed(context.Background()), derive.ErrReset, "A1 does not fit on A0Alt")
-		require.True(t, ah.HasAttributes(), "detected reorg does not clear state, reset is required")
+		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		ah.OnEvent(derive.DerivedAttributesEvent{
+			Attributes: attrA1,
+		})
+		emitter.AssertExpectations(t)
+		require.NotNil(t, ah.attributes)
+
+		emitter.ExpectOnceType("ResetEvent")
+		ah.OnEvent(engine.PendingSafeUpdateEvent{
+			PendingSafe: refA0Alt,
+			Unsafe:      refA0Alt,
+		})
+		l2.AssertExpectations(t)
+		emitter.AssertExpectations(t)
+		require.NotNil(t, ah.attributes, "detected reorg does not clear state, reset is required")
 	})
 
 	t.Run("pending older than unsafe", func(t *testing.T) {
 		t.Run("consolidation fails", func(t *testing.T) {
 			logger := testlog.Logger(t, log.LevelInfo)
-			eng := &testutils.MockEngine{}
-			ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
-			ah := NewAttributesHandler(logger, cfg, ec, eng)
+			l2 := &testutils.MockL2Client{}
+			emitter := &testutils.MockEmitter{}
+			ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
 
-			ec.SetUnsafeHead(refA1)
-			ec.SetSafeHead(refA0)
-			ec.SetFinalizedHead(refA0)
-			ec.SetPendingSafeL2Head(refA0)
-
-			defer eng.AssertExpectations(t)
+			// attrA1Alt does not match block A1, so will cause force-reorg.
+			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+			emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+			ah.OnEvent(derive.DerivedAttributesEvent{Attributes: attrA1Alt})
+			emitter.AssertExpectations(t)
+			require.NotNil(t, ah.attributes, "queued up derived attributes")
 
 			// Call during consolidation.
 			// The payloadA1 is going to get reorged out in favor of attrA1Alt (turns into payloadA1Alt)
-			eng.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
+			l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
+			// fail consolidation, perform force reorg
+			emitter.ExpectOnce(engine.ProcessAttributesEvent{Attributes: attrA1Alt})
+			ah.OnEvent(engine.PendingSafeUpdateEvent{
+				PendingSafe: refA0,
+				Unsafe:      refA1,
+			})
+			l2.AssertExpectations(t)
+			emitter.AssertExpectations(t)
+			require.NotNil(t, ah.attributes, "still have attributes, processing still unconfirmed")
 
-			// attrA1Alt does not match block A1, so will cause force-reorg.
-			{
-				eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
-					HeadBlockHash:      payloadA1Alt.ExecutionPayload.ParentHash, // reorg
-					SafeBlockHash:      refA0.Hash,
-					FinalizedBlockHash: refA0.Hash,
-				}, attrA1Alt.Attributes, &eth.ForkchoiceUpdatedResult{
-					PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
-					PayloadID:     &eth.PayloadID{1, 2, 3},
-				}, nil) // to build the block
-				eng.ExpectGetPayload(eth.PayloadID{1, 2, 3}, payloadA1Alt, nil)
-				eng.ExpectNewPayload(payloadA1Alt.ExecutionPayload, payloadA1Alt.ParentBeaconBlockRoot,
-					&eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil) // to persist the block
-				eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
-					HeadBlockHash:      payloadA1Alt.ExecutionPayload.BlockHash,
-					SafeBlockHash:      payloadA1Alt.ExecutionPayload.BlockHash,
-					FinalizedBlockHash: refA0.Hash,
-				}, nil, &eth.ForkchoiceUpdatedResult{
-					PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
-					PayloadID:     nil,
-				}, nil) // to make it canonical
-			}
-
-			ah.SetAttributes(attrA1Alt)
-
-			require.True(t, ah.HasAttributes())
-			require.NoError(t, ah.Proceed(context.Background()), "fail consolidation, perform force reorg")
-			require.False(t, ah.HasAttributes())
-
-			require.Equal(t, refA1Alt.Hash, payloadA1Alt.ExecutionPayload.BlockHash, "hash")
-			t.Log("ref A1: ", refA1.Hash)
-			t.Log("ref A0: ", refA0.Hash)
-			t.Log("ref alt: ", refA1Alt.Hash)
-			require.Equal(t, refA1Alt, ec.UnsafeL2Head(), "unsafe head reorg complete")
-			require.Equal(t, refA1Alt, ec.SafeL2Head(), "safe head reorg complete and updated")
+			// recognize reorg as complete
+			ah.OnEvent(engine.PendingSafeUpdateEvent{
+				PendingSafe: refA1Alt,
+				Unsafe:      refA1Alt,
+			})
+			emitter.AssertExpectations(t)
+			require.Nil(t, ah.attributes, "drop when attributes are successful")
 		})
 		t.Run("consolidation passes", func(t *testing.T) {
 			fn := func(t *testing.T, lastInSpan bool) {
 				logger := testlog.Logger(t, log.LevelInfo)
-				eng := &testutils.MockEngine{}
-				ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
-				ah := NewAttributesHandler(logger, cfg, ec, eng)
-
-				ec.SetUnsafeHead(refA1)
-				ec.SetSafeHead(refA0)
-				ec.SetFinalizedHead(refA0)
-				ec.SetPendingSafeL2Head(refA0)
-
-				defer eng.AssertExpectations(t)
-
-				// Call during consolidation.
-				eng.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
-
-				expectedSafeHash := refA0.Hash
-				if lastInSpan { // if last in span, then it becomes safe
-					expectedSafeHash = refA1.Hash
-				}
-				eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
-					HeadBlockHash:      refA1.Hash,
-					SafeBlockHash:      expectedSafeHash,
-					FinalizedBlockHash: refA0.Hash,
-				}, nil, &eth.ForkchoiceUpdatedResult{
-					PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
-					PayloadID:     nil,
-				}, nil)
+				l2 := &testutils.MockL2Client{}
+				emitter := &testutils.MockEmitter{}
+				ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
 
 				attr := &derive.AttributesWithParent{
 					Attributes:   attrA1.Attributes, // attributes will match, passing consolidation
 					Parent:       attrA1.Parent,
 					IsLastInSpan: lastInSpan,
 				}
-				ah.SetAttributes(attr)
+				emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+				emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+				ah.OnEvent(derive.DerivedAttributesEvent{Attributes: attr})
+				emitter.AssertExpectations(t)
+				require.NotNil(t, ah.attributes, "queued up derived attributes")
 
-				require.True(t, ah.HasAttributes())
-				require.NoError(t, ah.Proceed(context.Background()), "consolidate")
-				require.False(t, ah.HasAttributes())
-				require.NoError(t, ec.TryUpdateEngine(context.Background()), "update to handle safe bump (lastinspan case)")
-				if lastInSpan {
-					require.Equal(t, refA1, ec.SafeL2Head(), "last in span becomes safe instantaneously")
-				} else {
-					require.Equal(t, refA1, ec.PendingSafeL2Head(), "pending as safe")
-					require.Equal(t, refA0, ec.SafeL2Head(), "A1 not yet safe")
-				}
+				// Call during consolidation.
+				l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
+
+				emitter.ExpectOnce(engine.PromotePendingSafeEvent{
+					Ref:  refA1,
+					Safe: lastInSpan, // last in span becomes safe instantaneously
+				})
+				ah.OnEvent(engine.PendingSafeUpdateEvent{
+					PendingSafe: refA0,
+					Unsafe:      refA1,
+				})
+				l2.AssertExpectations(t)
+				emitter.AssertExpectations(t)
+				require.NotNil(t, ah.attributes, "still have attributes, processing still unconfirmed")
+
+				ah.OnEvent(engine.PendingSafeUpdateEvent{
+					PendingSafe: refA1,
+					Unsafe:      refA1,
+				})
+				emitter.AssertExpectations(t)
+				require.Nil(t, ah.attributes, "drop when attributes are successful")
 			}
 			t.Run("is last span", func(t *testing.T) {
 				fn(t, true)
@@ -321,89 +304,70 @@ func TestAttributesHandler(t *testing.T) {
 
 	t.Run("pending equals unsafe", func(t *testing.T) {
 		// no consolidation to do, just force next attributes on tip of chain
-
 		logger := testlog.Logger(t, log.LevelInfo)
-		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
-		ah := NewAttributesHandler(logger, cfg, ec, eng)
+		l2 := &testutils.MockL2Client{}
+		emitter := &testutils.MockEmitter{}
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
 
-		ec.SetUnsafeHead(refA0)
-		ec.SetSafeHead(refA0)
-		ec.SetFinalizedHead(refA0)
-		ec.SetPendingSafeL2Head(refA0)
-
-		defer eng.AssertExpectations(t)
+		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		ah.OnEvent(derive.DerivedAttributesEvent{Attributes: attrA1Alt})
+		emitter.AssertExpectations(t)
+		require.NotNil(t, ah.attributes, "queued up derived attributes")
 
 		// sanity check test setup
 		require.True(t, attrA1Alt.IsLastInSpan, "must be last in span for attributes to become safe")
 
-		// process attrA1Alt on top
-		{
-			eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
-				HeadBlockHash:      payloadA1Alt.ExecutionPayload.ParentHash, // reorg
-				SafeBlockHash:      refA0.Hash,
-				FinalizedBlockHash: refA0.Hash,
-			}, attrA1Alt.Attributes, &eth.ForkchoiceUpdatedResult{
-				PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
-				PayloadID:     &eth.PayloadID{1, 2, 3},
-			}, nil) // to build the block
-			eng.ExpectGetPayload(eth.PayloadID{1, 2, 3}, payloadA1Alt, nil)
-			eng.ExpectNewPayload(payloadA1Alt.ExecutionPayload, payloadA1Alt.ParentBeaconBlockRoot,
-				&eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil) // to persist the block
-			eng.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
-				HeadBlockHash:      payloadA1Alt.ExecutionPayload.BlockHash,
-				SafeBlockHash:      payloadA1Alt.ExecutionPayload.BlockHash, // it becomes safe
-				FinalizedBlockHash: refA0.Hash,
-			}, nil, &eth.ForkchoiceUpdatedResult{
-				PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
-				PayloadID:     nil,
-			}, nil) // to make it canonical
-		}
+		// attrA1Alt will fit right on top of A0
+		emitter.ExpectOnce(engine.ProcessAttributesEvent{Attributes: attrA1Alt})
+		ah.OnEvent(engine.PendingSafeUpdateEvent{
+			PendingSafe: refA0,
+			Unsafe:      refA0,
+		})
+		l2.AssertExpectations(t)
+		emitter.AssertExpectations(t)
+		require.NotNil(t, ah.attributes)
 
-		ah.SetAttributes(attrA1Alt)
-
-		require.True(t, ah.HasAttributes())
-		require.NoError(t, ah.Proceed(context.Background()), "insert new block")
-		require.False(t, ah.HasAttributes())
-
-		require.Equal(t, refA1Alt, ec.SafeL2Head(), "processing complete")
+		ah.OnEvent(engine.PendingSafeUpdateEvent{
+			PendingSafe: refA1Alt,
+			Unsafe:      refA1Alt,
+		})
+		emitter.AssertExpectations(t)
+		require.Nil(t, ah.attributes, "clear attributes after successful processing")
 	})
 
 	t.Run("pending ahead of unsafe", func(t *testing.T) {
 		// Legacy test case: if attributes fit on top of the pending safe block as expected,
-		// but if the unsafe block is older, then we can recover by updating the unsafe head.
-
+		// but if the unsafe block is older, then we can recover by resetting.
 		logger := testlog.Logger(t, log.LevelInfo)
-		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
-		ah := NewAttributesHandler(logger, cfg, ec, eng)
+		l2 := &testutils.MockL2Client{}
+		emitter := &testutils.MockEmitter{}
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
 
-		ec.SetUnsafeHead(refA0)
-		ec.SetSafeHead(refA0)
-		ec.SetFinalizedHead(refA0)
-		ec.SetPendingSafeL2Head(refA1)
-
-		defer eng.AssertExpectations(t)
-
-		ah.SetAttributes(attrA2)
-
-		require.True(t, ah.HasAttributes())
-		require.NoError(t, ah.Proceed(context.Background()), "detect unsafe - pending safe inconsistency")
-		require.True(t, ah.HasAttributes(), "still need the attributes, after unsafe head is corrected")
-
-		require.Equal(t, refA0, ec.SafeL2Head(), "still same safe head")
-		require.Equal(t, refA1, ec.PendingSafeL2Head(), "still same pending safe head")
-		require.Equal(t, refA1, ec.UnsafeL2Head(), "updated unsafe head")
+		emitter.ExpectOnceType("ResetEvent")
+		ah.OnEvent(engine.PendingSafeUpdateEvent{
+			PendingSafe: refA1,
+			Unsafe:      refA0,
+		})
+		emitter.AssertExpectations(t)
+		l2.AssertExpectations(t)
 	})
 
 	t.Run("no attributes", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
-		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
-		ah := NewAttributesHandler(logger, cfg, ec, eng)
-		defer eng.AssertExpectations(t)
+		l2 := &testutils.MockL2Client{}
+		emitter := &testutils.MockEmitter{}
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
 
-		require.Equal(t, ah.Proceed(context.Background()), io.EOF, "no attributes to process")
+		// If there are no attributes, we expect the pipeline to be requested to generate attributes.
+		emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1})
+		ah.OnEvent(engine.PendingSafeUpdateEvent{
+			PendingSafe: refA1,
+			Unsafe:      refA1,
+		})
+		// no calls to L2 or emitter when there is nothing to process
+		l2.AssertExpectations(t)
+		emitter.AssertExpectations(t)
 	})
 
 }

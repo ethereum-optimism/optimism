@@ -44,6 +44,11 @@ func (d *ProgramDeriver) OnEvent(ev rollup.Event) {
 	case derive.DeriverMoreEvent:
 		d.Emitter.Emit(engine.PendingSafeRequestEvent{})
 	case derive.DerivedAttributesEvent:
+		// Allow new attributes to be generated.
+		// We will process the current attributes synchronously,
+		// triggering a single PendingSafeUpdateEvent or InvalidPayloadAttributesEvent,
+		// to continue derivation from.
+		d.Emitter.Emit(derive.ConfirmReceivedAttributesEvent{})
 		// No need to queue the attributes, since there is no unsafe chain to consolidate against,
 		// and no temporary-error retry to perform on block processing.
 		d.Emitter.Emit(engine.ProcessAttributesEvent{Attributes: x.Attributes})

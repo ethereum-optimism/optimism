@@ -191,7 +191,7 @@ func NewDriver(
 		finalizer = finality.NewFinalizer(log, cfg, l1, ec)
 	}
 
-	attributesHandler := attributes.NewAttributesHandler(log, cfg, ec, l2)
+	attributesHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, synchronousEvents)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
 	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline, synchronousEvents)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
@@ -200,20 +200,19 @@ func NewDriver(
 	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 
 	syncDeriver := &SyncDeriver{
-		Derivation:        derivationPipeline,
-		Finalizer:         finalizer,
-		AttributesHandler: attributesHandler,
-		SafeHeadNotifs:    safeHeadListener,
-		CLSync:            clSync,
-		Engine:            ec,
-		SyncCfg:           syncCfg,
-		Config:            cfg,
-		L1:                l1,
-		L2:                l2,
-		Emitter:           synchronousEvents,
-		Log:               log,
-		Ctx:               driverCtx,
-		Drain:             synchronousEvents.Drain,
+		Derivation:     derivationPipeline,
+		Finalizer:      finalizer,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		L2:             l2,
+		Emitter:        synchronousEvents,
+		Log:            log,
+		Ctx:            driverCtx,
+		Drain:          synchronousEvents.Drain,
 	}
 	engDeriv := engine.NewEngDeriver(log, driverCtx, cfg, ec, synchronousEvents)
 	schedDeriv := NewStepSchedulingDeriver(log, synchronousEvents)
@@ -254,6 +253,7 @@ func NewDriver(
 		driver,
 		clSync,
 		pipelineDeriver,
+		attributesHandler,
 	}
 
 	return driver
