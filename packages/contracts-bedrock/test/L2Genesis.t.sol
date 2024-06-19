@@ -2,9 +2,10 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { L2Genesis, OutputMode, L1Dependencies } from "scripts/L2Genesis.s.sol";
+import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Process } from "scripts/libraries/Process.sol";
 
 /// @title L2GenesisTest
 /// @notice Test suite for L2Genesis script.
@@ -25,7 +26,7 @@ contract L2GenesisTest is Test {
         commands[0] = "bash";
         commands[1] = "-c";
         commands[2] = "mktemp";
-        bytes memory result = vm.ffi(commands);
+        bytes memory result = Process.run(commands);
         return string(result);
     }
 
@@ -36,7 +37,7 @@ contract L2GenesisTest is Test {
         commands[0] = "bash";
         commands[1] = "-c";
         commands[2] = string.concat("rm ", path);
-        vm.ffi(commands);
+        Process.run({ _command: commands, _allowEmpty: true });
     }
 
     /// @notice Returns the number of top level keys in a JSON object at a given
@@ -46,7 +47,7 @@ contract L2GenesisTest is Test {
         commands[0] = "bash";
         commands[1] = "-c";
         commands[2] = string.concat("jq 'keys | length' < ", path, " | xargs cast abi-encode 'f(uint256)'");
-        return abi.decode(vm.ffi(commands), (uint256));
+        return abi.decode(Process.run(commands), (uint256));
     }
 
     /// @notice Helper function to run a function with a temporary dump file.
@@ -63,7 +64,7 @@ contract L2GenesisTest is Test {
         commands[1] = "-c";
         commands[2] =
             string.concat("jq -r '.[\"", vm.toLowercase(vm.toString(_addr)), "\"].storage | length' < ", _path);
-        return vm.parseUint(string(vm.ffi(commands)));
+        return vm.parseUint(string(Process.run(commands)));
     }
 
     /// @notice Returns the number of accounts that contain particular code at a given path to a genesis file.
@@ -79,7 +80,7 @@ contract L2GenesisTest is Test {
             path,
             " | xargs cast abi-encode 'f(uint256)'"
         );
-        return abi.decode(vm.ffi(commands), (uint256));
+        return abi.decode(Process.run(commands), (uint256));
     }
 
     /// @notice Returns the number of accounts that have a particular slot set.
@@ -94,7 +95,7 @@ contract L2GenesisTest is Test {
             path,
             " | xargs cast abi-encode 'f(uint256)'"
         );
-        return abi.decode(vm.ffi(commands), (uint256));
+        return abi.decode(Process.run(commands), (uint256));
     }
 
     /// @notice Returns the number of accounts that have a particular slot set to a particular value.
@@ -118,7 +119,7 @@ contract L2GenesisTest is Test {
             path,
             " | xargs cast abi-encode 'f(uint256)'"
         );
-        return abi.decode(vm.ffi(commands), (uint256));
+        return abi.decode(Process.run(commands), (uint256));
     }
 
     /// @notice Tests the genesis predeploys setup using a temp file for the case where useInterop is false.
@@ -180,12 +181,12 @@ contract L2GenesisTest is Test {
     /// @notice Tests the number of accounts in the genesis setup
     function _test_allocs_size(string memory _path) internal {
         genesis.cfg().setFundDevAccounts(false);
-        genesis.runWithOptions(OutputMode.LOCAL_LATEST, _dummyL1Deps());
+        genesis.runWithLatestLocal(_dummyL1Deps());
         genesis.writeGenesisAllocs(_path);
 
         uint256 expected = 0;
         expected += 2048 - 2; // predeploy proxies
-        expected += 19; // predeploy implementations (excl. legacy erc20-style eth and legacy message sender)
+        expected += 21; // predeploy implementations (excl. legacy erc20-style eth and legacy message sender)
         expected += 256; // precompiles
         expected += 12; // preinstalls
         expected += 1; // 4788 deployer account

@@ -164,11 +164,6 @@ func (p *LargePreimageUploader) initLargePreimage(uuid *big.Int, partOffset uint
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 	}
-	bond, err := p.contract.GetMinBondLPP(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get min bond for large preimage proposal: %w", err)
-	}
-	candidate.Value = bond
 	if err := p.txSender.SendAndWaitSimple("init large preimage", candidate); err != nil {
 		return fmt.Errorf("failed to populate pre-image oracle: %w", err)
 	}

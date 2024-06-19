@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
@@ -8,6 +9,10 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -414,7 +419,7 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 
 	var l2OutputBlockNr *big.Int
 	var l2OutputBlock *types.Block
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		latestGame, err := withdrawals.FindLatestGame(t.Ctx(), &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
 		require.NoError(t, err)
 		l2OutputBlockNr = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
@@ -431,7 +436,7 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 		return nil, fmt.Errorf("the latest L2 output is %d and is not past L2 block %d that includes the withdrawal yet, no withdrawal can be proved yet", l2OutputBlock.NumberU64(), l2WithdrawalBlock.NumberU64())
 	}
 
-	if !e2eutils.UseFPAC() {
+	if !e2eutils.UseFaultProofs() {
 		finalizationPeriod, err := s.L1.env.Bindings.L2OutputOracle.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
 		require.NoError(t, err)
 		l1Head, err := s.L1.env.EthCl.HeaderByNumber(t.Ctx(), nil)
@@ -450,7 +455,7 @@ func (s *CrossLayerUser) getLatestWithdrawalParams(t Testing) (*withdrawals.Prov
 	return &params, nil
 }
 
-func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWithdrawalParameters) (*legacybindings.FaultDisputeGame, error) {
+func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWithdrawalParameters) (*legacybindings.FaultDisputeGame, common.Address, error) {
 	wd := crossdomain.Withdrawal{
 		Nonce:    params.Nonce,
 		Sender:   &params.Sender,
@@ -473,7 +478,7 @@ func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWith
 	proxy, err := legacybindings.NewFaultDisputeGame(game.DisputeGameProxy, s.L1.env.EthCl)
 	require.Nil(t, err)
 
-	return proxy, nil
+	return proxy, game.DisputeGameProxy, nil
 }
 
 // ActCompleteWithdrawal creates a L1 proveWithdrawal tx for latest withdrawal.
@@ -562,13 +567,21 @@ func (s *CrossLayerUser) ResolveClaim(t Testing, l2TxHash common.Hash) common.Ha
 		return common.Hash{}
 	}
 
-	game, err := s.getDisputeGame(t, *params)
+	game, gameAddr, err := s.getDisputeGame(t, *params)
 	require.NoError(t, err)
 
-	expiry, err := game.MaxClockDuration(&bind.CallOpts{})
+	caller := batching.NewMultiCaller(s.L1.env.EthCl.Client(), batching.DefaultBatchSize)
+	gameContract, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics.NoopContractMetrics, gameAddr, caller)
 	require.Nil(t, err)
 
-	time.Sleep(time.Duration(expiry) * time.Second)
+	timedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	require.NoError(t, wait.For(timedCtx, time.Second, func() (bool, error) {
+		err := gameContract.CallResolveClaim(context.Background(), 0)
+		t.Logf("Could not resolve dispute game claim: %v", err)
+		return err == nil, nil
+	}))
+
 	resolveClaimTx, err := game.ResolveClaim(&s.L1.txOpts, common.Big0, common.Big0)
 	require.Nil(t, err)
 
@@ -592,7 +605,7 @@ func (s *CrossLayerUser) Resolve(t Testing, l2TxHash common.Hash) common.Hash {
 		return common.Hash{}
 	}
 
-	game, err := s.getDisputeGame(t, *params)
+	game, _, err := s.getDisputeGame(t, *params)
 	require.NoError(t, err)
 
 	resolveTx, err := game.Resolve(&s.L1.txOpts)

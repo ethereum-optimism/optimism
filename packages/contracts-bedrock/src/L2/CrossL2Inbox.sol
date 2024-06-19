@@ -55,8 +55,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     bytes32 internal constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 0.1.0
+    string public constant version = "0.1.0";
 
     /// @notice Emitted when a cross chain message is being executed.
     /// @param encodedId Encoded Identifier of the message.

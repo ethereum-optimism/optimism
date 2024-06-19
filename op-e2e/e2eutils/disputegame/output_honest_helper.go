@@ -101,7 +101,7 @@ func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAt
 	}
 	prestate, proofData, _, err := h.correctTrace.GetStepData(ctx, game, claim, pos)
 	h.require.NoError(err, "Get step data")
-	h.game.StepFails(claimIdx, isAttack, prestate, proofData)
+	h.game.StepFails(ctx, claimIdx, isAttack, prestate, proofData)
 }
 
 func (h *OutputHonestHelper) loadState(ctx context.Context, claimIdx int64) (types.Game, types.Claim) {

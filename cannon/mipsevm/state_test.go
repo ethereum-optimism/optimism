@@ -44,7 +44,7 @@ func TestState(t *testing.T) {
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+			state := &State{Cpu: CpuScalars{PC: 0, NextPC: 4}, Memory: NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -54,7 +54,7 @@ func TestState(t *testing.T) {
 			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
-				if us.state.PC == endAddr {
+				if us.state.Cpu.PC == endAddr {
 					break
 				}
 				if exitGroup && us.state.Exited {
@@ -65,11 +65,11 @@ func TestState(t *testing.T) {
 			}
 
 			if exitGroup {
-				require.NotEqual(t, uint32(endAddr), us.state.PC, "must not reach end")
+				require.NotEqual(t, uint32(endAddr), us.state.Cpu.PC, "must not reach end")
 				require.True(t, us.state.Exited, "must set exited state")
 				require.Equal(t, uint8(1), us.state.ExitCode, "must exit with 1")
 			} else {
-				require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
+				require.Equal(t, uint32(endAddr), us.state.Cpu.PC, "must reach end")
 				done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
 				// inspect test result
 				require.Equal(t, done, uint32(1), "must be done")
@@ -300,4 +300,27 @@ func selectOracleFixture(t *testing.T, programName string) PreimageOracle {
 	} else {
 		return nil
 	}
+}
+
+func TestStateJSONCodec(t *testing.T) {
+	elfProgram, err := elf.Open("../example/bin/hello.elf")
+	require.NoError(t, err, "open ELF file")
+	state, err := LoadELF(elfProgram)
+	require.NoError(t, err, "load ELF into state")
+
+	stateJSON, err := state.MarshalJSON()
+	require.NoError(t, err)
+
+	newState := new(State)
+	require.NoError(t, newState.UnmarshalJSON(stateJSON))
+
+	require.Equal(t, state.PreimageKey, newState.PreimageKey)
+	require.Equal(t, state.PreimageOffset, newState.PreimageOffset)
+	require.Equal(t, state.Cpu, newState.Cpu)
+	require.Equal(t, state.Heap, newState.Heap)
+	require.Equal(t, state.ExitCode, newState.ExitCode)
+	require.Equal(t, state.Exited, newState.Exited)
+	require.Equal(t, state.Memory.MerkleRoot(), newState.Memory.MerkleRoot())
+	require.Equal(t, state.Registers, newState.Registers)
+	require.Equal(t, state.Step, newState.Step)
 }

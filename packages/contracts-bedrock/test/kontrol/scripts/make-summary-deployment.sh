@@ -53,7 +53,7 @@ if [ ! -f "snapshots/state-diff/Deploy.json" ]; then
   touch snapshots/state-diff/Deploy.json;
 fi
 
-DEPLOY_SCRIPT="./scripts/Deploy.s.sol"
+DEPLOY_SCRIPT="./scripts/deploy/Deploy.s.sol"
 conditionally_start_docker
 
 # Create a backup

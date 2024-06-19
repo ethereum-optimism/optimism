@@ -132,6 +132,11 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 		case <-ticker.C:
 			block, err := client.BlockByNumber(ctx, tagBigInt)
 			if err != nil {
+				// If block is not found (e.g. upon startup of chain, when there is no "finalized block" yet)
+				// then it may be found later. Keep wait loop running.
+				if strings.Contains(err.Error(), "block not found") {
+					continue
+				}
 				return nil, err
 			}
 			if block != nil && block.NumberU64() >= number.Uint64() {

@@ -68,6 +68,13 @@ const (
 	ResultCodeUnknownErr  byte = 3
 )
 
+var resultCodeString = []string{
+	"success",
+	"not found",
+	"invalid request",
+	"unknown error",
+}
+
 func PayloadByNumberProtocolID(l2ChainID *big.Int) protocol.ID {
 	return protocol.ID(fmt.Sprintf("/opstack/req/payload_by_number/%d/0", l2ChainID))
 }
@@ -614,7 +621,13 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 type requestResultErr byte
 
 func (r requestResultErr) Error() string {
-	return fmt.Sprintf("peer failed to serve request with code %d", uint8(r))
+	var errStr string
+	if ri := int(r); ri < len(resultCodeString) {
+		errStr = resultCodeString[ri]
+	} else {
+		errStr = "invalid code"
+	}
+	return fmt.Sprintf("peer failed to serve request with code %d: %s", uint8(r), errStr)
 }
 
 func (r requestResultErr) ResultCode() byte {

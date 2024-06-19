@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,9 +21,10 @@ import (
 func NewOutputCannonTraceAccessor(
 	logger log.Logger,
 	m metrics.Metricer,
-	cfg *config.Config,
+	cfg vm.Config,
 	l2Client utils.L2HeaderSource,
 	prestateProvider types.PrestateProvider,
+	cannonPrestate string,
 	rollupClient OutputRollupClient,
 	dir string,
 	l1Head eth.BlockID,
@@ -39,7 +40,7 @@ func NewOutputCannonTraceAccessor(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 		}
-		provider := cannon.NewTraceProvider(logger, m, cfg, prestateProvider, localInputs, subdir, depth)
+		provider := cannon.NewTraceProvider(logger, m, cfg, prestateProvider, cannonPrestate, localInputs, subdir, depth)
 		return provider, nil
 	}
 

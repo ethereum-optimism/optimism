@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -97,9 +98,19 @@ func ForSafeBlock(ctx context.Context, rollupClient *sources.RollupClient, n uin
 
 func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, error) {
 	safeBlockNumber := big.NewInt(rpc.SafeBlockNumber.Int64())
-	current, err := client.BlockByNumber(ctx, safeBlockNumber)
-	if err != nil {
-		return nil, err
+	var current *types.Block
+	var err error
+	for {
+		current, err = client.BlockByNumber(ctx, safeBlockNumber)
+		if err != nil {
+			// If block is not found (e.g. upon startup of chain, when there is no "safe block" yet)
+			// then it may be found later. Keep wait loop running.
+			if strings.Contains(err.Error(), "block not found") {
+				continue
+			}
+			return nil, err
+		}
+		break
 	}
 
 	// Long timeout so we don't have to care what the block time is. If the test passes this will complete early anyway.
@@ -112,6 +123,11 @@ func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, er
 		default:
 			next, err := client.BlockByNumber(ctx, safeBlockNumber)
 			if err != nil {
+				// If block is not found (e.g. upon startup of chain, when there is no "safe block" yet)
+				// then it may be found later. Keep wait loop running.
+				if strings.Contains(err.Error(), "block not found") {
+					continue
+				}
 				return nil, err
 			}
 			if next.NumberU64() > current.NumberU64() {

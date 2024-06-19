@@ -100,7 +100,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 
 	var l2OutputOracle *bindings.L2OutputOracleCaller
 	var disputeGameFactory *bindings.DisputeGameFactoryCaller
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		disputeGameFactory, err = bindings.NewDisputeGameFactoryCaller(*cfg.DisputeGameFactoryAddr, l1)
 		require.NoError(t, err)
 	} else {
@@ -137,7 +137,7 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 	require.NoError(t, err)
 
 	var addr common.Address
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		addr = *p.disputeGameFactoryAddr
 	} else {
 		addr = *p.l2OutputOracleAddr
@@ -205,7 +205,7 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 }
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (*eth.OutputResponse, bool, error) {
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		blockNumber, err := p.driver.FetchCurrentBlockNumber(t.Ctx())
 		if err != nil {
 			return nil, false, err
@@ -247,7 +247,7 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 	}
 
 	var txData []byte
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		txData, _, err = p.driver.ProposeL2OutputDGFTxData(output)
 		require.NoError(t, err)
 	} else {

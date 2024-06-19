@@ -7,9 +7,9 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/DataDog/zstd"
 	"github.com/andybalholm/brotli"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 )
 
@@ -143,8 +143,9 @@ func TestBatchReader(t *testing.T) {
 		case ca == Zstd: // invalid algo
 			return func(buf *bytes.Buffer, t *testing.T) {
 				buf.WriteByte(0x02) // invalid channel version byte
-				writer := zstd.NewWriter(buf)
-				_, err := writer.Write(encodedBatch.Bytes())
+				writer, err := zstd.NewWriter(buf)
+				require.NoError(t, err)
+				_, err = writer.Write(encodedBatch.Bytes())
 				require.NoError(t, err)
 				require.NoError(t, writer.Close())
 			}

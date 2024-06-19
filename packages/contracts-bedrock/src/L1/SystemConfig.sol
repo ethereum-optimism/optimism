@@ -124,8 +124,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.3.0-beta.1
-    string public constant version = "2.3.0-beta.1";
+    /// @custom:semver 2.3.0-beta.2
+    function version() public pure virtual returns (string memory) {
+        return "2.3.0-beta.2";
+    }
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -305,7 +307,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         to set the token address. This prevents the token address from being changed
     ///         and makes it explicitly opt-in to use custom gas token.
     /// @param _token Address of the gas paying token.
-    function _setGasPayingToken(address _token) internal {
+    function _setGasPayingToken(address _token) internal virtual {
         if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"

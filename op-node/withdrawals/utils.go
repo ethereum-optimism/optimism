@@ -57,8 +57,8 @@ func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2Recei
 	return ProveWithdrawalParametersForBlock(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, l2BlockNumber, l2OutputIndex)
 }
 
-// ProveWithdrawalParametersFPAC calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
-func ProveWithdrawalParametersFPAC(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2BlockCl BlockClient, txHash common.Hash, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (ProvenWithdrawalParameters, error) {
+// ProveWithdrawalParametersFaultProofs calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
+func ProveWithdrawalParametersFaultProofs(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2BlockCl BlockClient, txHash common.Hash, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (ProvenWithdrawalParameters, error) {
 	latestGame, err := FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract)
 	if err != nil {
 		return ProvenWithdrawalParameters{}, fmt.Errorf("failed to find latest game: %w", err)

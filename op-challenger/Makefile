@@ -4,7 +4,8 @@ VERSION ?= v0.0.0
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
-LDFLAGSSTRING +=-X main.Version=$(VERSION)
+LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-challenger/version.Version=$(VERSION)
+LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-challenger/version.Meta=$(VERSION_META)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 # Use the old Apple linker to workaround broken xcode - https://github.com/golang/go/issues/65169

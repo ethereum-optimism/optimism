@@ -15,7 +15,7 @@
 /op-e2e         @ethereum-optimism/go-reviewers
 /op-heartbeat   @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
-/op-node/rollup @protolambda @trianglesphere @ajsutton
+/op-node/rollup @protolambda @ajsutton
 /op-plasma      @ethereum-optimism/go-reviewers
 /op-preimage    @ethereum-optimism/go-reviewers
 /op-program     @ethereum-optimism/go-reviewers
@@ -33,10 +33,8 @@
 
 # Misc
 /proxyd           @ethereum-optimism/infra-reviewers
-/indexer          @ethereum-optimism/devxpod
 /infra            @ethereum-optimism/infra-reviewers
 /specs            @ethereum-optimism/contract-reviewers @ethereum-optimism/go-reviewers
-/endpoint-monitor @ethereum-optimism/infra-reviewers
 
 # Don't add owners if only package.json is updated
 /packages/*/package.json

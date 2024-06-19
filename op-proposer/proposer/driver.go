@@ -223,7 +223,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 	}
 	nextCheckpointBlock, err := l.l2ooContract.NextBlockNumber(callOpts)
 	if err != nil {
-		l.Log.Error("proposer unable to get next block number", "err", err)
+		l.Log.Error("Proposer unable to get next block number", "err", err)
 		return nil, false, err
 	}
 	// Fetch the current L2 heads
@@ -234,7 +234,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 
 	// Ensure that we do not submit a block in the future
 	if currentBlockNumber.Cmp(nextCheckpointBlock) < 0 {
-		l.Log.Debug("proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
+		l.Log.Debug("Proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
 		return nil, false, nil
 	}
 
@@ -244,16 +244,18 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 // FetchCurrentBlockNumber gets the current block number from the [L2OutputSubmitter]'s [RollupClient]. If the `AllowNonFinalized` configuration
 // option is set, it will return the safe head block number, and if not, it will return the finalized head block number.
 func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (*big.Int, error) {
-	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
-	defer cancel()
-	rollupClient, err := l.RollupProvider.RollupClient(cCtx)
+	rollupClient, err := l.RollupProvider.RollupClient(ctx)
 	if err != nil {
-		l.Log.Error("proposer unable to get rollup client", "err", err)
+		l.Log.Error("Proposer unable to get rollup client", "err", err)
 		return nil, err
 	}
+
+	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	defer cancel()
+
 	status, err := rollupClient.SyncStatus(cCtx)
 	if err != nil {
-		l.Log.Error("proposer unable to get sync status", "err", err)
+		l.Log.Error("Proposer unable to get sync status", "err", err)
 		return nil, err
 	}
 
@@ -268,31 +270,32 @@ func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (*big.I
 }
 
 func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
-	defer cancel()
-
 	rollupClient, err := l.RollupProvider.RollupClient(ctx)
 	if err != nil {
-		l.Log.Error("proposer unable to get rollup client", "err", err)
+		l.Log.Error("Proposer unable to get rollup client", "err", err)
 		return nil, false, err
 	}
-	output, err := rollupClient.OutputAtBlock(ctx, block.Uint64())
+
+	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	defer cancel()
+
+	output, err := rollupClient.OutputAtBlock(cCtx, block.Uint64())
 	if err != nil {
-		l.Log.Error("failed to fetch output at block", "block", block, "err", err)
+		l.Log.Error("Failed to fetch output at block", "block", block, "err", err)
 		return nil, false, err
 	}
 	if output.Version != supportedL2OutputVersion {
-		l.Log.Error("unsupported l2 output version", "output_version", output.Version, "supported_version", supportedL2OutputVersion)
+		l.Log.Error("Unsupported l2 output version", "output_version", output.Version, "supported_version", supportedL2OutputVersion)
 		return nil, false, errors.New("unsupported l2 output version")
 	}
 	if output.BlockRef.Number != block.Uint64() { // sanity check, e.g. in case of bad RPC caching
-		l.Log.Error("invalid blockNumber", "next_block", block, "output_block", output.BlockRef.Number)
+		l.Log.Error("Invalid blockNumber", "next_block", block, "output_block", output.BlockRef.Number)
 		return nil, false, errors.New("invalid blockNumber")
 	}
 
 	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
 	if output.BlockRef.Number > output.Status.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || output.BlockRef.Number > output.Status.SafeL2.Number) {
-		l.Log.Debug("not proposing yet, L2 block is not ready for proposal",
+		l.Log.Debug("Not proposing yet, L2 block is not ready for proposal",
 			"l2_proposal", output.BlockRef,
 			"l2_safe", output.Status.SafeL2,
 			"l2_finalized", output.Status.FinalizedL2,
@@ -348,7 +351,7 @@ func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) 
 		return err
 	}
 	for l1head <= blockNum {
-		l.Log.Debug("waiting for l1 head > l1blocknum1+1", "l1head", l1head, "l1blocknum", blockNum)
+		l.Log.Debug("Waiting for l1 head > l1blocknum1+1", "l1head", l1head, "l1blocknum", blockNum)
 		select {
 		case <-ticker.C:
 			l1head, err = l.Txmgr.BlockNumber(ctx)
@@ -369,6 +372,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 		return err
 	}
 
+	l.Log.Info("Proposing output root", "output", output.OutputRoot, "block", output.BlockRef)
 	var receipt *types.Receipt
 	if l.Cfg.DisputeGameFactoryAddr != nil {
 		data, bond, err := l.ProposeL2OutputDGFTxData(output)
@@ -400,9 +404,9 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	}
 
 	if receipt.Status == types.ReceiptStatusFailed {
-		l.Log.Error("proposer tx successfully published but reverted", "tx_hash", receipt.TxHash)
+		l.Log.Error("Proposer tx successfully published but reverted", "tx_hash", receipt.TxHash)
 	} else {
-		l.Log.Info("proposer tx successfully published",
+		l.Log.Info("Proposer tx successfully published",
 			"tx_hash", receipt.TxHash,
 			"l1blocknum", output.Status.CurrentL1.Number,
 			"l1blockhash", output.Status.CurrentL1.Hash)
@@ -431,15 +435,15 @@ func (l *L2OutputSubmitter) loop() {
 }
 
 func (l *L2OutputSubmitter) waitNodeSync() error {
-	ctx, cancel := context.WithTimeout(l.ctx, l.Cfg.NetworkTimeout)
+	cCtx, cancel := context.WithTimeout(l.ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 
-	l1head, err := l.Txmgr.BlockNumber(ctx)
+	l1head, err := l.Txmgr.BlockNumber(cCtx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve current L1 block number: %w", err)
 	}
 
-	rollupClient, err := l.RollupProvider.RollupClient(ctx)
+	rollupClient, err := l.RollupProvider.RollupClient(l.ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get rollup client: %w", err)
 	}

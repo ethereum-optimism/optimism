@@ -18,6 +18,7 @@ const (
 	S3AccessKeyIDFlagName     = "s3.access-key-id"
 	S3AccessKeySecretFlagName = "s3.access-key-secret"
 	FileStorePathFlagName     = "file.path"
+	GenericCommFlagName       = "generic-commitment"
 )
 
 const EnvVarPrefix = "OP_PLASMA_DA_SERVER"
@@ -43,6 +44,12 @@ var (
 		Name:    FileStorePathFlagName,
 		Usage:   "path to directory for file storage",
 		EnvVars: prefixEnvVars("FILESTORE_PATH"),
+	}
+	GenericCommFlag = &cli.BoolFlag{
+		Name:    GenericCommFlagName,
+		Usage:   "enable generic commitments for testing. Not for production use.",
+		EnvVars: prefixEnvVars("GENERIC_COMMITMENT"),
+		Value:   false,
 	}
 	S3BucketFlag = &cli.StringFlag{
 		Name:    S3BucketFlagName,
@@ -80,6 +87,7 @@ var optionalFlags = []cli.Flag{
 	S3EndpointFlag,
 	S3AccessKeyIDFlag,
 	S3AccessKeySecretFlag,
+	GenericCommFlag,
 }
 
 func init() {
@@ -96,6 +104,7 @@ type CLIConfig struct {
 	S3Endpoint        string
 	S3AccessKeyID     string
 	S3AccessKeySecret string
+	UseGenericComm    bool
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
@@ -105,6 +114,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		S3Endpoint:        ctx.String(S3EndpointFlagName),
 		S3AccessKeyID:     ctx.String(S3AccessKeyIDFlagName),
 		S3AccessKeySecret: ctx.String(S3AccessKeySecretFlagName),
+		UseGenericComm:    ctx.Bool(GenericCommFlagName),
 	}
 }
 

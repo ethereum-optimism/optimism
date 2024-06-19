@@ -10,7 +10,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// clients represents a set of initialized RPC clients
+// Clients represents a set of initialized RPC clients
 type Clients struct {
 	L1Client     *ethclient.Client
 	L2Client     *ethclient.Client

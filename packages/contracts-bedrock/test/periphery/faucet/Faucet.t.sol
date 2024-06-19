@@ -106,6 +106,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_authAdmin_drip_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
             bytes(optimistNftFamName),
@@ -119,7 +121,7 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.prank(nonAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(optimistNftFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
     }
@@ -127,6 +129,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_nonAdmin_drip_fails() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature = issueProofWithEIP712Domain(
             nonAdminKey,
             bytes(optimistNftFamName),
@@ -141,7 +145,7 @@ contract FaucetTest is Faucet_Initializer {
         vm.prank(nonAdmin);
         vm.expectRevert("Faucet: drip parameters could not be verified by security module");
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(optimistNftFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
     }
@@ -149,6 +153,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_drip_optimistNftSendsCorrectAmount_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
             bytes(optimistNftFamName),
@@ -163,7 +169,7 @@ contract FaucetTest is Faucet_Initializer {
         uint256 recipientBalanceBefore = address(fundsReceiver).balance;
         vm.prank(nonAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(optimistNftFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         uint256 recipientBalanceAfter = address(fundsReceiver).balance;
@@ -173,6 +179,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_drip_githubSendsCorrectAmount_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
             bytes(githubFamName),
@@ -187,7 +195,7 @@ contract FaucetTest is Faucet_Initializer {
         uint256 recipientBalanceBefore = address(fundsReceiver).balance;
         vm.prank(nonAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         uint256 recipientBalanceAfter = address(fundsReceiver).balance;
@@ -197,6 +205,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_drip_emitsEvent_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
             bytes(githubFamName),
@@ -213,7 +223,7 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.prank(nonAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
     }
@@ -221,6 +231,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_drip_disabledModule_reverts() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
             bytes(githubFamName),
@@ -234,7 +246,7 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.startPrank(faucetContractAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
 
@@ -242,7 +254,7 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.expectRevert("Faucet: provided auth module is not supported by this faucet");
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         vm.stopPrank();
@@ -251,6 +263,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_drip_preventsReplayAttacks_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
             bytes(githubFamName),
@@ -264,13 +278,13 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.startPrank(faucetContractAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
 
         vm.expectRevert("Faucet: nonce has already been used");
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         vm.stopPrank();
@@ -279,6 +293,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_drip_beforeTimeout_reverts() external {
         _enableFaucetAuthModules();
         bytes32 nonce0 = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature0 = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
             bytes(githubFamName),
@@ -292,7 +308,7 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.startPrank(faucetContractAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce0),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce0, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature0)
         );
 
@@ -310,7 +326,7 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.expectRevert("Faucet: auth cannot be used yet because timeout has not elapsed");
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce1),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce1, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature1)
         );
         vm.stopPrank();
@@ -319,6 +335,8 @@ contract FaucetTest is Faucet_Initializer {
     function test_drip_afterTimeout_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce0 = faucetHelper.consumeNonce();
+        bytes memory data = "0x";
+        uint32 gasLimit = 200000;
         bytes memory signature0 = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
             bytes(githubFamName),
@@ -332,7 +350,7 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.startPrank(faucetContractAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce0),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce0, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature0)
         );
 
@@ -350,7 +368,7 @@ contract FaucetTest is Faucet_Initializer {
 
         vm.warp(startingTimestamp + 1 days + 1 seconds);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), nonce1),
+            Faucet.DripParameters(payable(fundsReceiver), data, nonce1, gasLimit),
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature1)
         );
         vm.stopPrank();

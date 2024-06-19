@@ -35,6 +35,7 @@ var (
 	methodClaimCount              = "claimDataLen"
 	methodClaim                   = "claimData"
 	methodL1Head                  = "l1Head"
+	methodResolvedAt              = "resolvedAt"
 	methodResolvedSubgames        = "resolvedSubgames"
 	methodResolve                 = "resolve"
 	methodResolveClaim            = "resolveClaim"
@@ -136,21 +137,20 @@ func mustParseAbi(json []byte) *abi.ABI {
 	return &loaded
 }
 
-// GetBalance returns the total amount of ETH controlled by this contract.
+// GetBalanceAndDelay returns the total amount of ETH controlled by this contract.
 // Note that the ETH is actually held by the DelayedWETH contract which may be shared by multiple games.
 // Returns the balance and the address of the contract that actually holds the balance.
-func (f *FaultDisputeGameContractLatest) GetBalance(ctx context.Context, block rpcblock.Block) (*big.Int, common.Address, error) {
-	defer f.metrics.StartContractRequest("GetBalance")()
-	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodWETH))
+func (f *FaultDisputeGameContractLatest) GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
+	defer f.metrics.StartContractRequest("GetBalanceAndDelay")()
+	weth, err := f.getDelayedWETH(ctx, block)
 	if err != nil {
-		return nil, common.Address{}, fmt.Errorf("failed to load weth address: %w", err)
+		return nil, 0, common.Address{}, fmt.Errorf("failed to get DelayedWETH contract: %w", err)
 	}
-	wethAddr := result.GetAddress(0)
-	result, err = f.multiCaller.SingleCall(ctx, block, batching.NewBalanceCall(wethAddr))
+	balance, delay, err := weth.GetBalanceAndDelay(ctx, block)
 	if err != nil {
-		return nil, common.Address{}, fmt.Errorf("failed to retrieve game balance: %w", err)
+		return nil, 0, common.Address{}, fmt.Errorf("failed to get WETH balance and delay: %w", err)
 	}
-	return result.GetBigInt(0), wethAddr, nil
+	return balance, delay, weth.Addr(), nil
 }
 
 // GetBlockRange returns the block numbers of the absolute pre-state block (typically genesis or the bedrock activation block)
@@ -220,6 +220,16 @@ func (f *FaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, bl
 		L2BlockNumberChallenged: blockChallenged,
 		L2BlockNumberChallenger: blockChallenger,
 	}, nil
+}
+
+func (f *FaultDisputeGameContractLatest) GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error) {
+	defer f.metrics.StartContractRequest("GetResolvedAt")()
+	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodResolvedAt))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to retrieve resolution time: %w", err)
+	}
+	resolvedAt := time.Unix(int64(result.GetUint64(0)), 0)
+	return resolvedAt, nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetStartingRootHash(ctx context.Context) (common.Hash, error) {
@@ -336,18 +346,18 @@ func (f *FaultDisputeGameContractLatest) addGlobalDataTx(ctx context.Context, da
 	return oracle.AddGlobalDataTx(data)
 }
 
-func (f *FaultDisputeGameContractLatest) GetWithdrawals(ctx context.Context, block rpcblock.Block, gameAddr common.Address, recipients ...common.Address) ([]*WithdrawalRequest, error) {
+func (f *FaultDisputeGameContractLatest) GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*WithdrawalRequest, error) {
 	defer f.metrics.StartContractRequest("GetWithdrawals")()
-	delayedWETH, err := f.getDelayedWETH(ctx)
+	delayedWETH, err := f.getDelayedWETH(ctx, block)
 	if err != nil {
 		return nil, err
 	}
-	return delayedWETH.GetWithdrawals(ctx, block, gameAddr, recipients...)
+	return delayedWETH.GetWithdrawals(ctx, block, f.contract.Addr(), recipients...)
 }
 
-func (f *FaultDisputeGameContractLatest) getDelayedWETH(ctx context.Context) (*DelayedWETHContract, error) {
+func (f *FaultDisputeGameContractLatest) getDelayedWETH(ctx context.Context, block rpcblock.Block) (*DelayedWETHContract, error) {
 	defer f.metrics.StartContractRequest("GetDelayedWETH")()
-	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodWETH))
+	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodWETH))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch WETH addr: %w", err)
 	}
@@ -356,7 +366,7 @@ func (f *FaultDisputeGameContractLatest) getDelayedWETH(ctx context.Context) (*D
 
 func (f *FaultDisputeGameContractLatest) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
 	defer f.metrics.StartContractRequest("GetOracle")()
-	vm, err := f.vm(ctx)
+	vm, err := f.Vm(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +469,7 @@ func (f *FaultDisputeGameContractLatest) IsResolved(ctx context.Context, block r
 	return resolved, nil
 }
 
-func (f *FaultDisputeGameContractLatest) vm(ctx context.Context) (*VMContract, error) {
+func (f *FaultDisputeGameContractLatest) Vm(ctx context.Context) (*VMContract, error) {
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodVM))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch VM addr: %w", err)
@@ -593,9 +603,10 @@ func (f *FaultDisputeGameContractLatest) decodeClaim(result *batching.CallResult
 }
 
 type FaultDisputeGameContract interface {
-	GetBalance(ctx context.Context, block rpcblock.Block) (*big.Int, common.Address, error)
+	GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error)
 	GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error)
 	GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
+	GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error)
 	GetStartingRootHash(ctx context.Context) (common.Hash, error)
 	GetSplitDepth(ctx context.Context) (types.Depth, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
@@ -604,7 +615,7 @@ type FaultDisputeGameContract interface {
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
 	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
 	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
-	GetWithdrawals(ctx context.Context, block rpcblock.Block, gameAddr common.Address, recipients ...common.Address) ([]*WithdrawalRequest, error)
+	GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*WithdrawalRequest, error)
 	GetOracle(ctx context.Context) (*PreimageOracleContract, error)
 	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
@@ -624,4 +635,5 @@ type FaultDisputeGameContract interface {
 	ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error)
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	ResolveTx() (txmgr.TxCandidate, error)
+	Vm(ctx context.Context) (*VMContract, error)
 }

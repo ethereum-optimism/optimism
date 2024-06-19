@@ -82,7 +82,7 @@ var ErrNotEnabled = errors.New("plasma not enabled")
 // PlasmaDisabled is a noop plasma DA implementation for stubbing.
 type PlasmaDisabled struct{}
 
-func (d *PlasmaDisabled) GetInput(ctx context.Context, l1 L1Fetcher, commitment CommitmentData, blockId eth.BlockID) (eth.Data, error) {
+func (d *PlasmaDisabled) GetInput(ctx context.Context, l1 L1Fetcher, commitment CommitmentData, blockId eth.L1BlockRef) (eth.Data, error) {
 	return nil, ErrNotEnabled
 }
 

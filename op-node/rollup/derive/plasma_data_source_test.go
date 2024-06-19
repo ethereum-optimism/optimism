@@ -56,7 +56,7 @@ func TestPlasmaDataSource(t *testing.T) {
 	}
 	metrics := &plasma.NoopMetrics{}
 
-	daState := plasma.NewState(logger, metrics)
+	daState := plasma.NewState(logger, metrics, pcfg)
 
 	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, metrics, daState)
 
@@ -91,11 +91,13 @@ func TestPlasmaDataSource(t *testing.T) {
 		PlasmaConfig: &rollup.PlasmaConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
+			CommitmentType:    plasma.KeccakCommitmentString,
 		},
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
 	var comms []plasma.CommitmentData
+	var inclusionBlocks []eth.L1BlockRef
 
 	signer := cfg.L1Signer()
 
@@ -130,6 +132,7 @@ func TestPlasmaDataSource(t *testing.T) {
 			kComm := comm.(plasma.Keccak256Commitment)
 			inputs = append(inputs, input)
 			comms = append(comms, kComm)
+			inclusionBlocks = append(inclusionBlocks, ref)
 
 			tx, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
 				ChainID:   signer.ChainID(),
@@ -160,7 +163,7 @@ func TestPlasmaDataSource(t *testing.T) {
 		if len(comms) >= 4 && nc < 7 {
 			// skip a block between each challenge transaction
 			if nc%2 == 0 {
-				daState.SetActiveChallenge(comms[nc/2].Encode(), ref.Number, pcfg.ResolveWindow)
+				daState.CreateChallenge(comms[nc/2], ref.ID(), inclusionBlocks[nc/2].Number)
 				logger.Info("setting active challenge", "comm", comms[nc/2])
 			}
 			nc++
@@ -274,11 +277,9 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	}
 
-	// trigger l1 finalization signal
-	da.Finalize(l1Refs[len(l1Refs)-32])
-
+	// finalize based on the second to last block, which will prune the commitment on block 2, and make it finalized
+	da.Finalize(l1Refs[len(l1Refs)-2])
 	finalitySignal.AssertExpectations(t)
-	l1F.AssertExpectations(t)
 }
 
 // This tests makes sure the pipeline returns a temporary error if data is not found.
@@ -298,7 +299,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 
 	metrics := &plasma.NoopMetrics{}
 
-	daState := plasma.NewState(logger, metrics)
+	daState := plasma.NewState(logger, metrics, pcfg)
 
 	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, metrics, daState)
 
@@ -333,6 +334,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		PlasmaConfig: &rollup.PlasmaConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
+			CommitmentType:    plasma.KeccakCommitmentString,
 		},
 	}
 
@@ -394,8 +396,11 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	_, err = src.Next(ctx)
 	require.ErrorIs(t, err, NotEnoughData)
 
+	// create and resolve a challenge
+	daState.CreateChallenge(comm, ref.ID(), ref.Number)
 	// now challenge is resolved
-	daState.SetResolvedChallenge(comm.Encode(), input, ref.Number+2)
+	err = daState.ResolveChallenge(comm, eth.BlockID{Number: ref.Number + 2}, ref.Number, input)
+	require.NoError(t, err)
 
 	// derivation can resume
 	data, err := src.Next(ctx)
@@ -451,6 +456,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		PlasmaConfig: &rollup.PlasmaConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
+			CommitmentType:    plasma.KeccakCommitmentString,
 		},
 	}
 

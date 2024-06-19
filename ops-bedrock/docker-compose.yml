@@ -178,7 +178,7 @@ services:
       # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
       OP_CHALLENGER_L1_BEACON: "unset"
       OP_CHALLENGER_ROLLUP_RPC: http://op-node:8545
-      OP_CHALLENGER_TRACE_TYPE: cannon
+      OP_CHALLENGER_TRACE_TYPE: cannon,fast
       OP_CHALLENGER_GAME_FACTORY_ADDRESS: ${DGF_ADDRESS}
       # The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
       # before the L2 genesis is known.
@@ -206,6 +206,7 @@ services:
       --addr=0.0.0.0
       --port=3100
       --log.level=debug
+      --generic-commitment="${PLASMA_GENERIC_DA}"
     ports:
       - "3100:3100"
     volumes:

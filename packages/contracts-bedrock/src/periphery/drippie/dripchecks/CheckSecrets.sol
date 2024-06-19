@@ -21,6 +21,9 @@ contract CheckSecrets is IDripCheck {
     /// @notice Event emitted when a secret is revealed.
     event SecretRevealed(bytes32 indexed secretHash, bytes secret);
 
+    /// @inheritdoc IDripCheck
+    string public name = "CheckSecrets";
+
     /// @notice Keeps track of when secrets were revealed.
     mapping(bytes32 => uint256) public revealedSecrets;
 

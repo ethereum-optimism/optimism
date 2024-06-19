@@ -7,7 +7,7 @@ import { AnchorStateRegistry, IAnchorStateRegistry } from "src/dispute/AnchorSta
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import "src/dispute/lib/Types.sol";
-import "scripts/Deploy.s.sol";
+import "scripts/deploy/Deploy.s.sol";
 
 /// @notice Deploys the Fault Proof Alpha Chad contracts.
 contract FPACOPS is Deploy, StdAssertions {

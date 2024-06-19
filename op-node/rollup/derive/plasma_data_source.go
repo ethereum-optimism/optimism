@@ -17,12 +17,12 @@ type PlasmaDataSource struct {
 	src     DataIter
 	fetcher PlasmaInputFetcher
 	l1      L1Fetcher
-	id      eth.BlockID
+	id      eth.L1BlockRef
 	// keep track of a pending commitment so we can keep trying to fetch the input.
 	comm plasma.CommitmentData
 }
 
-func NewPlasmaDataSource(log log.Logger, src DataIter, l1 L1Fetcher, fetcher PlasmaInputFetcher, id eth.BlockID) *PlasmaDataSource {
+func NewPlasmaDataSource(log log.Logger, src DataIter, l1 L1Fetcher, fetcher PlasmaInputFetcher, id eth.L1BlockRef) *PlasmaDataSource {
 	return &PlasmaDataSource{
 		log:     log,
 		src:     src,
@@ -37,7 +37,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 	// before we can proceed to fetch the input data. This function can be called multiple times
 	// for the same origin and noop if the origin was already processed. It is also called if
 	// there is not commitment in the current origin.
-	if err := s.fetcher.AdvanceL1Origin(ctx, s.l1, s.id); err != nil {
+	if err := s.fetcher.AdvanceL1Origin(ctx, s.l1, s.id.ID()); err != nil {
 		if errors.Is(err, plasma.ErrReorgRequired) {
 			return nil, NewResetError(fmt.Errorf("new expired challenge"))
 		}
@@ -92,7 +92,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %x from da service: %w", s.comm, err))
 	}
 	// inputs are limited to a max size to ensure they can be challenged in the DA contract.
-	if len(data) > plasma.MaxInputSize {
+	if s.comm.CommitmentType() == plasma.Keccak256CommitmentType && len(data) > plasma.MaxInputSize {
 		s.log.Warn("input data exceeds max size", "size", len(data), "max", plasma.MaxInputSize)
 		s.comm = nil
 		return s.Next(ctx)

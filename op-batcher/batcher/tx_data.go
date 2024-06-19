@@ -62,7 +62,7 @@ func (td *txData) Len() (l int) {
 	return l
 }
 
-// Frame returns the single frame of this tx data.
+// Frames returns the single frame of this tx data.
 func (td *txData) Frames() []frameData {
 	return td.frames
 }

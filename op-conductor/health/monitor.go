@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -25,7 +26,7 @@ type HealthMonitor interface {
 	// Subscribe returns a channel that will be notified for every health check.
 	Subscribe() <-chan error
 	// Start starts the health check.
-	Start() error
+	Start(ctx context.Context) error
 	// Stop stops the health check.
 	Stop() error
 }
@@ -34,10 +35,10 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
 	return &SequencerHealthMonitor{
 		log:            log,
-		done:           make(chan struct{}),
+		metrics:        metrics,
 		interval:       interval,
 		healthUpdateCh: make(chan error),
 		rollupCfg:      rollupCfg,
@@ -53,9 +54,10 @@ func NewSequencerHealthMonitor(log log.Logger, interval, unsafeInterval, safeInt
 
 // SequencerHealthMonitor monitors sequencer health.
 type SequencerHealthMonitor struct {
-	log  log.Logger
-	done chan struct{}
-	wg   sync.WaitGroup
+	log     log.Logger
+	metrics metrics.Metricer
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 
 	rollupCfg          *rollup.Config
 	unsafeInterval     uint64
@@ -76,10 +78,13 @@ type SequencerHealthMonitor struct {
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
 
 // Start implements HealthMonitor.
-func (hm *SequencerHealthMonitor) Start() error {
+func (hm *SequencerHealthMonitor) Start(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	hm.cancel = cancel
+
 	hm.log.Info("starting health monitor")
 	hm.wg.Add(1)
-	go hm.loop()
+	go hm.loop(ctx)
 
 	hm.log.Info("health monitor started")
 	return nil
@@ -88,7 +93,7 @@ func (hm *SequencerHealthMonitor) Start() error {
 // Stop implements HealthMonitor.
 func (hm *SequencerHealthMonitor) Stop() error {
 	hm.log.Info("stopping health monitor")
-	close(hm.done)
+	hm.cancel()
 	hm.wg.Wait()
 
 	hm.log.Info("health monitor stopped")
@@ -100,7 +105,7 @@ func (hm *SequencerHealthMonitor) Subscribe() <-chan error {
 	return hm.healthUpdateCh
 }
 
-func (hm *SequencerHealthMonitor) loop() {
+func (hm *SequencerHealthMonitor) loop(ctx context.Context) {
 	defer hm.wg.Done()
 
 	duration := time.Duration(hm.interval) * time.Second
@@ -109,10 +114,18 @@ func (hm *SequencerHealthMonitor) loop() {
 
 	for {
 		select {
-		case <-hm.done:
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			hm.healthUpdateCh <- hm.healthCheck()
+			err := hm.healthCheck(ctx)
+			hm.metrics.RecordHealthCheck(err == nil, err)
+			// Ensure that we exit cleanly if told to shutdown while still waiting to publish the health update
+			select {
+			case hm.healthUpdateCh <- err:
+				continue
+			case <-ctx.Done():
+				return
+			}
 		}
 	}
 }
@@ -122,8 +135,7 @@ func (hm *SequencerHealthMonitor) loop() {
 // 2. unsafe head is not too far behind now (measured by unsafeInterval)
 // 3. safe head is progressing every configured batch submission interval
 // 4. peer count is above the configured minimum
-func (hm *SequencerHealthMonitor) healthCheck() error {
-	ctx := context.Background()
+func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 	status, err := hm.node.SyncStatus(ctx)
 	if err != nil {
 		hm.log.Error("health monitor failed to get sync status", "err", err)

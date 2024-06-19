@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -271,6 +272,8 @@ type DeployConfig struct {
 	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
 	// UsePlasma is a flag that indicates if the system is using op-plasma
 	UsePlasma bool `json:"usePlasma"`
+	// DACommitmentType specifies the allowed commitment
+	DACommitmentType string `json:"daCommitmentType"`
 	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
 	DAChallengeWindow uint64 `json:"daChallengeWindow"`
 	// DAResolveWindow represents the block interval during which a data availability challenge can be resolved.
@@ -438,10 +441,13 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.UsePlasma {
 		if d.DAChallengeWindow == 0 {
-			return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+			return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using alt-da mode", ErrInvalidDeployConfig)
 		}
 		if d.DAResolveWindow == 0 {
-			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using alt-da mode", ErrInvalidDeployConfig)
+		}
+		if !(d.DACommitmentType == plasma.KeccakCommitmentString || d.DACommitmentType == plasma.GenericCommitmentString) {
+			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommtiment or GenericCommitment", ErrInvalidDeployConfig)
 		}
 	}
 	if d.UseCustomGasToken {
@@ -513,9 +519,10 @@ func (d *DeployConfig) CheckAddresses() error {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.UsePlasma && d.DAChallengeProxy == (common.Address{}) {
-		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using plasma mode", ErrInvalidDeployConfig)
-
+	if d.UsePlasma && d.DACommitmentType == plasma.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
+		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using alt-da mode", ErrInvalidDeployConfig)
+	} else if d.UsePlasma && d.DACommitmentType == plasma.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
+		return fmt.Errorf("%w: DAChallengeContract must be address(0) when using generic commitments in alt-da mode", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -612,6 +619,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	var plasma *rollup.PlasmaConfig
 	if d.UsePlasma {
 		plasma = &rollup.PlasmaConfig{
+			CommitmentType:     d.DACommitmentType,
 			DAChallengeAddress: d.DAChallengeProxy,
 			DAChallengeWindow:  d.DAChallengeWindow,
 			DAResolveWindow:    d.DAResolveWindow,
@@ -682,9 +690,9 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 }
 
 // L1Deployments represents a set of L1 contracts that are deployed.
+// This should be consolidated with https://github.com/ethereum-optimism/superchain-registry/blob/f9702a89214244c8dde39e45f5c2955f26d857d0/superchain/superchain.go#L227
 type L1Deployments struct {
 	AddressManager                    common.Address `json:"AddressManager"`
-	BlockOracle                       common.Address `json:"BlockOracle"`
 	DisputeGameFactory                common.Address `json:"DisputeGameFactory"`
 	DisputeGameFactoryProxy           common.Address `json:"DisputeGameFactoryProxy"`
 	L1CrossDomainMessenger            common.Address `json:"L1CrossDomainMessenger"`
@@ -730,10 +738,9 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 	}
 	for i := 0; i < val.NumField(); i++ {
 		name := val.Type().Field(i).Name
-		// Skip the non production ready contracts
-		if name == "DisputeGameFactory" ||
-			name == "DisputeGameFactoryProxy" ||
-			name == "BlockOracle" {
+		if !deployConfig.UseFaultProofs &&
+			(name == "DisputeGameFactory" ||
+				name == "DisputeGameFactoryProxy") {
 			continue
 		}
 		if !deployConfig.UsePlasma &&

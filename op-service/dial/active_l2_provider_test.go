@@ -43,7 +43,7 @@ func setupEndpointProviderTest(t *testing.T, numSequencers int) *endpointProvide
 
 // newActiveL2EndpointProvider constructs a new ActiveL2RollupProvider using the test harness setup.
 func (et *endpointProviderTest) newActiveL2RollupProvider(checkDuration time.Duration) (*ActiveL2RollupProvider, error) {
-	mockRollupDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
+	mockRollupDialer := func(ctx context.Context, log log.Logger, url string) (RollupClientInterface, error) {
 		for i, client := range et.rollupClients {
 			if url == fmt.Sprintf("rollup%d", i) {
 				if !et.rollupDialOutcomes[i] {
@@ -74,7 +74,7 @@ func (et *endpointProviderTest) newActiveL2RollupProvider(checkDuration time.Dur
 
 // newActiveL2EndpointProvider constructs a new ActiveL2EndpointProvider using the test harness setup.
 func (et *endpointProviderTest) newActiveL2EndpointProvider(checkDuration time.Duration) (*ActiveL2EndpointProvider, error) {
-	mockRollupDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
+	mockRollupDialer := func(ctx context.Context, log log.Logger, url string) (RollupClientInterface, error) {
 		for i, client := range et.rollupClients {
 			if url == fmt.Sprintf("rollup%d", i) {
 				if !et.rollupDialOutcomes[i] {
@@ -86,7 +86,7 @@ func (et *endpointProviderTest) newActiveL2EndpointProvider(checkDuration time.D
 		return nil, fmt.Errorf("unknown test url: %s", url)
 	}
 
-	mockEthDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (EthClientInterface, error) {
+	mockEthDialer := func(ctx context.Context, log log.Logger, url string) (EthClientInterface, error) {
 		for i, client := range et.ethClients {
 			if url == fmt.Sprintf("eth%d", i) {
 				if !et.ethDialOutcomes[i] {
