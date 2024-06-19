@@ -90,6 +90,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 
 	metrics := &testutils.TestDerivationMetrics{}
 	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
+	engineResetDeriver := engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg, synchronousEvents)
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
 
@@ -144,6 +145,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 
 	*rootDeriver = rollup.SynchronousDerivers{
 		syncDeriver,
+		engineResetDeriver,
 		engDeriv,
 		rollupNode,
 		clSync,

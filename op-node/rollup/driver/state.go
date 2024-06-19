@@ -434,7 +434,38 @@ func (s *SyncDeriver) OnEvent(ev rollup.Event) {
 	case rollup.EngineTemporaryErrorEvent:
 		s.Log.Warn("Derivation process temporary error", "err", x.Err)
 		s.Emitter.Emit(StepReqEvent{})
+	case engine.EngineResetConfirmedEvent:
+		s.onEngineConfirmedReset(x)
 	}
+}
+
+func (s *SyncDeriver) onEngineConfirmedReset(x engine.EngineResetConfirmedEvent) {
+	// If the listener update fails, we return,
+	// and don't confirm the engine-reset with the derivation pipeline.
+	// The pipeline will re-trigger a reset as necessary.
+	if s.SafeHeadNotifs != nil {
+		if err := s.SafeHeadNotifs.SafeHeadReset(x.Safe); err != nil {
+			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.Safe)
+			return
+		}
+		if s.SafeHeadNotifs.Enabled() && x.Safe.Number == s.Config.Genesis.L2.Number && x.Safe.Hash == s.Config.Genesis.L2.Hash {
+			// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
+			// we will process all safe head updates and can record genesis as always safe from L1 genesis.
+			// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis
+			// but the contracts may have been deployed earlier than that, allowing creating a dispute game
+			// with a L1 head prior to cfg.Genesis.L1
+			l1Genesis, err := s.L1.L1BlockRefByNumber(s.Ctx, 0)
+			if err != nil {
+				s.Log.Error("Failed to retrieve L1 genesis, cannot notify genesis as safe block", "err", err)
+				return
+			}
+			if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, l1Genesis.ID()); err != nil {
+				s.Log.Error("Failed to notify safe-head listener of safe-head", "err", err)
+				return
+			}
+		}
+	}
+	s.Derivation.ConfirmEngineReset()
 }
 
 func (s *SyncDeriver) onStepEvent() {
@@ -474,12 +505,7 @@ func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
 	s.Derivation.Reset()
 	s.Finalizer.Reset()
 	s.Emitter.Emit(StepReqEvent{})
-	if err := engine.ResetEngine(s.Ctx, s.Log, s.Config, s.Engine, s.L1, s.L2, s.SyncCfg, s.SafeHeadNotifs); err != nil {
-		s.Log.Error("Derivation pipeline not ready, failed to reset engine", "err", err)
-		// Derivation-pipeline will return a new ResetError until we confirm the engine has been successfully reset.
-		return
-	}
-	s.Derivation.ConfirmEngineReset()
+	s.Emitter.Emit(engine.ResetEngineRequestEvent{})
 }
 
 type DeriverIdleEvent struct{}

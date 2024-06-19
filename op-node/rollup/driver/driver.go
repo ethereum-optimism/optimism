@@ -181,6 +181,7 @@ func NewDriver(
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
 	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
+	engineResetDeriver := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, synchronousEvents)
 	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
 
 	var finalizer Finalizer
@@ -246,6 +247,7 @@ func NewDriver(
 
 	*rootDeriver = []rollup.Deriver{
 		syncDeriver,
+		engineResetDeriver,
 		engDeriv,
 		schedDeriv,
 		driver,

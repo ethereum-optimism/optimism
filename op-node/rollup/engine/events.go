@@ -61,6 +61,22 @@ func (ev TryUpdateEngineEvent) String() string {
 	return "try-update-engine"
 }
 
+type ForceEngineResetEvent struct {
+	Unsafe, Safe, Finalized eth.L2BlockRef
+}
+
+func (ev ForceEngineResetEvent) String() string {
+	return "force-engine-reset"
+}
+
+type EngineResetConfirmedEvent struct {
+	Unsafe, Safe, Finalized eth.L2BlockRef
+}
+
+func (ev EngineResetConfirmedEvent) String() string {
+	return "engine-reset-confirmed"
+}
+
 type EngDeriver struct {
 	log     log.Logger
 	cfg     *rollup.Config
@@ -146,5 +162,34 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 			SafeL2Head:      d.ec.SafeL2Head(),
 			FinalizedL2Head: d.ec.Finalized(),
 		})
+	case ForceEngineResetEvent:
+		ForceEngineReset(d.ec, x)
+
+		// Time to apply the changes to the underlying engine
+		d.emitter.Emit(TryUpdateEngineEvent{})
+
+		log.Debug("Reset of Engine is completed",
+			"safeHead", x.Safe, "unsafe", x.Unsafe, "safe_timestamp", x.Safe.Time,
+			"unsafe_timestamp", x.Unsafe.Time)
+		d.emitter.Emit(EngineResetConfirmedEvent{})
 	}
+}
+
+type ResetEngineControl interface {
+	SetUnsafeHead(eth.L2BlockRef)
+	SetSafeHead(eth.L2BlockRef)
+	SetFinalizedHead(eth.L2BlockRef)
+	SetBackupUnsafeL2Head(block eth.L2BlockRef, triggerReorg bool)
+	SetPendingSafeL2Head(eth.L2BlockRef)
+	ResetBuildingState()
+}
+
+// ForceEngineReset is not to be used. The op-program needs it for now, until event processing is adopted there.
+func ForceEngineReset(ec ResetEngineControl, x ForceEngineResetEvent) {
+	ec.SetUnsafeHead(x.Unsafe)
+	ec.SetSafeHead(x.Safe)
+	ec.SetPendingSafeL2Head(x.Safe)
+	ec.SetFinalizedHead(x.Finalized)
+	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
+	ec.ResetBuildingState()
 }
