@@ -200,7 +200,7 @@ devnet-clean:
 .PHONY: devnet-clean
 
 devnet-allocs: pre-devnet
-	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs --interop
 .PHONY: devnet-allocs
 
 devnet-logs:
