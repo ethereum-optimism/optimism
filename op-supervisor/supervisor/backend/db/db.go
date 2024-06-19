@@ -15,6 +15,8 @@ var (
 	ErrBlockOutOfOrder = errors.New("block out of order")
 )
 
+// dataAccess defines a minimal API required to manipulate the actual stored data.
+// It is a subset of the os.File API but could (theoretically) be satisfied by an in-memory implementation for testing.
 type dataAccess interface {
 	io.ReaderAt
 	io.Writer
