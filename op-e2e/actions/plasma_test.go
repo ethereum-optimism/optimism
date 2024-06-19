@@ -136,7 +136,7 @@ func (a *L2PlasmaDA) NewVerifier(t Testing) *L2Verifier {
 
 	daMgr := plasma.NewPlasmaDAWithStorage(a.log, a.plasmaCfg, a.storage, &plasma.NoopMetrics{})
 
-	verifier := NewL2Verifier(t, a.log, l1F, nil, daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled, opengine.EngineClientGeth)
+	verifier := NewL2Verifier(t, a.log, l1F, nil, daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled, opengine.Geth)
 
 	return verifier
 }

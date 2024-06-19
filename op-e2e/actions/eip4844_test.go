@@ -29,7 +29,7 @@ func setupEIP4844Test(t Testing, log log.Logger) (*e2eutils.SetupData, *e2eutils
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.EngineClientGeth)
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
 	return sd, dp, miner, sequencer, seqEngine, verifier, verifEngine
 }
 

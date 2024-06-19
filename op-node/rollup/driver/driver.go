@@ -172,7 +172,7 @@ func NewDriver(
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
 	plasma PlasmaIface,
-	engineClientKind engine.EngineClientKind,
+	engineClientKind engine.Kind,
 ) *Driver {
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)

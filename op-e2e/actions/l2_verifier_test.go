@@ -34,7 +34,7 @@ func defaultVerifierCfg() *verifierCfg {
 	}
 }
 
-func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive.L1Fetcher, blobSrc derive.L1BlobsFetcher, syncCfg *sync.Config, engineKind engine.EngineClientKind, opts ...VerifierOpt) (*L2Engine, *L2Verifier) {
+func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive.L1Fetcher, blobSrc derive.L1BlobsFetcher, syncCfg *sync.Config, engineKind engine.Kind, opts ...VerifierOpt) (*L2Engine, *L2Verifier) {
 	cfg := defaultVerifierCfg()
 	for _, opt := range opts {
 		opt(cfg)
@@ -49,7 +49,7 @@ func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive
 func setupVerifierOnlyTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1Miner, *L2Engine, *L2Verifier) {
 	miner := NewL1Miner(t, log, sd.L1Cfg)
 	l1Cl := miner.L1Client(t, sd.RollupCfg)
-	engine, verifier := setupVerifier(t, sd, log, l1Cl, miner.BlobStore(), &sync.Config{}, engine.EngineClientGeth)
+	engine, verifier := setupVerifier(t, sd, log, l1Cl, miner.BlobStore(), &sync.Config{}, engine.Geth)
 	return miner, engine, verifier
 }
 

@@ -628,7 +628,7 @@ func TestELSync(gt *testing.T) {
 
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, log)
 	// Enable engine P2P sync
-	verEng, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync}, engine.EngineClientGeth)
+	verEng, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync}, engine.Geth)
 
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
@@ -697,7 +697,7 @@ func TestELSyncTransitionstoCL(gt *testing.T) {
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, logger)
 	batcher := NewL2Batcher(logger, sd.RollupCfg, DefaultBatcherCfg(dp), sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
 	// Enable engine P2P sync
-	verEng, verifier := setupVerifier(t, sd, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync}, engine.EngineClientGeth)
+	verEng, verifier := setupVerifier(t, sd, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync}, engine.Geth)
 
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
@@ -843,7 +843,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, logger)
 	batcher := NewL2Batcher(logger, sd.RollupCfg, DefaultBatcherCfg(dp), sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
 	// Enable engine P2P sync
-	verEng, verifier := setupVerifier(t, sd, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync}, engine.EngineClientGeth)
+	verEng, verifier := setupVerifier(t, sd, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync}, engine.Geth)
 
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
@@ -927,7 +927,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	require.Equal(t, uint64(12), id.Number)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and default geth engine kind.
-	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener, engine.EngineClientGeth)
+	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener, engine.Geth)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -971,7 +971,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, logger)
 	batcher := NewL2Batcher(logger, sd.RollupCfg, DefaultBatcherCfg(dp), sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
 	// Enable engine P2P sync
-	verEng, verifier := setupVerifier(t, sd, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync}, engine.EngineClientErigon)
+	verEng, verifier := setupVerifier(t, sd, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{SyncMode: sync.ELSync}, engine.Erigon)
 
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
@@ -1055,7 +1055,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	require.Equal(t, uint64(12), id.Number)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and erigon engine kind.
-	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener, engine.EngineClientErigon)
+	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener, engine.Erigon)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {

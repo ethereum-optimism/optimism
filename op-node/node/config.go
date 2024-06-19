@@ -78,7 +78,7 @@ type Config struct {
 	// Plasma DA config
 	Plasma plasma.CLIConfig
 
-	L2EngineClientKind engine.EngineClientKind
+	L2EngineClientKind engine.Kind
 }
 
 type RPCConfig struct {

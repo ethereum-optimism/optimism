@@ -2,40 +2,50 @@ package engine
 
 import "fmt"
 
-// EngineClientKind identifies the engine client's kind, used to control the behavior of optimism in different engine clients.
-type EngineClientKind string
+// Kind identifies the engine client's kind, used to control the behavior of optimism in different engine clients.
+type Kind string
 
 const (
-	EngineClientGeth   EngineClientKind = "geth"
-	EngineClientReth   EngineClientKind = "reth"
-	EngineClientErigon EngineClientKind = "erigon"
+	Geth   Kind = "geth"
+	Reth   Kind = "reth"
+	Erigon Kind = "erigon"
 )
 
-var EngineClientKinds = []EngineClientKind{
-	EngineClientGeth,
-	EngineClientReth,
-	EngineClientErigon,
+var Kinds = []Kind{
+	Geth,
+	Reth,
+	Erigon,
 }
 
-func (kind EngineClientKind) String() string {
+func (kind Kind) String() string {
 	return string(kind)
 }
 
-func (kind *EngineClientKind) Set(value string) error {
-	if !ValidEngineClientKind(EngineClientKind(value)) {
+func (kind *Kind) Set(value string) error {
+	if !ValidEngineKind(Kind(value)) {
 		return fmt.Errorf("unknown engine client kind: %q", value)
 	}
-	*kind = EngineClientKind(value)
+	*kind = Kind(value)
 	return nil
 }
 
-func (kind *EngineClientKind) Clone() any {
+func (kind *Kind) Clone() any {
 	cpy := *kind
 	return &cpy
 }
 
-func ValidEngineClientKind(value EngineClientKind) bool {
-	for _, k := range EngineClientKinds {
+func (kind Kind) SupportsPostFinalizationELSync() bool {
+	switch kind {
+	case Geth:
+		return false
+	case Erigon, Reth:
+		return true
+	}
+	return false
+}
+
+func ValidEngineKind(value Kind) bool {
+	for _, k := range Kinds {
 		if k == value {
 			return true
 		}

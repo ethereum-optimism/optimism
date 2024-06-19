@@ -75,9 +75,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		haltOption = ""
 	}
 
-	engineKind := engine.EngineClientKind(ctx.String(flags.L2EngineKind.Name))
-	if !engine.ValidEngineClientKind(engineKind) {
-		engineKind = engine.EngineClientGeth
+	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
+	if !engine.ValidEngineKind(engineKind) {
+		engineKind = engine.Geth
 	}
 
 	cfg := &node.Config{

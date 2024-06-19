@@ -48,7 +48,7 @@ type EngineController struct {
 	log        log.Logger
 	metrics    derive.Metrics
 	syncMode   sync.Mode
-	engineKind EngineClientKind
+	engineKind Kind
 	syncStatus syncStatusEnum
 	chainSpec  *rollup.ChainSpec
 	rollupCfg  *rollup.Config
@@ -76,7 +76,7 @@ type EngineController struct {
 	safeAttrs    *derive.AttributesWithParent
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics, rollupCfg *rollup.Config, syncCfg *sync.Config, engineKind EngineClientKind) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics, rollupCfg *rollup.Config, syncCfg *sync.Config, engineKind Kind) *EngineController {
 	syncStatus := syncStatusCL
 	if syncCfg.SyncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
@@ -378,7 +378,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		rollupGenesisIsFinalized := b.Hash == e.rollupCfg.Genesis.L2.Hash
-		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized || e.engineKind != EngineClientGeth {
+		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized || e.engineKind.SupportsPostFinalizationELSync() {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()
