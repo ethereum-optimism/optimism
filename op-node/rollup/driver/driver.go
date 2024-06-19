@@ -77,8 +77,6 @@ type EngineController interface {
 
 type CLSync interface {
 	LowestQueuedUnsafeBlock() eth.L2BlockRef
-	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
-	Proceed(ctx context.Context) error
 }
 
 type AttributesHandler interface {
@@ -173,13 +171,17 @@ func NewDriver(
 	sequencerConductor conductor.SequencerConductor,
 	plasma PlasmaIface,
 ) *Driver {
+	driverCtx, driverCancel := context.WithCancel(context.Background())
+	rootDeriver := &rollup.SynchronousDerivers{}
+	synchronousEvents := rollup.NewSynchronousEvents(log, driverCtx, rootDeriver)
+
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
-	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
+	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
 
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
@@ -193,11 +195,7 @@ func NewDriver(
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, ec, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
-	driverCtx, driverCancel := context.WithCancel(context.Background())
 	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
-
-	rootDeriver := &rollup.SynchronousDerivers{}
-	synchronousEvents := NewSynchronousEvents(log, driverCtx, rootDeriver)
 
 	syncDeriver := &SyncDeriver{
 		Derivation:        derivationPipeline,
@@ -251,6 +249,7 @@ func NewDriver(
 		engDeriv,
 		schedDeriv,
 		driver,
+		clSync,
 	}
 
 	return driver

@@ -182,7 +182,7 @@ func TestAttributesHandler(t *testing.T) {
 	t.Run("drop stale attributes", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 		defer eng.AssertExpectations(t)
 
@@ -196,7 +196,7 @@ func TestAttributesHandler(t *testing.T) {
 	t.Run("pending gets reorged", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 		defer eng.AssertExpectations(t)
 
@@ -211,7 +211,7 @@ func TestAttributesHandler(t *testing.T) {
 		t.Run("consolidation fails", func(t *testing.T) {
 			logger := testlog.Logger(t, log.LevelInfo)
 			eng := &testutils.MockEngine{}
-			ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+			ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
 			ah := NewAttributesHandler(logger, cfg, ec, eng)
 
 			ec.SetUnsafeHead(refA1)
@@ -265,7 +265,7 @@ func TestAttributesHandler(t *testing.T) {
 			fn := func(t *testing.T, lastInSpan bool) {
 				logger := testlog.Logger(t, log.LevelInfo)
 				eng := &testutils.MockEngine{}
-				ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+				ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
 				ah := NewAttributesHandler(logger, cfg, ec, eng)
 
 				ec.SetUnsafeHead(refA1)
@@ -324,7 +324,7 @@ func TestAttributesHandler(t *testing.T) {
 
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 
 		ec.SetUnsafeHead(refA0)
@@ -375,7 +375,7 @@ func TestAttributesHandler(t *testing.T) {
 
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 
 		ec.SetUnsafeHead(refA0)
@@ -399,7 +399,7 @@ func TestAttributesHandler(t *testing.T) {
 	t.Run("no attributes", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		eng := &testutils.MockEngine{}
-		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+		ec := engine.NewEngineController(eng, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
 		ah := NewAttributesHandler(logger, cfg, ec, eng)
 		defer eng.AssertExpectations(t)
 

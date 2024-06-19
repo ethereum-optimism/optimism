@@ -54,6 +54,8 @@ type EngineController struct {
 	elStart    time.Time
 	clock      clock.Clock
 
+	emitter rollup.EventEmitter
+
 	// Block Head State
 	unsafeHead       eth.L2BlockRef
 	pendingSafeHead  eth.L2BlockRef // L2 block processed from the middle of a span batch, but not marked as the safe block yet.
@@ -75,7 +77,8 @@ type EngineController struct {
 	safeAttrs    *derive.AttributesWithParent
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics, rollupCfg *rollup.Config, syncMode sync.Mode) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics,
+	rollupCfg *rollup.Config, syncMode sync.Mode, emitter rollup.EventEmitter) *EngineController {
 	syncStatus := syncStatusCL
 	if syncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
@@ -90,6 +93,7 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metri
 		syncMode:   syncMode,
 		syncStatus: syncStatus,
 		clock:      clock.SystemClock,
+		emitter:    emitter,
 	}
 }
 
@@ -224,6 +228,11 @@ func (e *EngineController) StartPayload(ctx context.Context, parent eth.L2BlockR
 	if err != nil {
 		return errTyp, err
 	}
+	e.emitter.Emit(ForkchoiceUpdateEvent{
+		UnsafeL2Head:    parent,
+		SafeL2Head:      e.safeHead,
+		FinalizedL2Head: e.finalizedHead,
+	})
 
 	e.buildingInfo = eth.PayloadInfo{ID: id, Timestamp: uint64(attrs.Attributes.Timestamp)}
 	e.buildingSafe = updateSafe
@@ -257,6 +266,9 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.IsLastInSpan
 	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor)
 	if err != nil {
+		if !errors.Is(err, derive.ErrTemporary) {
+			e.emitter.Emit(InvalidPayloadEvent{})
+		}
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingInfo.ID, errTyp, err)
 	}
 	ref, err := derive.PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
@@ -280,6 +292,11 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 			e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 		}
 	}
+	e.emitter.Emit(ForkchoiceUpdateEvent{
+		UnsafeL2Head:    e.unsafeHead,
+		SafeL2Head:      e.safeHead,
+		FinalizedL2Head: e.finalizedHead,
+	})
 
 	e.resetBuildingState()
 	return envelope, BlockInsertOK, nil
@@ -353,7 +370,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
-	_, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
+	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		var inputErr eth.InputError
 		if errors.As(err, &inputErr) {
@@ -366,6 +383,13 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 		} else {
 			return derive.NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
 		}
+	}
+	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
+		e.emitter.Emit(ForkchoiceUpdateEvent{
+			UnsafeL2Head:    e.unsafeHead,
+			SafeL2Head:      e.safeHead,
+			FinalizedL2Head: e.finalizedHead,
+		})
 	}
 	e.needFCUCall = false
 	return nil
@@ -392,6 +416,9 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
+	}
+	if status.Status == eth.ExecutionInvalid {
+		e.emitter.Emit(InvalidPayloadEvent{Envelope: envelope})
 	}
 	if !e.checkNewPayloadStatus(status.Status) {
 		payload := envelope.ExecutionPayload
@@ -438,6 +465,14 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())
 		e.syncStatus = syncStatusFinishedEL
+	}
+
+	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
+		e.emitter.Emit(ForkchoiceUpdateEvent{
+			UnsafeL2Head:    e.unsafeHead,
+			SafeL2Head:      e.safeHead,
+			FinalizedL2Head: e.finalizedHead,
+		})
 	}
 
 	return nil
@@ -501,6 +536,11 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 		}
 	}
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
+		e.emitter.Emit(ForkchoiceUpdateEvent{
+			UnsafeL2Head:    e.backupUnsafeHead,
+			SafeL2Head:      e.safeHead,
+			FinalizedL2Head: e.finalizedHead,
+		})
 		// Execution engine accepted the reorg.
 		e.log.Info("successfully reorged unsafe head using backupUnsafe", "unsafe", e.backupUnsafeHead.ID())
 		e.SetUnsafeHead(e.BackupUnsafeL2Head())

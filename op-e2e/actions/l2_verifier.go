@@ -82,10 +82,16 @@ type safeDB interface {
 }
 
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB) *L2Verifier {
-	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
+	rootDeriver := &rollup.SynchronousDerivers{}
+	synchronousEvents := rollup.NewSynchronousEvents(log, ctx, rootDeriver)
+
+	metrics := &testutils.TestDerivationMetrics{}
+	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
+
+	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
 
 	var finalizer driver.Finalizer
 	if cfg.PlasmaEnabled() {
@@ -97,12 +103,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	attributesHandler := attributes.NewAttributesHandler(log, cfg, ec, eng)
 
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, metrics)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	rootDeriver := &rollup.SynchronousDerivers{}
-	synchronousEvents := driver.NewSynchronousEvents(log, ctx, rootDeriver)
 
 	syncDeriver := &driver.SyncDeriver{
 		Derivation:        pipeline,
@@ -146,6 +146,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		syncDeriver,
 		engDeriv,
 		rollupNode,
+		clSync,
 	}
 
 	t.Cleanup(rollupNode.rpc.Stop)
@@ -328,7 +329,7 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.clSync.AddUnsafePayload(payload)
+		s.syncDeriver.Emitter.Emit(clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
 	}
 }
 
