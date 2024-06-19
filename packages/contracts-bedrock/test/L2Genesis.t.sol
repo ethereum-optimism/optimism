@@ -37,7 +37,7 @@ contract L2GenesisTest is Test {
         commands[0] = "bash";
         commands[1] = "-c";
         commands[2] = string.concat("rm ", path);
-        Process.run(commands);
+        Process.run({ _command: commands, _allowEmpty: true });
     }
 
     /// @notice Returns the number of top level keys in a JSON object at a given
