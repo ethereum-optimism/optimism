@@ -143,7 +143,7 @@ def devnet_l1_allocs(paths):
     log.info('Generating L1 genesis allocs')
     init_devnet_l1_deploy_config(paths)
 
-    fqn = 'scripts/Deploy.s.sol:Deploy'
+    fqn = 'scripts/deploy/Deploy.s.sol:Deploy'
     run_command([
         # We need to set the sender here to an account we know the private key of,
         # because the sender ends up being the owner of the ProxyAdmin SAFE

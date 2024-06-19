@@ -1,7 +1,7 @@
 """
 Description:
     Unescapes the JSON produced by the stateDiff modifier
-    defined in contracts-bedrock/scripts/Deploy.s.sol
+    defined in contracts-bedrock/scripts/deploy/Deploy.s.sol
     This script is used in ../make-summary-deployment.sh
 
 Usage:

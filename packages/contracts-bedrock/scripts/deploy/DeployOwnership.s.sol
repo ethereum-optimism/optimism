@@ -9,7 +9,7 @@ import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
-import { Deployer } from "scripts/Deployer.sol";
+import { Deployer } from "scripts/deploy/Deployer.sol";
 
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 import { LivenessModule } from "src/Safe/LivenessModule.sol";

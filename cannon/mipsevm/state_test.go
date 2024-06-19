@@ -301,3 +301,26 @@ func selectOracleFixture(t *testing.T, programName string) PreimageOracle {
 		return nil
 	}
 }
+
+func TestStateJSONCodec(t *testing.T) {
+	elfProgram, err := elf.Open("../example/bin/hello.elf")
+	require.NoError(t, err, "open ELF file")
+	state, err := LoadELF(elfProgram)
+	require.NoError(t, err, "load ELF into state")
+
+	stateJSON, err := state.MarshalJSON()
+	require.NoError(t, err)
+
+	newState := new(State)
+	require.NoError(t, newState.UnmarshalJSON(stateJSON))
+
+	require.Equal(t, state.PreimageKey, newState.PreimageKey)
+	require.Equal(t, state.PreimageOffset, newState.PreimageOffset)
+	require.Equal(t, state.Cpu, newState.Cpu)
+	require.Equal(t, state.Heap, newState.Heap)
+	require.Equal(t, state.ExitCode, newState.ExitCode)
+	require.Equal(t, state.Exited, newState.Exited)
+	require.Equal(t, state.Memory.MerkleRoot(), newState.Memory.MerkleRoot())
+	require.Equal(t, state.Registers, newState.Registers)
+	require.Equal(t, state.Step, newState.Step)
+}
