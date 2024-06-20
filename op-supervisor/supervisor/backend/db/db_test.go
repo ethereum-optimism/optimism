@@ -75,45 +75,6 @@ func TestEmptyDbDoesNotFindEntry(t *testing.T) {
 		})
 }
 
-//func TestContainsRecordedLog(t *testing.T) {
-//	t.Skip("TODO")
-//	runDBTest(t,
-//		func(t *testing.T, db *DB) {
-//			err := db.Add(50, []common.Hash{createHash(0), createHash(2), createHash(1)})
-//			require.NoError(t, err)
-//		},
-//		func(t *testing.T, db *DB) {
-//			actual, err := db.Contains(50, 0, createHash(0))
-//			require.NoError(t, err)
-//			require.True(t, actual)
-//
-//			actual, err = db.Contains(50, 1, createHash(2))
-//			require.NoError(t, err)
-//			require.True(t, actual)
-//
-//			actual, err = db.Contains(50, 2, createHash(1))
-//			require.NoError(t, err)
-//			require.True(t, actual)
-//
-//			actual, err = db.Contains(49, 0, createHash(0))
-//			require.NoError(t, err)
-//			require.False(t, actual)
-//
-//			actual, err = db.Contains(51, 0, createHash(0))
-//			require.NoError(t, err)
-//			require.False(t, actual)
-//
-//			actual, err = db.Contains(50, 3, createHash(3))
-//			require.NoError(t, err)
-//			require.False(t, actual)
-//
-//			// Existing log hash, wrong log index
-//			actual, err = db.Contains(50, 1, createHash(0))
-//			require.NoError(t, err)
-//			require.False(t, actual)
-//		})
-//}
-
 func TestAddLog(t *testing.T) {
 	t.Run("BlockZero", func(t *testing.T) {
 		// There are no logs in the genesis block so recording an entry for block 0 should be rejected.
@@ -347,6 +308,41 @@ func TestAddLog(t *testing.T) {
 				}
 			})
 	})
+}
+
+func TestContains(t *testing.T) {
+	runDBTest(t,
+		func(t *testing.T, db *DB, m *stubMetrics) {
+			require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+			require.NoError(t, db.AddLog(createHash(3), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+			require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 2))
+			require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(52), Number: 52}, 500, 0))
+			require.NoError(t, db.AddLog(createHash(3), eth.BlockID{Hash: createHash(52), Number: 52}, 500, 1))
+		},
+		func(t *testing.T, db *DB, m *stubMetrics) {
+			// Should find added logs
+			requireContains(t, db, 50, 0, createHash(1))
+			requireContains(t, db, 50, 1, createHash(3))
+			requireContains(t, db, 50, 2, createHash(2))
+			requireContains(t, db, 52, 0, createHash(1))
+			requireContains(t, db, 52, 1, createHash(3))
+
+			// Should not find log when block number too low
+			requireNotContains(t, db, 49, 0, createHash(1))
+
+			// Should not find log when block number too high
+			requireNotContains(t, db, 51, 0, createHash(1))
+
+			// Should not find log when requested log after end of database
+			requireNotContains(t, db, 52, 2, createHash(3))
+			requireNotContains(t, db, 53, 0, createHash(3))
+
+			// Should not find log when log index too high
+			requireNotContains(t, db, 50, 3, createHash(2))
+
+			// Should not find log when hash doesn't match log at block number and index
+			requireNotContains(t, db, 50, 0, createHash(5))
+		})
 }
 
 func TestGetBlockInfo(t *testing.T) {
