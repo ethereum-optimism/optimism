@@ -2,6 +2,7 @@ package db
 
 import (
 	"bytes"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -188,10 +189,40 @@ func TestAddLog(t *testing.T) {
 			})
 	})
 
+	t.Run("ErrorWhenBeforeCurrentBlockButAfterLastCheckpoint", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 13}, 5000, 3)
+				require.NoError(t, err)
+				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 14}, 4998, 3)
+				require.ErrorIs(t, err, ErrLogOutOfOrder)
+			})
+	})
+
 	t.Run("ErrorWhenBeforeCurrentLogEvent", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 3)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 2)
+				require.ErrorIs(t, err, ErrLogOutOfOrder)
+			})
+	})
+
+	t.Run("ErrorWhenBeforeCurrentLogEventButAfterLastCheckpoint", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1)
+				require.NoError(t, err)
+				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 2)
+				require.NoError(t, err)
+				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 3)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -208,6 +239,20 @@ func TestAddLog(t *testing.T) {
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 3)
+				require.ErrorIs(t, err, ErrLogOutOfOrder)
+			})
+	})
+
+	t.Run("ErrorWhenAtCurrentLogEventButAfterLastCheckpoint", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1)
+				require.NoError(t, err)
+				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 2)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 2)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -284,6 +329,74 @@ func TestAddLog(t *testing.T) {
 				}
 			})
 	})
+}
+
+func TestGetBlockInfo(t *testing.T) {
+	t.Run("ReturnsEOFWhenEmpty", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				_, _, err := db.ClosestBlockInfo(10)
+				require.ErrorIs(t, err, io.EOF)
+			})
+	})
+
+	t.Run("ReturnsEOFWhenRequestedBlockBeforeFirstSearchCheckpoint", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(11), Number: 11}, 500, 0)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				_, _, err := db.ClosestBlockInfo(10)
+				require.ErrorIs(t, err, io.EOF)
+			})
+	})
+
+	t.Run("ReturnFirstBlockInfo", func(t *testing.T) {
+		block := eth.BlockID{Hash: createHash(11), Number: 11}
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), block, 500, 0)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireClosestBlockInfo(t, db, 11, block.Number, block.Hash)
+				requireClosestBlockInfo(t, db, 12, block.Number, block.Hash)
+				requireClosestBlockInfo(t, db, 200, block.Number, block.Hash)
+			})
+	})
+
+	t.Run("ReturnClosestCheckpointBlockInfo", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				for i := 1; i < searchCheckpointFrequency+3; i++ {
+					block := eth.BlockID{Hash: createHash(i), Number: uint64(i)}
+					err := db.AddLog(createHash(i), block, uint64(i)*2, 0)
+					require.NoError(t, err)
+				}
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				// Expect block from the first checkpoint
+				requireClosestBlockInfo(t, db, 1, 1, createHash(1))
+				requireClosestBlockInfo(t, db, 10, 1, createHash(1))
+				requireClosestBlockInfo(t, db, searchCheckpointFrequency-3, 1, createHash(1))
+
+				// Expect block from the second checkpoint
+				// 2 entries used for initial checkpoint but we start at block 1
+				secondCheckpointBlockNum := searchCheckpointFrequency - 1
+				requireClosestBlockInfo(t, db, uint64(secondCheckpointBlockNum), uint64(secondCheckpointBlockNum), createHash(secondCheckpointBlockNum))
+				requireClosestBlockInfo(t, db, uint64(secondCheckpointBlockNum)+1, uint64(secondCheckpointBlockNum), createHash(secondCheckpointBlockNum))
+				requireClosestBlockInfo(t, db, uint64(secondCheckpointBlockNum)+2, uint64(secondCheckpointBlockNum), createHash(secondCheckpointBlockNum))
+			})
+	})
+}
+
+func requireClosestBlockInfo(t *testing.T, db *DB, searchFor uint64, expectedBlockNum uint64, expectedHash common.Hash) {
+	blockNum, hash, err := db.ClosestBlockInfo(searchFor)
+	require.NoError(t, err)
+	require.Equal(t, expectedBlockNum, blockNum)
+	require.Equal(t, truncateHash(expectedHash), hash)
 }
 
 func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash) {

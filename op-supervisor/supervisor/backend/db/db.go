@@ -36,7 +36,7 @@ var (
 	ErrDataCorruption = errors.New("data corruption")
 )
 
-type truncatedHash []byte
+type TruncatedHash []byte
 
 // dataAccess defines a minimal API required to manipulate the actual stored data.
 // It is a subset of the os.File API but could (theoretically) be satisfied by an in-memory implementation for testing.
@@ -60,7 +60,7 @@ type checkpointData struct {
 
 type state struct {
 	blockNum  uint64
-	blockHash truncatedHash
+	blockHash TruncatedHash
 	timestamp uint64
 	logIdx    uint32
 }
@@ -132,20 +132,22 @@ func (db *DB) init() error {
 		return nil
 	}
 	lastCheckpoint := (db.lastEntryIdx / searchCheckpointFrequency) * searchCheckpointFrequency
-	checkpoint, err := db.readSearchCheckpoint(lastCheckpoint)
+	i, err := db.newIterator(lastCheckpoint)
 	if err != nil {
-		return fmt.Errorf("failed to read last search checkpoint: %w", err)
+		return fmt.Errorf("failed to create iterator at last search checkpoint: %w", err)
 	}
-	//blockHash, err := db.readCanonicalHash(lastCheckpoint + 1)
-	//if err != nil {
-	//	return fmt.Errorf("failed to read last canonical hash: %w", err)
-	//}
-	// TODO: This is broken - we need to consider any log events after the previous checkpoint which may increment blocks
+	// Read all entries until the end of the file
+	for {
+		_, _, _, err := i.NextLog()
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to init from existing entries: %w", err)
+		}
+	}
 	db.lastEntryState = state{
-		blockNum: checkpoint.blockNum,
-		//blockHash: blockHash, // TODO: This should be set - need a test for it.
-		timestamp: checkpoint.timestamp,
-		logIdx:    checkpoint.logIdx,
+		blockNum: i.blockNum,
+		logIdx:   i.logIdx,
 	}
 	db.updateEntryCountMetric()
 	return nil
@@ -153,6 +155,25 @@ func (db *DB) init() error {
 
 func (db *DB) updateEntryCountMetric() {
 	db.m.RecordEntryCount(db.lastEntryIdx + 1)
+}
+
+// ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
+// Since block data is only recorded in search checkpoints, this may return an earlier block even if log data is
+// recorded for the requested block.
+func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
+	checkpointIdx, err := db.searchCheckpoint(blockNum, math.MaxUint32)
+	if err != nil {
+		return 0, TruncatedHash{}, fmt.Errorf("no checkpoint at or before block %v found: %w", blockNum, err)
+	}
+	checkpoint, err := db.readSearchCheckpoint(checkpointIdx)
+	if err != nil {
+		return 0, TruncatedHash{}, fmt.Errorf("failed to reach checkpoint: %w", err)
+	}
+	canonicalHash, err := db.readCanonicalHash(checkpointIdx + 1)
+	if err != nil {
+		return 0, TruncatedHash{}, fmt.Errorf("failed to read canonical hash: %w", err)
+	}
+	return checkpoint.blockNum, canonicalHash, nil
 }
 
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
@@ -169,49 +190,47 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (boo
 		return false, err
 	}
 
-	current, err := db.readSearchCheckpoint(entryIdx)
+	i, err := db.newIterator(entryIdx)
 	if err != nil {
-		return false, fmt.Errorf("failed to read search checkpoint entry %v: %w", entryIdx, err)
+		return false, fmt.Errorf("failed to create iterator: %w", err)
 	}
-	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", current.blockNum, "logIdx", current.logIdx)
-	entriesRead := int64(0)
+	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.blockNum, "logIdx", i.logIdx)
 	defer func() {
-		db.m.RecordSearchEntriesRead(entriesRead)
+		db.m.RecordSearchEntriesRead(i.entriesRead)
 	}()
-	for i := entryIdx + 2; i <= db.lastEntryIdx; i++ {
-		entry, err := db.readEntry(i)
-		if err != nil {
-			return false, fmt.Errorf("failed to read entry %v: %w", i, err)
+	for {
+		evtBlockNum, evtLogIdx, evtHash, err := i.NextLog()
+		if errors.Is(err, io.EOF) {
+			// Reached end of log without finding the event
+			return false, nil
+		} else if err != nil {
+			return false, fmt.Errorf("failed to read next log: %w", err)
 		}
-		entriesRead++
-		switch entry[0] {
-		case typeSearchCheckpoint:
-			current = db.parseSearchCheckpoint(entry)
-		case typeCanonicalHash:
-			// Skip
-		case typeInitiatingEvent:
-			evtBlockNum, evtLogIdx, evtHash := db.parseInitiatingEvent(current, entry)
-			if evtBlockNum == blockNum && evtLogIdx == logIdx {
-				db.log.Trace("Found initiatingEvent", "blockNum", evtBlockNum, "logIdx", evtLogIdx, "hash", evtHash)
-				// Found the requested block and log index, check if the hash matches
-				return slices.Equal(evtHash, truncateHash(logHash)), nil
-			}
-			if evtBlockNum > blockNum || (evtBlockNum == blockNum && evtLogIdx > logIdx) {
-				// Progressed past the requested log without finding it.
-				return false, nil
-			}
-			current.blockNum = evtBlockNum
-			current.logIdx = evtLogIdx
-		case typeExecutingCheck:
-		// TODO: Handle this properly
-		case typeExecutingLink:
-		// TODO: Handle this properly
-		default:
-			return false, fmt.Errorf("unknown entry type %v", entry[0])
+		if evtBlockNum == blockNum && evtLogIdx == logIdx {
+			db.log.Trace("Found initiatingEvent", "blockNum", evtBlockNum, "logIdx", evtLogIdx, "hash", evtHash)
+			// Found the requested block and log index, check if the hash matches
+			return slices.Equal(evtHash, truncateHash(logHash)), nil
+		}
+		if evtBlockNum > blockNum || (evtBlockNum == blockNum && evtLogIdx > logIdx) {
+			// Progressed past the requested log without finding it.
+			return false, nil
 		}
 	}
+}
 
-	return false, nil
+func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
+	current, err := db.readSearchCheckpoint(startCheckpointEntry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
+	}
+	i := &iterator{
+		db: db,
+		// +2 to skip the initial search checkpoint and the canonical hash event after it
+		nextEntryIdx: startCheckpointEntry + 2,
+		blockNum:     current.blockNum,
+		logIdx:       current.logIdx,
+	}
+	return i, nil
 }
 
 // searchCheckpoint performs a binary search of the searchCheckpoint entries to find the closest one at or before
@@ -254,6 +273,7 @@ func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
 }
 
 func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logIdx uint32) error {
+	// TODO: Error if first log in a block is not index 0.
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	postState := state{
@@ -329,20 +349,20 @@ func (db *DB) writeCanonicalHash(currentState state) error {
 	return db.writeEntry(entry)
 }
 
-//func (db *DB) readCanonicalHash(entryIdx int64) (truncatedHash, error) {
-//	data, err := db.readEntry(entryIdx)
-//	if err != nil {
-//		return truncatedHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
-//	}
-//	if data[0] != typeCanonicalHash {
-//		return truncatedHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
-//	}
-//	return db.parseCanonicalHash(data), nil
-//}
-//
-//func (db *DB) parseCanonicalHash(data [24]byte) truncatedHash {
-//	return data[1:21]
-//}
+func (db *DB) readCanonicalHash(entryIdx int64) (TruncatedHash, error) {
+	data, err := db.readEntry(entryIdx)
+	if err != nil {
+		return TruncatedHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
+	}
+	if data[0] != typeCanonicalHash {
+		return TruncatedHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
+	}
+	return db.parseCanonicalHash(data), nil
+}
+
+func (db *DB) parseCanonicalHash(data [24]byte) TruncatedHash {
+	return data[1:21]
+}
 
 // writeInitiatingEvent appends an initiating event to the log
 // type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
@@ -362,7 +382,7 @@ func (db *DB) writeInitiatingEvent(postState state, log common.Hash) error {
 	flags := byte(0)
 	logDiff := postState.logIdx - currLogIdx
 	if logDiff > 1 {
-		return fmt.Errorf("skipped logs between %v and %v", db.lastEntryState.logIdx, postState.logIdx)
+		return fmt.Errorf("skipped logs between %v and %v", currLogIdx, postState.logIdx)
 	}
 	if logDiff > 0 {
 		// Set flag to indicate log idx needs to be incremented (ie we're not directly after a checkpoint)
@@ -374,11 +394,10 @@ func (db *DB) writeInitiatingEvent(postState state, log common.Hash) error {
 	return db.writeEntry(entry)
 }
 
-func (db *DB) parseInitiatingEvent(checkpoint checkpointData, entry [entrySize]byte) (uint64, uint32, []byte) {
+func (db *DB) parseInitiatingEvent(blockNum uint64, logIdx uint32, entry [entrySize]byte) (uint64, uint32, []byte) {
 	blockNumDiff := entry[1]
 	flags := entry[2]
-	blockNum := checkpoint.blockNum + uint64(blockNumDiff)
-	logIdx := checkpoint.logIdx
+	blockNum = blockNum + uint64(blockNumDiff)
 	if blockNumDiff > 0 {
 		logIdx = 0
 	}
@@ -435,7 +454,7 @@ func (db *DB) readEntry(idx int64) ([entrySize]byte, error) {
 	return out, nil
 }
 
-func truncateHash(hash common.Hash) truncatedHash {
+func truncateHash(hash common.Hash) TruncatedHash {
 	return hash[0:20]
 }
 
