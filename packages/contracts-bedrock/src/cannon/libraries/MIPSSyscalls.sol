@@ -17,5 +17,31 @@ library MIPSSyscalls {
 
         return (sysCallNum_, a0_, a1_, a2_);
     }
+
+    function handleMmap(
+        uint32 _a0,
+        uint32 _a1,
+        uint32 _heap
+    )
+        internal
+        pure
+        returns (uint32 v0_, uint32 v1_, uint32 newHeap_)
+    {
+        v1_ = uint32(0);
+        newHeap_ = _heap;
+
+        uint32 sz = _a1;
+        if (sz & 4095 != 0) {
+            // adjust size to align with page size
+            sz += 4096 - (sz & 4095);
+        }
+        if (_a0 == 0) {
+            v0_ = _heap;
+            newHeap_ += sz;
+        } else {
+            v0_ = _a0;
+        }
+
+        return (v0_, v1_, newHeap_);
     }
 }

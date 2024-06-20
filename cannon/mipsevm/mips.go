@@ -51,18 +51,9 @@ func (m *InstrumentedState) handleSyscall() error {
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
 	case sysMmap:
-		sz := a1
-		if sz&PageAddrMask != 0 { // adjust size to align with page size
-			sz += PageSize - (sz & PageAddrMask)
-		}
-		if a0 == 0 {
-			v0 = m.state.Heap
-			//fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
-			m.state.Heap += sz
-		} else {
-			v0 = a0
-			//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
-		}
+		var newHeap uint32
+		v0, v1, newHeap = handleMmap(a0, a1, m.state.Heap)
+		m.state.Heap = newHeap
 	case sysBrk:
 		v0 = 0x40000000
 	case sysClone: // clone (not supported)

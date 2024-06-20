@@ -157,17 +157,9 @@ contract MIPS is ISemver {
 
             // mmap: Allocates a page from the heap.
             if (syscall_no == 4090) {
-                uint32 sz = a1;
-                if (sz & 4095 != 0) {
-                    // adjust size to align with page size
-                    sz += 4096 - (sz & 4095);
-                }
-                if (a0 == 0) {
-                    v0 = state.heap;
-                    state.heap += sz;
-                } else {
-                    v0 = a0;
-                }
+                uint32 newHeap;
+                (v0, v1, newHeap) = sys.handleMmap(a0, a1, state.heap);
+                state.heap = newHeap;
             }
             // brk: Returns a fixed address for the program break at 0x40000000
             else if (syscall_no == 4045) {
