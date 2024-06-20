@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var asteriscWitnessLen = 362
@@ -14,11 +15,11 @@ var asteriscWitnessLen = 362
 // The state struct will be read from json.
 // other fields included in json are specific to FPVM implementation, and not required for trace provider.
 type VMState struct {
-	PC        uint64   `json:"pc"`
-	Exited    bool     `json:"exited"`
-	Step      uint64   `json:"step"`
-	Witness   []byte   `json:"witness"`
-	StateHash [32]byte `json:"stateHash"`
+	PC        uint64      `json:"pc"`
+	Exited    bool        `json:"exited"`
+	Step      uint64      `json:"step"`
+	Witness   []byte      `json:"witness"`
+	StateHash common.Hash `json:"stateHash"`
 }
 
 func (state *VMState) validateStateHash() error {
