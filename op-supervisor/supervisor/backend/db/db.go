@@ -273,7 +273,6 @@ func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
 }
 
 func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logIdx uint32) error {
-	// TODO: Error if first log in a block is not index 0.
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	postState := logContext{
