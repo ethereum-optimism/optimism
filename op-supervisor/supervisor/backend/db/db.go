@@ -90,7 +90,7 @@ type logContext struct {
 //
 // event-flags: each bit represents a boolean value, currently only two are defined
 // * event-flags & 0x01 - true if the log index should increment. Should only be false when the event is immediately after a search checkpoint and canonical hash
-// * event-falgs & 0x02 - true if the initiating event has an executing link that should follow. Allows detecting when the executing link failed to write.
+// * event-flags & 0x02 - true if the initiating event has an executing link that should follow. Allows detecting when the executing link failed to write.
 // event-hash: H(origin, timestamp, payloadhash); enough to check identifier matches & payload matches.
 type DB struct {
 	log    log.Logger
