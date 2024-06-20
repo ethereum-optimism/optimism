@@ -63,39 +63,9 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.ExitCode = uint8(a0)
 		return nil
 	case sysRead:
-		// args: a0 = fd, a1 = addr, a2 = count
-		// returns: v0 = read, v1 = err code
-		switch a0 {
-		case fdStdin:
-			// leave v0 and v1 zero: read nothing, no error
-		case fdPreimageRead: // pre-image oracle
-			effAddr := a1 & 0xFFffFFfc
-			m.trackMemAccess(effAddr)
-			mem := m.state.Memory.GetMemory(effAddr)
-			dat, datLen := m.readPreimage(m.state.PreimageKey, m.state.PreimageOffset)
-			//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
-			alignment := a1 & 3
-			space := 4 - alignment
-			if space < datLen {
-				datLen = space
-			}
-			if a2 < datLen {
-				datLen = a2
-			}
-			var outMem [4]byte
-			binary.BigEndian.PutUint32(outMem[:], mem)
-			copy(outMem[alignment:], dat[:datLen])
-			m.state.Memory.SetMemory(effAddr, binary.BigEndian.Uint32(outMem[:]))
-			m.state.PreimageOffset += datLen
-			v0 = datLen
-			//fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
-		case fdHintRead: // hint response
-			// don't actually read into memory, just say we read it all, we ignore the result anyway
-			v0 = a2
-		default:
-			v0 = 0xFFffFFff
-			v1 = MipsEBADF
-		}
+		var newPreimageOffset uint32
+		v0, v1, newPreimageOffset = handleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.readPreimage, m.state.Memory.GetMemory, m.state.Memory.SetMemory, m.trackMemAccess)
+		m.state.PreimageOffset = newPreimageOffset
 	case sysWrite:
 		// args: a0 = fd, a1 = addr, a2 = count
 		// returns: v0 = written, v1 = err code

@@ -7,6 +7,7 @@ import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
+import { MIPSMemory } from "src/cannon/libraries/MIPSMEmory.sol";
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -48,17 +49,6 @@ contract MIPS is ISemver {
     /// @notice The semantic version of the MIPS contract.
     /// @custom:semver 1.0.1
     string public constant version = "1.1.0-beta.4";
-
-    uint32 internal constant FD_STDIN = 0;
-    uint32 internal constant FD_STDOUT = 1;
-    uint32 internal constant FD_STDERR = 2;
-    uint32 internal constant FD_HINT_READ = 3;
-    uint32 internal constant FD_HINT_WRITE = 4;
-    uint32 internal constant FD_PREIMAGE_READ = 5;
-    uint32 internal constant FD_PREIMAGE_WRITE = 6;
-
-    uint32 internal constant EBADF = 0x9;
-    uint32 internal constant EINVAL = 0x16;
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -177,64 +167,28 @@ contract MIPS is ISemver {
             }
             // read: Like Linux read syscall. Splits unaligned reads into aligned reads.
             else if (syscall_no == 4003) {
-                // args: a0 = fd, a1 = addr, a2 = count
-                // returns: v0 = read, v1 = err code
-                if (a0 == FD_STDIN) {
-                    // Leave v0 and v1 zero: read nothing, no error
-                }
-                // pre-image oracle read
-                else if (a0 == FD_PREIMAGE_READ) {
-                    // verify proof 1 is correct, and get the existing memory.
-                    uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
-                    bytes32 preimageKey = state.preimageKey;
-                    // If the preimage key is a local key, localize it in the context of the caller.
-                    if (uint8(preimageKey[0]) == 1) {
-                        preimageKey = PreimageKeyLib.localize(preimageKey, _localContext);
-                    }
-                    (bytes32 dat, uint256 datLen) = ORACLE.readPreimage(preimageKey, state.preimageOffset);
-
-                    // Transform data for writing to memory
-                    // We use assembly for more precise ops, and no var count limit
-                    assembly {
-                        let alignment := and(a1, 3) // the read might not start at an aligned address
-                        let space := sub(4, alignment) // remaining space in memory word
-                        if lt(space, datLen) { datLen := space } // if less space than data, shorten data
-                        if lt(a2, datLen) { datLen := a2 } // if requested to read less, read less
-                        dat := shr(sub(256, mul(datLen, 8)), dat) // right-align data
-                        dat := shl(mul(sub(sub(4, datLen), alignment), 8), dat) // position data to insert into memory
-                            // word
-                        let mask := sub(shl(mul(sub(4, alignment), 8), 1), 1) // mask all bytes after start
-                        let suffixMask := sub(shl(mul(sub(sub(4, alignment), datLen), 8), 1), 1) // mask of all bytes
-                            // starting from end, maybe none
-                        mask := and(mask, not(suffixMask)) // reduce mask to just cover the data we insert
-                        mem := or(and(mem, not(mask)), dat) // clear masked part of original memory, and insert data
-                    }
-
-                    // Write memory back
-                    writeMem(a1 & 0xFFffFFfc, 1, mem);
-                    state.preimageOffset += uint32(datLen);
-                    v0 = uint32(datLen);
-                }
-                // hint response
-                else if (a0 == FD_HINT_READ) {
-                    // Don't read into memory, just say we read it all
-                    // The result is ignored anyway
-                    v0 = a2;
-                } else {
-                    v0 = 0xFFffFFff;
-                    v1 = EBADF;
-                }
+                uint32 newPreimageOffset;
+                (v0, v1, newPreimageOffset) = sys.handleSyscallRead({
+                    _a0: a0,
+                    _a1: a1,
+                    _a2: a2,
+                    _preimageKey: state.preimageKey,
+                    _preimageOffset: state.preimageOffset,
+                    _localContext: _localContext,
+                    _oracle: ORACLE
+                });
+                state.preimageOffset = newPreimageOffset;
             }
             // write: like Linux write syscall. Splits unaligned writes into aligned writes.
             else if (syscall_no == 4004) {
                 // args: a0 = fd, a1 = addr, a2 = count
                 // returns: v0 = written, v1 = err code
-                if (a0 == FD_STDOUT || a0 == FD_STDERR || a0 == FD_HINT_WRITE) {
+                if (a0 == sys.FD_STDOUT || a0 == sys.FD_STDERR || a0 == sys.FD_HINT_WRITE) {
                     v0 = a2; // tell program we have written everything
                 }
                 // pre-image oracle
-                else if (a0 == FD_PREIMAGE_WRITE) {
-                    uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+                else if (a0 == sys.FD_PREIMAGE_WRITE) {
+                    uint32 mem = MIPSMemory.readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
                     bytes32 key = state.preimageKey;
 
                     // Construct pre-image key from memory
@@ -255,7 +209,7 @@ contract MIPS is ISemver {
                     v0 = a2;
                 } else {
                     v0 = 0xFFffFFff;
-                    v1 = EBADF;
+                    v1 = sys.EBADF;
                 }
             }
             // fcntl: Like linux fcntl syscall, but only supports minimal file-descriptor control commands,
@@ -265,17 +219,20 @@ contract MIPS is ISemver {
                 // args: a0 = fd, a1 = cmd
                 if (a1 == 3) {
                     // F_GETFL: get file descriptor flags
-                    if (a0 == FD_STDIN || a0 == FD_PREIMAGE_READ || a0 == FD_HINT_READ) {
+                    if (a0 == sys.FD_STDIN || a0 == sys.FD_PREIMAGE_READ || a0 == sys.FD_HINT_READ) {
                         v0 = 0; // O_RDONLY
-                    } else if (a0 == FD_STDOUT || a0 == FD_STDERR || a0 == FD_PREIMAGE_WRITE || a0 == FD_HINT_WRITE) {
+                    } else if (
+                        a0 == sys.FD_STDOUT || a0 == sys.FD_STDERR || a0 == sys.FD_PREIMAGE_WRITE
+                            || a0 == sys.FD_HINT_WRITE
+                    ) {
                         v0 = 1; // O_WRONLY
                     } else {
                         v0 = 0xFFffFFff;
-                        v1 = EBADF;
+                        v1 = sys.EBADF;
                     }
                 } else {
                     v0 = 0xFFffFFff;
-                    v1 = EINVAL; // cmd not recognized by this kernel
+                    v1 = sys.EINVAL; // cmd not recognized by this kernel
                 }
             }
 
@@ -288,123 +245,6 @@ contract MIPS is ISemver {
             state.nextPC = state.nextPC + 4;
 
             out_ = outputState();
-        }
-    }
-
-    /// @notice Computes the offset of the proof in the calldata.
-    /// @param _proofIndex The index of the proof in the calldata.
-    /// @return offset_ The offset of the proof in the calldata.
-    function proofOffset(uint8 _proofIndex) internal pure returns (uint256 offset_) {
-        unchecked {
-            // A proof of 32 bit memory, with 32-byte leaf values, is (32-5)=27 bytes32 entries.
-            // And the leaf value itself needs to be encoded as well. And proof.offset == 420
-            offset_ = 420 + (uint256(_proofIndex) * (28 * 32));
-            uint256 s = 0;
-            assembly {
-                s := calldatasize()
-            }
-            require(s >= (offset_ + 28 * 32), "check that there is enough calldata");
-            return offset_;
-        }
-    }
-
-    /// @notice Reads a 32-bit value from memory.
-    /// @param _addr The address to read from.
-    /// @param _proofIndex The index of the proof in the calldata.
-    /// @return out_ The hashed MIPS state.
-    function readMem(uint32 _addr, uint8 _proofIndex) internal pure returns (uint32 out_) {
-        unchecked {
-            // Compute the offset of the proof in the calldata.
-            uint256 offset = proofOffset(_proofIndex);
-
-            assembly {
-                // Validate the address alignement.
-                if and(_addr, 3) { revert(0, 0) }
-
-                // Load the leaf value.
-                let leaf := calldataload(offset)
-                offset := add(offset, 32)
-
-                // Convenience function to hash two nodes together in scratch space.
-                function hashPair(a, b) -> h {
-                    mstore(0, a)
-                    mstore(32, b)
-                    h := keccak256(0, 64)
-                }
-
-                // Start with the leaf node.
-                // Work back up by combining with siblings, to reconstruct the root.
-                let path := shr(5, _addr)
-                let node := leaf
-                for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
-                    let sibling := calldataload(offset)
-                    offset := add(offset, 32)
-                    switch and(shr(i, path), 1)
-                    case 0 { node := hashPair(node, sibling) }
-                    case 1 { node := hashPair(sibling, node) }
-                }
-
-                // Load the memory root from the first field of state.
-                let memRoot := mload(0x80)
-
-                // Verify the root matches.
-                if iszero(eq(node, memRoot)) {
-                    mstore(0, 0x0badf00d)
-                    revert(0, 32)
-                }
-
-                // Bits to shift = (32 - 4 - (addr % 32)) * 8
-                let shamt := shl(3, sub(sub(32, 4), and(_addr, 31)))
-                out_ := and(shr(shamt, leaf), 0xFFffFFff)
-            }
-        }
-    }
-
-    /// @notice Writes a 32-bit value to memory.
-    ///         This function first overwrites the part of the leaf.
-    ///         Then it recomputes the memory merkle root.
-    /// @param _addr The address to write to.
-    /// @param _proofIndex The index of the proof in the calldata.
-    /// @param _val The value to write.
-    function writeMem(uint32 _addr, uint8 _proofIndex, uint32 _val) internal pure {
-        unchecked {
-            // Compute the offset of the proof in the calldata.
-            uint256 offset = proofOffset(_proofIndex);
-
-            assembly {
-                // Validate the address alignement.
-                if and(_addr, 3) { revert(0, 0) }
-
-                // Load the leaf value.
-                let leaf := calldataload(offset)
-                let shamt := shl(3, sub(sub(32, 4), and(_addr, 31)))
-
-                // Mask out 4 bytes, and OR in the value
-                leaf := or(and(leaf, not(shl(shamt, 0xFFffFFff))), shl(shamt, _val))
-                offset := add(offset, 32)
-
-                // Convenience function to hash two nodes together in scratch space.
-                function hashPair(a, b) -> h {
-                    mstore(0, a)
-                    mstore(32, b)
-                    h := keccak256(0, 64)
-                }
-
-                // Start with the leaf node.
-                // Work back up by combining with siblings, to reconstruct the root.
-                let path := shr(5, _addr)
-                let node := leaf
-                for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
-                    let sibling := calldataload(offset)
-                    offset := add(offset, 32)
-                    switch and(shr(i, path), 1)
-                    case 0 { node := hashPair(node, sibling) }
-                    case 1 { node := hashPair(sibling, node) }
-                }
-
-                // Store the new memory root in the first field of state.
-                mstore(0x80, node)
-            }
         }
     }
 
@@ -474,7 +314,7 @@ contract MIPS is ISemver {
             state.step += 1;
 
             // instruction fetch
-            uint32 insn = readMem(state.pc, 0);
+            uint32 insn = MIPSMemory.readMem(state.pc, 0);
             uint32 opcode = insn >> 26; // 6-bits
 
             // j-type j/jal
@@ -539,7 +379,7 @@ contract MIPS is ISemver {
                 // M[R[rs]+SignExtImm]
                 rs += ins.signExtend(insn & 0xFFFF, 16);
                 uint32 addr = rs & 0xFFFFFFFC;
-                mem = readMem(addr, 1);
+                mem = MIPSMemory.readMem(addr, 1);
                 if (opcode >= 0x28 && opcode != 0x30) {
                     // store
                     storeAddr = addr;
@@ -599,7 +439,7 @@ contract MIPS is ISemver {
 
             // write memory
             if (storeAddr != 0xFF_FF_FF_FF) {
-                writeMem(storeAddr, 1, val);
+                MIPSMemory.writeMem(storeAddr, 1, val);
             }
 
             // write back the value to destination register
