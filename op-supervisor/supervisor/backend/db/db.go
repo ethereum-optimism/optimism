@@ -289,6 +289,9 @@ func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logId
 	if db.lastEntryContext.blockNum == block.Number && db.lastEntryContext.logIdx+1 != logIdx {
 		return fmt.Errorf("%w: adding log %v in block %v, but currently at log %v", ErrLogOutOfOrder, logIdx, block.Number, db.lastEntryContext.logIdx)
 	}
+	if db.lastEntryContext.blockNum < block.Number && logIdx != 0 {
+		return fmt.Errorf("%w: adding log %v as first log in block %v", ErrLogOutOfOrder, logIdx, block.Number)
+	}
 	if (db.lastEntryIdx+1)%searchCheckpointFrequency == 0 {
 		if err := db.writeSearchCheckpoint(block.Number, logIdx, timestamp, block.Hash); err != nil {
 			return fmt.Errorf("failed to write search checkpoint: %w", err)
