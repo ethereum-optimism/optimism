@@ -55,6 +55,8 @@ var (
 	ExternalL2TestParms external.TestParms
 	// EthNodeVerbosity is the (legacy geth) level of verbosity to output
 	EthNodeVerbosity int
+
+	ChainId int
 )
 
 func init() {
@@ -73,6 +75,7 @@ func init() {
 	defaultL2AllocsDir := filepath.Join(root, ".devnet")
 	defaultL1DeploymentsPath := filepath.Join(root, ".devnet", "addresses.json")
 	defaultDeployConfigPath := filepath.Join(root, "packages", "contracts-bedrock", "deploy-config", "devnetL1.json")
+	defaultChainId := 901
 
 	flag.StringVar(&l1AllocsPath, "l1-allocs", defaultL1AllocsPath, "")
 	flag.StringVar(&l2AllocsDir, "l2-allocs-dir", defaultL2AllocsDir, "")
@@ -80,6 +83,8 @@ func init() {
 	flag.StringVar(&deployConfigPath, "deploy-config", defaultDeployConfigPath, "")
 	flag.StringVar(&externalL2, "externalL2", "", "Enable tests with external L2")
 	flag.IntVar(&EthNodeVerbosity, "ethLogVerbosity", LegacyLevelInfo, "The (legacy geth) level of verbosity to use for the eth node logs")
+	flag.IntVar(&ChainId, "chainId", defaultChainId, "The chain ID to use for the roll up")
+
 	testing.Init() // Register test flags before parsing
 	flag.Parse()
 
@@ -113,7 +118,7 @@ func init() {
 	}
 	l2Allocs = make(map[genesis.L2AllocsMode]*genesis.ForgeAllocs)
 	mustL2Allocs := func(mode genesis.L2AllocsMode) {
-		name := "allocs-l2-" + string(mode)
+		name := fmt.Sprintf("allocs-l2-%d-%s", ChainId, string(mode))
 		allocs, err := genesis.LoadForgeAllocs(filepath.Join(l2AllocsDir, name+".json"))
 		if err != nil {
 			panic(err)
