@@ -5,7 +5,7 @@ It also details our response, lessons learned, and subsequent changes to our pro
 
 ## Incident Summary
 
-A vulnerability in Optimism’s fork of [Geth](https://github.com/ethereum/go-ethereum) (which we refer to as [L2Geth](https://github.com/ethereum-optimism/op-geth/blob/optimism/README.md)) was reported
+A vulnerability in Optimism’s fork of [Geth](https://github.com/ethereum/go-ethereum) (which we refer to as [L2Geth](https://github.com/ethereum-optimism/optimism-legacy/blob/8205f678b7b4ac4625c2afe351b9c82ffaa2e795/l2geth/README.md)) was reported
 to us by [Jay Freeman](https://twitter.com/saurik) (AKA saurik) on February 2nd, 2022. If exploited,
 this vulnerability would allow anyone to mint an unbounded amount of ETH on Optimism.
 
