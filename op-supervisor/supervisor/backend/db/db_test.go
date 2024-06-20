@@ -216,13 +216,15 @@ func TestAddLog(t *testing.T) {
 		block1 := eth.BlockID{Hash: createHash(11), Number: 11}
 		block2 := eth.BlockID{Hash: createHash(12), Number: 12}
 		block3 := eth.BlockID{Hash: createHash(15), Number: 15}
+		block4 := eth.BlockID{Hash: createHash(16), Number: 16}
 		// First checkpoint is at entry idx 0
 		// Block 1 logs don't reach the second checkpoint
 		block1LogCount := searchCheckpointFrequency - 10
 		// Block 2 logs extend to just after the third checkpoint
 		block2LogCount := searchCheckpointFrequency + 20
-		// Block 3 logs extend to just after the fourth checkpoint
-		block3LogCount := searchCheckpointFrequency
+		// Block 3 logs extend to immediately before the fourth checkpoint
+		block3LogCount := searchCheckpointFrequency - 16
+		block4LogCount := 2
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				for i := 0; i < block1LogCount; i++ {
@@ -237,13 +239,20 @@ func TestAddLog(t *testing.T) {
 					err := db.AddLog(createHash(i), block3, 3004, uint32(i))
 					require.NoErrorf(t, err, "failed to add log %v of block 3", i)
 				}
-				// Verify the expected number of checkpoints were written.
-				// This is a counter so doesn't get reloaded on load so can only be verified in setup
+				// Verify that we're right before the fourth checkpoint will be written.
+				// entryCount is the number of entries, so given 0 based indexing is the index of the next entry
+				// the first checkpoint is at entry 0, the second at entry searchCheckpointFrequency etc
+				// so the fourth is at entry 3*searchCheckpointFrequency
+				require.EqualValues(t, 3*searchCheckpointFrequency, m.entryCount)
+				for i := 0; i < block4LogCount; i++ {
+					err := db.AddLog(createHash(i), block4, 3006, uint32(i))
+					require.NoErrorf(t, err, "failed to add log %v of block 4", i)
+				}
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				// Check that we wrote additional search checkpoints
 				expectedCheckpointCount := 4
-				expectedEntryCount := block1LogCount + block2LogCount + block3LogCount + (2 * expectedCheckpointCount)
+				expectedEntryCount := block1LogCount + block2LogCount + block3LogCount + block4LogCount + (2 * expectedCheckpointCount)
 				require.EqualValues(t, expectedEntryCount, m.entryCount)
 				// Check we can find all the logs.
 				for i := 0; i < block1LogCount; i++ {
@@ -253,9 +262,13 @@ func TestAddLog(t *testing.T) {
 				for i := 0; i < block2LogCount; i++ {
 					requireContains(t, db, block2.Number, uint32(i), createHash(i))
 				}
-				// Block 3 logs extend to just after the fourth checkpoint
+				// Block 3 logs extend to immediately before the fourth checkpoint
 				for i := 0; i < block3LogCount; i++ {
 					requireContains(t, db, block3.Number, uint32(i), createHash(i))
+				}
+				// Block 4 logs start immediately after the fourth checkpoint
+				for i := 0; i < block4LogCount; i++ {
+					requireContains(t, db, block4.Number, uint32(i), createHash(i))
 				}
 			})
 	})
