@@ -18,6 +18,9 @@ import (
 const (
 	entrySize                 = 24
 	searchCheckpointFrequency = 256
+
+	eventFlagIncrementLogIdx     = byte(1)
+	eventFlagHasExecutingMessage = byte(1) << 1
 )
 
 const (
@@ -80,13 +83,16 @@ type state struct {
 // Types (<type> = 1 byte):
 // type 0: "search checkpoint" <type><uint64 block number: 8 bytes><uint32 event index offset: 4 bytes><uint64 timestamp: 8 bytes> = 20 bytes
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-// type 2: "initiating event" <type><blocknum diff: 1 byte><log idx diff: 1 byte><event-hash: 20 bytes> = 23 bytes
+// type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
 // type 3: "executing link" <type><chain: 4 bytes><blocknum: 8 bytes><event index: 3 bytes><uint64 timestamp: 8 bytes> = 24 bytes
 // type 4: "executing check" <type><event-hash: 20 bytes> = 21 bytes
 // other types: future compat. E.g. for linking to L1, registering block-headers as a kind of initiating-event, tracking safe-head progression, etc.
 //
 // Right-pad each entry that is not 24 bytes.
 //
+// event-flags: each bit represents a boolean value, currently only two are defined
+// * event-flags & 0x01 - true if the log index should increment. Should only be false when the event is immediately after a search checkpoint and canonical hash
+// * event-falgs & 0x02 - true if the initiating event has an executing link that should follow. Allows detecting when the executing link failed to write.
 // event-hash: H(origin, timestamp, payloadhash); enough to check identifier matches & payload matches.
 type DB struct {
 	log    log.Logger
@@ -262,8 +268,8 @@ func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logId
 	if db.lastEntryState.blockNum > block.Number {
 		return fmt.Errorf("%w: adding block %v, head block: %v", ErrLogOutOfOrder, block.Number, db.lastEntryState.blockNum)
 	}
-	if db.lastEntryState.blockNum == block.Number && db.lastEntryState.logIdx >= logIdx {
-		return fmt.Errorf("%w: adding log %v in block %v, but already at log %v", ErrLogOutOfOrder, logIdx, block.Number, db.lastEntryState.logIdx)
+	if db.lastEntryState.blockNum == block.Number && db.lastEntryState.logIdx+1 != logIdx {
+		return fmt.Errorf("%w: adding log %v in block %v, but currently at log %v", ErrLogOutOfOrder, logIdx, block.Number, db.lastEntryState.logIdx)
 	}
 	if (db.lastEntryIdx+1)%searchCheckpointFrequency == 0 {
 		if err := db.writeSearchCheckpoint(postState); err != nil {
@@ -339,7 +345,7 @@ func (db *DB) parseCanonicalHash(data [24]byte) truncatedHash {
 }
 
 // writeInitiatingEvent appends an initiating event to the log
-// type 2: "initiating event" <type><blocknum diff: 1 byte><event index diff: 1 byte><event-hash: 20 bytes> = 23 bytes
+// type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
 func (db *DB) writeInitiatingEvent(postState state, log common.Hash) error {
 	var entry [entrySize]byte
 	entry[0] = typeInitiatingEvent
@@ -349,16 +355,20 @@ func (db *DB) writeInitiatingEvent(postState state, log common.Hash) error {
 		return fmt.Errorf("too many block skipped between %v and %v", db.lastEntryState.blockNum, postState.blockNum)
 	}
 	entry[1] = byte(blockDiff)
-	// TODO: Probably shouldn't allow skipping logs as that indicates we missed data
 	currLogIdx := db.lastEntryState.logIdx
 	if blockDiff > 0 {
 		currLogIdx = 0
 	}
+	flags := byte(0)
 	logDiff := postState.logIdx - currLogIdx
-	if logDiff > math.MaxUint8 {
-		return fmt.Errorf("too many logs skipped between %v and %v", db.lastEntryState.logIdx, postState.logIdx)
+	if logDiff > 1 {
+		return fmt.Errorf("skipped logs between %v and %v", db.lastEntryState.logIdx, postState.logIdx)
 	}
-	entry[2] = byte(logDiff)
+	if logDiff > 0 {
+		// Set flag to indicate log idx needs to be incremented (ie we're not directly after a checkpoint)
+		flags = flags | eventFlagIncrementLogIdx
+	}
+	entry[2] = flags
 	truncated := truncateHash(log)
 	copy(entry[3:23], truncated[:])
 	return db.writeEntry(entry)
@@ -366,13 +376,15 @@ func (db *DB) writeInitiatingEvent(postState state, log common.Hash) error {
 
 func (db *DB) parseInitiatingEvent(checkpoint checkpointData, entry [entrySize]byte) (uint64, uint32, []byte) {
 	blockNumDiff := entry[1]
-	logIdxDiff := entry[2]
+	flags := entry[2]
 	blockNum := checkpoint.blockNum + uint64(blockNumDiff)
 	logIdx := checkpoint.logIdx
 	if blockNumDiff > 0 {
 		logIdx = 0
 	}
-	logIdx = logIdx + uint32(logIdxDiff)
+	if flags&0x01 != 0 {
+		logIdx++
+	}
 	eventHash := entry[3:23]
 	return blockNum, logIdx, eventHash
 }

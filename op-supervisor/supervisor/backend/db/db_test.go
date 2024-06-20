@@ -212,6 +212,18 @@ func TestAddLog(t *testing.T) {
 			})
 	})
 
+	t.Run("ErrorWhenSkippingLogEvent", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 3)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 5)
+				require.ErrorIs(t, err, ErrLogOutOfOrder)
+			})
+	})
+
 	t.Run("MultipleSearchCheckpoints", func(t *testing.T) {
 		block1 := eth.BlockID{Hash: createHash(11), Number: 11}
 		block2 := eth.BlockID{Hash: createHash(12), Number: 12}
