@@ -147,4 +147,64 @@ library MIPSSyscalls {
 
         return (v0_, v1_, newPreimageOffset_);
     }
+
+    /// @notice Handle syscall write operations
+    /// @param _a0 The file descriptor
+    /// @param _a1 The memory address to read from
+    /// @param _a2 The number of bytes to read
+    /// @param _preimageKey The current preimaageKey
+    /// @param _preimageOffset The current preimageOffset
+    /// @return v0_ The number of bytes written, or -1 on error
+    /// @return v1_ The error code, or 0 if empty
+    /// @return newPreimageKey_ The new preimageKey
+    /// @return newPreimageOffset_ The new preimageOffset
+    function handleSysWrite(
+        uint32 _a0,
+        uint32 _a1,
+        uint32 _a2,
+        bytes32 _preimageKey,
+        uint32 _preimageOffset
+    )
+        internal
+        pure
+        returns (uint32 v0_, uint32 v1_, bytes32 newPreimageKey_, uint32 newPreimageOffset_)
+    {
+        // args: _a0 = fd, _a1 = addr, _a2 = count
+        // returns: v0_ = written, v1_ = err code
+        v0_ = uint32(0);
+        v1_ = uint32(0);
+        newPreimageKey_ = _preimageKey;
+        newPreimageOffset_ = _preimageOffset;
+
+        if (_a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_HINT_WRITE) {
+            v0_ = _a2; // tell program we have written everything
+        }
+        // pre-image oracle
+        else if (_a0 == FD_PREIMAGE_WRITE) {
+            uint32 mem = MIPSMemory.readMem(_a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+            bytes32 key = _preimageKey;
+
+            // Construct pre-image key from memory
+            // We use assembly for more precise ops, and no var count limit
+            assembly {
+                let alignment := and(_a1, 3) // the read might not start at an aligned address
+                let space := sub(4, alignment) // remaining space in memory word
+                if lt(space, _a2) { _a2 := space } // if less space than data, shorten data
+                key := shl(mul(_a2, 8), key) // shift key, make space for new info
+                let mask := sub(shl(mul(_a2, 8), 1), 1) // mask for extracting value from memory
+                mem := and(shr(mul(sub(space, _a2), 8), mem), mask) // align value to right, mask it
+                key := or(key, mem) // insert into key
+            }
+
+            // Write pre-image key to oracle
+            newPreimageKey_ = key;
+            newPreimageOffset_ = 0; // reset offset, to read new pre-image data from the start
+            v0_ = _a2;
+        } else {
+            v0_ = 0xFFffFFff;
+            v1_ = EBADF;
+        }
+
+        return (v0_, v1_, newPreimageKey_, newPreimageOffset_);
+    }
 }

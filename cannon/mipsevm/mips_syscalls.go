@@ -1,11 +1,12 @@
 package mipsevm
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"io"
 
-type MemTracker func(addr uint32)
-type MemGetter func(addr uint32) uint32
-type MemSetter func(addr uint32, val uint32)
-type PreimageReader func(key [32]byte, offset uint32) (dat [32]byte, datLen uint32)
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+)
 
 const (
 	fdStdin         = 0
@@ -21,6 +22,9 @@ const (
 	MipsEBADF  = 0x9
 	MipsEINVAL = 0x16
 )
+
+type PreimageReader func(key [32]byte, offset uint32) (dat [32]byte, datLen uint32)
+type MemTracker func(addr uint32)
 
 func getSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
 	syscallNum = registers[2] // v0
@@ -52,20 +56,20 @@ func handleMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	return v0, v1, newHeap
 }
 
-func handleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memGetter MemGetter, memSetter MemSetter, memTracker MemTracker) (v0, v1, newPreimageOffset uint32) {
+func handleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint32) {
+	// args: a0 = fd, a1 = addr, a2 = count
+	// returns: v0 = read, v1 = err code
 	v0 = uint32(0)
 	v1 = uint32(0)
 	newPreimageOffset = preimageOffset
 
-	// args: a0 = fd, a1 = addr, a2 = count
-	// returns: v0 = read, v1 = err code
 	switch a0 {
 	case fdStdin:
 		// leave v0 and v1 zero: read nothing, no error
 	case fdPreimageRead: // pre-image oracle
 		effAddr := a1 & 0xFFffFFfc
 		memTracker(effAddr)
-		mem := memGetter(effAddr)
+		mem := memory.GetMemory(effAddr)
 		dat, datLen := preimageReader(preimageKey, preimageOffset)
 		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
 		alignment := a1 & 3
@@ -79,7 +83,7 @@ func handleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 		var outMem [4]byte
 		binary.BigEndian.PutUint32(outMem[:], mem)
 		copy(outMem[alignment:], dat[:datLen])
-		memSetter(effAddr, binary.BigEndian.Uint32(outMem[:]))
+		memory.SetMemory(effAddr, binary.BigEndian.Uint32(outMem[:]))
 		newPreimageOffset += datLen
 		v0 = datLen
 		//fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
@@ -92,4 +96,60 @@ func handleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 	}
 
 	return v0, v1, newPreimageOffset
+}
+
+func handleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle PreimageOracle, memory *Memory, memTracker MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
+	// args: a0 = fd, a1 = addr, a2 = count
+	// returns: v0 = written, v1 = err code
+	v1 = uint32(0)
+	newLastHint = lastHint
+	newPreimageKey = preimageKey
+	newPreimageOffset = preimageOffset
+
+	switch a0 {
+	case fdStdout:
+		_, _ = io.Copy(stdOut, memory.ReadMemoryRange(a1, a2))
+		v0 = a2
+	case fdStderr:
+		_, _ = io.Copy(stdErr, memory.ReadMemoryRange(a1, a2))
+		v0 = a2
+	case fdHintWrite:
+		hintData, _ := io.ReadAll(memory.ReadMemoryRange(a1, a2))
+		lastHint = append(lastHint, hintData...)
+		for len(lastHint) >= 4 { // process while there is enough data to check if there are any hints
+			hintLen := binary.BigEndian.Uint32(lastHint[:4])
+			if hintLen <= uint32(len(lastHint[4:])) {
+				hint := lastHint[4 : 4+hintLen] // without the length prefix
+				lastHint = lastHint[4+hintLen:]
+				oracle.Hint(hint)
+			} else {
+				break // stop processing hints if there is incomplete data buffered
+			}
+		}
+		newLastHint = lastHint
+		v0 = a2
+	case fdPreimageWrite:
+		effAddr := a1 & 0xFFffFFfc
+		memTracker(effAddr)
+		mem := memory.GetMemory(effAddr)
+		key := preimageKey
+		alignment := a1 & 3
+		space := 4 - alignment
+		if space < a2 {
+			a2 = space
+		}
+		copy(key[:], key[a2:])
+		var tmp [4]byte
+		binary.BigEndian.PutUint32(tmp[:], mem)
+		copy(key[32-a2:], tmp[alignment:])
+		newPreimageKey = key
+		newPreimageOffset = 0
+		//fmt.Printf("updating pre-image key: %s\n", m.state.PreimageKey)
+		v0 = a2
+	default:
+		v0 = 0xFFffFFff
+		v1 = MipsEBADF
+	}
+
+	return v0, v1, newLastHint, newPreimageKey, newPreimageOffset
 }

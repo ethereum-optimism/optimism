@@ -181,36 +181,17 @@ contract MIPS is ISemver {
             }
             // write: like Linux write syscall. Splits unaligned writes into aligned writes.
             else if (syscall_no == 4004) {
-                // args: a0 = fd, a1 = addr, a2 = count
-                // returns: v0 = written, v1 = err code
-                if (a0 == sys.FD_STDOUT || a0 == sys.FD_STDERR || a0 == sys.FD_HINT_WRITE) {
-                    v0 = a2; // tell program we have written everything
-                }
-                // pre-image oracle
-                else if (a0 == sys.FD_PREIMAGE_WRITE) {
-                    uint32 mem = MIPSMemory.readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
-                    bytes32 key = state.preimageKey;
-
-                    // Construct pre-image key from memory
-                    // We use assembly for more precise ops, and no var count limit
-                    assembly {
-                        let alignment := and(a1, 3) // the read might not start at an aligned address
-                        let space := sub(4, alignment) // remaining space in memory word
-                        if lt(space, a2) { a2 := space } // if less space than data, shorten data
-                        key := shl(mul(a2, 8), key) // shift key, make space for new info
-                        let mask := sub(shl(mul(a2, 8), 1), 1) // mask for extracting value from memory
-                        mem := and(shr(mul(sub(space, a2), 8), mem), mask) // align value to right, mask it
-                        key := or(key, mem) // insert into key
-                    }
-
-                    // Write pre-image key to oracle
-                    state.preimageKey = key;
-                    state.preimageOffset = 0; // reset offset, to read new pre-image data from the start
-                    v0 = a2;
-                } else {
-                    v0 = 0xFFffFFff;
-                    v1 = sys.EBADF;
-                }
+                bytes32 newPreimageKey;
+                uint32 newPreimageOffset;
+                (v0, v1, newPreimageKey, newPreimageOffset) = sys.handleSysWrite({
+                    _a0: a0,
+                    _a1: a1,
+                    _a2: a2,
+                    _preimageKey: state.preimageKey,
+                    _preimageOffset: state.preimageOffset
+                });
+                state.preimageKey = newPreimageKey;
+                state.preimageOffset = newPreimageOffset;
             }
             // fcntl: Like linux fcntl syscall, but only supports minimal file-descriptor control commands,
             // to retrieve the file-descriptor R/W flags.
