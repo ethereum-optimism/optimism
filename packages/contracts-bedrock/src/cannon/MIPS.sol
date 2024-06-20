@@ -46,7 +46,7 @@ contract MIPS is ISemver {
 
     /// @notice The semantic version of the MIPS contract.
     /// @custom:semver 1.0.1
-    string public constant version = "1.1.0-beta.2";
+    string public constant version = "1.1.0-beta.3";
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
@@ -302,146 +302,6 @@ contract MIPS is ISemver {
         }
     }
 
-    /// @notice Handles HI and LO register instructions.
-    /// @param _func The function code of the instruction.
-    /// @param _rs The value of the RS register.
-    /// @param _rt The value of the RT register.
-    /// @param _storeReg The register to store the result in.
-    /// @return out_ The hashed MIPS state.
-    function handleHiLo(uint32 _func, uint32 _rs, uint32 _rt, uint32 _storeReg) internal returns (bytes32 out_) {
-        unchecked {
-            // Load state from memory
-            State memory state;
-            assembly {
-                state := 0x80
-            }
-
-            uint32 val;
-
-            // mfhi: Move the contents of the HI register into the destination
-            if (_func == 0x10) {
-                val = state.hi;
-            }
-            // mthi: Move the contents of the source into the HI register
-            else if (_func == 0x11) {
-                state.hi = _rs;
-            }
-            // mflo: Move the contents of the LO register into the destination
-            else if (_func == 0x12) {
-                val = state.lo;
-            }
-            // mtlo: Move the contents of the source into the LO register
-            else if (_func == 0x13) {
-                state.lo = _rs;
-            }
-            // mult: Multiplies `rs` by `rt` and stores the result in HI and LO registers
-            else if (_func == 0x18) {
-                uint64 acc = uint64(int64(int32(_rs)) * int64(int32(_rt)));
-                state.hi = uint32(acc >> 32);
-                state.lo = uint32(acc);
-            }
-            // multu: Unsigned multiplies `rs` by `rt` and stores the result in HI and LO registers
-            else if (_func == 0x19) {
-                uint64 acc = uint64(uint64(_rs) * uint64(_rt));
-                state.hi = uint32(acc >> 32);
-                state.lo = uint32(acc);
-            }
-            // div: Divides `rs` by `rt`.
-            // Stores the quotient in LO
-            // And the remainder in HI
-            else if (_func == 0x1a) {
-                if (int32(_rt) == 0) {
-                    revert("MIPS: division by zero");
-                }
-                state.hi = uint32(int32(_rs) % int32(_rt));
-                state.lo = uint32(int32(_rs) / int32(_rt));
-            }
-            // divu: Unsigned divides `rs` by `rt`.
-            // Stores the quotient in LO
-            // And the remainder in HI
-            else if (_func == 0x1b) {
-                if (_rt == 0) {
-                    revert("MIPS: division by zero");
-                }
-                state.hi = _rs % _rt;
-                state.lo = _rs / _rt;
-            }
-
-            // Store the result in the destination register, if applicable
-            if (_storeReg != 0) {
-                state.registers[_storeReg] = val;
-            }
-
-            // Update the PC
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
-
-            // Return the hash of the resulting state
-            out_ = outputState();
-        }
-    }
-
-    /// @notice Handles a jump instruction, updating the MIPS state PC where needed.
-    /// @param _linkReg The register to store the link to the instruction after the delay slot instruction.
-    /// @param _dest The destination to jump to.
-    /// @return out_ The hashed MIPS state.
-    function handleJump(uint32 _linkReg, uint32 _dest) internal returns (bytes32 out_) {
-        unchecked {
-            // Load state from memory.
-            State memory state;
-            assembly {
-                state := 0x80
-            }
-
-            if (state.nextPC != state.pc + 4) {
-                revert("jump in delay slot");
-            }
-
-            // Update the next PC to the jump destination.
-            uint32 prevPC = state.pc;
-            state.pc = state.nextPC;
-            state.nextPC = _dest;
-
-            // Update the link-register to the instruction after the delay slot instruction.
-            if (_linkReg != 0) {
-                state.registers[_linkReg] = prevPC + 8;
-            }
-
-            // Return the hash of the resulting state.
-            out_ = outputState();
-        }
-    }
-
-    /// @notice Handles a storing a value into a register.
-    /// @param _storeReg The register to store the value into.
-    /// @param _val The value to store.
-    /// @param _conditional Whether or not the store is conditional.
-    /// @return out_ The hashed MIPS state.
-    function handleRd(uint32 _storeReg, uint32 _val, bool _conditional) internal returns (bytes32 out_) {
-        unchecked {
-            // Load state from memory.
-            State memory state;
-            assembly {
-                state := 0x80
-            }
-
-            // The destination register must be valid.
-            require(_storeReg < 32, "valid register");
-
-            // Never write to reg 0, and it can be conditional (movz, movn).
-            if (_storeReg != 0 && _conditional) {
-                state.registers[_storeReg] = _val;
-            }
-
-            // Update the PC.
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
-
-            // Return the hash of the resulting state.
-            out_ = outputState();
-        }
-    }
-
     /// @notice Computes the offset of the proof in the calldata.
     /// @param _proofIndex The index of the proof in the calldata.
     /// @return offset_ The offset of the proof in the calldata.
@@ -632,7 +492,7 @@ contract MIPS is ISemver {
             if (opcode == 2 || opcode == 3) {
                 // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
                 uint32 target = (state.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
-                return handleJump(opcode == 2 ? 0 : 31, target);
+                return handleJumpAndReturnOutput(state, opcode == 2 ? 0 : 31, target);
             }
 
             // register fetch
@@ -707,16 +567,16 @@ contract MIPS is ISemver {
             if (opcode == 0 && func >= 8 && func < 0x1c) {
                 if (func == 8 || func == 9) {
                     // jr/jalr
-                    return handleJump(func == 8 ? 0 : rdReg, rs);
+                    return handleJumpAndReturnOutput(state, func == 8 ? 0 : rdReg, rs);
                 }
 
                 if (func == 0xa) {
                     // movz
-                    return handleRd(rdReg, rs, rt == 0);
+                    return handleRdAndReturnOutput(state, rdReg, rs, rt == 0);
                 }
                 if (func == 0xb) {
                     // movn
-                    return handleRd(rdReg, rs, rt != 0);
+                    return handleRdAndReturnOutput(state, rdReg, rs, rt != 0);
                 }
 
                 // syscall (can read and write)
@@ -727,7 +587,19 @@ contract MIPS is ISemver {
                 // lo and hi registers
                 // can write back
                 if (func >= 0x10 && func < 0x1c) {
-                    return handleHiLo(func, rs, rt, rdReg);
+                    st.CpuScalars memory cpu = getCpuScalars(state);
+
+                    ins.handleHiLo({
+                        _cpu: cpu,
+                        _registers: state.registers,
+                        _func: func,
+                        _rs: rs,
+                        _rt: rt,
+                        _storeReg: rdReg
+                    });
+
+                    setStateCpuScalars(state, cpu);
+                    return outputState();
                 }
             }
 
@@ -742,8 +614,47 @@ contract MIPS is ISemver {
             }
 
             // write back the value to destination register
-            return handleRd(rdReg, val, true);
+            return handleRdAndReturnOutput(state, rdReg, val, true);
         }
+    }
+
+    function handleJumpAndReturnOutput(
+        State memory _state,
+        uint32 _linkReg,
+        uint32 _dest
+    )
+        internal
+        returns (bytes32 out_)
+    {
+        st.CpuScalars memory cpu = getCpuScalars(_state);
+
+        ins.handleJump({ _cpu: cpu, _registers: _state.registers, _linkReg: _linkReg, _dest: _dest });
+
+        setStateCpuScalars(_state, cpu);
+        return outputState();
+    }
+
+    function handleRdAndReturnOutput(
+        State memory _state,
+        uint32 _storeReg,
+        uint32 _val,
+        bool _conditional
+    )
+        internal
+        returns (bytes32 out_)
+    {
+        st.CpuScalars memory cpu = getCpuScalars(_state);
+
+        ins.handleRd({
+            _cpu: cpu,
+            _registers: _state.registers,
+            _storeReg: _storeReg,
+            _val: _val,
+            _conditional: _conditional
+        });
+
+        setStateCpuScalars(_state, cpu);
+        return outputState();
     }
 
     function getCpuScalars(State memory _state) internal pure returns (st.CpuScalars memory) {
