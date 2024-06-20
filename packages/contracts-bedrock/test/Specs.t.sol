@@ -50,6 +50,7 @@ contract Specification_Test is CommonTest {
     }
 
     mapping(string => mapping(bytes4 => Spec)) specs;
+    mapping(Role => Spec[]) public specsByRole;
     mapping(string => uint256) public numEntries;
     uint256 numSpecs;
 
@@ -833,8 +834,10 @@ contract Specification_Test is CommonTest {
 
     /// @dev Adds a spec for a function.
     function _addSpec(string memory _name, bytes4 _sel, Role _auth, bool _pausable) internal {
-        specs[_name][_sel] = Spec({ name: _name, sel: _sel, auth: _auth, pausable: _pausable });
+        Spec memory spec = Spec({ name: _name, sel: _sel, auth: _auth, pausable: _pausable });
+        specs[_name][_sel] = spec;
         numEntries[_name]++;
+        specsByRole[_auth].push(spec);
         numSpecs++;
     }
 
@@ -893,5 +896,34 @@ contract Specification_Test is CommonTest {
             }
         }
         assertEq(numSpecs, numCheckedEntries, "Some specs were not checked");
+    }
+
+    /// @dev Asserts that two roles are equal by comparing their uint256 representations.
+    function _assertRolesEq(Role leftRole, Role rightRole) internal pure {
+        assertEq(uint256(leftRole), uint256(rightRole));
+    }
+
+    /// @notice Ensures that the DeputyGuardian is authorized to take all Guardian actions.
+    function testDeputyGuardianAuth() public view {
+        assertEq(specsByRole[Role.DEPUTYGUARDIAN].length, specsByRole[Role.GUARDIAN].length);
+        assertEq(specsByRole[Role.DEPUTYGUARDIAN].length, 4);
+
+        mapping(bytes4 => Spec) storage dgmFuncSpecs = specs["DeputyGuardianModule"];
+        mapping(bytes4 => Spec) storage superchainConfigFuncSpecs = specs["SuperchainConfig"];
+        mapping(bytes4 => Spec) storage portal2FuncSpecs = specs["OptimismPortal2"];
+
+        // Ensure that for each of the DeputyGuardianModule's methods there is a corresponding method on another
+        // system contract authed to the Guardian role.
+        _assertRolesEq(dgmFuncSpecs[_getSel("pause()")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(superchainConfigFuncSpecs[_getSel("pause(string)")].auth, Role.GUARDIAN);
+
+        _assertRolesEq(dgmFuncSpecs[_getSel("unpause()")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(superchainConfigFuncSpecs[_getSel("unpause()")].auth, Role.GUARDIAN);
+
+        _assertRolesEq(dgmFuncSpecs[_getSel("blacklistDisputeGame(address,address)")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(portal2FuncSpecs[_getSel("blacklistDisputeGame(address)")].auth, Role.GUARDIAN);
+
+        _assertRolesEq(dgmFuncSpecs[_getSel("setRespectedGameType(address,uint32)")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(portal2FuncSpecs[_getSel("setRespectedGameType(uint32)")].auth, Role.GUARDIAN);
     }
 }
