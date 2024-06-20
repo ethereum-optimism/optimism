@@ -279,7 +279,10 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			log.Warn("invalid snappy compression", "err", err, "peer", id)
 			return pubsub.ValidationReject
 		}
-		*res = data // if we ended up growing the slice capacity, fine, keep the larger one.
+		// if we ended up growing the slice capacity, fine, keep the larger one.
+		if len(data) > len(*res) {
+			*res = data
+		}
 
 		// message starts with compact-encoding secp256k1 encoded signature
 		signatureBytes, payloadBytes := data[:65], data[65:]
