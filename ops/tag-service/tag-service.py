@@ -12,6 +12,7 @@ MIN_VERSIONS = {
     'ci-builder': '0.6.0',
     'ci-builder-rust': '0.1.0',
     'chain-mon': '0.2.2',
+    'da-server': '0.0.4',
     'op-node': '0.10.14',
     'op-batcher': '0.10.14',
     'op-challenger': '0.0.4',
