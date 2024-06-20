@@ -175,6 +175,9 @@ const maxMeshParam = 1000
 
 func (conf *Config) Check() error {
 	if conf.DisableP2P {
+		if len(conf.StaticPeers) > 0 {
+			return errors.New("both --p2p.static and --p2p.disable are specified")
+		}
 		return nil
 	}
 	if conf.Store == nil {
