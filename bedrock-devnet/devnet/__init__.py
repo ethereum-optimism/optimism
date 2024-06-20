@@ -143,7 +143,7 @@ def main():
         })
 
     log.info('Devnet starting')
-    devnet_deploy(paths)
+    devnet_deploy(paths, interop=args.interop)
 
 def init_devnet_l1_deploy_config(paths, interop=False, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
@@ -259,16 +259,17 @@ def deploy_l1(paths):
     wait_for_rpc_server('127.0.0.1:8545')
 
 
-def deploy_l2(paths):
-    if os.path.exists(paths.genesis_l2_path):
+def generate_l2_genesis(chainid, genesis_l2_path, l1_deployments_path,
+                        devnet_config_path, addresses_json_path, rollup_config_path, paths):
+    if os.path.exists(genesis_l2_path):
         log.info('L2 genesis and rollup configs already generated.')
     else:
         log.info('Generating L2 genesis and rollup configs.')
-        l2_allocs_path = pjoin(paths.devnet_dir, f'allocs-l2-{CHAIN_ID}-{FORKS[-1]}.json')
+        l2_allocs_path = pjoin(paths.devnet_dir, f'allocs-l2-{chainid}-{FORKS[-1]}.json')
         if os.path.exists(l2_allocs_path) == False or DEVNET_L2OO == True:
             # Also regenerate if L2OO.
             # The L2OO flag may affect the L1 deployments addresses, which may affect the L2 genesis.
-            devnet_l2_allocs(CHAIN_ID, paths.l1_deployments_path, paths.devnet_config_path,
+            devnet_l2_allocs(chainid, l1_deployments_path, devnet_config_path,
                              paths.devnet_dir, paths.contracts_bedrock_dir)
         else:
             log.info('Re-using existing L2 allocs.')
@@ -276,13 +277,18 @@ def deploy_l2(paths):
         run_command([
             'go', 'run', 'cmd/main.go', 'genesis', 'l2',
             '--l1-rpc', 'http://localhost:8545',
-            '--deploy-config', paths.devnet_config_path,
+            '--deploy-config', devnet_config_path,
             '--l2-allocs', l2_allocs_path,
-            '--l1-deployments', paths.addresses_json_path,
-            '--outfile.l2', paths.genesis_l2_path,
-            '--outfile.rollup', paths.rollup_config_path
+            '--l1-deployments', addresses_json_path,
+            '--outfile.l2', genesis_l2_path,
+            '--outfile.rollup', rollup_config_path
         ], cwd=paths.op_node_dir)
 
+
+def deploy_l2(paths):
+    generate_l2_genesis(CHAIN_ID,
+                        paths.genesis_l2_path, paths.l1_deployments_path,
+                        paths.devnet_config_path, paths.addresses_json_path, paths.rollup_config_path, paths)
     rollup_config = read_json(paths.rollup_config_path)
     addresses = read_json(paths.addresses_json_path)
 
@@ -347,13 +353,82 @@ def deploy_l2(paths):
         run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
 
+def deploy_l2_interop(paths):
+    generate_l2_genesis(INTEROP_CHAIN_ID,
+                        paths.interop_genesis_l2_path, paths.interop_l1_deployments_path,
+                        paths.interop_devnet_config_path, paths.interop_addresses_json_path,
+                        paths.interop_rollup_config_path, paths)
+    rollup_config = read_json(paths.interop_rollup_config_path)
+    addresses = read_json(paths.interop_addresses_json_path)
+
+    # Start the L2.
+    log.info('Bringing up L2.')
+    run_command(['docker', 'compose', 'up', '-d', 'l2-interop'], cwd=paths.ops_bedrock_dir, env={
+        'PWD': paths.ops_bedrock_dir
+    })
+
+    # Wait for the L2 to be available.
+    wait_up(10545)
+    wait_for_rpc_server('127.0.0.1:10545')
+
+    # Print out the addresses being used for easier debugging.
+    l2_output_oracle = addresses['L2OutputOracleProxy']
+    dispute_game_factory = addresses['DisputeGameFactoryProxy']
+    batch_inbox_address = rollup_config['batch_inbox_address']
+    log.info(f'Using L2OutputOracle {l2_output_oracle}')
+    log.info(f'Using DisputeGameFactory {dispute_game_factory}')
+    log.info(f'Using batch inbox {batch_inbox_address}')
+
+    # Set up the base docker environment.
+    docker_env = {
+        'PWD': paths.ops_bedrock_dir,
+    }
+
+    # Selectively set the L2OO_ADDRESS or DGF_ADDRESS if using L2OO.
+    # Must be done selectively because op-proposer throws if both are set.
+    if DEVNET_L2OO:
+        docker_env['L2OO_ADDRESS_INTEROP'] = l2_output_oracle
+    else:
+        docker_env['DGF_ADDRESS_INTEROP'] = dispute_game_factory
+        docker_env['DG_TYPE'] = '254'
+        docker_env['PROPOSAL_INTERVAL'] = '10s'
+
+    if DEVNET_PLASMA:
+        docker_env['PLASMA_ENABLED'] = 'true'
+    else:
+        docker_env['PLASMA_ENABLED'] = 'false'
+
+    if GENERIC_PLASMA:
+        docker_env['PLASMA_GENERIC_DA'] = 'true'
+        docker_env['PLASMA_DA_SERVICE'] = 'true'
+    else:
+        docker_env['PLASMA_GENERIC_DA'] = 'false'
+        docker_env['PLASMA_DA_SERVICE'] = 'false'
+
+    # Bring up the rest of the services.
+    log.info('Bringing up `op-node-interop`, `op-proposer-interop` and `op-batcher-interop`.')
+    run_command(['docker', 'compose', 'up', '-d',
+                 'op-node-interop', 'op-proposer-interop', 'op-batcher-interop'],
+                cwd=paths.ops_bedrock_dir, env=docker_env)
+
+    # Optionally bring up op-challenger.
+    if not DEVNET_L2OO:
+        log.info('Bringing up `op-challenger-interop`.')
+        run_command(['docker', 'compose', 'up', '-d', 'op-challenger-interop'],
+                    cwd=paths.ops_bedrock_dir, env=docker_env)
+
+
 # Bring up the devnet where the contracts are deployed to L1
-def devnet_deploy(paths):
+def devnet_deploy(paths, interop=False):
     log.info("Deploying L1 devnet.")
     deploy_l1(paths)
 
     log.info("Deploying L2 devnet.")
     deploy_l2(paths)
+
+    if interop:
+        log.info("Deploying L2 interop devnet.")
+        deploy_l2_interop(paths)
     # Fin.
     log.info('Devnet ready.')
 
