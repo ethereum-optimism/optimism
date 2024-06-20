@@ -43,6 +43,7 @@ services:
       --rpc.addr=0.0.0.0
       --rpc.port=8547
       --l1.trustrpc=true
+      --plasma.enabled=false
     ports:
       - "8547:8547"
     volumes:

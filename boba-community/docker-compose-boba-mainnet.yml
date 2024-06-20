@@ -47,6 +47,7 @@ services:
       --network=boba-mainnet
       --rpc.addr=0.0.0.0
       --rpc.port=8545
+      --plasma.enabled=false
     # Optional flags
     # These flags are optional and can be used to identify the node and store the peerstore and discovery data.
     # We recommend adding these flags to your configuration to help identify your node and store the peerstore and discovery data.
