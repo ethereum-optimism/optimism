@@ -269,7 +269,7 @@ func (s *Driver) eventLoop() {
 			// so, we don't need to receive the payload here
 			_, err := s.sequencer.RunNextSequencerAction(s.driverCtx, s.asyncGossiper, s.sequencerConductor)
 			if errors.Is(err, derive.ErrReset) {
-				s.Derivation.Reset()
+				s.Emitter.Emit(rollup.ResetEvent{})
 			} else if err != nil {
 				s.log.Error("Sequencer critical error", "err", err)
 				return
@@ -436,6 +436,16 @@ func (s *SyncDeriver) OnEvent(ev rollup.Event) {
 		s.Emitter.Emit(StepReqEvent{})
 	case engine.EngineResetConfirmedEvent:
 		s.onEngineConfirmedReset(x)
+	case derive.DeriverIdleEvent:
+		// Once derivation is idle the system is healthy
+		// and we can wait for new inputs. No backoff necessary.
+		s.Emitter.Emit(ResetStepBackoffEvent{})
+	case derive.DeriverMoreEvent:
+		// If there is more data to process,
+		// continue derivation quickly
+		s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
+	case derive.DerivedAttributesEvent:
+		s.AttributesHandler.SetAttributes(x.Attributes)
 	}
 }
 
@@ -465,22 +475,18 @@ func (s *SyncDeriver) onEngineConfirmedReset(x engine.EngineResetConfirmedEvent)
 			}
 		}
 	}
-	s.Derivation.ConfirmEngineReset()
+	s.Emitter.Emit(derive.ConfirmPipelineResetEvent{})
 }
 
 func (s *SyncDeriver) onStepEvent() {
-	s.Log.Debug("Sync process step", "onto_origin", s.Derivation.Origin())
+	s.Log.Debug("Sync process step")
 	// Note: while we refactor the SyncStep to be entirely event-based we have an intermediate phase
 	// where some things are triggered through events, and some through this synchronous step function.
 	// We just translate the results into their equivalent events,
 	// to merge the error-handling with that of the new event-based system.
 	err := s.SyncStep(s.Ctx)
-	if err == io.EOF {
-		s.Log.Debug("Derivation process went idle", "progress", s.Derivation.Origin(), "err", err)
-		s.Emitter.Emit(ResetStepBackoffEvent{})
-		s.Emitter.Emit(DeriverIdleEvent{})
-	} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
-		s.Log.Debug("Derivation process went idle because the engine is syncing", "progress", s.Derivation.Origin(), "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
+	if err != nil && errors.Is(err, derive.EngineELSyncing) {
+		s.Log.Debug("Derivation process went idle because the engine is syncing", "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
 		s.Emitter.Emit(ResetStepBackoffEvent{})
 	} else if err != nil && errors.Is(err, derive.ErrReset) {
 		s.Emitter.Emit(rollup.ResetEvent{Err: err})
@@ -488,9 +494,6 @@ func (s *SyncDeriver) onStepEvent() {
 		s.Emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
 	} else if err != nil && errors.Is(err, derive.ErrCritical) {
 		s.Emitter.Emit(rollup.CriticalErrorEvent{Err: err})
-	} else if err != nil && errors.Is(err, derive.NotEnoughData) {
-		// don't do a backoff for this error
-		s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
 	} else if err != nil {
 		s.Log.Error("Derivation process error", "err", err)
 		s.Emitter.Emit(StepReqEvent{})
@@ -500,18 +503,11 @@ func (s *SyncDeriver) onStepEvent() {
 }
 
 func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
-	// If the pipeline corrupts, e.g. due to a reorg, simply reset it
-	s.Log.Warn("Derivation pipeline is reset", "err", x.Err)
-	s.Derivation.Reset()
+	// If the system corrupts, e.g. due to a reorg, simply reset it
+	s.Log.Warn("Deriver system is resetting", "err", x.Err)
 	s.Finalizer.Reset()
 	s.Emitter.Emit(StepReqEvent{})
 	s.Emitter.Emit(engine.ResetEngineRequestEvent{})
-}
-
-type DeriverIdleEvent struct{}
-
-func (d DeriverIdleEvent) String() string {
-	return "derivation-idle"
 }
 
 // SyncStep performs the sequence of encapsulated syncing steps.
@@ -562,12 +558,7 @@ func (s *SyncDeriver) SyncStep(ctx context.Context) error {
 		return fmt.Errorf("finalizer OnDerivationL1End error: %w", err)
 	}
 
-	attr, err := s.Derivation.Step(ctx, s.Engine.PendingSafeL2Head())
-	if err != nil {
-		return err
-	}
-
-	s.AttributesHandler.SetAttributes(attr)
+	s.Emitter.Emit(derive.PipelineStepEvent{PendingSafe: s.Engine.PendingSafeL2Head()})
 	return nil
 }
 
@@ -711,7 +702,6 @@ func (s *Driver) snapshot(event string) {
 	s.snapshotLog.Info("Rollup State Snapshot",
 		"event", event,
 		"l1Head", deferJSONString{s.l1State.L1Head()},
-		"l1Current", deferJSONString{s.Derivation.Origin()},
 		"l2Head", deferJSONString{s.Engine.UnsafeL2Head()},
 		"l2Safe", deferJSONString{s.Engine.SafeL2Head()},
 		"l2FinalizedHead", deferJSONString{s.Engine.Finalized()})
