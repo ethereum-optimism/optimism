@@ -271,7 +271,7 @@ contract Deploy is Deployer {
         _run();
     }
 
-    function runWithStateDump() virtual public {
+    function runWithStateDump() public virtual {
         vm.chainId(cfg.l1ChainID());
         _run();
         vm.dumpState(Config.stateDumpPath(""));

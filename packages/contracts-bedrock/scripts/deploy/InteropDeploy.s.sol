@@ -12,12 +12,11 @@ import { console } from "forge-std/console.sol";
 /// @author jinmel
 /// @notice A contract that can make deploying and interacting with deployments easy.
 contract InteropDeploy is Deploy {
-
     // @notice Deploys all of the L1 contracts necessary for two rollups configured by five env vars.
     //         The first rollup(default) is configured by DEPLOYMENT_OUTFILE and DEPLOY_CONFIG_PATH.
     //         The second rollup(interop) is configured by INTEROP_DEPLOYMENT_OUTFILE and INTEROP_DEPLOY_CONFIG_PATH.
     //         The final state-dump is written to STATE_DUMP_PATH
-    function runWithStateDump() override public {
+    function runWithStateDump() public override {
         uint256 id = vm.snapshot();
 
         vm.setEnv("DEPLOYMENT_OUTFILE", vm.envString("DEPLOYMENT_OUTFILE"));
