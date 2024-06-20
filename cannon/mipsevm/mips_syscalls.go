@@ -36,7 +36,7 @@ func getSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
 	return syscallNum, a0, a1, a2
 }
 
-func handleMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
+func handleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	v1 = uint32(0)
 	newHeap = heap
 

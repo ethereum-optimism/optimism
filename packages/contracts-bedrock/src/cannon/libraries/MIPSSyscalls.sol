@@ -44,7 +44,7 @@ library MIPSSyscalls {
     /// @return v0_ The address of the new mapping
     /// @return v1_ Unused error code (0)
     /// @return newHeap_ The new value for the heap, may be unchanged
-    function handleMmap(
+    function handleSysMmap(
         uint32 _a0,
         uint32 _a1,
         uint32 _heap
@@ -81,7 +81,7 @@ library MIPSSyscalls {
     /// @param _oracle The address of the preimage oracle
     /// @return v0_ The number of bytes read, -1 on error
     /// @return v1_ The error code, 0 if there is no error
-    function handleSyscallRead(
+    function handleSysRead(
         uint32 _a0,
         uint32 _a1,
         uint32 _a2,

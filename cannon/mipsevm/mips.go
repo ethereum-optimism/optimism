@@ -54,7 +54,7 @@ func (m *InstrumentedState) handleSyscall() error {
 	switch syscallNum {
 	case sysMmap:
 		var newHeap uint32
-		v0, v1, newHeap = handleMmap(a0, a1, m.state.Heap)
+		v0, v1, newHeap = handleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
 	case sysBrk:
 		v0 = 0x40000000

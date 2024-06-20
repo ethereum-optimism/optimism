@@ -148,7 +148,7 @@ contract MIPS is ISemver {
             // mmap: Allocates a page from the heap.
             if (syscall_no == 4090) {
                 uint32 newHeap;
-                (v0, v1, newHeap) = sys.handleMmap(a0, a1, state.heap);
+                (v0, v1, newHeap) = sys.handleSysMmap(a0, a1, state.heap);
                 state.heap = newHeap;
             }
             // brk: Returns a fixed address for the program break at 0x40000000
@@ -168,7 +168,7 @@ contract MIPS is ISemver {
             // read: Like Linux read syscall. Splits unaligned reads into aligned reads.
             else if (syscall_no == 4003) {
                 uint32 newPreimageOffset;
-                (v0, v1, newPreimageOffset) = sys.handleSyscallRead({
+                (v0, v1, newPreimageOffset) = sys.handleSysRead({
                     _a0: a0,
                     _a1: a1,
                     _a2: a2,
