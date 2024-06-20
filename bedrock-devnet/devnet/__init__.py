@@ -123,7 +123,7 @@ def main():
             log.info("Generating interop L2 allocs")
             devnet_l2_allocs(INTEROP_CHAIN_ID,
                             paths.interop_l1_deployments_path, paths.interop_devnet_config_path,
-                            paths.devnet_dir, paths.contracts_bedrock_dir)
+                            paths.devnet_dir, paths.contracts_bedrock_dir, interop=True)
         return
 
     git_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
@@ -202,7 +202,7 @@ def devnet_l1_allocs(paths, interop=False):
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
 
 
-def devnet_l2_allocs(chainid, l1_deployments_path, devnet_config_path, devnet_dir, contracts_bedrock_dir):
+def devnet_l2_allocs(chainid, l1_deployments_path, devnet_config_path, devnet_dir, contracts_bedrock_dir, interop=False):
     log.info('Generating L2 genesis allocs, with L1 addresses: '+l1_deployments_path)
 
     fqn = 'scripts/L2Genesis.s.sol:L2Genesis'
@@ -217,7 +217,12 @@ def devnet_l2_allocs(chainid, l1_deployments_path, devnet_config_path, devnet_di
     # move the forge-dumps into place as .devnet allocs.
     for fork in FORKS:
         input_path = pjoin(contracts_bedrock_dir, f"state-dump-{chainid}-{fork}.json")
-        output_path = pjoin(devnet_dir, f'allocs-l2-{chainid}-{fork}.json')
+        # TODO: Consider using chainid instead of the `-interop` suffix for each chains. For now we keep the
+        # filename consistent with the current CI/CD pipeline
+        if interop:
+            output_path = pjoin(devnet_dir, f'allocs-l2-{fork}-interop.json')
+        else:
+            output_path = pjoin(devnet_dir, f'allocs-l2-{fork}.json')
         shutil.move(src=input_path, dst=output_path)
         log.info("Generated L2 allocs: " + output_path)
 
@@ -260,17 +265,20 @@ def deploy_l1(paths):
 
 
 def generate_l2_genesis(chainid, genesis_l2_path, l1_deployments_path,
-                        devnet_config_path, addresses_json_path, rollup_config_path, paths):
+                        devnet_config_path, addresses_json_path, rollup_config_path, paths, interop=False):
     if os.path.exists(genesis_l2_path):
         log.info('L2 genesis and rollup configs already generated.')
     else:
         log.info('Generating L2 genesis and rollup configs.')
-        l2_allocs_path = pjoin(paths.devnet_dir, f'allocs-l2-{chainid}-{FORKS[-1]}.json')
+        if interop:
+            l2_allocs_path = pjoin(paths.devnet_dir, f'allocs-l2-{FORKS[-1]}-interop.json')
+        else:
+            l2_allocs_path = pjoin(paths.devnet_dir, f'allocs-l2-{FORKS[-1]}.json')
         if os.path.exists(l2_allocs_path) == False or DEVNET_L2OO == True:
             # Also regenerate if L2OO.
             # The L2OO flag may affect the L1 deployments addresses, which may affect the L2 genesis.
             devnet_l2_allocs(chainid, l1_deployments_path, devnet_config_path,
-                             paths.devnet_dir, paths.contracts_bedrock_dir)
+                             paths.devnet_dir, paths.contracts_bedrock_dir, interop=interop)
         else:
             log.info('Re-using existing L2 allocs.')
 
@@ -357,7 +365,7 @@ def deploy_l2_interop(paths):
     generate_l2_genesis(INTEROP_CHAIN_ID,
                         paths.interop_genesis_l2_path, paths.interop_l1_deployments_path,
                         paths.interop_devnet_config_path, paths.interop_addresses_json_path,
-                        paths.interop_rollup_config_path, paths)
+                        paths.interop_rollup_config_path, paths, interop=True)
     rollup_config = read_json(paths.interop_rollup_config_path)
     addresses = read_json(paths.interop_addresses_json_path)
 
