@@ -274,7 +274,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 		res := msgBufPool.Get().(*[]byte)
 		defer msgBufPool.Put(res)
-		data, err := snappy.Decode((*res)[:0], message.Data)
+		data, err := snappy.Decode(*res, message.Data)
 		if err != nil {
 			log.Warn("invalid snappy compression", "err", err, "peer", id)
 			return pubsub.ValidationReject
