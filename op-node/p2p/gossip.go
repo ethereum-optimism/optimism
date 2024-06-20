@@ -339,13 +339,13 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			return pubsub.ValidationReject
 		}
 
-		// [REJECT] if a V2 Block does not have withdrawals
+		// [REJECT] if a >= V2 Block does not have withdrawals
 		if blockVersion.HasWithdrawals() && payload.Withdrawals == nil {
 			log.Warn("payload is on v2/v3 topic, but does not have withdrawals", "bad_hash", payload.BlockHash.String())
 			return pubsub.ValidationReject
 		}
 
-		// [REJECT] if a V2 Block has non-empty withdrawals
+		// [REJECT] if a >= V2 Block has non-empty withdrawals
 		if blockVersion.HasWithdrawals() && len(*payload.Withdrawals) != 0 {
 			log.Warn("payload is on v2/v3 topic, but has non-empty withdrawals", "bad_hash", payload.BlockHash.String(), "withdrawal_count", len(*payload.Withdrawals))
 			return pubsub.ValidationReject
