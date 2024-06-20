@@ -125,8 +125,9 @@ func NewFromFile(logger log.Logger, m Metrics, path string) (*DB, error) {
 }
 
 func (db *DB) init() error {
+	db.updateEntryCountMetric()
 	if db.lastEntryIdx < 0 {
-		// Database is empty so nothing to init
+		// Database is empty so no context to load
 		return nil
 	}
 	lastCheckpoint := (db.lastEntryIdx / searchCheckpointFrequency) * searchCheckpointFrequency
@@ -147,7 +148,6 @@ func (db *DB) init() error {
 		blockNum: i.blockNum,
 		logIdx:   i.logIdx,
 	}
-	db.updateEntryCountMetric()
 	return nil
 }
 
@@ -217,6 +217,8 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (boo
 }
 
 func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
+	// TODO: Handle starting from a checkpoint after initiating-event but before its executing-link
+	// Will need to read the entry prior to the checkpoint to get the initiating event info
 	current, err := db.readSearchCheckpoint(startCheckpointEntry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
@@ -299,6 +301,60 @@ func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logId
 	}
 	db.lastEntryContext = postState
 	db.updateEntryCountMetric()
+	return nil
+}
+
+// Rewind the database to remove any blocks after headBlockNum
+// The block at headBlockNum itself is not removed.
+func (db *DB) Rewind(headBlockNum uint64) error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+	if headBlockNum >= db.lastEntryContext.blockNum {
+		// Nothing to do
+		return nil
+	}
+	// Find the last checkpoint before the block to remove
+	idx, err := db.searchCheckpoint(headBlockNum+1, 0)
+	if errors.Is(err, io.EOF) {
+		// Requested a block prior to the first checkpoint
+		// Delete everything without scanning forward
+		idx = -1
+	} else if err != nil {
+		return fmt.Errorf("failed to find checkpoint prior to block %v: %w", headBlockNum, err)
+	} else {
+		// Scan forward from the checkpoint to find the first entry about a block after headBlockNum
+		i, err := db.newIterator(idx)
+		if err != nil {
+			return fmt.Errorf("failed to create iterator when searching for rewind point: %w", err)
+		}
+		// If we don't find any useful logs after the checkpoint, we should delete the checkpoint itself
+		// So move our delete marker back to include it as a starting point
+		idx--
+		for {
+			blockNum, _, _, err := i.NextLog()
+			if errors.Is(err, io.EOF) {
+				// Reached end of file, we need to keep everything
+				return nil
+			} else if err != nil {
+				return fmt.Errorf("failed to find rewind point: %w", err)
+			}
+			if blockNum > headBlockNum {
+				// Found the first entry we don't need, so stop searching and delete everything after idx
+				break
+			}
+			// Otherwise we need all of the entries the iterator just read
+			idx = i.nextEntryIdx - 1
+		}
+	}
+	// Truncate to contain idx+1 entries, since indices are 0 based, this deletes everything after idx
+	if err := db.data.Truncate((idx + 1) * entrySize); err != nil {
+		return fmt.Errorf("failed to truncate to block %v: %w", headBlockNum, err)
+	}
+	// Update the lastEntryIdx cache and then use db.init() to find the log context for the new latest log entry
+	db.lastEntryIdx = idx
+	if err := db.init(); err != nil {
+		return fmt.Errorf("failed to find new last entry context: %w", err)
+	}
 	return nil
 }
 
@@ -414,31 +470,6 @@ func (db *DB) writeEntry(entry [entrySize]byte) error {
 	db.lastEntryIdx++
 	return nil
 }
-
-// Rewind the database to remove any blocks after headBlockNum
-// The block at headBlockNum itself is not removed.
-//func (db *DB) Rewind(headBlockNum uint64) error {
-//	db.rwLock.Lock()
-//	defer db.rwLock.Unlock()
-//	if headBlockNum > db.lastBlockNum {
-//		// Nothing to do
-//		return nil
-//	}
-//	// Find the first index we should delete
-//	idx, _, _, err := db.search(headBlockNum+1, 0)
-//	if err != nil {
-//		return fmt.Errorf("failed to find entry index for block %v: %w", headBlockNum, err)
-//	}
-//	// Truncate to contain exactly idx entries, since indices are 0 based, this deletes idx and everything after it
-//	err = db.data.Truncate(idx * common.HashLength)
-//	if err != nil {
-//		return fmt.Errorf("failed to truncate to block %v: %w", headBlockNum, err)
-//	}
-//	// The first remaining entry is one before the first deleted entry
-//	db.lastEntryIdx = idx - 1
-//	db.lastBlockNum = headBlockNum
-//	return nil
-//}
 
 func (db *DB) readEntry(idx int64) ([entrySize]byte, error) {
 	var out [entrySize]byte

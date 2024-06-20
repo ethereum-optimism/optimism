@@ -409,6 +409,15 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHa
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
 }
 
+func requireNotContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash) {
+	m, ok := db.m.(*stubMetrics)
+	require.True(t, ok, "Did not get the expected metrics type")
+	result, err := db.Contains(blockNum, logIdx, logHash)
+	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
+	require.Falsef(t, result, "Found unexpected log %v in block %v with hash %v", logIdx, blockNum, logHash)
+	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
+}
+
 func TestShouldRollBackInMemoryChangesOnWriteFailure(t *testing.T) {
 
 }
@@ -425,190 +434,164 @@ func TestShouldRecoverWhenInitiatingEventWrittenButNotExecutingLink(t *testing.T
 
 }
 
-//func TestRewind(t *testing.T) {
-//	t.Run("WhenEmpty", func(t *testing.T) {
-//		runDBTest(t, func(t *testing.T, db *DB) {},
-//			func(t *testing.T, db *DB) {
-//				require.NoError(t, db.Rewind(100))
-//				require.NoError(t, db.Rewind(0))
-//			})
-//	})
-//
-//	t.Run("AfterLastEntry", func(t *testing.T) {
-//		runDBTest(t,
-//			func(t *testing.T, db *DB) {
-//				require.NoError(t, db.Add(50, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Add(51, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Add(74, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Rewind(75))
-//			},
-//			func(t *testing.T, db *DB) {
-//				contains, err := db.Contains(50, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(50, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//			})
-//	})
-//
-//	t.Run("BeforeFirstEntry", func(t *testing.T) {
-//		runDBTest(t,
-//			func(t *testing.T, db *DB) {
-//				require.NoError(t, db.Add(50, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Rewind(25))
-//			},
-//			func(t *testing.T, db *DB) {
-//				contains, err := db.Contains(50, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.False(t, contains)
-//
-//				contains, err = db.Contains(50, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.False(t, contains)
-//			})
-//	})
-//
-//	t.Run("AtFirstEntry", func(t *testing.T) {
-//		runDBTest(t,
-//			func(t *testing.T, db *DB) {
-//				require.NoError(t, db.Add(50, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Add(51, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Rewind(50))
-//			},
-//			func(t *testing.T, db *DB) {
-//				contains, err := db.Contains(50, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(50, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(51, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.False(t, contains)
-//
-//				contains, err = db.Contains(51, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.False(t, contains)
-//			})
-//	})
-//
-//	t.Run("BetweenEntries", func(t *testing.T) {
-//		runDBTest(t,
-//			func(t *testing.T, db *DB) {
-//				require.NoError(t, db.Add(50, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Add(60, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Rewind(55))
-//			},
-//			func(t *testing.T, db *DB) {
-//				contains, err := db.Contains(50, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(50, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(60, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.False(t, contains)
-//
-//				contains, err = db.Contains(60, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.False(t, contains)
-//			})
-//	})
-//
-//	t.Run("AtExistingEntry", func(t *testing.T) {
-//		runDBTest(t,
-//			func(t *testing.T, db *DB) {
-//				require.NoError(t, db.Add(59, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Add(60, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Add(61, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Rewind(60))
-//			},
-//			func(t *testing.T, db *DB) {
-//				contains, err := db.Contains(59, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(59, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(60, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(60, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(61, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.False(t, contains)
-//
-//				contains, err = db.Contains(61, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.False(t, contains)
-//			})
-//	})
-//
-//	t.Run("AtLastEntry", func(t *testing.T) {
-//		runDBTest(t,
-//			func(t *testing.T, db *DB) {
-//				require.NoError(t, db.Add(50, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Add(60, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Add(70, []common.Hash{createHash(1), createHash(2)}))
-//				require.NoError(t, db.Rewind(70))
-//			},
-//			func(t *testing.T, db *DB) {
-//				contains, err := db.Contains(50, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(50, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(60, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(60, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(70, 0, createHash(1))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//
-//				contains, err = db.Contains(70, 1, createHash(2))
-//				require.NoError(t, err)
-//				require.True(t, contains)
-//			})
-//	})
-//
-//	t.Run("ReaddDeletedBlocks", func(t *testing.T) {
-//		runDBTest(t, func(t *testing.T, db *DB) {
-//			require.NoError(t, db.Add(59, []common.Hash{createHash(1), createHash(2)}))
-//			require.NoError(t, db.Add(60, []common.Hash{createHash(1), createHash(2)}))
-//			require.NoError(t, db.Add(61, []common.Hash{createHash(1), createHash(2)}))
-//			require.NoError(t, db.Rewind(60))
-//		},
-//			func(t *testing.T, db *DB) {
-//				err := db.Add(59, []common.Hash{createHash(1), createHash(2)})
-//				require.ErrorIs(t, err, ErrLogOutOfOrder, "Cannot add block before rewound head")
-//				err = db.Add(60, []common.Hash{createHash(1), createHash(2)})
-//				require.ErrorIs(t, err, ErrLogOutOfOrder, "Cannot add block that was rewound to")
-//				err = db.Add(61, []common.Hash{createHash(1), createHash(2)})
-//				require.NoError(t, err, "Can re-add deleted block")
-//			})
-//	})
-//}
+func TestRewind(t *testing.T) {
+	t.Run("WhenEmpty", func(t *testing.T) {
+		runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.Rewind(100))
+				require.NoError(t, db.Rewind(0))
+			})
+	})
+
+	t.Run("AfterLastBlock", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createHash(3), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(4), eth.BlockID{Hash: createHash(74), Number: 74}, 700, 0))
+				require.NoError(t, db.Rewind(75))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 50, 0, createHash(1))
+				requireContains(t, db, 50, 1, createHash(2))
+				requireContains(t, db, 51, 0, createHash(3))
+				requireContains(t, db, 74, 0, createHash(4))
+			})
+	})
+
+	t.Run("BeforeFirstBlock", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.Rewind(25))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireNotContains(t, db, 50, 0, createHash(1))
+				requireNotContains(t, db, 50, 0, createHash(1))
+				require.Zero(t, m.entryCount)
+			})
+	})
+
+	t.Run("AtFirstBlock", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 1))
+				require.NoError(t, db.Rewind(50))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 50, 0, createHash(1))
+				requireContains(t, db, 50, 1, createHash(2))
+				requireNotContains(t, db, 51, 0, createHash(1))
+				requireNotContains(t, db, 51, 1, createHash(2))
+			})
+	})
+
+	t.Run("AtSecondCheckpoint", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				for i := uint32(0); m.entryCount < searchCheckpointFrequency; i++ {
+					require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, i))
+				}
+				require.EqualValues(t, searchCheckpointFrequency, m.entryCount)
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
+				require.EqualValues(t, searchCheckpointFrequency+3, m.entryCount, "Should have inserted new checkpoint and extra log")
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 1))
+				require.NoError(t, db.Rewind(50))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.EqualValues(t, searchCheckpointFrequency, m.entryCount, "Should have deleted second checkpoint")
+				requireContains(t, db, 50, 0, createHash(1))
+				requireContains(t, db, 50, 1, createHash(1))
+				requireNotContains(t, db, 51, 0, createHash(1))
+				requireNotContains(t, db, 51, 1, createHash(2))
+			})
+	})
+
+	t.Run("BetweenLogEntries", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
+				require.NoError(t, db.Rewind(55))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 50, 0, createHash(1))
+				requireContains(t, db, 50, 1, createHash(2))
+				requireNotContains(t, db, 60, 0, createHash(1))
+				requireNotContains(t, db, 60, 1, createHash(2))
+			})
+	})
+
+	t.Run("AtExistingLogEntry", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1))
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 1))
+				require.NoError(t, db.Rewind(60))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 59, 0, createHash(1))
+				requireContains(t, db, 59, 1, createHash(2))
+				requireContains(t, db, 60, 0, createHash(1))
+				requireContains(t, db, 60, 1, createHash(2))
+				requireNotContains(t, db, 61, 0, createHash(1))
+				requireNotContains(t, db, 61, 1, createHash(2))
+			})
+	})
+
+	t.Run("AtLastEntry", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(70), Number: 70}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(70), Number: 70}, 502, 1))
+				require.NoError(t, db.Rewind(70))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 50, 0, createHash(1))
+				requireContains(t, db, 50, 1, createHash(2))
+				requireContains(t, db, 60, 0, createHash(1))
+				requireContains(t, db, 60, 1, createHash(2))
+				requireContains(t, db, 70, 0, createHash(1))
+				requireContains(t, db, 70, 1, createHash(2))
+			})
+	})
+
+	t.Run("ReaddDeletedBlocks", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1))
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
+				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 0))
+				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 1))
+				require.NoError(t, db.Rewind(60))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddLog(createHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1)
+				require.ErrorIs(t, err, ErrLogOutOfOrder, "Cannot add block before rewound head")
+				err = db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1)
+				require.ErrorIs(t, err, ErrLogOutOfOrder, "Cannot add block that was rewound to")
+				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 61}, 502, 0)
+				require.NoError(t, err, "Can re-add deleted block")
+			})
+	})
+}
 
 type stubMetrics struct {
 	entryCount           int64
