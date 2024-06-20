@@ -461,7 +461,6 @@ func (db *DB) parseInitiatingEvent(blockNum uint64, logIdx uint32, entry [entryS
 }
 
 func (db *DB) writeEntry(entry [entrySize]byte) error {
-	// TODO: Automatically insert search checkpoint
 	if _, err := db.data.Write(entry[:]); err != nil {
 		// TODO: Truncate to the start of the entry?
 		// TODO: Roll back any updates to memory state
