@@ -133,7 +133,7 @@ the PR (36,311 lines added, 47,430 lines removed), which consumed the attention 
 engineering team with a sense of urgency for several months.
 
 An additional factor contributing to this bug was the significant complexity of the
-[L2Geth](https://github.com/ethereum-optimism/op-geth) codebase, which is a fork
+[L2Geth](https://github.com/ethereum-optimism/optimism-legacy/blob/8205f678b7b4ac4625c2afe351b9c82ffaa2e795/l2geth) codebase, which is a fork
 of [Geth](https://github.com/ethereum/go-ethereum). Geth itself is already a very complex codebase.
 The changes introduced to L2Geth in order to support the OVM made it much more complex, such that
 very few people properly understood how it worked.
