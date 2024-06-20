@@ -516,6 +516,8 @@ func (p *publisher) BlocksTopicV3Peers() []peer.ID {
 	return p.blocksV3.topic.ListPeers()
 }
 
+var sigBytes = make([]byte, 65)
+
 func (p *publisher) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, signer Signer) error {
 	res := msgBufPool.Get().(*[]byte)
 	buf := bytes.NewBuffer((*res)[:0])
@@ -524,7 +526,7 @@ func (p *publisher) PublishL2Payload(ctx context.Context, envelope *eth.Executio
 		defer msgBufPool.Put(res)
 	}()
 
-	buf.Write(make([]byte, 65))
+	buf.Write(sigBytes)
 
 	if envelope.ParentBeaconBlockRoot != nil {
 		if _, err := envelope.MarshalSSZ(buf); err != nil {
