@@ -17,6 +17,7 @@ import (
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	con "github.com/ethereum-optimism/optimism/op-conductor/conductor"
+	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	conrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -74,8 +75,8 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor, f
 	c3 := conductors[Sequencer3Name]
 
 	require.NoError(t, waitForLeadership(t, c1))
-	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint()))
-	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint()))
+	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint(), 0))
+	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint(), 0))
 	require.True(t, leader(t, ctx, c1))
 	require.False(t, leader(t, ctx, c2))
 	require.False(t, leader(t, ctx, c3))
@@ -507,4 +508,12 @@ func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*condu
 		return leaders == 1, nil
 	}
 	require.NoError(t, wait.For(ctx, 1*time.Second, condition))
+}
+
+func memberIDs(membership *consensus.ClusterMembership) []string {
+	ids := make([]string, len(membership.Servers))
+	for _, member := range membership.Servers {
+		ids = append(ids, member.ID)
+	}
+	return ids
 }
