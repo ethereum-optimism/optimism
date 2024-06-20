@@ -11,6 +11,9 @@ volumes:
   challenger_data:
   da_data:
   op_log:
+  interop_l2_data:
+  interop_safedb_data:
+  interop_challenger_data:
 
 
 services:
@@ -236,3 +239,155 @@ services:
       - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
     security_opt:
       - "no-new-privileges:true"
+
+  # L2-interop services
+
+  l2-interop:
+    build:
+      context: .
+      dockerfile: Dockerfile.l2
+    ports:
+      - "10545:8545"
+    volumes:
+      - "interop_l2_data:/db"
+      - "${PWD}/../.devnet/genesis-l2-interop.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/sh"
+      - "/entrypoint.sh"
+      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+    environment:
+      GETH_MINER_RECOMMIT: 100ms
+
+  op-node-interop:
+    depends_on:
+      - l1
+      - l2-interop
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-node-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
+    command: >
+      op-node
+      --l1=ws://l1:8546
+      --l2=http://l2-interop:8551
+      --l2.jwt-secret=/config/test-jwt-secret.txt
+      --sequencer.enabled
+      --sequencer.l1-confs=0
+      --verifier.l1-confs=0
+      --p2p.sequencer.key=8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+      --rollup.config=/rollup.json
+      --rpc.addr=0.0.0.0
+      --rpc.port=8545
+      --p2p.listen.ip=0.0.0.0
+      --p2p.listen.tcp=9003
+      --p2p.listen.udp=9003
+      --p2p.scoring.peers=light
+      --p2p.ban.peers=true
+      --snapshotlog.file=/op_log/snapshot.log
+      --p2p.priv.path=/config/p2p-node-key.txt
+      --metrics.enabled
+      --metrics.addr=0.0.0.0
+      --metrics.port=7300
+      --pprof.enabled
+      --rpc.enable-admin
+      --safedb.path=/db
+      --plasma.enabled=${PLASMA_ENABLED}
+      --plasma.da-service=${PLASMA_DA_SERVICE}
+      --plasma.da-server=http://da-server:3100
+    volumes:
+      - "interop_safedb_data:/db"
+      - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
+      - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/../.devnet/rollup-interop.json:/rollup.json"
+      - op_log:/op_log
+
+  op-proposer-interop:
+    depends_on:
+      - l1
+      - l2-interop
+      - op-node-interop
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-proposer-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
+    environment:
+      OP_PROPOSER_L1_ETH_RPC: http://l1:8545
+      OP_PROPOSER_ROLLUP_RPC: http://op-node-interop:8545
+      OP_PROPOSER_POLL_INTERVAL: 1s
+      OP_PROPOSER_NUM_CONFIRMATIONS: 1
+      OP_PROPOSER_MNEMONIC: test test test test test test test test test test test junk
+      OP_PROPOSER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
+      OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS_INTEROP}"
+      OP_PROPOSER_GAME_FACTORY_ADDRESS: "${DGF_ADDRESS_INTEROP}"
+      OP_PROPOSER_GAME_TYPE: "${DG_TYPE}"
+      OP_PROPOSER_PROPOSAL_INTERVAL: "${PROPOSAL_INTERVAL}"
+      OP_PROPOSER_PPROF_ENABLED: "true"
+      OP_PROPOSER_METRICS_ENABLED: "true"
+      OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
+      OP_PROPOSER_RPC_ENABLE_ADMIN: "true"
+
+  op-batcher-interop:
+    depends_on:
+      - l1
+      - l2-interop
+      - op-node-interop
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-batcher-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
+    environment:
+      OP_BATCHER_L1_ETH_RPC: http://l1:8545
+      OP_BATCHER_L2_ETH_RPC: http://l2-interop:8545
+      OP_BATCHER_ROLLUP_RPC: http://op-node-interop:8545
+      OP_BATCHER_MAX_CHANNEL_DURATION: 1
+      OP_BATCHER_SUB_SAFETY_MARGIN: 4 # SWS is 15, ChannelTimeout is 40
+      OP_BATCHER_POLL_INTERVAL: 1s
+      OP_BATCHER_NUM_CONFIRMATIONS: 1
+      OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
+      OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
+      OP_BATCHER_PPROF_ENABLED: "true"
+      OP_BATCHER_METRICS_ENABLED: "true"
+      OP_BATCHER_RPC_ENABLE_ADMIN: "true"
+      OP_BATCHER_BATCH_TYPE: 0
+      OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
+      OP_BATCHER_PLASMA_DA_SERVICE: "${PLASMA_DA_SERVICE}"
+      OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
+
+  op-challenger-interop:
+    depends_on:
+      - l1
+      - l2-interop
+      - op-node-interop
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-challenger-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:devnet
+    volumes:
+      - "interop_challenger_data:/db"
+      - "../op-program/bin:/op-program"
+    environment:
+      OP_CHALLENGER_L1_ETH_RPC: http://l1:8545
+      # Note: this will need to be updated to point to a L1 consensus node when there is one in the devnet
+      OP_CHALLENGER_L1_BEACON: "unset"
+      OP_CHALLENGER_ROLLUP_RPC: http://op-node-interop:8545
+      OP_CHALLENGER_TRACE_TYPE: cannon,fast
+      OP_CHALLENGER_GAME_FACTORY_ADDRESS: ${DGF_ADDRESS}
+      # The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
+      # before the L2 genesis is known.
+      OP_CHALLENGER_UNSAFE_ALLOW_INVALID_PRESTATE: "true"
+      OP_CHALLENGER_DATADIR: /db
+      OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./.devnet/rollup-interop.json
+      OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2-interop.json
+      OP_CHALLENGER_CANNON_BIN: ./cannon/bin/cannon
+      OP_CHALLENGER_CANNON_SERVER: /op-program/op-program
+      OP_CHALLENGER_CANNON_PRESTATE: /op-program/prestate.json
+      OP_CHALLENGER_L2_ETH_RPC: http://l2-interop:8545
+      OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
+      OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
+      OP_CHALLENGER_NUM_CONFIRMATIONS: 1
