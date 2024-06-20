@@ -433,19 +433,19 @@ func requireNotContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, lo
 }
 
 func TestShouldRollBackInMemoryChangesOnWriteFailure(t *testing.T) {
-
+	t.Skip("TODO(optimism#10857)")
 }
 
 func TestShouldRecoverWhenSearchCheckpointWrittenButNotCanonicalHash(t *testing.T) {
-
+	t.Skip("TODO(optimism#10857)")
 }
 
 func TestShouldRecoverWhenPartialEntryWritten(t *testing.T) {
-
+	t.Skip("TODO(optimism#10857)")
 }
 
 func TestShouldRecoverWhenInitiatingEventWrittenButNotExecutingLink(t *testing.T) {
-
+	t.Skip("TODO(optimism#10857)")
 }
 
 func TestRewind(t *testing.T) {

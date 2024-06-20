@@ -217,7 +217,7 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (boo
 }
 
 func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
-	// TODO: Handle starting from a checkpoint after initiating-event but before its executing-link
+	// TODO(optimism#10857): Handle starting from a checkpoint after initiating-event but before its executing-link
 	// Will need to read the entry prior to the checkpoint to get the initiating event info
 	current, err := db.readSearchCheckpoint(startCheckpointEntry)
 	if err != nil {
@@ -425,7 +425,7 @@ func (db *DB) writeInitiatingEvent(postState logContext, log common.Hash) error 
 	entry[0] = typeInitiatingEvent
 	blockDiff := postState.blockNum - db.lastEntryContext.blockNum
 	if blockDiff > math.MaxUint8 {
-		// TODO: Need to find a way to support this.
+		// TODO(optimism#10857): Need to find a way to support this.
 		return fmt.Errorf("too many block skipped between %v and %v", db.lastEntryContext.blockNum, postState.blockNum)
 	}
 	entry[1] = byte(blockDiff)
@@ -464,8 +464,9 @@ func (db *DB) parseInitiatingEvent(blockNum uint64, logIdx uint32, entry [entryS
 
 func (db *DB) writeEntry(entry [entrySize]byte) error {
 	if _, err := db.data.Write(entry[:]); err != nil {
-		// TODO: Truncate to the start of the entry?
-		// TODO: Roll back any updates to memory state
+		// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
+		// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
+		// to avoid leaving hanging entries without the entry that should follow them.
 		return err
 	}
 	db.lastEntryIdx++
