@@ -25,7 +25,7 @@
     "gas-snapshot": "pnpm build:go-ffi && pnpm gas-snapshot:no-build",
     "kontrol-summary": "./test/kontrol/scripts/make-summary-deployment.sh",
     "kontrol-summary-fp": "KONTROL_FP_DEPLOYMENT=true pnpm kontrol-summary",
-    "snapshots": "forge build && npx tsx scripts/autogen/generate-snapshots.ts && pnpm kontrol-summary && pnpm kontrol-summary-fp",
+    "snapshots": "forge build && npx tsx scripts/autogen/generate-snapshots.ts && pnpm kontrol-summary-fp && pnpm kontrol-summary",
     "snapshots:check": "./scripts/checks/check-snapshots.sh",
     "semver-lock": "forge script scripts/SemverLock.s.sol",
     "validate-deploy-configs": "./scripts/checks/check-deploy-configs.sh",
