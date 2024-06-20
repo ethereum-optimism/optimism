@@ -58,11 +58,9 @@ type checkpointData struct {
 	timestamp uint64
 }
 
-type state struct {
-	blockNum  uint64
-	blockHash TruncatedHash
-	timestamp uint64
-	logIdx    uint32
+type logContext struct {
+	blockNum uint64
+	logIdx   uint32
 }
 
 // DB implements an append only database for log data and cross-chain dependencies.
@@ -100,8 +98,8 @@ type DB struct {
 	data   dataAccess
 	rwLock sync.RWMutex
 
-	lastEntryIdx   int64
-	lastEntryState state
+	lastEntryIdx     int64
+	lastEntryContext logContext
 }
 
 func NewFromFile(logger log.Logger, m Metrics, path string) (*DB, error) {
@@ -145,7 +143,7 @@ func (db *DB) init() error {
 			return fmt.Errorf("failed to init from existing entries: %w", err)
 		}
 	}
-	db.lastEntryState = state{
+	db.lastEntryContext = logContext{
 		blockNum: i.blockNum,
 		logIdx:   i.logIdx,
 	}
@@ -276,32 +274,30 @@ func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logId
 	// TODO: Error if first log in a block is not index 0.
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
-	postState := state{
-		blockNum:  block.Number,
-		blockHash: truncateHash(block.Hash),
-		timestamp: timestamp,
-		logIdx:    logIdx,
+	postState := logContext{
+		blockNum: block.Number,
+		logIdx:   logIdx,
 	}
 	if block.Number == 0 {
 		return fmt.Errorf("%w: should not have logs in block 0", ErrLogOutOfOrder)
 	}
-	if db.lastEntryState.blockNum > block.Number {
-		return fmt.Errorf("%w: adding block %v, head block: %v", ErrLogOutOfOrder, block.Number, db.lastEntryState.blockNum)
+	if db.lastEntryContext.blockNum > block.Number {
+		return fmt.Errorf("%w: adding block %v, head block: %v", ErrLogOutOfOrder, block.Number, db.lastEntryContext.blockNum)
 	}
-	if db.lastEntryState.blockNum == block.Number && db.lastEntryState.logIdx+1 != logIdx {
-		return fmt.Errorf("%w: adding log %v in block %v, but currently at log %v", ErrLogOutOfOrder, logIdx, block.Number, db.lastEntryState.logIdx)
+	if db.lastEntryContext.blockNum == block.Number && db.lastEntryContext.logIdx+1 != logIdx {
+		return fmt.Errorf("%w: adding log %v in block %v, but currently at log %v", ErrLogOutOfOrder, logIdx, block.Number, db.lastEntryContext.logIdx)
 	}
 	if (db.lastEntryIdx+1)%searchCheckpointFrequency == 0 {
-		if err := db.writeSearchCheckpoint(postState); err != nil {
+		if err := db.writeSearchCheckpoint(block.Number, logIdx, timestamp, block.Hash); err != nil {
 			return fmt.Errorf("failed to write search checkpoint: %w", err)
 		}
-		db.lastEntryState = postState
+		db.lastEntryContext = postState
 	}
 
 	if err := db.writeInitiatingEvent(postState, log); err != nil {
 		return err
 	}
-	db.lastEntryState = postState
+	db.lastEntryContext = postState
 	db.updateEntryCountMetric()
 	return nil
 }
@@ -309,16 +305,16 @@ func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logId
 // writeSearchCheckpoint appends search checkpoint and canonical hash entry to the log
 // type 0: "search checkpoint" <type><uint64 block number: 8 bytes><uint32 event index offset: 4 bytes><uint64 timestamp: 8 bytes> = 20 bytes
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-func (db *DB) writeSearchCheckpoint(currentState state) error {
+func (db *DB) writeSearchCheckpoint(blockNum uint64, logIdx uint32, timestamp uint64, blockHash common.Hash) error {
 	var entry [entrySize]byte
 	entry[0] = typeSearchCheckpoint
-	binary.LittleEndian.PutUint64(entry[1:9], currentState.blockNum)
-	binary.LittleEndian.PutUint32(entry[9:13], currentState.logIdx)
-	binary.LittleEndian.PutUint64(entry[13:21], currentState.timestamp)
+	binary.LittleEndian.PutUint64(entry[1:9], blockNum)
+	binary.LittleEndian.PutUint32(entry[9:13], logIdx)
+	binary.LittleEndian.PutUint64(entry[13:21], timestamp)
 	if err := db.writeEntry(entry); err != nil {
 		return err
 	}
-	return db.writeCanonicalHash(currentState)
+	return db.writeCanonicalHash(blockHash)
 }
 
 func (db *DB) readSearchCheckpoint(entryIdx int64) (checkpointData, error) {
@@ -342,10 +338,10 @@ func (db *DB) parseSearchCheckpoint(data [entrySize]byte) checkpointData {
 
 // writeCanonicalHash appends a canonical hash entry to the log
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-func (db *DB) writeCanonicalHash(currentState state) error {
+func (db *DB) writeCanonicalHash(blockHash common.Hash) error {
 	var entry [entrySize]byte
 	entry[0] = typeCanonicalHash
-	copy(entry[1:21], currentState.blockHash[:])
+	copy(entry[1:21], truncateHash(blockHash))
 	return db.writeEntry(entry)
 }
 
@@ -366,16 +362,16 @@ func (db *DB) parseCanonicalHash(data [24]byte) TruncatedHash {
 
 // writeInitiatingEvent appends an initiating event to the log
 // type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
-func (db *DB) writeInitiatingEvent(postState state, log common.Hash) error {
+func (db *DB) writeInitiatingEvent(postState logContext, log common.Hash) error {
 	var entry [entrySize]byte
 	entry[0] = typeInitiatingEvent
-	blockDiff := postState.blockNum - db.lastEntryState.blockNum
+	blockDiff := postState.blockNum - db.lastEntryContext.blockNum
 	if blockDiff > math.MaxUint8 {
 		// TODO: Need to find a way to support this.
-		return fmt.Errorf("too many block skipped between %v and %v", db.lastEntryState.blockNum, postState.blockNum)
+		return fmt.Errorf("too many block skipped between %v and %v", db.lastEntryContext.blockNum, postState.blockNum)
 	}
 	entry[1] = byte(blockDiff)
-	currLogIdx := db.lastEntryState.logIdx
+	currLogIdx := db.lastEntryContext.logIdx
 	if blockDiff > 0 {
 		currLogIdx = 0
 	}
