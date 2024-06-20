@@ -209,8 +209,8 @@ def devnet_l2_allocs(chainid, l1_deployments_path, devnet_config_path, devnet_di
     run_command([
         'forge', 'script', fqn, "--sig", "runWithAllUpgrades()"
     ], env={
-      'CONTRACT_ADDRESSES_PATH': l1_deployments_path,
-      'DEPLOY_CONFIG_PATH': devnet_config_path,
+        'CONTRACT_ADDRESSES_PATH': l1_deployments_path,
+        'DEPLOY_CONFIG_PATH': devnet_config_path,
     }, cwd=contracts_bedrock_dir)
 
     # For the previous forks, and the latest fork (default, thus empty prefix),
