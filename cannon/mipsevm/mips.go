@@ -174,8 +174,8 @@ func (m *InstrumentedState) handleSyscall() error {
 	m.state.Registers[2] = v0
 	m.state.Registers[7] = v1
 
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
+	m.state.Cpu.PC = m.state.Cpu.NextPC
+	m.state.Cpu.NextPC = m.state.Cpu.NextPC + 4
 	return nil
 }
 
@@ -184,7 +184,7 @@ func (m *InstrumentedState) pushStack(target uint32) {
 		return
 	}
 	m.debug.stack = append(m.debug.stack, target)
-	m.debug.caller = append(m.debug.caller, m.state.PC)
+	m.debug.caller = append(m.debug.caller, m.state.Cpu.PC)
 }
 
 func (m *InstrumentedState) popStack() {
@@ -192,7 +192,7 @@ func (m *InstrumentedState) popStack() {
 		return
 	}
 	if len(m.debug.stack) != 0 {
-		fn := m.debug.meta.LookupSymbol(m.state.PC)
+		fn := m.debug.meta.LookupSymbol(m.state.Cpu.PC)
 		topFn := m.debug.meta.LookupSymbol(m.debug.stack[len(m.debug.stack)-1])
 		if fn != topFn {
 			// most likely the function was inlined. Snap back to the last return.
@@ -209,112 +209,17 @@ func (m *InstrumentedState) popStack() {
 			m.debug.caller = m.debug.caller[:len(m.debug.caller)-1]
 		}
 	} else {
-		fmt.Printf("ERROR: stack underflow at pc=%x. step=%d\n", m.state.PC, m.state.Step)
+		fmt.Printf("ERROR: stack underflow at pc=%x. step=%d\n", m.state.Cpu.PC, m.state.Step)
 	}
 }
 
 func (m *InstrumentedState) Traceback() {
-	fmt.Printf("traceback at pc=%x. step=%d\n", m.state.PC, m.state.Step)
+	fmt.Printf("traceback at pc=%x. step=%d\n", m.state.Cpu.PC, m.state.Step)
 	for i := len(m.debug.stack) - 1; i >= 0; i-- {
 		s := m.debug.stack[i]
 		idx := len(m.debug.stack) - i - 1
 		fmt.Printf("\t%d %x in %s caller=%08x\n", idx, s, m.debug.meta.LookupSymbol(s), m.debug.caller[i])
 	}
-}
-
-func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
-	if m.state.NextPC != m.state.PC+4 {
-		panic("branch in delay slot")
-	}
-
-	shouldBranch := false
-	if opcode == 4 || opcode == 5 { // beq/bne
-		rt := m.state.Registers[rtReg]
-		shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
-	} else if opcode == 6 {
-		shouldBranch = int32(rs) <= 0 // blez
-	} else if opcode == 7 {
-		shouldBranch = int32(rs) > 0 // bgtz
-	} else if opcode == 1 {
-		// regimm
-		rtv := (insn >> 16) & 0x1F
-		if rtv == 0 { // bltz
-			shouldBranch = int32(rs) < 0
-		}
-		if rtv == 1 { // bgez
-			shouldBranch = int32(rs) >= 0
-		}
-	}
-
-	prevPC := m.state.PC
-	m.state.PC = m.state.NextPC // execute the delay slot first
-	if shouldBranch {
-		m.state.NextPC = prevPC + 4 + (signExtend(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
-	} else {
-		m.state.NextPC = m.state.NextPC + 4 // branch not taken
-	}
-	return nil
-}
-
-func (m *InstrumentedState) handleHiLo(fun uint32, rs uint32, rt uint32, storeReg uint32) error {
-	val := uint32(0)
-	switch fun {
-	case 0x10: // mfhi
-		val = m.state.HI
-	case 0x11: // mthi
-		m.state.HI = rs
-	case 0x12: // mflo
-		val = m.state.LO
-	case 0x13: // mtlo
-		m.state.LO = rs
-	case 0x18: // mult
-		acc := uint64(int64(int32(rs)) * int64(int32(rt)))
-		m.state.HI = uint32(acc >> 32)
-		m.state.LO = uint32(acc)
-	case 0x19: // multu
-		acc := uint64(uint64(rs) * uint64(rt))
-		m.state.HI = uint32(acc >> 32)
-		m.state.LO = uint32(acc)
-	case 0x1a: // div
-		m.state.HI = uint32(int32(rs) % int32(rt))
-		m.state.LO = uint32(int32(rs) / int32(rt))
-	case 0x1b: // divu
-		m.state.HI = rs % rt
-		m.state.LO = rs / rt
-	}
-
-	if storeReg != 0 {
-		m.state.Registers[storeReg] = val
-	}
-
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
-	return nil
-}
-
-func (m *InstrumentedState) handleJump(linkReg uint32, dest uint32) error {
-	if m.state.NextPC != m.state.PC+4 {
-		panic("jump in delay slot")
-	}
-	prevPC := m.state.PC
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = dest
-	if linkReg != 0 {
-		m.state.Registers[linkReg] = prevPC + 8 // set the link-register to the instr after the delay slot instruction.
-	}
-	return nil
-}
-
-func (m *InstrumentedState) handleRd(storeReg uint32, val uint32, conditional bool) error {
-	if storeReg >= 32 {
-		panic("invalid register")
-	}
-	if storeReg != 0 && conditional {
-		m.state.Registers[storeReg] = val
-	}
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
-	return nil
 }
 
 func (m *InstrumentedState) mipsStep() error {
@@ -323,7 +228,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 	m.state.Step += 1
 	// instruction fetch
-	insn := m.state.Memory.GetMemory(m.state.PC)
+	insn := m.state.Memory.GetMemory(m.state.Cpu.PC)
 	opcode := insn >> 26 // 6-bits
 
 	// j-type j/jal
@@ -333,9 +238,9 @@ func (m *InstrumentedState) mipsStep() error {
 			linkReg = 31
 		}
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-		target := (m.state.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
+		target := (m.state.Cpu.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
 		m.pushStack(target)
-		return m.handleJump(linkReg, target)
+		return handleJump(&m.state.Cpu, &m.state.Registers, linkReg, target)
 	}
 
 	// register fetch
@@ -369,7 +274,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		return m.handleBranch(opcode, insn, rtReg, rs)
+		return handleBranch(&m.state.Cpu, &m.state.Registers, opcode, insn, rtReg, rs)
 	}
 
 	storeAddr := uint32(0xFF_FF_FF_FF)
@@ -401,14 +306,14 @@ func (m *InstrumentedState) mipsStep() error {
 				linkReg = rdReg
 			}
 			m.popStack()
-			return m.handleJump(linkReg, rs)
+			return handleJump(&m.state.Cpu, &m.state.Registers, linkReg, rs)
 		}
 
 		if fun == 0xa { // movz
-			return m.handleRd(rdReg, rs, rt == 0)
+			return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, rs, rt == 0)
 		}
 		if fun == 0xb { // movn
-			return m.handleRd(rdReg, rs, rt != 0)
+			return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, rs, rt != 0)
 		}
 
 		// syscall (can read and write)
@@ -419,7 +324,7 @@ func (m *InstrumentedState) mipsStep() error {
 		// lo and hi registers
 		// can write back
 		if fun >= 0x10 && fun < 0x1c {
-			return m.handleHiLo(fun, rs, rt, rdReg)
+			return handleHiLo(&m.state.Cpu, &m.state.Registers, fun, rs, rt, rdReg)
 		}
 	}
 
@@ -435,5 +340,5 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// write back the value to destination register
-	return m.handleRd(rdReg, val, true)
+	return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, val, true)
 }

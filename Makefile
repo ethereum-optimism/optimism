@@ -21,7 +21,6 @@ build-ts: submodules
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
 	pnpm install:ci
-	pnpm prepare
 	pnpm build
 .PHONY: build-ts
 

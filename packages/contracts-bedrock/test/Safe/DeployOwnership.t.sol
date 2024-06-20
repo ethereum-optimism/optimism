@@ -8,7 +8,7 @@ import {
     GuardianConfig,
     DeputyGuardianModuleConfig,
     LivenessModuleConfig
-} from "scripts/DeployOwnership.s.sol";
+} from "scripts/deploy/DeployOwnership.s.sol";
 import { Test } from "forge-std/Test.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";

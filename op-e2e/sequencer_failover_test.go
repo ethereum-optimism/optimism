@@ -39,9 +39,9 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	c3 := conductors[Sequencer3Name]
 	membership, err := c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 3, len(membership), "Expected 3 members in cluster")
+	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster")
 	ids := make([]string, 0)
-	for _, member := range membership {
+	for _, member := range membership.Servers {
 		ids = append(ids, member.ID)
 		require.Equal(t, consensus.Voter, member.Suffrage, "Expected all members to be voters")
 	}
@@ -112,37 +112,54 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint())
+	membership, err = leader.client.ClusterMembership(ctx)
+	require.NoError(t, err)
+
+	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint(), membership.Version-1)
+	require.ErrorContains(t, err, "configuration changed since", "Expected leader to fail to add nonvoter due to version mismatch")
+	membership, err = leader.client.ClusterMembership(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster")
+
+	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint(), 0)
 	require.NoError(t, err, "Expected leader to add non-voter")
 	membership, err = leader.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 4, len(membership), "Expected 4 members in cluster")
-	require.Equal(t, consensus.Nonvoter, membership[3].Suffrage, "Expected last member to be non-voter")
+	require.Equal(t, 4, len(membership.Servers), "Expected 4 members in cluster")
+	require.Equal(t, consensus.Nonvoter, membership.Servers[3].Suffrage, "Expected last member to be non-voter")
 
 	t.Log("Testing RemoveServer, call remove on follower, expected to fail")
 	lid, leader = findLeader(t, conductors)
 	fid, follower = findFollower(t, conductors)
-	err = follower.client.RemoveServer(ctx, lid)
+	err = follower.client.RemoveServer(ctx, lid, membership.Version)
 	require.ErrorContains(t, err, "node is not the leader", "Expected follower to fail to remove leader")
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 4, len(membership), "Expected 4 members in cluster")
+	require.Equal(t, 4, len(membership.Servers), "Expected 4 members in cluster")
 
 	t.Log("Testing RemoveServer, call remove on leader, expect non-voter to be removed")
-	err = leader.client.RemoveServer(ctx, VerifierName)
+	err = leader.client.RemoveServer(ctx, VerifierName, membership.Version)
 	require.NoError(t, err, "Expected leader to remove non-voter")
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 3, len(membership), "Expected 2 members in cluster after removal")
-	require.NotContains(t, membership, VerifierName, "Expected follower to be removed from cluster")
+	require.Equal(t, 3, len(membership.Servers), "Expected 2 members in cluster after removal")
+	require.NotContains(t, memberIDs(membership), VerifierName, "Expected follower to be removed from cluster")
+
+	t.Log("Testing RemoveServer, call remove on leader with incorrect version, expect voter not to be removed")
+	err = leader.client.RemoveServer(ctx, fid, membership.Version-1)
+	require.ErrorContains(t, err, "configuration changed since", "Expected leader to fail to remove follower due to version mismatch")
+	membership, err = c1.client.ClusterMembership(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster after failed removal")
+	require.Contains(t, memberIDs(membership), fid, "Expected follower to not be removed from cluster")
 
 	t.Log("Testing RemoveServer, call remove on leader, expect voter to be removed")
-	err = leader.client.RemoveServer(ctx, fid)
+	err = leader.client.RemoveServer(ctx, fid, membership.Version)
 	require.NoError(t, err, "Expected leader to remove follower")
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(membership), "Expected 2 members in cluster after removal")
-	require.NotContains(t, membership, fid, "Expected follower to be removed from cluster")
+	require.Equal(t, 2, len(membership.Servers), "Expected 2 members in cluster after removal")
+	require.NotContains(t, memberIDs(membership), fid, "Expected follower to be removed from cluster")
 }
 
 // [Category: Sequencer Failover]

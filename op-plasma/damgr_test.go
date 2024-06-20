@@ -21,241 +21,178 @@ func RandomData(rng *rand.Rand, size int) []byte {
 	return out
 }
 
-// TestDAChallengeState is a simple test with small values to verify the finalized head logic
-func TestDAChallengeState(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlDebug)
+func RandomCommitment(rng *rand.Rand) CommitmentData {
+	return NewKeccak256Commitment(RandomData(rng, 32))
+}
 
+func l1Ref(n uint64) eth.L1BlockRef {
+	return eth.L1BlockRef{Number: n}
+}
+
+func bID(n uint64) eth.BlockID {
+	return eth.BlockID{Number: n}
+}
+
+// TestFinalization checks that the finalized L1 block ref is returned correctly when pruning with and without challenges
+func TestFinalization(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	cfg := Config{
+		ResolveWindow:   6,
+		ChallengeWindow: 6,
+	}
 	rng := rand.New(rand.NewSource(1234))
-	state := NewState(logger, &NoopMetrics{})
+	state := NewState(logger, &NoopMetrics{}, cfg)
 
-	i := uint64(1)
+	c1 := RandomCommitment(rng)
+	bn1 := uint64(2)
 
-	challengeWindow := uint64(6)
-	resolveWindow := uint64(6)
+	// Track a commitment without a challenge
+	state.TrackCommitment(c1, l1Ref(bn1))
+	require.NoError(t, state.ExpireCommitments(bID(7)))
+	require.Empty(t, state.expiredCommitments)
+	require.NoError(t, state.ExpireCommitments(bID(8)))
+	require.Empty(t, state.commitments)
 
-	// track commitments in the first 10 blocks
-	for ; i < 10; i++ {
-		// this is akin to stepping the derivation pipeline through a range a blocks each with a commitment
-		state.SetInputCommitment(RandomData(rng, 32), i, challengeWindow)
-	}
+	state.Prune(bID(bn1))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+	state.Prune(bID(7))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+	state.Prune(bID(8))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
 
-	// blocks are finalized after the challenge window expires
-	bn, err := state.ExpireChallenges(10)
-	require.NoError(t, err)
-	// finalized head = 10 - 6 = 4
-	require.Equal(t, uint64(4), bn)
+	// Track a commitment, challenge it, & then resolve it
+	c2 := RandomCommitment(rng)
+	bn2 := uint64(20)
+	state.TrackCommitment(c2, l1Ref(bn2))
+	require.Equal(t, ChallengeUninitialized, state.GetChallengeStatus(c2, bn2))
+	state.CreateChallenge(c2, bID(24), bn2)
+	require.Equal(t, ChallengeActive, state.GetChallengeStatus(c2, bn2))
+	require.NoError(t, state.ResolveChallenge(c2, bID(30), bn2, nil))
+	require.Equal(t, ChallengeResolved, state.GetChallengeStatus(c2, bn2))
 
-	// track the next commitment and mark it as challenged
-	c := RandomData(rng, 32)
-	// add input commitment at block i = 10
-	state.SetInputCommitment(c, 10, challengeWindow)
-	// i+4 is the block at which it was challenged
-	state.SetActiveChallenge(c, 14, resolveWindow)
+	// Expire Challenges & Comms after challenge period but before resolve end & assert they are not expired yet
+	require.NoError(t, state.ExpireCommitments(bID(28)))
+	require.Empty(t, state.expiredCommitments)
+	state.ExpireChallenges(bID(28))
+	require.Empty(t, state.expiredChallenges)
 
-	for j := i + 1; j < 18; j++ {
-		// continue walking the pipeline through some more blocks with commitments
-		state.SetInputCommitment(RandomData(rng, 32), j, challengeWindow)
-	}
+	// Now fully expire them
+	require.NoError(t, state.ExpireCommitments(bID(30)))
+	require.Empty(t, state.commitments)
+	state.ExpireChallenges(bID(30))
+	require.Empty(t, state.challenges)
 
-	// finalized l1 origin should not extend past the resolve window
-	bn, err = state.ExpireChallenges(18)
-	require.NoError(t, err)
-	// finalized is active_challenge_block - 1 = 10 - 1 and cannot move until the challenge expires
-	require.Equal(t, uint64(9), bn)
-
-	// walk past the resolve window
-	for j := uint64(18); j < 22; j++ {
-		state.SetInputCommitment(RandomData(rng, 32), j, challengeWindow)
-	}
-
-	// no more active challenges, the finalized head can catch up to the challenge window
-	bn, err = state.ExpireChallenges(22)
-	require.ErrorIs(t, err, ErrReorgRequired)
-	// finalized head is now 22 - 6 = 16
-	require.Equal(t, uint64(16), bn)
-
-	// cleanup state we don't need anymore
-	state.Prune(22)
-	// now if we expire the challenges again, it won't request a reorg again
-	bn, err = state.ExpireChallenges(22)
-	require.NoError(t, err)
-	// finalized head hasn't moved
-	require.Equal(t, uint64(16), bn)
-
-	// add one more commitment and challenge it
-	c = RandomData(rng, 32)
-	state.SetInputCommitment(c, 22, challengeWindow)
-	// challenge 3 blocks after
-	state.SetActiveChallenge(c, 25, resolveWindow)
-
-	// exceed the challenge window with more commitments
-	for j := uint64(23); j < 30; j++ {
-		state.SetInputCommitment(RandomData(rng, 32), j, challengeWindow)
-	}
-
-	// finalized head should not extend past the resolve window
-	bn, err = state.ExpireChallenges(30)
-	require.NoError(t, err)
-	// finalized head is stuck waiting for resolve window
-	require.Equal(t, uint64(21), bn)
-
-	input := RandomData(rng, 100)
-	// resolve the challenge
-	state.SetResolvedChallenge(c, input, 30)
-
-	// finalized head catches up
-	bn, err = state.ExpireChallenges(31)
-	require.NoError(t, err)
-	// finalized head is now 31 - 6 = 25
-	require.Equal(t, uint64(25), bn)
-
-	// the resolved input is also stored
-	storedInput, err := state.GetResolvedInput(c)
-	require.NoError(t, err)
-	require.Equal(t, input, storedInput)
+	// Now finalize everything
+	state.Prune(bID(20))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+	state.Prune(bID(28))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+	state.Prune(bID(32))
+	require.Equal(t, eth.L1BlockRef{Number: bn2}, state.lastPrunedCommitment)
 }
 
 // TestExpireChallenges expires challenges and prunes the state for longer windows
 // with commitments every 6 blocks.
 func TestExpireChallenges(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelInfo)
+
+	cfg := Config{
+		ResolveWindow:   90,
+		ChallengeWindow: 90,
+	}
 
 	rng := rand.New(rand.NewSource(1234))
-	state := NewState(logger, &NoopMetrics{})
+	state := NewState(logger, &NoopMetrics{}, cfg)
 
-	comms := make(map[uint64][]byte)
+	comms := make(map[uint64]CommitmentData)
 
 	i := uint64(3713854)
 
-	var finalized uint64
-
-	challengeWindow := uint64(90)
-	resolveWindow := uint64(90)
-
 	// increment new commitments every 6 blocks
 	for ; i < 3713948; i += 6 {
-		comm := RandomData(rng, 32)
+		comm := RandomCommitment(rng)
 		comms[i] = comm
-		logger.Info("set commitment", "block", i)
-		cm := state.GetOrTrackChallenge(comm, i, challengeWindow)
-		require.NotNil(t, cm)
+		logger.Info("set commitment", "block", i, "comm", comm)
+		state.TrackCommitment(comm, l1Ref(i))
 
-		bn, err := state.ExpireChallenges(i)
-		logger.Info("expire challenges", "finalized head", bn, "err", err)
-
-		// only update finalized head if it has moved
-		if bn > finalized {
-			finalized = bn
-			// prune unused state
-			state.Prune(bn)
-		}
+		require.NoError(t, state.ExpireCommitments(bID(i)))
+		state.ExpireChallenges(bID(i))
 	}
 
 	// activate a couple of subsequent challenges
-	state.SetActiveChallenge(comms[3713926], 3713948, resolveWindow)
-
-	state.SetActiveChallenge(comms[3713932], 3713950, resolveWindow)
+	state.CreateChallenge(comms[3713926], bID(3713948), 3713926)
+	state.CreateChallenge(comms[3713932], bID(3713950), 3713932)
 
 	// continue incrementing commitments
 	for ; i < 3714038; i += 6 {
-		comm := RandomData(rng, 32)
+		comm := RandomCommitment(rng)
 		comms[i] = comm
 		logger.Info("set commitment", "block", i)
-		cm := state.GetOrTrackChallenge(comm, i, challengeWindow)
-		require.NotNil(t, cm)
+		state.TrackCommitment(comm, l1Ref(i))
 
-		bn, err := state.ExpireChallenges(i)
-		logger.Info("expire challenges", "expired", bn, "err", err)
-
-		if bn > finalized {
-			finalized = bn
-			state.Prune(bn)
-		}
-
+		require.NoError(t, state.ExpireCommitments(bID(i)))
+		state.ExpireChallenges(bID(i))
 	}
 
-	// finalized head does not move as it expires previously seen blocks
-	bn, err := state.ExpireChallenges(3714034)
-	require.NoError(t, err)
-	require.Equal(t, uint64(3713920), bn)
-
-	bn, err = state.ExpireChallenges(3714035)
-	require.NoError(t, err)
-	require.Equal(t, uint64(3713920), bn)
-
-	bn, err = state.ExpireChallenges(3714036)
-	require.NoError(t, err)
-	require.Equal(t, uint64(3713920), bn)
-
-	bn, err = state.ExpireChallenges(3714037)
-	require.NoError(t, err)
-	require.Equal(t, uint64(3713920), bn)
-
-	// lastly we get to the resolve window and trigger a reorg
-	_, err = state.ExpireChallenges(3714038)
-	require.ErrorIs(t, err, ErrReorgRequired)
-
-	// this is simulating a pipeline reset where it walks back challenge + resolve window
-	for i := uint64(3713854); i < 3714044; i += 6 {
-		cm := state.GetOrTrackChallenge(comms[i], i, challengeWindow)
-		require.NotNil(t, cm)
-
-		// check that the challenge status was updated to expired
-		if i == 3713926 {
-			require.Equal(t, ChallengeExpired, cm.challengeStatus)
-		}
-	}
-
-	bn, err = state.ExpireChallenges(3714038)
-	require.NoError(t, err)
-
-	// finalized at last
-	require.Equal(t, uint64(3713926), bn)
+	// Jump ahead to the end of the resolve window for comm included in block 3713926 which triggers a reorg
+	state.ExpireChallenges(bID(3714106))
+	require.ErrorIs(t, state.ExpireCommitments(bID(3714106)), ErrReorgRequired)
 }
 
+// TestDAChallengeDetached tests the lookahead + reorg handling of the da state
 func TestDAChallengeDetached(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelWarn)
+
+	cfg := Config{
+		ResolveWindow:   6,
+		ChallengeWindow: 6,
+	}
 
 	rng := rand.New(rand.NewSource(1234))
-	state := NewState(logger, &NoopMetrics{})
+	state := NewState(logger, &NoopMetrics{}, cfg)
 
-	challengeWindow := uint64(6)
-	resolveWindow := uint64(6)
-
-	c1 := RandomData(rng, 32)
-	c2 := RandomData(rng, 32)
+	c1 := RandomCommitment(rng)
+	c2 := RandomCommitment(rng)
 
 	// c1 at bn1 is missing, pipeline stalls
-	state.GetOrTrackChallenge(c1, 1, challengeWindow)
+	state.TrackCommitment(c1, l1Ref(1))
 
 	// c2 at bn2 is challenged at bn3
-	require.True(t, state.IsTracking(c2, 2))
-	state.SetActiveChallenge(c2, 3, resolveWindow)
+	state.CreateChallenge(c2, bID(3), uint64(2))
+	require.Equal(t, ChallengeActive, state.GetChallengeStatus(c2, uint64(2)))
 
 	// c1 is finally challenged at bn5
-	state.SetActiveChallenge(c1, 5, resolveWindow)
+	state.CreateChallenge(c1, bID(5), uint64(1))
 
-	// c2 expires but should not trigger a reset because we don't know if it's valid yet
-	bn, err := state.ExpireChallenges(10)
+	// c2 expires but should not trigger a reset because we're waiting for c1 to expire
+	state.ExpireChallenges(bID(10))
+	err := state.ExpireCommitments(bID(10))
 	require.NoError(t, err)
-	require.Equal(t, uint64(0), bn)
 
 	// c1 expires finally
-	bn, err = state.ExpireChallenges(11)
+	state.ExpireChallenges(bID(11))
+	err = state.ExpireCommitments(bID(11))
 	require.ErrorIs(t, err, ErrReorgRequired)
-	require.Equal(t, uint64(1), bn)
 
-	// pruning finalized block is safe
-	state.Prune(bn)
+	// pruning finalized block is safe. It should not prune any commitments yet.
+	state.Prune(bID(1))
+	require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
 
-	// pipeline discovers c2
-	comm := state.GetOrTrackChallenge(c2, 2, challengeWindow)
+	// Perform reorg back to bn2
+	state.ClearCommitments()
+
+	// pipeline discovers c2 at bn2
+	state.TrackCommitment(c2, l1Ref(2))
 	// it is already marked as expired so it will be skipped without needing a reorg
-	require.Equal(t, ChallengeExpired, comm.challengeStatus)
+	require.Equal(t, ChallengeExpired, state.GetChallengeStatus(c2, uint64(2)))
 
 	// later when we get to finalizing block 10 + margin, the pending challenge is safely pruned
-	state.Prune(210)
-	require.Equal(t, 0, len(state.expiredComms))
+	// Note: We need to go through the expire then prune steps
+	state.ExpireChallenges(bID(201))
+	err = state.ExpireCommitments(bID(201))
+	require.ErrorIs(t, err, ErrReorgRequired)
+	state.Prune(bID(201))
+	require.True(t, state.NoCommitments())
 }
 
 // cannot import from testutils at this time because of import cycle
@@ -290,11 +227,12 @@ func (m *mockL1Fetcher) ExpectL1BlockRefByNumber(num uint64, ref eth.L1BlockRef,
 	m.Mock.On("L1BlockRefByNumber", num).Once().Return(ref, err)
 }
 
-func TestFilterInvalidBlockNumber(t *testing.T) {
-	logger := testlog.Logger(t, log.LevelDebug)
+func TestAdvanceChallengeOrigin(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelWarn)
 	ctx := context.Background()
 
 	l1F := &mockL1Fetcher{}
+	defer l1F.AssertExpectations(t)
 
 	storage := NewMockDAClient(logger)
 
@@ -303,10 +241,12 @@ func TestFilterInvalidBlockNumber(t *testing.T) {
 		ChallengeWindow: 90, ResolveWindow: 90, DAChallengeContractAddress: daddr,
 	}
 
-	bn := uint64(19)
 	bhash := common.HexToHash("0xd438144ffab918b1349e7cd06889c26800c26d8edc34d64f750e3e097166a09c")
+	bhash2 := common.HexToHash("0xd000004ffab918b1349e7cd06889c26800c26d8edc34d64f750e3e097166a09c")
+	bn := uint64(19)
+	comm := Keccak256Commitment(common.FromHex("eed82c1026bdd0f23461dd6ca515ef677624e63e6fc0ff91e3672af8eddf579d"))
 
-	state := NewState(logger, &NoopMetrics{})
+	state := NewState(logger, &NoopMetrics{}, pcfg)
 
 	da := NewPlasmaDAWithState(logger, pcfg, storage, &NoopMetrics{}, state)
 
@@ -339,28 +279,26 @@ func TestFilterInvalidBlockNumber(t *testing.T) {
 	}
 	l1F.ExpectFetchReceipts(bhash, nil, receipts, nil)
 
-	// we get 1 log successfully filtered as valid status updated contract event
-	logs, err := da.fetchChallengeLogs(ctx, l1F, id)
-	require.NoError(t, err)
-	require.Equal(t, len(logs), 1)
-
-	// commitment is tracked but not canonical
-	status, comm, err := da.decodeChallengeStatus(logs[0])
+	// Advance the challenge origin & ensure that we track the challenge
+	err := da.AdvanceChallengeOrigin(ctx, l1F, id)
 	require.NoError(t, err)
 
-	c, has := state.commsByKey[string(comm.Encode())]
+	c, has := state.GetChallenge(comm, 14)
 	require.True(t, has)
-	require.False(t, c.canonical)
+	require.Equal(t, ChallengeActive, c.challengeStatus)
 
-	require.Equal(t, ChallengeActive, status)
-	// once tracked, set as active based on decoded status
-	state.SetActiveChallenge(comm.Encode(), bn, pcfg.ResolveWindow)
+	// Advance the challenge origin until the challenge should be expired
+	for i := bn + 1; i < bn+1+pcfg.ChallengeWindow; i++ {
+		id2 := eth.BlockID{
+			Number: i,
+			Hash:   bhash2,
+		}
+		l1F.ExpectFetchReceipts(bhash2, nil, nil, nil)
+		err = da.AdvanceChallengeOrigin(ctx, l1F, id2)
+		require.NoError(t, err)
+	}
+	state.Prune(bID(bn + 1 + pcfg.ChallengeWindow + pcfg.ResolveWindow))
 
-	// once we request it during derivation it becomes canonical
-	tracked := state.GetOrTrackChallenge(comm.Encode(), 14, pcfg.ChallengeWindow)
-	require.True(t, tracked.canonical)
-
-	require.Equal(t, ChallengeActive, tracked.challengeStatus)
-	require.Equal(t, uint64(14), tracked.blockNumber)
-	require.Equal(t, bn+pcfg.ResolveWindow, tracked.expiresAt)
+	_, has = state.GetChallenge(comm, 14)
+	require.False(t, has)
 }

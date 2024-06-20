@@ -30,7 +30,7 @@ arbitrary hash can be used for claim values. For more advanced cases [cannon can
 trace, including the claim values to use at specific steps. Note that it is not valid to create a game that disputes an
 output root, using the final hash from a trace that confirms the output root is valid. To dispute an output root
 successfully, the trace must resolve that the disputed output root is invalid. This is indicated by the first byte of
-the claim value being set to the invalid [VM status](../../specs/cannon-fault-proof-vm.md#state-hash) (`0x01`).
+the claim value being set to the invalid [VM status](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/cannon-fault-proof-vm.md#state-hash) (`0x01`).
 
 The game can then be created by calling the `create` method on the `DisputeGameFactory` contract. This requires three
 parameters:
@@ -94,9 +94,9 @@ single instruction in cannon running on-chain.
 
 When the instruction to be executed as part of a `step` call reads from some pre-image data, that data must be loaded
 into the pre-image oracle prior to calling `step`.
-For [local pre-image keys](../../specs/fault-proof.md#type-1-local-key), the pre-image must be populated via
+For [local pre-image keys](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/index.md#type-1-local-key), the pre-image must be populated via
 the `FaultDisputeGame` contract by calling the `addLocalData` function.
-For [global keccak256 keys](../../specs/fault-proof.md#type-2-global-keccak256-key), the data should be added directly
+For [global keccak256 keys](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/index.md#type-2-global-keccak256-key), the data should be added directly
 to the pre-image oracle contract.
 
 ### Resolving a Game

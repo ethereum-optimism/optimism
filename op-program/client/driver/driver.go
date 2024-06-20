@@ -19,8 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-var ErrClaimNotValid = errors.New("invalid claim")
-
 type Derivation interface {
 	Step(ctx context.Context) error
 }
@@ -68,9 +66,18 @@ func (d *MinimalSyncDeriver) SyncStep(ctx context.Context) error {
 		if err := d.engine.TryUpdateEngine(ctx); !errors.Is(err, engine.ErrNoFCUNeeded) {
 			return err
 		}
-		if err := engine.ResetEngine(ctx, d.logger, d.cfg, d.engine, d.l1Source, d.l2Source, d.syncCfg, nil); err != nil {
-			return err
+		// The below two calls emulate ResetEngine, without event-processing.
+		// This will be omitted after op-program adopts events, and the deriver code is used instead.
+		result, err := sync.FindL2Heads(ctx, d.cfg, d.l1Source, d.l2Source, d.logger, d.syncCfg)
+		if err != nil {
+			// not really a temporary error in this context, but preserves old ResetEngine behavior.
+			return derive.NewTemporaryError(fmt.Errorf("failed to determine starting point: %w", err))
 		}
+		engine.ForceEngineReset(d.engine, engine.ForceEngineResetEvent{
+			Unsafe:    result.Unsafe,
+			Safe:      result.Safe,
+			Finalized: result.Finalized,
+		})
 		d.pipeline.ConfirmEngineReset()
 		d.initialResetDone = true
 	}
@@ -101,7 +108,7 @@ type Driver struct {
 }
 
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l1BlobsSource derive.L1BlobsFetcher, l2Source L2Source, targetBlockNum uint64) *Driver {
-	engine := engine.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+	engine := engine.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync, rollup.NoopEmitter{})
 	attributesHandler := attributes.NewAttributesHandler(logger, cfg, engine, l2Source)
 	syncCfg := &sync.Config{SyncMode: sync.CLSync}
 	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, metrics.NoopMetrics)
@@ -153,17 +160,4 @@ func (d *Driver) Step(ctx context.Context) error {
 
 func (d *Driver) SafeHead() eth.L2BlockRef {
 	return d.deriver.SafeL2Head()
-}
-
-func (d *Driver) ValidateClaim(l2ClaimBlockNum uint64, claimedOutputRoot eth.Bytes32) error {
-	l2Head := d.SafeHead()
-	outputRoot, err := d.l2OutputRoot(min(l2ClaimBlockNum, l2Head.Number))
-	if err != nil {
-		return fmt.Errorf("calculate L2 output root: %w", err)
-	}
-	d.logger.Info("Validating claim", "head", l2Head, "output", outputRoot, "claim", claimedOutputRoot)
-	if claimedOutputRoot != outputRoot {
-		return fmt.Errorf("%w: claim: %v actual: %v", ErrClaimNotValid, claimedOutputRoot, outputRoot)
-	}
-	return nil
 }

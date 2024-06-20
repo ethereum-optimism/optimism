@@ -69,3 +69,6 @@ func (n *TestRPCMetrics) RecordRPCClientRequest(method string) func(err error) {
 func (n *TestRPCMetrics) RecordRPCClientResponse(method string, err error) {}
 
 func (t *TestDerivationMetrics) SetDerivationIdle(idle bool) {}
+
+func (t *TestDerivationMetrics) RecordPipelineReset() {
+}

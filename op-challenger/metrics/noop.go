@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"io"
+	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum/go-ethereum/common"
@@ -37,10 +38,9 @@ func (*NoopMetricsImpl) RecordPreimageChallengeFailed() {}
 func (*NoopMetricsImpl) RecordBondClaimFailed()   {}
 func (*NoopMetricsImpl) RecordBondClaimed(uint64) {}
 
-func (*NoopMetricsImpl) RecordCannonExecutionTime(t float64)   {}
-func (*NoopMetricsImpl) RecordAsteriscExecutionTime(t float64) {}
-func (*NoopMetricsImpl) RecordClaimResolutionTime(t float64)   {}
-func (*NoopMetricsImpl) RecordGameActTime(t float64)           {}
+func (*NoopMetricsImpl) RecordVmExecutionTime(_ string, _ time.Duration) {}
+func (*NoopMetricsImpl) RecordClaimResolutionTime(t float64)             {}
+func (*NoopMetricsImpl) RecordGameActTime(t float64)                     {}
 
 func (*NoopMetricsImpl) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}
 

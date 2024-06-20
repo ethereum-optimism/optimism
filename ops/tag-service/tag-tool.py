@@ -1,6 +1,5 @@
 import argparse
 import subprocess
-import re
 import semver
 
 SERVICES  = [
@@ -13,7 +12,6 @@ SERVICES  = [
     'op-dispute-mon',
     'op-proposer',
     'da-server',
-    'proxyd',
     'op-heartbeat',
     'op-contracts',
     'test',

@@ -2,6 +2,7 @@ package mipsevm
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -12,17 +13,22 @@ import (
 // StateWitnessSize is the size of the state witness encoding in bytes.
 var StateWitnessSize = 226
 
+type CpuScalars struct {
+	PC     uint32 `json:"pc"`
+	NextPC uint32 `json:"nextPC"`
+	LO     uint32 `json:"lo"`
+	HI     uint32 `json:"hi"`
+}
+
 type State struct {
 	Memory *Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
 
-	PC     uint32 `json:"pc"`
-	NextPC uint32 `json:"nextPC"`
-	LO     uint32 `json:"lo"`
-	HI     uint32 `json:"hi"`
-	Heap   uint32 `json:"heap"` // to handle mmap growth
+	Cpu CpuScalars `json:"cpu"`
+
+	Heap uint32 `json:"heap"` // to handle mmap growth
 
 	ExitCode uint8 `json:"exit"`
 	Exited   bool  `json:"exited"`
@@ -42,6 +48,62 @@ type State struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
+type stateMarshaling struct {
+	Memory         *Memory       `json:"memory"`
+	PreimageKey    common.Hash   `json:"preimageKey"`
+	PreimageOffset uint32        `json:"preimageOffset"`
+	PC             uint32        `json:"pc"`
+	NextPC         uint32        `json:"nextPC"`
+	LO             uint32        `json:"lo"`
+	HI             uint32        `json:"hi"`
+	Heap           uint32        `json:"heap"`
+	ExitCode       uint8         `json:"exit"`
+	Exited         bool          `json:"exited"`
+	Step           uint64        `json:"step"`
+	Registers      [32]uint32    `json:"registers"`
+	LastHint       hexutil.Bytes `json:"lastHint,omitempty"`
+}
+
+func (s *State) MarshalJSON() ([]byte, error) { // nosemgrep
+	sm := &stateMarshaling{
+		Memory:         s.Memory,
+		PreimageKey:    s.PreimageKey,
+		PreimageOffset: s.PreimageOffset,
+		PC:             s.Cpu.PC,
+		NextPC:         s.Cpu.NextPC,
+		LO:             s.Cpu.LO,
+		HI:             s.Cpu.HI,
+		Heap:           s.Heap,
+		ExitCode:       s.ExitCode,
+		Exited:         s.Exited,
+		Step:           s.Step,
+		Registers:      s.Registers,
+		LastHint:       s.LastHint,
+	}
+	return json.Marshal(sm)
+}
+
+func (s *State) UnmarshalJSON(data []byte) error {
+	sm := new(stateMarshaling)
+	if err := json.Unmarshal(data, sm); err != nil {
+		return err
+	}
+	s.Memory = sm.Memory
+	s.PreimageKey = sm.PreimageKey
+	s.PreimageOffset = sm.PreimageOffset
+	s.Cpu.PC = sm.PC
+	s.Cpu.NextPC = sm.NextPC
+	s.Cpu.LO = sm.LO
+	s.Cpu.HI = sm.HI
+	s.Heap = sm.Heap
+	s.ExitCode = sm.ExitCode
+	s.Exited = sm.Exited
+	s.Step = sm.Step
+	s.Registers = sm.Registers
+	s.LastHint = sm.LastHint
+	return nil
+}
+
 func (s *State) GetStep() uint64 { return s.Step }
 
 func (s *State) VMStatus() uint8 {
@@ -54,10 +116,10 @@ func (s *State) EncodeWitness() StateWitness {
 	out = append(out, memRoot[:]...)
 	out = append(out, s.PreimageKey[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
-	out = binary.BigEndian.AppendUint32(out, s.PC)
-	out = binary.BigEndian.AppendUint32(out, s.NextPC)
-	out = binary.BigEndian.AppendUint32(out, s.LO)
-	out = binary.BigEndian.AppendUint32(out, s.HI)
+	out = binary.BigEndian.AppendUint32(out, s.Cpu.PC)
+	out = binary.BigEndian.AppendUint32(out, s.Cpu.NextPC)
+	out = binary.BigEndian.AppendUint32(out, s.Cpu.LO)
+	out = binary.BigEndian.AppendUint32(out, s.Cpu.HI)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
 	if s.Exited {

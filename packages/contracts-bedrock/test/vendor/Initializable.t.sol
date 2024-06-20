@@ -13,7 +13,7 @@ import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import "src/L1/ProtocolVersions.sol";
 import "src/dispute/lib/Types.sol";
-import "scripts/Deployer.sol";
+import "scripts/deploy/Deployer.sol";
 
 /// @title Initializer_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than

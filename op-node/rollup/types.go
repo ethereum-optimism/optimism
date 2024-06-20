@@ -54,10 +54,10 @@ type PlasmaConfig struct {
 	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
 	// CommitmentType specifies which commitment type can be used. Defaults to Keccak (type 0) if not present
 	CommitmentType string `json:"da_commitment_type"`
-	// DA challenge window value set on the DAC contract. Used in plasma mode
+	// DA challenge window value set on the DAC contract. Used in alt-da mode
 	// to compute when a commitment can no longer be challenged.
 	DAChallengeWindow uint64 `json:"da_challenge_window"`
-	// DA resolve window value set on the DAC contract. Used in plasma mode
+	// DA resolve window value set on the DAC contract. Used in alt-da mode
 	// to compute when a challenge expires and trigger a reorg if needed.
 	DAResolveWindow uint64 `json:"da_resolve_window"`
 }
@@ -132,15 +132,15 @@ type Config struct {
 	// L1 DataAvailabilityChallenge contract proxy address
 	LegacyDAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
 
-	// DA challenge window value set on the DAC contract. Used in plasma mode
+	// DA challenge window value set on the DAC contract. Used in alt-da mode
 	// to compute when a commitment can no longer be challenged.
 	LegacyDAChallengeWindow uint64 `json:"da_challenge_window,omitempty"`
 
-	// DA resolve window value set on the DAC contract. Used in plasma mode
+	// DA resolve window value set on the DAC contract. Used in alt-da mode
 	// to compute when a challenge expires and trigger a reorg if needed.
 	LegacyDAResolveWindow uint64 `json:"da_resolve_window,omitempty"`
 
-	// LegacyUsePlasma is activated when the chain is in plasma mode.
+	// LegacyUsePlasma is activated when the chain is in alt-da mode.
 	LegacyUsePlasma bool `json:"use_plasma,omitempty"`
 }
 
@@ -326,7 +326,7 @@ func (cfg *Config) Check() error {
 	return nil
 }
 
-// validatePlasmaConfig checks the two approaches to configuring plasma mode.
+// validatePlasmaConfig checks the two approaches to configuring alt-da mode.
 // If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
 func validatePlasmaConfig(cfg *Config) error {
 	if cfg.LegacyUsePlasma && cfg.PlasmaConfig == nil {
@@ -522,7 +522,7 @@ func (c *Config) PlasmaEnabled() bool {
 }
 
 // SyncLookback computes the number of blocks to walk back in order to find the correct L1 origin.
-// In plasma mode longest possible window is challenge + resolve windows.
+// In alt-da mode longest possible window is challenge + resolve windows.
 func (c *Config) SyncLookback() uint64 {
 	if c.PlasmaEnabled() {
 		if win := (c.PlasmaConfig.DAChallengeWindow + c.PlasmaConfig.DAResolveWindow); win > c.SeqWindowSize {
@@ -567,7 +567,7 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	// Report the protocol version
 	banner += fmt.Sprintf("Node supports up to OP-Stack Protocol Version: %s\n", OPStackSupport)
 	if c.PlasmaConfig != nil {
-		banner += fmt.Sprintf("Node supports Plasma Mode with CommitmentType %v\n", c.PlasmaConfig.CommitmentType)
+		banner += fmt.Sprintf("Node supports Alt-DA Mode with CommitmentType %v\n", c.PlasmaConfig.CommitmentType)
 	}
 	return banner
 }

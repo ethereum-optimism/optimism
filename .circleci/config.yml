@@ -243,25 +243,25 @@ jobs:
             - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
             - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
             - ".devnet/allocs-l1.json"
-            - ".devnet/allocs-l2.json"
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
+            - ".devnet/allocs-l2-fjord.json"
             - ".devnet/addresses.json"
             - ".devnet-l2oo/allocs-l1.json"
             - ".devnet-l2oo/addresses.json"
-            - ".devnet-l2oo/allocs-l2.json"
             - ".devnet-l2oo/allocs-l2-delta.json"
             - ".devnet-l2oo/allocs-l2-ecotone.json"
+            - ".devnet-l2oo/allocs-l2-fjord.json"
             - ".devnet-plasma/allocs-l1.json"
             - ".devnet-plasma/addresses.json"
-            - ".devnet-plasma/allocs-l2.json"
             - ".devnet-plasma/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l2-ecotone.json"
+            - ".devnet-plasma/allocs-l2-fjord.json"
             - ".devnet-plasma-generic/allocs-l1.json"
             - ".devnet-plasma-generic/addresses.json"
-            - ".devnet-plasma-generic/allocs-l2.json"
             - ".devnet-plasma-generic/allocs-l2-delta.json"
             - ".devnet-plasma-generic/allocs-l2-ecotone.json"
+            - ".devnet-plasma-generic/allocs-l2-fjord.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -928,9 +928,9 @@ jobs:
           name: Load devnet-allocs
           command: |
             mkdir -p .devnet
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2.json .devnet/allocs-l2.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-fjord.json .devnet/allocs-l2-fjord.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
@@ -1071,6 +1071,8 @@ jobs:
               echo 'export EXPECTED_PRESTATE_HASH="0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55"' >> $BASH_ENV
             elif [[ "<<parameters.version>>" == "1.1.0" ]]; then
               echo 'export EXPECTED_PRESTATE_HASH="0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.2.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x03617abec0b255dc7fc7a0513a2c2220140a1dcd7a1c8eca567659bd67e05cea"' >> $BASH_ENV
             else
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
@@ -1113,9 +1115,9 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - ".devnet/allocs-l2.json"
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
+            - ".devnet/allocs-l2-fjord.json"
             - ".devnet/allocs-l1.json"
             - ".devnet/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
@@ -1135,13 +1137,6 @@ jobs:
       DEVNET_PLASMA: 'false'
     steps:
       - checkout
-      - when:
-          condition:
-            equal: ['l2oo', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set DEVNET_L2OO = true
-                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
       - when:
           condition:
             equal: ['plasma', <<parameters.variant>>]
@@ -1576,10 +1571,6 @@ workflows:
           dependencies: "contracts-bedrock"
           requires:
             - pnpm-monorepo
-      - go-lint-test-build:
-          name: proxyd-tests
-          binary_name: proxyd
-          working_directory: proxyd
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1764,7 +1755,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              variant: ["default", "l2oo", "plasma", "plasma-generic"]
+              variant: ["default", "plasma", "plasma-generic"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
@@ -1795,7 +1786,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|proxyd|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build:
@@ -1966,21 +1957,6 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-ufm
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-build:
-          name: proxyd-docker-release
-          filters:
-            tags:
-              only: /^proxyd\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: proxyd
           docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
@@ -2204,6 +2180,6 @@ workflows:
       - preimage-reproducibility:
           matrix:
             parameters:
-              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0"]
+              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0"]
           context:
             slack

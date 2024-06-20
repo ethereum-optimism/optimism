@@ -45,7 +45,7 @@ There are 3 types of witness data involved in onchain execution:
 ### Packed State
 
 The Packed State is provided in every executed onchain instruction.
-See [Cannon VM Specs](https://github.com/ethereum-optimism/specs/blob/main/specs/experimental/fault-proof/cannon-fault-proof-vm.md#state) for
+See [Cannon VM Specs](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/cannon-fault-proof-vm.md#state) for
 details on the state structure.
 
 The packed state is small! The `State` data can be packed in such a small amount of EVM words,

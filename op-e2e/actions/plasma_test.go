@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Devnet allocs should have plasma mode enabled for these tests to pass
+// Devnet allocs should have alt-da mode enabled for these tests to pass
 
 // L2PlasmaDA is a test harness for manipulating plasma DA state.
 type L2PlasmaDA struct {

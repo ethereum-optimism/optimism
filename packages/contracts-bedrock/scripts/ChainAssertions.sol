@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { DeployConfig } from "scripts/DeployConfig.s.sol";
-import { Deployer } from "scripts/Deployer.sol";
+import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+import { Deployer } from "scripts/deploy/Deployer.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";

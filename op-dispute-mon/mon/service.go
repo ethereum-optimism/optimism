@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/bonds"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -28,9 +29,10 @@ import (
 )
 
 type Service struct {
-	logger  log.Logger
-	metrics metrics.Metricer
-	monitor *gameMonitor
+	logger       log.Logger
+	metrics      metrics.Metricer
+	monitor      *gameMonitor
+	honestActors types.HonestActors
 
 	factoryContract *contracts.DisputeGameFactoryContract
 
@@ -56,9 +58,10 @@ type Service struct {
 // NewService creates a new Service.
 func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
 	s := &Service{
-		cl:      clock.SystemClock,
-		logger:  logger,
-		metrics: metrics.NewMetrics(),
+		cl:           clock.SystemClock,
+		logger:       logger,
+		metrics:      metrics.NewMetrics(),
+		honestActors: types.NewHonestActors(cfg.HonestActors),
 	}
 
 	if err := s.initFromConfig(ctx, cfg); err != nil {
@@ -105,7 +108,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 }
 
 func (s *Service) initClaimMonitor(cfg *config.Config) {
-	s.claims = NewClaimMonitor(s.logger, s.cl, cfg.HonestActors, s.metrics)
+	s.claims = NewClaimMonitor(s.logger, s.cl, s.honestActors, s.metrics)
 }
 
 func (s *Service) initResolutionMonitor() {
@@ -142,7 +145,7 @@ func (s *Service) initForecast(cfg *config.Config) {
 }
 
 func (s *Service) initBonds() {
-	s.bonds = bonds.NewBonds(s.logger, s.metrics, s.cl)
+	s.bonds = bonds.NewBonds(s.logger, s.metrics, s.honestActors, s.cl)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {

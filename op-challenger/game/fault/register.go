@@ -254,7 +254,7 @@ func registerAsterisc(
 			if err != nil {
 				return nil, fmt.Errorf("failed to get asterisc prestate: %w", err)
 			}
-			accessor, err := outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg, l2Client, prestateProvider, asteriscPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg.Asterisc, l2Client, prestateProvider, asteriscPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -349,7 +349,7 @@ func registerCannon(
 			if err != nil {
 				return nil, fmt.Errorf("failed to get cannon prestate: %w", err)
 			}
-			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg, l2Client, prestateProvider, cannonPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg.Cannon, l2Client, prestateProvider, cannonPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}

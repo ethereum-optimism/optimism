@@ -174,3 +174,98 @@ func signExtend(dat uint32, idx uint32) uint32 {
 		return dat & mask
 	}
 }
+
+func handleBranch(cpu *CpuScalars, registers *[32]uint32, opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
+	if cpu.NextPC != cpu.PC+4 {
+		panic("branch in delay slot")
+	}
+
+	shouldBranch := false
+	if opcode == 4 || opcode == 5 { // beq/bne
+		rt := registers[rtReg]
+		shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
+	} else if opcode == 6 {
+		shouldBranch = int32(rs) <= 0 // blez
+	} else if opcode == 7 {
+		shouldBranch = int32(rs) > 0 // bgtz
+	} else if opcode == 1 {
+		// regimm
+		rtv := (insn >> 16) & 0x1F
+		if rtv == 0 { // bltz
+			shouldBranch = int32(rs) < 0
+		}
+		if rtv == 1 { // bgez
+			shouldBranch = int32(rs) >= 0
+		}
+	}
+
+	prevPC := cpu.PC
+	cpu.PC = cpu.NextPC // execute the delay slot first
+	if shouldBranch {
+		cpu.NextPC = prevPC + 4 + (signExtend(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
+	} else {
+		cpu.NextPC = cpu.NextPC + 4 // branch not taken
+	}
+	return nil
+}
+
+func handleHiLo(cpu *CpuScalars, registers *[32]uint32, fun uint32, rs uint32, rt uint32, storeReg uint32) error {
+	val := uint32(0)
+	switch fun {
+	case 0x10: // mfhi
+		val = cpu.HI
+	case 0x11: // mthi
+		cpu.HI = rs
+	case 0x12: // mflo
+		val = cpu.LO
+	case 0x13: // mtlo
+		cpu.LO = rs
+	case 0x18: // mult
+		acc := uint64(int64(int32(rs)) * int64(int32(rt)))
+		cpu.HI = uint32(acc >> 32)
+		cpu.LO = uint32(acc)
+	case 0x19: // multu
+		acc := uint64(uint64(rs) * uint64(rt))
+		cpu.HI = uint32(acc >> 32)
+		cpu.LO = uint32(acc)
+	case 0x1a: // div
+		cpu.HI = uint32(int32(rs) % int32(rt))
+		cpu.LO = uint32(int32(rs) / int32(rt))
+	case 0x1b: // divu
+		cpu.HI = rs % rt
+		cpu.LO = rs / rt
+	}
+
+	if storeReg != 0 {
+		registers[storeReg] = val
+	}
+
+	cpu.PC = cpu.NextPC
+	cpu.NextPC = cpu.NextPC + 4
+	return nil
+}
+
+func handleJump(cpu *CpuScalars, registers *[32]uint32, linkReg uint32, dest uint32) error {
+	if cpu.NextPC != cpu.PC+4 {
+		panic("jump in delay slot")
+	}
+	prevPC := cpu.PC
+	cpu.PC = cpu.NextPC
+	cpu.NextPC = dest
+	if linkReg != 0 {
+		registers[linkReg] = prevPC + 8 // set the link-register to the instr after the delay slot instruction.
+	}
+	return nil
+}
+
+func handleRd(cpu *CpuScalars, registers *[32]uint32, storeReg uint32, val uint32, conditional bool) error {
+	if storeReg >= 32 {
+		panic("invalid register")
+	}
+	if storeReg != 0 && conditional {
+		registers[storeReg] = val
+	}
+	cpu.PC = cpu.NextPC
+	cpu.NextPC = cpu.NextPC + 4
+	return nil
+}

@@ -441,10 +441,10 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.UsePlasma {
 		if d.DAChallengeWindow == 0 {
-			return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+			return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using alt-da mode", ErrInvalidDeployConfig)
 		}
 		if d.DAResolveWindow == 0 {
-			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using plasma mode", ErrInvalidDeployConfig)
+			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using alt-da mode", ErrInvalidDeployConfig)
 		}
 		if !(d.DACommitmentType == plasma.KeccakCommitmentString || d.DACommitmentType == plasma.GenericCommitmentString) {
 			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommtiment or GenericCommitment", ErrInvalidDeployConfig)
@@ -520,9 +520,9 @@ func (d *DeployConfig) CheckAddresses() error {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.UsePlasma && d.DACommitmentType == plasma.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
-		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using plasma mode", ErrInvalidDeployConfig)
+		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using alt-da mode", ErrInvalidDeployConfig)
 	} else if d.UsePlasma && d.DACommitmentType == plasma.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
-		return fmt.Errorf("%w: DAChallengeContract must be address(0) when using generic commitments in plasma mode", ErrInvalidDeployConfig)
+		return fmt.Errorf("%w: DAChallengeContract must be address(0) when using generic commitments in alt-da mode", ErrInvalidDeployConfig)
 	}
 	return nil
 }

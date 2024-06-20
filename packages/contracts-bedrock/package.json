@@ -19,7 +19,7 @@
     "genesis": "forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'",
     "coverage": "pnpm build:go-ffi && (forge coverage || (bash -c \"forge coverage 2>&1 | grep -q 'Stack too deep' && echo -e '\\033[1;33mWARNING\\033[0m: Coverage failed with stack too deep, so overriding and exiting successfully' && exit 0 || exit 1\"))",
     "coverage:lcov": "pnpm build:go-ffi && (forge coverage --report lcov || (bash -c \"forge coverage --report lcov 2>&1 | grep -q 'Stack too deep' && echo -e '\\033[1;33mWARNING\\033[0m: Coverage failed with stack too deep, so overriding and exiting successfully' && exit 0 || exit 1\"))",
-    "deploy": "./scripts/deploy.sh",
+    "deploy": "./scripts/deploy/deploy.sh",
     "gas-snapshot:no-build": "forge snapshot --match-contract GasBenchMark",
     "statediff": "./scripts/statediff.sh && git diff --exit-code",
     "gas-snapshot": "pnpm build:go-ffi && pnpm gas-snapshot:no-build",

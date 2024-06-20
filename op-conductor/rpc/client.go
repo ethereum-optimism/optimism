@@ -49,13 +49,18 @@ func (c *APIClient) Active(ctx context.Context) (bool, error) {
 }
 
 // AddServerAsNonvoter implements API.
-func (c *APIClient) AddServerAsNonvoter(ctx context.Context, id string, addr string) error {
-	return c.c.CallContext(ctx, nil, prefixRPC("addServerAsNonvoter"), id, addr)
+func (c *APIClient) AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error {
+	return c.c.CallContext(ctx, nil, prefixRPC("addServerAsNonvoter"), id, addr, version)
 }
 
 // AddServerAsVoter implements API.
-func (c *APIClient) AddServerAsVoter(ctx context.Context, id string, addr string) error {
-	return c.c.CallContext(ctx, nil, prefixRPC("addServerAsVoter"), id, addr)
+func (c *APIClient) AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error {
+	return c.c.CallContext(ctx, nil, prefixRPC("addServerAsVoter"), id, addr, version)
+}
+
+// RemoveServer implements API.
+func (c *APIClient) RemoveServer(ctx context.Context, id string, version uint64) error {
+	return c.c.CallContext(ctx, nil, prefixRPC("removeServer"), id, version)
 }
 
 // Close closes the underlying RPC client.
@@ -87,11 +92,6 @@ func (c *APIClient) Pause(ctx context.Context) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("pause"))
 }
 
-// RemoveServer implements API.
-func (c *APIClient) RemoveServer(ctx context.Context, id string) error {
-	return c.c.CallContext(ctx, nil, prefixRPC("removeServer"), id)
-}
-
 // Resume implements API.
 func (c *APIClient) Resume(ctx context.Context) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("resume"))
@@ -115,8 +115,8 @@ func (c *APIClient) SequencerHealthy(ctx context.Context) (bool, error) {
 }
 
 // ClusterMembership implements API.
-func (c *APIClient) ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error) {
-	var info []*consensus.ServerInfo
-	err := c.c.CallContext(ctx, &info, prefixRPC("clusterMembership"))
-	return info, err
+func (c *APIClient) ClusterMembership(ctx context.Context) (*consensus.ClusterMembership, error) {
+	var clusterMembership consensus.ClusterMembership
+	err := c.c.CallContext(ctx, &clusterMembership, prefixRPC("clusterMembership"))
+	return &clusterMembership, err
 }
