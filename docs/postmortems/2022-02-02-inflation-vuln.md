@@ -5,7 +5,7 @@ It also details our response, lessons learned, and subsequent changes to our pro
 
 ## Incident Summary
 
-A vulnerability in Optimism’s fork of [Geth](https://github.com/ethereum/go-ethereum) (which we refer to as [L2Geth](../../l2geth/README.md)) was reported
+A vulnerability in Optimism’s fork of [Geth](https://github.com/ethereum/go-ethereum) (which we refer to as [L2Geth](https://github.com/ethereum-optimism/optimism-legacy/blob/8205f678b7b4ac4625c2afe351b9c82ffaa2e795/l2geth/README.md)) was reported
 to us by [Jay Freeman](https://twitter.com/saurik) (AKA saurik) on February 2nd, 2022. If exploited,
 this vulnerability would allow anyone to mint an unbounded amount of ETH on Optimism.
 
@@ -133,7 +133,7 @@ the PR (36,311 lines added, 47,430 lines removed), which consumed the attention 
 engineering team with a sense of urgency for several months.
 
 An additional factor contributing to this bug was the significant complexity of the
-[L2Geth](https://github.com/ethereum-optimism/optimism/tree/master/l2geth) codebase, which is a fork
+[L2Geth](https://github.com/ethereum-optimism/optimism-legacy/blob/8205f678b7b4ac4625c2afe351b9c82ffaa2e795/l2geth) codebase, which is a fork
 of [Geth](https://github.com/ethereum/go-ethereum). Geth itself is already a very complex codebase.
 The changes introduced to L2Geth in order to support the OVM made it much more complex, such that
 very few people properly understood how it worked.
