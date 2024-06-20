@@ -193,6 +193,7 @@ func NewDriver(
 
 	attributesHandler := attributes.NewAttributesHandler(log, cfg, ec, l2)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
+	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline, synchronousEvents)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, ec, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
@@ -252,6 +253,7 @@ func NewDriver(
 		schedDeriv,
 		driver,
 		clSync,
+		pipelineDeriver,
 	}
 
 	return driver

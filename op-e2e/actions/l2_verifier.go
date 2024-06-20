@@ -104,6 +104,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	attributesHandler := attributes.NewAttributesHandler(log, cfg, ec, eng)
 
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, metrics)
+	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline, synchronousEvents)
 
 	syncDeriver := &driver.SyncDeriver{
 		Derivation:        pipeline,
@@ -149,6 +150,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		engDeriv,
 		rollupNode,
 		clSync,
+		pipelineDeriver,
 	}
 
 	t.Cleanup(rollupNode.rpc.Stop)
@@ -298,7 +300,7 @@ func (s *L2Verifier) OnEvent(ev rollup.Event) {
 		s.log.Warn("Derivation pipeline is being reset", "err", x.Err)
 	case rollup.CriticalErrorEvent:
 		panic(fmt.Errorf("derivation failed critically: %w", x.Err))
-	case driver.DeriverIdleEvent:
+	case derive.DeriverIdleEvent:
 		s.l2PipelineIdle = true
 	}
 }
