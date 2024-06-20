@@ -19,8 +19,8 @@ const (
 	entrySize                 = 24
 	searchCheckpointFrequency = 256
 
-	eventFlagIncrementLogIdx     = byte(1)
-	eventFlagHasExecutingMessage = byte(1) << 1
+	eventFlagIncrementLogIdx = byte(1)
+	//eventFlagHasExecutingMessage = byte(1) << 1
 )
 
 const (
@@ -329,20 +329,20 @@ func (db *DB) writeCanonicalHash(currentState state) error {
 	return db.writeEntry(entry)
 }
 
-func (db *DB) readCanonicalHash(entryIdx int64) (truncatedHash, error) {
-	data, err := db.readEntry(entryIdx)
-	if err != nil {
-		return truncatedHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
-	}
-	if data[0] != typeCanonicalHash {
-		return truncatedHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
-	}
-	return db.parseCanonicalHash(data), nil
-}
-
-func (db *DB) parseCanonicalHash(data [24]byte) truncatedHash {
-	return data[1:21]
-}
+//func (db *DB) readCanonicalHash(entryIdx int64) (truncatedHash, error) {
+//	data, err := db.readEntry(entryIdx)
+//	if err != nil {
+//		return truncatedHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
+//	}
+//	if data[0] != typeCanonicalHash {
+//		return truncatedHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
+//	}
+//	return db.parseCanonicalHash(data), nil
+//}
+//
+//func (db *DB) parseCanonicalHash(data [24]byte) truncatedHash {
+//	return data[1:21]
+//}
 
 // writeInitiatingEvent appends an initiating event to the log
 // type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
