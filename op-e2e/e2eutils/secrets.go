@@ -3,6 +3,7 @@ package e2eutils
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"strconv"
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -10,6 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
+
+const defaultHDPathPrefix = "m/44'/60'/0'/0/"
 
 // DefaultMnemonicConfig is the default mnemonic used in testing.
 // We prefer a mnemonic rather than direct private keys to make it easier
@@ -188,4 +191,15 @@ func (a *Addresses) All() []common.Address {
 		a.Bob,
 		a.Mallory,
 	}
+}
+
+func (s *Secrets) AccountAtIdx(idx int) *ecdsa.PrivateKey {
+	account := accounts.Account{URL: accounts.URL{
+		Path: defaultHDPathPrefix + strconv.Itoa(idx),
+	}}
+	pk, err := s.Wallet.PrivateKey(account)
+	if err != nil {
+		panic(err)
+	}
+	return pk
 }

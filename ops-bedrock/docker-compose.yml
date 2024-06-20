@@ -105,6 +105,8 @@ services:
       op-node
       --l1=ws://l1:8546
       --l1.beacon=http://l1-bn:5052
+      --l1.epoch-poll-interval=12s
+      --l1.http-poll-interval=6s
       --l2=http://l2:8551
       --l2.jwt-secret=/config/jwt-secret.txt
       --sequencer.enabled

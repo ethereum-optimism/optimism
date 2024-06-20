@@ -188,7 +188,7 @@ devnet-up: pre-devnet
 .PHONY: devnet-up
 
 devnet-test: pre-devnet
-	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --test
+	make -C op-e2e test-devnet
 .PHONY: devnet-test
 
 devnet-down:
