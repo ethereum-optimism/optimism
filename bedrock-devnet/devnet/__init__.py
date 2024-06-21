@@ -321,7 +321,6 @@ def deploy_l2(paths):
     # Set up the base docker environment.
     docker_env = {
         'PWD': paths.ops_bedrock_dir,
-        'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address
     }
 
     # Selectively set the L2OO_ADDRESS or DGF_ADDRESS if using L2OO.
