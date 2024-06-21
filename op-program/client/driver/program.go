@@ -48,7 +48,7 @@ func (d *ProgramDeriver) OnEvent(ev rollup.Event) {
 		// No need to queue the attributes, since there is no unsafe chain to consolidate against,
 		// and no temporary-error retry to perform on block processing.
 		d.Emitter.Emit(engine.ProcessAttributesEvent{Attributes: x.Attributes})
-	case engine.InvalidPayloadEvent:
+	case engine.InvalidPayloadAttributesEvent:
 		// If a set of attributes was invalid, then we drop the attributes,
 		// and continue with the next.
 		d.Emitter.Emit(engine.PendingSafeRequestEvent{})

@@ -73,7 +73,7 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("invalid payload", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		m.ExpectOnce(engine.PendingSafeRequestEvent{})
-		p.OnEvent(engine.InvalidPayloadEvent{Envelope: &eth.ExecutionPayloadEnvelope{}})
+		p.OnEvent(engine.InvalidPayloadAttributesEvent{Attributes: &derive.AttributesWithParent{}})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.result)

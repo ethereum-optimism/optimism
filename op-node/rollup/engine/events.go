@@ -24,6 +24,14 @@ func (ev InvalidPayloadEvent) String() string {
 	return "invalid-payload"
 }
 
+type InvalidPayloadAttributesEvent struct {
+	Attributes *derive.AttributesWithParent
+}
+
+func (ev InvalidPayloadAttributesEvent) String() string {
+	return "invalid-payload-attributes"
+}
+
 // ForkchoiceRequestEvent signals to the engine that it should emit an artificial
 // forkchoice-update event, to signal the latest forkchoice to other derivers.
 // This helps decouple derivers from the actual engine state,
@@ -251,6 +259,9 @@ func (eq *EngDeriver) onForceNextSafeAttributes(attributes *derive.AttributesWit
 			eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err)})
 			return
 		case BlockInsertPayloadErr:
+			if !errors.Is(err, derive.ErrTemporary) {
+				eq.emitter.Emit(InvalidPayloadAttributesEvent{Attributes: attributes})
+			}
 			_ = eq.ec.CancelPayload(ctx, true)
 			eq.log.Warn("could not process payload derived from L1 data, dropping attributes", "err", err)
 			// Count the number of deposits to see if the tx list is deposit only.
