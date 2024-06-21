@@ -36,9 +36,9 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 			i.logIdx = logIdx
 			return
 		case typeExecutingCheck:
-		// TODO: Handle this properly
+		// TODO(optimism#10857): Handle this properly
 		case typeExecutingLink:
-		// TODO: Handle this properly
+		// TODO(optimism#10857): Handle this properly
 		default:
 			outErr = fmt.Errorf("unknown entry type %v", entry[0])
 			return
