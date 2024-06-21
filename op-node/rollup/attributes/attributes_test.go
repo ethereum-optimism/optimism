@@ -25,6 +25,13 @@ func TestAttributesHandler(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	refA := testutils.RandomBlockRef(rng)
 
+	refB := eth.L1BlockRef{
+		Hash:       testutils.RandomHash(rng),
+		Number:     refA.Number + 1,
+		ParentHash: refA.Hash,
+		Time:       refA.Time + 12,
+	}
+
 	aL1Info := &testutils.MockBlockInfo{
 		InfoParentHash:  refA.ParentHash,
 		InfoNum:         refA.Number,
@@ -263,6 +270,7 @@ func TestAttributesHandler(t *testing.T) {
 					Attributes:   attrA1.Attributes, // attributes will match, passing consolidation
 					Parent:       attrA1.Parent,
 					IsLastInSpan: lastInSpan,
+					DerivedFrom:  refB,
 				}
 				emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 				emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
@@ -274,8 +282,9 @@ func TestAttributesHandler(t *testing.T) {
 				l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
 
 				emitter.ExpectOnce(engine.PromotePendingSafeEvent{
-					Ref:  refA1,
-					Safe: lastInSpan, // last in span becomes safe instantaneously
+					Ref:         refA1,
+					Safe:        lastInSpan, // last in span becomes safe instantaneously
+					DerivedFrom: refB,
 				})
 				ah.OnEvent(engine.PendingSafeUpdateEvent{
 					PendingSafe: refA0,

@@ -147,8 +147,9 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 			return
 		}
 		eq.emitter.Emit(engine.PromotePendingSafeEvent{
-			Ref:  ref,
-			Safe: attributes.IsLastInSpan,
+			Ref:         ref,
+			Safe:        attributes.IsLastInSpan,
+			DerivedFrom: attributes.DerivedFrom,
 		})
 	}
 

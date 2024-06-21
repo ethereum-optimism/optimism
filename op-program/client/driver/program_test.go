@@ -120,8 +120,16 @@ func TestProgramDeriver(t *testing.T) {
 		require.True(t, p.closing)
 		require.NotNil(t, p.result)
 	})
-	// on temporary error: continue derivation.
-	t.Run("temp error event", func(t *testing.T) {
+	// on L1 temporary error: stop with error
+	t.Run("L1 temporary error event", func(t *testing.T) {
+		p, m := newProgram(t, 1000)
+		p.OnEvent(rollup.L1TemporaryErrorEvent{Err: errors.New("temp test err")})
+		m.AssertExpectations(t)
+		require.True(t, p.closing)
+		require.NotNil(t, p.result)
+	})
+	// on engine temporary error: continue derivation (because legacy, not all connection related)
+	t.Run("engine temp error event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		m.ExpectOnce(engine.PendingSafeRequestEvent{})
 		p.OnEvent(rollup.EngineTemporaryErrorEvent{Err: errors.New("temp test err")})

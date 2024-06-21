@@ -98,9 +98,9 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 
 	var finalizer driver.Finalizer
 	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, ec, plasmaSrc)
+		finalizer = finality.NewPlasmaFinalizer(ctx, log, cfg, l1, synchronousEvents, plasmaSrc)
 	} else {
-		finalizer = finality.NewFinalizer(log, cfg, l1, ec)
+		finalizer = finality.NewFinalizer(ctx, log, cfg, l1, synchronousEvents)
 	}
 
 	attributesHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, synchronousEvents)
@@ -153,6 +153,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		clSync,
 		pipelineDeriver,
 		attributesHandler,
+		finalizer,
 	}
 
 	t.Cleanup(rollupNode.rpc.Stop)
@@ -288,13 +289,15 @@ func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
 	s.l1State.HandleNewL1FinalizedBlock(finalized)
-	s.finalizer.Finalize(t.Ctx(), finalized)
+	s.synchronousEvents.Emit(finality.FinalizeL1Event{FinalizedL1: finalized})
 }
 
 func (s *L2Verifier) OnEvent(ev rollup.Event) {
 	switch x := ev.(type) {
+	case rollup.L1TemporaryErrorEvent:
+		s.log.Warn("L1 temporary error", "err", x.Err)
 	case rollup.EngineTemporaryErrorEvent:
-		s.log.Warn("Derivation process temporary error", "err", x.Err)
+		s.log.Warn("Engine temporary error", "err", x.Err)
 		if errors.Is(x.Err, sync.WrongChainErr) { // action-tests don't back off on temporary errors. Avoid a bad genesis setup from looping.
 			panic(fmt.Errorf("genesis setup issue: %w", x.Err))
 		}

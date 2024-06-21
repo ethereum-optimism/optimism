@@ -68,6 +68,9 @@ func (d *ProgramDeriver) OnEvent(ev rollup.Event) {
 	case rollup.ResetEvent:
 		d.closing = true
 		d.result = fmt.Errorf("unexpected reset error: %w", x.Err)
+	case rollup.L1TemporaryErrorEvent:
+		d.closing = true
+		d.result = fmt.Errorf("unexpected L1 error: %w", x.Err)
 	case rollup.EngineTemporaryErrorEvent:
 		// (Legacy case): While most temporary errors are due to requests for external data failing which can't happen,
 		// they may also be returned due to other events like channels timing out so need to be handled

@@ -9,7 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-type DeriverIdleEvent struct{}
+type DeriverIdleEvent struct {
+	Origin eth.L1BlockRef
+}
 
 func (d DeriverIdleEvent) String() string {
 	return "derivation-idle"
@@ -84,10 +86,10 @@ func (d *PipelineDeriver) OnEvent(ev rollup.Event) {
 		attrib, err := d.pipeline.Step(d.ctx, x.PendingSafe)
 		if err == io.EOF {
 			d.pipeline.log.Debug("Derivation process went idle", "progress", d.pipeline.Origin(), "err", err)
-			d.emitter.Emit(DeriverIdleEvent{})
+			d.emitter.Emit(DeriverIdleEvent{Origin: d.pipeline.Origin()})
 		} else if err != nil && errors.Is(err, EngineELSyncing) {
 			d.pipeline.log.Debug("Derivation process went idle because the engine is syncing", "progress", d.pipeline.Origin(), "err", err)
-			d.emitter.Emit(DeriverIdleEvent{})
+			d.emitter.Emit(DeriverIdleEvent{Origin: d.pipeline.Origin()})
 		} else if err != nil && errors.Is(err, ErrReset) {
 			d.emitter.Emit(rollup.ResetEvent{Err: err})
 		} else if err != nil && errors.Is(err, ErrTemporary) {

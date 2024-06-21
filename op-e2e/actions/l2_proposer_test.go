@@ -96,6 +96,7 @@ func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sequencer.ActL2PipelineFull(t)
 	sequencer.ActL1SafeSignal(t)
 	sequencer.ActL1FinalizedSignal(t)
+	sequencer.ActL2PipelineFull(t)
 	require.Equal(t, sequencer.SyncStatus().UnsafeL2, sequencer.SyncStatus().FinalizedL2)
 	require.True(t, proposer.CanPropose(t))
 
