@@ -224,4 +224,10 @@ func TestSequencerFailover_DisasterRecovery_OverrideLeader(t *testing.T) {
 	active, err = sys.RollupClient(Sequencer3Name).SequencerActive(ctx)
 	require.NoError(t, err)
 	require.True(t, active, "Expected sequencer to be active")
+
+	err = conductors[Sequencer3Name].client.OverrideLeader(ctx)
+	require.NoError(t, err)
+	leader, err := conductors[Sequencer3Name].client.Leader(ctx)
+	require.NoError(t, err)
+	require.True(t, leader, "Expected conductor to return leader true after override")
 }
