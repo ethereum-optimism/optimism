@@ -159,6 +159,8 @@ func (db *DB) updateEntryCountMetric() {
 // Since block data is only recorded in search checkpoints, this may return an earlier block even if log data is
 // recorded for the requested block.
 func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
 	checkpointIdx, err := db.searchCheckpoint(blockNum, math.MaxUint32)
 	if err != nil {
 		return 0, TruncatedHash{}, fmt.Errorf("no checkpoint at or before block %v found: %w", blockNum, err)
