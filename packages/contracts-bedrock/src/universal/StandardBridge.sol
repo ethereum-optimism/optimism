@@ -23,6 +23,13 @@ abstract contract StandardBridge is Initializable {
     /// @notice Mapping that stores deposits for a given pair of local and remote tokens.
     mapping(address => mapping(address => uint256)) public deposits;
 
+    /// @notice The address of L1 USDC address.
+    // solhint-disable-next-line var-name-mixedcase
+    address public immutable l1USDC;
+
+    /// @notice The address of L2 USDC address.
+    address public immutable l2USDC;
+
     /// @notice Messenger contract on this domain.
     /// @custom:network-specific
     CrossDomainMessenger public messenger;
@@ -90,13 +97,17 @@ abstract contract StandardBridge is Initializable {
     /// @param _otherBridge Contract for the other StandardBridge contract.
     function __StandardBridge_init(
         CrossDomainMessenger _messenger,
-        StandardBridge _otherBridge
+        StandardBridge _otherBridge,
+        address _l1USDC,
+        address _l2USDC
     )
         internal
         onlyInitializing
     {
         messenger = _messenger;
         otherBridge = _otherBridge;
+        l1USDC = _l1USDC;
+        l2USDC = _l2USDC;
     }
 
     /// @notice Returns the address of the custom gas token and the token's decimals.
@@ -199,6 +210,10 @@ abstract contract StandardBridge is Initializable {
         onlyOtherBridge
     {
         require(paused() == false, "StandardBridge: paused");
+        require(
+            _isCorrectTokenPair(_localToken, _remoteToken),
+            "StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
+        );
         deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] - _amount;
         IERC20(_localToken).safeTransfer(_to, _amount);
 
@@ -228,6 +243,11 @@ abstract contract StandardBridge is Initializable {
         internal
     {
         require(msg.value == 0, "StandardBridge: cannot send value");
+        require(paused() == false, "StandardBridge: paused");
+        require(
+            _isCorrectTokenPair(_localToken, _remoteToken),
+            "StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
+        );
         IERC20(_localToken).safeTransferFrom(_from, address(this), _amount);
         deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] + _amount;
 
@@ -251,6 +271,21 @@ abstract contract StandardBridge is Initializable {
             ),
             _minGasLimit: _minGasLimit
         });
+    }
+
+    /**
+     * @notice Checks if the "other token" is the correct pair token for the OptimismMintableERC20.
+     *         Calls can be saved in the future by combining this logic with
+     *         `_isOptimismMintableERC20`.
+     *
+     * @param _mintableToken OptimismMintableERC20 to check against.
+     * @param _otherToken    Pair token to check.
+     *
+     * @return True if the other token is the correct pair token for the OptimismMintableERC20.
+     */
+    function _isCorrectTokenPair(address _mintableToken, address _otherToken) internal view returns (bool) {
+        return
+            ((_mintableToken == l1USDC && _otherToken == l2USDC) || (_mintableToken == l2USDC && _otherToken == l1USDC));
     }
 
     /// @notice Emits the ERC20BridgeInitiated event and if necessary the appropriate legacy

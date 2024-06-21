@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
@@ -57,16 +58,6 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @custom:semver 2.2.0
     string public constant version = "2.2.0";
 
-    /// @notice The address of L1 USDC address.
-    // solhint-disable-next-line var-name-mixedcase
-    address public immutable l1USDC;
-
-    /// @notice The address of L2 USDC address.
-    address public immutable l2USDC;
-
-    /// @notice The address of caller from Circle.
-    address public circleCaller;
-
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
 
@@ -74,31 +65,28 @@ contract L1StandardBridge is StandardBridge, ISemver {
     SystemConfig public systemConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
-    constructor(
-        address _l1USDC,
-        address _l2USDC,
-        address  _otherBridge,
-    ) StandardBridge() {
+    constructor(address _otherBridge, address _l1USDC, address _l2USDC) StandardBridge() {
         initialize({
             _messenger: CrossDomainMessenger(address(0)),
             _superchainConfig: SuperchainConfig(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _otherBridge
+            _otherBridgeAddress: _otherBridge,
+            _l1USDC: _l1USDC,
+            _l2USDC: _l2USDC
         });
-
-        l1USDC = _l1USDC;
-        l2USDC = _l2USDC;
     }
 
     /// @notice Initializer.
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
     /// @param _superchainConfig Contract for the SuperchainConfig on this network.
-    /// @param _otherBridge      Contract for the other StandardBridge contract.
+    /// @param _otherBridgeAddress      Contract for the other StandardBridge contract.
     function initialize(
         CrossDomainMessenger _messenger,
         SuperchainConfig _superchainConfig,
         SystemConfig _systemConfig,
-        StandardBridge _otherBridge
+        address _otherBridgeAddress,
+        address _l1USDC,
+        address _l2USDC
     )
         public
         initializer
@@ -107,7 +95,9 @@ contract L1StandardBridge is StandardBridge, ISemver {
         systemConfig = _systemConfig;
         __StandardBridge_init({
             _messenger: _messenger,
-            _otherBridge
+            _otherBridge: StandardBridge(payable(_otherBridgeAddress)),
+            _l1USDC: _l1USDC,
+            _l2USDC: _l2USDC
         });
     }
 
@@ -121,14 +111,13 @@ contract L1StandardBridge is StandardBridge, ISemver {
         (addr_, decimals_) = systemConfig.gasPayingToken();
     }
 
-      /// @inheritdoc IUSDCBurnableSourceBridge
-    function burnAllLockedUSDC() external override {
-        require(msg.sender == guardian(), "SuperchainConfig: only guardian can burn all USDC");
-        // @note Only bridged USDC will be burned. We may refund the rest if possible.
-        uint256 _balance = totalBridgedUSDC;
-        totalBridgedUSDC = 0;
-
-        IFiatToken(l1USDC).burn(_balance);
+    /// @notice Burns all locked USDC if the pbridge is already paused
+    function burnAllLockedUSDC() external {
+        require(paused() == true, "Bridge should be paused before burning all locked USDC");
+        require(msg.sender == superchainConfig.guardian(), "SuperchainConfig: only guardian can burn all USDC");
+        // uint256 _balance = totalBridgedUSDC;
+        deposits[l1USDC][l2USDC] = 0;
+        // IERC20(l1USDC).burn(_balance); // check if this needs to be done
     }
 
     /// @custom:legacy
@@ -149,7 +138,6 @@ contract L1StandardBridge is StandardBridge, ISemver {
     )
         external
         virtual
-        onlyUSDCtoken
     {
         _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
@@ -174,7 +162,6 @@ contract L1StandardBridge is StandardBridge, ISemver {
     )
         external
         virtual
-        onlyUSDCtoken(l1Token, l2Token)
     {
         _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
     }
