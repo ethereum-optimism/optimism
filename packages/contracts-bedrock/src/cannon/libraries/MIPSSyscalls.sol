@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { MIPSMemory } from "src/cannon/libraries/MIPSMEmory.sol";
+import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 
@@ -235,5 +236,23 @@ library MIPSSyscalls {
         }
 
         return (v0_, v1_);
+    }
+
+    function handleSyscallUpdates(
+        st.CpuScalars memory _cpu,
+        uint32[32] memory _registers,
+        uint32 _v0,
+        uint32 _v1
+    )
+        internal
+        pure
+    {
+        // Write the results back to the state registers
+        _registers[2] = _v0;
+        _registers[7] = _v1;
+
+        // Update the PC and nextPC
+        _cpu.pc = _cpu.nextPC;
+        _cpu.nextPC = _cpu.nextPC + 4;
     }
 }

@@ -175,3 +175,11 @@ func handleSysFcntl(a0, a1 uint32) (v0, v1 uint32) {
 
 	return v0, v1
 }
+
+func handleSyscallUpdates(cpu *CpuScalars, registers *[32]uint32, v0, v1 uint32) {
+	registers[2] = v0
+	registers[7] = v1
+
+	cpu.PC = cpu.NextPC
+	cpu.NextPC = cpu.NextPC + 4
+}

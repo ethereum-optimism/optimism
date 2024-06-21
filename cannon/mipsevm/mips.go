@@ -80,11 +80,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0, v1 = handleSysFcntl(a0, a1)
 	}
 
-	m.state.Registers[2] = v0
-	m.state.Registers[7] = v1
-
-	m.state.Cpu.PC = m.state.Cpu.NextPC
-	m.state.Cpu.NextPC = m.state.Cpu.NextPC + 4
+	handleSyscallUpdates(&m.state.Cpu, &m.state.Registers, v0, v1)
 	return nil
 }
 

@@ -188,13 +188,9 @@ contract MIPS is ISemver {
                 (v0, v1) = sys.handleSysFcntl(a0, a1);
             }
 
-            // Write the results back to the state registers
-            state.registers[2] = v0;
-            state.registers[7] = v1;
-
-            // Update the PC and nextPC
-            state.pc = state.nextPC;
-            state.nextPC = state.nextPC + 4;
+            st.CpuScalars memory cpu = getCpuScalars(state);
+            sys.handleSyscallUpdates(cpu, state.registers, v0, v1);
+            setStateCpuScalars(state, cpu);
 
             out_ = outputState();
         }
