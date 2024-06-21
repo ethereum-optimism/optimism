@@ -196,25 +196,7 @@ contract MIPS is ISemver {
             // fcntl: Like linux fcntl syscall, but only supports minimal file-descriptor control commands,
             // to retrieve the file-descriptor R/W flags.
             else if (syscall_no == 4055) {
-                // fcntl
-                // args: a0 = fd, a1 = cmd
-                if (a1 == 3) {
-                    // F_GETFL: get file descriptor flags
-                    if (a0 == sys.FD_STDIN || a0 == sys.FD_PREIMAGE_READ || a0 == sys.FD_HINT_READ) {
-                        v0 = 0; // O_RDONLY
-                    } else if (
-                        a0 == sys.FD_STDOUT || a0 == sys.FD_STDERR || a0 == sys.FD_PREIMAGE_WRITE
-                            || a0 == sys.FD_HINT_WRITE
-                    ) {
-                        v0 = 1; // O_WRONLY
-                    } else {
-                        v0 = 0xFFffFFff;
-                        v1 = sys.EBADF;
-                    }
-                } else {
-                    v0 = 0xFFffFFff;
-                    v1 = sys.EINVAL; // cmd not recognized by this kernel
-                }
+                (v0, v1) = sys.handleSysFcntl(a0, a1);
             }
 
             // Write the results back to the state registers

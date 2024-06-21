@@ -1470,7 +1470,7 @@ contract MIPS_Test is CommonTest {
     function test_fcntl_succeeds() external {
         uint32 insn = 0x0000000c; // syscall
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[2] = 4055; // fnctl syscall
+        state.registers[2] = 4055; // fcntl syscall
         state.registers[4] = 0x0; // a0
         state.registers[5] = 0x3; // a1
 

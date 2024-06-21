@@ -153,3 +153,25 @@ func handleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]b
 
 	return v0, v1, newLastHint, newPreimageKey, newPreimageOffset
 }
+
+func handleSysFcntl(a0, a1 uint32) (v0, v1 uint32) {
+	// args: a0 = fd, a1 = cmd
+	v1 = uint32(0)
+
+	if a1 == 3 { // F_GETFL: get file descriptor flags
+		switch a0 {
+		case fdStdin, fdPreimageRead, fdHintRead:
+			v0 = 0 // O_RDONLY
+		case fdStdout, fdStderr, fdPreimageWrite, fdHintWrite:
+			v0 = 1 // O_WRONLY
+		default:
+			v0 = 0xFFffFFff
+			v1 = MipsEBADF
+		}
+	} else {
+		v0 = 0xFFffFFff
+		v1 = MipsEINVAL // cmd not recognized by this kernel
+	}
+
+	return v0, v1
+}

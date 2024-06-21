@@ -77,22 +77,9 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.PreimageKey = newPreimageKey
 		m.state.PreimageOffset = newPreimageOffset
 	case sysFcntl:
-		// args: a0 = fd, a1 = cmd
-		if a1 == 3 { // F_GETFL: get file descriptor flags
-			switch a0 {
-			case fdStdin, fdPreimageRead, fdHintRead:
-				v0 = 0 // O_RDONLY
-			case fdStdout, fdStderr, fdPreimageWrite, fdHintWrite:
-				v0 = 1 // O_WRONLY
-			default:
-				v0 = 0xFFffFFff
-				v1 = MipsEBADF
-			}
-		} else {
-			v0 = 0xFFffFFff
-			v1 = MipsEINVAL // cmd not recognized by this kernel
-		}
+		v0, v1 = handleSysFcntl(a0, a1)
 	}
+
 	m.state.Registers[2] = v0
 	m.state.Registers[7] = v1
 
