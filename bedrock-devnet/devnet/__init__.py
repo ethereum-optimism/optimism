@@ -392,26 +392,12 @@ def deploy_l2_interop(paths):
         'PWD': paths.ops_bedrock_dir,
     }
 
-    # Selectively set the L2OO_ADDRESS or DGF_ADDRESS if using L2OO.
-    # Must be done selectively because op-proposer throws if both are set.
-    if DEVNET_L2OO:
-        docker_env['L2OO_ADDRESS_INTEROP'] = l2_output_oracle
-    else:
-        docker_env['DGF_ADDRESS_INTEROP'] = dispute_game_factory
-        docker_env['DG_TYPE'] = '254'
-        docker_env['PROPOSAL_INTERVAL'] = '10s'
-
-    if DEVNET_PLASMA:
-        docker_env['PLASMA_ENABLED'] = 'true'
-    else:
-        docker_env['PLASMA_ENABLED'] = 'false'
-
-    if GENERIC_PLASMA:
-        docker_env['PLASMA_GENERIC_DA'] = 'true'
-        docker_env['PLASMA_DA_SERVICE'] = 'true'
-    else:
-        docker_env['PLASMA_GENERIC_DA'] = 'false'
-        docker_env['PLASMA_DA_SERVICE'] = 'false'
+    # Force fault proof and no plasma
+    docker_env['DGF_ADDRESS_INTEROP'] = dispute_game_factory
+    docker_env['DG_TYPE_INTEROP'] = '254'
+    docker_env['PROPOSAL_INTERVAL_INTEROP'] = '10s'
+    docker_env['PLASMA_ENABLED_INTEROP'] = 'false'
+    docker_env['PLASMA_DA_SERVICE_INTEROP'] = 'false'
 
     # Bring up the rest of the services.
     log.info('Bringing up `op-node-interop`, `op-proposer-interop` and `op-batcher-interop`.')
