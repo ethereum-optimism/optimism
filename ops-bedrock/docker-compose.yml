@@ -263,10 +263,6 @@ services:
     depends_on:
       - l1
       - l2-interop
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      target: op-node-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
     command: >
       op-node
@@ -309,10 +305,6 @@ services:
       - l1
       - l2-interop
       - op-node-interop
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      target: op-proposer-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
     environment:
       OP_PROPOSER_L1_ETH_RPC: http://l1:8545
@@ -335,10 +327,6 @@ services:
       - l1
       - l2-interop
       - op-node-interop
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      target: op-batcher-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
     environment:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
@@ -363,10 +351,6 @@ services:
       - l1
       - l2-interop
       - op-node-interop
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      target: op-challenger-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:devnet
     volumes:
       - "interop_challenger_data:/db"
