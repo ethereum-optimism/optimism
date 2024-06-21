@@ -15,9 +15,9 @@ type iterator struct {
 }
 
 func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedHash, outErr error) {
-	for i.nextEntryIdx <= i.db.lastEntryIdx {
+	for i.nextEntryIdx <= i.db.lastEntryIdx() {
 		entryIdx := i.nextEntryIdx
-		entry, err := i.db.readEntry(entryIdx)
+		entry, err := i.db.store.Read(entryIdx)
 		if err != nil {
 			outErr = fmt.Errorf("failed to read entry %v: %w", i, err)
 			return

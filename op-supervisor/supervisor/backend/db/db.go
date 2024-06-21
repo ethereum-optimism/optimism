@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -35,15 +35,6 @@ var (
 
 type TruncatedHash [20]byte
 
-// dataAccess defines a minimal API required to manipulate the actual stored data.
-// It is a subset of the os.File API but could (theoretically) be satisfied by an in-memory implementation for testing.
-type dataAccess interface {
-	io.ReaderAt
-	io.Writer
-	io.Closer
-	Truncate(size int64) error
-}
-
 type Metrics interface {
 	RecordEntryCount(count int64)
 	RecordSearchEntriesRead(count int64)
@@ -58,6 +49,14 @@ type checkpointData struct {
 type logContext struct {
 	blockNum uint64
 	logIdx   uint32
+}
+
+type entryStore interface {
+	Size() int64
+	Read(idx int64) (entrydb.Entry, error)
+	Append(entry entrydb.Entry) error
+	Truncate(idx int64) error
+	Close() error
 }
 
 // DB implements an append only database for log data and cross-chain dependencies.
@@ -92,28 +91,21 @@ type logContext struct {
 type DB struct {
 	log    log.Logger
 	m      Metrics
-	data   dataAccess
+	store  entryStore
 	rwLock sync.RWMutex
 
-	lastEntryIdx     int64
 	lastEntryContext logContext
 }
 
 func NewFromFile(logger log.Logger, m Metrics, path string) (*DB, error) {
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
+	store, err := entrydb.NewEntryDB(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database at %v: %w", path, err)
+		return nil, fmt.Errorf("failed to open DB: %w", err)
 	}
-	info, err := file.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat database at %v: %w", path, err)
-	}
-	lastEntryIdx := info.Size()/entrySize - 1
 	db := &DB{
-		log:          logger,
-		m:            m,
-		data:         file,
-		lastEntryIdx: lastEntryIdx,
+		log:   logger,
+		m:     m,
+		store: store,
 	}
 	if err := db.init(); err != nil {
 		return nil, fmt.Errorf("failed to init database: %w", err)
@@ -121,13 +113,17 @@ func NewFromFile(logger log.Logger, m Metrics, path string) (*DB, error) {
 	return db, nil
 }
 
+func (db *DB) lastEntryIdx() int64 {
+	return db.store.Size() - 1
+}
+
 func (db *DB) init() error {
 	db.updateEntryCountMetric()
-	if db.lastEntryIdx < 0 {
+	if db.lastEntryIdx() < 0 {
 		// Database is empty so no context to load
 		return nil
 	}
-	lastCheckpoint := (db.lastEntryIdx / searchCheckpointFrequency) * searchCheckpointFrequency
+	lastCheckpoint := (db.lastEntryIdx() / searchCheckpointFrequency) * searchCheckpointFrequency
 	i, err := db.newIterator(lastCheckpoint)
 	if err != nil {
 		return fmt.Errorf("failed to create iterator at last search checkpoint: %w", err)
@@ -146,7 +142,7 @@ func (db *DB) init() error {
 }
 
 func (db *DB) updateEntryCountMetric() {
-	db.m.RecordEntryCount(db.lastEntryIdx + 1)
+	db.m.RecordEntryCount(db.lastEntryIdx() + 1)
 }
 
 // ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
@@ -235,7 +231,7 @@ func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
 // the requested log.
 // Returns the index of the searchCheckpoint to begin reading from or an error
 func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
-	n := (db.lastEntryIdx / searchCheckpointFrequency) + 1
+	n := (db.lastEntryIdx() / searchCheckpointFrequency) + 1
 	// Define x[-1] < target and x[n] >= target.
 	// Invariant: x[i-1] < target, x[j] >= target.
 	i, j := int64(0), n
@@ -289,7 +285,7 @@ func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64,
 	if db.lastEntryContext.blockNum < block.Number && logIdx != 0 {
 		return fmt.Errorf("%w: adding log %v as first log in block %v", ErrLogOutOfOrder, logIdx, block.Number)
 	}
-	if (db.lastEntryIdx+1)%searchCheckpointFrequency == 0 {
+	if (db.lastEntryIdx()+1)%searchCheckpointFrequency == 0 {
 		if err := db.writeSearchCheckpoint(block.Number, logIdx, timestamp, block.Hash); err != nil {
 			return fmt.Errorf("failed to write search checkpoint: %w", err)
 		}
@@ -347,11 +343,10 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 		}
 	}
 	// Truncate to contain idx+1 entries, since indices are 0 based, this deletes everything after idx
-	if err := db.data.Truncate((idx + 1) * entrySize); err != nil {
+	if err := db.store.Truncate(idx); err != nil {
 		return fmt.Errorf("failed to truncate to block %v: %w", headBlockNum, err)
 	}
-	// Update the lastEntryIdx cache and then use db.init() to find the log context for the new latest log entry
-	db.lastEntryIdx = idx
+	// Use db.init() to find the log context for the new latest log entry
 	if err := db.init(); err != nil {
 		return fmt.Errorf("failed to find new last entry context: %w", err)
 	}
@@ -363,14 +358,14 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
 func (db *DB) writeSearchCheckpoint(blockNum uint64, logIdx uint32, timestamp uint64, blockHash common.Hash) error {
 	entry := createSearchCheckpoint(blockNum, logIdx, timestamp)
-	if err := db.writeEntry(entry); err != nil {
+	if err := db.store.Append(entry); err != nil {
 		return err
 	}
 	return db.writeCanonicalHash(blockHash)
 }
 
 func (db *DB) readSearchCheckpoint(entryIdx int64) (checkpointData, error) {
-	data, err := db.readEntry(entryIdx)
+	data, err := db.store.Read(entryIdx)
 	if err != nil {
 		return checkpointData{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
@@ -380,11 +375,11 @@ func (db *DB) readSearchCheckpoint(entryIdx int64) (checkpointData, error) {
 // writeCanonicalHash appends a canonical hash entry to the log
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
 func (db *DB) writeCanonicalHash(blockHash common.Hash) error {
-	return db.writeEntry(createCanonicalHash(TruncateHash(blockHash)))
+	return db.store.Append(createCanonicalHash(TruncateHash(blockHash)))
 }
 
 func (db *DB) readCanonicalHash(entryIdx int64) (TruncatedHash, error) {
-	data, err := db.readEntry(entryIdx)
+	data, err := db.store.Read(entryIdx)
 	if err != nil {
 		return TruncatedHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
@@ -401,28 +396,7 @@ func (db *DB) writeInitiatingEvent(postState logContext, logHash TruncatedHash) 
 	if err != nil {
 		return err
 	}
-	return db.writeEntry(entry)
-}
-
-func (db *DB) writeEntry(data entry) error {
-	if _, err := db.data.Write(data[:]); err != nil {
-		// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
-		// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
-		// to avoid leaving hanging entries without the entry that should follow them.
-		return err
-	}
-	db.lastEntryIdx++
-	return nil
-}
-
-func (db *DB) readEntry(idx int64) (entry, error) {
-	var out entry
-	read, err := db.data.ReadAt(out[:], idx*entrySize)
-	// Ignore io.EOF if we read the entire last entry as ReadAt may return io.EOF or nil when it reads the last byte
-	if err != nil && !(errors.Is(err, io.EOF) && read == entrySize) {
-		return entry{}, fmt.Errorf("failed to read entry %v: %w", idx, err)
-	}
-	return out, nil
+	return db.store.Append(entry)
 }
 
 func TruncateHash(hash common.Hash) TruncatedHash {
@@ -432,5 +406,5 @@ func TruncateHash(hash common.Hash) TruncatedHash {
 }
 
 func (db *DB) Close() error {
-	return db.data.Close()
+	return db.store.Close()
 }
