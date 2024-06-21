@@ -17,12 +17,12 @@ library MIPSSyscalls {
     uint32 internal constant EBADF = 0x9;
     uint32 internal constant EINVAL = 0x16;
 
-    /// @notice Extract syscall num and arguments from registers
-    /// @param _registers The cpu registers
-    /// @return sysCallNum_ The syscall number
-    /// @return a0_ The first argument available to the syscall operation
-    /// @return a1_ The second argument available to the syscall operation
-    /// @return a2_ The third argument available to the syscall operation
+    /// @notice Extract syscall num and arguments from registers.
+    /// @param _registers The cpu registers.
+    /// @return sysCallNum_ The syscall number.
+    /// @return a0_ The first argument available to the syscall operation.
+    /// @return a1_ The second argument available to the syscall operation.
+    /// @return a2_ The third argument available to the syscall operation.
     function getSyscallArgs(uint32[32] memory _registers)
         internal
         pure
@@ -37,7 +37,7 @@ library MIPSSyscalls {
         return (sysCallNum_, a0_, a1_, a2_);
     }
 
-    /// @notice Handle mmap syscall logic
+    /// @notice Like a Linux mmap syscall. Allocates a page from the heap.
     /// @param _a0 The address for the new mapping
     /// @param _a1 The size of the new mapping
     /// @param _heap The current value of the heap pointer
@@ -71,16 +71,16 @@ library MIPSSyscalls {
         return (v0_, v1_, newHeap_);
     }
 
-    /// @notice Handle syscall read operations
-    /// @param _a0 The file descriptor
-    /// @param _a1 The memory location where data should be read to
+    /// @notice Like a Linux read syscall. Splits unaligned reads into aligned reads.
+    /// @param _a0 The file descriptor.
+    /// @param _a1 The memory location where data should be read to.
     /// @param _a2 The number of bytes to read from the file
     /// @param _preimageKey The key of the preimage to read.
     /// @param _preimageOffset The offset of the preimage to read.
     /// @param _localContext The local context for the preimage key.
-    /// @param _oracle The address of the preimage oracle
-    /// @return v0_ The number of bytes read, -1 on error
-    /// @return v1_ The error code, 0 if there is no error
+    /// @param _oracle The address of the preimage oracle.
+    /// @return v0_ The number of bytes read, -1 on error.
+    /// @return v1_ The error code, 0 if there is no error.
     function handleSysRead(
         uint32 _a0,
         uint32 _a1,
@@ -148,16 +148,16 @@ library MIPSSyscalls {
         return (v0_, v1_, newPreimageOffset_);
     }
 
-    /// @notice Handle syscall write operations
-    /// @param _a0 The file descriptor
-    /// @param _a1 The memory address to read from
-    /// @param _a2 The number of bytes to read
-    /// @param _preimageKey The current preimaageKey
-    /// @param _preimageOffset The current preimageOffset
-    /// @return v0_ The number of bytes written, or -1 on error
-    /// @return v1_ The error code, or 0 if empty
-    /// @return newPreimageKey_ The new preimageKey
-    /// @return newPreimageOffset_ The new preimageOffset
+    /// @notice Like a Linux write syscall. Splits unaligned writes into aligned writes.
+    /// @param _a0 The file descriptor.
+    /// @param _a1 The memory address to read from.
+    /// @param _a2 The number of bytes to read.
+    /// @param _preimageKey The current preimaageKey.
+    /// @param _preimageOffset The current preimageOffset.
+    /// @return v0_ The number of bytes written, or -1 on error.
+    /// @return v1_ The error code, or 0 if empty.
+    /// @return newPreimageKey_ The new preimageKey.
+    /// @return newPreimageOffset_ The new preimageOffset.
     function handleSysWrite(
         uint32 _a0,
         uint32 _a1,
@@ -208,11 +208,12 @@ library MIPSSyscalls {
         return (v0_, v1_, newPreimageKey_, newPreimageOffset_);
     }
 
-    /// @notice Handle syscall fcntl (file control)
-    /// @param _a0 The file descriptor
-    /// @param _a1 The control command
-    /// @param v0_ The file status flag (only supported command is F_GETFL), or -1 on error
-    /// @param v1_ An error number, or 0 if there is no error
+    /// @notice Like Linux fcntl (file control) syscall, but only supports minimal file-descriptor control commands, to
+    /// retrieve the file-descriptor R/W flags.
+    /// @param _a0 The file descriptor.
+    /// @param _a1 The control command.
+    /// @param v0_ The file status flag (only supported command is F_GETFL), or -1 on error.
+    /// @param v1_ An error number, or 0 if there is no error.
     function handleSysFcntl(uint32 _a0, uint32 _a1) internal pure returns (uint32 v0_, uint32 v1_) {
         v0_ = uint32(0);
         v1_ = uint32(0);
