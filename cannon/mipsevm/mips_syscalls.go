@@ -9,6 +9,16 @@ import (
 )
 
 const (
+	sysMmap      = 4090
+	sysBrk       = 4045
+	sysClone     = 4120
+	sysExitGroup = 4246
+	sysRead      = 4003
+	sysWrite     = 4004
+	sysFcntl     = 4055
+)
+
+const (
 	fdStdin         = 0
 	fdStdout        = 1
 	fdStderr        = 2

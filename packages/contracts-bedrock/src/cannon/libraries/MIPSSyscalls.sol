@@ -7,6 +7,14 @@ import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 
 library MIPSSyscalls {
+    uint32 internal constant SYS_MMAP = 4090;
+    uint32 internal constant SYS_BRK = 4045;
+    uint32 internal constant SYS_CLONE = 4120;
+    uint32 internal constant SYS_EXIT_GROUP = 4246;
+    uint32 internal constant SYS_READ = 4003;
+    uint32 internal constant SYS_WRITE = 4004;
+    uint32 internal constant SYS_FCNTL = 4055;
+
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
     uint32 internal constant FD_STDERR = 2;

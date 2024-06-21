@@ -145,22 +145,22 @@ contract MIPS is ISemver {
             uint32 v0 = 0;
             uint32 v1 = 0;
 
-            if (syscall_no == 4090) {
+            if (syscall_no == sys.SYS_MMAP) {
                 uint32 newHeap;
                 (v0, v1, newHeap) = sys.handleSysMmap(a0, a1, state.heap);
                 state.heap = newHeap;
-            } else if (syscall_no == 4045) {
+            } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
                 v0 = BRK_START;
-            } else if (syscall_no == 4120) {
+            } else if (syscall_no == sys.SYS_CLONE) {
                 // clone (not supported) returns 1
                 v0 = 1;
-            } else if (syscall_no == 4246) {
+            } else if (syscall_no == sys.SYS_EXIT_GROUP) {
                 // exit group: Sets the Exited and ExitCode states to true and argument 0.
                 state.exited = true;
                 state.exitCode = uint8(a0);
                 return outputState();
-            } else if (syscall_no == 4003) {
+            } else if (syscall_no == sys.SYS_READ) {
                 uint32 newPreimageOffset;
                 (v0, v1, newPreimageOffset) = sys.handleSysRead({
                     _a0: a0,
@@ -172,7 +172,7 @@ contract MIPS is ISemver {
                     _oracle: ORACLE
                 });
                 state.preimageOffset = newPreimageOffset;
-            } else if (syscall_no == 4004) {
+            } else if (syscall_no == sys.SYS_WRITE) {
                 bytes32 newPreimageKey;
                 uint32 newPreimageOffset;
                 (v0, v1, newPreimageKey, newPreimageOffset) = sys.handleSysWrite({
@@ -184,7 +184,7 @@ contract MIPS is ISemver {
                 });
                 state.preimageKey = newPreimageKey;
                 state.preimageOffset = newPreimageOffset;
-            } else if (syscall_no == 4055) {
+            } else if (syscall_no == sys.SYS_FCNTL) {
                 (v0, v1) = sys.handleSysFcntl(a0, a1);
             }
 

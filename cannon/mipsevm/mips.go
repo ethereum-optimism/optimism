@@ -8,16 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-const (
-	sysMmap      = 4090
-	sysBrk       = 4045
-	sysClone     = 4120
-	sysExitGroup = 4246
-	sysRead      = 4003
-	sysWrite     = 4004
-	sysFcntl     = 4055
-)
-
 func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 	preimage := m.lastPreimage
 	if key != m.lastPreimageKey {
