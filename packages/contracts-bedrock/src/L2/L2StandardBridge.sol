@@ -55,16 +55,18 @@ contract L2StandardBridge is StandardBridge, ISemver {
     string public constant version = "1.10.0";
 
     /// @notice Constructs the L2StandardBridge contract.
-    constructor() StandardBridge() {
-        initialize({ _otherBridge: StandardBridge(payable(address(0))) });
+    constructor(address _l1USDC, address _l2USDC) StandardBridge() {
+        initialize({ _otherBridge: StandardBridge(payable(address(0))), _l1USDC: _l1USDC, _l2USDC: _l2USDC });
     }
 
     /// @notice Initializer.
     /// @param _otherBridge Contract for the corresponding bridge on the other chain.
-    function initialize(StandardBridge _otherBridge) public initializer {
+    function initialize(StandardBridge _otherBridge, address _l1USDC, address _l2USDC) public initializer {
         __StandardBridge_init({
             _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
-            _otherBridge: _otherBridge
+            _otherBridge: _otherBridge,
+            _l1USDC: _l1USDC,
+            _l2USDC: _l2USDC
         });
     }
 
@@ -90,7 +92,6 @@ contract L2StandardBridge is StandardBridge, ISemver {
         payable
         virtual
         onlyEOA
-        onlyUSDCtoken
     {
         require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
@@ -114,7 +115,6 @@ contract L2StandardBridge is StandardBridge, ISemver {
         external
         payable
         virtual
-        onlyUSDCtoken
     {
         require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
@@ -145,10 +145,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
     )
         internal
     {
-
-        address l1Token = (_l2Token).l1Token();
+        address l1Token = l1USDC;
         _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _extraData);
-
     }
 
     /// @notice Emits the legacy WithdrawalInitiated event followed by the ERC20BridgeInitiated
