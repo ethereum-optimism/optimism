@@ -27,7 +27,7 @@ func TestErrorOpeningDatabase(t *testing.T) {
 }
 
 func runDBTest(t *testing.T, setup func(t *testing.T, db *DB, m *stubMetrics), assert func(t *testing.T, db *DB, m *stubMetrics)) {
-	createDb := func(t *testing.T, dir string) (*DB, *stubMetrics) {
+	createDb := func(t *testing.T, dir string) (*DB, *stubMetrics, string) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		path := filepath.Join(dir, "test.db")
 		m := &stubMetrics{}
@@ -39,24 +39,26 @@ func runDBTest(t *testing.T, setup func(t *testing.T, db *DB, m *stubMetrics), a
 				require.ErrorIs(t, err, fs.ErrClosed)
 			}
 		})
-		return db, m
+		return db, m, path
 	}
 
 	t.Run("New", func(t *testing.T) {
-		db, m := createDb(t, t.TempDir())
+		db, m, _ := createDb(t, t.TempDir())
 		setup(t, db, m)
 		assert(t, db, m)
 	})
 
 	t.Run("Existing", func(t *testing.T) {
 		dir := t.TempDir()
-		db, m := createDb(t, dir)
+		db, m, path := createDb(t, dir)
 		setup(t, db, m)
 		// Close and recreate the database
 		require.NoError(t, db.Close())
+		checkDBInvariants(t, path, m)
 
-		db2, m := createDb(t, dir)
+		db2, m, path := createDb(t, dir)
 		assert(t, db2, m)
+		checkDBInvariants(t, path, m)
 	})
 }
 
