@@ -7,7 +7,7 @@ import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
-import { MIPSMemory } from "src/cannon/libraries/MIPSMEmory.sol";
+import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
