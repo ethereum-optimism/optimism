@@ -17,8 +17,9 @@ var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 6, Minor:
 const (
 	pgnSepolia = 58008
 
-	bobaMainnet = 288
-	bobaSepolia = 28882
+	bobaMainnet    = 288
+	bobaSepolia    = 28882
+	bobaBnbTestnet = 9728
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -68,6 +69,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		regolithTime = 1713302879
 	case bobaSepolia:
 		regolithTime = 1705600788
+	case bobaBnbTestnet:
+		regolithTime = 1718920167
 	}
 
 	cfg := &Config{
@@ -115,6 +118,10 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		cfg.ProtocolVersionsAddress = common.Address{}
 	}
 	if chainID == bobaMainnet {
+		cfg.ProtocolVersionsAddress = common.Address{}
+	}
+	if chainID == bobaBnbTestnet {
+		cfg.MaxSequencerDrift = 900
 		cfg.ProtocolVersionsAddress = common.Address{}
 	}
 	return cfg, nil

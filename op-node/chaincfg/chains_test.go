@@ -26,6 +26,7 @@ func TestGetRollupConfig(t *testing.T) {
 		"oplabs-devnet-0-sepolia-dev-0": sepoliaDev0Cfg,
 		"boba-sepolia":                  bobaSepoliaCfg,
 		"boba-mainnet":                  bobaMainnetCfg,
+		"boba-bnb-testnet":              bobaBnbTestnetCfg,
 	}
 
 	for name, expectedCfg := range configsByName {
@@ -207,6 +208,41 @@ var bobaMainnetCfg = rollup.Config{
 	CanyonTime:              u64Ptr(1713302879),
 	DeltaTime:               u64Ptr(1713302879),
 	EcotoneTime:             u64Ptr(1713302880),
+	FjordTime:               nil,
+	ProtocolVersionsAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
+}
+
+var bobaBnbTestnetCfg = rollup.Config{
+	Genesis: rollup.Genesis{
+		L1: eth.BlockID{
+			Hash:   common.HexToHash("0x87063262e607919b1879aeca6a6652d2d601326518a58a0f85245c05b14f8666"),
+			Number: 41400663,
+		},
+		L2: eth.BlockID{
+			Hash:   common.HexToHash("0x293763444b022de43fba94e90b95936ea0c360c02443379427c2f7b7fb21fe7e"),
+			Number: 675077,
+		},
+		L2Time: 1718920167,
+		SystemConfig: eth.SystemConfig{
+			BatcherAddr: common.HexToAddress("0xfcdd863d1d21f609f0c0737d07634b0b146ef266"),
+			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
+			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
+			GasLimit:    30000000,
+		},
+	},
+	BlockTime:               2,
+	MaxSequencerDrift:       900,
+	SeqWindowSize:           3600,
+	ChannelTimeout:          300,
+	L1ChainID:               big.NewInt(97),
+	L2ChainID:               big.NewInt(9728),
+	BatchInboxAddress:       common.HexToAddress("0xfff0000000000000000000000000000000009728"),
+	DepositContractAddress:  common.HexToAddress("0xf48d08721d99e16d22cc704991c2ad064320ad5e"),
+	L1SystemConfigAddress:   common.HexToAddress("0x5e0aa53122c29128fd1399998f7928f9bc603b27"),
+	RegolithTime:            u64Ptr(1718920167),
+	CanyonTime:              u64Ptr(1718920167),
+	DeltaTime:               u64Ptr(1718920167),
+	EcotoneTime:             u64Ptr(1718920168),
 	FjordTime:               nil,
 	ProtocolVersionsAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
 }
