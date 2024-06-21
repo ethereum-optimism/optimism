@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -18,6 +22,14 @@ type InvalidPayloadEvent struct {
 
 func (ev InvalidPayloadEvent) String() string {
 	return "invalid-payload"
+}
+
+type InvalidPayloadAttributesEvent struct {
+	Attributes *derive.AttributesWithParent
+}
+
+func (ev InvalidPayloadAttributesEvent) String() string {
+	return "invalid-payload-attributes"
 }
 
 // ForkchoiceRequestEvent signals to the engine that it should emit an artificial
@@ -37,6 +49,40 @@ type ForkchoiceUpdateEvent struct {
 
 func (ev ForkchoiceUpdateEvent) String() string {
 	return "forkchoice-update"
+}
+
+type PendingSafeUpdateEvent struct {
+	PendingSafe eth.L2BlockRef
+	Unsafe      eth.L2BlockRef // tip, added to the signal, to determine if there are existing blocks to consolidate
+}
+
+func (ev PendingSafeUpdateEvent) String() string {
+	return "pending-safe-update"
+}
+
+// PromotePendingSafeEvent signals that a block can be marked as pending-safe, and/or safe.
+type PromotePendingSafeEvent struct {
+	Ref  eth.L2BlockRef
+	Safe bool
+}
+
+func (ev PromotePendingSafeEvent) String() string {
+	return "promote-pending-safe"
+}
+
+type ProcessAttributesEvent struct {
+	Attributes *derive.AttributesWithParent
+}
+
+func (ev ProcessAttributesEvent) String() string {
+	return "process-attributes"
+}
+
+type PendingSafeRequestEvent struct {
+}
+
+func (ev PendingSafeRequestEvent) String() string {
+	return "pending-safe-request"
 }
 
 type ProcessUnsafePayloadEvent struct {
@@ -172,7 +218,94 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 			"safeHead", x.Safe, "unsafe", x.Unsafe, "safe_timestamp", x.Safe.Time,
 			"unsafe_timestamp", x.Unsafe.Time)
 		d.emitter.Emit(EngineResetConfirmedEvent{})
+	case ProcessAttributesEvent:
+		d.onForceNextSafeAttributes(x.Attributes)
+	case PendingSafeRequestEvent:
+		d.emitter.Emit(PendingSafeUpdateEvent{
+			PendingSafe: d.ec.PendingSafeL2Head(),
+			Unsafe:      d.ec.UnsafeL2Head(),
+		})
+	case PromotePendingSafeEvent:
+		// Only promote if not already stale.
+		// Resets/overwrites happen through engine-resets, not through promotion.
+		if x.Ref.Number > d.ec.PendingSafeL2Head().Number {
+			d.ec.SetPendingSafeL2Head(x.Ref)
+		}
+		if x.Safe && x.Ref.Number > d.ec.SafeL2Head().Number {
+			d.ec.SetSafeHead(x.Ref)
+		}
 	}
+}
+
+// onForceNextSafeAttributes inserts the provided attributes, reorging away any conflicting unsafe chain.
+func (eq *EngDeriver) onForceNextSafeAttributes(attributes *derive.AttributesWithParent) {
+	ctx, cancel := context.WithTimeout(eq.ctx, time.Second*10)
+	defer cancel()
+
+	attrs := attributes.Attributes
+	errType, err := eq.ec.StartPayload(ctx, eq.ec.PendingSafeL2Head(), attributes, true)
+	var envelope *eth.ExecutionPayloadEnvelope
+	if err == nil {
+		envelope, errType, err = eq.ec.ConfirmPayload(ctx, async.NoOpGossiper{}, &conductor.NoOpConductor{})
+	}
+	if err != nil {
+		switch errType {
+		case BlockInsertTemporaryErr:
+			// RPC errors are recoverable, we can retry the buffered payload attributes later.
+			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: fmt.Errorf("temporarily cannot insert new safe block: %w", err)})
+			return
+		case BlockInsertPrestateErr:
+			_ = eq.ec.CancelPayload(ctx, true)
+			eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err)})
+			return
+		case BlockInsertPayloadErr:
+			if !errors.Is(err, derive.ErrTemporary) {
+				eq.emitter.Emit(InvalidPayloadAttributesEvent{Attributes: attributes})
+			}
+			_ = eq.ec.CancelPayload(ctx, true)
+			eq.log.Warn("could not process payload derived from L1 data, dropping attributes", "err", err)
+			// Count the number of deposits to see if the tx list is deposit only.
+			depositCount := 0
+			for _, tx := range attrs.Transactions {
+				if len(tx) > 0 && tx[0] == types.DepositTxType {
+					depositCount += 1
+				}
+			}
+			// Deposit transaction execution errors are suppressed in the execution engine, but if the
+			// block is somehow invalid, there is nothing we can do to recover & we should exit.
+			if len(attrs.Transactions) == depositCount {
+				eq.log.Error("deposit only block was invalid", "parent", attributes.Parent, "err", err)
+				eq.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("failed to process block with only deposit transactions: %w", err)})
+				return
+			}
+			// Revert the pending safe head to the safe head.
+			eq.ec.SetPendingSafeL2Head(eq.ec.SafeL2Head())
+			// suppress the error b/c we want to retry with the next batch from the batch queue
+			// If there is no valid batch the node will eventually force a deposit only block. If
+			// the deposit only block fails, this will return the critical error above.
+
+			// Try to restore to previous known unsafe chain.
+			eq.ec.SetBackupUnsafeL2Head(eq.ec.BackupUnsafeL2Head(), true)
+
+			// drop the payload without inserting it into the engine
+			return
+		default:
+			eq.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err)})
+		}
+	}
+	ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
+	if err != nil {
+		eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("failed to decode L2 block ref from payload: %w", err)})
+		return
+	}
+	eq.ec.SetPendingSafeL2Head(ref)
+	if attributes.IsLastInSpan {
+		eq.ec.SetSafeHead(ref)
+	}
+	eq.emitter.Emit(PendingSafeUpdateEvent{
+		PendingSafe: eq.ec.PendingSafeL2Head(),
+		Unsafe:      eq.ec.UnsafeL2Head(),
+	})
 }
 
 type ResetEngineControl interface {

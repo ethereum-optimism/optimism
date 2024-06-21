@@ -266,9 +266,6 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.IsLastInSpan
 	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor)
 	if err != nil {
-		if !errors.Is(err, derive.ErrTemporary) {
-			e.emitter.Emit(InvalidPayloadEvent{})
-		}
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingInfo.ID, errTyp, err)
 	}
 	ref, err := derive.PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
