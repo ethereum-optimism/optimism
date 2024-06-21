@@ -22,6 +22,17 @@ func newSearchCheckpoint(blockNum uint64, logIdx uint32, timestamp uint64) searc
 	}
 }
 
+func newSearchCheckpointFromEntry(data entrydb.Entry) (searchCheckpoint, error) {
+	if data[0] != typeSearchCheckpoint {
+		return searchCheckpoint{}, fmt.Errorf("%w: attempting to decode search checkpoint but was type %v", ErrDataCorruption, data[0])
+	}
+	return searchCheckpoint{
+		blockNum:  binary.LittleEndian.Uint64(data[1:9]),
+		logIdx:    binary.LittleEndian.Uint32(data[9:13]),
+		timestamp: binary.LittleEndian.Uint64(data[13:21]),
+	}, nil
+}
+
 // encode creates a search checkpoint entry
 // type 0: "search checkpoint" <type><uint64 block number: 8 bytes><uint32 event index offset: 4 bytes><uint64 timestamp: 8 bytes> = 20 bytes
 func (s searchCheckpoint) encode() entrydb.Entry {
@@ -33,39 +44,47 @@ func (s searchCheckpoint) encode() entrydb.Entry {
 	return data
 }
 
-func parseSearchCheckpoint(data entrydb.Entry) (searchCheckpoint, error) {
-	if data[0] != typeSearchCheckpoint {
-		return searchCheckpoint{}, fmt.Errorf("%w: attempting to decode search checkpoint but was type %v", ErrDataCorruption, data[0])
-	}
-	return searchCheckpoint{
-		blockNum:  binary.LittleEndian.Uint64(data[1:9]),
-		logIdx:    binary.LittleEndian.Uint32(data[9:13]),
-		timestamp: binary.LittleEndian.Uint64(data[13:21]),
-	}, nil
+type canonicalHash struct {
+	hash TruncatedHash
 }
 
-type canonicalHash TruncatedHash
+func newCanonicalHash(hash TruncatedHash) canonicalHash {
+	return canonicalHash{hash: hash}
+}
+
+func newCanonicalHashFromEntry(data entrydb.Entry) (canonicalHash, error) {
+	if data[0] != typeCanonicalHash {
+		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %v", ErrDataCorruption, data[0])
+	}
+	var truncated TruncatedHash
+	copy(truncated[:], data[1:21])
+	return newCanonicalHash(truncated), nil
+}
 
 func (c canonicalHash) encode() entrydb.Entry {
 	var entry entrydb.Entry
 	entry[0] = typeCanonicalHash
-	copy(entry[1:21], c[:])
+	copy(entry[1:21], c.hash[:])
 	return entry
-}
-
-func parseCanonicalHash(data entrydb.Entry) (canonicalHash, error) {
-	if data[0] != typeCanonicalHash {
-		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %v", ErrDataCorruption, data[0])
-	}
-	var truncated canonicalHash
-	copy(truncated[:], data[1:21])
-	return truncated, nil
 }
 
 type initiatingEvent struct {
 	blockDiff       uint8
 	incrementLogIdx bool
 	logHash         TruncatedHash
+}
+
+func newInitiatingEventFromEntry(data entrydb.Entry) (initiatingEvent, error) {
+	if data[0] != typeInitiatingEvent {
+		return initiatingEvent{}, fmt.Errorf("%w: attempting to decode initiating event but was type %v", ErrDataCorruption, data[0])
+	}
+	blockNumDiff := data[1]
+	flags := data[2]
+	return initiatingEvent{
+		blockDiff:       blockNumDiff,
+		incrementLogIdx: flags&eventFlagIncrementLogIdx != 0,
+		logHash:         TruncatedHash(data[3:23]),
+	}, nil
 }
 
 func newInitiatingEvent(pre logContext, blockNum uint64, logIdx uint32, logHash TruncatedHash) (initiatingEvent, error) {
@@ -119,17 +138,4 @@ func (i initiatingEvent) postContext(pre logContext) logContext {
 		post.logIdx++
 	}
 	return post
-}
-
-func parseInitiatingEvent(data entrydb.Entry) (initiatingEvent, error) {
-	if data[0] != typeInitiatingEvent {
-		return initiatingEvent{}, fmt.Errorf("%w: attempting to decode initiating event but was type %v", ErrDataCorruption, data[0])
-	}
-	blockNumDiff := data[1]
-	flags := data[2]
-	return initiatingEvent{
-		blockDiff:       blockNumDiff,
-		incrementLogIdx: flags&eventFlagIncrementLogIdx != 0,
-		logHash:         TruncatedHash(data[3:23]),
-	}, nil
 }

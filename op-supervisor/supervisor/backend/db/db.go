@@ -153,11 +153,11 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
 	if err != nil {
 		return 0, TruncatedHash{}, fmt.Errorf("failed to reach checkpoint: %w", err)
 	}
-	canonicalHash, err := db.readCanonicalHash(checkpointIdx + 1)
+	entry, err := db.readCanonicalHash(checkpointIdx + 1)
 	if err != nil {
 		return 0, TruncatedHash{}, fmt.Errorf("failed to read canonical hash: %w", err)
 	}
-	return checkpoint.blockNum, TruncatedHash(canonicalHash), nil
+	return checkpoint.blockNum, entry.hash, nil
 }
 
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
@@ -363,13 +363,13 @@ func (db *DB) readSearchCheckpoint(entryIdx int64) (searchCheckpoint, error) {
 	if err != nil {
 		return searchCheckpoint{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
-	return parseSearchCheckpoint(data)
+	return newSearchCheckpointFromEntry(data)
 }
 
 // writeCanonicalHash appends a canonical hash entry to the log
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
 func (db *DB) writeCanonicalHash(blockHash common.Hash) error {
-	return db.store.Append(canonicalHash(TruncateHash(blockHash)).encode())
+	return db.store.Append(newCanonicalHash(TruncateHash(blockHash)).encode())
 }
 
 func (db *DB) readCanonicalHash(entryIdx int64) (canonicalHash, error) {
@@ -380,7 +380,7 @@ func (db *DB) readCanonicalHash(entryIdx int64) (canonicalHash, error) {
 	if data[0] != typeCanonicalHash {
 		return canonicalHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
 	}
-	return parseCanonicalHash(data)
+	return newCanonicalHashFromEntry(data)
 }
 
 // writeInitiatingEvent appends an initiating event to the log

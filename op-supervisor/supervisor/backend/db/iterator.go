@@ -26,7 +26,7 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 		i.entriesRead++
 		switch entry[0] {
 		case typeSearchCheckpoint:
-			current, err := parseSearchCheckpoint(entry)
+			current, err := newSearchCheckpointFromEntry(entry)
 			if err != nil {
 				outErr = fmt.Errorf("failed to parse search checkpoint at idx %v: %w", entryIdx, err)
 				return
@@ -36,7 +36,7 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 		case typeCanonicalHash:
 			// Skip
 		case typeInitiatingEvent:
-			evt, err := parseInitiatingEvent(entry)
+			evt, err := newInitiatingEventFromEntry(entry)
 			if err != nil {
 				outErr = fmt.Errorf("failed to parse initiating event at idx %v: %w", entryIdx, err)
 				return
