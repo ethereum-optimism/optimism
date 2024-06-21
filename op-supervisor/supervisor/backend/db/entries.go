@@ -8,94 +8,128 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 )
 
-// createSearchCheckpoint creates a search checkpoint entry
+type searchCheckpoint struct {
+	blockNum  uint64
+	logIdx    uint32
+	timestamp uint64
+}
+
+func newSearchCheckpoint(blockNum uint64, logIdx uint32, timestamp uint64) searchCheckpoint {
+	return searchCheckpoint{
+		blockNum:  blockNum,
+		logIdx:    logIdx,
+		timestamp: timestamp,
+	}
+}
+
+// encode creates a search checkpoint entry
 // type 0: "search checkpoint" <type><uint64 block number: 8 bytes><uint32 event index offset: 4 bytes><uint64 timestamp: 8 bytes> = 20 bytes
-// type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-func createSearchCheckpoint(blockNum uint64, logIdx uint32, timestamp uint64) entrydb.Entry {
+func (s searchCheckpoint) encode() entrydb.Entry {
 	var data entrydb.Entry
 	data[0] = typeSearchCheckpoint
-	binary.LittleEndian.PutUint64(data[1:9], blockNum)
-	binary.LittleEndian.PutUint32(data[9:13], logIdx)
-	binary.LittleEndian.PutUint64(data[13:21], timestamp)
+	binary.LittleEndian.PutUint64(data[1:9], s.blockNum)
+	binary.LittleEndian.PutUint32(data[9:13], s.logIdx)
+	binary.LittleEndian.PutUint64(data[13:21], s.timestamp)
 	return data
 }
 
-func parseSearchCheckpoint(data entrydb.Entry) (checkpointData, error) {
+func parseSearchCheckpoint(data entrydb.Entry) (searchCheckpoint, error) {
 	if data[0] != typeSearchCheckpoint {
-		return checkpointData{}, fmt.Errorf("%w: attempting to decode search checkpoint but was type %v", ErrDataCorruption, data[0])
+		return searchCheckpoint{}, fmt.Errorf("%w: attempting to decode search checkpoint but was type %v", ErrDataCorruption, data[0])
 	}
-	return checkpointData{
+	return searchCheckpoint{
 		blockNum:  binary.LittleEndian.Uint64(data[1:9]),
 		logIdx:    binary.LittleEndian.Uint32(data[9:13]),
 		timestamp: binary.LittleEndian.Uint64(data[13:21]),
 	}, nil
 }
 
-// createCanonicalHash creates a canonical hash entry
-// type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-func createCanonicalHash(hash TruncatedHash) entrydb.Entry {
+type canonicalHash TruncatedHash
+
+func (c canonicalHash) encode() entrydb.Entry {
 	var entry entrydb.Entry
 	entry[0] = typeCanonicalHash
-	copy(entry[1:21], hash[:])
+	copy(entry[1:21], c[:])
 	return entry
 }
 
-func parseCanonicalHash(data entrydb.Entry) (TruncatedHash, error) {
+func parseCanonicalHash(data entrydb.Entry) (canonicalHash, error) {
 	if data[0] != typeCanonicalHash {
-		return TruncatedHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %v", ErrDataCorruption, data[0])
+		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %v", ErrDataCorruption, data[0])
 	}
-	var truncated TruncatedHash
+	var truncated canonicalHash
 	copy(truncated[:], data[1:21])
 	return truncated, nil
 }
 
-// createInitiatingEvent creates an initiating event
-// type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
-func createInitiatingEvent(pre logContext, post logContext, logHash TruncatedHash) (entrydb.Entry, error) {
-	var data entrydb.Entry
-	data[0] = typeInitiatingEvent
-	blockDiff := post.blockNum - pre.blockNum
+type initiatingEvent struct {
+	blockDiff       uint8
+	incrementLogIdx bool
+	logHash         TruncatedHash
+}
+
+func newInitiatingEvent(pre logContext, blockNum uint64, logIdx uint32, logHash TruncatedHash) (initiatingEvent, error) {
+	blockDiff := blockNum - pre.blockNum
 	if blockDiff > math.MaxUint8 {
 		// TODO(optimism#10857): Need to find a way to support this.
-		return data, fmt.Errorf("too many block skipped between %v and %v", pre.blockNum, post.blockNum)
+		return initiatingEvent{}, fmt.Errorf("too many block skipped between %v and %v", pre.blockNum, blockNum)
 	}
-	data[1] = byte(blockDiff)
+
 	currLogIdx := pre.logIdx
 	if blockDiff > 0 {
 		currLogIdx = 0
 	}
-	flags := byte(0)
-	logDiff := post.logIdx - currLogIdx
+	logDiff := logIdx - currLogIdx
 	if logDiff > 1 {
-		return data, fmt.Errorf("skipped logs between %v and %v", currLogIdx, post.logIdx)
+		return initiatingEvent{}, fmt.Errorf("skipped logs between %v and %v", currLogIdx, logIdx)
 	}
-	if logDiff > 0 {
+
+	return initiatingEvent{
+		blockDiff:       uint8(blockDiff),
+		incrementLogIdx: logDiff > 0,
+		logHash:         logHash,
+	}, nil
+}
+
+// encode creates an initiating event entry
+// type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
+func (i initiatingEvent) encode() entrydb.Entry {
+	var data entrydb.Entry
+	data[0] = typeInitiatingEvent
+	data[1] = i.blockDiff
+	flags := byte(0)
+	if i.incrementLogIdx {
 		// Set flag to indicate log idx needs to be incremented (ie we're not directly after a checkpoint)
 		flags = flags | eventFlagIncrementLogIdx
 	}
 	data[2] = flags
-	copy(data[3:23], logHash[:])
-	return data, nil
+	copy(data[3:23], i.logHash[:])
+	return data
 }
 
-func parseInitiatingEvent(pre logContext, data entrydb.Entry) (logContext, TruncatedHash, error) {
+func (i initiatingEvent) postContext(pre logContext) logContext {
+	post := logContext{
+		blockNum: pre.blockNum + uint64(i.blockDiff),
+		logIdx:   pre.logIdx,
+	}
+	if i.blockDiff > 0 {
+		post.logIdx = 0
+	}
+	if i.incrementLogIdx {
+		post.logIdx++
+	}
+	return post
+}
+
+func parseInitiatingEvent(data entrydb.Entry) (initiatingEvent, error) {
 	if data[0] != typeInitiatingEvent {
-		return logContext{}, TruncatedHash{}, fmt.Errorf("%w: attempting to decode initiating event but was type %v", ErrDataCorruption, data[0])
+		return initiatingEvent{}, fmt.Errorf("%w: attempting to decode initiating event but was type %v", ErrDataCorruption, data[0])
 	}
 	blockNumDiff := data[1]
 	flags := data[2]
-	blockNum := pre.blockNum + uint64(blockNumDiff)
-	logIdx := pre.logIdx
-	if blockNumDiff > 0 {
-		logIdx = 0
-	}
-	if flags&0x01 != 0 {
-		logIdx++
-	}
-	eventHash := TruncatedHash(data[3:23])
-	logCtx := logContext{
-		blockNum: blockNum,
-		logIdx:   logIdx,
-	}
-	return logCtx, eventHash, nil
+	return initiatingEvent{
+		blockDiff:       blockNumDiff,
+		incrementLogIdx: flags&eventFlagIncrementLogIdx != 0,
+		logHash:         TruncatedHash(data[3:23]),
+	}, nil
 }

@@ -57,14 +57,16 @@ func (e *EntryDB) Read(idx int64) (Entry, error) {
 	return out, nil
 }
 
-func (e *EntryDB) Append(data Entry) error {
-	if _, err := e.data.Write(data[:]); err != nil {
-		// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
-		// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
-		// to avoid leaving hanging entries without the entry that should follow them.
-		return err
+func (e *EntryDB) Append(entries ...Entry) error {
+	for _, entry := range entries {
+		if _, err := e.data.Write(entry[:]); err != nil {
+			// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
+			// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
+			// to avoid leaving hanging entries without the entry that should follow them.
+			return err
+		}
+		e.lastEntryIdx++
 	}
-	e.lastEntryIdx++
 	return nil
 }
 

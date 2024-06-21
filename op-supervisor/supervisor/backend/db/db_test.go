@@ -32,7 +32,7 @@ func TestErrorOpeningDatabase(t *testing.T) {
 
 func runDBTest(t *testing.T, setup func(t *testing.T, db *DB, m *stubMetrics), assert func(t *testing.T, db *DB, m *stubMetrics)) {
 	createDb := func(t *testing.T, dir string) (*DB, *stubMetrics, string) {
-		logger := testlog.Logger(t, log.LvlInfo)
+		logger := testlog.Logger(t, log.LvlTrace)
 		path := filepath.Join(dir, "test.db")
 		m := &stubMetrics{}
 		db, err := NewFromFile(logger, m, path)

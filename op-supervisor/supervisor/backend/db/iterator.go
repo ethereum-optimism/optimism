@@ -36,13 +36,15 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 		case typeCanonicalHash:
 			// Skip
 		case typeInitiatingEvent:
-			i.current, evtHash, err = parseInitiatingEvent(i.current, entry)
+			evt, err := parseInitiatingEvent(entry)
 			if err != nil {
 				outErr = fmt.Errorf("failed to parse initiating event at idx %v: %w", entryIdx, err)
 				return
 			}
+			i.current = evt.postContext(i.current)
 			blockNum = i.current.blockNum
 			logIdx = i.current.logIdx
+			evtHash = evt.logHash
 			return
 		case typeExecutingCheck:
 		// TODO(optimism#10857): Handle this properly

@@ -30,6 +30,18 @@ func TestReadWrite(t *testing.T) {
 		_, err := db.Read(0)
 		require.ErrorIs(t, err, io.EOF)
 	})
+
+	t.Run("WriteMultiple", func(t *testing.T) {
+		db := createEntryDB(t)
+		require.NoError(t, db.Append(
+			createEntry(1),
+			createEntry(2),
+			createEntry(3),
+		))
+		requireRead(t, db, 0, createEntry(1))
+		requireRead(t, db, 1, createEntry(2))
+		requireRead(t, db, 2, createEntry(3))
+	})
 }
 
 func TestTruncate(t *testing.T) {

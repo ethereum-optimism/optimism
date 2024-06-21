@@ -40,12 +40,6 @@ type Metrics interface {
 	RecordSearchEntriesRead(count int64)
 }
 
-type checkpointData struct {
-	blockNum  uint64
-	logIdx    uint32
-	timestamp uint64
-}
-
 type logContext struct {
 	blockNum uint64
 	logIdx   uint32
@@ -54,7 +48,7 @@ type logContext struct {
 type entryStore interface {
 	Size() int64
 	Read(idx int64) (entrydb.Entry, error)
-	Append(entry entrydb.Entry) error
+	Append(entries ...entrydb.Entry) error
 	Truncate(idx int64) error
 	Close() error
 }
@@ -163,7 +157,7 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
 	if err != nil {
 		return 0, TruncatedHash{}, fmt.Errorf("failed to read canonical hash: %w", err)
 	}
-	return checkpoint.blockNum, canonicalHash, nil
+	return checkpoint.blockNum, TruncatedHash(canonicalHash), nil
 }
 
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
@@ -357,17 +351,17 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 // type 0: "search checkpoint" <type><uint64 block number: 8 bytes><uint32 event index offset: 4 bytes><uint64 timestamp: 8 bytes> = 20 bytes
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
 func (db *DB) writeSearchCheckpoint(blockNum uint64, logIdx uint32, timestamp uint64, blockHash common.Hash) error {
-	entry := createSearchCheckpoint(blockNum, logIdx, timestamp)
+	entry := newSearchCheckpoint(blockNum, logIdx, timestamp).encode()
 	if err := db.store.Append(entry); err != nil {
 		return err
 	}
 	return db.writeCanonicalHash(blockHash)
 }
 
-func (db *DB) readSearchCheckpoint(entryIdx int64) (checkpointData, error) {
+func (db *DB) readSearchCheckpoint(entryIdx int64) (searchCheckpoint, error) {
 	data, err := db.store.Read(entryIdx)
 	if err != nil {
-		return checkpointData{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
+		return searchCheckpoint{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
 	return parseSearchCheckpoint(data)
 }
@@ -375,16 +369,16 @@ func (db *DB) readSearchCheckpoint(entryIdx int64) (checkpointData, error) {
 // writeCanonicalHash appends a canonical hash entry to the log
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
 func (db *DB) writeCanonicalHash(blockHash common.Hash) error {
-	return db.store.Append(createCanonicalHash(TruncateHash(blockHash)))
+	return db.store.Append(canonicalHash(TruncateHash(blockHash)).encode())
 }
 
-func (db *DB) readCanonicalHash(entryIdx int64) (TruncatedHash, error) {
+func (db *DB) readCanonicalHash(entryIdx int64) (canonicalHash, error) {
 	data, err := db.store.Read(entryIdx)
 	if err != nil {
-		return TruncatedHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
+		return canonicalHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
 	if data[0] != typeCanonicalHash {
-		return TruncatedHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
+		return canonicalHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
 	}
 	return parseCanonicalHash(data)
 }
@@ -392,11 +386,11 @@ func (db *DB) readCanonicalHash(entryIdx int64) (TruncatedHash, error) {
 // writeInitiatingEvent appends an initiating event to the log
 // type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
 func (db *DB) writeInitiatingEvent(postState logContext, logHash TruncatedHash) error {
-	entry, err := createInitiatingEvent(db.lastEntryContext, postState, logHash)
+	evt, err := newInitiatingEvent(db.lastEntryContext, postState.blockNum, postState.logIdx, logHash)
 	if err != nil {
 		return err
 	}
-	return db.store.Append(entry)
+	return db.store.Append(evt.encode())
 }
 
 func TruncateHash(hash common.Hash) TruncatedHash {
