@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	entrySize                 = 24
 	searchCheckpointFrequency = 256
 
 	eventFlagIncrementLogIdx = byte(1)
@@ -405,8 +404,8 @@ func (db *DB) writeInitiatingEvent(postState logContext, logHash TruncatedHash) 
 	return db.writeEntry(entry)
 }
 
-func (db *DB) writeEntry(entry [entrySize]byte) error {
-	if _, err := db.data.Write(entry[:]); err != nil {
+func (db *DB) writeEntry(data entry) error {
+	if _, err := db.data.Write(data[:]); err != nil {
 		// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
 		// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
 		// to avoid leaving hanging entries without the entry that should follow them.
@@ -416,12 +415,12 @@ func (db *DB) writeEntry(entry [entrySize]byte) error {
 	return nil
 }
 
-func (db *DB) readEntry(idx int64) ([entrySize]byte, error) {
-	var out [entrySize]byte
+func (db *DB) readEntry(idx int64) (entry, error) {
+	var out entry
 	read, err := db.data.ReadAt(out[:], idx*entrySize)
 	// Ignore io.EOF if we read the entire last entry as ReadAt may return io.EOF or nil when it reads the last byte
 	if err != nil && !(errors.Is(err, io.EOF) && read == entrySize) {
-		return [entrySize]byte{}, fmt.Errorf("failed to read entry %v: %w", idx, err)
+		return entry{}, fmt.Errorf("failed to read entry %v: %w", idx, err)
 	}
 	return out, nil
 }

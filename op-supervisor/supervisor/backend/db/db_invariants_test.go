@@ -10,7 +10,7 @@ import (
 )
 
 type statInvariant func(stat os.FileInfo, m *stubMetrics) error
-type entryInvariant func(entryIdx int, entry [entrySize]byte, entries [][entrySize]byte, m *stubMetrics) error
+type entryInvariant func(entryIdx int, entry entry, entries []entry, m *stubMetrics) error
 
 // checkDBInvariants reads the database log directly and asserts a set of invariants on the data.
 func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
@@ -28,7 +28,7 @@ func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
 	// Read all entries as binary blobs
 	file, err := os.OpenFile(dbPath, os.O_RDONLY, 0o644)
 	require.NoError(t, err)
-	entries := make([][entrySize]byte, stat.Size()/entrySize)
+	entries := make([]entry, stat.Size()/entrySize)
 	for i := range entries {
 		n, err := io.ReadFull(file, entries[i][:])
 		require.NoErrorf(t, err, "failed to read entry %v", i)
@@ -52,7 +52,7 @@ func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
 	}
 }
 
-func fmtEntries(entries [][entrySize]byte) string {
+func fmtEntries(entries []entry) string {
 	out := ""
 	for i, entry := range entries {
 		out += fmt.Sprintf("%v: %x\n", i, entry)
@@ -76,7 +76,7 @@ func invariantFileSizeMatchesEntryCountMetric(stat os.FileInfo, m *stubMetrics) 
 	return nil
 }
 
-func invariantSearchCheckpointOnlyAtFrequency(entryIdx int, entry [entrySize]byte, entries [][entrySize]byte, m *stubMetrics) error {
+func invariantSearchCheckpointOnlyAtFrequency(entryIdx int, entry entry, entries []entry, m *stubMetrics) error {
 	if entry[0] != typeSearchCheckpoint {
 		return nil
 	}
@@ -86,14 +86,14 @@ func invariantSearchCheckpointOnlyAtFrequency(entryIdx int, entry [entrySize]byt
 	return nil
 }
 
-func invariantSearchCheckpointAtEverySearchCheckpointFrequency(entryIdx int, entry [entrySize]byte, entries [][entrySize]byte, m *stubMetrics) error {
+func invariantSearchCheckpointAtEverySearchCheckpointFrequency(entryIdx int, entry entry, entries []entry, m *stubMetrics) error {
 	if entryIdx%searchCheckpointFrequency == 0 && entry[0] != typeSearchCheckpoint {
 		return fmt.Errorf("should have search checkpoints every %v entries but entry %v was %x", searchCheckpointFrequency, entryIdx, entry)
 	}
 	return nil
 }
 
-func invariantCanonicalHashAfterEverySearchCheckpoint(entryIdx int, entry [entrySize]byte, entries [][entrySize]byte, m *stubMetrics) error {
+func invariantCanonicalHashAfterEverySearchCheckpoint(entryIdx int, entry entry, entries []entry, m *stubMetrics) error {
 	if entry[0] != typeSearchCheckpoint {
 		return nil
 	}
@@ -108,7 +108,7 @@ func invariantCanonicalHashAfterEverySearchCheckpoint(entryIdx int, entry [entry
 }
 
 // invariantSearchCheckpointBeforeEveryCanonicalHash ensures we don't have extra canonical-hash entries
-func invariantSearchCheckpointBeforeEveryCanonicalHash(entryIdx int, entry [entrySize]byte, entries [][entrySize]byte, m *stubMetrics) error {
+func invariantSearchCheckpointBeforeEveryCanonicalHash(entryIdx int, entry entry, entries []entry, m *stubMetrics) error {
 	if entry[0] != typeCanonicalHash {
 		return nil
 	}
@@ -122,7 +122,7 @@ func invariantSearchCheckpointBeforeEveryCanonicalHash(entryIdx int, entry [entr
 	return nil
 }
 
-func invariantIncrementLogIdxIfNotImmediatelyAfterCanonicalHash(entryIdx int, entry [entrySize]byte, entries [][entrySize]byte, m *stubMetrics) error {
+func invariantIncrementLogIdxIfNotImmediatelyAfterCanonicalHash(entryIdx int, entry entry, entries []entry, m *stubMetrics) error {
 	if entry[0] != typeInitiatingEvent {
 		return nil
 	}
