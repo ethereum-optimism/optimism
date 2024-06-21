@@ -44,7 +44,7 @@ services:
     command: >
       op-node
       --l1=${ETH1_HTTP:-https://bsc-testnet.public.blastapi.io.co}
-      --l1.beacon=${ETH2_HTTP}
+      --l1.beacon.ignore=true
       --l2=http://l2:8551
       --l2.jwt-secret=/config/jwt-secret.txt
       --network=boba-bnb-testnet
