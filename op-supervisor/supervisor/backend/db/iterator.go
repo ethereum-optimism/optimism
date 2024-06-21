@@ -16,7 +16,8 @@ type iterator struct {
 
 func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedHash, outErr error) {
 	for i.nextEntryIdx <= i.db.lastEntryIdx {
-		entry, err := i.db.readEntry(i.nextEntryIdx)
+		entryIdx := i.nextEntryIdx
+		entry, err := i.db.readEntry(entryIdx)
 		if err != nil {
 			outErr = fmt.Errorf("failed to read entry %v: %w", i, err)
 			return
@@ -25,13 +26,21 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 		i.entriesRead++
 		switch entry[0] {
 		case typeSearchCheckpoint:
-			current := i.db.parseSearchCheckpoint(entry)
+			current, err := parseSearchCheckpoint(entry)
+			if err != nil {
+				outErr = fmt.Errorf("failed to parse search checkpoint at idx %v: %w", entryIdx, err)
+				return
+			}
 			i.current.blockNum = current.blockNum
 			i.current.logIdx = current.logIdx
 		case typeCanonicalHash:
 			// Skip
 		case typeInitiatingEvent:
-			i.current, evtHash = parseInitiatingEvent(i.current, entry)
+			i.current, evtHash, err = parseInitiatingEvent(i.current, entry)
+			if err != nil {
+				outErr = fmt.Errorf("failed to parse initiating event at idx %v: %w", entryIdx, err)
+				return
+			}
 			blockNum = i.current.blockNum
 			logIdx = i.current.logIdx
 			return
@@ -40,7 +49,7 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 		case typeExecutingLink:
 		// TODO(optimism#10857): Handle this properly
 		default:
-			outErr = fmt.Errorf("unknown entry type %v", entry[0])
+			outErr = fmt.Errorf("unknown entry type at idx %v %v", entryIdx, entry[0])
 			return
 		}
 	}

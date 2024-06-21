@@ -1,7 +1,6 @@
 package db
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -364,11 +363,7 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 // type 0: "search checkpoint" <type><uint64 block number: 8 bytes><uint32 event index offset: 4 bytes><uint64 timestamp: 8 bytes> = 20 bytes
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
 func (db *DB) writeSearchCheckpoint(blockNum uint64, logIdx uint32, timestamp uint64, blockHash common.Hash) error {
-	var entry [entrySize]byte
-	entry[0] = typeSearchCheckpoint
-	binary.LittleEndian.PutUint64(entry[1:9], blockNum)
-	binary.LittleEndian.PutUint32(entry[9:13], logIdx)
-	binary.LittleEndian.PutUint64(entry[13:21], timestamp)
+	entry := createSearchCheckpoint(blockNum, logIdx, timestamp)
 	if err := db.writeEntry(entry); err != nil {
 		return err
 	}
@@ -380,28 +375,13 @@ func (db *DB) readSearchCheckpoint(entryIdx int64) (checkpointData, error) {
 	if err != nil {
 		return checkpointData{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
-	if data[0] != typeSearchCheckpoint {
-		return checkpointData{}, fmt.Errorf("%w: expected search checkpoint at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
-	}
-	return db.parseSearchCheckpoint(data), nil
-}
-
-func (db *DB) parseSearchCheckpoint(data [entrySize]byte) checkpointData {
-	return checkpointData{
-		blockNum:  binary.LittleEndian.Uint64(data[1:9]),
-		logIdx:    binary.LittleEndian.Uint32(data[9:13]),
-		timestamp: binary.LittleEndian.Uint64(data[13:21]),
-	}
+	return parseSearchCheckpoint(data)
 }
 
 // writeCanonicalHash appends a canonical hash entry to the log
 // type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
 func (db *DB) writeCanonicalHash(blockHash common.Hash) error {
-	var entry [entrySize]byte
-	entry[0] = typeCanonicalHash
-	truncated := TruncateHash(blockHash)
-	copy(entry[1:21], truncated[:])
-	return db.writeEntry(entry)
+	return db.writeEntry(createCanonicalHash(TruncateHash(blockHash)))
 }
 
 func (db *DB) readCanonicalHash(entryIdx int64) (TruncatedHash, error) {
@@ -412,13 +392,7 @@ func (db *DB) readCanonicalHash(entryIdx int64) (TruncatedHash, error) {
 	if data[0] != typeCanonicalHash {
 		return TruncatedHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
 	}
-	return db.parseCanonicalHash(data), nil
-}
-
-func (db *DB) parseCanonicalHash(data [24]byte) TruncatedHash {
-	var truncated TruncatedHash
-	copy(truncated[:], data[1:21])
-	return truncated
+	return parseCanonicalHash(data)
 }
 
 // writeInitiatingEvent appends an initiating event to the log
