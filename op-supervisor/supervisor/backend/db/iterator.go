@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"io"
 )
@@ -14,7 +15,7 @@ type iterator struct {
 	entriesRead int64
 }
 
-func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedHash, outErr error) {
+func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedHash, execMsg ExecutingMessage, outErr error) {
 	for i.nextEntryIdx <= i.db.lastEntryIdx() {
 		entryIdx := i.nextEntryIdx
 		entry, err := i.db.store.Read(entryIdx)
@@ -33,8 +34,6 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 			}
 			i.current.blockNum = current.blockNum
 			i.current.logIdx = current.logIdx
-		case typeCanonicalHash:
-			// Skip
 		case typeInitiatingEvent:
 			evt, err := newInitiatingEventFromEntry(entry)
 			if err != nil {
@@ -45,11 +44,17 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 			blockNum = i.current.blockNum
 			logIdx = i.current.logIdx
 			evtHash = evt.logHash
+			if evt.hasExecMsg {
+				// Look ahead to find the exec message info
+				execMsg, err = i.readExecMessage(entryIdx)
+				if err != nil {
+					outErr = fmt.Errorf("failed to read exec message for initiating event at %v: %w", entryIdx, err)
+				}
+			}
 			return
-		case typeExecutingCheck:
-		// TODO(optimism#10857): Handle this properly
-		case typeExecutingLink:
-		// TODO(optimism#10857): Handle this properly
+		case typeCanonicalHash: // Skip
+		case typeExecutingCheck: // Skip
+		case typeExecutingLink: // Skip
 		default:
 			outErr = fmt.Errorf("unknown entry type at idx %v %v", entryIdx, entry[0])
 			return
@@ -57,4 +62,29 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 	}
 	outErr = io.EOF
 	return
+}
+
+func (i *iterator) readExecMessage(initEntryIdx int64) (ExecutingMessage, error) {
+	linkIdx := initEntryIdx + 1
+	if linkIdx%searchCheckpointFrequency == 0 {
+		linkIdx += 2 // skip the search checkpoint and canonical hash entries
+	}
+	linkEntry, err := i.db.store.Read(linkIdx)
+	if errors.Is(err, io.EOF) {
+		return ExecutingMessage{}, fmt.Errorf("%w: missing expected executing link event at idx %v", ErrDataCorruption, linkIdx)
+	} else if err != nil {
+		return ExecutingMessage{}, fmt.Errorf("failed to read executing link event at idx %v: %w", linkIdx, err)
+	}
+
+	checkIdx := linkIdx + 1
+	if checkIdx%searchCheckpointFrequency == 0 {
+		checkIdx += 2 // skip the search checkpoint and canonical hash entries
+	}
+	checkEntry, err := i.db.store.Read(checkIdx)
+	if errors.Is(err, io.EOF) {
+		return ExecutingMessage{}, fmt.Errorf("%w: missing expected executing check event at idx %v", ErrDataCorruption, checkIdx)
+	} else if err != nil {
+		return ExecutingMessage{}, fmt.Errorf("failed to read executing check event at idx %v: %w", checkIdx, err)
+	}
+	return newExecutingMessageFromEntries(linkEntry, checkEntry)
 }

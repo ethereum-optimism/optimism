@@ -308,6 +308,83 @@ func TestAddLog(t *testing.T) {
 	})
 }
 
+func TestAddDependentLog(t *testing.T) {
+	execMsg := ExecutingMessage{
+		Chain:     3,
+		BlockNum:  42894,
+		LogIdx:    42,
+		Timestamp: 8742482,
+		Hash:      TruncateHash(createHash(8844)),
+	}
+	t.Run("FirstEntry", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 15, 0, createHash(1), execMsg)
+			})
+	})
+
+	t.Run("CheckpointBetweenInitEventAndExecLink", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				for i := uint32(0); m.entryCount < searchCheckpointFrequency-1; i++ {
+					require.NoError(t, db.AddLog(createTruncatedHash(9), eth.BlockID{Hash: createHash(9), Number: 1}, 500, i))
+				}
+				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 15, 0, createHash(1), execMsg)
+			})
+	})
+
+	t.Run("CheckpointBetweenInitEventAndExecLinkNotIncrementingBlock", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+
+				for i := uint32(0); m.entryCount < searchCheckpointFrequency-1; i++ {
+					require.NoError(t, db.AddLog(createTruncatedHash(9), eth.BlockID{Hash: createHash(9), Number: 1}, 500, i))
+				}
+				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 1}, 5000, 253, execMsg)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 1, 253, createHash(1), execMsg)
+			})
+	})
+
+	t.Run("CheckpointBetweenExecLinkAndExecCheck", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				for i := uint32(0); m.entryCount < searchCheckpointFrequency-2; i++ {
+					require.NoError(t, db.AddLog(createTruncatedHash(9), eth.BlockID{Hash: createHash(9), Number: 1}, 500, i))
+				}
+				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 15, 0, createHash(1), execMsg)
+			})
+	})
+
+	t.Run("CheckpointBetweenExecLinkAndExecCheckNotIncrementingBlock", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				for i := uint32(0); m.entryCount < searchCheckpointFrequency-2; i++ {
+					require.NoError(t, db.AddLog(createTruncatedHash(9), eth.BlockID{Hash: createHash(9), Number: 1}, 500, i))
+				}
+				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 1}, 5000, 252, execMsg)
+				require.NoError(t, err)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 1, 252, createHash(1), execMsg)
+			})
+	})
+}
+
 func TestContains(t *testing.T) {
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {
@@ -411,12 +488,18 @@ func requireClosestBlockInfo(t *testing.T, db *DB, searchFor uint64, expectedBlo
 	require.Equal(t, TruncateHash(expectedHash), hash)
 }
 
-func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash) {
+func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, execMsg ...ExecutingMessage) {
+	require.LessOrEqual(t, len(execMsg), 1, "cannot have multiple executing messages for a single log")
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
+	result, actualExecMsg, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Truef(t, result, "Did not find log %v in block %v with hash %v", logIdx, blockNum, logHash)
+	var expectedExecMsg ExecutingMessage
+	if len(execMsg) == 1 {
+		expectedExecMsg = execMsg[0]
+	}
+	require.Equal(t, expectedExecMsg, actualExecMsg, "Should return matching executing message")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
 }
@@ -424,9 +507,10 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHa
 func requireNotContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
+	result, actualExecMsg, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Falsef(t, result, "Found unexpected log %v in block %v with hash %v", logIdx, blockNum, logHash)
+	require.Equal(t, ExecutingMessage{}, actualExecMsg, "should not have an executing message when no log found")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
 }
 

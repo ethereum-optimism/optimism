@@ -16,8 +16,8 @@ import (
 const (
 	searchCheckpointFrequency = 256
 
-	eventFlagIncrementLogIdx = byte(1)
-	//eventFlagHasExecutingMessage = byte(1) << 1
+	eventFlagIncrementLogIdx     = byte(1)
+	eventFlagHasExecutingMessage = byte(1) << 1
 )
 
 const (
@@ -27,13 +27,6 @@ const (
 	typeExecutingLink
 	typeExecutingCheck
 )
-
-var (
-	ErrLogOutOfOrder  = errors.New("log out of order")
-	ErrDataCorruption = errors.New("data corruption")
-)
-
-type TruncatedHash [20]byte
 
 type Metrics interface {
 	RecordEntryCount(count int64)
@@ -124,7 +117,7 @@ func (db *DB) init() error {
 	}
 	// Read all entries until the end of the file
 	for {
-		_, _, _, err := i.NextLog()
+		_, _, _, _, err := i.NextLog()
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
@@ -162,57 +155,87 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
 
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
 // logIdx is the index of the log in the array of all logs the block.
-func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (bool, error) {
+func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (bool, ExecutingMessage, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", logHash)
 	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
-		return false, nil
+		return false, ExecutingMessage{}, nil
 	} else if err != nil {
-		return false, err
+		return false, ExecutingMessage{}, err
 	}
 
 	i, err := db.newIterator(entryIdx)
 	if err != nil {
-		return false, fmt.Errorf("failed to create iterator: %w", err)
+		return false, ExecutingMessage{}, fmt.Errorf("failed to create iterator: %w", err)
 	}
 	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.current.blockNum, "logIdx", i.current.logIdx)
 	defer func() {
 		db.m.RecordSearchEntriesRead(i.entriesRead)
 	}()
 	for {
-		evtBlockNum, evtLogIdx, evtHash, err := i.NextLog()
+		evtBlockNum, evtLogIdx, evtHash, execMsg, err := i.NextLog()
 		if errors.Is(err, io.EOF) {
 			// Reached end of log without finding the event
-			return false, nil
+			return false, ExecutingMessage{}, nil
 		} else if err != nil {
-			return false, fmt.Errorf("failed to read next log: %w", err)
+			return false, ExecutingMessage{}, fmt.Errorf("failed to read next log: %w", err)
 		}
 		if evtBlockNum == blockNum && evtLogIdx == logIdx {
 			db.log.Trace("Found initiatingEvent", "blockNum", evtBlockNum, "logIdx", evtLogIdx, "hash", evtHash)
 			// Found the requested block and log index, check if the hash matches
-			return evtHash == logHash, nil
+			return evtHash == logHash, execMsg, nil
 		}
 		if evtBlockNum > blockNum || (evtBlockNum == blockNum && evtLogIdx > logIdx) {
 			// Progressed past the requested log without finding it.
-			return false, nil
+			return false, ExecutingMessage{}, nil
 		}
 	}
 }
 
 func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
-	// TODO(optimism#10857): Handle starting from a checkpoint after initiating-event but before its executing-link
-	// Will need to read the entry prior to the checkpoint to get the initiating event info
 	current, err := db.readSearchCheckpoint(startCheckpointEntry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
 	}
+	startIdx := startCheckpointEntry + 2
+	firstEntry, err := db.store.Read(startIdx)
+	if errors.Is(err, io.EOF) {
+		// There should always be an entry after a checkpoint and canonical hash so an EOF here is data corruption
+		return nil, fmt.Errorf("%w: no entry after checkpoint and canonical hash at %v", ErrDataCorruption, startCheckpointEntry)
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to read first entry to iterate %v: %w", startCheckpointEntry+2, err)
+	}
+	// Handle starting from a checkpoint after initiating-event but before its executing-link or executing-check
+	if firstEntry[0] == typeExecutingLink || firstEntry[0] == typeExecutingCheck {
+		if firstEntry[0] == typeExecutingLink {
+			// The start checkpoint was between the initiating event and the executing link
+			// Step back to read the initiating event. The checkpoint block data will be for the initiating event
+			startIdx = startCheckpointEntry - 1
+		} else {
+			// The start checkpoint was between the executing link and the executing check
+			// Step back to read the initiating event. The checkpoint block data will be for the initiating event
+			startIdx = startCheckpointEntry - 2
+		}
+		initEntry, err := db.store.Read(startIdx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read prior initiating event: %w", err)
+		}
+		initEvt, err := newInitiatingEventFromEntry(initEntry)
+		if err != nil {
+			return nil, fmt.Errorf("invalid initiating event at idx %v: %w", startIdx, err)
+		}
+		current.blockNum -= uint64(initEvt.blockDiff)
+		if initEvt.incrementLogIdx {
+			current.logIdx--
+		}
+	}
 	i := &iterator{
 		db: db,
 		// +2 to skip the initial search checkpoint and the canonical hash event after it
-		nextEntryIdx: startCheckpointEntry + 2,
+		nextEntryIdx: startIdx,
 		current: logContext{
 			blockNum: current.blockNum,
 			logIdx:   current.logIdx,
@@ -260,7 +283,15 @@ func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
 	return (i - 1) * searchCheckpointFrequency, nil
 }
 
+func (db *DB) AddDependantLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg ExecutingMessage) error {
+	return db.addLog(logHash, block, timestamp, logIdx, &execMsg)
+}
+
 func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32) error {
+	return db.addLog(logHash, block, timestamp, logIdx, nil)
+}
+
+func (db *DB) addLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *ExecutingMessage) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	postState := logContext{
@@ -279,15 +310,43 @@ func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64,
 	if db.lastEntryContext.blockNum < block.Number && logIdx != 0 {
 		return fmt.Errorf("%w: adding log %v as first log in block %v", ErrLogOutOfOrder, logIdx, block.Number)
 	}
-	if (db.lastEntryIdx()+1)%searchCheckpointFrequency == 0 {
-		if err := db.writeSearchCheckpoint(block.Number, logIdx, timestamp, block.Hash); err != nil {
-			return fmt.Errorf("failed to write search checkpoint: %w", err)
+	maybeAddCheckpoint := func() error {
+		if (db.lastEntryIdx()+1)%searchCheckpointFrequency == 0 {
+			if err := db.writeSearchCheckpoint(block.Number, logIdx, timestamp, block.Hash); err != nil {
+				return fmt.Errorf("failed to write search checkpoint: %w", err)
+			}
+			db.lastEntryContext = postState
 		}
-		db.lastEntryContext = postState
+		return nil
+	}
+	if err := maybeAddCheckpoint(); err != nil {
+		return err
 	}
 
-	if err := db.writeInitiatingEvent(postState, logHash); err != nil {
+	if err := db.writeInitiatingEvent(postState, logHash, execMsg != nil); err != nil {
 		return err
+	}
+	if execMsg != nil {
+		if err := maybeAddCheckpoint(); err != nil {
+			return err
+		}
+		link, err := newExecutingLink(*execMsg)
+		if err != nil {
+			// TODO(optimism#10857): Rollback changes if this fails
+			return fmt.Errorf("failed to create executing link: %w", err)
+		}
+		if err := db.store.Append(link.encode()); err != nil {
+			// TODO(optimism#10857): Rollback changes if this fails
+			return fmt.Errorf("failed to write executing link: %w", err)
+		}
+
+		if err := maybeAddCheckpoint(); err != nil {
+			return err
+		}
+		if err := db.store.Append(newExecutingCheck(execMsg.Hash).encode()); err != nil {
+			// TODO(optimism#10857): Rollback changes if this fails
+			return fmt.Errorf("failed to write executing check: %w", err)
+		}
 	}
 	db.lastEntryContext = postState
 	db.updateEntryCountMetric()
@@ -321,7 +380,7 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 		// So move our delete marker back to include it as a starting point
 		idx--
 		for {
-			blockNum, _, _, err := i.NextLog()
+			blockNum, _, _, _, err := i.NextLog()
 			if errors.Is(err, io.EOF) {
 				// Reached end of file, we need to keep everything
 				return nil
@@ -385,18 +444,12 @@ func (db *DB) readCanonicalHash(entryIdx int64) (canonicalHash, error) {
 
 // writeInitiatingEvent appends an initiating event to the log
 // type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
-func (db *DB) writeInitiatingEvent(postState logContext, logHash TruncatedHash) error {
-	evt, err := newInitiatingEvent(db.lastEntryContext, postState.blockNum, postState.logIdx, logHash)
+func (db *DB) writeInitiatingEvent(postState logContext, logHash TruncatedHash, hasExecMsg bool) error {
+	evt, err := newInitiatingEvent(db.lastEntryContext, postState.blockNum, postState.logIdx, logHash, hasExecMsg)
 	if err != nil {
 		return err
 	}
 	return db.store.Append(evt.encode())
-}
-
-func TruncateHash(hash common.Hash) TruncatedHash {
-	var truncated TruncatedHash
-	copy(truncated[:], hash[0:20])
-	return truncated
 }
 
 func (db *DB) Close() error {

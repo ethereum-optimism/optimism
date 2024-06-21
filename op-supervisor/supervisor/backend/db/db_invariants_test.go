@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,6 +43,10 @@ func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
 		invariantCanonicalHashAfterEverySearchCheckpoint,
 		invariantSearchCheckpointBeforeEveryCanonicalHash,
 		invariantIncrementLogIdxIfNotImmediatelyAfterCanonicalHash,
+		invariantExecLinkAfterInitEventWithFlagSet,
+		invariantExecLinkOnlyAfterInitiatingEventWithFlagSet,
+		invariantExecCheckAfterExecLink,
+		invariantExecCheckOnlyAfterExecLink,
 	}
 	for i, entry := range entries {
 		for _, invariant := range entryInvariants {
@@ -143,6 +148,91 @@ func invariantIncrementLogIdxIfNotImmediatelyAfterCanonicalHash(entryIdx int, en
 	}
 	if !incrementsLogIdx && !prevEntryIsCanonicalHash && blockDiff == 0 {
 		return fmt.Errorf("initiating event at index %v does not increment logIdx when block unchanged and not after canonical hash (prev entry %x)", entryIdx, prevEntry)
+	}
+	return nil
+}
+
+func invariantExecLinkAfterInitEventWithFlagSet(entryIdx int, entry entrydb.Entry, entries []entrydb.Entry, m *stubMetrics) error {
+	if entry[0] != typeInitiatingEvent {
+		return nil
+	}
+	hasExecMessage := entry[2]&eventFlagHasExecutingMessage != 0
+	if !hasExecMessage {
+		return nil
+	}
+	linkIdx := entryIdx + 1
+	if linkIdx%searchCheckpointFrequency == 0 {
+		linkIdx += 2 // Skip over the search checkpoint and canonical hash events
+	}
+	if len(entries) <= linkIdx {
+		return fmt.Errorf("expected executing link after initiating event with exec msg flag set at entry %v but there were no more events", entryIdx)
+	}
+	if entries[linkIdx][0] != typeExecutingLink {
+		return fmt.Errorf("expected executing link at idx %v after initiating event with exec msg flag set at entry %v but got type %v", linkIdx, entryIdx, entries[linkIdx][0])
+	}
+	return nil
+}
+
+func invariantExecLinkOnlyAfterInitiatingEventWithFlagSet(entryIdx int, entry entrydb.Entry, entries []entrydb.Entry, m *stubMetrics) error {
+	if entry[0] != typeExecutingLink {
+		return nil
+	}
+	if entryIdx == 0 {
+		return errors.New("found executing link as first entry")
+	}
+	initIdx := entryIdx - 1
+	if initIdx%searchCheckpointFrequency == 1 {
+		initIdx -= 2 // Skip the canonical hash and search checkpoint entries
+	}
+	if initIdx < 0 {
+		return fmt.Errorf("found executing link without a preceding initiating event at entry %v", entryIdx)
+	}
+	initEntry := entries[initIdx]
+	if initEntry[0] != typeInitiatingEvent {
+		return fmt.Errorf("expected initiating event at entry %v prior to executing link at %v but got %x", initIdx, entryIdx, initEntry[0])
+	}
+	flags := initEntry[2]
+	if flags&eventFlagHasExecutingMessage == 0 {
+		return fmt.Errorf("initiating event at %v prior to executing link at %v does not have flag set to indicate needing a executing event: %x", initIdx, entryIdx, initEntry)
+	}
+	return nil
+}
+
+func invariantExecCheckAfterExecLink(entryIdx int, entry entrydb.Entry, entries []entrydb.Entry, m *stubMetrics) error {
+	if entry[0] != typeExecutingLink {
+		return nil
+	}
+	checkIdx := entryIdx + 1
+	if checkIdx%searchCheckpointFrequency == 0 {
+		checkIdx += 2 // Skip the search checkpoint and canonical hash entries
+	}
+	if checkIdx >= len(entries) {
+		return fmt.Errorf("expected executing link at %v to be followed by executing check at %v but ran out of entries", entryIdx, checkIdx)
+	}
+	checkEntry := entries[checkIdx]
+	if checkEntry[0] != typeExecutingCheck {
+		return fmt.Errorf("expected executing link at %v to be followed by executing check at %v but got type %v", entryIdx, checkIdx, checkEntry[0])
+	}
+	return nil
+}
+
+func invariantExecCheckOnlyAfterExecLink(entryIdx int, entry entrydb.Entry, entries []entrydb.Entry, m *stubMetrics) error {
+	if entry[0] != typeExecutingCheck {
+		return nil
+	}
+	if entryIdx == 0 {
+		return errors.New("found executing check as first entry")
+	}
+	linkIdx := entryIdx - 1
+	if linkIdx%searchCheckpointFrequency == 1 {
+		linkIdx -= 2 // Skip the canonical hash and search checkpoint entries
+	}
+	if linkIdx < 0 {
+		return fmt.Errorf("found executing link without a preceding initiating event at entry %v", entryIdx)
+	}
+	linkEntry := entries[linkIdx]
+	if linkEntry[0] != typeExecutingLink {
+		return fmt.Errorf("expected executing link at entry %v prior to executing check at %v but got %x", linkIdx, entryIdx, linkEntry[0])
 	}
 	return nil
 }
