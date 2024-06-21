@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"slices"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -36,7 +35,7 @@ var (
 	ErrDataCorruption = errors.New("data corruption")
 )
 
-type TruncatedHash []byte
+type TruncatedHash [20]byte
 
 // dataAccess defines a minimal API required to manipulate the actual stored data.
 // It is a subset of the os.File API but could (theoretically) be satisfied by an in-memory implementation for testing.
@@ -178,10 +177,10 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
 
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
 // logIdx is the index of the log in the array of all logs the block.
-func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (bool, error) {
+func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (bool, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", truncateHash(logHash))
+	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", logHash)
 	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
@@ -209,7 +208,7 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (boo
 		if evtBlockNum == blockNum && evtLogIdx == logIdx {
 			db.log.Trace("Found initiatingEvent", "blockNum", evtBlockNum, "logIdx", evtLogIdx, "hash", evtHash)
 			// Found the requested block and log index, check if the hash matches
-			return slices.Equal(evtHash, truncateHash(logHash)), nil
+			return evtHash == logHash, nil
 		}
 		if evtBlockNum > blockNum || (evtBlockNum == blockNum && evtLogIdx > logIdx) {
 			// Progressed past the requested log without finding it.
@@ -274,7 +273,7 @@ func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
 	return (i - 1) * searchCheckpointFrequency, nil
 }
 
-func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logIdx uint32) error {
+func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	postState := logContext{
@@ -300,7 +299,7 @@ func (db *DB) AddLog(log common.Hash, block eth.BlockID, timestamp uint64, logId
 		db.lastEntryContext = postState
 	}
 
-	if err := db.writeInitiatingEvent(postState, log); err != nil {
+	if err := db.writeInitiatingEvent(postState, logHash); err != nil {
 		return err
 	}
 	db.lastEntryContext = postState
@@ -401,7 +400,8 @@ func (db *DB) parseSearchCheckpoint(data [entrySize]byte) checkpointData {
 func (db *DB) writeCanonicalHash(blockHash common.Hash) error {
 	var entry [entrySize]byte
 	entry[0] = typeCanonicalHash
-	copy(entry[1:21], truncateHash(blockHash))
+	truncated := TruncateHash(blockHash)
+	copy(entry[1:21], truncated[:])
 	return db.writeEntry(entry)
 }
 
@@ -417,12 +417,14 @@ func (db *DB) readCanonicalHash(entryIdx int64) (TruncatedHash, error) {
 }
 
 func (db *DB) parseCanonicalHash(data [24]byte) TruncatedHash {
-	return data[1:21]
+	var truncated TruncatedHash
+	copy(truncated[:], data[1:21])
+	return truncated
 }
 
 // writeInitiatingEvent appends an initiating event to the log
 // type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
-func (db *DB) writeInitiatingEvent(postState logContext, log common.Hash) error {
+func (db *DB) writeInitiatingEvent(postState logContext, logHash TruncatedHash) error {
 	var entry [entrySize]byte
 	entry[0] = typeInitiatingEvent
 	blockDiff := postState.blockNum - db.lastEntryContext.blockNum
@@ -445,12 +447,11 @@ func (db *DB) writeInitiatingEvent(postState logContext, log common.Hash) error 
 		flags = flags | eventFlagIncrementLogIdx
 	}
 	entry[2] = flags
-	truncated := truncateHash(log)
-	copy(entry[3:23], truncated[:])
+	copy(entry[3:23], logHash[:])
 	return db.writeEntry(entry)
 }
 
-func (db *DB) parseInitiatingEvent(blockNum uint64, logIdx uint32, entry [entrySize]byte) (uint64, uint32, []byte) {
+func (db *DB) parseInitiatingEvent(blockNum uint64, logIdx uint32, entry [entrySize]byte) (uint64, uint32, TruncatedHash) {
 	blockNumDiff := entry[1]
 	flags := entry[2]
 	blockNum = blockNum + uint64(blockNumDiff)
@@ -460,7 +461,8 @@ func (db *DB) parseInitiatingEvent(blockNum uint64, logIdx uint32, entry [entryS
 	if flags&0x01 != 0 {
 		logIdx++
 	}
-	eventHash := entry[3:23]
+	var eventHash TruncatedHash
+	copy(eventHash[:], entry[3:23])
 	return blockNum, logIdx, eventHash
 }
 
@@ -485,8 +487,10 @@ func (db *DB) readEntry(idx int64) ([entrySize]byte, error) {
 	return out, nil
 }
 
-func truncateHash(hash common.Hash) TruncatedHash {
-	return hash[0:20]
+func TruncateHash(hash common.Hash) TruncatedHash {
+	var truncated TruncatedHash
+	copy(truncated[:], hash[0:20])
+	return truncated
 }
 
 func (db *DB) Close() error {

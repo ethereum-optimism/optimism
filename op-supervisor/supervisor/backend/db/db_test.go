@@ -15,6 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func createTruncatedHash(i int) TruncatedHash {
+	return TruncateHash(createHash(i))
+}
+
 func createHash(i int) common.Hash {
 	data := bytes.Repeat([]byte{byte(i)}, common.HashLength)
 	return common.BytesToHash(data)
@@ -66,14 +70,8 @@ func TestEmptyDbDoesNotFindEntry(t *testing.T) {
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {},
 		func(t *testing.T, db *DB, m *stubMetrics) {
-			result, err := db.Contains(0, 0, createHash(1))
-			require.NoError(t, err)
-			require.False(t, result)
-
-			// Should not contain the empty hash
-			result, err = db.Contains(0, 0, common.Hash{})
-			require.NoError(t, err)
-			require.False(t, result)
+			requireNotContains(t, db, 0, 0, createHash(1))
+			requireNotContains(t, db, 0, 0, common.Hash{})
 		})
 }
 
@@ -83,7 +81,7 @@ func TestAddLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 0}, 5000, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 0}, 5000, 0)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -91,24 +89,22 @@ func TestAddLog(t *testing.T) {
 	t.Run("FirstEntry", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				result, err := db.Contains(15, 0, createHash(1))
-				require.NoError(t, err)
-				require.True(t, result)
+				requireContains(t, db, 15, 0, createHash(1))
 			})
 	})
 
 	t.Run("MultipleEntriesFromSameBlock", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
 				require.NoError(t, err)
-				err = db.AddLog(createHash(2), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1)
+				err = db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1)
 				require.NoError(t, err)
-				err = db.AddLog(createHash(3), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 2)
+				err = db.AddLog(createTruncatedHash(3), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 2)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -122,13 +118,13 @@ func TestAddLog(t *testing.T) {
 	t.Run("MultipleEntriesFromMultipleBlocks", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
 				require.NoError(t, err)
-				err = db.AddLog(createHash(2), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1)
+				err = db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1)
 				require.NoError(t, err)
-				err = db.AddLog(createHash(3), eth.BlockID{Hash: createHash(16), Number: 16}, 5002, 0)
+				err = db.AddLog(createTruncatedHash(3), eth.BlockID{Hash: createHash(16), Number: 16}, 5002, 0)
 				require.NoError(t, err)
-				err = db.AddLog(createHash(4), eth.BlockID{Hash: createHash(16), Number: 16}, 5002, 1)
+				err = db.AddLog(createTruncatedHash(4), eth.BlockID{Hash: createHash(16), Number: 16}, 5002, 1)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -143,11 +139,11 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenBeforeCurrentBlock", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 14}, 4998, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(14), Number: 14}, 4998, 0)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -155,13 +151,13 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenBeforeCurrentBlockButAfterLastCheckpoint", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(13), Number: 13}, 5000, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(13), Number: 13}, 5000, 0)
 				require.NoError(t, err)
-				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
+				err = db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 14}, 4998, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(14), Number: 14}, 4998, 0)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -169,11 +165,11 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenBeforeCurrentLogEvent", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 0)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -181,15 +177,15 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenBeforeCurrentLogEventButAfterLastCheckpoint", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
 				require.NoError(t, err)
-				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1)
+				err = db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1)
 				require.NoError(t, err)
-				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 2)
+				err = db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 2)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 1)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 1)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -197,11 +193,11 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenAtCurrentLogEvent", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 1)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 1)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -209,12 +205,12 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenAtCurrentLogEventButAfterLastCheckpoint", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 2))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 2))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 2)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(14), Number: 15}, 4998, 2)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -222,11 +218,11 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenSkippingLogEvent", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 2)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 2)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -234,7 +230,7 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenFirstLogIsNotLogIdxZero", func(t *testing.T) {
 		runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 5)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 5)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -242,10 +238,10 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenFirstLogOfNewBlockIsNotLogIdxZero", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(14), Number: 14}, 4996, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(14), Number: 14}, 4996, 0))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 1)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 4998, 1)
 				require.ErrorIs(t, err, ErrLogOutOfOrder)
 			})
 	})
@@ -266,15 +262,15 @@ func TestAddLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				for i := 0; i < block1LogCount; i++ {
-					err := db.AddLog(createHash(i), block1, 3000, uint32(i))
+					err := db.AddLog(createTruncatedHash(i), block1, 3000, uint32(i))
 					require.NoErrorf(t, err, "failed to add log %v of block 1", i)
 				}
 				for i := 0; i < block2LogCount; i++ {
-					err := db.AddLog(createHash(i), block2, 3002, uint32(i))
+					err := db.AddLog(createTruncatedHash(i), block2, 3002, uint32(i))
 					require.NoErrorf(t, err, "failed to add log %v of block 2", i)
 				}
 				for i := 0; i < block3LogCount; i++ {
-					err := db.AddLog(createHash(i), block3, 3004, uint32(i))
+					err := db.AddLog(createTruncatedHash(i), block3, 3004, uint32(i))
 					require.NoErrorf(t, err, "failed to add log %v of block 3", i)
 				}
 				// Verify that we're right before the fourth checkpoint will be written.
@@ -283,7 +279,7 @@ func TestAddLog(t *testing.T) {
 				// so the fourth is at entry 3*searchCheckpointFrequency
 				require.EqualValues(t, 3*searchCheckpointFrequency, m.entryCount)
 				for i := 0; i < block4LogCount; i++ {
-					err := db.AddLog(createHash(i), block4, 3006, uint32(i))
+					err := db.AddLog(createTruncatedHash(i), block4, 3006, uint32(i))
 					require.NoErrorf(t, err, "failed to add log %v of block 4", i)
 				}
 			},
@@ -315,11 +311,11 @@ func TestAddLog(t *testing.T) {
 func TestContains(t *testing.T) {
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {
-			require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
-			require.NoError(t, db.AddLog(createHash(3), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
-			require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 2))
-			require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(52), Number: 52}, 500, 0))
-			require.NoError(t, db.AddLog(createHash(3), eth.BlockID{Hash: createHash(52), Number: 52}, 500, 1))
+			require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+			require.NoError(t, db.AddLog(createTruncatedHash(3), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+			require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 2))
+			require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(52), Number: 52}, 500, 0))
+			require.NoError(t, db.AddLog(createTruncatedHash(3), eth.BlockID{Hash: createHash(52), Number: 52}, 500, 1))
 		},
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			// Should find added logs
@@ -360,7 +356,7 @@ func TestGetBlockInfo(t *testing.T) {
 	t.Run("ReturnsEOFWhenRequestedBlockBeforeFirstSearchCheckpoint", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(11), Number: 11}, 500, 0)
+				err := db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(11), Number: 11}, 500, 0)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -373,7 +369,7 @@ func TestGetBlockInfo(t *testing.T) {
 		block := eth.BlockID{Hash: createHash(11), Number: 11}
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(1), block, 500, 0)
+				err := db.AddLog(createTruncatedHash(1), block, 500, 0)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -388,7 +384,7 @@ func TestGetBlockInfo(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				for i := 1; i < searchCheckpointFrequency+3; i++ {
 					block := eth.BlockID{Hash: createHash(i), Number: uint64(i)}
-					err := db.AddLog(createHash(i), block, uint64(i)*2, 0)
+					err := db.AddLog(createTruncatedHash(i), block, uint64(i)*2, 0)
 					require.NoError(t, err)
 				}
 			},
@@ -412,13 +408,13 @@ func requireClosestBlockInfo(t *testing.T, db *DB, searchFor uint64, expectedBlo
 	blockNum, hash, err := db.ClosestBlockInfo(searchFor)
 	require.NoError(t, err)
 	require.Equal(t, expectedBlockNum, blockNum)
-	require.Equal(t, truncateHash(expectedHash), hash)
+	require.Equal(t, TruncateHash(expectedHash), hash)
 }
 
 func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, logHash)
+	result, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Truef(t, result, "Did not find log %v in block %v with hash %v", logIdx, blockNum, logHash)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
@@ -428,7 +424,7 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHa
 func requireNotContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, logHash)
+	result, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Falsef(t, result, "Found unexpected log %v in block %v with hash %v", logIdx, blockNum, logHash)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
@@ -462,10 +458,10 @@ func TestRewind(t *testing.T) {
 	t.Run("AfterLastBlock", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
-				require.NoError(t, db.AddLog(createHash(3), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(4), eth.BlockID{Hash: createHash(74), Number: 74}, 700, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(3), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(4), eth.BlockID{Hash: createHash(74), Number: 74}, 700, 0))
 				require.NoError(t, db.Rewind(75))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -479,8 +475,8 @@ func TestRewind(t *testing.T) {
 	t.Run("BeforeFirstBlock", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
 				require.NoError(t, db.Rewind(25))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -493,10 +489,10 @@ func TestRewind(t *testing.T) {
 	t.Run("AtFirstBlock", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 1))
 				require.NoError(t, db.Rewind(50))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -511,12 +507,12 @@ func TestRewind(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				for i := uint32(0); m.entryCount < searchCheckpointFrequency; i++ {
-					require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, i))
+					require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, i))
 				}
 				require.EqualValues(t, searchCheckpointFrequency, m.entryCount)
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 0))
 				require.EqualValues(t, searchCheckpointFrequency+3, m.entryCount, "Should have inserted new checkpoint and extra log")
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(51), Number: 51}, 502, 1))
 				require.NoError(t, db.Rewind(50))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -531,10 +527,10 @@ func TestRewind(t *testing.T) {
 	t.Run("BetweenLogEntries", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
 				require.NoError(t, db.Rewind(55))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -548,12 +544,12 @@ func TestRewind(t *testing.T) {
 	t.Run("AtExistingLogEntry", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 1))
 				require.NoError(t, db.Rewind(60))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -569,12 +565,12 @@ func TestRewind(t *testing.T) {
 	t.Run("AtLastEntry", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(70), Number: 70}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(70), Number: 70}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(50), Number: 50}, 500, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(70), Number: 70}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(70), Number: 70}, 502, 1))
 				require.NoError(t, db.Rewind(70))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -590,20 +586,20 @@ func TestRewind(t *testing.T) {
 	t.Run("ReaddDeletedBlocks", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
-				require.NoError(t, db.AddLog(createHash(1), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 0))
-				require.NoError(t, db.AddLog(createHash(2), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1))
+				require.NoError(t, db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 0))
+				require.NoError(t, db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(61), Number: 61}, 502, 1))
 				require.NoError(t, db.Rewind(60))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddLog(createHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1)
+				err := db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(59), Number: 59}, 500, 1)
 				require.ErrorIs(t, err, ErrLogOutOfOrder, "Cannot add block before rewound head")
-				err = db.AddLog(createHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1)
+				err = db.AddLog(createTruncatedHash(2), eth.BlockID{Hash: createHash(60), Number: 60}, 502, 1)
 				require.ErrorIs(t, err, ErrLogOutOfOrder, "Cannot add block that was rewound to")
-				err = db.AddLog(createHash(1), eth.BlockID{Hash: createHash(60), Number: 61}, 502, 0)
+				err = db.AddLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(60), Number: 61}, 502, 0)
 				require.NoError(t, err, "Can re-add deleted block")
 			})
 	})
