@@ -143,10 +143,7 @@ func (db *DB) init() error {
 			return fmt.Errorf("failed to init from existing entries: %w", err)
 		}
 	}
-	db.lastEntryContext = logContext{
-		blockNum: i.blockNum,
-		logIdx:   i.logIdx,
-	}
+	db.lastEntryContext = i.current
 	return nil
 }
 
@@ -193,7 +190,7 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (b
 	if err != nil {
 		return false, fmt.Errorf("failed to create iterator: %w", err)
 	}
-	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.blockNum, "logIdx", i.logIdx)
+	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.current.blockNum, "logIdx", i.current.logIdx)
 	defer func() {
 		db.m.RecordSearchEntriesRead(i.entriesRead)
 	}()
@@ -228,8 +225,10 @@ func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
 		db: db,
 		// +2 to skip the initial search checkpoint and the canonical hash event after it
 		nextEntryIdx: startCheckpointEntry + 2,
-		blockNum:     current.blockNum,
-		logIdx:       current.logIdx,
+		current: logContext{
+			blockNum: current.blockNum,
+			logIdx:   current.logIdx,
+		},
 	}
 	return i, nil
 }
@@ -425,45 +424,11 @@ func (db *DB) parseCanonicalHash(data [24]byte) TruncatedHash {
 // writeInitiatingEvent appends an initiating event to the log
 // type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
 func (db *DB) writeInitiatingEvent(postState logContext, logHash TruncatedHash) error {
-	var entry [entrySize]byte
-	entry[0] = typeInitiatingEvent
-	blockDiff := postState.blockNum - db.lastEntryContext.blockNum
-	if blockDiff > math.MaxUint8 {
-		// TODO(optimism#10857): Need to find a way to support this.
-		return fmt.Errorf("too many block skipped between %v and %v", db.lastEntryContext.blockNum, postState.blockNum)
+	entry, err := createInitiatingEvent(db.lastEntryContext, postState, logHash)
+	if err != nil {
+		return err
 	}
-	entry[1] = byte(blockDiff)
-	currLogIdx := db.lastEntryContext.logIdx
-	if blockDiff > 0 {
-		currLogIdx = 0
-	}
-	flags := byte(0)
-	logDiff := postState.logIdx - currLogIdx
-	if logDiff > 1 {
-		return fmt.Errorf("skipped logs between %v and %v", currLogIdx, postState.logIdx)
-	}
-	if logDiff > 0 {
-		// Set flag to indicate log idx needs to be incremented (ie we're not directly after a checkpoint)
-		flags = flags | eventFlagIncrementLogIdx
-	}
-	entry[2] = flags
-	copy(entry[3:23], logHash[:])
 	return db.writeEntry(entry)
-}
-
-func (db *DB) parseInitiatingEvent(blockNum uint64, logIdx uint32, entry [entrySize]byte) (uint64, uint32, TruncatedHash) {
-	blockNumDiff := entry[1]
-	flags := entry[2]
-	blockNum = blockNum + uint64(blockNumDiff)
-	if blockNumDiff > 0 {
-		logIdx = 0
-	}
-	if flags&0x01 != 0 {
-		logIdx++
-	}
-	var eventHash TruncatedHash
-	copy(eventHash[:], entry[3:23])
-	return blockNum, logIdx, eventHash
 }
 
 func (db *DB) writeEntry(entry [entrySize]byte) error {

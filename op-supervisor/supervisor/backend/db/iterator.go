@@ -8,8 +8,8 @@ import (
 type iterator struct {
 	db           *DB
 	nextEntryIdx int64
-	blockNum     uint64
-	logIdx       uint32
+
+	current logContext
 
 	entriesRead int64
 }
@@ -26,14 +26,14 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 		switch entry[0] {
 		case typeSearchCheckpoint:
 			current := i.db.parseSearchCheckpoint(entry)
-			i.blockNum = current.blockNum
-			i.logIdx = current.logIdx
+			i.current.blockNum = current.blockNum
+			i.current.logIdx = current.logIdx
 		case typeCanonicalHash:
 			// Skip
 		case typeInitiatingEvent:
-			blockNum, logIdx, evtHash = i.db.parseInitiatingEvent(i.blockNum, i.logIdx, entry)
-			i.blockNum = blockNum
-			i.logIdx = logIdx
+			i.current, evtHash = parseInitiatingEvent(i.current, entry)
+			blockNum = i.current.blockNum
+			logIdx = i.current.logIdx
 			return
 		case typeExecutingCheck:
 		// TODO(optimism#10857): Handle this properly
