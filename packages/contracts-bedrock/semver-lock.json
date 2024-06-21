@@ -124,8 +124,8 @@
     "sourceCodeHash": "0x3ff4a3f21202478935412d47fd5ef7f94a170402ddc50e5c062013ce5544c83f"
   },
   "src/cannon/MIPS.sol": {
-    "initCodeHash": "0x1742f31c43d067f94e669e50e632875ba2a2795127ea5bf429acf7ed39ddbc48",
-    "sourceCodeHash": "0xa50b47ddaee92c52c5f7cfb4b526f9d734c2eec524e7bb609b991d608f124c02"
+    "initCodeHash": "0x133a4f9b8dcb4bd0594ec92598ea7b9af364a939d0a3abe7f5a6adca469c3f7b",
+    "sourceCodeHash": "0x7f2a71750b2154c5ccd04e83275872198375e29668016fba35582d6c8d6dbb9c"
   },
   "src/cannon/PreimageOracle.sol": {
     "initCodeHash": "0xe5db668fe41436f53995e910488c7c140766ba8745e19743773ebab508efd090",
