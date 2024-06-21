@@ -77,6 +77,8 @@ config=$(cat << EOL
   "gasPriceOracleOverhead": 0,
   "gasPriceOracleScalar": 1000000,
 
+  "deployCeloContracts": true,
+
   "enableGovernance": $ENABLE_GOVERNANCE,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
