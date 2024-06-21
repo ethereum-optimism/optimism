@@ -642,6 +642,10 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 	}
 }
 
+func (s *Driver) OverrideLeader(ctx context.Context) error {
+	return s.sequencerConductor.OverrideLeader(ctx)
+}
+
 // syncStatus returns the current sync status, and should only be called synchronously with
 // the driver event loop to avoid retrieval of an inconsistent status.
 func (s *Driver) syncStatus() *eth.SyncStatus {
