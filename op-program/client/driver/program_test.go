@@ -103,13 +103,13 @@ func TestProgramDeriver(t *testing.T) {
 			require.NoError(t, p.result)
 		})
 	})
-	// on exhaustion of input data: stop with error
+	// on exhaustion of input data: stop without error
 	t.Run("deriver idle", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		p.OnEvent(derive.DeriverIdleEvent{})
 		m.AssertExpectations(t)
 		require.True(t, p.closing)
-		require.NotNil(t, p.result)
+		require.Nil(t, p.result)
 	})
 	// on inconsistent chain data: stop with error
 	t.Run("reset event", func(t *testing.T) {

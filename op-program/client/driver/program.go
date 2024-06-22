@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -54,13 +53,13 @@ func (d *ProgramDeriver) OnEvent(ev rollup.Event) {
 		d.Emitter.Emit(engine.PendingSafeRequestEvent{})
 	case engine.ForkchoiceUpdateEvent:
 		if x.SafeL2Head.Number >= d.targetBlockNum {
-			d.logger.Info("Derivation complete: reached L2 block", "head", x.UnsafeL2Head)
+			d.logger.Info("Derivation complete: reached L2 block", "head", x.SafeL2Head)
 			d.closing = true
 		}
 	case derive.DeriverIdleEvent:
 		// Not enough data to reach target
 		d.closing = true
-		d.result = errors.New("not enough data to reach target")
+		d.logger.Info("Derivation complete: no further data to process")
 	case rollup.ResetEvent:
 		d.closing = true
 		d.result = fmt.Errorf("unexpected reset error: %w", x.Err)
