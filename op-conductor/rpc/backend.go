@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -32,15 +33,14 @@ type conductor interface {
 type APIBackend struct {
 	log            log.Logger
 	con            conductor
-	leaderOverride bool
+	leaderOverride atomic.Bool
 }
 
 // NewAPIBackend creates a new APIBackend instance.
 func NewAPIBackend(log log.Logger, con conductor) *APIBackend {
 	return &APIBackend{
-		log:            log,
-		con:            con,
-		leaderOverride: false,
+		log: log,
+		con: con,
 	}
 }
 
@@ -48,7 +48,7 @@ var _ API = (*APIBackend)(nil)
 
 // OverrideLeader implements API.
 func (api *APIBackend) OverrideLeader(ctx context.Context) error {
-	api.leaderOverride = true
+	api.leaderOverride.Store(true)
 	return nil
 }
 
@@ -89,12 +89,12 @@ func (api *APIBackend) CommitUnsafePayload(ctx context.Context, payload *eth.Exe
 
 // Leader implements API, returns true if current conductor is leader of the cluster.
 func (api *APIBackend) Leader(ctx context.Context) (bool, error) {
-	return api.leaderOverride || api.con.Leader(ctx), nil
+	return api.leaderOverride.Load() || api.con.Leader(ctx), nil
 }
 
 // LeaderWithID implements API, returns the leader's server ID and address (not necessarily the current conductor).
 func (api *APIBackend) LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error) {
-	if api.leaderOverride {
+	if api.leaderOverride.Load() {
 		return &consensus.ServerInfo{
 			ID:       "N/A (Leader overridden)",
 			Addr:     "N/A",

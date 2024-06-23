@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -25,7 +26,7 @@ type ConductorClient struct {
 	// overrideLeader is used to override the leader check for disaster recovery purposes.
 	// During disaster situations where the cluster is unhealthy (no leader, only 1 or less nodes up),
 	// set this to true to allow the node to assume sequencing responsibilities without being the leader.
-	overrideLeader bool
+	overrideLeader atomic.Bool
 }
 
 var _ conductor.SequencerConductor = &ConductorClient{}
@@ -33,10 +34,9 @@ var _ conductor.SequencerConductor = &ConductorClient{}
 // NewConductorClient returns a new conductor client for the op-conductor RPC service.
 func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) *ConductorClient {
 	return &ConductorClient{
-		cfg:            cfg,
-		metrics:        metrics,
-		log:            log,
-		overrideLeader: false,
+		cfg:     cfg,
+		metrics: metrics,
+		log:     log,
 	}
 }
 
@@ -55,7 +55,7 @@ func (c *ConductorClient) initialize() error {
 
 // Leader returns true if this node is the leader sequencer.
 func (c *ConductorClient) Leader(ctx context.Context) (bool, error) {
-	if c.overrideLeader {
+	if c.overrideLeader.Load() {
 		return true, nil
 	}
 
@@ -76,7 +76,7 @@ func (c *ConductorClient) Leader(ctx context.Context) (bool, error) {
 
 // CommitUnsafePayload commits an unsafe payload to the conductor log.
 func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
-	if c.overrideLeader {
+	if c.overrideLeader.Load() {
 		return nil
 	}
 
@@ -98,7 +98,7 @@ func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.
 
 // OverrideLeader implements conductor.SequencerConductor.
 func (c *ConductorClient) OverrideLeader(ctx context.Context) error {
-	c.overrideLeader = true
+	c.overrideLeader.Store(true)
 	return nil
 }
 
