@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/stretchr/testify/require"
 
@@ -38,6 +39,8 @@ type L2Verifier struct {
 		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	}
 
+	synchronousEvents *rollup.SynchronousEvents
+
 	syncDeriver *driver.SyncDeriver
 
 	// L2 rollup
@@ -45,10 +48,9 @@ type L2Verifier struct {
 	derivation *derive.DerivationPipeline
 	clSync     *clsync.CLSync
 
-	attributesHandler driver.AttributesHandler
-	safeHeadListener  rollup.SafeHeadListener
-	finalizer         driver.Finalizer
-	syncCfg           *sync.Config
+	safeHeadListener rollup.SafeHeadListener
+	finalizer        driver.Finalizer
+	syncCfg          *sync.Config
 
 	l1      derive.L1Fetcher
 	l1State *driver.L1State
@@ -101,26 +103,25 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		finalizer = finality.NewFinalizer(log, cfg, l1, ec)
 	}
 
-	attributesHandler := attributes.NewAttributesHandler(log, cfg, ec, eng)
+	attributesHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, synchronousEvents)
 
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, metrics)
 	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline, synchronousEvents)
 
 	syncDeriver := &driver.SyncDeriver{
-		Derivation:        pipeline,
-		Finalizer:         finalizer,
-		AttributesHandler: attributesHandler,
-		SafeHeadNotifs:    safeHeadListener,
-		CLSync:            clSync,
-		Engine:            ec,
-		SyncCfg:           syncCfg,
-		Config:            cfg,
-		L1:                l1,
-		L2:                eng,
-		Emitter:           synchronousEvents,
-		Log:               log,
-		Ctx:               ctx,
-		Drain:             synchronousEvents.Drain,
+		Derivation:     pipeline,
+		Finalizer:      finalizer,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		L2:             eng,
+		Emitter:        synchronousEvents,
+		Log:            log,
+		Ctx:            ctx,
+		Drain:          synchronousEvents.Drain,
 	}
 
 	engDeriv := engine.NewEngDeriver(log, ctx, cfg, ec, synchronousEvents)
@@ -132,7 +133,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		clSync:            clSync,
 		derivation:        pipeline,
 		finalizer:         finalizer,
-		attributesHandler: attributesHandler,
 		safeHeadListener:  safeHeadListener,
 		syncCfg:           syncCfg,
 		syncDeriver:       syncDeriver,
@@ -142,6 +142,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		l2Building:        false,
 		rollupCfg:         cfg,
 		rpc:               rpc.NewServer(),
+		synchronousEvents: synchronousEvents,
 	}
 
 	*rootDeriver = rollup.SynchronousDerivers{
@@ -151,6 +152,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		rollupNode,
 		clSync,
 		pipelineDeriver,
+		attributesHandler,
 	}
 
 	t.Cleanup(rollupNode.rpc.Stop)
@@ -305,14 +307,29 @@ func (s *L2Verifier) OnEvent(ev rollup.Event) {
 	}
 }
 
-// ActL2PipelineStep runs one iteration of the L2 derivation pipeline
-func (s *L2Verifier) ActL2PipelineStep(t Testing) {
+func (s *L2Verifier) ActL2EventsUntilPending(t Testing, num uint64) {
+	s.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+		x, ok := ev.(engine.PendingSafeUpdateEvent)
+		return ok && x.PendingSafe.Number == num
+	}, 1000, false)
+}
+
+func (s *L2Verifier) ActL2EventsUntil(t Testing, fn func(ev rollup.Event) bool, max int, excl bool) {
+	t.Helper()
 	if s.l2Building {
 		t.InvalidAction("cannot derive new data while building L2 block")
 		return
 	}
-	s.syncDeriver.Emitter.Emit(driver.StepEvent{})
-	require.NoError(t, s.syncDeriver.Drain(), "complete all event processing triggered by deriver step")
+	for i := 0; i < max; i++ {
+		err := s.synchronousEvents.DrainUntil(fn, excl)
+		if err == nil {
+			return
+		}
+		if err == io.EOF {
+			s.synchronousEvents.Emit(driver.StepEvent{})
+		}
+	}
+	t.Fatalf("event condition did not hit, ran maximum number of steps: %d", max)
 }
 
 func (s *L2Verifier) ActL2PipelineFull(t Testing) {
@@ -326,14 +343,19 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 		if i > 10_000 {
 			t.Fatalf("ActL2PipelineFull running for too long. Is a deriver looping?")
 		}
-		s.ActL2PipelineStep(t)
+		if s.l2Building {
+			t.InvalidAction("cannot derive new data while building L2 block")
+			return
+		}
+		s.syncDeriver.Emitter.Emit(driver.StepEvent{})
+		require.NoError(t, s.syncDeriver.Drain(), "complete all event processing triggered by deriver step")
 	}
 }
 
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.syncDeriver.Emitter.Emit(clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
+		s.synchronousEvents.Emit(clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
 	}
 }
 

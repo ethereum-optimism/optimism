@@ -2,6 +2,7 @@ package rollup
 
 import (
 	"context"
+	"io"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -70,6 +71,32 @@ func (s *SynchronousEvents) Drain() error {
 		s.evLock.Unlock()
 
 		s.root.OnEvent(first)
+	}
+}
+
+func (s *SynchronousEvents) DrainUntil(fn func(ev Event) bool, excl bool) error {
+	for {
+		if s.ctx.Err() != nil {
+			return s.ctx.Err()
+		}
+		if len(s.events) == 0 {
+			return io.EOF
+		}
+
+		s.evLock.Lock()
+		first := s.events[0]
+		stop := fn(first)
+		if excl && stop {
+			s.evLock.Unlock()
+			return nil
+		}
+		s.events = s.events[1:]
+		s.evLock.Unlock()
+
+		s.root.OnEvent(first)
+		if stop {
+			return nil
+		}
 	}
 }
 

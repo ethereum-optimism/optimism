@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	gosync "sync"
 	"time"
 
@@ -397,8 +396,6 @@ type SyncDeriver struct {
 
 	Finalizer Finalizer
 
-	AttributesHandler AttributesHandler
-
 	SafeHeadNotifs       rollup.SafeHeadListener // notified when safe head is updated
 	lastNotifiedSafeHead eth.L2BlockRef
 
@@ -433,6 +430,10 @@ func (s *SyncDeriver) OnEvent(ev rollup.Event) {
 		s.onResetEvent(x)
 	case rollup.EngineTemporaryErrorEvent:
 		s.Log.Warn("Derivation process temporary error", "err", x.Err)
+
+		// Make sure that for any temporarily failed attributes we retry processing.
+		s.Emitter.Emit(engine.PendingSafeRequestEvent{})
+
 		s.Emitter.Emit(StepReqEvent{})
 	case engine.EngineResetConfirmedEvent:
 		s.onEngineConfirmedReset(x)
@@ -444,8 +445,6 @@ func (s *SyncDeriver) OnEvent(ev rollup.Event) {
 		// If there is more data to process,
 		// continue derivation quickly
 		s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
-	case derive.DerivedAttributesEvent:
-		s.AttributesHandler.SetAttributes(x.Attributes)
 	}
 }
 
@@ -534,11 +533,6 @@ func (s *SyncDeriver) SyncStep(ctx context.Context) error {
 
 	// Any now processed forkchoice updates will trigger CL-sync payload processing, if any payload is queued up.
 
-	// Try safe attributes now.
-	if err := s.AttributesHandler.Proceed(ctx); err != io.EOF {
-		// EOF error means we can't process the next attributes. Then we should derive the next attributes.
-		return err
-	}
 	derivationOrigin := s.Derivation.Origin()
 	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() && s.Derivation.DerivationReady() &&
 		s.lastNotifiedSafeHead != s.Engine.SafeL2Head() {
@@ -558,7 +552,13 @@ func (s *SyncDeriver) SyncStep(ctx context.Context) error {
 		return fmt.Errorf("finalizer OnDerivationL1End error: %w", err)
 	}
 
-	s.Emitter.Emit(derive.PipelineStepEvent{PendingSafe: s.Engine.PendingSafeL2Head()})
+	// Since we don't force attributes to be processed at this point,
+	// we cannot safely directly trigger the derivation, as that may generate new attributes that
+	// conflict with what attributes have not been applied yet.
+	// Instead, we request the engine to repeat where its pending-safe head is at.
+	// Upon the pending-safe signal the attributes deriver can then ask the pipeline
+	// to generate new attributes, if no attributes are known already.
+	s.Emitter.Emit(engine.PendingSafeRequestEvent{})
 	return nil
 }
 
