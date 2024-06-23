@@ -625,6 +625,7 @@ func TestPlasma_Finalization(gt *testing.T) {
 	// advance derivation and finalize plasma via the L1 signal
 	a.sequencer.ActL2PipelineFull(t)
 	a.ActL1Finalized(t)
+	a.sequencer.ActL2PipelineFull(t) // finality event needs to be processed
 
 	// given 12s l1 time and 1s l2 time, l2 should be 12 * 3 = 36 blocks finalized
 	require.Equal(t, uint64(36), a.sequencer.SyncStatus().FinalizedL2.Number)
