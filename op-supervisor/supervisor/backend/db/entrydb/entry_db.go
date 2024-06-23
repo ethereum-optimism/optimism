@@ -11,6 +11,10 @@ const (
 	EntrySize = 24
 )
 
+var (
+	ErrRecoveryRequired = errors.New("recovery required")
+)
+
 type Entry [EntrySize]byte
 
 // dataAccess defines a minimal API required to manipulate the actual stored data.
@@ -23,10 +27,16 @@ type dataAccess interface {
 }
 
 type EntryDB struct {
-	data         dataAccess
-	lastEntryIdx int64
+	data             dataAccess
+	lastEntryIdx     int64
+	recoveryRequired bool
 }
 
+// NewEntryDB creates an EntryDB. A new file will be created if the specified path does not exist,
+// but parent directories will not be created.
+// If the file exists it will be used as the existing data.
+// Returns ErrRecoveryRequired if the existing file is not a valid entry db. A EntryDB is still returned but all
+// operations will return ErrRecoveryRequired until the Recover method is called.
 func NewEntryDB(path string) (*EntryDB, error) {
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
@@ -37,18 +47,32 @@ func NewEntryDB(path string) (*EntryDB, error) {
 		return nil, fmt.Errorf("failed to stat database at %v: %w", path, err)
 	}
 	lastEntryIdx := info.Size()/EntrySize - 1
+	recoveryRequired := false
+	if (lastEntryIdx+1)*EntrySize != info.Size() {
+		err = fmt.Errorf("%w: file size %v was not a multiple of entry size %v", ErrRecoveryRequired, info.Size(), EntrySize)
+		recoveryRequired = true
+	}
 	return &EntryDB{
-		data:         file,
-		lastEntryIdx: lastEntryIdx,
-	}, nil
+		data:             file,
+		lastEntryIdx:     lastEntryIdx,
+		recoveryRequired: recoveryRequired,
+	}, err
+}
+
+func (e *EntryDB) RecoveryRequired() bool {
+	return e.recoveryRequired
 }
 
 func (e *EntryDB) Size() int64 {
 	return e.lastEntryIdx + 1
 }
 
+// Read an entry from the database by index. Returns io.EOF iff idx is after the last entry.
 func (e *EntryDB) Read(idx int64) (Entry, error) {
 	var out Entry
+	if e.recoveryRequired {
+		return out, ErrRecoveryRequired
+	}
 	read, err := e.data.ReadAt(out[:], idx*EntrySize)
 	// Ignore io.EOF if we read the entire last entry as ReadAt may return io.EOF or nil when it reads the last byte
 	if err != nil && !(errors.Is(err, io.EOF) && read == EntrySize) {
@@ -57,25 +81,43 @@ func (e *EntryDB) Read(idx int64) (Entry, error) {
 	return out, nil
 }
 
-func (e *EntryDB) Append(entries ...Entry) error {
-	for _, entry := range entries {
-		if _, err := e.data.Write(entry[:]); err != nil {
-			// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
-			// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
-			// to avoid leaving hanging entries without the entry that should follow them.
-			return err
-		}
-		e.lastEntryIdx++
+// Append an entry to the database.
+func (e *EntryDB) Append(entry Entry) error {
+	if e.recoveryRequired {
+		return ErrRecoveryRequired
 	}
+	if _, err := e.data.Write(entry[:]); err != nil {
+		// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
+		// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
+		// to avoid leaving hanging entries without the entry that should follow them.
+		return err
+	}
+	e.lastEntryIdx++
 	return nil
 }
 
+// Truncate the database so that the last retained entry is idx. Any entries after idx are deleted.
 func (e *EntryDB) Truncate(idx int64) error {
+	if e.recoveryRequired {
+		return ErrRecoveryRequired
+	}
 	if err := e.data.Truncate((idx + 1) * EntrySize); err != nil {
 		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
 	}
-	// Update the lastEntryIdx cache and then use db.init() to find the log context for the new latest log entry
+	// Update the lastEntryIdx cache
 	e.lastEntryIdx = idx
+	return nil
+}
+
+// Recover an invalid database by truncating back to the last complete event.
+func (e *EntryDB) Recover() error {
+	if !e.recoveryRequired {
+		return nil
+	}
+	if err := e.data.Truncate((e.lastEntryIdx + 1) * EntrySize); err != nil {
+		return fmt.Errorf("failed to truncate trailing partial entries: %w", err)
+	}
+	e.recoveryRequired = false
 	return nil
 }
 

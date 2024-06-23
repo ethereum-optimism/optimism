@@ -41,7 +41,7 @@ type logContext struct {
 type entryStore interface {
 	Size() int64
 	Read(idx int64) (entrydb.Entry, error)
-	Append(entries ...entrydb.Entry) error
+	Append(entry entrydb.Entry) error
 	Truncate(idx int64) error
 	Close() error
 }
