@@ -125,7 +125,9 @@ type ETHBackend interface {
 // SimpleTxManager is a implementation of TxManager that performs linear fee
 // bumping of a tx until it confirms.
 type SimpleTxManager struct {
-	cfg     Config // embed the config directly
+	cfg     Config     // embed the config directly
+	cfgLock sync.Mutex // protects values that can be changed at runtime via rpc
+
 	name    string
 	chainID *big.Int
 
@@ -332,42 +334,74 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 }
 
 func (m *SimpleTxManager) GetMinBaseFee() *big.Int {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	return m.cfg.MinBaseFee
 }
 
 func (m *SimpleTxManager) SetMinBaseFee(val *big.Int) {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	m.cfg.MinBaseFee = val
 }
 
 func (m *SimpleTxManager) GetPriorityFee() *big.Int {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	return m.cfg.MinTipCap
 }
 
 func (m *SimpleTxManager) SetPriorityFee(val *big.Int) {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	m.cfg.MinTipCap = val
 }
 
 func (m *SimpleTxManager) GetMinBlobFee() *big.Int {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	return m.cfg.MinBlobTxFee
 }
 
 func (m *SimpleTxManager) SetMinBlobFee(val *big.Int) {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	m.cfg.MinBlobTxFee = val
 }
 
+func (m *SimpleTxManager) GetFeeLimitMultiplier() uint64 {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
+	return m.cfg.FeeLimitMultiplier
+}
+
+func (m *SimpleTxManager) SetFeeLimitMultiplier(val uint64) {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
+	m.cfg.FeeLimitMultiplier = val
+}
+
 func (m *SimpleTxManager) GetFeeThreshold() *big.Int {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	return m.cfg.FeeLimitThreshold
 }
 
 func (m *SimpleTxManager) SetFeeThreshold(val *big.Int) {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	m.cfg.FeeLimitThreshold = val
 }
 
 func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	return m.cfg.ResubmissionTimeout
 }
 
 func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
+	m.cfgLock.Lock()
+	defer m.cfgLock.Unlock()
 	m.cfg.ResubmissionTimeout = val
 }
 
@@ -473,7 +507,10 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	// Immediately publish a transaction before starting the resubmission loop
 	tx = publishAndWait(tx, false)
 
-	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
+	m.cfgLock.Lock()
+	resubmissionTimeout := m.cfg.ResubmissionTimeout
+	m.cfgLock.Unlock()
+	ticker := time.NewTicker(resubmissionTimeout)
 	defer ticker.Stop()
 
 	for {
@@ -796,13 +833,18 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	m.metr.RecordTipCap(tip)
 
 	// Enforce minimum base fee and tip cap
-	if minTipCap := m.cfg.MinTipCap; minTipCap != nil && tip.Cmp(minTipCap) == -1 {
-		m.l.Debug("Enforcing min tip cap", "minTipCap", m.cfg.MinTipCap, "origTipCap", tip)
-		tip = new(big.Int).Set(m.cfg.MinTipCap)
+	m.cfgLock.Lock()
+	minTipCap := m.cfg.MinTipCap
+	minBaseFee := m.cfg.MinBaseFee
+	m.cfgLock.Unlock()
+
+	if minTipCap != nil && tip.Cmp(minTipCap) == -1 {
+		m.l.Debug("Enforcing min tip cap", "minTipCap", minTipCap, "origTipCap", tip)
+		tip = new(big.Int).Set(minTipCap)
 	}
-	if minBaseFee := m.cfg.MinBaseFee; minBaseFee != nil && baseFee.Cmp(minBaseFee) == -1 {
-		m.l.Debug("Enforcing min base fee", "minBaseFee", m.cfg.MinBaseFee, "origBaseFee", baseFee)
-		baseFee = new(big.Int).Set(m.cfg.MinBaseFee)
+	if minBaseFee != nil && baseFee.Cmp(minBaseFee) == -1 {
+		m.l.Debug("Enforcing min base fee", "minBaseFee", minBaseFee, "origBaseFee", baseFee)
+		baseFee = new(big.Int).Set(minBaseFee)
 	}
 
 	var blobFee *big.Int
@@ -816,8 +858,12 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 // checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers
 // if FeeLimitThreshold is specified in config, any increase which stays under the threshold are allowed
 func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) (errs error) {
+	m.cfgLock.Lock()
 	threshold := m.cfg.FeeLimitThreshold
-	limit := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
+	feeLimitMultiplier := m.cfg.FeeLimitMultiplier
+	m.cfgLock.Unlock()
+
+	limit := big.NewInt(int64(feeLimitMultiplier))
 	maxTip := new(big.Int).Mul(tip, limit)
 	maxFee := calcGasFeeCap(new(big.Int).Mul(baseFee, limit), maxTip)
 
@@ -841,14 +887,19 @@ func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.In
 func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int) error {
 	// If below threshold, don't apply multiplier limit. Note we use same threshold parameter here
 	// used for non-blob fee limiting.
-	if thr := m.cfg.FeeLimitThreshold; thr != nil && thr.Cmp(bumpedBlobFee) == 1 {
+	m.cfgLock.Lock()
+	feeLimitThreshold := m.cfg.FeeLimitThreshold
+	feeLimitMultiplier := m.cfg.FeeLimitMultiplier
+	m.cfgLock.Unlock()
+
+	if thr := feeLimitThreshold; thr != nil && thr.Cmp(bumpedBlobFee) == 1 {
 		return nil
 	}
-	maxBlobFee := new(big.Int).Mul(m.calcBlobFeeCap(blobBaseFee), big.NewInt(int64(m.cfg.FeeLimitMultiplier)))
+	maxBlobFee := new(big.Int).Mul(m.calcBlobFeeCap(blobBaseFee), big.NewInt(int64(feeLimitMultiplier)))
 	if bumpedBlobFee.Cmp(maxBlobFee) > 0 {
 		return fmt.Errorf(
 			"bumped blob fee %v is over %dx multiple of the suggested value: %w",
-			bumpedBlobFee, m.cfg.FeeLimitMultiplier, ErrBlobFeeLimit)
+			bumpedBlobFee, feeLimitMultiplier, ErrBlobFeeLimit)
 	}
 	return nil
 }
@@ -918,9 +969,10 @@ func calcGasFeeCap(baseFee, gasTipCap *big.Int) *big.Int {
 // calcBlobFeeCap computes a suggested blob fee cap that is twice the current header's blob base fee
 // value, with a minimum value of minBlobTxFee.
 func (m *SimpleTxManager) calcBlobFeeCap(blobBaseFee *big.Int) *big.Int {
+	minBlobTxFee := m.GetMinBlobFee()
 	cap := new(big.Int).Mul(blobBaseFee, two)
-	if cap.Cmp(m.cfg.MinBlobTxFee) < 0 {
-		cap.Set(m.cfg.MinBlobTxFee)
+	if cap.Cmp(minBlobTxFee) < 0 {
+		cap.Set(minBlobTxFee)
 	}
 	return cap
 }
