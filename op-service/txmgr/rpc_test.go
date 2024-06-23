@@ -64,59 +64,24 @@ func TestTxmgrRPC(t *testing.T) {
 		require.Equal(t, appVersion, res)
 	})
 
-	t.Run("txmgr_getMinBaseFee", func(t *testing.T) {
-		var res *big.Int
-		require.NoError(t, rpcClient.Call(&res, "txmgr_getMinBaseFee"))
-		require.Equal(t, minBaseFee, res)
-	})
+	type tcase struct {
+		rpcMethod string
+		value     *big.Int
+	}
 
-	t.Run("txmgr_setMinBaseFee", func(t *testing.T) {
-		var res *big.Int
-		minBaseFee.Add(minBaseFee, big.NewInt(1))
-		require.NoError(t, rpcClient.Call(&res, "txmgr_setMinBaseFee", minBaseFee))
-		require.NoError(t, rpcClient.Call(&res, "txmgr_getMinBaseFee"))
-		require.Equal(t, minBaseFee, res)
-	})
+	cases := []tcase{
+		{"MinBaseFee", big.NewInt(1001)},
+		{"PriorityFee", big.NewInt(2001)},
+		{"MinBlobFee", big.NewInt(3001)},
+		{"FeeThreshold", big.NewInt(4001)},
+	}
 
-	t.Run("txmgr_getPriorityFee", func(t *testing.T) {
-		var res *big.Int
-		require.NoError(t, rpcClient.Call(&res, "txmgr_getPriorityFee"))
-		require.Equal(t, priorityFee, res)
-	})
-
-	t.Run("txmgr_setPriorityFee", func(t *testing.T) {
-		var res *big.Int
-		priorityFee.Add(priorityFee, big.NewInt(1))
-		require.NoError(t, rpcClient.Call(&res, "txmgr_setPriorityFee", priorityFee))
-		require.NoError(t, rpcClient.Call(&res, "txmgr_getPriorityFee"))
-		require.Equal(t, priorityFee, res)
-	})
-
-	t.Run("txmgr_getMinBlobFee", func(t *testing.T) {
-		var res *big.Int
-		require.NoError(t, rpcClient.Call(&res, "txmgr_getMinBlobFee"))
-		require.Equal(t, minBlobFee, res)
-	})
-
-	t.Run("txmgr_setMinBlobFee", func(t *testing.T) {
-		var res *big.Int
-		minBlobFee.Add(minBlobFee, big.NewInt(1))
-		require.NoError(t, rpcClient.Call(&res, "txmgr_setMinBlobFee", minBlobFee))
-		require.NoError(t, rpcClient.Call(&res, "txmgr_getMinBlobFee"))
-		require.Equal(t, minBlobFee, res)
-	})
-
-	t.Run("txmgr_getFeeThreshold", func(t *testing.T) {
-		var res *big.Int
-		require.NoError(t, rpcClient.Call(&res, "txmgr_getFeeThreshold"))
-		require.Equal(t, feeThreshold, res)
-	})
-
-	t.Run("txmgr_setFeeThreshold", func(t *testing.T) {
-		var res *big.Int
-		feeThreshold.Add(feeThreshold, big.NewInt(1))
-		require.NoError(t, rpcClient.Call(&res, "txmgr_setFeeThreshold", feeThreshold))
-		require.NoError(t, rpcClient.Call(&res, "txmgr_getFeeThreshold"))
-		require.Equal(t, feeThreshold, res)
-	})
+	for _, tc := range cases {
+		t.Run(tc.rpcMethod, func(t *testing.T) {
+			var res *big.Int
+			require.NoError(t, rpcClient.Call(&res, "txmgr_set"+tc.rpcMethod, tc.value))
+			require.NoError(t, rpcClient.Call(&res, "txmgr_get"+tc.rpcMethod))
+			require.Equal(t, tc.value, res)
+		})
+	}
 }
