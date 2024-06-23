@@ -13,10 +13,16 @@ import (
 func TestReadWrite(t *testing.T) {
 	t.Run("BasicReadWrite", func(t *testing.T) {
 		db := createEntryDB(t)
+		require.EqualValues(t, 0, db.Size())
 		require.NoError(t, db.Append(createEntry(1)))
+		require.EqualValues(t, 1, db.Size())
 		require.NoError(t, db.Append(createEntry(2)))
+		require.EqualValues(t, 2, db.Size())
 		require.NoError(t, db.Append(createEntry(3)))
+		require.EqualValues(t, 3, db.Size())
 		require.NoError(t, db.Append(createEntry(4)))
+		require.EqualValues(t, 4, db.Size())
+
 		requireRead(t, db, 0, createEntry(1))
 		requireRead(t, db, 1, createEntry(2))
 		requireRead(t, db, 2, createEntry(3))
@@ -31,18 +37,6 @@ func TestReadWrite(t *testing.T) {
 		_, err := db.Read(0)
 		require.ErrorIs(t, err, io.EOF)
 	})
-
-	//t.Run("WriteMultiple", func(t *testing.T) {
-	//	db := createEntryDB(t)
-	//	require.NoError(t, db.Append(
-	//		createEntry(1),
-	//		createEntry(2),
-	//		createEntry(3),
-	//	))
-	//	requireRead(t, db, 0, createEntry(1))
-	//	requireRead(t, db, 1, createEntry(2))
-	//	requireRead(t, db, 2, createEntry(3))
-	//})
 }
 
 func TestTruncate(t *testing.T) {
@@ -52,8 +46,10 @@ func TestTruncate(t *testing.T) {
 	require.NoError(t, db.Append(createEntry(3)))
 	require.NoError(t, db.Append(createEntry(4)))
 	require.NoError(t, db.Append(createEntry(5)))
+	require.EqualValues(t, 5, db.Size())
 
 	require.NoError(t, db.Truncate(3))
+	require.EqualValues(t, 4, db.Size()) // 0, 1, 2 and 3 are preserved
 	requireRead(t, db, 0, createEntry(1))
 	requireRead(t, db, 1, createEntry(2))
 	requireRead(t, db, 2, createEntry(3))
@@ -79,6 +75,7 @@ func TestRecovery(t *testing.T) {
 	require.ErrorIs(t, err, ErrRecoveryRequired)
 	require.NotNil(t, db)
 	require.True(t, db.RecoveryRequired())
+	require.EqualValues(t, 2, db.Size(), "size should only consider valid entries")
 
 	_, err = db.Read(0)
 	require.ErrorIs(t, err, ErrRecoveryRequired)
@@ -88,6 +85,7 @@ func TestRecovery(t *testing.T) {
 	require.ErrorIs(t, err, ErrRecoveryRequired)
 
 	require.NoError(t, db.Recover())
+	require.EqualValues(t, 2, db.Size())
 
 	entry, err := db.Read(0)
 	require.Equal(t, entry1, entry)

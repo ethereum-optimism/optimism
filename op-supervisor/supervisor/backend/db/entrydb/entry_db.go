@@ -28,7 +28,7 @@ type dataAccess interface {
 
 type EntryDB struct {
 	data             dataAccess
-	lastEntryIdx     int64
+	size             int64
 	recoveryRequired bool
 }
 
@@ -46,15 +46,15 @@ func NewEntryDB(path string) (*EntryDB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat database at %v: %w", path, err)
 	}
-	lastEntryIdx := info.Size()/EntrySize - 1
+	size := info.Size() / EntrySize
 	recoveryRequired := false
-	if (lastEntryIdx+1)*EntrySize != info.Size() {
+	if size*EntrySize != info.Size() {
 		err = fmt.Errorf("%w: file size %v was not a multiple of entry size %v", ErrRecoveryRequired, info.Size(), EntrySize)
 		recoveryRequired = true
 	}
 	return &EntryDB{
 		data:             file,
-		lastEntryIdx:     lastEntryIdx,
+		size:             size,
 		recoveryRequired: recoveryRequired,
 	}, err
 }
@@ -64,7 +64,7 @@ func (e *EntryDB) RecoveryRequired() bool {
 }
 
 func (e *EntryDB) Size() int64 {
-	return e.lastEntryIdx + 1
+	return e.size
 }
 
 // Read an entry from the database by index. Returns io.EOF iff idx is after the last entry.
@@ -92,7 +92,7 @@ func (e *EntryDB) Append(entry Entry) error {
 		// to avoid leaving hanging entries without the entry that should follow them.
 		return err
 	}
-	e.lastEntryIdx++
+	e.size++
 	return nil
 }
 
@@ -105,7 +105,7 @@ func (e *EntryDB) Truncate(idx int64) error {
 		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
 	}
 	// Update the lastEntryIdx cache
-	e.lastEntryIdx = idx
+	e.size = idx + 1
 	return nil
 }
 
@@ -114,7 +114,7 @@ func (e *EntryDB) Recover() error {
 	if !e.recoveryRequired {
 		return nil
 	}
-	if err := e.data.Truncate((e.lastEntryIdx + 1) * EntrySize); err != nil {
+	if err := e.data.Truncate((e.size) * EntrySize); err != nil {
 		return fmt.Errorf("failed to truncate trailing partial entries: %w", err)
 	}
 	e.recoveryRequired = false
