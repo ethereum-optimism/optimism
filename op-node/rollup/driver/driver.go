@@ -91,9 +91,8 @@ type AttributesHandler interface {
 }
 
 type Finalizer interface {
-	Finalize(ctx context.Context, ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
-	engine.FinalizerHooks
+	rollup.Deriver
 }
 
 type PlasmaIface interface {
@@ -186,9 +185,9 @@ func NewDriver(
 
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, ec, plasma)
+		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, synchronousEvents, plasma)
 	} else {
-		finalizer = finality.NewFinalizer(log, cfg, l1, ec)
+		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, synchronousEvents)
 	}
 
 	attributesHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, synchronousEvents)
@@ -254,6 +253,7 @@ func NewDriver(
 		clSync,
 		pipelineDeriver,
 		attributesHandler,
+		finalizer,
 	}
 
 	return driver

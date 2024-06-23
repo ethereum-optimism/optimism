@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -312,9 +313,7 @@ func (s *Driver) eventLoop() {
 			// no step, justified L1 information does not do anything for L2 derivation or status
 		case newL1Finalized := <-s.l1FinalizedSig:
 			s.l1State.HandleNewL1FinalizedBlock(newL1Finalized)
-			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*5)
-			s.Finalizer.Finalize(ctx, newL1Finalized)
-			cancel()
+			s.Emit(finality.FinalizeL1Event{FinalizedL1: newL1Finalized})
 			reqStep() // we may be able to mark more L2 data as finalized now
 		case <-s.sched.NextDelayedStep():
 			s.Emit(StepAttemptEvent{})
@@ -396,8 +395,7 @@ type SyncDeriver struct {
 
 	Finalizer Finalizer
 
-	SafeHeadNotifs       rollup.SafeHeadListener // notified when safe head is updated
-	lastNotifiedSafeHead eth.L2BlockRef
+	SafeHeadNotifs rollup.SafeHeadListener // notified when safe head is updated
 
 	CLSync CLSync
 
@@ -428,8 +426,11 @@ func (s *SyncDeriver) OnEvent(ev rollup.Event) {
 		s.onStepEvent()
 	case rollup.ResetEvent:
 		s.onResetEvent(x)
+	case rollup.L1TemporaryErrorEvent:
+		s.Log.Warn("L1 temporary error", "err", x.Err)
+		s.Emitter.Emit(StepReqEvent{})
 	case rollup.EngineTemporaryErrorEvent:
-		s.Log.Warn("Derivation process temporary error", "err", x.Err)
+		s.Log.Warn("Engine temporary error", "err", x.Err)
 
 		// Make sure that for any temporarily failed attributes we retry processing.
 		s.Emitter.Emit(engine.PendingSafeRequestEvent{})
@@ -445,6 +446,19 @@ func (s *SyncDeriver) OnEvent(ev rollup.Event) {
 		// If there is more data to process,
 		// continue derivation quickly
 		s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
+	case engine.SafeDerivedEvent:
+		s.onSafeDerivedBlock(x)
+	}
+}
+
+func (s *SyncDeriver) onSafeDerivedBlock(x engine.SafeDerivedEvent) {
+	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() {
+		if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, x.DerivedFrom.ID()); err != nil {
+			// At this point our state is in a potentially inconsistent state as we've updated the safe head
+			// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
+			// a little (it always rolls back at least 1 block) and then it will retry storing the entry
+			s.Emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("safe head notifications failed: %w", err)})
+		}
 	}
 }
 
@@ -457,7 +471,7 @@ func (s *SyncDeriver) onEngineConfirmedReset(x engine.EngineResetConfirmedEvent)
 			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.Safe)
 			return
 		}
-		if s.SafeHeadNotifs.Enabled() && x.Safe.Number == s.Config.Genesis.L2.Number && x.Safe.Hash == s.Config.Genesis.L2.Hash {
+		if s.SafeHeadNotifs.Enabled() && x.Safe.ID() == s.Config.Genesis.L2 {
 			// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
 			// we will process all safe head updates and can record genesis as always safe from L1 genesis.
 			// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis
@@ -483,7 +497,7 @@ func (s *SyncDeriver) onStepEvent() {
 	// where some things are triggered through events, and some through this synchronous step function.
 	// We just translate the results into their equivalent events,
 	// to merge the error-handling with that of the new event-based system.
-	err := s.SyncStep(s.Ctx)
+	err := s.SyncStep()
 	if err != nil && errors.Is(err, derive.EngineELSyncing) {
 		s.Log.Debug("Derivation process went idle because the engine is syncing", "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
 		s.Emitter.Emit(ResetStepBackoffEvent{})
@@ -504,14 +518,13 @@ func (s *SyncDeriver) onStepEvent() {
 func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
 	// If the system corrupts, e.g. due to a reorg, simply reset it
 	s.Log.Warn("Deriver system is resetting", "err", x.Err)
-	s.Finalizer.Reset()
 	s.Emitter.Emit(StepReqEvent{})
 	s.Emitter.Emit(engine.ResetEngineRequestEvent{})
 }
 
 // SyncStep performs the sequence of encapsulated syncing steps.
 // Warning: this sequence will be broken apart as outlined in op-node derivers design doc.
-func (s *SyncDeriver) SyncStep(ctx context.Context) error {
+func (s *SyncDeriver) SyncStep() error {
 	if err := s.Drain(); err != nil {
 		return err
 	}
@@ -532,25 +545,6 @@ func (s *SyncDeriver) SyncStep(ctx context.Context) error {
 	}
 
 	// Any now processed forkchoice updates will trigger CL-sync payload processing, if any payload is queued up.
-
-	derivationOrigin := s.Derivation.Origin()
-	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() && s.Derivation.DerivationReady() &&
-		s.lastNotifiedSafeHead != s.Engine.SafeL2Head() {
-		s.lastNotifiedSafeHead = s.Engine.SafeL2Head()
-		// make sure we track the last L2 safe head for every new L1 block
-		if err := s.SafeHeadNotifs.SafeHeadUpdated(s.lastNotifiedSafeHead, derivationOrigin.ID()); err != nil {
-			// At this point our state is in a potentially inconsistent state as we've updated the safe head
-			// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
-			// a little (it always rolls back at least 1 block) and then it will retry storing the entry
-			return derive.NewResetError(fmt.Errorf("safe head notifications failed: %w", err))
-		}
-	}
-	s.Finalizer.PostProcessSafeL2(s.Engine.SafeL2Head(), derivationOrigin)
-
-	// try to finalize the L2 blocks we have synced so far (no-op if L1 finality is behind)
-	if err := s.Finalizer.OnDerivationL1End(ctx, derivationOrigin); err != nil {
-		return fmt.Errorf("finalizer OnDerivationL1End error: %w", err)
-	}
 
 	// Since we don't force attributes to be processed at this point,
 	// we cannot safely directly trigger the derivation, as that may generate new attributes that

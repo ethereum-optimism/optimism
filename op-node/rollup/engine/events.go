@@ -62,12 +62,23 @@ func (ev PendingSafeUpdateEvent) String() string {
 
 // PromotePendingSafeEvent signals that a block can be marked as pending-safe, and/or safe.
 type PromotePendingSafeEvent struct {
-	Ref  eth.L2BlockRef
-	Safe bool
+	Ref         eth.L2BlockRef
+	Safe        bool
+	DerivedFrom eth.L1BlockRef
 }
 
 func (ev PromotePendingSafeEvent) String() string {
 	return "promote-pending-safe"
+}
+
+// SafeDerivedEvent signals that a block was determined to be safe, and derived from the given L1 block
+type SafeDerivedEvent struct {
+	Safe        eth.L2BlockRef
+	DerivedFrom eth.L1BlockRef
+}
+
+func (ev SafeDerivedEvent) String() string {
+	return "safe-derived"
 }
 
 type ProcessAttributesEvent struct {
@@ -121,6 +132,15 @@ type EngineResetConfirmedEvent struct {
 
 func (ev EngineResetConfirmedEvent) String() string {
 	return "engine-reset-confirmed"
+}
+
+// PromoteFinalizedEvent signals that a block can be marked as finalized.
+type PromoteFinalizedEvent struct {
+	Ref eth.L2BlockRef
+}
+
+func (ev PromoteFinalizedEvent) String() string {
+	return "promote-finalized"
 }
 
 type EngDeriver struct {
@@ -217,7 +237,7 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 		log.Debug("Reset of Engine is completed",
 			"safeHead", x.Safe, "unsafe", x.Unsafe, "safe_timestamp", x.Safe.Time,
 			"unsafe_timestamp", x.Unsafe.Time)
-		d.emitter.Emit(EngineResetConfirmedEvent{})
+		d.emitter.Emit(EngineResetConfirmedEvent(x))
 	case ProcessAttributesEvent:
 		d.onForceNextSafeAttributes(x.Attributes)
 	case PendingSafeRequestEvent:
@@ -233,7 +253,18 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 		}
 		if x.Safe && x.Ref.Number > d.ec.SafeL2Head().Number {
 			d.ec.SetSafeHead(x.Ref)
+			d.emitter.Emit(SafeDerivedEvent{Safe: x.Ref, DerivedFrom: x.DerivedFrom})
 		}
+	case PromoteFinalizedEvent:
+		if x.Ref.Number < d.ec.Finalized().Number {
+			d.log.Error("Cannot rewind finality,", "ref", x.Ref, "finalized", d.ec.Finalized())
+			return
+		}
+		if x.Ref.Number > d.ec.SafeL2Head().Number {
+			d.log.Error("Block must be safe before it can be finalized", "ref", x.Ref, "safe", d.ec.SafeL2Head())
+			return
+		}
+		d.ec.SetFinalizedHead(x.Ref)
 	}
 }
 
@@ -301,6 +332,7 @@ func (eq *EngDeriver) onForceNextSafeAttributes(attributes *derive.AttributesWit
 	eq.ec.SetPendingSafeL2Head(ref)
 	if attributes.IsLastInSpan {
 		eq.ec.SetSafeHead(ref)
+		eq.emitter.Emit(SafeDerivedEvent{Safe: ref, DerivedFrom: attributes.DerivedFrom})
 	}
 	eq.emitter.Emit(PendingSafeUpdateEvent{
 		PendingSafe: eq.ec.PendingSafeL2Head(),
