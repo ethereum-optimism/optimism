@@ -307,11 +307,6 @@ func (s *L2Verifier) OnEvent(ev rollup.Event) {
 	}
 }
 
-func (s *L2Verifier) ActL2PipelineStep(t Testing) {
-	t.Helper()
-	t.Fatal("ActL2PipelineStep is not supported anymore")
-}
-
 func (s *L2Verifier) ActL2EventsUntilPending(t Testing, num uint64) {
 	s.ActL2EventsUntil(t, func(ev rollup.Event) bool {
 		x, ok := ev.(engine.PendingSafeUpdateEvent)
