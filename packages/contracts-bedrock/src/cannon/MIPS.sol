@@ -165,7 +165,8 @@ contract MIPS is ISemver {
                 return outputState();
             } else if (syscall_no == sys.SYS_READ) {
                 uint32 newPreimageOffset;
-                (v0, v1, newPreimageOffset) = sys.handleSysRead({
+                bytes32 newMemRoot;
+                (v0, v1, newPreimageOffset, newMemRoot) = sys.handleSysRead({
                     _a0: a0,
                     _a1: a1,
                     _a2: a2,
@@ -173,9 +174,11 @@ contract MIPS is ISemver {
                     _preimageOffset: state.preimageOffset,
                     _localContext: _localContext,
                     _oracle: ORACLE,
-                    _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1)
+                    _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
+                    _memRoot: state.memRoot
                 });
                 state.preimageOffset = newPreimageOffset;
+                state.memRoot = newMemRoot;
             } else if (syscall_no == sys.SYS_WRITE) {
                 bytes32 newPreimageKey;
                 uint32 newPreimageOffset;
@@ -185,7 +188,8 @@ contract MIPS is ISemver {
                     _a2: a2,
                     _preimageKey: state.preimageKey,
                     _preimageOffset: state.preimageOffset,
-                    _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1)
+                    _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
+                    _memRoot: state.memRoot
                 });
                 state.preimageKey = newPreimageKey;
                 state.preimageOffset = newPreimageOffset;
@@ -268,7 +272,7 @@ contract MIPS is ISemver {
 
             // instruction fetch
             uint256 insnProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 0);
-            uint32 insn = MIPSMemory.readMem(state.pc, insnProofOffset);
+            uint32 insn = MIPSMemory.readMem(state.memRoot, state.pc, insnProofOffset);
             uint32 opcode = insn >> 26; // 6-bits
 
             // j-type j/jal
@@ -334,7 +338,7 @@ contract MIPS is ISemver {
                 rs += ins.signExtend(insn & 0xFFFF, 16);
                 uint32 addr = rs & 0xFFFFFFFC;
                 uint256 memProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1);
-                mem = MIPSMemory.readMem(addr, memProofOffset);
+                mem = MIPSMemory.readMem(state.memRoot, addr, memProofOffset);
                 if (opcode >= 0x28 && opcode != 0x30) {
                     // store
                     storeAddr = addr;
@@ -395,7 +399,7 @@ contract MIPS is ISemver {
             // write memory
             if (storeAddr != 0xFF_FF_FF_FF) {
                 uint256 memProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1);
-                MIPSMemory.writeMem(storeAddr, memProofOffset, val);
+                state.memRoot = MIPSMemory.writeMem(storeAddr, memProofOffset, val);
             }
 
             // write back the value to destination register

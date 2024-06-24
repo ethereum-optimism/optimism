@@ -3,10 +3,11 @@ pragma solidity 0.8.15;
 
 library MIPSMemory {
     /// @notice Reads a 32-bit value from memory.
+    /// @param _memRoot The current memory root
     /// @param _addr The address to read from.
     /// @param _proofOffset The offset of the memory proof in calldata.
     /// @return out_ The hashed MIPS state.
-    function readMem(uint32 _addr, uint256 _proofOffset) internal pure returns (uint32 out_) {
+    function readMem(bytes32 _memRoot, uint32 _addr, uint256 _proofOffset) internal pure returns (uint32 out_) {
         unchecked {
             assembly {
                 // Validate the address alignement.
@@ -35,11 +36,8 @@ library MIPSMemory {
                     case 1 { node := hashPair(sibling, node) }
                 }
 
-                // Load the memory root from the first field of state.
-                let memRoot := mload(0x80)
-
                 // Verify the root matches.
-                if iszero(eq(node, memRoot)) {
+                if iszero(eq(node, _memRoot)) {
                     mstore(0, 0x0badf00d)
                     revert(0, 32)
                 }
@@ -57,7 +55,8 @@ library MIPSMemory {
     /// @param _addr The address to write to.
     /// @param _proofOffset The offset of the memory proof in calldata.
     /// @param _val The value to write.
-    function writeMem(uint32 _addr, uint256 _proofOffset, uint32 _val) internal pure {
+    /// @return newMemRoot_ The new memory root after modification
+    function writeMem(uint32 _addr, uint256 _proofOffset, uint32 _val) internal pure returns (bytes32 newMemRoot_) {
         unchecked {
             assembly {
                 // Validate the address alignement.
@@ -90,10 +89,10 @@ library MIPSMemory {
                     case 1 { node := hashPair(sibling, node) }
                 }
 
-                // Store the new memory root in the first field of state.
-                mstore(0x80, node)
+                newMemRoot_ := node
             }
         }
+        return newMemRoot_;
     }
 
     /// @notice Computes the offset of a memory proof in the calldata and validates that adequate calldata is available.
