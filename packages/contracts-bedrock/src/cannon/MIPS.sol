@@ -149,9 +149,7 @@ contract MIPS is ISemver {
             uint32 v1 = 0;
 
             if (syscall_no == sys.SYS_MMAP) {
-                uint32 newHeap;
-                (v0, v1, newHeap) = sys.handleSysMmap(a0, a1, state.heap);
-                state.heap = newHeap;
+                (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
             } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
                 v0 = BRK_START;
@@ -164,11 +162,19 @@ contract MIPS is ISemver {
                 state.exitCode = uint8(a0);
                 return outputState();
             } else if (syscall_no == sys.SYS_READ) {
-                (v0, v1) = execSysReadAndUpdateState(state, a0, a1, a2, _localContext);
+                (v0, v1, state.preimageOffset, state.memRoot) = sys.handleSysRead({
+                    _a0: a0,
+                    _a1: a1,
+                    _a2: a2,
+                    _preimageKey: state.preimageKey,
+                    _preimageOffset: state.preimageOffset,
+                    _localContext: _localContext,
+                    _oracle: ORACLE,
+                    _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
+                    _memRoot: state.memRoot
+                });
             } else if (syscall_no == sys.SYS_WRITE) {
-                bytes32 newPreimageKey;
-                uint32 newPreimageOffset;
-                (v0, v1, newPreimageKey, newPreimageOffset) = sys.handleSysWrite({
+                (v0, v1, state.preimageKey, state.preimageOffset) = sys.handleSysWrite({
                     _a0: a0,
                     _a1: a1,
                     _a2: a2,
@@ -177,8 +183,6 @@ contract MIPS is ISemver {
                     _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
                     _memRoot: state.memRoot
                 });
-                state.preimageKey = newPreimageKey;
-                state.preimageOffset = newPreimageOffset;
             } else if (syscall_no == sys.SYS_FCNTL) {
                 (v0, v1) = sys.handleSysFcntl(a0, a1);
             }
@@ -189,32 +193,6 @@ contract MIPS is ISemver {
 
             out_ = outputState();
         }
-    }
-
-    function execSysReadAndUpdateState(
-        State memory _state,
-        uint32 _a0,
-        uint32 _a1,
-        uint32 _a2,
-        bytes32 _localContext
-    )
-        internal
-        view
-        returns (uint32 v0_, uint32 v1_)
-    {
-        (v0_, v1_, _state.preimageOffset, _state.memRoot) = sys.handleSysRead({
-            _a0: _a0,
-            _a1: _a1,
-            _a2: _a2,
-            _preimageKey: _state.preimageKey,
-            _preimageOffset: _state.preimageOffset,
-            _localContext: _localContext,
-            _oracle: ORACLE,
-            _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
-            _memRoot: _state.memRoot
-        });
-
-        return (v0_, v1_);
     }
 
     /// @notice Executes a single step of the vm.
