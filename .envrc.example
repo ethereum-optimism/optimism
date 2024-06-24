@@ -66,3 +66,10 @@ export ETHERSCAN_API_KEY=
 # Private key to use for contract deployments, you don't need to worry about
 # this for the Getting Started guide.
 export PRIVATE_KEY=
+
+# CELO additional configuration
+export ENABLE_GOVERNANCE=false
+export FUNDS_DEV_ACCOUNTS=false
+export USE_PLASMA=false
+# Set to false if migrating state from a Celo L1. True for new testnets
+export DEPLOY_CELO_CONTRACTS=false
