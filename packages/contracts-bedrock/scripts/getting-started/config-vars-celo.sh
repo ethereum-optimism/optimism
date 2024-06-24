@@ -25,6 +25,7 @@ reqenv "L1_BLOCK_TIME"
 reqenv "L2_BLOCK_TIME"
 reqenv "FUNDS_DEV_ACCOUNTS"
 reqenv "USE_PLASMA"
+reqenv "DEPLOY_CELO_CONTRACTS"
 
 # Get the finalized block timestamp and hash
 block=$(cast block finalized --rpc-url "$L1_RPC_URL")
@@ -77,7 +78,7 @@ config=$(cat << EOL
   "gasPriceOracleOverhead": 0,
   "gasPriceOracleScalar": 1000000,
 
-  "deployCeloContracts": true,
+  "deployCeloContracts": $DEPLOY_CELO_CONTRACTS,
 
   "enableGovernance": $ENABLE_GOVERNANCE,
   "governanceTokenSymbol": "OP",
