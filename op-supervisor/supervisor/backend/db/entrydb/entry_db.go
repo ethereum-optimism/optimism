@@ -1,6 +1,7 @@
 package entrydb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -74,14 +75,20 @@ func (e *EntryDB) Read(idx int64) (Entry, error) {
 }
 
 // Append an entry to the database.
-func (e *EntryDB) Append(entry Entry) error {
-	if _, err := e.data.Write(entry[:]); err != nil {
+func (e *EntryDB) Append(entries ...Entry) error {
+	readers := make([]io.Reader, 0, len(entries))
+	for _, entry := range entries {
+		entry := entry
+		readers = append(readers, bytes.NewReader(entry[:]))
+	}
+	combined := io.MultiReader(readers...)
+	if _, err := io.Copy(e.data, combined); err != nil {
 		// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
 		// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
 		// to avoid leaving hanging entries without the entry that should follow them.
 		return err
 	}
-	e.size++
+	e.size += int64(len(entries))
 	return nil
 }
 
