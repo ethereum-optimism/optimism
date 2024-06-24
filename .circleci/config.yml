@@ -427,11 +427,13 @@ jobs:
                   ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
       - when:
           condition:
-            and:
-              - or:
+            or:
+              - and:
                 - "<<parameters.publish>>"
                 - "<<parameters.release>>"
-              - equal: [develop, << pipeline.git.branch >>]
+              - and:
+                - "<<parameters.publish>>"
+                - equal: [develop, << pipeline.git.branch >>]
           steps:
             - gcp-oidc-authenticate:
                 service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL

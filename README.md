@@ -41,6 +41,11 @@ In this repository you'll find numerous core components of the OP Stack, the dec
 
 Detailed specifications for the OP Stack can be found within the [OP Stack Specs](https://github.com/ethereum-optimism/specs) repository.
 
+## Community
+
+General discussion happens most frequently on the [Optimism discord](https://discord.gg/optimism).
+Governance discussion can also be found on the [Optimism Governance Forum](https://gov.optimism.io/).
+
 ## Contributing
 
 The OP Stack is a collaborative project. By collaborating on free, open software and shared standards, the Optimism Collective aims to prevent siloed software development and rapidly accelerate the development of the Ethereum ecosystem. Come contribute, build the future, and redefine power, together.

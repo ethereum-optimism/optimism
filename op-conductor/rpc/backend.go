@@ -18,13 +18,13 @@ type conductor interface {
 
 	Leader(ctx context.Context) bool
 	LeaderWithID(ctx context.Context) *consensus.ServerInfo
-	AddServerAsVoter(ctx context.Context, id string, addr string) error
-	AddServerAsNonvoter(ctx context.Context, id string, addr string) error
-	RemoveServer(ctx context.Context, id string) error
+	AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error
+	AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error
+	RemoveServer(ctx context.Context, id string, version uint64) error
 	TransferLeader(ctx context.Context) error
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
-	ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error)
+	ClusterMembership(ctx context.Context) (*consensus.ClusterMembership, error)
 }
 
 // APIBackend is the backend implementation of the API.
@@ -61,13 +61,18 @@ func (api *APIBackend) Active(_ context.Context) (bool, error) {
 }
 
 // AddServerAsNonvoter implements API.
-func (api *APIBackend) AddServerAsNonvoter(ctx context.Context, id string, addr string) error {
-	return api.con.AddServerAsNonvoter(ctx, id, addr)
+func (api *APIBackend) AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error {
+	return api.con.AddServerAsNonvoter(ctx, id, addr, version)
 }
 
 // AddServerAsVoter implements API.
-func (api *APIBackend) AddServerAsVoter(ctx context.Context, id string, addr string) error {
-	return api.con.AddServerAsVoter(ctx, id, addr)
+func (api *APIBackend) AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error {
+	return api.con.AddServerAsVoter(ctx, id, addr, version)
+}
+
+// RemoveServer implements API.
+func (api *APIBackend) RemoveServer(ctx context.Context, id string, version uint64) error {
+	return api.con.RemoveServer(ctx, id, version)
 }
 
 // CommitUnsafePayload implements API.
@@ -88,11 +93,6 @@ func (api *APIBackend) LeaderWithID(ctx context.Context) (*consensus.ServerInfo,
 // Pause implements API.
 func (api *APIBackend) Pause(ctx context.Context) error {
 	return api.con.Pause(ctx)
-}
-
-// RemoveServer implements API.
-func (api *APIBackend) RemoveServer(ctx context.Context, id string) error {
-	return api.con.RemoveServer(ctx, id)
 }
 
 // Resume implements API.
@@ -118,6 +118,6 @@ func (api *APIBackend) SequencerHealthy(ctx context.Context) (bool, error) {
 }
 
 // ClusterMembership implements API.
-func (api *APIBackend) ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error) {
+func (api *APIBackend) ClusterMembership(ctx context.Context) (*consensus.ClusterMembership, error) {
 	return api.con.ClusterMembership(ctx)
 }

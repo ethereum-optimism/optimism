@@ -26,7 +26,7 @@ type InstrumentedState struct {
 	memProofEnabled bool
 	memProof        [28 * 32]byte
 
-	preimageOracle PreimageOracle
+	preimageOracle *trackingOracle
 
 	// cached pre-image data, including 8 byte length prefix
 	lastPreimage []byte
@@ -59,7 +59,7 @@ func NewInstrumentedState(state *State, po PreimageOracle, stdOut, stdErr io.Wri
 		state:          state,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
-		preimageOracle: po,
+		preimageOracle: &trackingOracle{po: po},
 	}
 }
 
@@ -102,4 +102,35 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 
 func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
 	return m.lastPreimageKey, m.lastPreimage, m.lastPreimageOffset
+}
+
+func (d *InstrumentedState) GetDebugInfo() *DebugInfo {
+	return &DebugInfo{
+		Pages:               d.state.Memory.PageCount(),
+		NumPreimageRequests: d.preimageOracle.numPreimageRequests,
+		TotalPreimageSize:   d.preimageOracle.totalPreimageSize,
+	}
+}
+
+type DebugInfo struct {
+	Pages               int `json:"pages"`
+	NumPreimageRequests int `json:"num_preimage_requests"`
+	TotalPreimageSize   int `json:"total_preimage_size"`
+}
+
+type trackingOracle struct {
+	po                  PreimageOracle
+	totalPreimageSize   int
+	numPreimageRequests int
+}
+
+func (d *trackingOracle) Hint(v []byte) {
+	d.po.Hint(v)
+}
+
+func (d *trackingOracle) GetPreimage(k [32]byte) []byte {
+	d.numPreimageRequests++
+	preimage := d.po.GetPreimage(k)
+	d.totalPreimageSize += len(preimage)
+	return preimage
 }

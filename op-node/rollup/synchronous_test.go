@@ -1,4 +1,4 @@
-package driver
+package rollup
 
 import (
 	"context"
@@ -8,21 +8,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
-
-type TestEvent struct{}
-
-func (ev TestEvent) String() string {
-	return "X"
-}
 
 func TestSynchronousEvents(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	ctx, cancel := context.WithCancel(context.Background())
 	count := 0
-	deriver := rollup.DeriverFunc(func(ev rollup.Event) {
+	deriver := DeriverFunc(func(ev Event) {
 		count += 1
 	})
 	syncEv := NewSynchronousEvents(logger, ctx, deriver)
@@ -48,7 +41,7 @@ func TestSynchronousEvents(t *testing.T) {
 func TestSynchronousEventsSanityLimit(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	count := 0
-	deriver := rollup.DeriverFunc(func(ev rollup.Event) {
+	deriver := DeriverFunc(func(ev Event) {
 		count += 1
 	})
 	syncEv := NewSynchronousEvents(logger, context.Background(), deriver)
@@ -74,9 +67,9 @@ func (ev CyclicEvent) String() string {
 
 func TestSynchronousCyclic(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	var emitter rollup.EventEmitter
+	var emitter EventEmitter
 	result := false
-	deriver := rollup.DeriverFunc(func(ev rollup.Event) {
+	deriver := DeriverFunc(func(ev Event) {
 		logger.Info("received event", "event", ev)
 		switch x := ev.(type) {
 		case CyclicEvent:

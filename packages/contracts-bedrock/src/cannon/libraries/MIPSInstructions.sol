@@ -341,4 +341,147 @@ library MIPSInstructions {
             }
         }
     }
+
+    /// @notice Handles HI and LO register instructions.
+    /// @param _cpu Holds the state of cpu scalars pc, nextPC, hi, lo.
+    /// @param _registers Holds the current state of the cpu registers.
+    /// @param _func The function code of the instruction.
+    /// @param _rs The value of the RS register.
+    /// @param _rt The value of the RT register.
+    /// @param _storeReg The register to store the result in.
+    function handleHiLo(
+        st.CpuScalars memory _cpu,
+        uint32[32] memory _registers,
+        uint32 _func,
+        uint32 _rs,
+        uint32 _rt,
+        uint32 _storeReg
+    )
+        internal
+        pure
+    {
+        unchecked {
+            uint32 val = 0;
+
+            // mfhi: Move the contents of the HI register into the destination
+            if (_func == 0x10) {
+                val = _cpu.hi;
+            }
+            // mthi: Move the contents of the source into the HI register
+            else if (_func == 0x11) {
+                _cpu.hi = _rs;
+            }
+            // mflo: Move the contents of the LO register into the destination
+            else if (_func == 0x12) {
+                val = _cpu.lo;
+            }
+            // mtlo: Move the contents of the source into the LO register
+            else if (_func == 0x13) {
+                _cpu.lo = _rs;
+            }
+            // mult: Multiplies `rs` by `rt` and stores the result in HI and LO registers
+            else if (_func == 0x18) {
+                uint64 acc = uint64(int64(int32(_rs)) * int64(int32(_rt)));
+                _cpu.hi = uint32(acc >> 32);
+                _cpu.lo = uint32(acc);
+            }
+            // multu: Unsigned multiplies `rs` by `rt` and stores the result in HI and LO registers
+            else if (_func == 0x19) {
+                uint64 acc = uint64(uint64(_rs) * uint64(_rt));
+                _cpu.hi = uint32(acc >> 32);
+                _cpu.lo = uint32(acc);
+            }
+            // div: Divides `rs` by `rt`.
+            // Stores the quotient in LO
+            // And the remainder in HI
+            else if (_func == 0x1a) {
+                if (int32(_rt) == 0) {
+                    revert("MIPS: division by zero");
+                }
+                _cpu.hi = uint32(int32(_rs) % int32(_rt));
+                _cpu.lo = uint32(int32(_rs) / int32(_rt));
+            }
+            // divu: Unsigned divides `rs` by `rt`.
+            // Stores the quotient in LO
+            // And the remainder in HI
+            else if (_func == 0x1b) {
+                if (_rt == 0) {
+                    revert("MIPS: division by zero");
+                }
+                _cpu.hi = _rs % _rt;
+                _cpu.lo = _rs / _rt;
+            }
+
+            // Store the result in the destination register, if applicable
+            if (_storeReg != 0) {
+                _registers[_storeReg] = val;
+            }
+
+            // Update the PC
+            _cpu.pc = _cpu.nextPC;
+            _cpu.nextPC = _cpu.nextPC + 4;
+        }
+    }
+
+    /// @notice Handles a jump instruction, updating the MIPS state PC where needed.
+    /// @param _cpu Holds the state of cpu scalars pc, nextPC, hi, lo.
+    /// @param _registers Holds the current state of the cpu registers.
+    /// @param _linkReg The register to store the link to the instruction after the delay slot instruction.
+    /// @param _dest The destination to jump to.
+    function handleJump(
+        st.CpuScalars memory _cpu,
+        uint32[32] memory _registers,
+        uint32 _linkReg,
+        uint32 _dest
+    )
+        internal
+        pure
+    {
+        unchecked {
+            if (_cpu.nextPC != _cpu.pc + 4) {
+                revert("jump in delay slot");
+            }
+
+            // Update the next PC to the jump destination.
+            uint32 prevPC = _cpu.pc;
+            _cpu.pc = _cpu.nextPC;
+            _cpu.nextPC = _dest;
+
+            // Update the link-register to the instruction after the delay slot instruction.
+            if (_linkReg != 0) {
+                _registers[_linkReg] = prevPC + 8;
+            }
+        }
+    }
+
+    /// @notice Handles a storing a value into a register.
+    /// @param _cpu Holds the state of cpu scalars pc, nextPC, hi, lo.
+    /// @param _registers Holds the current state of the cpu registers.
+    /// @param _storeReg The register to store the value into.
+    /// @param _val The value to store.
+    /// @param _conditional Whether or not the store is conditional.
+    function handleRd(
+        st.CpuScalars memory _cpu,
+        uint32[32] memory _registers,
+        uint32 _storeReg,
+        uint32 _val,
+        bool _conditional
+    )
+        internal
+        pure
+    {
+        unchecked {
+            // The destination register must be valid.
+            require(_storeReg < 32, "valid register");
+
+            // Never write to reg 0, and it can be conditional (movz, movn).
+            if (_storeReg != 0 && _conditional) {
+                _registers[_storeReg] = _val;
+            }
+
+            // Update the PC.
+            _cpu.pc = _cpu.nextPC;
+            _cpu.nextPC = _cpu.nextPC + 4;
+        }
+    }
 }

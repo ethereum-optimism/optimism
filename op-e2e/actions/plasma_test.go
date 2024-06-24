@@ -5,18 +5,21 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-plasma/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 // Devnet allocs should have alt-da mode enabled for these tests to pass
@@ -497,9 +500,13 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 
 	// advance the pipeline until it errors out as it is still stuck
 	// on deriving the first commitment
-	for i := 0; i < 3; i++ {
-		a.sequencer.ActL2PipelineStep(t)
-	}
+	a.sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+		x, ok := ev.(rollup.EngineTemporaryErrorEvent)
+		if ok {
+			require.ErrorContains(t, x.Err, "failed to fetch input data")
+		}
+		return ok
+	}, 100, false)
 
 	// keep track of the second commitment
 	comm2 := a.lastComm

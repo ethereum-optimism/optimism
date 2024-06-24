@@ -25,7 +25,7 @@ contract DeploymentSummaryFaultProofs is DeploymentSummaryFaultProofsCode {
     address internal constant l1ERC721BridgeProxyAddress = 0xD31598c909d9C935a9e35bA70d9a3DD47d4D5865;
     address internal constant l1StandardBridgeAddress = 0xb7900B27Be8f0E0fF65d1C3A4671e1220437dd2b;
     address internal constant l1StandardBridgeProxyAddress = 0xDeF3bca8c80064589E6787477FFa7Dd616B5574F;
-    address internal constant mipsAddress = 0x477508A9612B67709Caf812D4356d531ba6a471d;
+    address internal constant mipsAddress = 0x49E77cdE01fFBAB1266813b9a2FaADc1B757F435;
     address internal constant optimismPortal2Address = 0xfcbb237388CaF5b08175C9927a37aB6450acd535;
     address internal constant optimismPortalProxyAddress = 0x978e3286EB805934215a88694d80b09aDed68D90;
     address internal constant preimageOracleAddress = 0x3bd7E801E51d48c5d94Ea68e8B801DFFC275De75;

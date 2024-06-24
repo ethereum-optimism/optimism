@@ -7,15 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum"
 	gethengine "github.com/ethereum/go-ethereum/beacon/engine"
@@ -24,7 +16,16 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	engine2 "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
@@ -264,10 +265,8 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 	// pendingSafe must not be advanced as well
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(0))
-	// Preheat engine queue and consume A1 from batch
-	for i := 0; i < 4; i++ {
-		sequencer.ActL2PipelineStep(t)
-	}
+	// Run until we consume A1 from batch
+	sequencer.ActL2EventsUntilPending(t, 1)
 	// A1 is valid original block so pendingSafe is advanced
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(1))
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(5))
@@ -275,8 +274,8 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 
 	// Process B2
-	sequencer.ActL2PipelineStep(t)
-	sequencer.ActL2PipelineStep(t)
+	// Run until we consume B2 from batch
+	sequencer.ActL2EventsUntilPending(t, 2)
 	// B2 is valid different block, triggering unsafe chain reorg
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(2))
 	// B2 is valid different block, triggering unsafe block backup
@@ -427,10 +426,8 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 	// pendingSafe must not be advanced as well
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(0))
-	// Preheat engine queue and consume A1 from batch
-	for i := 0; i < 4; i++ {
-		sequencer.ActL2PipelineStep(t)
-	}
+	// Run till we consumed A1 from batch
+	sequencer.ActL2EventsUntilPending(t, 1)
 	// A1 is valid original block so pendingSafe is advanced
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(1))
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(5))
@@ -438,8 +435,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 
 	// Process B2
-	sequencer.ActL2PipelineStep(t)
-	sequencer.ActL2PipelineStep(t)
+	sequencer.ActL2EventsUntilPending(t, 2)
 	// B2 is valid different block, triggering unsafe chain reorg
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(2))
 	// B2 is valid different block, triggering unsafe block backup
@@ -449,14 +445,14 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// NextAttributes is called
-	sequencer.ActL2PipelineStep(t)
-	// forceNextSafeAttributes is called
-	sequencer.ActL2PipelineStep(t)
+	sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+		_, ok := ev.(engine2.ProcessAttributesEvent)
+		return ok
+	}, 100, true)
 	// mock forkChoiceUpdate error while restoring previous unsafe chain using backupUnsafe.
 	seqEng.ActL2RPCFail(t, eth.InputError{Inner: errors.New("mock L2 RPC error"), Code: eth.InvalidForkchoiceState})
 
-	// TryBackupUnsafeReorg is called
-	sequencer.ActL2PipelineStep(t)
+	// The backup-unsafe rewind is applied
 
 	// try to process invalid leftovers: B4, B5
 	sequencer.ActL2PipelineFull(t)
@@ -567,9 +563,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	// pendingSafe must not be advanced as well
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(0))
 	// Preheat engine queue and consume A1 from batch
-	for i := 0; i < 4; i++ {
-		sequencer.ActL2PipelineStep(t)
-	}
+	sequencer.ActL2EventsUntilPending(t, 1)
 	// A1 is valid original block so pendingSafe is advanced
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(1))
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(5))
@@ -577,8 +571,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 
 	// Process B2
-	sequencer.ActL2PipelineStep(t)
-	sequencer.ActL2PipelineStep(t)
+	sequencer.ActL2EventsUntilPending(t, 2)
 	// B2 is valid different block, triggering unsafe chain reorg
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(2))
 	// B2 is valid different block, triggering unsafe block backup
@@ -587,17 +580,21 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(2))
 
 	// B3 is invalid block
-	// NextAttributes is called
-	sequencer.ActL2PipelineStep(t)
-	// forceNextSafeAttributes is called
-	sequencer.ActL2PipelineStep(t)
+	// wait till attributes processing (excl.) before mocking errors
+	sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+		_, ok := ev.(engine2.ProcessAttributesEvent)
+		return ok
+	}, 100, true)
 
 	serverErrCnt := 2
 	for i := 0; i < serverErrCnt; i++ {
 		// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
 		seqEng.ActL2RPCFail(t, gethengine.GenericServerError)
 		// TryBackupUnsafeReorg is called - forkChoiceUpdate returns GenericServerError so retry
-		sequencer.ActL2PipelineStep(t)
+		sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+			_, ok := ev.(rollup.EngineTemporaryErrorEvent)
+			return ok
+		}, 100, false)
 		// backupUnsafeHead not emptied yet
 		require.Equal(t, targetUnsafeHeadHash, sequencer.L2BackupUnsafe().Hash)
 	}
@@ -1034,7 +1031,12 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	verifier.ActL1HeadSignal(t)
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
-		verifier.ActL2PipelineStep(t)
+		// wait for next pending block
+		verifier.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+			_, pending := ev.(engine2.PendingSafeUpdateEvent)
+			_, idle := ev.(derive.DeriverIdleEvent)
+			return pending || idle
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
@@ -1081,7 +1083,12 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	verifier.ActL1HeadSignal(t)
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
-		verifier.ActL2PipelineStep(t)
+		// wait for next pending block
+		verifier.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+			_, pending := ev.(engine2.PendingSafeUpdateEvent)
+			_, idle := ev.(derive.DeriverIdleEvent)
+			return pending || idle
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
