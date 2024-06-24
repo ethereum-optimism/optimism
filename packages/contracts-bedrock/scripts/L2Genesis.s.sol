@@ -708,6 +708,10 @@ contract L2Genesis is Deployer {
 
         vm.resetNonce(address(feeCurrencyDirectory));
         _setupProxy(precompile, address(feeCurrencyDirectory));
+
+        vm.startPrank(devAccounts[0]);
+        FeeCurrencyDirectory(precompile).initialize();
+        vm.stopPrank();
     }
 
     // function setCeloAddressSortedLinkedListWithMedian() internal {
