@@ -254,7 +254,7 @@ func invariantValidLastEntry(entryIdx int, entry entrydb.Entry, entries []entryd
 		return fmt.Errorf("final event was invalid: %w", err)
 	}
 	if evt.hasExecMsg {
-		return fmt.Errorf("ends with init event that should have exec msg but no exec msg follows")
+		return errors.New("ends with init event that should have exec msg but no exec msg follows")
 	}
 	return nil
 }
