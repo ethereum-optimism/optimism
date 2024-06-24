@@ -644,22 +644,6 @@ func TestRecoverOnCreate(t *testing.T) {
 	}
 }
 
-func TestShouldRollBackInMemoryChangesOnWriteFailure(t *testing.T) {
-	t.Skip("TODO(optimism#10857)")
-}
-
-func TestShouldRecoverWhenSearchCheckpointWrittenButNotCanonicalHash(t *testing.T) {
-	t.Skip("TODO(optimism#10857)")
-}
-
-func TestShouldRecoverWhenPartialEntryWritten(t *testing.T) {
-	t.Skip("TODO(optimism#10857)")
-}
-
-func TestShouldRecoverWhenInitiatingEventWrittenButNotExecutingLink(t *testing.T) {
-	t.Skip("TODO(optimism#10857)")
-}
-
 func TestRewind(t *testing.T) {
 	t.Run("WhenEmpty", func(t *testing.T) {
 		runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {},
