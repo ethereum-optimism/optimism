@@ -38,11 +38,13 @@ type logContext struct {
 	logIdx   uint32
 }
 
-type entryStore interface {
+type EntryStore interface {
 	Size() int64
 	Read(idx int64) (entrydb.Entry, error)
 	Append(entry entrydb.Entry) error
 	Truncate(idx int64) error
+	RecoveryRequired() bool
+	Recover() error
 	Close() error
 }
 
@@ -78,17 +80,21 @@ type entryStore interface {
 type DB struct {
 	log    log.Logger
 	m      Metrics
-	store  entryStore
+	store  EntryStore
 	rwLock sync.RWMutex
 
 	lastEntryContext logContext
 }
 
 func NewFromFile(logger log.Logger, m Metrics, path string) (*DB, error) {
-	store, err := entrydb.NewEntryDB(path)
+	store, err := entrydb.NewEntryDB(logger, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open DB: %w", err)
 	}
+	return NewFromEntryStore(logger, m, store)
+}
+
+func NewFromEntryStore(logger log.Logger, m Metrics, store EntryStore) (*DB, error) {
 	db := &DB{
 		log:   logger,
 		m:     m,
@@ -105,11 +111,15 @@ func (db *DB) lastEntryIdx() int64 {
 }
 
 func (db *DB) init() error {
-	db.updateEntryCountMetric()
+	defer db.updateEntryCountMetric() // Always update the entry count metric after init completes
+	if err := db.trimInvalidTrailingEntries(); err != nil {
+		return fmt.Errorf("failed to trim invalid trailing entries: %w", err)
+	}
 	if db.lastEntryIdx() < 0 {
 		// Database is empty so no context to load
 		return nil
 	}
+
 	lastCheckpoint := (db.lastEntryIdx() / searchCheckpointFrequency) * searchCheckpointFrequency
 	i, err := db.newIterator(lastCheckpoint)
 	if err != nil {
@@ -128,8 +138,52 @@ func (db *DB) init() error {
 	return nil
 }
 
+func (db *DB) trimInvalidTrailingEntries() error {
+	i := db.lastEntryIdx()
+	for i >= 0 {
+		entry, err := db.store.Read(i)
+		if err != nil {
+			return fmt.Errorf("failed to read %v to check for trailing entries: %w", i, err)
+		}
+		if entry[0] == typeExecutingCheck {
+			// executing check is a valid final entry
+			break
+		}
+		if entry[0] == typeInitiatingEvent {
+			evt, err := newInitiatingEventFromEntry(entry)
+			if err != nil {
+				// Entry is invalid, keep walking backwards
+				i--
+				continue
+			}
+			if !evt.hasExecMsg {
+				// init event with no exec msg is a valid final entry
+				break
+			}
+		}
+
+		i--
+	}
+	if i < db.lastEntryIdx() {
+		db.log.Warn("Truncating unexpected trailing entries", "prev", db.lastEntryIdx(), "new", i)
+		return db.store.Truncate(i)
+	}
+	return nil
+}
+
 func (db *DB) updateEntryCountMetric() {
 	db.m.RecordEntryCount(db.lastEntryIdx() + 1)
+}
+
+func (db *DB) Recover() error {
+	if !db.store.RecoveryRequired() {
+		return nil
+	}
+	if err := db.store.Recover(); err != nil {
+		return fmt.Errorf("failed to recovery entry store: %w", err)
+	}
+	db.updateEntryCountMetric()
+	return nil
 }
 
 // ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
@@ -283,7 +337,7 @@ func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
 	return (i - 1) * searchCheckpointFrequency, nil
 }
 
-func (db *DB) AddDependantLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg ExecutingMessage) error {
+func (db *DB) AddDependentLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg ExecutingMessage) error {
 	return db.addLog(logHash, block, timestamp, logIdx, &execMsg)
 }
 

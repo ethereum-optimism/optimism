@@ -3,12 +3,14 @@ package db
 import (
 	"errors"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
-	ErrLogOutOfOrder  = errors.New("log out of order")
-	ErrDataCorruption = errors.New("data corruption")
+	ErrLogOutOfOrder    = errors.New("log out of order")
+	ErrDataCorruption   = errors.New("data corruption")
+	ErrRecoveryRequired = entrydb.ErrRecoveryRequired
 )
 
 type TruncatedHash [20]byte

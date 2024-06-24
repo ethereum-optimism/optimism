@@ -47,6 +47,7 @@ func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
 		invariantExecLinkOnlyAfterInitiatingEventWithFlagSet,
 		invariantExecCheckAfterExecLink,
 		invariantExecCheckOnlyAfterExecLink,
+		invariantValidLastEntry,
 	}
 	for i, entry := range entries {
 		for _, invariant := range entryInvariants {
@@ -233,6 +234,27 @@ func invariantExecCheckOnlyAfterExecLink(entryIdx int, entry entrydb.Entry, entr
 	linkEntry := entries[linkIdx]
 	if linkEntry[0] != typeExecutingLink {
 		return fmt.Errorf("expected executing link at entry %v prior to executing check at %v but got %x", linkIdx, entryIdx, linkEntry[0])
+	}
+	return nil
+}
+
+// invariantValidLastEntry checks that the last entry is either a executing check or initiating event with no exec message
+func invariantValidLastEntry(entryIdx int, entry entrydb.Entry, entries []entrydb.Entry, m *stubMetrics) error {
+	if entryIdx+1 < len(entries) {
+		return nil
+	}
+	if entry[0] == typeExecutingCheck {
+		return nil
+	}
+	if entry[0] != typeInitiatingEvent {
+		return fmt.Errorf("invalid final event type: %v", entry[0])
+	}
+	evt, err := newInitiatingEventFromEntry(entry)
+	if err != nil {
+		return fmt.Errorf("final event was invalid: %w", err)
+	}
+	if evt.hasExecMsg {
+		return fmt.Errorf("ends with init event that should have exec msg but no exec msg follows")
 	}
 	return nil
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -37,7 +39,8 @@ type EntryDB struct {
 // If the file exists it will be used as the existing data.
 // Returns ErrRecoveryRequired if the existing file is not a valid entry db. A EntryDB is still returned but all
 // operations will return ErrRecoveryRequired until the Recover method is called.
-func NewEntryDB(path string) (*EntryDB, error) {
+func NewEntryDB(logger log.Logger, path string) (*EntryDB, error) {
+	logger.Info("Opening entry database", "path", path)
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database at %v: %w", path, err)
@@ -47,16 +50,18 @@ func NewEntryDB(path string) (*EntryDB, error) {
 		return nil, fmt.Errorf("failed to stat database at %v: %w", path, err)
 	}
 	size := info.Size() / EntrySize
-	recoveryRequired := false
-	if size*EntrySize != info.Size() {
-		err = fmt.Errorf("%w: file size %v was not a multiple of entry size %v", ErrRecoveryRequired, info.Size(), EntrySize)
-		recoveryRequired = true
+	db := &EntryDB{
+		data: file,
+		size: size,
 	}
-	return &EntryDB{
-		data:             file,
-		size:             size,
-		recoveryRequired: recoveryRequired,
-	}, err
+	if size*EntrySize != info.Size() {
+		db.recoveryRequired = true
+		logger.Warn("File size (%v) is nut a multiple of entry size %v. Truncating to last complete entry", size, EntrySize)
+		if err := db.Recover(); err != nil {
+			return nil, fmt.Errorf("failed to recover database at %v: %w", path, err)
+		}
+	}
+	return db, nil
 }
 
 func (e *EntryDB) RecoveryRequired() bool {

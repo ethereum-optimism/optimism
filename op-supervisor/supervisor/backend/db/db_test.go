@@ -2,6 +2,7 @@ package db
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,7 @@ func TestErrorOpeningDatabase(t *testing.T) {
 
 func runDBTest(t *testing.T, setup func(t *testing.T, db *DB, m *stubMetrics), assert func(t *testing.T, db *DB, m *stubMetrics)) {
 	createDb := func(t *testing.T, dir string) (*DB, *stubMetrics, string) {
-		logger := testlog.Logger(t, log.LvlTrace)
+		logger := testlog.Logger(t, log.LvlInfo)
 		path := filepath.Join(dir, "test.db")
 		m := &stubMetrics{}
 		db, err := NewFromFile(logger, m, path)
@@ -319,7 +321,7 @@ func TestAddDependentLog(t *testing.T) {
 	t.Run("FirstEntry", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
+				err := db.AddDependentLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -333,7 +335,7 @@ func TestAddDependentLog(t *testing.T) {
 				for i := uint32(0); m.entryCount < searchCheckpointFrequency-1; i++ {
 					require.NoError(t, db.AddLog(createTruncatedHash(9), eth.BlockID{Hash: createHash(9), Number: 1}, 500, i))
 				}
-				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
+				err := db.AddDependentLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -348,7 +350,7 @@ func TestAddDependentLog(t *testing.T) {
 				for i := uint32(0); m.entryCount < searchCheckpointFrequency-1; i++ {
 					require.NoError(t, db.AddLog(createTruncatedHash(9), eth.BlockID{Hash: createHash(9), Number: 1}, 500, i))
 				}
-				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 1}, 5000, 253, execMsg)
+				err := db.AddDependentLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 1}, 5000, 253, execMsg)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -362,7 +364,7 @@ func TestAddDependentLog(t *testing.T) {
 				for i := uint32(0); m.entryCount < searchCheckpointFrequency-2; i++ {
 					require.NoError(t, db.AddLog(createTruncatedHash(9), eth.BlockID{Hash: createHash(9), Number: 1}, 500, i))
 				}
-				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
+				err := db.AddDependentLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 15}, 5000, 0, execMsg)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -376,7 +378,7 @@ func TestAddDependentLog(t *testing.T) {
 				for i := uint32(0); m.entryCount < searchCheckpointFrequency-2; i++ {
 					require.NoError(t, db.AddLog(createTruncatedHash(9), eth.BlockID{Hash: createHash(9), Number: 1}, 500, i))
 				}
-				err := db.AddDependantLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 1}, 5000, 252, execMsg)
+				err := db.AddDependentLog(createTruncatedHash(1), eth.BlockID{Hash: createHash(15), Number: 1}, 5000, 252, execMsg)
 				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -512,6 +514,134 @@ func requireNotContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, lo
 	require.Falsef(t, result, "Found unexpected log %v in block %v with hash %v", logIdx, blockNum, logHash)
 	require.Equal(t, ExecutingMessage{}, actualExecMsg, "should not have an executing message when no log found")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
+}
+
+func TestRecoverOnCreate(t *testing.T) {
+	createDb := func(t *testing.T, store *stubEntryStore) (*DB, *stubMetrics, error) {
+		logger := testlog.Logger(t, log.LvlInfo)
+		m := &stubMetrics{}
+		db, err := NewFromEntryStore(logger, m, store)
+		return db, m, err
+	}
+
+	validInitEvent, err := newInitiatingEvent(logContext{blockNum: 1, logIdx: 0}, 1, 0, createTruncatedHash(1), false)
+	require.NoError(t, err)
+	validEventSequence := []entrydb.Entry{
+		newSearchCheckpoint(1, 0, 100).encode(),
+		newCanonicalHash(createTruncatedHash(344)).encode(),
+		validInitEvent.encode(),
+	}
+	var emptyEventSequence []entrydb.Entry
+
+	for _, prefixEvents := range [][]entrydb.Entry{emptyEventSequence, validEventSequence} {
+		prefixEvents := prefixEvents
+		storeWithEvents := func(evts ...entrydb.Entry) *stubEntryStore {
+			store := &stubEntryStore{}
+			store.entries = append(store.entries, prefixEvents...)
+			store.entries = append(store.entries, evts...)
+			return store
+		}
+		t.Run(fmt.Sprintf("PrefixEvents-%v", len(prefixEvents)), func(t *testing.T) {
+			t.Run("NoTruncateWhenLastEntryIsLogWithNoExecMessage", func(t *testing.T) {
+				initEvent, err := newInitiatingEvent(logContext{blockNum: 3, logIdx: 0}, 3, 0, createTruncatedHash(1), false)
+				require.NoError(t, err)
+				store := storeWithEvents(
+					newSearchCheckpoint(3, 0, 100).encode(),
+					newCanonicalHash(createTruncatedHash(344)).encode(),
+					initEvent.encode(),
+				)
+				db, m, err := createDb(t, store)
+				require.NoError(t, err)
+				require.EqualValues(t, len(prefixEvents)+3, m.entryCount)
+				contains, message, err := db.Contains(3, 0, createTruncatedHash(1))
+				require.NoError(t, err)
+				require.True(t, contains)
+				require.Equal(t, ExecutingMessage{}, message)
+			})
+
+			t.Run("NoTruncateWhenLastEntryIsExecutingCheck", func(t *testing.T) {
+				initEvent, err := newInitiatingEvent(logContext{blockNum: 3, logIdx: 0}, 3, 0, createTruncatedHash(1), true)
+				execMsg := ExecutingMessage{
+					Chain:     4,
+					BlockNum:  10,
+					LogIdx:    4,
+					Timestamp: 1288,
+					Hash:      createTruncatedHash(4),
+				}
+				require.NoError(t, err)
+				linkEvt, err := newExecutingLink(execMsg)
+				require.NoError(t, err)
+				store := storeWithEvents(
+					newSearchCheckpoint(3, 0, 100).encode(),
+					newCanonicalHash(createTruncatedHash(344)).encode(),
+					initEvent.encode(),
+					linkEvt.encode(),
+					newExecutingCheck(execMsg.Hash).encode(),
+				)
+				db, m, err := createDb(t, store)
+				require.NoError(t, err)
+				require.EqualValues(t, len(prefixEvents)+5, m.entryCount)
+				contains, message, err := db.Contains(3, 0, createTruncatedHash(1))
+				require.NoError(t, err)
+				require.True(t, contains)
+				require.Equal(t, execMsg, message)
+			})
+
+			t.Run("TruncateWhenLastEntrySearchCheckpoint", func(t *testing.T) {
+				store := storeWithEvents(newSearchCheckpoint(3, 0, 100).encode())
+				_, m, err := createDb(t, store)
+				require.NoError(t, err)
+				require.EqualValues(t, len(prefixEvents), m.entryCount)
+			})
+
+			t.Run("TruncateWhenLastEntryCanonicalHash", func(t *testing.T) {
+				store := storeWithEvents(
+					newSearchCheckpoint(3, 0, 100).encode(),
+					newCanonicalHash(createTruncatedHash(344)).encode(),
+				)
+				_, m, err := createDb(t, store)
+				require.NoError(t, err)
+				require.EqualValues(t, len(prefixEvents), m.entryCount)
+			})
+
+			t.Run("TruncateWhenLastEntryInitEventWithExecMsg", func(t *testing.T) {
+				initEvent, err := newInitiatingEvent(logContext{blockNum: 3, logIdx: 0}, 3, 0, createTruncatedHash(1), true)
+				require.NoError(t, err)
+				store := storeWithEvents(
+					newSearchCheckpoint(3, 0, 100).encode(),
+					newCanonicalHash(createTruncatedHash(344)).encode(),
+					initEvent.encode(),
+				)
+				_, m, err := createDb(t, store)
+				require.NoError(t, err)
+				require.EqualValues(t, len(prefixEvents), m.entryCount)
+			})
+
+			t.Run("TruncateWhenLastEntryInitEventWithExecLink", func(t *testing.T) {
+				initEvent, err := newInitiatingEvent(logContext{blockNum: 3, logIdx: 0}, 3, 0, createTruncatedHash(1), true)
+				require.NoError(t, err)
+				execMsg := ExecutingMessage{
+					Chain:     4,
+					BlockNum:  10,
+					LogIdx:    4,
+					Timestamp: 1288,
+					Hash:      createTruncatedHash(4),
+				}
+				require.NoError(t, err)
+				linkEvt, err := newExecutingLink(execMsg)
+				require.NoError(t, err)
+				store := storeWithEvents(
+					newSearchCheckpoint(3, 0, 100).encode(),
+					newCanonicalHash(createTruncatedHash(344)).encode(),
+					initEvent.encode(),
+					linkEvt.encode(),
+				)
+				_, m, err := createDb(t, store)
+				require.NoError(t, err)
+				require.EqualValues(t, len(prefixEvents), m.entryCount)
+			})
+		})
+	}
 }
 
 func TestShouldRollBackInMemoryChangesOnWriteFailure(t *testing.T) {
@@ -703,3 +833,53 @@ func (s *stubMetrics) RecordSearchEntriesRead(count int64) {
 }
 
 var _ Metrics = (*stubMetrics)(nil)
+
+type stubEntryStore struct {
+	recoveryRequired bool
+	entries          []entrydb.Entry
+}
+
+func (s *stubEntryStore) Size() int64 {
+	return int64(len(s.entries))
+}
+
+func (s *stubEntryStore) Read(idx int64) (entrydb.Entry, error) {
+	if s.recoveryRequired {
+		return entrydb.Entry{}, entrydb.ErrRecoveryRequired
+	}
+	if idx < int64(len(s.entries)) {
+		return s.entries[idx], nil
+	}
+	return entrydb.Entry{}, io.EOF
+}
+
+func (s *stubEntryStore) Append(entry entrydb.Entry) error {
+	if s.recoveryRequired {
+		return entrydb.ErrRecoveryRequired
+	}
+	s.entries = append(s.entries, entry)
+	return nil
+}
+
+func (s *stubEntryStore) Truncate(idx int64) error {
+	if s.recoveryRequired {
+		return entrydb.ErrRecoveryRequired
+	}
+	s.entries = s.entries[:min(s.Size()-1, idx+1)]
+	return nil
+}
+
+func (s *stubEntryStore) RecoveryRequired() bool {
+	return s.recoveryRequired
+}
+
+func (s *stubEntryStore) Recover() error {
+	s.recoveryRequired = false
+	return nil
+}
+
+func (s *stubEntryStore) Close() error {
+	return nil
+}
+
+var _ EntryStore = (*stubEntryStore)(nil)
