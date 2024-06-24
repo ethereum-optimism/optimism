@@ -24,7 +24,6 @@ import (
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -45,7 +44,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// Force batcher to submit SpanBatches to L1.
@@ -136,7 +135,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	minerCl := miner.EthClient()
 	rollupSeqCl := sequencer.RollupClient()
 
@@ -244,7 +243,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// Force batcher to submit SingularBatches to L1.
@@ -330,7 +329,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 	seqEngCl := seqEngine.EthClient()
 
@@ -420,7 +419,7 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
@@ -483,7 +482,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
@@ -612,10 +611,10 @@ func TestBatchEquivalence(gt *testing.T) {
 	seqEngCl := seqEngine.EthClient()
 
 	// Setup Delta activated spanVerifier
-	_, spanVerifier := setupVerifier(t, sdDeltaActivated, log, miner.L1Client(t, sdDeltaActivated.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
+	_, spanVerifier := setupVerifier(t, sdDeltaActivated, log, miner.L1Client(t, sdDeltaActivated.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	// Setup Delta deactivated spanVerifier
-	_, singularVerifier := setupVerifier(t, sdDeltaDeactivated, log, miner.L1Client(t, sdDeltaDeactivated.RollupCfg), miner.BlobStore(), &sync.Config{}, engine.Geth)
+	_, singularVerifier := setupVerifier(t, sdDeltaDeactivated, log, miner.L1Client(t, sdDeltaDeactivated.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	// Setup SpanBatcher
 	spanBatcher := NewL2Batcher(log, sdDeltaActivated.RollupCfg, &BatcherCfg{

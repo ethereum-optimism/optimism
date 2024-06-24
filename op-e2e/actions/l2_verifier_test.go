@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -34,7 +33,7 @@ func defaultVerifierCfg() *verifierCfg {
 	}
 }
 
-func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive.L1Fetcher, blobSrc derive.L1BlobsFetcher, syncCfg *sync.Config, engineKind engine.Kind, opts ...VerifierOpt) (*L2Engine, *L2Verifier) {
+func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive.L1Fetcher, blobSrc derive.L1BlobsFetcher, syncCfg *sync.Config, opts ...VerifierOpt) (*L2Engine, *L2Verifier) {
 	cfg := defaultVerifierCfg()
 	for _, opt := range opts {
 		opt(cfg)
@@ -49,7 +48,7 @@ func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive
 func setupVerifierOnlyTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1Miner, *L2Engine, *L2Verifier) {
 	miner := NewL1Miner(t, log, sd.L1Cfg)
 	l1Cl := miner.L1Client(t, sd.RollupCfg)
-	engine, verifier := setupVerifier(t, sd, log, l1Cl, miner.BlobStore(), &sync.Config{}, engine.Geth)
+	engine, verifier := setupVerifier(t, sd, log, l1Cl, miner.BlobStore(), &sync.Config{})
 	return miner, engine, verifier
 }
 
