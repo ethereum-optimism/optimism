@@ -164,21 +164,7 @@ contract MIPS is ISemver {
                 state.exitCode = uint8(a0);
                 return outputState();
             } else if (syscall_no == sys.SYS_READ) {
-                uint32 newPreimageOffset;
-                bytes32 newMemRoot;
-                (v0, v1, newPreimageOffset, newMemRoot) = sys.handleSysRead({
-                    _a0: a0,
-                    _a1: a1,
-                    _a2: a2,
-                    _preimageKey: state.preimageKey,
-                    _preimageOffset: state.preimageOffset,
-                    _localContext: _localContext,
-                    _oracle: ORACLE,
-                    _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
-                    _memRoot: state.memRoot
-                });
-                state.preimageOffset = newPreimageOffset;
-                state.memRoot = newMemRoot;
+                (v0, v1) = execSysReadAndUpdateState(state, a0, a1, a2, _localContext);
             } else if (syscall_no == sys.SYS_WRITE) {
                 bytes32 newPreimageKey;
                 uint32 newPreimageOffset;
@@ -203,6 +189,32 @@ contract MIPS is ISemver {
 
             out_ = outputState();
         }
+    }
+
+    function execSysReadAndUpdateState(
+        State memory _state,
+        uint32 _a0,
+        uint32 _a1,
+        uint32 _a2,
+        bytes32 _localContext
+    )
+        internal
+        view
+        returns (uint32 v0_, uint32 v1_)
+    {
+        (v0_, v1_, _state.preimageOffset, _state.memRoot) = sys.handleSysRead({
+            _a0: _a0,
+            _a1: _a1,
+            _a2: _a2,
+            _preimageKey: _state.preimageKey,
+            _preimageOffset: _state.preimageOffset,
+            _localContext: _localContext,
+            _oracle: ORACLE,
+            _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
+            _memRoot: _state.memRoot
+        });
+
+        return (v0_, v1_);
     }
 
     /// @notice Executes a single step of the vm.
