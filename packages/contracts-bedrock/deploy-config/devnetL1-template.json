@@ -70,5 +70,6 @@
   "daChallengeWindow": 160,
   "daResolveWindow": 160,
   "daBondSize": 1000000,
-  "daResolverRefundPercentage": 0
+  "daResolverRefundPercentage": 0,
+  "deployCeloContracts": true
 }
