@@ -49,7 +49,6 @@ type EngineController struct {
 	metrics    derive.Metrics
 	syncMode   sync.Mode
 	syncStatus syncStatusEnum
-	chainSpec  *rollup.ChainSpec
 	rollupCfg  *rollup.Config
 	elStart    time.Time
 	clock      clock.Clock
@@ -88,7 +87,6 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metri
 		engine:     engine,
 		log:        log,
 		metrics:    metrics,
-		chainSpec:  rollup.NewChainSpec(rollupCfg),
 		rollupCfg:  rollupCfg,
 		syncMode:   syncMode,
 		syncStatus: syncStatus,
@@ -154,7 +152,6 @@ func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_unsafe", r)
 	e.unsafeHead = r
 	e.needFCUCall = true
-	e.chainSpec.CheckForkActivation(e.log, r)
 }
 
 // SetBackupUnsafeL2Head implements LocalEngineControl.
