@@ -702,6 +702,32 @@ func TestELSync(gt *testing.T) {
 	PerformELSyncAndCheckPayloads(t, miner, seqEng, sequencer, verEng, verifier, seqEngCl, 0, 10)
 }
 
+func PrepareELSyncedNode(t Testing, miner *L1Miner, sequencer *L2Sequencer, seqEng *L2Engine, verifier *L2Verifier, verEng *L2Engine, seqEngCl *sources.EngineClient, batcher *L2Batcher, dp *e2eutils.DeployParams) {
+	PerformELSyncAndCheckPayloads(t, miner, seqEng, sequencer, verEng, verifier, seqEngCl, 0, 10)
+
+	// Despite downloading the blocks, it has not finished finalizing
+	_, err := verifier.eng.L2BlockRefByLabel(t.Ctx(), "safe")
+	require.ErrorIs(t, err, ethereum.NotFound)
+
+	// Insert a block on the verifier to end snap sync
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	verifier.ActL2InsertUnsafePayload(seqHead)(t)
+
+	// Check that safe + finalized are there
+	VerifyBlock(t, verifier.eng, 11, eth.Safe)
+	VerifyBlock(t, verifier.eng, 11, eth.Finalized)
+
+	// Batch submit everything
+	BatchSubmitBlock(t, miner, sequencer, verifier, batcher, dp, 12)
+
+	// Verify that the batch submitted blocks are there now
+	VerifyBlock(t, sequencer.eng, 12, eth.Safe)
+	VerifyBlock(t, verifier.eng, 12, eth.Safe)
+}
+
 // TestELSyncTransitionstoCL tests that a verifier which starts with EL sync can switch back to a proper CL sync.
 // It takes a sequencer & verifier through the following:
 //  1. Build 10 unsafe blocks on the sequencer
@@ -729,29 +755,7 @@ func TestELSyncTransitionstoCL(gt *testing.T) {
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	PerformELSyncAndCheckPayloads(t, miner, seqEng, sequencer, verEng, verifier, seqEngCl, 0, 10)
-
-	// Despite downloading the blocks, it has not finished finalizing
-	_, err = verifier.eng.L2BlockRefByLabel(t.Ctx(), "safe")
-	require.ErrorIs(t, err, ethereum.NotFound)
-
-	// Insert a block on the verifier to end snap sync
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
-	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
-	require.NoError(t, err)
-	verifier.ActL2InsertUnsafePayload(seqHead)(t)
-
-	// Check that safe + finalized are there
-	VerifyBlock(t, verifier.eng, 11, eth.Safe)
-	VerifyBlock(t, verifier.eng, 11, eth.Finalized)
-
-	// Batch submit everything
-	BatchSubmitBlock(t, miner, sequencer, verifier, batcher, dp, 12)
-
-	// Verify that the batch submitted blocks are there now
-	VerifyBlock(t, sequencer.eng, 12, eth.Safe)
-	VerifyBlock(t, verifier.eng, 12, eth.Safe)
+	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -763,7 +767,7 @@ func TestELSyncTransitionstoCL(gt *testing.T) {
 	// Now pass payloads to the derivation pipeline
 	// This is a little hacky that we have to manually switch between InsertBlock
 	// and UnsafeGossipReceive in the tests
-	seqHead, err = seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	verifier.ActL2UnsafeGossipReceive(seqHead)(t)
 	verifier.ActL2PipelineFull(t)
@@ -808,29 +812,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	PerformELSyncAndCheckPayloads(t, miner, seqEng, sequencer, verEng, verifier, seqEngCl, 0, 10)
-
-	// Despite downloading the blocks, it has not finished finalizing
-	_, err = verifier.eng.L2BlockRefByLabel(t.Ctx(), "safe")
-	require.ErrorIs(t, err, ethereum.NotFound)
-
-	// Insert a block on the verifier to end snap sync
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
-	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
-	require.NoError(t, err)
-	verifier.ActL2InsertUnsafePayload(seqHead)(t)
-
-	// Check that safe + finalized are there
-	VerifyBlock(t, verifier.eng, 11, eth.Safe)
-	VerifyBlock(t, verifier.eng, 11, eth.Finalized)
-
-	// Batch submit everything
-	BatchSubmitBlock(t, miner, sequencer, verifier, batcher, dp, 12)
-
-	// Verify that the batch submitted blocks are there now
-	VerifyBlock(t, sequencer.eng, 12, eth.Safe)
-	VerifyBlock(t, verifier.eng, 12, eth.Safe)
+	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and default geth engine kind.
 	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener, engine.Geth)
@@ -843,7 +825,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	}
 
 	// Insert new block to the engine and kick off a CL sync
-	seqHead, err = seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	verifier.ActL2InsertUnsafePayload(seqHead)(t)
 
@@ -872,29 +854,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	PerformELSyncAndCheckPayloads(t, miner, seqEng, sequencer, verEng, verifier, seqEngCl, 0, 10)
-
-	// Despite downloading the blocks, it has not finished finalizing
-	_, err = verifier.eng.L2BlockRefByLabel(t.Ctx(), "safe")
-	require.ErrorIs(t, err, ethereum.NotFound)
-
-	// Insert a block on the verifier to end snap sync
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
-	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
-	require.NoError(t, err)
-	verifier.ActL2InsertUnsafePayload(seqHead)(t)
-
-	// Check that safe + finalized are there
-	VerifyBlock(t, verifier.eng, 11, eth.Safe)
-	VerifyBlock(t, verifier.eng, 11, eth.Finalized)
-
-	// Batch submit everything
-	BatchSubmitBlock(t, miner, sequencer, verifier, batcher, dp, 12)
-
-	// Verify that the batch submitted blocks are there now
-	VerifyBlock(t, sequencer.eng, 12, eth.Safe)
-	VerifyBlock(t, verifier.eng, 12, eth.Safe)
+	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and erigon engine kind.
 	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener, engine.Erigon)
@@ -909,7 +869,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	// Insert it on the verifier and kick off EL sync.
 	// Syncing doesn't actually work in test,
 	// but we can validate the engine is starting EL sync through p2p
-	seqHead, err = seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	verifier2.ActL2InsertUnsafePayload(seqHead)(t)
 
