@@ -88,6 +88,7 @@ library MIPSSyscalls {
     /// @param _preimageOffset The offset of the preimage to read.
     /// @param _localContext The local context for the preimage key.
     /// @param _oracle The address of the preimage oracle.
+    /// @param _proofOffset The offset of the memory proof in calldata.
     /// @return v0_ The number of bytes read, -1 on error.
     /// @return v1_ The error code, 0 if there is no error.
     function handleSysRead(
@@ -97,7 +98,8 @@ library MIPSSyscalls {
         bytes32 _preimageKey,
         uint32 _preimageOffset,
         bytes32 _localContext,
-        IPreimageOracle _oracle
+        IPreimageOracle _oracle,
+        uint256 _proofOffset
     )
         internal
         view
@@ -115,7 +117,7 @@ library MIPSSyscalls {
         // pre-image oracle read
         else if (_a0 == FD_PREIMAGE_READ) {
             // verify proof 1 is correct, and get the existing memory.
-            uint32 mem = MIPSMemory.readMem(_a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+            uint32 mem = MIPSMemory.readMem(_a1 & 0xFFffFFfc, _proofOffset); // mask the addr to align it to 4 bytes
             // If the preimage key is a local key, localize it in the context of the caller.
             if (uint8(_preimageKey[0]) == 1) {
                 _preimageKey = PreimageKeyLib.localize(_preimageKey, _localContext);
@@ -140,7 +142,7 @@ library MIPSSyscalls {
             }
 
             // Write memory back
-            MIPSMemory.writeMem(_a1 & 0xFFffFFfc, 1, mem);
+            MIPSMemory.writeMem(_a1 & 0xFFffFFfc, _proofOffset, mem);
             newPreimageOffset_ += uint32(datLen);
             v0_ = uint32(datLen);
         }
@@ -163,6 +165,7 @@ library MIPSSyscalls {
     /// @param _a2 The number of bytes to read.
     /// @param _preimageKey The current preimaageKey.
     /// @param _preimageOffset The current preimageOffset.
+    /// @param _proofOffset The offset of the memory proof in calldata.
     /// @return v0_ The number of bytes written, or -1 on error.
     /// @return v1_ The error code, or 0 if empty.
     /// @return newPreimageKey_ The new preimageKey.
@@ -172,7 +175,8 @@ library MIPSSyscalls {
         uint32 _a1,
         uint32 _a2,
         bytes32 _preimageKey,
-        uint32 _preimageOffset
+        uint32 _preimageOffset,
+        uint256 _proofOffset
     )
         internal
         pure
@@ -190,7 +194,7 @@ library MIPSSyscalls {
         }
         // pre-image oracle
         else if (_a0 == FD_PREIMAGE_WRITE) {
-            uint32 mem = MIPSMemory.readMem(_a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+            uint32 mem = MIPSMemory.readMem(_a1 & 0xFFffFFfc, _proofOffset); // mask the addr to align it to 4 bytes
             bytes32 key = _preimageKey;
 
             // Construct pre-image key from memory
