@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -41,7 +40,7 @@ type logContext struct {
 type EntryStore interface {
 	Size() int64
 	Read(idx int64) (entrydb.Entry, error)
-	Append(entry entrydb.Entry) error
+	Append(entries ...entrydb.Entry) error
 	Truncate(idx int64) error
 	Close() error
 }
@@ -348,43 +347,42 @@ func (db *DB) addLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64,
 	if db.lastEntryContext.blockNum < block.Number && logIdx != 0 {
 		return fmt.Errorf("%w: adding log %v as first log in block %v", ErrLogOutOfOrder, logIdx, block.Number)
 	}
-	maybeAddCheckpoint := func() error {
-		if (db.lastEntryIdx()+1)%searchCheckpointFrequency == 0 {
-			if err := db.writeSearchCheckpoint(block.Number, logIdx, timestamp, block.Hash); err != nil {
-				return fmt.Errorf("failed to write search checkpoint: %w", err)
-			}
-			db.lastEntryContext = postState
-		}
-		return nil
-	}
-	if err := maybeAddCheckpoint(); err != nil {
-		return err
-	}
+	var entriesToAdd []entrydb.Entry
+	newContext := db.lastEntryContext
+	lastEntryIdx := db.lastEntryIdx()
 
-	if err := db.writeInitiatingEvent(postState, logHash, execMsg != nil); err != nil {
-		return err
+	addEntry := func(entry entrydb.Entry) {
+		entriesToAdd = append(entriesToAdd, entry)
+		lastEntryIdx++
 	}
-	if execMsg != nil {
-		if err := maybeAddCheckpoint(); err != nil {
-			return err
+	maybeAddCheckpoint := func() {
+		if (lastEntryIdx+1)%searchCheckpointFrequency == 0 {
+			addEntry(newSearchCheckpoint(block.Number, logIdx, timestamp).encode())
+			addEntry(newCanonicalHash(TruncateHash(block.Hash)).encode())
+			newContext = postState
 		}
+	}
+	maybeAddCheckpoint()
+
+	evt, err := newInitiatingEvent(newContext, postState.blockNum, postState.logIdx, logHash, execMsg != nil)
+	if err != nil {
+		return fmt.Errorf("failed to create initiating event: %w", err)
+	}
+	addEntry(evt.encode())
+
+	if execMsg != nil {
+		maybeAddCheckpoint()
 		link, err := newExecutingLink(*execMsg)
 		if err != nil {
-			// TODO(optimism#10857): Rollback changes if this fails
 			return fmt.Errorf("failed to create executing link: %w", err)
 		}
-		if err := db.store.Append(link.encode()); err != nil {
-			// TODO(optimism#10857): Rollback changes if this fails
-			return fmt.Errorf("failed to write executing link: %w", err)
-		}
+		addEntry(link.encode())
 
-		if err := maybeAddCheckpoint(); err != nil {
-			return err
-		}
-		if err := db.store.Append(newExecutingCheck(execMsg.Hash).encode()); err != nil {
-			// TODO(optimism#10857): Rollback changes if this fails
-			return fmt.Errorf("failed to write executing check: %w", err)
-		}
+		maybeAddCheckpoint()
+		addEntry(newExecutingCheck(execMsg.Hash).encode())
+	}
+	if err := db.store.Append(entriesToAdd...); err != nil {
+		return fmt.Errorf("failed to append entries: %w", err)
 	}
 	db.lastEntryContext = postState
 	db.updateEntryCountMetric()
@@ -444,17 +442,6 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 	return nil
 }
 
-// writeSearchCheckpoint appends search checkpoint and canonical hash entry to the log
-// type 0: "search checkpoint" <type><uint64 block number: 8 bytes><uint32 event index offset: 4 bytes><uint64 timestamp: 8 bytes> = 20 bytes
-// type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-func (db *DB) writeSearchCheckpoint(blockNum uint64, logIdx uint32, timestamp uint64, blockHash common.Hash) error {
-	entry := newSearchCheckpoint(blockNum, logIdx, timestamp).encode()
-	if err := db.store.Append(entry); err != nil {
-		return err
-	}
-	return db.writeCanonicalHash(blockHash)
-}
-
 func (db *DB) readSearchCheckpoint(entryIdx int64) (searchCheckpoint, error) {
 	data, err := db.store.Read(entryIdx)
 	if err != nil {
@@ -463,31 +450,12 @@ func (db *DB) readSearchCheckpoint(entryIdx int64) (searchCheckpoint, error) {
 	return newSearchCheckpointFromEntry(data)
 }
 
-// writeCanonicalHash appends a canonical hash entry to the log
-// type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-func (db *DB) writeCanonicalHash(blockHash common.Hash) error {
-	return db.store.Append(newCanonicalHash(TruncateHash(blockHash)).encode())
-}
-
 func (db *DB) readCanonicalHash(entryIdx int64) (canonicalHash, error) {
 	data, err := db.store.Read(entryIdx)
 	if err != nil {
 		return canonicalHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
-	if data[0] != typeCanonicalHash {
-		return canonicalHash{}, fmt.Errorf("%w: expected canonical hash at entry %v but was type %v", ErrDataCorruption, entryIdx, data[0])
-	}
 	return newCanonicalHashFromEntry(data)
-}
-
-// writeInitiatingEvent appends an initiating event to the log
-// type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
-func (db *DB) writeInitiatingEvent(postState logContext, logHash TruncatedHash, hasExecMsg bool) error {
-	evt, err := newInitiatingEvent(db.lastEntryContext, postState.blockNum, postState.logIdx, logHash, hasExecMsg)
-	if err != nil {
-		return err
-	}
-	return db.store.Append(evt.encode())
 }
 
 func (db *DB) Close() error {

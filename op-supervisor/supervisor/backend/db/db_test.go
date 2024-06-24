@@ -849,8 +849,8 @@ func (s *stubEntryStore) Read(idx int64) (entrydb.Entry, error) {
 	return entrydb.Entry{}, io.EOF
 }
 
-func (s *stubEntryStore) Append(entry entrydb.Entry) error {
-	s.entries = append(s.entries, entry)
+func (s *stubEntryStore) Append(entries ...entrydb.Entry) error {
+	s.entries = append(s.entries, entries...)
 	return nil
 }
 
