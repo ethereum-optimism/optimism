@@ -1,7 +1,6 @@
 package entrydb
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +27,8 @@ type dataAccess interface {
 type EntryDB struct {
 	data dataAccess
 	size int64
+
+	cleanupFailedWrite bool
 }
 
 // NewEntryDB creates an EntryDB. A new file will be created if the specified path does not exist,
@@ -65,6 +66,9 @@ func (e *EntryDB) Size() int64 {
 
 // Read an entry from the database by index. Returns io.EOF iff idx is after the last entry.
 func (e *EntryDB) Read(idx int64) (Entry, error) {
+	if idx >= e.size {
+		return Entry{}, io.EOF
+	}
 	var out Entry
 	read, err := e.data.ReadAt(out[:], idx*EntrySize)
 	// Ignore io.EOF if we read the entire last entry as ReadAt may return io.EOF or nil when it reads the last byte
@@ -74,18 +78,33 @@ func (e *EntryDB) Read(idx int64) (Entry, error) {
 	return out, nil
 }
 
-// Append an entry to the database.
+// Append entries to the database.
+// The entries are combined in memory and passed to a single Write invocation.
+// If the write fails, it will attempt to truncate any partially written data.
+// Subsequent writes to this instance will fail until partially written data is truncated.
 func (e *EntryDB) Append(entries ...Entry) error {
-	readers := make([]io.Reader, 0, len(entries))
-	for _, entry := range entries {
-		entry := entry
-		readers = append(readers, bytes.NewReader(entry[:]))
+	if e.cleanupFailedWrite {
+		// Try to rollback partially written data from a previous Append
+		if truncateErr := e.Truncate(e.size - 1); truncateErr != nil {
+			return fmt.Errorf("failed to recover from previous write error: %w", truncateErr)
+		}
 	}
-	combined := io.MultiReader(readers...)
-	if _, err := io.Copy(e.data, combined); err != nil {
-		// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
-		// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
-		// to avoid leaving hanging entries without the entry that should follow them.
+	data := make([]byte, 0, len(entries)*EntrySize)
+	for _, entry := range entries {
+		data = append(data, entry[:]...)
+	}
+	if n, err := e.data.Write(data); err != nil {
+		if n == 0 {
+			// Didn't write any data, so no recovery required
+			return err
+		}
+		// Try to rollback the partially written data
+		if truncateErr := e.Truncate(e.size - 1); truncateErr != nil {
+			// Failed to rollback, set a flag to attempt the clean up on the next write
+			e.cleanupFailedWrite = true
+			return errors.Join(err, fmt.Errorf("failed to remove partially written data: %w", truncateErr))
+		}
+		// Successfully rolled back the changes, still report the failed write
 		return err
 	}
 	e.size += int64(len(entries))
@@ -99,6 +118,7 @@ func (e *EntryDB) Truncate(idx int64) error {
 	}
 	// Update the lastEntryIdx cache
 	e.size = idx + 1
+	e.cleanupFailedWrite = false
 	return nil
 }
 

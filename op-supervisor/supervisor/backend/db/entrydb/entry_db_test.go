@@ -2,6 +2,7 @@ package entrydb
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -124,6 +125,58 @@ func TestTruncateTrailingPartialEntries(t *testing.T) {
 	require.EqualValues(t, 2*EntrySize, stat.Size())
 }
 
+func TestWriteErrors(t *testing.T) {
+	expectedErr := errors.New("some error")
+
+	t.Run("TruncatePartiallyWrittenData", func(t *testing.T) {
+		db, stubData := createEntryDBWithStubData()
+		stubData.writeErr = expectedErr
+		stubData.writeErrAfterBytes = 3
+		err := db.Append(createEntry(1), createEntry(2))
+		require.ErrorIs(t, err, expectedErr)
+
+		require.EqualValues(t, 0, db.Size(), "should not consider entries written")
+		require.Len(t, stubData.data, 0, "should truncate written bytes")
+	})
+
+	t.Run("FailBeforeDataWritten", func(t *testing.T) {
+		db, stubData := createEntryDBWithStubData()
+		stubData.writeErr = expectedErr
+		stubData.writeErrAfterBytes = 0
+		err := db.Append(createEntry(1), createEntry(2))
+		require.ErrorIs(t, err, expectedErr)
+
+		require.EqualValues(t, 0, db.Size(), "should not consider entries written")
+		require.Len(t, stubData.data, 0, "no data written")
+	})
+
+	t.Run("PartialWriteAndTruncateFails", func(t *testing.T) {
+		db, stubData := createEntryDBWithStubData()
+		stubData.writeErr = expectedErr
+		stubData.writeErrAfterBytes = EntrySize + 2
+		stubData.truncateErr = errors.New("boom")
+		err := db.Append(createEntry(1), createEntry(2))
+		require.ErrorIs(t, err, expectedErr)
+
+		require.EqualValues(t, 0, db.Size(), "should not consider entries written")
+		require.Len(t, stubData.data, stubData.writeErrAfterBytes, "rollback failed")
+
+		_, err = db.Read(0)
+		require.ErrorIs(t, err, io.EOF, "should not have first entry")
+		_, err = db.Read(1)
+		require.ErrorIs(t, err, io.EOF, "should not have second entry")
+
+		// Should retry truncate on next write
+		stubData.writeErr = nil
+		stubData.truncateErr = nil
+		err = db.Append(createEntry(3))
+		require.NoError(t, err)
+		actual, err := db.Read(0)
+		require.NoError(t, err)
+		require.Equal(t, createEntry(3), actual)
+	})
+}
+
 func requireRead(t *testing.T, db *EntryDB, idx int64, expected Entry) {
 	actual, err := db.Read(idx)
 	require.NoError(t, err)
@@ -143,3 +196,43 @@ func createEntryDB(t *testing.T) *EntryDB {
 	})
 	return db
 }
+
+func createEntryDBWithStubData() (*EntryDB, *stubDataAccess) {
+	stubData := &stubDataAccess{}
+	db := &EntryDB{data: stubData, size: 0}
+	return db, stubData
+}
+
+type stubDataAccess struct {
+	data               []byte
+	writeErr           error
+	writeErrAfterBytes int
+	truncateErr        error
+}
+
+func (s *stubDataAccess) ReadAt(p []byte, off int64) (n int, err error) {
+	return bytes.NewReader(s.data).ReadAt(p, off)
+}
+
+func (s *stubDataAccess) Write(p []byte) (n int, err error) {
+	if s.writeErr != nil {
+		s.data = append(s.data, p[:s.writeErrAfterBytes]...)
+		return s.writeErrAfterBytes, s.writeErr
+	}
+	s.data = append(s.data, p...)
+	return len(p), nil
+}
+
+func (s *stubDataAccess) Close() error {
+	return nil
+}
+
+func (s *stubDataAccess) Truncate(size int64) error {
+	if s.truncateErr != nil {
+		return s.truncateErr
+	}
+	s.data = s.data[:size]
+	return nil
+}
+
+var _ dataAccess = (*stubDataAccess)(nil)
