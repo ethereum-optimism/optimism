@@ -78,9 +78,9 @@ type safeDB interface {
 	node.SafeDBReader
 }
 
-func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB, engineKind engine.Kind) *L2Verifier {
+func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg, engineKind)
+	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg)
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 

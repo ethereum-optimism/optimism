@@ -47,8 +47,7 @@ type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
 	metrics    derive.Metrics
-	syncMode   sync.Mode
-	engineKind Kind
+	syncCfg    *sync.Config
 	syncStatus syncStatusEnum
 	chainSpec  *rollup.ChainSpec
 	rollupCfg  *rollup.Config
@@ -76,7 +75,7 @@ type EngineController struct {
 	safeAttrs    *derive.AttributesWithParent
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics, rollupCfg *rollup.Config, syncCfg *sync.Config, engineKind Kind) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics, rollupCfg *rollup.Config, syncCfg *sync.Config) *EngineController {
 	syncStatus := syncStatusCL
 	if syncCfg.SyncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
@@ -88,8 +87,7 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metri
 		metrics:    metrics,
 		chainSpec:  rollup.NewChainSpec(rollupCfg),
 		rollupCfg:  rollupCfg,
-		syncMode:   syncCfg.SyncMode,
-		engineKind: engineKind,
+		syncCfg:    syncCfg,
 		syncStatus: syncStatus,
 		clock:      clock.SystemClock,
 	}
@@ -316,7 +314,7 @@ func (e *EngineController) resetBuildingState() {
 // checkNewPayloadStatus checks returned status of engine_newPayloadV1 request for next unsafe payload.
 // It returns true if the status is acceptable.
 func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus) bool {
-	if e.syncMode == sync.ELSync {
+	if e.syncCfg.SyncMode == sync.ELSync {
 		if status == eth.ExecutionValid && e.syncStatus == syncStatusStartedEL {
 			e.syncStatus = syncStatusFinishedELButNotFinalized
 		}
@@ -329,7 +327,7 @@ func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus
 // checkForkchoiceUpdatedStatus checks returned status of engine_forkchoiceUpdatedV1 request for next unsafe payload.
 // It returns true if the status is acceptable.
 func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloadStatus) bool {
-	if e.syncMode == sync.ELSync {
+	if e.syncCfg.SyncMode == sync.ELSync {
 		if status == eth.ExecutionValid && e.syncStatus == syncStatusStartedEL {
 			e.syncStatus = syncStatusFinishedELButNotFinalized
 		}
@@ -378,7 +376,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		rollupGenesisIsFinalized := b.Hash == e.rollupCfg.Genesis.L2.Hash
-		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized || e.engineKind.SupportsPostFinalizationELSync() {
+		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized || e.syncCfg.SupportsPostFinalizationELSync {
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()
