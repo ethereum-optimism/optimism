@@ -318,15 +318,7 @@ func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
 	return (i - 1) * searchCheckpointFrequency, nil
 }
 
-func (db *DB) AddDependentLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg ExecutingMessage) error {
-	return db.addLog(logHash, block, timestamp, logIdx, &execMsg)
-}
-
-func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32) error {
-	return db.addLog(logHash, block, timestamp, logIdx, nil)
-}
-
-func (db *DB) addLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *ExecutingMessage) error {
+func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *ExecutingMessage) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	postState := logContext{
