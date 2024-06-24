@@ -233,7 +233,7 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (b
 }
 
 func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
-	current, err := db.readSearchCheckpoint(startCheckpointEntry)
+	checkpoint, err := db.readSearchCheckpoint(startCheckpointEntry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
 	}
@@ -244,6 +244,10 @@ func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
 		return nil, fmt.Errorf("%w: no entry after checkpoint and canonical hash at %v", ErrDataCorruption, startCheckpointEntry)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to read first entry to iterate %v: %w", startCheckpointEntry+2, err)
+	}
+	startLogCtx := logContext{
+		blockNum: checkpoint.blockNum,
+		logIdx:   checkpoint.logIdx,
 	}
 	// Handle starting from a checkpoint after initiating-event but before its executing-link or executing-check
 	if firstEntry[0] == typeExecutingLink || firstEntry[0] == typeExecutingCheck {
@@ -264,19 +268,13 @@ func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid initiating event at idx %v: %w", startIdx, err)
 		}
-		current.blockNum -= uint64(initEvt.blockDiff)
-		if initEvt.incrementLogIdx {
-			current.logIdx--
-		}
+		startLogCtx = initEvt.preContext(startLogCtx)
 	}
 	i := &iterator{
 		db: db,
 		// +2 to skip the initial search checkpoint and the canonical hash event after it
 		nextEntryIdx: startIdx,
-		current: logContext{
-			blockNum: current.blockNum,
-			logIdx:   current.logIdx,
-		},
+		current:      startLogCtx,
 	}
 	return i, nil
 }

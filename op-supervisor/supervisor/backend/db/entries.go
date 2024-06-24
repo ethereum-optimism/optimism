@@ -146,6 +146,17 @@ func (i initiatingEvent) postContext(pre logContext) logContext {
 	return post
 }
 
+// preContext is the reverse of postContext and calculates the logContext required as input to get the specified post
+// context after applying this init event.
+func (i initiatingEvent) preContext(post logContext) logContext {
+	pre := post
+	pre.blockNum = post.blockNum - uint64(i.blockDiff)
+	if i.incrementLogIdx {
+		pre.logIdx--
+	}
+	return pre
+}
+
 type executingLink struct {
 	chain     uint32
 	blockNum  uint64
