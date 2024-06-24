@@ -835,8 +835,7 @@ func (s *stubMetrics) RecordSearchEntriesRead(count int64) {
 var _ Metrics = (*stubMetrics)(nil)
 
 type stubEntryStore struct {
-	recoveryRequired bool
-	entries          []entrydb.Entry
+	entries []entrydb.Entry
 }
 
 func (s *stubEntryStore) Size() int64 {
@@ -844,9 +843,6 @@ func (s *stubEntryStore) Size() int64 {
 }
 
 func (s *stubEntryStore) Read(idx int64) (entrydb.Entry, error) {
-	if s.recoveryRequired {
-		return entrydb.Entry{}, entrydb.ErrRecoveryRequired
-	}
 	if idx < int64(len(s.entries)) {
 		return s.entries[idx], nil
 	}
@@ -854,27 +850,12 @@ func (s *stubEntryStore) Read(idx int64) (entrydb.Entry, error) {
 }
 
 func (s *stubEntryStore) Append(entry entrydb.Entry) error {
-	if s.recoveryRequired {
-		return entrydb.ErrRecoveryRequired
-	}
 	s.entries = append(s.entries, entry)
 	return nil
 }
 
 func (s *stubEntryStore) Truncate(idx int64) error {
-	if s.recoveryRequired {
-		return entrydb.ErrRecoveryRequired
-	}
 	s.entries = s.entries[:min(s.Size()-1, idx+1)]
-	return nil
-}
-
-func (s *stubEntryStore) RecoveryRequired() bool {
-	return s.recoveryRequired
-}
-
-func (s *stubEntryStore) Recover() error {
-	s.recoveryRequired = false
 	return nil
 }
 

@@ -94,7 +94,7 @@ func TestTruncate(t *testing.T) {
 	})
 }
 
-func TestRecovery(t *testing.T) {
+func TestTruncateTrailingPartialEntries(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	file := filepath.Join(t.TempDir(), "entries.db")
 	entry1 := createEntry(1)
@@ -107,7 +107,6 @@ func TestRecovery(t *testing.T) {
 	db, err := NewEntryDB(logger, file)
 	require.NoError(t, err)
 	defer db.Close()
-	require.False(t, db.RecoveryRequired())
 
 	// Should automatically truncate the file to remove trailing partial entries
 	require.EqualValues(t, 2, db.Size())

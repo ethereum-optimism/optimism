@@ -43,8 +43,6 @@ type EntryStore interface {
 	Read(idx int64) (entrydb.Entry, error)
 	Append(entry entrydb.Entry) error
 	Truncate(idx int64) error
-	RecoveryRequired() bool
-	Recover() error
 	Close() error
 }
 
@@ -140,7 +138,7 @@ func (db *DB) init() error {
 
 func (db *DB) trimInvalidTrailingEntries() error {
 	i := db.lastEntryIdx()
-	for i >= 0 {
+	for ; i >= 0; i-- {
 		entry, err := db.store.Read(i)
 		if err != nil {
 			return fmt.Errorf("failed to read %v to check for trailing entries: %w", i, err)
@@ -153,7 +151,6 @@ func (db *DB) trimInvalidTrailingEntries() error {
 			evt, err := newInitiatingEventFromEntry(entry)
 			if err != nil {
 				// Entry is invalid, keep walking backwards
-				i--
 				continue
 			}
 			if !evt.hasExecMsg {
@@ -161,8 +158,6 @@ func (db *DB) trimInvalidTrailingEntries() error {
 				break
 			}
 		}
-
-		i--
 	}
 	if i < db.lastEntryIdx() {
 		db.log.Warn("Truncating unexpected trailing entries", "prev", db.lastEntryIdx(), "new", i)
@@ -173,17 +168,6 @@ func (db *DB) trimInvalidTrailingEntries() error {
 
 func (db *DB) updateEntryCountMetric() {
 	db.m.RecordEntryCount(db.lastEntryIdx() + 1)
-}
-
-func (db *DB) Recover() error {
-	if !db.store.RecoveryRequired() {
-		return nil
-	}
-	if err := db.store.Recover(); err != nil {
-		return fmt.Errorf("failed to recovery entry store: %w", err)
-	}
-	db.updateEntryCountMetric()
-	return nil
 }
 
 // ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
