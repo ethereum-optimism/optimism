@@ -56,7 +56,8 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 			Step:      0,
 			Registers: [32]uint32{},
 		}
-		_, expected := state.EncodeWitness()
+		expected, err := state.EncodeWitness().StateHash()
+		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	})
 

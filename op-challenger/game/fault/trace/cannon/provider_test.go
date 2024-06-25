@@ -57,7 +57,8 @@ func TestGet(t *testing.T) {
 		value, err := provider.Get(context.Background(), PositionFromTraceIndex(provider, big.NewInt(7000)))
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
-		_, stateHash := generator.finalState.EncodeWitness()
+		stateHash, err := generator.finalState.EncodeWitness().StateHash()
+		require.NoError(t, err)
 		require.Equal(t, stateHash, value)
 	})
 
@@ -148,7 +149,7 @@ func TestGetStepData(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
 
-		witness, _ := generator.finalState.EncodeWitness()
+		witness := generator.finalState.EncodeWitness()
 		require.EqualValues(t, witness, preimage)
 		require.Equal(t, []byte{}, proof)
 		require.Nil(t, data)
@@ -189,8 +190,7 @@ func TestGetStepData(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, generator.generated, "should not have to generate the proof again")
 
-		encodedWitness, _ := initGenerator.finalState.EncodeWitness()
-		require.EqualValues(t, encodedWitness, preimage)
+		require.EqualValues(t, initGenerator.finalState.EncodeWitness(), preimage)
 		require.Empty(t, proof)
 		require.Nil(t, data)
 	})
