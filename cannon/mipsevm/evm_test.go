@@ -196,7 +196,7 @@ func TestEVM(t *testing.T) {
 				evmPost := evm.Step(t, stepWitness)
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
-				goPost := goState.state.EncodeWitness()
+				goPost, _ := goState.state.EncodeWitness()
 				require.Equalf(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 					"mipsevm produced different state than EVM at step %d", state.Step)
 			}
@@ -243,7 +243,7 @@ func TestEVMSingleStep(t *testing.T) {
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
 			evmPost := evm.Step(t, stepWitness)
-			goPost := us.state.EncodeWitness()
+			goPost, _ := us.state.EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
@@ -421,7 +421,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
 			evmPost := evm.Step(t, stepWitness)
-			goPost := us.state.EncodeWitness()
+			goPost, _ := us.state.EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
@@ -459,8 +459,9 @@ func TestEVMFault(t *testing.T) {
 			require.Panics(t, func() { _, _ = us.Step(true) })
 
 			insnProof := initialState.Memory.MerkleProof(0)
+			encodedWitness, _ := initialState.EncodeWitness()
 			stepWitness := &StepWitness{
-				State:    initialState.EncodeWitness(),
+				State:    encodedWitness,
 				MemProof: insnProof[:],
 			}
 			input := encodeStepInput(t, stepWitness, LocalContext{}, contracts.MIPS)
@@ -509,7 +510,7 @@ func TestHelloEVM(t *testing.T) {
 		evmPost := evm.Step(t, stepWitness)
 		// verify the post-state matches.
 		// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
-		goPost := goState.state.EncodeWitness()
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	}
@@ -560,7 +561,7 @@ func TestClaimEVM(t *testing.T) {
 		evm.SetTracer(tracer)
 		evmPost := evm.Step(t, stepWitness)
 
-		goPost := goState.state.EncodeWitness()
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	}
