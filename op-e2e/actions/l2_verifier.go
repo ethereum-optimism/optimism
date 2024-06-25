@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	gnode "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -205,6 +204,10 @@ func (s *l2VerifierBackend) StopSequencer(ctx context.Context) (common.Hash, err
 
 func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
 	return false, nil
+}
+
+func (s *l2VerifierBackend) OverrideLeader(ctx context.Context) error {
+	return nil
 }
 
 func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {

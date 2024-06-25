@@ -6,12 +6,17 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
+)
+
+var (
+	ValidL2RPCs  = []string{"http;//localhost:8545"}
+	ValidDatadir = "./supervisor_test_datadir"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -31,7 +36,7 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	defaultCfgTempl := supervisor.DefaultCLIConfig()
+	defaultCfgTempl := config.NewConfig(ValidL2RPCs, ValidDatadir)
 	defaultCfg := *defaultCfgTempl
 	defaultCfg.Version = Version
 	require.Equal(t, defaultCfg, *cfg)
@@ -50,6 +55,18 @@ func TestL2RPCs(t *testing.T) {
 	})
 }
 
+func TestDatadir(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag datadir is required", addRequiredArgsExcept("--datadir"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		dir := "foo"
+		cfg := configForArgs(t, addRequiredArgsExcept("--datadir", "--datadir", dir))
+		require.Equal(t, dir, cfg.Datadir)
+	})
+}
+
 func TestMockRun(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs("--mock-run"))
@@ -62,18 +79,18 @@ func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	require.ErrorContains(t, err, messageContains)
 }
 
-func configForArgs(t *testing.T, cliArgs []string) *supervisor.CLIConfig {
+func configForArgs(t *testing.T, cliArgs []string) *config.Config {
 	_, cfg, err := dryRunWithArgs(cliArgs)
 	require.NoError(t, err)
 	return cfg
 }
 
-func dryRunWithArgs(cliArgs []string) (log.Logger, *supervisor.CLIConfig, error) {
-	cfg := new(supervisor.CLIConfig)
+func dryRunWithArgs(cliArgs []string) (log.Logger, *config.Config, error) {
+	cfg := new(config.Config)
 	var logger log.Logger
 	fullArgs := append([]string{"op-supervisor"}, cliArgs...)
 	testErr := errors.New("dry-run")
-	err := run(context.Background(), fullArgs, func(ctx context.Context, config *supervisor.CLIConfig, log log.Logger) (cliapp.Lifecycle, error) {
+	err := run(context.Background(), fullArgs, func(ctx context.Context, config *config.Config, log log.Logger) (cliapp.Lifecycle, error) {
 		logger = log
 		cfg = config
 		return nil, testErr
@@ -106,7 +123,8 @@ func toArgList(req map[string]string) []string {
 
 func requiredArgs() map[string]string {
 	args := map[string]string{
-		"--l2-rpcs": "http://localhost:8545",
+		"--l2-rpcs": ValidL2RPCs[0],
+		"--datadir": ValidDatadir,
 	}
 	return args
 }

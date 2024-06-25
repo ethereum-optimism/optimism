@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -29,10 +30,10 @@ type conductor interface {
 
 // APIBackend is the backend implementation of the API.
 // TODO: (https://github.com/ethereum-optimism/protocol-quest/issues/45) Add metrics tracer here.
-// TODO: (https://github.com/ethereum-optimism/protocol-quest/issues/44) add tests after e2e setup.
 type APIBackend struct {
-	log log.Logger
-	con conductor
+	log            log.Logger
+	con            conductor
+	leaderOverride atomic.Bool
 }
 
 // NewAPIBackend creates a new APIBackend instance.
@@ -44,6 +45,12 @@ func NewAPIBackend(log log.Logger, con conductor) *APIBackend {
 }
 
 var _ API = (*APIBackend)(nil)
+
+// OverrideLeader implements API.
+func (api *APIBackend) OverrideLeader(ctx context.Context) error {
+	api.leaderOverride.Store(true)
+	return nil
+}
 
 // Paused implements API.
 func (api *APIBackend) Paused(ctx context.Context) (bool, error) {
@@ -82,11 +89,19 @@ func (api *APIBackend) CommitUnsafePayload(ctx context.Context, payload *eth.Exe
 
 // Leader implements API, returns true if current conductor is leader of the cluster.
 func (api *APIBackend) Leader(ctx context.Context) (bool, error) {
-	return api.con.Leader(ctx), nil
+	return api.leaderOverride.Load() || api.con.Leader(ctx), nil
 }
 
 // LeaderWithID implements API, returns the leader's server ID and address (not necessarily the current conductor).
 func (api *APIBackend) LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error) {
+	if api.leaderOverride.Load() {
+		return &consensus.ServerInfo{
+			ID:       "N/A (Leader overridden)",
+			Addr:     "N/A",
+			Suffrage: 0,
+		}, nil
+	}
+
 	return api.con.LeaderWithID(ctx), nil
 }
 
