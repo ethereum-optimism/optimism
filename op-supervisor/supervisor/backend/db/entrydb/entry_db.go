@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -23,12 +25,20 @@ type dataAccess interface {
 }
 
 type EntryDB struct {
-	data         dataAccess
-	lastEntryIdx int64
+	data dataAccess
+	size int64
+
+	cleanupFailedWrite bool
 }
 
-func NewEntryDB(path string) (*EntryDB, error) {
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
+// NewEntryDB creates an EntryDB. A new file will be created if the specified path does not exist,
+// but parent directories will not be created.
+// If the file exists it will be used as the existing data.
+// Returns ErrRecoveryRequired if the existing file is not a valid entry db. A EntryDB is still returned but all
+// operations will return ErrRecoveryRequired until the Recover method is called.
+func NewEntryDB(logger log.Logger, path string) (*EntryDB, error) {
+	logger.Info("Opening entry database", "path", path)
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database at %v: %w", path, err)
 	}
@@ -36,18 +46,29 @@ func NewEntryDB(path string) (*EntryDB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat database at %v: %w", path, err)
 	}
-	lastEntryIdx := info.Size()/EntrySize - 1
-	return &EntryDB{
-		data:         file,
-		lastEntryIdx: lastEntryIdx,
-	}, nil
+	size := info.Size() / EntrySize
+	db := &EntryDB{
+		data: file,
+		size: size,
+	}
+	if size*EntrySize != info.Size() {
+		logger.Warn("File size (%v) is nut a multiple of entry size %v. Truncating to last complete entry", size, EntrySize)
+		if err := db.recover(); err != nil {
+			return nil, fmt.Errorf("failed to recover database at %v: %w", path, err)
+		}
+	}
+	return db, nil
 }
 
 func (e *EntryDB) Size() int64 {
-	return e.lastEntryIdx + 1
+	return e.size
 }
 
+// Read an entry from the database by index. Returns io.EOF iff idx is after the last entry.
 func (e *EntryDB) Read(idx int64) (Entry, error) {
+	if idx >= e.size {
+		return Entry{}, io.EOF
+	}
 	var out Entry
 	read, err := e.data.ReadAt(out[:], idx*EntrySize)
 	// Ignore io.EOF if we read the entire last entry as ReadAt may return io.EOF or nil when it reads the last byte
@@ -57,25 +78,55 @@ func (e *EntryDB) Read(idx int64) (Entry, error) {
 	return out, nil
 }
 
+// Append entries to the database.
+// The entries are combined in memory and passed to a single Write invocation.
+// If the write fails, it will attempt to truncate any partially written data.
+// Subsequent writes to this instance will fail until partially written data is truncated.
 func (e *EntryDB) Append(entries ...Entry) error {
+	if e.cleanupFailedWrite {
+		// Try to rollback partially written data from a previous Append
+		if truncateErr := e.Truncate(e.size - 1); truncateErr != nil {
+			return fmt.Errorf("failed to recover from previous write error: %w", truncateErr)
+		}
+	}
+	data := make([]byte, 0, len(entries)*EntrySize)
 	for _, entry := range entries {
-		if _, err := e.data.Write(entry[:]); err != nil {
-			// TODO(optimism#10857): When a write fails, need to revert any in memory changes and truncate back to the
-			// pre-write state. Likely need to batch writes for multiple entries into a single write akin to transactions
-			// to avoid leaving hanging entries without the entry that should follow them.
+		data = append(data, entry[:]...)
+	}
+	if n, err := e.data.Write(data); err != nil {
+		if n == 0 {
+			// Didn't write any data, so no recovery required
 			return err
 		}
-		e.lastEntryIdx++
+		// Try to rollback the partially written data
+		if truncateErr := e.Truncate(e.size - 1); truncateErr != nil {
+			// Failed to rollback, set a flag to attempt the clean up on the next write
+			e.cleanupFailedWrite = true
+			return errors.Join(err, fmt.Errorf("failed to remove partially written data: %w", truncateErr))
+		}
+		// Successfully rolled back the changes, still report the failed write
+		return err
 	}
+	e.size += int64(len(entries))
 	return nil
 }
 
+// Truncate the database so that the last retained entry is idx. Any entries after idx are deleted.
 func (e *EntryDB) Truncate(idx int64) error {
 	if err := e.data.Truncate((idx + 1) * EntrySize); err != nil {
 		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
 	}
-	// Update the lastEntryIdx cache and then use db.init() to find the log context for the new latest log entry
-	e.lastEntryIdx = idx
+	// Update the lastEntryIdx cache
+	e.size = idx + 1
+	e.cleanupFailedWrite = false
+	return nil
+}
+
+// recover an invalid database by truncating back to the last complete event.
+func (e *EntryDB) recover() error {
+	if err := e.data.Truncate((e.size) * EntrySize); err != nil {
+		return fmt.Errorf("failed to truncate trailing partial entries: %w", err)
+	}
 	return nil
 }
 
