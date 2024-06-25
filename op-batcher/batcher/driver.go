@@ -509,6 +509,7 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 				l.recordFailedTx(txdata.ID(), err)
 				return nil
 			}
+			l.Log.Info("Set plasma input", "commitment", comm, "tx", txdata.ID())
 			// signal plasma commitment tx with TxDataVersion1
 			data = comm.TxData()
 		}

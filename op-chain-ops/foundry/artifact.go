@@ -49,7 +49,7 @@ func (a Artifact) MarshalJSON() ([]byte, error) {
 	return json.Marshal(artifact)
 }
 
-// artifactMarshaling is a helper struct for marshaling and unmarshaling
+// artifactMarshaling is a helper struct for marshaling and unmarshalling
 // foundry artifacts.
 type artifactMarshaling struct {
 	ABI              json.RawMessage    `json:"abi"`

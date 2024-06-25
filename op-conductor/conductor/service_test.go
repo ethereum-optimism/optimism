@@ -122,7 +122,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.conductor = conductor
 
 	s.healthUpdateCh = make(chan error, 1)
-	s.hmon.EXPECT().Start().Return(nil)
+	s.hmon.EXPECT().Start(mock.Anything).Return(nil)
 	s.conductor.healthUpdateCh = s.healthUpdateCh
 
 	s.leaderUpdateCh = make(chan bool, 1)

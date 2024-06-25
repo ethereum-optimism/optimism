@@ -12,7 +12,7 @@ import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
-import { Deployer } from "scripts/Deployer.sol";
+import { Deployer } from "scripts/deploy/Deployer.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";

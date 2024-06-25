@@ -34,7 +34,7 @@ func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 // L2Sequencer is an actor that functions like a rollup node,
 // without the full P2P/API/Node stack, but just the derivation state, and simplified driver with sequencing ability.
 type L2Sequencer struct {
-	L2Verifier
+	*L2Verifier
 
 	sequencer *driver.Sequencer
 
@@ -52,7 +52,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 		actual: driver.NewL1OriginSelector(log, cfg, seqConfDepthL1),
 	}
 	return &L2Sequencer{
-		L2Verifier:              *ver,
+		L2Verifier:              ver,
 		sequencer:               driver.NewSequencer(log, cfg, ver.engine, attrBuilder, l1OriginSelector, metrics.NoopMetrics),
 		mockL1OriginSelector:    l1OriginSelector,
 		failL2GossipUnsafeBlock: nil,
