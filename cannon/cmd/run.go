@@ -23,13 +23,6 @@ import (
 )
 
 var (
-	RunType = &cli.StringFlag{
-		Name:  "type",
-		Usage: "VM type to run. Options are 'cannon' (default)",
-		Value: "cannon",
-		// TODO(client-pod#903): This should be required once we have additional vm types
-		Required: false,
-	}
 	RunInputFlag = &cli.PathFlag{
 		Name:      "input",
 		Usage:     "path of input JSON state. Stdin if left empty.",
@@ -257,20 +250,14 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 
 var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
-type VMType string
-
-var cannonVMType VMType = "cannon"
-
 func Run(ctx *cli.Context) error {
 	if ctx.Bool(RunPProfCPU.Name) {
 		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
 	}
 
-	var vmType VMType
-	if vmTypeStr := ctx.String(RunType.Name); vmTypeStr == string(cannonVMType) {
-		vmType = cannonVMType
-	} else {
-		return fmt.Errorf("unknown VM type %q", vmType)
+	state, err := jsonutil.LoadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
+	if err != nil {
+		return err
 	}
 
 	guestLogger := Logger(os.Stderr, log.LevelInfo)
@@ -362,65 +349,53 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	var vm mipsevm.FPVM
-	var debugProgram bool
-	if vmType == cannonVMType {
-		cannon, err := mipsevm.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog)
-		if err != nil {
-			return err
+	us := mipsevm.NewInstrumentedState(state, po, outLog, errLog)
+	debugProgram := ctx.Bool(RunDebugFlag.Name)
+	if debugProgram {
+		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+			return fmt.Errorf("cannot enable debug mode without a metadata file")
 		}
-		debugProgram = ctx.Bool(RunDebugFlag.Name)
-		if debugProgram {
-			if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
-				return fmt.Errorf("cannot enable debug mode without a metadata file")
-			}
-			if err := cannon.InitDebug(meta); err != nil {
-				return fmt.Errorf("failed to initialize debug mode: %w", err)
-			}
+		if err := us.InitDebug(meta); err != nil {
+			return fmt.Errorf("failed to initialize debug mode: %w", err)
 		}
-		vm = cannon
-	} else {
-		return fmt.Errorf("unknown VM type %q", vmType)
 	}
-
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
-	stepFn := vm.Step
+	stepFn := us.Step
 	if po.cmd != nil {
 		stepFn = Guard(po.cmd.ProcessState, stepFn)
 	}
 
 	start := time.Now()
-
-	state := vm.GetState()
-	startStep := state.GetStep()
+	startStep := state.Step
 
 	// avoid symbol lookups every instruction by preparing a matcher func
 	sleepCheck := meta.SymbolMatcher("runtime.notesleep")
 
-	for !state.GetExited() {
-		step := state.GetStep()
-		if step%100 == 0 { // don't do the ctx err check (includes lock) too often
+	for !state.Exited {
+		if state.Step%100 == 0 { // don't do the ctx err check (includes lock) too often
 			if err := ctx.Context.Err(); err != nil {
 				return err
 			}
 		}
 
+		step := state.Step
+
 		if infoAt(state) {
 			delta := time.Since(start)
 			l.Info("processing",
 				"step", step,
-				"pc", mipsevm.HexU32(state.GetPC()),
-				"insn", mipsevm.HexU32(state.GetMemory().GetMemory(state.GetPC())),
+				"pc", mipsevm.HexU32(state.Cpu.PC),
+				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.Cpu.PC)),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
-				"pages", state.GetMemory().PageCount(),
-				"mem", state.GetMemory().Usage(),
-				"name", meta.LookupSymbol(state.GetPC()),
+				"pages", state.Memory.PageCount(),
+				"mem", state.Memory.Usage(),
+				"name", meta.LookupSymbol(state.Cpu.PC),
 			)
 		}
 
-		if sleepCheck(state.GetPC()) { // don't loop forever when we get stuck because of an unexpected bad program
+		if sleepCheck(state.Cpu.PC) { // don't loop forever when we get stuck because of an unexpected bad program
 			return fmt.Errorf("got stuck in Go sleep at step %d", step)
 		}
 
@@ -436,15 +411,22 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if proofAt(state) {
-			_, preStateHash := state.EncodeWitness()
+			preStateHash, err := state.EncodeWitness().StateHash()
+			if err != nil {
+				return fmt.Errorf("failed to hash prestate witness: %w", err)
+			}
 			witness, err := stepFn(true)
 			if err != nil {
-				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.GetPC(), err)
+				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.Cpu.PC, err)
+			}
+			postStateHash, err := state.EncodeWitness().StateHash()
+			if err != nil {
+				return fmt.Errorf("failed to hash poststate witness: %w", err)
 			}
 			proof := &Proof{
 				Step:      step,
 				Pre:       preStateHash,
-				Post:      witness.StateHash,
+				Post:      postStateHash,
 				StateData: witness.State,
 				ProofData: witness.MemProof,
 			}
@@ -459,11 +441,11 @@ func Run(ctx *cli.Context) error {
 		} else {
 			_, err = stepFn(false)
 			if err != nil {
-				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.GetPC(), err)
+				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.Cpu.PC, err)
 			}
 		}
 
-		lastPreimageKey, lastPreimageValue, lastPreimageOffset := vm.LastPreimage()
+		lastPreimageKey, lastPreimageValue, lastPreimageOffset := us.LastPreimage()
 		if lastPreimageOffset != ^uint32(0) {
 			if stopAtAnyPreimage {
 				l.Info("Stopping at preimage read")
@@ -482,16 +464,16 @@ func Run(ctx *cli.Context) error {
 			}
 		}
 	}
-	l.Info("Execution stopped", "exited", state.GetExited(), "code", state.GetExitCode())
+	l.Info("Execution stopped", "exited", state.Exited, "code", state.ExitCode)
 	if debugProgram {
-		vm.Traceback()
+		us.Traceback()
 	}
 
 	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	if debugInfoFile := ctx.Path(RunDebugInfoFlag.Name); debugInfoFile != "" {
-		if err := jsonutil.WriteJSON(debugInfoFile, vm.GetDebugInfo(), OutFilePerm); err != nil {
+		if err := jsonutil.WriteJSON(debugInfoFile, us.GetDebugInfo(), OutFilePerm); err != nil {
 			return fmt.Errorf("failed to write benchmark data: %w", err)
 		}
 	}
@@ -504,7 +486,6 @@ var RunCommand = &cli.Command{
 	Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
 	Action:      Run,
 	Flags: []cli.Flag{
-		RunType,
 		RunInputFlag,
 		RunOutputFlag,
 		RunProofAtFlag,

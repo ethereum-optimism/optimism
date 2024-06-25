@@ -104,23 +104,13 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s *State) GetPC() uint32 { return s.Cpu.PC }
-
-func (s *State) GetExitCode() uint8 { return s.ExitCode }
-
-func (s *State) GetExited() bool { return s.Exited }
-
 func (s *State) GetStep() uint64 { return s.Step }
 
 func (s *State) VMStatus() uint8 {
 	return vmStatus(s.Exited, s.ExitCode)
 }
 
-func (s *State) GetMemory() *Memory {
-	return s.Memory
-}
-
-func (s *State) EncodeWitness() ([]byte, common.Hash) {
+func (s *State) EncodeWitness() StateWitness {
 	out := make([]byte, 0)
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
@@ -141,7 +131,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	for _, r := range s.Registers {
 		out = binary.BigEndian.AppendUint32(out, r)
 	}
-	return out, stateHashFromWitness(out)
+	return out
 }
 
 type StateWitness []byte
@@ -157,20 +147,14 @@ func (sw StateWitness) StateHash() (common.Hash, error) {
 	if len(sw) != 226 {
 		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected 226", len(sw))
 	}
-	return stateHashFromWitness(sw), nil
-}
 
-func stateHashFromWitness(sw []byte) common.Hash {
-	if len(sw) != 226 {
-		panic("Invalid witness length")
-	}
 	hash := crypto.Keccak256Hash(sw)
 	offset := 32*2 + 4*6
 	exitCode := sw[offset]
 	exited := sw[offset+1]
 	status := vmStatus(exited == 1, exitCode)
 	hash[0] = status
-	return hash
+	return hash, nil
 }
 
 func vmStatus(exited bool, exitCode uint8) uint8 {

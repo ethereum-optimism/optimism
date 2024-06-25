@@ -132,7 +132,11 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 				p.lastStep = state.Step - 1
 				// Extend the trace out to the full length using a no-op instruction that doesn't change any state
 				// No execution is done, so no proof-data or oracle values are required.
-				witness, witnessHash := state.EncodeWitness()
+				witness := state.EncodeWitness()
+				witnessHash, err := mipsevm.StateWitness(witness).StateHash()
+				if err != nil {
+					return nil, fmt.Errorf("cannot hash witness: %w", err)
+				}
 				proof := &utils.ProofData{
 					ClaimValue:   witnessHash,
 					StateData:    hexutil.Bytes(witness),
