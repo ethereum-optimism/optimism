@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -112,9 +113,9 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 
-			var dump *genesis.ForgeAllocs
+			var dump *foundry.ForgeAllocs
 			if l1Allocs := ctx.String("l1-allocs"); l1Allocs != "" {
-				dump, err = genesis.LoadForgeAllocs(l1Allocs)
+				dump, err = foundry.LoadForgeAllocs(l1Allocs)
 				if err != nil {
 					return err
 				}
@@ -169,9 +170,9 @@ var Subcommands = cli.Commands{
 				}
 			}
 
-			var l2Allocs *genesis.ForgeAllocs
+			var l2Allocs *foundry.ForgeAllocs
 			if l2AllocsPath := ctx.String("l2-allocs"); l2AllocsPath != "" {
-				l2Allocs, err = genesis.LoadForgeAllocs(l2AllocsPath)
+				l2Allocs, err = foundry.LoadForgeAllocs(l2AllocsPath)
 				if err != nil {
 					return err
 				}
