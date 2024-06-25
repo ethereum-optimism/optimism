@@ -41,7 +41,8 @@ fs_permissions = [
   { access='read', path = './forge-artifacts/' },
   { access='write', path='./semver-lock.json' },
   { access='read-write', path='./.testdata/' },
-  { access='read', path='./kout-deployment' }
+  { access='read', path='./kout-deployment' },
+  { access='read-write', path='../../op-chain-ops/cmd/celo-migrate/testdata/' },
 ]
 libs = ["node_modules", "lib"]
 
