@@ -1695,6 +1695,7 @@ workflows:
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
+            - op-e2e-action-tests-plasma
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
