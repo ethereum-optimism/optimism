@@ -9,6 +9,7 @@ library MIPSMemory {
     /// @return out_ The hashed MIPS state.
     function readMem(bytes32 _memRoot, uint32 _addr, uint256 _proofOffset) internal pure returns (uint32 out_) {
         unchecked {
+            validateMemoryProofAvailability(_proofOffset);
             assembly {
                 // Validate the address alignement.
                 if and(_addr, 3) { revert(0, 0) }
@@ -58,6 +59,7 @@ library MIPSMemory {
     /// @return newMemRoot_ The new memory root after modification
     function writeMem(uint32 _addr, uint256 _proofOffset, uint32 _val) internal pure returns (bytes32 newMemRoot_) {
         unchecked {
+            validateMemoryProofAvailability(_proofOffset);
             assembly {
                 // Validate the address alignement.
                 if and(_addr, 3) { revert(0, 0) }
@@ -95,7 +97,7 @@ library MIPSMemory {
         return newMemRoot_;
     }
 
-    /// @notice Computes the offset of a memory proof in the calldata and validates that adequate calldata is available.
+    /// @notice Computes the offset of a memory proof in the calldata.
     /// @param _proofDataOffset The offset of the set of all memory proof data within calldata (proof.offset)
     ///     Equal to the offset of the first memory proof (at _proofIndex 0).
     /// @param _proofIndex The index of the proof in the calldata.
@@ -105,12 +107,18 @@ library MIPSMemory {
             // A proof of 32 bit memory, with 32-byte leaf values, is (32-5)=27 bytes32 entries.
             // And the leaf value itself needs to be encoded as well: (27 + 1) = 28 bytes32 entries.
             offset_ = _proofDataOffset + (uint256(_proofIndex) * (28 * 32));
-            uint256 s = 0;
-            assembly {
-                s := calldatasize()
-            }
-            require(s >= (offset_ + 28 * 32), "check that there is enough calldata");
             return offset_;
         }
+    }
+
+    /// @notice Validates that enough calldata is available to hold a full memory proof at the given offset
+    /// @param _proofStartOffset The index of the first byte of the target memory proof in calldata
+    function validateMemoryProofAvailability(uint256 _proofStartOffset) internal pure {
+        uint256 s = 0;
+        assembly {
+            s := calldatasize()
+        }
+        // A memory proof consists of 28 bytes32 values - verify we have enough calldata
+        require(s >= (_proofStartOffset + 28 * 32), "check that there is enough calldata");
     }
 }
