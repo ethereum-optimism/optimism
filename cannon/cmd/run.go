@@ -436,15 +436,14 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if proofAt(state) {
-			_, preStateHash := state.EncodeWitness()
 			witness, err := stepFn(true)
 			if err != nil {
 				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.GetPC(), err)
 			}
 			proof := &Proof{
 				Step:      step,
-				Pre:       preStateHash,
-				Post:      witness.StateHash,
+				Pre:       witness.PreStateHash,
+				Post:      witness.PostStateHash,
 				StateData: witness.State,
 				ProofData: witness.MemProof,
 			}

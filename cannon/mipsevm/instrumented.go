@@ -81,9 +81,9 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
 		encodedWitness, stateHash := m.state.EncodeWitness()
 		wit = &StepWitness{
-			State:     encodedWitness,
-			StateHash: stateHash,
-			MemProof:  insnProof[:],
+			State:        encodedWitness,
+			PreStateHash: stateHash,
+			MemProof:     insnProof[:],
 		}
 	}
 	err = m.mipsStep()
@@ -93,6 +93,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 
 	if proof {
 		wit.MemProof = append(wit.MemProof, m.memProof[:]...)
+		_, wit.PostStateHash = m.state.EncodeWitness()
 		if m.lastPreimageOffset != ^uint32(0) {
 			wit.PreimageOffset = m.lastPreimageOffset
 			wit.PreimageKey = m.lastPreimageKey
