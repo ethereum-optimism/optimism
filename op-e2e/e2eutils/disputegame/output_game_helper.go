@@ -584,9 +584,9 @@ func (g *OutputGameHelper) StepFails(ctx context.Context, claimIdx int64, isAtta
 	candidate, err := g.Game.StepTx(uint64(claimIdx), isAttack, stateData, proof)
 	g.Require.NoError(err, "Failed to create tx candidate")
 	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey, transactions.WithReceiptFail())
-    err = errutil.TryAddRevertReason(err)
-    g.Require.Error(err, "Transaction should fail")
-    g.Require.Contains(err.Error(), "0xfb4e40dd", "Revert reason should be abi encoded ValidStep()")
+	err = errutil.TryAddRevertReason(err)
+	g.Require.Error(err, "Transaction should fail")
+	g.Require.Contains(err.Error(), "0xfb4e40dd", "Revert reason should be abi encoded ValidStep()")
 }
 
 // ResolveClaim resolves a single subgame
