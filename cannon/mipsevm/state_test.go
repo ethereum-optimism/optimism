@@ -104,9 +104,7 @@ func TestStateHash(t *testing.T) {
 			ExitCode: c.exitCode,
 		}
 
-		actualWitness := state.EncodeWitness()
-		actualStateHash, err := StateWitness(actualWitness).StateHash()
-		require.NoError(t, err, "Error hashing witness")
+		actualWitness, actualStateHash := state.EncodeWitness()
 		require.Equal(t, len(actualWitness), StateWitnessSize, "Incorrect witness size")
 
 		expectedWitness := make(StateWitness, 226)
@@ -118,7 +116,7 @@ func TestStateHash(t *testing.T) {
 			exited = 1
 		}
 		expectedWitness[exitedOffset+1] = uint8(exited)
-		require.Equal(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
+		require.EqualValues(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
 
 		expectedStateHash := crypto.Keccak256Hash(actualWitness)
 		expectedStateHash[0] = vmStatus(c.exited, c.exitCode)
