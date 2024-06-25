@@ -124,7 +124,7 @@ func (db *DB) init() error {
 	}
 	// Read all entries until the end of the file
 	for {
-		_, _, _, _, err := i.NextLog()
+		_, _, _, err := i.NextLog()
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
@@ -192,6 +192,7 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
 
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
 // logIdx is the index of the log in the array of all logs the block.
+// This can be used to check the validity of cross-chain interop events.
 func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (bool, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
@@ -209,49 +210,57 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (b
 	return evtHash == logHash, nil
 }
 
+// Executes checks if the log identified by the specific block number and log index, has an ExecutingMessage associated
+// with it that needs to be checked as part of interop validation.
+// logIdx is the index of the log in the array of all logs the block.
+// Returns the ExecutingMessage if it exists, or ExecutingMessage{} if the log is found but has no ExecutingMessage.
+// Returns ErrNotFound if the specified log does not exist in the database.
 func (db *DB) Executes(blockNum uint64, logIdx uint32) (ExecutingMessage, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-	_, message, err := db.findLogInfo(blockNum, logIdx)
+	_, iter, err := db.findLogInfo(blockNum, logIdx)
 	if err != nil {
 		return ExecutingMessage{}, err
 	}
-	return message, nil
+	execMsg, err := iter.ExecMessage()
+	if err != nil {
+		return ExecutingMessage{}, fmt.Errorf("failed to read executing message: %w", err)
+	}
+	return execMsg, nil
 }
 
-func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (TruncatedHash, ExecutingMessage, error) {
+func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (TruncatedHash, *iterator, error) {
 	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
-		return TruncatedHash{}, ExecutingMessage{}, ErrNotFound
+		return TruncatedHash{}, nil, ErrNotFound
 	} else if err != nil {
-		return TruncatedHash{}, ExecutingMessage{}, err
+		return TruncatedHash{}, nil, err
 	}
 
 	i, err := db.newIterator(entryIdx)
 	if err != nil {
-		return TruncatedHash{}, ExecutingMessage{}, fmt.Errorf("failed to create iterator: %w", err)
+		return TruncatedHash{}, nil, fmt.Errorf("failed to create iterator: %w", err)
 	}
 	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.current.blockNum, "logIdx", i.current.logIdx)
 	defer func() {
 		db.m.RecordSearchEntriesRead(i.entriesRead)
 	}()
 	for {
-		evtBlockNum, evtLogIdx, evtHash, execMsg, err := i.NextLog()
+		evtBlockNum, evtLogIdx, evtHash, err := i.NextLog()
 		if errors.Is(err, io.EOF) {
 			// Reached end of log without finding the event
-			return TruncatedHash{}, ExecutingMessage{}, ErrNotFound
+			return TruncatedHash{}, nil, ErrNotFound
 		} else if err != nil {
-			return TruncatedHash{}, ExecutingMessage{}, fmt.Errorf("failed to read next log: %w", err)
+			return TruncatedHash{}, nil, fmt.Errorf("failed to read next log: %w", err)
 		}
 		if evtBlockNum == blockNum && evtLogIdx == logIdx {
 			db.log.Trace("Found initiatingEvent", "blockNum", evtBlockNum, "logIdx", evtLogIdx, "hash", evtHash)
-			// Found the requested block and log index, check if the hash matches
-			return evtHash, execMsg, nil
+			return evtHash, i, nil
 		}
 		if evtBlockNum > blockNum || (evtBlockNum == blockNum && evtLogIdx > logIdx) {
 			// Progressed past the requested log without finding it.
-			return TruncatedHash{}, ExecutingMessage{}, ErrNotFound
+			return TruncatedHash{}, nil, ErrNotFound
 		}
 	}
 }
@@ -430,7 +439,7 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 		// So move our delete marker back to include it as a starting point
 		idx--
 		for {
-			blockNum, _, _, _, err := i.NextLog()
+			blockNum, _, _, err := i.NextLog()
 			if errors.Is(err, io.EOF) {
 				// Reached end of file, we need to keep everything
 				return nil

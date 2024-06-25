@@ -10,12 +10,13 @@ type iterator struct {
 	db           *DB
 	nextEntryIdx int64
 
-	current logContext
+	current    logContext
+	hasExecMsg bool
 
 	entriesRead int64
 }
 
-func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedHash, execMsg ExecutingMessage, outErr error) {
+func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedHash, outErr error) {
 	for i.nextEntryIdx <= i.db.lastEntryIdx() {
 		entryIdx := i.nextEntryIdx
 		entry, err := i.db.store.Read(entryIdx)
@@ -25,6 +26,7 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 		}
 		i.nextEntryIdx++
 		i.entriesRead++
+		i.hasExecMsg = false
 		switch entry[0] {
 		case typeSearchCheckpoint:
 			current, err := newSearchCheckpointFromEntry(entry)
@@ -44,13 +46,7 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 			blockNum = i.current.blockNum
 			logIdx = i.current.logIdx
 			evtHash = evt.logHash
-			if evt.hasExecMsg {
-				// Look ahead to find the exec message info
-				execMsg, err = i.readExecMessage(entryIdx)
-				if err != nil {
-					outErr = fmt.Errorf("failed to read exec message for initiating event at %v: %w", entryIdx, err)
-				}
-			}
+			i.hasExecMsg = evt.hasExecMsg
 			return
 		case typeCanonicalHash: // Skip
 		case typeExecutingCheck: // Skip
@@ -62,6 +58,19 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 	}
 	outErr = io.EOF
 	return
+}
+
+func (i *iterator) ExecMessage() (ExecutingMessage, error) {
+	if !i.hasExecMsg {
+		return ExecutingMessage{}, nil
+	}
+	// Look ahead to find the exec message info
+	logEntryIdx := i.nextEntryIdx - 1
+	execMsg, err := i.readExecMessage(logEntryIdx)
+	if err != nil {
+		return ExecutingMessage{}, fmt.Errorf("failed to read exec message for initiating event at %v: %w", logEntryIdx, err)
+	}
+	return execMsg, nil
 }
 
 func (i *iterator) readExecMessage(initEntryIdx int64) (ExecutingMessage, error) {
