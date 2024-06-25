@@ -22,6 +22,7 @@ const (
 	defaultListenPort   = 6060
 )
 
+var ErrInvalidPort = errors.New("invalid pprof port")
 var allowedProfileTypes = []profileType{"cpu", "heap", "goroutine", "threadcreate", "block", "mutex", "allocs"}
 
 type profileType string
@@ -122,7 +123,7 @@ func (m CLIConfig) Check() error {
 	}
 
 	if m.ListenPort < 0 || m.ListenPort > math.MaxUint16 {
-		return errors.New("invalid pprof port")
+		return ErrInvalidPort
 	}
 
 	return nil

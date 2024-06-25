@@ -3,6 +3,7 @@ package flags
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -23,7 +24,11 @@ var (
 		Name:    "l2-rpcs",
 		Usage:   "L2 RPC sources.",
 		EnvVars: prefixEnvVars("L2_RPCS"),
-		Value:   cli.NewStringSlice("http://localhost:8545"),
+	}
+	DataDirFlag = &cli.PathFlag{
+		Name:    "datadir",
+		Usage:   "Directory to store data generated as part of responding to games",
+		EnvVars: prefixEnvVars("DATADIR"),
 	}
 	MockRunFlag = &cli.BoolFlag{
 		Name:    "mock-run",
@@ -35,6 +40,7 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L2RPCsFlag,
+	DataDirFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -61,4 +67,17 @@ func CheckRequired(ctx *cli.Context) error {
 		}
 	}
 	return nil
+}
+
+func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
+	return &config.Config{
+		Version:       version,
+		LogConfig:     oplog.ReadCLIConfig(ctx),
+		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:   oppprof.ReadCLIConfig(ctx),
+		RPC:           oprpc.ReadCLIConfig(ctx),
+		MockRun:       ctx.Bool(MockRunFlag.Name),
+		L2RPCs:        ctx.StringSlice(L2RPCsFlag.Name),
+		Datadir:       ctx.Path(DataDirFlag.Name),
+	}
 }
