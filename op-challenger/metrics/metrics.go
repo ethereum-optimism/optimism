@@ -167,8 +167,8 @@ func NewMetrics() *Metrics {
 		}),
 		vmExecutionTime: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: Namespace,
-			Name:      "asterisc_execution_time",
-			Help:      "Time (in seconds) to execute asterisc",
+			Name:      "vm_execution_time",
+			Help:      "Time (in seconds) to execute the fault proof VM",
 			Buckets: append(
 				[]float64{1.0, 10.0},
 				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
