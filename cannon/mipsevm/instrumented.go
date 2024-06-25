@@ -39,21 +39,6 @@ type InstrumentedState struct {
 	debugEnabled bool
 }
 
-const (
-	fdStdin         = 0
-	fdStdout        = 1
-	fdStderr        = 2
-	fdHintRead      = 3
-	fdHintWrite     = 4
-	fdPreimageRead  = 5
-	fdPreimageWrite = 6
-)
-
-const (
-	MipsEBADF  = 0x9
-	MipsEINVAL = 0x16
-)
-
 func NewInstrumentedState(state *State, po PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,

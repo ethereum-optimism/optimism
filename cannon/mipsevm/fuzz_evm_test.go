@@ -229,7 +229,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 	})
 }
 
-func FuzzStateSyscallFnctl(f *testing.F) {
+func FuzzStateSyscallFcntl(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
 	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32) {
 		state := &State{

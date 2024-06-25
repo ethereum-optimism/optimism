@@ -3,17 +3,9 @@ package mipsevm
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
-)
 
-const (
-	sysMmap      = 4090
-	sysBrk       = 4045
-	sysClone     = 4120
-	sysExitGroup = 4246
-	sysRead      = 4003
-	sysWrite     = 4004
-	sysFcntl     = 4055
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
@@ -43,29 +35,17 @@ func (m *InstrumentedState) trackMemAccess(effAddr uint32) {
 }
 
 func (m *InstrumentedState) handleSyscall() error {
-	syscallNum := m.state.Registers[2] // v0
+	syscallNum, a0, a1, a2 := getSyscallArgs(&m.state.Registers)
+
 	v0 := uint32(0)
 	v1 := uint32(0)
-
-	a0 := m.state.Registers[4]
-	a1 := m.state.Registers[5]
-	a2 := m.state.Registers[6]
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
 	case sysMmap:
-		sz := a1
-		if sz&PageAddrMask != 0 { // adjust size to align with page size
-			sz += PageSize - (sz & PageAddrMask)
-		}
-		if a0 == 0 {
-			v0 = m.state.Heap
-			//fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
-			m.state.Heap += sz
-		} else {
-			v0 = a0
-			//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
-		}
+		var newHeap uint32
+		v0, v1, newHeap = handleSysMmap(a0, a1, m.state.Heap)
+		m.state.Heap = newHeap
 	case sysBrk:
 		v0 = 0x40000000
 	case sysClone: // clone (not supported)
@@ -75,107 +55,22 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.ExitCode = uint8(a0)
 		return nil
 	case sysRead:
-		// args: a0 = fd, a1 = addr, a2 = count
-		// returns: v0 = read, v1 = err code
-		switch a0 {
-		case fdStdin:
-			// leave v0 and v1 zero: read nothing, no error
-		case fdPreimageRead: // pre-image oracle
-			effAddr := a1 & 0xFFffFFfc
-			m.trackMemAccess(effAddr)
-			mem := m.state.Memory.GetMemory(effAddr)
-			dat, datLen := m.readPreimage(m.state.PreimageKey, m.state.PreimageOffset)
-			//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
-			alignment := a1 & 3
-			space := 4 - alignment
-			if space < datLen {
-				datLen = space
-			}
-			if a2 < datLen {
-				datLen = a2
-			}
-			var outMem [4]byte
-			binary.BigEndian.PutUint32(outMem[:], mem)
-			copy(outMem[alignment:], dat[:datLen])
-			m.state.Memory.SetMemory(effAddr, binary.BigEndian.Uint32(outMem[:]))
-			m.state.PreimageOffset += datLen
-			v0 = datLen
-			//fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
-		case fdHintRead: // hint response
-			// don't actually read into memory, just say we read it all, we ignore the result anyway
-			v0 = a2
-		default:
-			v0 = 0xFFffFFff
-			v1 = MipsEBADF
-		}
+		var newPreimageOffset uint32
+		v0, v1, newPreimageOffset = handleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.readPreimage, m.state.Memory, m.trackMemAccess)
+		m.state.PreimageOffset = newPreimageOffset
 	case sysWrite:
-		// args: a0 = fd, a1 = addr, a2 = count
-		// returns: v0 = written, v1 = err code
-		switch a0 {
-		case fdStdout:
-			_, _ = io.Copy(m.stdOut, m.state.Memory.ReadMemoryRange(a1, a2))
-			v0 = a2
-		case fdStderr:
-			_, _ = io.Copy(m.stdErr, m.state.Memory.ReadMemoryRange(a1, a2))
-			v0 = a2
-		case fdHintWrite:
-			hintData, _ := io.ReadAll(m.state.Memory.ReadMemoryRange(a1, a2))
-			m.state.LastHint = append(m.state.LastHint, hintData...)
-			for len(m.state.LastHint) >= 4 { // process while there is enough data to check if there are any hints
-				hintLen := binary.BigEndian.Uint32(m.state.LastHint[:4])
-				if hintLen <= uint32(len(m.state.LastHint[4:])) {
-					hint := m.state.LastHint[4 : 4+hintLen] // without the length prefix
-					m.state.LastHint = m.state.LastHint[4+hintLen:]
-					m.preimageOracle.Hint(hint)
-				} else {
-					break // stop processing hints if there is incomplete data buffered
-				}
-			}
-			v0 = a2
-		case fdPreimageWrite:
-			effAddr := a1 & 0xFFffFFfc
-			m.trackMemAccess(effAddr)
-			mem := m.state.Memory.GetMemory(effAddr)
-			key := m.state.PreimageKey
-			alignment := a1 & 3
-			space := 4 - alignment
-			if space < a2 {
-				a2 = space
-			}
-			copy(key[:], key[a2:])
-			var tmp [4]byte
-			binary.BigEndian.PutUint32(tmp[:], mem)
-			copy(key[32-a2:], tmp[alignment:])
-			m.state.PreimageKey = key
-			m.state.PreimageOffset = 0
-			//fmt.Printf("updating pre-image key: %s\n", m.state.PreimageKey)
-			v0 = a2
-		default:
-			v0 = 0xFFffFFff
-			v1 = MipsEBADF
-		}
+		var newLastHint hexutil.Bytes
+		var newPreimageKey common.Hash
+		var newPreimageOffset uint32
+		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = handleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.trackMemAccess, m.stdOut, m.stdErr)
+		m.state.LastHint = newLastHint
+		m.state.PreimageKey = newPreimageKey
+		m.state.PreimageOffset = newPreimageOffset
 	case sysFcntl:
-		// args: a0 = fd, a1 = cmd
-		if a1 == 3 { // F_GETFL: get file descriptor flags
-			switch a0 {
-			case fdStdin, fdPreimageRead, fdHintRead:
-				v0 = 0 // O_RDONLY
-			case fdStdout, fdStderr, fdPreimageWrite, fdHintWrite:
-				v0 = 1 // O_WRONLY
-			default:
-				v0 = 0xFFffFFff
-				v1 = MipsEBADF
-			}
-		} else {
-			v0 = 0xFFffFFff
-			v1 = MipsEINVAL // cmd not recognized by this kernel
-		}
+		v0, v1 = handleSysFcntl(a0, a1)
 	}
-	m.state.Registers[2] = v0
-	m.state.Registers[7] = v1
 
-	m.state.Cpu.PC = m.state.Cpu.NextPC
-	m.state.Cpu.NextPC = m.state.Cpu.NextPC + 4
+	handleSyscallUpdates(&m.state.Cpu, &m.state.Registers, v0, v1)
 	return nil
 }
 
