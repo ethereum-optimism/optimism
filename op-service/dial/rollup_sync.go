@@ -34,7 +34,6 @@ func WaitRollupSync(
 		lgr.Info("rollup current L1 block still behind target, retrying")
 
 		timer.Reset(pollInterval)
-
 		select {
 		case <-timer.C: // next try
 		case <-ctx.Done():
