@@ -192,21 +192,45 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
 
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
 // logIdx is the index of the log in the array of all logs the block.
-func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (bool, ExecutingMessage, error) {
+func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (bool, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", logHash)
+
+	evtHash, _, err := db.findLogInfo(blockNum, logIdx)
+	if errors.Is(err, ErrNotFound) {
+		// Did not find a log at blockNum and logIdx
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	db.log.Trace("Found initiatingEvent", "blockNum", blockNum, "logIdx", logIdx, "hash", evtHash)
+	// Found the requested block and log index, check if the hash matches
+	return evtHash == logHash, nil
+}
+
+func (db *DB) Executes(blockNum uint64, logIdx uint32) (ExecutingMessage, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	_, message, err := db.findLogInfo(blockNum, logIdx)
+	if err != nil {
+		return ExecutingMessage{}, err
+	}
+	return message, nil
+}
+
+func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (TruncatedHash, ExecutingMessage, error) {
 	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
-		return false, ExecutingMessage{}, nil
+		return TruncatedHash{}, ExecutingMessage{}, ErrNotFound
 	} else if err != nil {
-		return false, ExecutingMessage{}, err
+		return TruncatedHash{}, ExecutingMessage{}, err
 	}
 
 	i, err := db.newIterator(entryIdx)
 	if err != nil {
-		return false, ExecutingMessage{}, fmt.Errorf("failed to create iterator: %w", err)
+		return TruncatedHash{}, ExecutingMessage{}, fmt.Errorf("failed to create iterator: %w", err)
 	}
 	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.current.blockNum, "logIdx", i.current.logIdx)
 	defer func() {
@@ -216,18 +240,18 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (b
 		evtBlockNum, evtLogIdx, evtHash, execMsg, err := i.NextLog()
 		if errors.Is(err, io.EOF) {
 			// Reached end of log without finding the event
-			return false, ExecutingMessage{}, nil
+			return TruncatedHash{}, ExecutingMessage{}, ErrNotFound
 		} else if err != nil {
-			return false, ExecutingMessage{}, fmt.Errorf("failed to read next log: %w", err)
+			return TruncatedHash{}, ExecutingMessage{}, fmt.Errorf("failed to read next log: %w", err)
 		}
 		if evtBlockNum == blockNum && evtLogIdx == logIdx {
 			db.log.Trace("Found initiatingEvent", "blockNum", evtBlockNum, "logIdx", evtLogIdx, "hash", evtHash)
 			// Found the requested block and log index, check if the hash matches
-			return evtHash == logHash, execMsg, nil
+			return evtHash, execMsg, nil
 		}
 		if evtBlockNum > blockNum || (evtBlockNum == blockNum && evtLogIdx > logIdx) {
 			// Progressed past the requested log without finding it.
-			return false, ExecutingMessage{}, nil
+			return TruncatedHash{}, ExecutingMessage{}, ErrNotFound
 		}
 	}
 }

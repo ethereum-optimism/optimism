@@ -9,6 +9,7 @@ import (
 var (
 	ErrLogOutOfOrder  = errors.New("log out of order")
 	ErrDataCorruption = errors.New("data corruption")
+	ErrNotFound       = errors.New("not found")
 )
 
 type TruncatedHash [20]byte
