@@ -69,6 +69,66 @@ func TestUnsafeHeadTracker(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, hexutil.Uint64(333), tracker.unsafeHead.ExecutionPayload.BlockNumber)
 	})
+
+	t.Run("EnsureSnapshotSafety", func(t *testing.T) {
+		data := createPayloadEnvelope(444)
+
+		var buf bytes.Buffer
+		_, err := data.MarshalSSZ(&buf)
+		require.NoError(t, err)
+
+		l := raft.Log{Data: buf.Bytes()}
+		require.Nil(t, tracker.Apply(&l))
+		require.Equal(t, hexutil.Uint64(444), tracker.unsafeHead.ExecutionPayload.BlockNumber)
+
+		snapshot, err := tracker.Snapshot()
+		require.NoError(t, err)
+
+		data2 := createPayloadEnvelope(555)
+
+		var buf2 bytes.Buffer
+		_, err = data2.MarshalSSZ(&buf2)
+		require.NoError(t, err)
+
+		l = raft.Log{Data: buf2.Bytes()}
+		require.Nil(t, tracker.Apply(&l))
+		require.Equal(t, hexutil.Uint64(555), tracker.unsafeHead.ExecutionPayload.BlockNumber)
+
+		sink := new(mockSnapshotSink)
+
+		err = snapshot.Persist(sink)
+		require.NoError(t, err)
+
+		require.Equal(t, buf.Bytes(), sink.Buffer.Bytes())
+		require.NotEqual(t, buf2.Bytes(), sink.Buffer.Bytes())
+
+		snapshot2, err := tracker.Snapshot()
+		require.NoError(t, err)
+
+		sink = new(mockSnapshotSink)
+
+		err = snapshot2.Persist(sink)
+		require.NoError(t, err)
+
+		require.Equal(t, buf2.Bytes(), sink.Buffer.Bytes())
+		require.NotEqual(t, buf.Bytes(), sink.Buffer.Bytes())
+	})
+}
+
+type mockSnapshotSink struct {
+	bytes.Buffer
+}
+
+func (m *mockSnapshotSink) ID() string {
+	return "mock"
+}
+
+func (m *mockSnapshotSink) Close() error {
+	return nil
+}
+
+func (m *mockSnapshotSink) Cancel() error {
+	return nil
 }
 
 type mockReadCloser struct {
