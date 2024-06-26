@@ -68,7 +68,7 @@ func (st *StatusTracker) OnEvent(ev rollup.Event) {
 	case engine.PendingSafeUpdateEvent:
 		st.data.UnsafeL2 = x.Unsafe
 		st.data.PendingSafeL2 = x.PendingSafe
-	case derive.DeriverIdleEvent:
+	case derive.DeriverL1StatusEvent:
 		st.data.CurrentL1 = x.Origin
 	case L1UnsafeEvent:
 		st.metrics.RecordL1Ref("l1_head", x.L1Unsafe)
