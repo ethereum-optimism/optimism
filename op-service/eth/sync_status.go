@@ -9,7 +9,7 @@ type SyncStatus struct {
 	// If the node is synced, this matches the HeadL1, minus the verifier confirmation distance.
 	CurrentL1 L1BlockRef `json:"current_l1"`
 	// CurrentL1Finalized is a legacy sync-status attribute. This is deprecated.
-	// An previous version of the L1 finalization-signal was updated only after the block was retrieved by number.
+	// A previous version of the L1 finalization-signal was updated only after the block was retrieved by number.
 	// This attribute just matches FinalizedL1 now.
 	CurrentL1Finalized L1BlockRef `json:"current_l1_finalized"`
 	// HeadL1 is the perceived head of the L1 chain, no confirmation distance.
