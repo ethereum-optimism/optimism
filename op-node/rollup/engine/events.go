@@ -265,6 +265,8 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 			return
 		}
 		d.ec.SetFinalizedHead(x.Ref)
+		// Try to apply the forkchoice changes
+		d.emitter.Emit(TryUpdateEngineEvent{})
 	}
 }
 

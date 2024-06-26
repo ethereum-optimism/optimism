@@ -263,6 +263,7 @@ var (
 		Usage:    "Path to the snapshot log file",
 		EnvVars:  prefixEnvVars("SNAPSHOT_LOG"),
 		Category: OperationsCategory,
+		Hidden:   true, // non-critical function, removed, flag is no-op to avoid breaking setups.
 	}
 	HeartbeatEnabledFlag = &cli.BoolFlag{
 		Name:     "heartbeat.enabled",

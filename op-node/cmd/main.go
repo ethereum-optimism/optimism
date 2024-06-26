@@ -85,11 +85,6 @@ func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.
 	}
 	cfg.Cancel = closeApp
 
-	snapshotLog, err := opnode.NewSnapshotLogger(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create snapshot root logger: %w", err)
-	}
-
 	// Only pretty-print the banner if it is a terminal log. Other log it as key-value pairs.
 	if logCfg.Format == "terminal" {
 		log.Info("rollup config:\n" + cfg.Rollup.Description(chaincfg.L2ChainIDToNetworkDisplayName))
@@ -97,7 +92,7 @@ func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.
 		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkDisplayName)
 	}
 
-	n, err := node.New(ctx.Context, cfg, log, snapshotLog, VersionWithMeta, m)
+	n, err := node.New(ctx.Context, cfg, log, VersionWithMeta, m)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create the rollup node: %w", err)
 	}
