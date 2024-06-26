@@ -4,6 +4,10 @@ on:
     branches:
       - 'master'
       - 'celo*'
+  push:
+    branches:
+      - 'master'
+      - 'celo*'
   workflow_dispatch:
 
 jobs:
