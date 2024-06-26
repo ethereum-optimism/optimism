@@ -33,14 +33,19 @@ func ForBalanceChange(ctx context.Context, client *ethclient.Client, address com
 }
 
 func ForReceiptOK(ctx context.Context, client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
-	return ForReceipt(ctx, client, hash, types.ReceiptStatusSuccessful)
+	return ForReceiptMaybe(ctx, client, hash, types.ReceiptStatusSuccessful, false)
 }
 
 func ForReceiptFail(ctx context.Context, client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
-	return ForReceipt(ctx, client, hash, types.ReceiptStatusFailed)
+	return ForReceiptMaybe(ctx, client, hash, types.ReceiptStatusFailed, false)
 }
 
 func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash, status uint64) (*types.Receipt, error) {
+	return ForReceiptMaybe(ctx, client, hash, status, false)
+}
+
+// ForReceiptMaybe waits for the receipt, but may be configured to ignore the status
+func ForReceiptMaybe(ctx context.Context, client *ethclient.Client, hash common.Hash, status uint64, statusIgnore bool) (*types.Receipt, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -61,7 +66,7 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 		if err != nil {
 			return nil, fmt.Errorf("failed to get receipt for tx %s: %w", hash, err)
 		}
-		if receipt.Status != status {
+		if !statusIgnore && receipt.Status != status {
 			printDebugTrace(ctx, client, hash)
 			return receipt, fmt.Errorf("expected status %d, but got %d", status, receipt.Status)
 		}

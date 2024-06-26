@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
@@ -219,11 +221,27 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		tx, err := gameContract.ResolveClaimTx(0)
 		require.NoError(t, err, "create resolveClaim tx")
 		_, resolveClaimReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey)
-
-		t.Log("FinalizeWithdrawal: resolve...")
-		tx, err = gameContract.ResolveTx()
-		require.NoError(t, err, "create resolve tx")
-		_, resolveReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey)
+		if resolveClaimReceipt.Status == types.ReceiptStatusFailed {
+			t.Logf("resolveClaim failed (tx: %s)! But game may have resolved already. Checking now...", resolveClaimReceipt.TxHash)
+			// it may have failed because someone else front-ran this by calling `resolve()` first.
+			status, err := gameContract.GetStatus(ctx)
+			require.NoError(t, err)
+			require.Equal(t, gameTypes.GameStatusDefenderWon, status, "game must have resolved")
+			t.Logf("resolveClaim was not needed, the game was already resolved")
+		} else {
+			t.Log("FinalizeWithdrawal: resolve...")
+			tx, err = gameContract.ResolveTx()
+			require.NoError(t, err, "create resolve tx")
+			_, resolveReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey, transactions.WithReceiptStatusIgnore())
+			if resolveReceipt.Status == types.ReceiptStatusFailed {
+				t.Logf("resolve failed (tx: %s)! But game may have resolved already. Checking now...", resolveReceipt.TxHash)
+				// it may have failed because someone else front-ran this by calling `resolve()` first.
+				status, err := gameContract.GetStatus(ctx)
+				require.NoError(t, err)
+				require.Equal(t, gameTypes.GameStatusDefenderWon, status, "game must have resolved")
+				t.Logf("resolve was not needed, the game was already resolved")
+			}
+		}
 	}
 
 	if e2eutils.UseFaultProofs() {
