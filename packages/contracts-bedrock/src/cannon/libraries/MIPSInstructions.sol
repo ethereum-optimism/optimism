@@ -49,114 +49,123 @@ library MIPSInstructions {
         pure
         returns (bytes32 newMemRoot_)
     {
-        newMemRoot_ = _memRoot;
+        unchecked {
+            newMemRoot_ = _memRoot;
 
-        // j-type j/jal
-        if (_opcode == 2 || _opcode == 3) {
-            // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-            uint32 target = (_cpu.nextPC & 0xF0000000) | (_insn & 0x03FFFFFF) << 2;
-            handleJump(_cpu, _registers, _opcode == 2 ? 0 : 31, target);
+            // j-type j/jal
+            if (_opcode == 2 || _opcode == 3) {
+                // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
+                uint32 target = (_cpu.nextPC & 0xF0000000) | (_insn & 0x03FFFFFF) << 2;
+                handleJump(_cpu, _registers, _opcode == 2 ? 0 : 31, target);
+                return newMemRoot_;
+            }
+
+            // register fetch
+            uint32 rs; // source register 1 value
+            uint32 rt; // source register 2 / temp value
+            uint32 rtReg = (_insn >> 16) & 0x1F;
+
+            // R-type or I-type (stores rt)
+            rs = _registers[(_insn >> 21) & 0x1F];
+            uint32 rdReg = rtReg;
+
+            if (_opcode == 0 || _opcode == 0x1c) {
+                // R-type (stores rd)
+                rt = _registers[rtReg];
+                rdReg = (_insn >> 11) & 0x1F;
+            } else if (_opcode < 0x20) {
+                // rt is SignExtImm
+                // don't sign extend for andi, ori, xori
+                if (_opcode == 0xC || _opcode == 0xD || _opcode == 0xe) {
+                    // ZeroExtImm
+                    rt = _insn & 0xFFFF;
+                } else {
+                    // SignExtImm
+                    rt = signExtend(_insn & 0xFFFF, 16);
+                }
+            } else if (_opcode >= 0x28 || _opcode == 0x22 || _opcode == 0x26) {
+                // store rt value with store
+                rt = _registers[rtReg];
+
+                // store actual rt with lwl and lwr
+                rdReg = rtReg;
+            }
+
+            if ((_opcode >= 4 && _opcode < 8) || _opcode == 1) {
+                handleBranch({
+                    _cpu: _cpu,
+                    _registers: _registers,
+                    _opcode: _opcode,
+                    _insn: _insn,
+                    _rtReg: rtReg,
+                    _rs: rs
+                });
+                return newMemRoot_;
+            }
+
+            uint32 storeAddr = 0xFF_FF_FF_FF;
+            // memory fetch (all I-type)
+            // we do the load for stores also
+            uint32 mem;
+            if (_opcode >= 0x20) {
+                // M[R[rs]+SignExtImm]
+                rs += signExtend(_insn & 0xFFFF, 16);
+                uint32 addr = rs & 0xFFFFFFFC;
+                mem = MIPSMemory.readMem(_memRoot, addr, _memProofOffset);
+                if (_opcode >= 0x28 && _opcode != 0x30) {
+                    // store
+                    storeAddr = addr;
+                    // store opcodes don't write back to a register
+                    rdReg = 0;
+                }
+            }
+
+            // ALU
+            // Note: swr outputs more than 4 bytes without the mask 0xffFFffFF
+            uint32 val = executeMipsInstruction(_insn, rs, rt, mem) & 0xffFFffFF;
+
+            if (_opcode == 0 && _func >= 8 && _func < 0x1c) {
+                if (_func == 8 || _func == 9) {
+                    // jr/jalr
+                    handleJump(_cpu, _registers, _func == 8 ? 0 : rdReg, rs);
+                    return newMemRoot_;
+                }
+
+                if (_func == 0xa) {
+                    // movz
+                    handleRd(_cpu, _registers, rdReg, rs, rt == 0);
+                    return newMemRoot_;
+                }
+                if (_func == 0xb) {
+                    // movn
+                    handleRd(_cpu, _registers, rdReg, rs, rt != 0);
+                    return newMemRoot_;
+                }
+
+                // lo and hi registers
+                // can write back
+                if (_func >= 0x10 && _func < 0x1c) {
+                    handleHiLo({ _cpu: _cpu, _registers: _registers, _func: _func, _rs: rs, _rt: rt, _storeReg: rdReg });
+
+                    return newMemRoot_;
+                }
+            }
+
+            // stupid sc, write a 1 to rt
+            if (_opcode == 0x38 && rtReg != 0) {
+                _registers[rtReg] = 1;
+            }
+
+            // write memory
+            if (storeAddr != 0xFF_FF_FF_FF) {
+                newMemRoot_ = MIPSMemory.writeMem(storeAddr, _memProofOffset, val);
+            }
+
+            // write back the value to destination register
+            handleRd(_cpu, _registers, rdReg, val, true);
+
             return newMemRoot_;
         }
-
-        // register fetch
-        uint32 rs; // source register 1 value
-        uint32 rt; // source register 2 / temp value
-        uint32 rtReg = (_insn >> 16) & 0x1F;
-
-        // R-type or I-type (stores rt)
-        rs = _registers[(_insn >> 21) & 0x1F];
-        uint32 rdReg = rtReg;
-
-        if (_opcode == 0 || _opcode == 0x1c) {
-            // R-type (stores rd)
-            rt = _registers[rtReg];
-            rdReg = (_insn >> 11) & 0x1F;
-        } else if (_opcode < 0x20) {
-            // rt is SignExtImm
-            // don't sign extend for andi, ori, xori
-            if (_opcode == 0xC || _opcode == 0xD || _opcode == 0xe) {
-                // ZeroExtImm
-                rt = _insn & 0xFFFF;
-            } else {
-                // SignExtImm
-                rt = signExtend(_insn & 0xFFFF, 16);
-            }
-        } else if (_opcode >= 0x28 || _opcode == 0x22 || _opcode == 0x26) {
-            // store rt value with store
-            rt = _registers[rtReg];
-
-            // store actual rt with lwl and lwr
-            rdReg = rtReg;
-        }
-
-        if ((_opcode >= 4 && _opcode < 8) || _opcode == 1) {
-            handleBranch({ _cpu: _cpu, _registers: _registers, _opcode: _opcode, _insn: _insn, _rtReg: rtReg, _rs: rs });
-            return newMemRoot_;
-        }
-
-        uint32 storeAddr = 0xFF_FF_FF_FF;
-        // memory fetch (all I-type)
-        // we do the load for stores also
-        uint32 mem;
-        if (_opcode >= 0x20) {
-            // M[R[rs]+SignExtImm]
-            rs += signExtend(_insn & 0xFFFF, 16);
-            uint32 addr = rs & 0xFFFFFFFC;
-            mem = MIPSMemory.readMem(_memRoot, addr, _memProofOffset);
-            if (_opcode >= 0x28 && _opcode != 0x30) {
-                // store
-                storeAddr = addr;
-                // store opcodes don't write back to a register
-                rdReg = 0;
-            }
-        }
-
-        // ALU
-        // Note: swr outputs more than 4 bytes without the mask 0xffFFffFF
-        uint32 val = executeMipsInstruction(_insn, rs, rt, mem) & 0xffFFffFF;
-
-        if (_opcode == 0 && _func >= 8 && _func < 0x1c) {
-            if (_func == 8 || _func == 9) {
-                // jr/jalr
-                handleJump(_cpu, _registers, _func == 8 ? 0 : rdReg, rs);
-                return newMemRoot_;
-            }
-
-            if (_func == 0xa) {
-                // movz
-                handleRd(_cpu, _registers, rdReg, rs, rt == 0);
-                return newMemRoot_;
-            }
-            if (_func == 0xb) {
-                // movn
-                handleRd(_cpu, _registers, rdReg, rs, rt != 0);
-                return newMemRoot_;
-            }
-
-            // lo and hi registers
-            // can write back
-            if (_func >= 0x10 && _func < 0x1c) {
-                handleHiLo({ _cpu: _cpu, _registers: _registers, _func: _func, _rs: rs, _rt: rt, _storeReg: rdReg });
-
-                return newMemRoot_;
-            }
-        }
-
-        // stupid sc, write a 1 to rt
-        if (_opcode == 0x38 && rtReg != 0) {
-            _registers[rtReg] = 1;
-        }
-
-        // write memory
-        if (storeAddr != 0xFF_FF_FF_FF) {
-            newMemRoot_ = MIPSMemory.writeMem(storeAddr, _memProofOffset, val);
-        }
-
-        // write back the value to destination register
-        handleRd(_cpu, _registers, rdReg, val, true);
-
-        return newMemRoot_;
     }
 
     /// @notice Execute an instruction.
