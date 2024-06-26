@@ -440,10 +440,11 @@ func Run(ctx *cli.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.GetPC(), err)
 			}
+			_, postStateHash := state.EncodeWitness()
 			proof := &Proof{
 				Step:      step,
-				Pre:       witness.PreStateHash,
-				Post:      witness.PostStateHash,
+				Pre:       witness.StateHash,
+				Post:      postStateHash,
 				StateData: witness.State,
 				ProofData: witness.MemProof,
 			}

@@ -6,9 +6,8 @@ type LocalContext common.Hash
 
 type StepWitness struct {
 	// encoded state witness
-	State         []byte
-	PreStateHash  common.Hash
-	PostStateHash common.Hash
+	State     []byte
+	StateHash common.Hash
 
 	MemProof []byte
 
