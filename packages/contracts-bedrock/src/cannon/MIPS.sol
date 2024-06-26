@@ -262,12 +262,12 @@ contract MIPS is ISemver {
 
             // instruction fetch
             uint256 insnProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 0);
-            (uint32 insn, uint32 opcode, uint32 func) =
+            (uint32 insn, uint32 opcode, uint32 fun) =
                 ins.getInstructionDetails(state.pc, state.memRoot, insnProofOffset);
 
             // Handle syscall separately
             // syscall (can read and write)
-            if (opcode == 0 && func == 0xC) {
+            if (opcode == 0 && fun == 0xC) {
                 return handleSyscall(_localContext);
             }
 
@@ -280,7 +280,7 @@ contract MIPS is ISemver {
                 _memProofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
                 _insn: insn,
                 _opcode: opcode,
-                _func: func
+                _fun: fun
             });
             setStateCpuScalars(state, cpu);
 
