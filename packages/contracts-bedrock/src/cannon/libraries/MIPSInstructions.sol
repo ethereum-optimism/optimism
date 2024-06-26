@@ -1,9 +1,164 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 
 library MIPSInstructions {
+    /// @param _pc The program counter.
+    /// @param _memRoot The current memory root.
+    /// @param _insnProofOffset The calldata offset of the memory proof for the current instruction.
+    /// @return insn_ The current 32-bit instruction at the pc.
+    /// @return opcode_ The opcode value parsed from insn_.
+    /// @return func_ The function value parsed from insn_.
+    function getInstructionDetails(
+        uint32 _pc,
+        bytes32 _memRoot,
+        uint256 _insnProofOffset
+    )
+        internal
+        pure
+        returns (uint32 insn_, uint32 opcode_, uint32 func_)
+    {
+        insn_ = MIPSMemory.readMem(_memRoot, _pc, _insnProofOffset);
+        opcode_ = insn_ >> 26; // First 6-bits
+        func_ = insn_ & 0x3f; // Last 6-bits
+
+        return (insn_, opcode_, func_);
+    }
+
+    /// @notice Execute core MIPS step logic.
+    /// @notice _cpu The CPU scalar fields.
+    /// @notice _registers The CPU registers.
+    /// @notice _memRoot The current merkle root of the memory.
+    /// @notice _memProofOffset The offset in calldata specify where the memory merkle proof is located.
+    /// @param _insn The current 32-bit instruction at the pc.
+    /// @param _opcode The opcode value parsed from insn_.
+    /// @param _func The function value parsed from insn_.
+    /// @return newMemRoot_ The updated merkle root of memory after any modifications, may be unchanged.
+    function execMipsCoreStepLogic(
+        st.CpuScalars memory _cpu,
+        uint32[32] memory _registers,
+        bytes32 _memRoot,
+        uint256 _memProofOffset,
+        uint32 _insn,
+        uint32 _opcode,
+        uint32 _func
+    )
+        internal
+        pure
+        returns (bytes32 newMemRoot_)
+    {
+        newMemRoot_ = _memRoot;
+
+        // j-type j/jal
+        if (_opcode == 2 || _opcode == 3) {
+            // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
+            uint32 target = (_cpu.nextPC & 0xF0000000) | (_insn & 0x03FFFFFF) << 2;
+            handleJump(_cpu, _registers, _opcode == 2 ? 0 : 31, target);
+            return newMemRoot_;
+        }
+
+        // register fetch
+        uint32 rs; // source register 1 value
+        uint32 rt; // source register 2 / temp value
+        uint32 rtReg = (_insn >> 16) & 0x1F;
+
+        // R-type or I-type (stores rt)
+        rs = _registers[(_insn >> 21) & 0x1F];
+        uint32 rdReg = rtReg;
+
+        if (_opcode == 0 || _opcode == 0x1c) {
+            // R-type (stores rd)
+            rt = _registers[rtReg];
+            rdReg = (_insn >> 11) & 0x1F;
+        } else if (_opcode < 0x20) {
+            // rt is SignExtImm
+            // don't sign extend for andi, ori, xori
+            if (_opcode == 0xC || _opcode == 0xD || _opcode == 0xe) {
+                // ZeroExtImm
+                rt = _insn & 0xFFFF;
+            } else {
+                // SignExtImm
+                rt = signExtend(_insn & 0xFFFF, 16);
+            }
+        } else if (_opcode >= 0x28 || _opcode == 0x22 || _opcode == 0x26) {
+            // store rt value with store
+            rt = _registers[rtReg];
+
+            // store actual rt with lwl and lwr
+            rdReg = rtReg;
+        }
+
+        if ((_opcode >= 4 && _opcode < 8) || _opcode == 1) {
+            handleBranch({ _cpu: _cpu, _registers: _registers, _opcode: _opcode, _insn: _insn, _rtReg: rtReg, _rs: rs });
+            return newMemRoot_;
+        }
+
+        uint32 storeAddr = 0xFF_FF_FF_FF;
+        // memory fetch (all I-type)
+        // we do the load for stores also
+        uint32 mem;
+        if (_opcode >= 0x20) {
+            // M[R[rs]+SignExtImm]
+            rs += signExtend(_insn & 0xFFFF, 16);
+            uint32 addr = rs & 0xFFFFFFFC;
+            mem = MIPSMemory.readMem(_memRoot, addr, _memProofOffset);
+            if (_opcode >= 0x28 && _opcode != 0x30) {
+                // store
+                storeAddr = addr;
+                // store opcodes don't write back to a register
+                rdReg = 0;
+            }
+        }
+
+        // ALU
+        // Note: swr outputs more than 4 bytes without the mask 0xffFFffFF
+        uint32 val = executeMipsInstruction(_insn, rs, rt, mem) & 0xffFFffFF;
+
+        if (_opcode == 0 && _func >= 8 && _func < 0x1c) {
+            if (_func == 8 || _func == 9) {
+                // jr/jalr
+                handleJump(_cpu, _registers, _func == 8 ? 0 : rdReg, rs);
+                return newMemRoot_;
+            }
+
+            if (_func == 0xa) {
+                // movz
+                handleRd(_cpu, _registers, rdReg, rs, rt == 0);
+                return newMemRoot_;
+            }
+            if (_func == 0xb) {
+                // movn
+                handleRd(_cpu, _registers, rdReg, rs, rt != 0);
+                return newMemRoot_;
+            }
+
+            // lo and hi registers
+            // can write back
+            if (_func >= 0x10 && _func < 0x1c) {
+                handleHiLo({ _cpu: _cpu, _registers: _registers, _func: _func, _rs: rs, _rt: rt, _storeReg: rdReg });
+
+                return newMemRoot_;
+            }
+        }
+
+        // stupid sc, write a 1 to rt
+        if (_opcode == 0x38 && rtReg != 0) {
+            _registers[rtReg] = 1;
+        }
+
+        // write memory
+        if (storeAddr != 0xFF_FF_FF_FF) {
+            newMemRoot_ = MIPSMemory.writeMem(storeAddr, _memProofOffset, val);
+        }
+
+        // write back the value to destination register
+        handleRd(_cpu, _registers, rdReg, val, true);
+
+        return newMemRoot_;
+    }
+
     /// @notice Execute an instruction.
     function executeMipsInstruction(
         uint32 _insn,
