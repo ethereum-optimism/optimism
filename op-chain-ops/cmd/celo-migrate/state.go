@@ -45,7 +45,7 @@ var (
 		},
 	}
 	distributionScheduleAddressMap = map[uint64]common.Address{
-		alfajoresChainId: common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		alfajoresChainId: common.HexToAddress("0x78af211ad79bce6bf636640ce8c2c2b29e02365a"),
 	}
 	celoTokenAddressMap = map[uint64]common.Address{
 		alfajoresChainId: addresses.CeloTokenAlfajoresAddress,
