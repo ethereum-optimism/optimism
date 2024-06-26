@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -104,14 +105,10 @@ type PlasmaIface interface {
 	derive.PlasmaInputFetcher
 }
 
-type L1StateIface interface {
-	HandleNewL1HeadBlock(head eth.L1BlockRef)
-	HandleNewL1SafeBlock(safe eth.L1BlockRef)
-	HandleNewL1FinalizedBlock(finalized eth.L1BlockRef)
-
+type SyncStatusTracker interface {
+	rollup.Deriver
+	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
-	L1Safe() eth.L1BlockRef
-	L1Finalized() eth.L1BlockRef
 }
 
 type SequencerIface interface {
@@ -162,7 +159,6 @@ func NewDriver(
 	altSync AltSync,
 	network Network,
 	log log.Logger,
-	snapshotLog log.Logger,
 	metrics Metrics,
 	sequencerStateListener SequencerStateListener,
 	safeHeadListener rollup.SafeHeadListener,
@@ -174,11 +170,12 @@ func NewDriver(
 	rootDeriver := &rollup.SynchronousDerivers{}
 	synchronousEvents := rollup.NewSynchronousEvents(log, driverCtx, rootDeriver)
 
+	statusTracker := status.NewStatusTracker(log, metrics)
+
 	l1 = NewMeteredL1Fetcher(l1, metrics)
-	l1State := NewL1State(log, metrics)
-	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
+	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
-	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
+	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
 	engineResetDeriver := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, synchronousEvents)
 	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
@@ -217,7 +214,7 @@ func NewDriver(
 	schedDeriv := NewStepSchedulingDeriver(log, synchronousEvents)
 
 	driver := &Driver{
-		l1State:            l1State,
+		statusTracker:      statusTracker,
 		SyncDeriver:        syncDeriver,
 		sched:              schedDeriv,
 		synchronousEvents:  synchronousEvents,
@@ -231,7 +228,6 @@ func NewDriver(
 		driverCtx:          driverCtx,
 		driverCancel:       driverCancel,
 		log:                log,
-		snapshotLog:        snapshotLog,
 		sequencer:          sequencer,
 		network:            network,
 		metrics:            metrics,
@@ -254,6 +250,7 @@ func NewDriver(
 		pipelineDeriver,
 		attributesHandler,
 		finalizer,
+		statusTracker,
 	}
 
 	return driver

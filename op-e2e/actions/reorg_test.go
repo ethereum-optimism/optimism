@@ -825,7 +825,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	miner.ActL1SetFeeRecipient(common.Address{'A', 0})
 	miner.ActEmptyBlock(t)
 	sequencer.ActL1HeadSignal(t)
-	for sequencer.engine.UnsafeL2Head().L1Origin.Number < sequencer.l1State.L1Head().Number {
+	for sequencer.engine.UnsafeL2Head().L1Origin.Number < sequencer.syncStatus.L1Head().Number {
 		// build L2 blocks until the L1 origin is the current L1 head(A0)
 		sequencer.ActL2PipelineFull(t)
 		sequencer.ActL2StartBlock(t)

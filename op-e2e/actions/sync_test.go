@@ -140,7 +140,8 @@ func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	verifier.ActL2PipelineFull(t)
 
 	// Verify the verifier finalized something new
-	require.Less(t, verifierStartStatus.FinalizedL2.Number, verifier.SyncStatus().FinalizedL2.Number, "verifier finalized L2 blocks during sync")
+	result := verifier.SyncStatus()
+	require.Less(t, verifierStartStatus.FinalizedL2.Number, result.FinalizedL2.Number, "verifier finalized L2 blocks during sync")
 }
 
 // TestUnsafeSync tests that a verifier properly imports unsafe blocks via gossip.
