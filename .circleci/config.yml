@@ -1496,6 +1496,7 @@ jobs:
             ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
 
   kontrol-tests:
+    context: runtimeverification
     docker:
       - image: << pipeline.parameters.ci_builder_image >>
     resource_class: xlarge
@@ -1514,7 +1515,7 @@ jobs:
           command: |
               curl -X POST \
               -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Authorization: Bearer $RV_COMPUTE_TOKEN" \
               https://api.github.com/repos/runtimeverification/optimism-ci/actions/workflows/optimism-ci.yaml/dispatches \
               -d '{
                 "ref": "master",
@@ -1524,14 +1525,9 @@ jobs:
                   "statuses_sha": "<< pipeline.git.revision >>",
                   "org": "ethereum-optimism",
                   "repository": "optimism",
-                  "auth_token": "'"$GITHUB_TOKEN"'"
                 }
               }'
           working_directory: ./packages/contracts-bedrock
-      - store_artifacts:
-          path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
-      - store_test_results:
-          path: ./packages/contracts-bedrock
       - notify-failures-on-develop
 
 workflows:
