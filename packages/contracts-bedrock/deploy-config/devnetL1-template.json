@@ -67,8 +67,8 @@
   "useFaultProofs": true,
   "usePlasma": false,
   "daCommitmentType": "KeccakCommitment",
-  "daChallengeWindow": 160,
-  "daResolveWindow": 160,
+  "daChallengeWindow": 4,
+  "daResolveWindow": 4,
   "daBondSize": 1000000,
   "daResolverRefundPercentage": 0
 }

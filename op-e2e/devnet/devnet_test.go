@@ -21,8 +21,9 @@ func TestDevnet(t *testing.T) {
 	sys, err := NewSystem(ctx, lgr)
 	require.NoError(t, err)
 
-	// Wait for first finalized L2 block before running more tests in parallel
 	t.Run("SyncFinalized", func(t *testing.T) {
+		// SyncFinalized can run in parallel to Withdrawals test, because propopser
+		// already posts unfinalized output roots in devnet mode.
 		t.Parallel()
 		testSyncFinalized(t, sys)
 	})
