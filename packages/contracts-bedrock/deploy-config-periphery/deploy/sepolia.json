@@ -1,0 +1,23 @@
+{
+  "create2DeploymentSalt": "0.0.7",
+
+  "gelatoAutomateContract": "0x2A6C106ae13B558BB9E2Ec64Bd2f1f7BEFF3A5E0",
+
+  "operationsDrippieOwner": "0xCd438409d5Cac9D2E076Ac7Bd0Bf2377E99BB6e4",
+  "faucetDrippieOwner": "0x10ab157483dd308f8B38aCF2ad823dfD255F56b5",
+
+  "opChainAdminWalletDripValue": 1000000000000000000,
+  "opChainAdminWalletDripInterval": 2592000,
+
+  "faucetAdmin": "0x212E789D4523D4BAF464f8Fb2A9B9dff2B36e5A6",
+  "faucetOnchainAuthModuleAdmin": "0xFe44Ae787A632c45ACea658492dDBebE39f002aC",
+  "faucetOnchainAuthModuleTtl": 86400,
+  "faucetOnchainAuthModuleAmount": 1000000000000000000,
+  "faucetOffchainAuthModuleAdmin": "0xFe44Ae787A632c45ACea658492dDBebE39f002aC",
+  "faucetOffchainAuthModuleTtl": 86400,
+  "faucetOffchainAuthModuleAmount": 50000000000000000,
+
+  "deployDripchecks": true,
+  "deployFaucetContracts": false,
+  "deployOperationsContracts": true
+}

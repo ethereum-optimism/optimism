@@ -75,7 +75,7 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, storageDir string, b
 		return nil, errors.Wrap(err, "failed to create raft tcp transport")
 	}
 
-	fsm := &unsafeHeadTracker{}
+	fsm := NewUnsafeHeadTracker(log)
 
 	r, err := raft.NewRaft(rc, fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
@@ -112,27 +112,36 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, storageDir string, b
 }
 
 // AddNonVoter implements Consensus, it tries to add a non-voting member into the cluster.
-func (rc *RaftConsensus) AddNonVoter(id string, addr string) error {
-	if err := rc.r.AddNonvoter(raft.ServerID(id), raft.ServerAddress(addr), 0, defaultTimeout).Error(); err != nil {
-		rc.log.Error("failed to add non-voter", "id", id, "addr", addr, "err", err)
+func (rc *RaftConsensus) AddNonVoter(id string, addr string, version uint64) error {
+	if err := rc.r.AddNonvoter(raft.ServerID(id), raft.ServerAddress(addr), version, defaultTimeout).Error(); err != nil {
+		rc.log.Error("failed to add non-voter", "id", id, "addr", addr, "version", version, "err", err)
 		return err
 	}
 	return nil
 }
 
 // AddVoter implements Consensus, it tries to add a voting member into the cluster.
-func (rc *RaftConsensus) AddVoter(id string, addr string) error {
-	if err := rc.r.AddVoter(raft.ServerID(id), raft.ServerAddress(addr), 0, defaultTimeout).Error(); err != nil {
-		rc.log.Error("failed to add voter", "id", id, "addr", addr, "err", err)
+func (rc *RaftConsensus) AddVoter(id string, addr string, version uint64) error {
+	if err := rc.r.AddVoter(raft.ServerID(id), raft.ServerAddress(addr), version, defaultTimeout).Error(); err != nil {
+		rc.log.Error("failed to add voter", "id", id, "addr", addr, "version", version, "err", err)
 		return err
 	}
 	return nil
 }
 
 // DemoteVoter implements Consensus, it tries to demote a voting member into a non-voting member in the cluster.
-func (rc *RaftConsensus) DemoteVoter(id string) error {
-	if err := rc.r.DemoteVoter(raft.ServerID(id), 0, defaultTimeout).Error(); err != nil {
-		rc.log.Error("failed to demote voter", "id", id, "err", err)
+func (rc *RaftConsensus) DemoteVoter(id string, version uint64) error {
+	if err := rc.r.DemoteVoter(raft.ServerID(id), version, defaultTimeout).Error(); err != nil {
+		rc.log.Error("failed to demote voter", "id", id, "version", version, "err", err)
+		return err
+	}
+	return nil
+}
+
+// RemoveServer implements Consensus, it tries to remove a member (both voter or non-voter) from the cluster, if leader is being removed, it will cause a new leader election.
+func (rc *RaftConsensus) RemoveServer(id string, version uint64) error {
+	if err := rc.r.RemoveServer(raft.ServerID(id), version, defaultTimeout).Error(); err != nil {
+		rc.log.Error("failed to remove voter", "id", id, "version", version, "err", err)
 		return err
 	}
 	return nil
@@ -140,8 +149,7 @@ func (rc *RaftConsensus) DemoteVoter(id string) error {
 
 // Leader implements Consensus, it returns true if it is the leader of the cluster.
 func (rc *RaftConsensus) Leader() bool {
-	_, id := rc.r.LeaderWithID()
-	return id == rc.serverID
+	return rc.r.State() == raft.Leader
 }
 
 // LeaderWithID implements Consensus, it returns the leader's server ID and address.
@@ -157,15 +165,6 @@ func (rc *RaftConsensus) LeaderWithID() *ServerInfo {
 // LeaderCh implements Consensus, it returns a channel that will be notified when leadership status changes (true = leader, false = follower).
 func (rc *RaftConsensus) LeaderCh() <-chan bool {
 	return rc.r.LeaderCh()
-}
-
-// RemoveServer implements Consensus, it tries to remove a member (both voter or non-voter) from the cluster, if leader is being removed, it will cause a new leader election.
-func (rc *RaftConsensus) RemoveServer(id string) error {
-	if err := rc.r.RemoveServer(raft.ServerID(id), 0, defaultTimeout).Error(); err != nil {
-		rc.log.Error("failed to remove voter", "id", id, "err", err)
-		return err
-	}
-	return nil
 }
 
 // ServerID implements Consensus, it returns the server ID of the current server.
@@ -205,8 +204,10 @@ func (rc *RaftConsensus) Shutdown() error {
 	return nil
 }
 
-// CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM.
+// CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM in a strongly consistent fashion.
 func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error {
+	rc.log.Debug("committing unsafe payload", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash.Hex())
+
 	var buf bytes.Buffer
 	if _, err := payload.MarshalSSZ(&buf); err != nil {
 		return errors.Wrap(err, "failed to marshal payload envelope")
@@ -216,30 +217,37 @@ func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelo
 	if err := f.Error(); err != nil {
 		return errors.Wrap(err, "failed to apply payload envelope")
 	}
+	rc.log.Debug("unsafe payload committed", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash.Hex())
 
 	return nil
 }
 
-// LatestUnsafePayload implements Consensus, it returns the latest unsafe payload from FSM.
-func (rc *RaftConsensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
-	payload := rc.unsafeTracker.UnsafeHead()
-	return payload
+// LatestUnsafePayload implements Consensus, it returns the latest unsafe payload from FSM in a strongly consistent fashion.
+func (rc *RaftConsensus) LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, error) {
+	if err := rc.r.Barrier(defaultTimeout).Error(); err != nil {
+		return nil, errors.Wrap(err, "failed to apply barrier")
+	}
+
+	return rc.unsafeTracker.UnsafeHead(), nil
 }
 
 // ClusterMembership implements Consensus, it returns the current cluster membership configuration.
-func (rc *RaftConsensus) ClusterMembership() ([]*ServerInfo, error) {
+func (rc *RaftConsensus) ClusterMembership() (*ClusterMembership, error) {
 	var future raft.ConfigurationFuture
 	if future = rc.r.GetConfiguration(); future.Error() != nil {
 		return nil, future.Error()
 	}
 
-	var servers []*ServerInfo
+	var servers []ServerInfo
 	for _, srv := range future.Configuration().Servers {
-		servers = append(servers, &ServerInfo{
+		servers = append(servers, ServerInfo{
 			ID:       string(srv.ID),
 			Addr:     string(srv.Address),
 			Suffrage: ServerSuffrage(srv.Suffrage),
 		})
 	}
-	return servers, nil
+	return &ClusterMembership{
+		Servers: servers,
+		Version: future.Index(),
+	}, nil
 }

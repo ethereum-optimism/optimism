@@ -2,7 +2,9 @@ package plasma
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -16,12 +18,25 @@ var ErrCommitmentMismatch = errors.New("commitment mismatch")
 // CommitmentType is the commitment type prefix.
 type CommitmentType byte
 
+func CommitmentTypeFromString(s string) (CommitmentType, error) {
+	switch s {
+	case KeccakCommitmentString:
+		return Keccak256CommitmentType, nil
+	case GenericCommitmentString:
+		return GenericCommitmentType, nil
+	default:
+		return 0, fmt.Errorf("invalid commitment type: %s", s)
+	}
+}
+
 // CommitmentType describes the binary format of the commitment.
 // KeccakCommitmentType is the default commitment type for the centralized DA storage.
 // GenericCommitmentType indicates an opaque bytestring that the op-node never opens.
 const (
 	Keccak256CommitmentType CommitmentType = 0
 	GenericCommitmentType   CommitmentType = 1
+	KeccakCommitmentString  string         = "KeccakCommitment"
+	GenericCommitmentString string         = "GenericCommitment"
 )
 
 // CommitmentData is the binary representation of a commitment.
@@ -30,6 +45,7 @@ type CommitmentData interface {
 	Encode() []byte
 	TxData() []byte
 	Verify(input []byte) error
+	String() string
 }
 
 // Keccak256Commitment is an implementation of CommitmentData that uses Keccak256 as the commitment function.
@@ -110,6 +126,10 @@ func (c Keccak256Commitment) Verify(input []byte) error {
 	return nil
 }
 
+func (c Keccak256Commitment) String() string {
+	return hex.EncodeToString(c.Encode())
+}
+
 // NewGenericCommitment creates a new commitment from the given input.
 func NewGenericCommitment(input []byte) GenericCommitment {
 	return GenericCommitment(input)
@@ -141,4 +161,8 @@ func (c GenericCommitment) TxData() []byte {
 // Verify always returns true for GenericCommitment because the DA Server must validate the data before returning it to the op-node.
 func (c GenericCommitment) Verify(input []byte) error {
 	return nil
+}
+
+func (c GenericCommitment) String() string {
+	return hex.EncodeToString(c.Encode())
 }

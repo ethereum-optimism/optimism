@@ -15,9 +15,7 @@ var (
 )
 
 func validConfig() Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc)
-	cfg.RollupRpc = validRollupRpc
-	return cfg
+	return NewConfig(validGameFactoryAddress, validL1EthRpc, validRollupRpc)
 }
 
 func TestValidConfigIsValid(t *testing.T) {

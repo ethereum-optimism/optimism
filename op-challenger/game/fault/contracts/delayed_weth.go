@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -14,6 +15,7 @@ import (
 
 var (
 	methodWithdrawals = "withdrawals"
+	methodDelay       = "delay"
 )
 
 type DelayedWETHContract struct {
@@ -34,6 +36,28 @@ func NewDelayedWETHContract(metrics metrics.ContractMetricer, addr common.Addres
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(contractAbi, addr),
 	}
+}
+
+func (d *DelayedWETHContract) Addr() common.Address {
+	return d.contract.Addr()
+}
+
+// GetBalanceAndDelay returns the total amount of ETH controlled by this contract and the configured withdrawal delay.
+func (d *DelayedWETHContract) GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, error) {
+	defer d.metrics.StartContractRequest("GetBalance")()
+	results, err := d.multiCaller.Call(ctx, block,
+		batching.NewBalanceCall(d.contract.Addr()),
+		d.contract.Call(methodDelay))
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to retrieve game balance: %w", err)
+	}
+	balance := results[0].GetBigInt(0)
+	delaySeconds := results[1].GetBigInt(0)
+	if !delaySeconds.IsInt64() {
+		return nil, 0, fmt.Errorf("withdrawal delay too big for int64 %v", delaySeconds)
+	}
+	delay := time.Duration(delaySeconds.Int64()) * time.Second
+	return balance, delay, nil
 }
 
 // GetWithdrawals returns all withdrawals made from the contract since the given block.

@@ -99,6 +99,16 @@ var (
 		Name:  "pprof.cpu",
 		Usage: "enable pprof cpu profiling",
 	}
+	RunDebugFlag = &cli.BoolFlag{
+		Name:  "debug",
+		Usage: "enable debug mode, which includes stack traces and other debug info in the output. Requires --meta.",
+	}
+	RunDebugInfoFlag = &cli.PathFlag{
+		Name:      "debug-info",
+		Usage:     "path to write debug info to",
+		TakesFile: true,
+		Required:  false,
+	}
 
 	OutFilePerm = os.FileMode(0o755)
 )
@@ -139,7 +149,7 @@ type ProcessPreimageOracle struct {
 
 const clientPollTimeout = time.Second * 15
 
-func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracle, error) {
+func NewProcessPreimageOracle(name string, args []string, stdout log.Logger, stderr log.Logger) (*ProcessPreimageOracle, error) {
 	if name == "" {
 		return &ProcessPreimageOracle{}, nil
 	}
@@ -154,8 +164,8 @@ func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracl
 	}
 
 	cmd := exec.Command(name, args...) // nosemgrep
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = &mipsevm.LoggingWriter{Log: stdout}
+	cmd.Stderr = &mipsevm.LoggingWriter{Log: stderr}
 	cmd.ExtraFiles = []*os.File{
 		hOracleRW.Reader(),
 		hOracleRW.Writer(),
@@ -250,9 +260,11 @@ func Run(ctx *cli.Context) error {
 		return err
 	}
 
-	l := Logger(os.Stderr, log.LevelInfo)
-	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
-	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
+	guestLogger := Logger(os.Stderr, log.LevelInfo)
+	outLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
+	errLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
+
+	l := Logger(os.Stderr, log.LevelInfo).With("module", "vm")
 
 	stopAtAnyPreimage := false
 	var stopAtPreimageKeyPrefix []byte
@@ -305,7 +317,9 @@ func Run(ctx *cli.Context) error {
 		args = []string{""}
 	}
 
-	po, err := NewProcessPreimageOracle(args[0], args[1:])
+	poOut := Logger(os.Stdout, log.LevelInfo).With("module", "host")
+	poErr := Logger(os.Stderr, log.LevelInfo).With("module", "host")
+	po, err := NewProcessPreimageOracle(args[0], args[1:], poOut, poErr)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle process: %w", err)
 	}
@@ -336,6 +350,15 @@ func Run(ctx *cli.Context) error {
 	}
 
 	us := mipsevm.NewInstrumentedState(state, po, outLog, errLog)
+	debugProgram := ctx.Bool(RunDebugFlag.Name)
+	if debugProgram {
+		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+			return fmt.Errorf("cannot enable debug mode without a metadata file")
+		}
+		if err := us.InitDebug(meta); err != nil {
+			return fmt.Errorf("failed to initialize debug mode: %w", err)
+		}
+	}
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
@@ -363,16 +386,16 @@ func Run(ctx *cli.Context) error {
 			delta := time.Since(start)
 			l.Info("processing",
 				"step", step,
-				"pc", mipsevm.HexU32(state.PC),
-				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.PC)),
+				"pc", mipsevm.HexU32(state.Cpu.PC),
+				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.Cpu.PC)),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
 				"pages", state.Memory.PageCount(),
 				"mem", state.Memory.Usage(),
-				"name", meta.LookupSymbol(state.PC),
+				"name", meta.LookupSymbol(state.Cpu.PC),
 			)
 		}
 
-		if sleepCheck(state.PC) { // don't loop forever when we get stuck because of an unexpected bad program
+		if sleepCheck(state.Cpu.PC) { // don't loop forever when we get stuck because of an unexpected bad program
 			return fmt.Errorf("got stuck in Go sleep at step %d", step)
 		}
 
@@ -394,7 +417,7 @@ func Run(ctx *cli.Context) error {
 			}
 			witness, err := stepFn(true)
 			if err != nil {
-				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.PC, err)
+				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.Cpu.PC, err)
 			}
 			postStateHash, err := state.EncodeWitness().StateHash()
 			if err != nil {
@@ -418,7 +441,7 @@ func Run(ctx *cli.Context) error {
 		} else {
 			_, err = stepFn(false)
 			if err != nil {
-				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.PC, err)
+				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.Cpu.PC, err)
 			}
 		}
 
@@ -442,9 +465,17 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 	l.Info("Execution stopped", "exited", state.Exited, "code", state.ExitCode)
+	if debugProgram {
+		us.Traceback()
+	}
 
 	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
+	}
+	if debugInfoFile := ctx.Path(RunDebugInfoFlag.Name); debugInfoFile != "" {
+		if err := jsonutil.WriteJSON(debugInfoFile, us.GetDebugInfo(), OutFilePerm); err != nil {
+			return fmt.Errorf("failed to write benchmark data: %w", err)
+		}
 	}
 	return nil
 }
@@ -468,5 +499,7 @@ var RunCommand = &cli.Command{
 		RunMetaFlag,
 		RunInfoAtFlag,
 		RunPProfCPU,
+		RunDebugFlag,
+		RunDebugInfoFlag,
 	},
 }

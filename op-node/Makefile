@@ -52,8 +52,12 @@ fuzz:
 generate-mocks:
 	go generate ./...
 
+readme:
+	doctoc README.md
+
 .PHONY: \
 	op-node \
 	clean \
 	test \
-	fuzz
+	fuzz \
+	readme

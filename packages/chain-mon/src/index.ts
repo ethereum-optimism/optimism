@@ -1,5 +1,4 @@
 export * from '../internal/balance-mon/service'
-export * from '../contrib/drippie-mon/service'
 export * from './fault-mon/index'
 export * from '../internal/multisig-mon/service'
 export * from './wd-mon/service'

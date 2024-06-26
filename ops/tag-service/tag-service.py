@@ -3,7 +3,6 @@ import logging.config
 import os
 import re
 import subprocess
-import sys
 
 import click
 import semver
@@ -13,17 +12,14 @@ MIN_VERSIONS = {
     'ci-builder': '0.6.0',
     'ci-builder-rust': '0.1.0',
     'chain-mon': '0.2.2',
-    'indexer': '0.5.0',
+    'da-server': '0.0.4',
     'op-node': '0.10.14',
     'op-batcher': '0.10.14',
     'op-challenger': '0.0.4',
     'op-program': '0.0.0',
     'op-dispute-mon': '0.0.0',
     'op-proposer': '0.10.14',
-    'op-ufm': '0.1.0',
-    'proxyd': '3.16.0',
     'op-heartbeat': '0.1.0',
-    'ufm-metamask': '0.1.0',
     'op-contracts': '1.0.0',
     'op-conductor': '0.0.0',
 }

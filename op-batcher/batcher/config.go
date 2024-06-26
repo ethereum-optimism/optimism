@@ -128,7 +128,7 @@ func (c *CLIConfig) Check() error {
 	if c.Compressor == compressor.RatioKind && (c.ApproxComprRatio <= 0 || c.ApproxComprRatio > 1) {
 		return fmt.Errorf("invalid ApproxComprRatio %v for ratio compressor", c.ApproxComprRatio)
 	}
-	if !derive.ValidCompressionAlgoType(c.CompressionAlgo) {
+	if !derive.ValidCompressionAlgo(c.CompressionAlgo) {
 		return fmt.Errorf("invalid compression algo %v", c.CompressionAlgo)
 	}
 	if c.BatchType > 1 {

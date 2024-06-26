@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
@@ -57,6 +58,14 @@ func TestBetaFlags(t *testing.T) {
 }
 
 func TestHasEnvVar(t *testing.T) {
+	// known exceptions to the number of env vars
+	expEnvVars := map[string]int{
+		plasma.EnabledFlagName:         2,
+		plasma.DaServerAddressFlagName: 2,
+		plasma.VerifyOnReadFlagName:    2,
+		plasma.DaServiceFlag:           2,
+	}
+
 	for _, flag := range Flags {
 		flag := flag
 		flagName := flag.Names()[0]
@@ -65,9 +74,13 @@ func TestHasEnvVar(t *testing.T) {
 			envFlagGetter, ok := flag.(interface {
 				GetEnvVars() []string
 			})
-			envFlags := envFlagGetter.GetEnvVars()
 			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
-			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			envFlags := envFlagGetter.GetEnvVars()
+			if numEnvVars, ok := expEnvVars[flagName]; ok {
+				require.Equalf(t, numEnvVars, len(envFlags), "flags should have %d env vars", numEnvVars)
+			} else {
+				require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			}
 		})
 	}
 }
@@ -92,7 +105,6 @@ func TestEnvVarFormat(t *testing.T) {
 			})
 			envFlags := envFlagGetter.GetEnvVars()
 			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
-			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
 			expectedEnvVar := opservice.FlagNameToEnvVarName(flagName, "OP_BATCHER")
 			require.Equal(t, expectedEnvVar, envFlags[0])
 		})

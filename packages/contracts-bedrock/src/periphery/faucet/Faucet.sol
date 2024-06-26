@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IFaucetAuthModule } from "./authmodules/IFaucetAuthModule.sol";
+import { SafeCall } from "../../libraries/SafeCall.sol";
 
 /// @title  SafeSend
 /// @notice Sends ETH to a recipient account without triggering any code.
@@ -25,7 +26,9 @@ contract Faucet {
     /// @notice Parameters for a drip.
     struct DripParameters {
         address payable recipient;
+        bytes data;
         bytes32 nonce;
+        uint32 gasLimit;
     }
 
     /// @notice Parameters for authentication.
@@ -113,14 +116,17 @@ contract Faucet {
             "Faucet: drip parameters could not be verified by security module"
         );
 
+        // Verify recepient is not the faucet address.
+        require(_params.recipient != address(this), "Faucet: cannot drip to itself");
+
         // Set the next timestamp at which this auth id can be used.
         timeouts[_auth.module][_auth.id] = block.timestamp + config.ttl;
 
         // Mark the nonce as used.
         nonces[_auth.id][_params.nonce] = true;
 
-        // Execute a safe transfer of ETH to the recipient account.
-        new SafeSend{ value: config.amount }(_params.recipient);
+        // Execute transfer of ETH to the recipient account.
+        SafeCall.call(_params.recipient, _params.gasLimit, config.amount, _params.data);
 
         emit Drip(config.name, _auth.id, config.amount, _params.recipient);
     }

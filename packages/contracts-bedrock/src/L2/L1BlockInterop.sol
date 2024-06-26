@@ -2,108 +2,103 @@
 pragma solidity 0.8.15;
 
 import { L1Block } from "src/L2/L1Block.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
+import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import "src/libraries/L1BlockErrors.sol";
 
-/// @notice Thrown when a non-depositor account attempts to set L1 block values.
-error NotDepositor();
-
-/// @notice Thrown when dependencySetSize does not match the length of the dependency set.
-error DependencySetSizeMismatch();
+/// @notice Enum representing different types of configurations that can be set on L1BlockInterop.
+/// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
+/// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
+/// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency set.
+enum ConfigType {
+    SET_GAS_PAYING_TOKEN,
+    ADD_DEPENDENCY,
+    REMOVE_DEPENDENCY
+}
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1BlockInterop
 /// @notice Interop extenstions of L1Block.
 contract L1BlockInterop is L1Block {
-    /// @notice The chain IDs of the interop dependency set.
-    uint256[] public dependencySet;
+    using EnumerableSet for EnumerableSet.UintSet;
 
-    /// @custom:semver 1.3.0+interop
+    /// @notice Event emitted when a new dependency is added to the interop dependency set.
+    event DependencyAdded(uint256 indexed chainId);
+
+    /// @notice Event emitted when a dependency is removed from the interop dependency set.
+    event DependencyRemoved(uint256 indexed chainId);
+
+    /// @notice The interop dependency set, containing the chain IDs in it.
+    EnumerableSet.UintSet dependencySet;
+
+    /// @custom:semver +interop
     function version() public pure override returns (string memory) {
         return string.concat(super.version(), "+interop");
     }
 
-    /// @notice Updates the L1 block values for an Interop upgraded chain.
-    /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
-    /// Params are expected to be in the following order:
-    ///   1. _baseFeeScalar      L1 base fee scalar
-    ///   2. _blobBaseFeeScalar  L1 blob base fee scalar
-    ///   3. _sequenceNumber     Number of L2 blocks since epoch start.
-    ///   4. _timestamp          L1 timestamp.
-    ///   5. _number             L1 blocknumber.
-    ///   6. _basefee            L1 base fee.
-    ///   7. _blobBaseFee        L1 blob base fee.
-    ///   8. _hash               L1 blockhash.
-    ///   9. _batcherHash        Versioned hash to authenticate batcher by.
-    ///  10. _dependencySetSize  Size of the interop dependency set.
-    ///  11. _dependencySet      Array of chain IDs for the interop dependency set.
-    function setL1BlockValuesInterop() external {
-        address depositor = DEPOSITOR_ACCOUNT();
-        assembly {
-            // Revert if the caller is not the depositor account.
-            if xor(caller(), depositor) {
-                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
-                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
-            }
-            // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
-            sstore(sequenceNumber.slot, shr(128, calldataload(4)))
-            // number (uint64) and timestamp (uint64)
-            sstore(number.slot, shr(128, calldataload(20)))
-            sstore(basefee.slot, calldataload(36)) // uint256
-            sstore(blobBaseFee.slot, calldataload(68)) // uint256
-            sstore(hash.slot, calldataload(100)) // bytes32
-            sstore(batcherHash.slot, calldataload(132)) // bytes32
-
-            // Load dependencySetSize from calldata (at offset 164 after calldata for setL1BlockValuesEcotone ends)
-            let dependencySetSize_ := shr(248, calldataload(164))
-
-            // Revert if dependencySetSize_ doesn't match the length of dependencySet in calldata
-            if xor(add(165, mul(dependencySetSize_, 0x20)), calldatasize()) {
-                mstore(0x00, 0x44165b6a) // 0x44165b6a is the 4-byte selector of "DependencySetSizeMismatch()"
-                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
-            }
-
-            // Use memory to hash and get the start index of dependencySet
-            mstore(0x00, dependencySet.slot)
-            let dependencySetStartIndex := keccak256(0x00, 0x20)
-
-            // Iterate over calldata dependencySet and write to store dependencySet
-            for { let i := 0 } lt(i, dependencySetSize_) { i := add(i, 1) } {
-                // Load value from calldata and write to storage (dependencySet) at index
-                let val := calldataload(add(165, mul(i, 0x20)))
-                sstore(add(dependencySetStartIndex, i), val)
-            }
-
-            // Update length of dependencySet array
-            sstore(dependencySet.slot, dependencySetSize_)
-        }
-    }
-
     /// @notice Returns true if a chain ID is in the interop dependency set and false otherwise.
-    ///         Every chain ID is in the interop dependency set of itself.
+    ///         The chain's chain ID is always considered to be in the dependency set.
     /// @param _chainId The chain ID to check.
     /// @return True if the chain ID to check is in the interop dependency set. False otherwise.
     function isInDependencySet(uint256 _chainId) public view returns (bool) {
-        // Every chain ID is in the interop dependency set of itself.
-        if (_chainId == block.chainid) {
-            return true;
-        }
-
-        uint256 length = dependencySet.length;
-        for (uint256 i = 0; i < length;) {
-            if (dependencySet[i] == _chainId) {
-                return true;
-            }
-            unchecked {
-                i++;
-            }
-        }
-
-        return false;
+        return _chainId == block.chainid || dependencySet.contains(_chainId);
     }
 
     /// @notice Returns the size of the interop dependency set.
     /// @return The size of the interop dependency set.
     function dependencySetSize() external view returns (uint8) {
-        return uint8(dependencySet.length);
+        return uint8(dependencySet.length());
+    }
+
+    /// @notice Sets static configuration options for the L2 system. Can only be called by the special
+    ///         depositor account.
+    /// @param _type  The type of configuration to set.
+    /// @param _value The encoded value with which to set the configuration.
+    function setConfig(ConfigType _type, bytes calldata _value) external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        if (_type == ConfigType.SET_GAS_PAYING_TOKEN) {
+            _setGasPayingToken(_value);
+        } else if (_type == ConfigType.ADD_DEPENDENCY) {
+            _addDependency(_value);
+        } else if (_type == ConfigType.REMOVE_DEPENDENCY) {
+            _removeDependency(_value);
+        }
+    }
+
+    /// @notice Internal method to set the gas paying token.
+    /// @param _value The encoded value with which to set the gas paying token.
+    function _setGasPayingToken(bytes calldata _value) internal {
+        (address token, uint8 decimals, bytes32 name, bytes32 symbol) = StaticConfig.decodeSetGasPayingToken(_value);
+
+        GasPayingToken.set({ _token: token, _decimals: decimals, _name: name, _symbol: symbol });
+
+        emit GasPayingTokenSet({ token: token, decimals: decimals, name: name, symbol: symbol });
+    }
+
+    /// @notice Internal method to add a dependency to the interop dependency set.
+    /// @param _value The encoded value with which to add the dependency.
+    function _addDependency(bytes calldata _value) internal {
+        uint256 chainId = StaticConfig.decodeAddDependency(_value);
+
+        if (dependencySet.length() == type(uint8).max) revert DependencySetSizeTooLarge();
+
+        if (chainId == block.chainid || !dependencySet.add(chainId)) revert AlreadyDependency();
+
+        emit DependencyAdded(chainId);
+    }
+
+    /// @notice Internal method to remove a dependency from the interop dependency set.
+    /// @param _value The encoded value with which to remove the dependency.
+    function _removeDependency(bytes calldata _value) internal {
+        uint256 chainId = StaticConfig.decodeRemoveDependency(_value);
+
+        if (chainId == block.chainid) revert CantRemovedDependency();
+
+        if (!dependencySet.remove(chainId)) revert NotDependency();
+
+        emit DependencyRemoved(chainId);
     }
 }

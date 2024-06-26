@@ -102,7 +102,7 @@ var (
 	}
 	CompressionAlgoFlag = &cli.GenericFlag{
 		Name:    "compression-algo",
-		Usage:   "The compression algorithm to use. Valid options: " + openum.EnumString(derive.CompressionAlgoTypes),
+		Usage:   "The compression algorithm to use. Valid options: " + openum.EnumString(derive.CompressionAlgos),
 		EnvVars: prefixEnvVars("COMPRESSION_ALGO"),
 		Value: func() *derive.CompressionAlgo {
 			out := derive.Zlib

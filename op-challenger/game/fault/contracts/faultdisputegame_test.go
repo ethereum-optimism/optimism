@@ -158,6 +158,15 @@ func TestSimpleGetters(t *testing.T) {
 				return game.CallResolve(context.Background())
 			},
 		},
+		{
+			methodAlias: "resolvedAt",
+			method:      methodResolvedAt,
+			result:      uint64(240402),
+			expected:    time.Unix(240402, 0),
+			call: func(game FaultDisputeGameContract) (any, error) {
+				return game.GetResolvedAt(context.Background(), rpcblock.Latest)
+			},
+		},
 	}
 	for _, version := range versions {
 		version := version
@@ -327,14 +336,19 @@ func TestGetBalance(t *testing.T) {
 		t.Run(version.version, func(t *testing.T) {
 			wethAddr := common.Address{0x11, 0x55, 0x66}
 			balance := big.NewInt(9995877)
+			delaySeconds := big.NewInt(429829)
+			delay := time.Duration(delaySeconds.Int64()) * time.Second
 			block := rpcblock.ByNumber(424)
 			stubRpc, game := setupFaultDisputeGameTest(t, version)
 			stubRpc.SetResponse(fdgAddr, methodWETH, block, nil, []interface{}{wethAddr})
+			stubRpc.AddContract(wethAddr, snapshots.LoadDelayedWETHABI())
+			stubRpc.SetResponse(wethAddr, methodDelay, block, nil, []interface{}{delaySeconds})
 			stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(wethAddr, block, balance))
 
-			actualBalance, actualAddr, err := game.GetBalance(context.Background(), block)
+			actualBalance, actualDelay, actualAddr, err := game.GetBalanceAndDelay(context.Background(), block)
 			require.NoError(t, err)
 			require.Equal(t, wethAddr, actualAddr)
+			require.Equal(t, delay, actualDelay)
 			require.Truef(t, balance.Cmp(actualBalance) == 0, "Expected balance %v but was %v", balance, actualBalance)
 		})
 	}

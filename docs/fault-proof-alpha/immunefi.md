@@ -88,13 +88,13 @@ See our bounty program on [Immunefi][immunefi] for information regarding reward 
 
 <!-- LINKS -->
 [cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
-[cannon-vm-specs]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/cannon-fault-proof-vm.md
+[cannon-vm-specs]: https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/cannon-fault-proof-vm.md
 [dispute-game]: https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute
-[fault-dispute-specs]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/fault-dispute-game.md
+[fault-dispute-specs]: https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/stage-one/fault-dispute-game.md
 [cannon-contracts]: https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/cannon
 [op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
 [op-challenger]: https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger
 [alphabet-vm]: https://github.com/ethereum-optimism/optimism/blob/c1cbacef0097c28f999e3655200e6bd0d4dba9f2/packages/contracts-bedrock/test/FaultDisputeGame.t.sol#L977-L1005
-[fault-proof-specs]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/fault-proof.md
+[fault-proof-specs]: https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/index.md
 [immunefi]: https://immunefi.com/bounty/optimism/
 [invalid-proposal-doc]: https://github.com/ethereum-optimism/optimism/blob/develop/docs/fault-proof-alpha/invalid-proposals.md

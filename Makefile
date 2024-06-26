@@ -21,7 +21,6 @@ build-ts: submodules
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
 	pnpm install:ci
-	pnpm prepare
 	pnpm build
 .PHONY: build-ts
 
@@ -38,7 +37,7 @@ golang-docker:
 			--progress plain \
 			--load \
 			-f docker-bake.hcl \
-			op-node op-batcher op-proposer op-challenger op-dispute-mon
+			op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor
 .PHONY: golang-docker
 
 docker-builder-clean:
@@ -159,7 +158,6 @@ mod-tidy:
 	#
 	# See https://proxy.golang.org/ for more info.
 	export GOPRIVATE="github.com/ethereum-optimism" && go mod tidy
-	make -C ./op-ufm mod-tidy
 .PHONY: mod-tidy
 
 clean:

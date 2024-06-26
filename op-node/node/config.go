@@ -174,5 +174,8 @@ func (cfg *Config) Check() error {
 	if err := cfg.Plasma.Check(); err != nil {
 		return fmt.Errorf("plasma config error: %w", err)
 	}
+	if cfg.Plasma.Enabled {
+		log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
+	}
 	return nil
 }

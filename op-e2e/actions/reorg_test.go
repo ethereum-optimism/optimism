@@ -767,7 +767,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// give the unsafe block to the verifier, and see if it reorgs because of any unsafe inputs
 	head, err := altSeqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	verifier.ActL2UnsafeGossipReceive(head)
+	verifier.ActL2UnsafeGossipReceive(head)(t)
 
 	// make sure verifier has processed everything
 	verifier.ActL2PipelineFull(t)

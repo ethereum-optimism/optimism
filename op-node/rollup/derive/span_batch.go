@@ -422,6 +422,9 @@ type SpanBatch struct {
 	sbtxs         *spanBatchTxs
 }
 
+func (b *SpanBatch) AsSingularBatch() (*SingularBatch, bool) { return nil, false }
+func (b *SpanBatch) AsSpanBatch() (*SpanBatch, bool)         { return b, true }
+
 // spanBatchMarshaling is a helper type used for JSON marshaling.
 type spanBatchMarshaling struct {
 	ParentCheck   []hexutil.Bytes     `json:"parent_check"`
@@ -448,6 +451,14 @@ func (b *SpanBatch) GetTimestamp() uint64 {
 	return b.Batches[0].Timestamp
 }
 
+// TxCount returns the tx count for the batch
+func (b *SpanBatch) TxCount() (count uint64) {
+	for _, txCount := range b.blockTxCounts {
+		count += txCount
+	}
+	return
+}
+
 // LogContext creates a new log context that contains information of the batch
 func (b *SpanBatch) LogContext(log log.Logger) log.Logger {
 	if len(b.Batches) == 0 {
@@ -461,6 +472,7 @@ func (b *SpanBatch) LogContext(log log.Logger) log.Logger {
 		"start_epoch_number", b.GetStartEpochNum(),
 		"end_epoch_number", b.GetBlockEpochNum(len(b.Batches)-1),
 		"block_count", len(b.Batches),
+		"txs", b.TxCount(),
 	)
 }
 

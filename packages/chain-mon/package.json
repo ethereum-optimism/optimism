@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/chain-mon",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "[Optimism] Chain monitoring services",
   "main": "dist/index",
   "types": "dist/index",
@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "dev:balance-mon": "tsx watch ./internal/balance-mon/service.ts",
-    "dev:drippie-mon": "tsx watch ./contrib/drippie/service.ts",
     "dev:fault-mon": "tsx watch ./src/fault-mon/service.ts",
     "dev:multisig-mon": "tsx watch ./internal/multisig-mon/service.ts",
     "dev:replica-mon": "tsx watch ./contrib/replica-mon/service.ts",
@@ -19,7 +18,6 @@
     "dev:faultproof-wd-mon": "tsx ./src/faultproof-wd-mon/service.ts",
     "dev:initialized-upgraded-mon": "tsx watch ./contrib/initialized-upgraded-mon/service.ts",
     "start:balance-mon": "tsx ./internal/balance-mon/service.ts",
-    "start:drippie-mon": "tsx ./contrib/drippie/service.ts",
     "start:fault-mon": "tsx ./src/fault-mon/service.ts",
     "start:multisig-mon": "tsx ./internal/multisig-mon/service.ts",
     "start:replica-mon": "tsx ./contrib/replica-mon/service.ts",
@@ -32,7 +30,6 @@
     "build": "tsc -p ./tsconfig.json",
     "clean": "rimraf  dist/ ./tsconfig.tsbuildinfo",
     "lint": "pnpm lint:fix && pnpm lint:check",
-    "pre-commit": "lint-staged",
     "lint:fix": "pnpm lint:check --fix",
     "lint:check": "eslint . --max-warnings=0"
   },
@@ -49,10 +46,10 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "workspace:*",
+    "@eth-optimism/common-ts": "^0.8.9",
     "@eth-optimism/contracts-bedrock": "workspace:*",
     "@eth-optimism/contracts-periphery": "1.0.8",
-    "@eth-optimism/core-utils": "workspace:*",
+    "@eth-optimism/core-utils": "^0.13.2",
     "@eth-optimism/sdk": "^3.3.1",
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",

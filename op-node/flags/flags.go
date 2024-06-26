@@ -25,7 +25,7 @@ const (
 	SequencerCategory  = "3. SEQUENCER"
 	OperationsCategory = "4. LOGGING, METRICS, DEBUGGING, AND API"
 	P2PCategory        = "5. PEER-TO-PEER"
-	PlasmaCategory     = "6. PLASMA (EXPERIMENTAL)"
+	AltDACategory      = "6. ALT-DA (EXPERIMENTAL)"
 	MiscCategory       = "7. MISC"
 )
 
@@ -34,8 +34,12 @@ func init() {
 	cli.VersionFlag.(*cli.BoolFlag).Category = MiscCategory
 }
 
-func prefixEnvVars(name string) []string {
-	return []string{EnvVarPrefix + "_" + name}
+func prefixEnvVars(names ...string) []string {
+	envs := make([]string, 0, len(names))
+	for _, name := range names {
+		envs = append(envs, EnvVarPrefix+"_"+name)
+	}
+	return envs
 }
 
 var (
@@ -76,11 +80,11 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON_HEADER"),
 		Category: L1RPCCategory,
 	}
-	BeaconArchiverAddr = &cli.StringFlag{
-		Name:     "l1.beacon-archiver",
-		Usage:    "Address of L1 Beacon-node compatible HTTP endpoint to use. This is used to fetch blobs that the --l1.beacon does not have (i.e expired blobs).",
-		Required: false,
-		EnvVars:  prefixEnvVars("L1_BEACON_ARCHIVER"),
+	BeaconFallbackAddrs = &cli.StringSliceFlag{
+		Name:     "l1.beacon-fallbacks",
+		Aliases:  []string{"l1.beacon-archiver"},
+		Usage:    "Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars not availalbe at the l1.beacon (e.g. expired blobs).",
+		EnvVars:  prefixEnvVars("L1_BEACON_FALLBACKS", "L1_BEACON_ARCHIVER"),
 		Category: L1RPCCategory,
 	}
 	BeaconCheckIgnore = &cli.BoolFlag{
@@ -154,7 +158,7 @@ var (
 	}
 	L1RethDBPath = &cli.StringFlag{
 		Name:     "l1.rethdb",
-		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
+		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks.",
 		EnvVars:  prefixEnvVars("L1_RETHDB"),
 		Hidden:   true,
 		Category: L1RPCCategory,
@@ -364,7 +368,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	BeaconAddr,
 	BeaconHeader,
-	BeaconArchiverAddr,
+	BeaconFallbackAddrs,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
@@ -420,7 +424,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, RollupCategory)...)
-	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, PlasmaCategory)...)
+	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, AltDACategory)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 

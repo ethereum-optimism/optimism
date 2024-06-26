@@ -430,7 +430,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 }
 
 func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
-	for _, algo := range derive.CompressionAlgoTypes {
+	for _, algo := range derive.CompressionAlgos {
 		t.Run("ChannelBuilder_OutputFrames_SpanBatch_"+algo.String(), func(t *testing.T) {
 			if algo.IsBrotli() {
 				ChannelBuilder_OutputFrames_SpanBatch(t, algo) // to fill faster for brotli
@@ -710,6 +710,72 @@ func TestChannelBuilder_LatestL1Origin(t *testing.T) {
 	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110))
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), cb.LatestL1Origin().Number)
+}
+
+func TestChannelBuilder_OldestL1Origin(t *testing.T) {
+	cb, err := NewChannelBuilder(defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
+	require.NoError(t, err)
+	require.Equal(t, eth.BlockID{}, cb.OldestL1Origin())
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
+}
+
+func TestChannelBuilder_LatestL2(t *testing.T) {
+	cb, err := NewChannelBuilder(defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
+	require.NoError(t, err)
+	require.Equal(t, eth.BlockID{}, cb.LatestL2())
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.LatestL2().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100))
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), cb.LatestL2().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110))
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), cb.LatestL2().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110))
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), cb.LatestL2().Number)
+}
+
+func TestChannelBuilder_OldestL2(t *testing.T) {
+	cb, err := NewChannelBuilder(defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
+	require.NoError(t, err)
+	require.Equal(t, eth.BlockID{}, cb.OldestL2())
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL2().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL2().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL2().Number)
+
+	_, err = cb.AddBlock(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL2().Number)
 }
 
 func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {

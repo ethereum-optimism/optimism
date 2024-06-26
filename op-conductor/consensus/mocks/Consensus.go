@@ -22,17 +22,17 @@ func (_m *Consensus) EXPECT() *Consensus_Expecter {
 	return &Consensus_Expecter{mock: &_m.Mock}
 }
 
-// AddNonVoter provides a mock function with given fields: id, addr
-func (_m *Consensus) AddNonVoter(id string, addr string) error {
-	ret := _m.Called(id, addr)
+// AddNonVoter provides a mock function with given fields: id, addr, version
+func (_m *Consensus) AddNonVoter(id string, addr string, version uint64) error {
+	ret := _m.Called(id, addr, version)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AddNonVoter")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = rf(id, addr)
+	if rf, ok := ret.Get(0).(func(string, string, uint64) error); ok {
+		r0 = rf(id, addr, version)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -48,13 +48,14 @@ type Consensus_AddNonVoter_Call struct {
 // AddNonVoter is a helper method to define mock.On call
 //   - id string
 //   - addr string
-func (_e *Consensus_Expecter) AddNonVoter(id interface{}, addr interface{}) *Consensus_AddNonVoter_Call {
-	return &Consensus_AddNonVoter_Call{Call: _e.mock.On("AddNonVoter", id, addr)}
+//   - version uint64
+func (_e *Consensus_Expecter) AddNonVoter(id interface{}, addr interface{}, version interface{}) *Consensus_AddNonVoter_Call {
+	return &Consensus_AddNonVoter_Call{Call: _e.mock.On("AddNonVoter", id, addr, version)}
 }
 
-func (_c *Consensus_AddNonVoter_Call) Run(run func(id string, addr string)) *Consensus_AddNonVoter_Call {
+func (_c *Consensus_AddNonVoter_Call) Run(run func(id string, addr string, version uint64)) *Consensus_AddNonVoter_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string))
+		run(args[0].(string), args[1].(string), args[2].(uint64))
 	})
 	return _c
 }
@@ -64,22 +65,22 @@ func (_c *Consensus_AddNonVoter_Call) Return(_a0 error) *Consensus_AddNonVoter_C
 	return _c
 }
 
-func (_c *Consensus_AddNonVoter_Call) RunAndReturn(run func(string, string) error) *Consensus_AddNonVoter_Call {
+func (_c *Consensus_AddNonVoter_Call) RunAndReturn(run func(string, string, uint64) error) *Consensus_AddNonVoter_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// AddVoter provides a mock function with given fields: id, addr
-func (_m *Consensus) AddVoter(id string, addr string) error {
-	ret := _m.Called(id, addr)
+// AddVoter provides a mock function with given fields: id, addr, version
+func (_m *Consensus) AddVoter(id string, addr string, version uint64) error {
+	ret := _m.Called(id, addr, version)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AddVoter")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = rf(id, addr)
+	if rf, ok := ret.Get(0).(func(string, string, uint64) error); ok {
+		r0 = rf(id, addr, version)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -95,13 +96,14 @@ type Consensus_AddVoter_Call struct {
 // AddVoter is a helper method to define mock.On call
 //   - id string
 //   - addr string
-func (_e *Consensus_Expecter) AddVoter(id interface{}, addr interface{}) *Consensus_AddVoter_Call {
-	return &Consensus_AddVoter_Call{Call: _e.mock.On("AddVoter", id, addr)}
+//   - version uint64
+func (_e *Consensus_Expecter) AddVoter(id interface{}, addr interface{}, version interface{}) *Consensus_AddVoter_Call {
+	return &Consensus_AddVoter_Call{Call: _e.mock.On("AddVoter", id, addr, version)}
 }
 
-func (_c *Consensus_AddVoter_Call) Run(run func(id string, addr string)) *Consensus_AddVoter_Call {
+func (_c *Consensus_AddVoter_Call) Run(run func(id string, addr string, version uint64)) *Consensus_AddVoter_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string))
+		run(args[0].(string), args[1].(string), args[2].(uint64))
 	})
 	return _c
 }
@@ -111,29 +113,29 @@ func (_c *Consensus_AddVoter_Call) Return(_a0 error) *Consensus_AddVoter_Call {
 	return _c
 }
 
-func (_c *Consensus_AddVoter_Call) RunAndReturn(run func(string, string) error) *Consensus_AddVoter_Call {
+func (_c *Consensus_AddVoter_Call) RunAndReturn(run func(string, string, uint64) error) *Consensus_AddVoter_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ClusterMembership provides a mock function with given fields:
-func (_m *Consensus) ClusterMembership() ([]*consensus.ServerInfo, error) {
+func (_m *Consensus) ClusterMembership() (*consensus.ClusterMembership, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for ClusterMembership")
 	}
 
-	var r0 []*consensus.ServerInfo
+	var r0 *consensus.ClusterMembership
 	var r1 error
-	if rf, ok := ret.Get(0).(func() ([]*consensus.ServerInfo, error)); ok {
+	if rf, ok := ret.Get(0).(func() (*consensus.ClusterMembership, error)); ok {
 		return rf()
 	}
-	if rf, ok := ret.Get(0).(func() []*consensus.ServerInfo); ok {
+	if rf, ok := ret.Get(0).(func() *consensus.ClusterMembership); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*consensus.ServerInfo)
+			r0 = ret.Get(0).(*consensus.ClusterMembership)
 		}
 	}
 
@@ -163,12 +165,12 @@ func (_c *Consensus_ClusterMembership_Call) Run(run func()) *Consensus_ClusterMe
 	return _c
 }
 
-func (_c *Consensus_ClusterMembership_Call) Return(_a0 []*consensus.ServerInfo, _a1 error) *Consensus_ClusterMembership_Call {
+func (_c *Consensus_ClusterMembership_Call) Return(_a0 *consensus.ClusterMembership, _a1 error) *Consensus_ClusterMembership_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Consensus_ClusterMembership_Call) RunAndReturn(run func() ([]*consensus.ServerInfo, error)) *Consensus_ClusterMembership_Call {
+func (_c *Consensus_ClusterMembership_Call) RunAndReturn(run func() (*consensus.ClusterMembership, error)) *Consensus_ClusterMembership_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -219,17 +221,17 @@ func (_c *Consensus_CommitUnsafePayload_Call) RunAndReturn(run func(*eth.Executi
 	return _c
 }
 
-// DemoteVoter provides a mock function with given fields: id
-func (_m *Consensus) DemoteVoter(id string) error {
-	ret := _m.Called(id)
+// DemoteVoter provides a mock function with given fields: id, version
+func (_m *Consensus) DemoteVoter(id string, version uint64) error {
+	ret := _m.Called(id, version)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DemoteVoter")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string) error); ok {
-		r0 = rf(id)
+	if rf, ok := ret.Get(0).(func(string, uint64) error); ok {
+		r0 = rf(id, version)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -244,13 +246,14 @@ type Consensus_DemoteVoter_Call struct {
 
 // DemoteVoter is a helper method to define mock.On call
 //   - id string
-func (_e *Consensus_Expecter) DemoteVoter(id interface{}) *Consensus_DemoteVoter_Call {
-	return &Consensus_DemoteVoter_Call{Call: _e.mock.On("DemoteVoter", id)}
+//   - version uint64
+func (_e *Consensus_Expecter) DemoteVoter(id interface{}, version interface{}) *Consensus_DemoteVoter_Call {
+	return &Consensus_DemoteVoter_Call{Call: _e.mock.On("DemoteVoter", id, version)}
 }
 
-func (_c *Consensus_DemoteVoter_Call) Run(run func(id string)) *Consensus_DemoteVoter_Call {
+func (_c *Consensus_DemoteVoter_Call) Run(run func(id string, version uint64)) *Consensus_DemoteVoter_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		run(args[0].(string), args[1].(uint64))
 	})
 	return _c
 }
@@ -260,13 +263,13 @@ func (_c *Consensus_DemoteVoter_Call) Return(_a0 error) *Consensus_DemoteVoter_C
 	return _c
 }
 
-func (_c *Consensus_DemoteVoter_Call) RunAndReturn(run func(string) error) *Consensus_DemoteVoter_Call {
+func (_c *Consensus_DemoteVoter_Call) RunAndReturn(run func(string, uint64) error) *Consensus_DemoteVoter_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // LatestUnsafePayload provides a mock function with given fields:
-func (_m *Consensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
+func (_m *Consensus) LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
@@ -274,6 +277,10 @@ func (_m *Consensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
 	}
 
 	var r0 *eth.ExecutionPayloadEnvelope
+	var r1 error
+	if rf, ok := ret.Get(0).(func() (*eth.ExecutionPayloadEnvelope, error)); ok {
+		return rf()
+	}
 	if rf, ok := ret.Get(0).(func() *eth.ExecutionPayloadEnvelope); ok {
 		r0 = rf()
 	} else {
@@ -282,7 +289,13 @@ func (_m *Consensus) LatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
 		}
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Consensus_LatestUnsafePayload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LatestUnsafePayload'
@@ -302,12 +315,12 @@ func (_c *Consensus_LatestUnsafePayload_Call) Run(run func()) *Consensus_LatestU
 	return _c
 }
 
-func (_c *Consensus_LatestUnsafePayload_Call) Return(_a0 *eth.ExecutionPayloadEnvelope) *Consensus_LatestUnsafePayload_Call {
-	_c.Call.Return(_a0)
+func (_c *Consensus_LatestUnsafePayload_Call) Return(_a0 *eth.ExecutionPayloadEnvelope, _a1 error) *Consensus_LatestUnsafePayload_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Consensus_LatestUnsafePayload_Call) RunAndReturn(run func() *eth.ExecutionPayloadEnvelope) *Consensus_LatestUnsafePayload_Call {
+func (_c *Consensus_LatestUnsafePayload_Call) RunAndReturn(run func() (*eth.ExecutionPayloadEnvelope, error)) *Consensus_LatestUnsafePayload_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -451,17 +464,17 @@ func (_c *Consensus_LeaderWithID_Call) RunAndReturn(run func() *consensus.Server
 	return _c
 }
 
-// RemoveServer provides a mock function with given fields: id
-func (_m *Consensus) RemoveServer(id string) error {
-	ret := _m.Called(id)
+// RemoveServer provides a mock function with given fields: id, version
+func (_m *Consensus) RemoveServer(id string, version uint64) error {
+	ret := _m.Called(id, version)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RemoveServer")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string) error); ok {
-		r0 = rf(id)
+	if rf, ok := ret.Get(0).(func(string, uint64) error); ok {
+		r0 = rf(id, version)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -476,13 +489,14 @@ type Consensus_RemoveServer_Call struct {
 
 // RemoveServer is a helper method to define mock.On call
 //   - id string
-func (_e *Consensus_Expecter) RemoveServer(id interface{}) *Consensus_RemoveServer_Call {
-	return &Consensus_RemoveServer_Call{Call: _e.mock.On("RemoveServer", id)}
+//   - version uint64
+func (_e *Consensus_Expecter) RemoveServer(id interface{}, version interface{}) *Consensus_RemoveServer_Call {
+	return &Consensus_RemoveServer_Call{Call: _e.mock.On("RemoveServer", id, version)}
 }
 
-func (_c *Consensus_RemoveServer_Call) Run(run func(id string)) *Consensus_RemoveServer_Call {
+func (_c *Consensus_RemoveServer_Call) Run(run func(id string, version uint64)) *Consensus_RemoveServer_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		run(args[0].(string), args[1].(uint64))
 	})
 	return _c
 }
@@ -492,7 +506,7 @@ func (_c *Consensus_RemoveServer_Call) Return(_a0 error) *Consensus_RemoveServer
 	return _c
 }
 
-func (_c *Consensus_RemoveServer_Call) RunAndReturn(run func(string) error) *Consensus_RemoveServer_Call {
+func (_c *Consensus_RemoveServer_Call) RunAndReturn(run func(string, uint64) error) *Consensus_RemoveServer_Call {
 	_c.Call.Return(run)
 	return _c
 }

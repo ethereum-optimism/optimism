@@ -98,12 +98,20 @@ contract PreinstallsTest is CommonTest {
         vm.chainId(pre);
     }
 
-    function test_preinstall_senderCreator_succeeds() external view {
-        assertPreinstall(Preinstalls.SenderCreator, Preinstalls.SenderCreatorCode);
+    function test_preinstall_senderCreatorv060_succeeds() external view {
+        assertPreinstall(Preinstalls.SenderCreator_v060, Preinstalls.SenderCreator_v060Code);
     }
 
-    function test_preinstall_entrypoint_succeeds() external view {
-        assertPreinstall(Preinstalls.EntryPoint, Preinstalls.EntryPointCode);
+    function test_preinstall_entrypointv060_succeeds() external view {
+        assertPreinstall(Preinstalls.EntryPoint_v060, Preinstalls.EntryPoint_v060Code);
+    }
+
+    function test_preinstall_senderCreatorv070_succeeds() external view {
+        assertPreinstall(Preinstalls.SenderCreator_v070, Preinstalls.SenderCreator_v070Code);
+    }
+
+    function test_preinstall_entrypointv070_succeeds() external view {
+        assertPreinstall(Preinstalls.EntryPoint_v070, Preinstalls.EntryPoint_v070Code);
     }
 
     function test_preinstall_beaconBlockRoots_succeeds() external view {

@@ -204,7 +204,6 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	}
 
 	pc, err := newChannel(s.log, s.metr, s.cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
-
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}
@@ -218,6 +217,8 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"l1OriginLastClosedChannel", s.l1OriginLastClosedChannel,
 		"blocks_pending", len(s.blocks),
 		"batch_type", s.cfg.BatchType,
+		"compression_algo", s.cfg.CompressorConfig.CompressionAlgo,
+		"target_num_frames", s.cfg.TargetNumFrames,
 		"max_frame_size", s.cfg.MaxFrameSize,
 	)
 	s.metr.RecordChannelOpened(pc.ID(), len(s.blocks))
@@ -319,7 +320,10 @@ func (s *channelManager) outputFrames() error {
 		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
+		"oldest_l1_origin", s.currentChannel.OldestL1Origin(),
 		"l1_origin", lastClosedL1Origin,
+		"oldest_l2", s.currentChannel.OldestL2(),
+		"latest_l2", s.currentChannel.LatestL2(),
 		"full_reason", s.currentChannel.FullErr(),
 		"compr_ratio", comprRatio,
 		"latest_l1_origin", s.l1OriginLastClosedChannel,

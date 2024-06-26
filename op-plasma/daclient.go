@@ -130,7 +130,7 @@ func (c *DAClient) setInput(ctx context.Context, img []byte) (CommitmentData, er
 		return nil, err
 	}
 
-	comm, err := DecodeGenericCommitment(b)
+	comm, err := DecodeCommitmentData(b)
 	if err != nil {
 		return nil, err
 	}

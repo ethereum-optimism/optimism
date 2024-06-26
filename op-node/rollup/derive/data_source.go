@@ -28,15 +28,11 @@ type L1BlobsFetcher interface {
 
 type PlasmaInputFetcher interface {
 	// GetInput fetches the input for the given commitment at the given block number from the DA storage service.
-	GetInput(ctx context.Context, l1 plasma.L1Fetcher, c plasma.CommitmentData, blockId eth.BlockID) (eth.Data, error)
+	GetInput(ctx context.Context, l1 plasma.L1Fetcher, c plasma.CommitmentData, blockId eth.L1BlockRef) (eth.Data, error)
 	// AdvanceL1Origin advances the L1 origin to the given block number, syncing the DA challenge events.
 	AdvanceL1Origin(ctx context.Context, l1 plasma.L1Fetcher, blockId eth.BlockID) error
 	// Reset the challenge origin in case of L1 reorg
 	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
-	// Notify L1 finalized head so plasma finality is always behind L1
-	Finalize(ref eth.L1BlockRef)
-	// Set the engine finalization signal callback
-	OnFinalizedHeadSignal(f plasma.HeadSignalFn)
 }
 
 // DataSourceFactory reads raw transactions from a given block & then filters for
@@ -82,7 +78,7 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, b
 	}
 	if ds.dsCfg.plasmaEnabled {
 		// plasma([calldata | blobdata](l1Ref)) -> data
-		return NewPlasmaDataSource(ds.log, src, ds.fetcher, ds.plasmaFetcher, ref.ID()), nil
+		return NewPlasmaDataSource(ds.log, src, ds.fetcher, ds.plasmaFetcher, ref), nil
 	}
 	return src, nil
 }

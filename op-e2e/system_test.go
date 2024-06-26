@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	metrics2 "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -90,7 +93,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestL2OutputSubmitter(t *testing.T) {
-	InitParallel(t, SkipOnFPAC)
+	InitParallel(t, SkipOnFaultProofs)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
@@ -158,8 +161,8 @@ func TestL2OutputSubmitter(t *testing.T) {
 	}
 }
 
-func TestL2OutputSubmitterFPAC(t *testing.T) {
-	InitParallel(t, SkipOnNotFPAC)
+func TestL2OutputSubmitterFaultProofs(t *testing.T) {
+	InitParallel(t, SkipOnL2OO)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
@@ -192,21 +195,21 @@ func TestL2OutputSubmitterFPAC(t *testing.T) {
 		require.Nil(t, err)
 
 		if latestGameCount.Cmp(initialGameCount) > 0 {
+			caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
 			committedL2Output, err := disputeGameFactory.GameAtIndex(&bind.CallOpts{}, new(big.Int).Sub(latestGameCount, common.Big1))
 			require.Nil(t, err)
-			proxy, err := bindings.NewFaultDisputeGameCaller(committedL2Output.Proxy, l1Client)
+			proxy, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics2.NoopContractMetrics, committedL2Output.Proxy, caller)
 			require.Nil(t, err)
-			committedOutputRoot, err := proxy.RootClaim(&bind.CallOpts{})
+			claim, err := proxy.GetClaim(context.Background(), 0)
 			require.Nil(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			extradata, err := proxy.ExtraData(&bind.CallOpts{})
+			_, gameBlockNumber, err := proxy.GetBlockRange(ctx)
 			require.Nil(t, err)
-			gameBlockNumber := new(big.Int).SetBytes(extradata[0:32])
-			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber.Uint64())
+			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber)
 			require.Nil(t, err)
-			require.Equal(t, l2Output.OutputRoot[:], committedOutputRoot[:])
+			require.EqualValues(t, l2Output.OutputRoot, claim.Value)
 			break
 		}
 
@@ -614,7 +617,6 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 // TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
-	t.Skip("flaky in CI") // TODO(CLI-3859): Re-enable this test.
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
@@ -1150,7 +1152,7 @@ func TestWithdrawals(t *testing.T) {
 	proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
 	finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
 	fees = new(big.Int).Add(proveFee, finalizeFee)
-	if e2eutils.UseFPAC() {
+	if e2eutils.UseFaultProofs() {
 		resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
 		resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
 		fees = new(big.Int).Add(fees, resolveClaimFee)
@@ -1350,7 +1352,7 @@ func testFees(t *testing.T, cfg SystemConfig) {
 
 	// Tally BaseFee
 	baseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(receipt.GasUsed))
-	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee fee mismatch")
+	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee mismatch")
 
 	// Tally L1 Fee
 	tx, _, err := l2Seq.TransactionByHash(context.Background(), receipt.TxHash)

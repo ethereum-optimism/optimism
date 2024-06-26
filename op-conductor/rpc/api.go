@@ -15,6 +15,10 @@ var ErrNotLeader = errors.New("refusing to proxy request to non-leader sequencer
 
 // API defines the interface for the op-conductor API.
 type API interface {
+	// OverrideLeader is used to override the leader status, this is only used to return true for Leader() & LeaderWithID() calls.
+	// It does not impact the actual raft consensus leadership status. It is supposed to be used when the cluster is unhealthy
+	// and the node is the only one up, to allow batcher to be able to connect to the node, so that it could download blocks from the manually started sequencer.
+	OverrideLeader(ctx context.Context) error
 	// Pause pauses op-conductor.
 	Pause(ctx context.Context) error
 	// Resume resumes op-conductor.
@@ -32,22 +36,22 @@ type API interface {
 	// LeaderWithID returns the current leader's server info.
 	LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error)
 	// AddServerAsVoter adds a server as a voter to the cluster.
-	AddServerAsVoter(ctx context.Context, id string, addr string) error
+	AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error
 	// AddServerAsNonvoter adds a server as a non-voter to the cluster. non-voter will not participate in leader election.
-	AddServerAsNonvoter(ctx context.Context, id string, addr string) error
+	AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error
 	// RemoveServer removes a server from the cluster.
-	RemoveServer(ctx context.Context, id string) error
+	RemoveServer(ctx context.Context, id string, version uint64) error
 	// TransferLeader transfers leadership to another server.
 	TransferLeader(ctx context.Context) error
 	// TransferLeaderToServer transfers leadership to a specific server.
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
 	// ClusterMembership returns the current cluster membership configuration.
-	ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error)
+	ClusterMembership(ctx context.Context) (*consensus.ClusterMembership, error)
 
 	// APIs called by op-node
 	// Active returns true if op-conductor is active (not paused or stopped).
 	Active(ctx context.Context) (bool, error)
-	// CommitUnsafePayload commits a unsafe payload (latest head) to the consensus layer.
+	// CommitUnsafePayload commits an unsafe payload (latest head) to the consensus layer.
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 

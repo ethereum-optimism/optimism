@@ -12,7 +12,9 @@ import (
 // It does this by extending the RollupProvider interface to add the ability to get an EthClient
 type L2EndpointProvider interface {
 	RollupProvider
-	// EthClient(ctx) returns the underlying ethclient pointing to the L2 execution node
+	// EthClient(ctx) returns the underlying ethclient pointing to the L2 execution node.
+	// Note: ctx should be a lifecycle context without an attached timeout as client selection may involve
+	// multiple network operations, specifically in the case of failover.
 	EthClient(ctx context.Context) (EthClientInterface, error)
 }
 

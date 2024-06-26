@@ -242,10 +242,14 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		"max_frame_size", cc.MaxFrameSize,
 		"target_num_frames", cc.TargetNumFrames,
 		"compressor", cc.CompressorConfig.Kind,
+		"compression_algo", cc.CompressorConfig.CompressionAlgo,
+		"batch_type", cc.BatchType,
 		"max_channel_duration", cc.MaxChannelDuration,
 		"channel_timeout", cc.ChannelTimeout,
-		"batch_type", cc.BatchType,
 		"sub_safety_margin", cc.SubSafetyMargin)
+	if bs.UsePlasma {
+		bs.Log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
+	}
 	bs.ChannelConfig = cc
 	return nil
 }
@@ -278,19 +282,19 @@ func (bs *BatcherService) initPProf(cfg *CLIConfig) error {
 
 func (bs *BatcherService) initMetricsServer(cfg *CLIConfig) error {
 	if !cfg.MetricsConfig.Enabled {
-		bs.Log.Info("metrics disabled")
+		bs.Log.Info("Metrics disabled")
 		return nil
 	}
 	m, ok := bs.Metrics.(opmetrics.RegistryMetricer)
 	if !ok {
 		return fmt.Errorf("metrics were enabled, but metricer %T does not expose registry for metrics-server", bs.Metrics)
 	}
-	bs.Log.Debug("starting metrics server", "addr", cfg.MetricsConfig.ListenAddr, "port", cfg.MetricsConfig.ListenPort)
+	bs.Log.Debug("Starting metrics server", "addr", cfg.MetricsConfig.ListenAddr, "port", cfg.MetricsConfig.ListenPort)
 	metricsSrv, err := opmetrics.StartServer(m.Registry(), cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort)
 	if err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	bs.Log.Info("started metrics server", "addr", metricsSrv.Addr())
+	bs.Log.Info("Started metrics server", "addr", metricsSrv.Addr())
 	bs.metricsSrv = metricsSrv
 	return nil
 }

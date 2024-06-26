@@ -34,8 +34,10 @@ const (
 	DeterministicDeploymentProxy  = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 	MultiSend_v130                = "0x998739BFdAAdde7C933B942a68053933098f9EDa"
 	Permit2                       = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
-	SenderCreator                 = "0x7fc98430eaedbb6070b35b39d798725049088348"
-	EntryPoint                    = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+	SenderCreator_v060            = "0x7fc98430eaedbb6070b35b39d798725049088348"
+	EntryPoint_v060               = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+	SenderCreator_v070            = "0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C"
+	EntryPoint_v070               = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
 )
 
 var (
@@ -67,8 +69,10 @@ var (
 	DeterministicDeploymentProxyAddr  = common.HexToAddress(DeterministicDeploymentProxy)
 	MultiSend_v130Addr                = common.HexToAddress(MultiSend_v130)
 	Permit2Addr                       = common.HexToAddress(Permit2)
-	SenderCreatorAddr                 = common.HexToAddress(SenderCreator)
-	EntryPointAddr                    = common.HexToAddress(EntryPoint)
+	SenderCreator_v060Addr            = common.HexToAddress(SenderCreator_v060)
+	EntryPoint_v060Addr               = common.HexToAddress(EntryPoint_v060)
+	SenderCreator_v070Addr            = common.HexToAddress(SenderCreator_v070)
+	EntryPoint_v070Addr               = common.HexToAddress(EntryPoint_v070)
 
 	Predeploys          = make(map[string]*Predeploy)
 	PredeploysByAddress = make(map[common.Address]*Predeploy)
@@ -136,12 +140,20 @@ func init() {
 		Address:       Permit2Addr,
 		ProxyDisabled: true,
 	}
-	Predeploys["SenderCreator"] = &Predeploy{
-		Address:       SenderCreatorAddr,
+	Predeploys["SenderCreator_v060"] = &Predeploy{
+		Address:       SenderCreator_v060Addr,
 		ProxyDisabled: true,
 	}
-	Predeploys["EntryPoint"] = &Predeploy{
-		Address:       EntryPointAddr,
+	Predeploys["EntryPoint_v060"] = &Predeploy{
+		Address:       EntryPoint_v060Addr,
+		ProxyDisabled: true,
+	}
+	Predeploys["SenderCreator_v070"] = &Predeploy{
+		Address:       SenderCreator_v070Addr,
+		ProxyDisabled: true,
+	}
+	Predeploys["EntryPoint_v070"] = &Predeploy{
+		Address:       EntryPoint_v070Addr,
 		ProxyDisabled: true,
 	}
 

@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.17.3
+
+### Patch Changes
+
+- [#10621](https://github.com/ethereum-optimism/optimism/pull/10621) [`eb454ac72b26211eb8037e7e777315c8f30d994d`](https://github.com/ethereum-optimism/optimism/commit/eb454ac72b26211eb8037e7e777315c8f30d994d) Thanks [@tarunkhasnavis](https://github.com/tarunkhasnavis)! - Add data field to faucet contract drip parameters
+
 ## 0.17.2
 
 ### Patch Changes

@@ -3,17 +3,9 @@ package mipsevm
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
-)
 
-const (
-	sysMmap      = 4090
-	sysBrk       = 4045
-	sysClone     = 4120
-	sysExitGroup = 4246
-	sysRead      = 4003
-	sysWrite     = 4004
-	sysFcntl     = 4055
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
@@ -43,29 +35,17 @@ func (m *InstrumentedState) trackMemAccess(effAddr uint32) {
 }
 
 func (m *InstrumentedState) handleSyscall() error {
-	syscallNum := m.state.Registers[2] // v0
+	syscallNum, a0, a1, a2 := getSyscallArgs(&m.state.Registers)
+
 	v0 := uint32(0)
 	v1 := uint32(0)
-
-	a0 := m.state.Registers[4]
-	a1 := m.state.Registers[5]
-	a2 := m.state.Registers[6]
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
 	case sysMmap:
-		sz := a1
-		if sz&PageAddrMask != 0 { // adjust size to align with page size
-			sz += PageSize - (sz & PageAddrMask)
-		}
-		if a0 == 0 {
-			v0 = m.state.Heap
-			//fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
-			m.state.Heap += sz
-		} else {
-			v0 = a0
-			//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
-		}
+		var newHeap uint32
+		v0, v1, newHeap = handleSysMmap(a0, a1, m.state.Heap)
+		m.state.Heap = newHeap
 	case sysBrk:
 		v0 = 0x40000000
 	case sysClone: // clone (not supported)
@@ -75,203 +55,66 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.ExitCode = uint8(a0)
 		return nil
 	case sysRead:
-		// args: a0 = fd, a1 = addr, a2 = count
-		// returns: v0 = read, v1 = err code
-		switch a0 {
-		case fdStdin:
-			// leave v0 and v1 zero: read nothing, no error
-		case fdPreimageRead: // pre-image oracle
-			effAddr := a1 & 0xFFffFFfc
-			m.trackMemAccess(effAddr)
-			mem := m.state.Memory.GetMemory(effAddr)
-			dat, datLen := m.readPreimage(m.state.PreimageKey, m.state.PreimageOffset)
-			//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
-			alignment := a1 & 3
-			space := 4 - alignment
-			if space < datLen {
-				datLen = space
-			}
-			if a2 < datLen {
-				datLen = a2
-			}
-			var outMem [4]byte
-			binary.BigEndian.PutUint32(outMem[:], mem)
-			copy(outMem[alignment:], dat[:datLen])
-			m.state.Memory.SetMemory(effAddr, binary.BigEndian.Uint32(outMem[:]))
-			m.state.PreimageOffset += datLen
-			v0 = datLen
-			//fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
-		case fdHintRead: // hint response
-			// don't actually read into memory, just say we read it all, we ignore the result anyway
-			v0 = a2
-		default:
-			v0 = 0xFFffFFff
-			v1 = MipsEBADF
-		}
+		var newPreimageOffset uint32
+		v0, v1, newPreimageOffset = handleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.readPreimage, m.state.Memory, m.trackMemAccess)
+		m.state.PreimageOffset = newPreimageOffset
 	case sysWrite:
-		// args: a0 = fd, a1 = addr, a2 = count
-		// returns: v0 = written, v1 = err code
-		switch a0 {
-		case fdStdout:
-			_, _ = io.Copy(m.stdOut, m.state.Memory.ReadMemoryRange(a1, a2))
-			v0 = a2
-		case fdStderr:
-			_, _ = io.Copy(m.stdErr, m.state.Memory.ReadMemoryRange(a1, a2))
-			v0 = a2
-		case fdHintWrite:
-			hintData, _ := io.ReadAll(m.state.Memory.ReadMemoryRange(a1, a2))
-			m.state.LastHint = append(m.state.LastHint, hintData...)
-			for len(m.state.LastHint) >= 4 { // process while there is enough data to check if there are any hints
-				hintLen := binary.BigEndian.Uint32(m.state.LastHint[:4])
-				if hintLen <= uint32(len(m.state.LastHint[4:])) {
-					hint := m.state.LastHint[4 : 4+hintLen] // without the length prefix
-					m.state.LastHint = m.state.LastHint[4+hintLen:]
-					m.preimageOracle.Hint(hint)
-				} else {
-					break // stop processing hints if there is incomplete data buffered
+		var newLastHint hexutil.Bytes
+		var newPreimageKey common.Hash
+		var newPreimageOffset uint32
+		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = handleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.trackMemAccess, m.stdOut, m.stdErr)
+		m.state.LastHint = newLastHint
+		m.state.PreimageKey = newPreimageKey
+		m.state.PreimageOffset = newPreimageOffset
+	case sysFcntl:
+		v0, v1 = handleSysFcntl(a0, a1)
+	}
+
+	handleSyscallUpdates(&m.state.Cpu, &m.state.Registers, v0, v1)
+	return nil
+}
+
+func (m *InstrumentedState) pushStack(target uint32) {
+	if !m.debugEnabled {
+		return
+	}
+	m.debug.stack = append(m.debug.stack, target)
+	m.debug.caller = append(m.debug.caller, m.state.Cpu.PC)
+}
+
+func (m *InstrumentedState) popStack() {
+	if !m.debugEnabled {
+		return
+	}
+	if len(m.debug.stack) != 0 {
+		fn := m.debug.meta.LookupSymbol(m.state.Cpu.PC)
+		topFn := m.debug.meta.LookupSymbol(m.debug.stack[len(m.debug.stack)-1])
+		if fn != topFn {
+			// most likely the function was inlined. Snap back to the last return.
+			i := len(m.debug.stack) - 1
+			for ; i >= 0; i-- {
+				if m.debug.meta.LookupSymbol(m.debug.stack[i]) == fn {
+					m.debug.stack = m.debug.stack[:i]
+					m.debug.caller = m.debug.caller[:i]
+					break
 				}
 			}
-			v0 = a2
-		case fdPreimageWrite:
-			effAddr := a1 & 0xFFffFFfc
-			m.trackMemAccess(effAddr)
-			mem := m.state.Memory.GetMemory(effAddr)
-			key := m.state.PreimageKey
-			alignment := a1 & 3
-			space := 4 - alignment
-			if space < a2 {
-				a2 = space
-			}
-			copy(key[:], key[a2:])
-			var tmp [4]byte
-			binary.BigEndian.PutUint32(tmp[:], mem)
-			copy(key[32-a2:], tmp[alignment:])
-			m.state.PreimageKey = key
-			m.state.PreimageOffset = 0
-			//fmt.Printf("updating pre-image key: %s\n", m.state.PreimageKey)
-			v0 = a2
-		default:
-			v0 = 0xFFffFFff
-			v1 = MipsEBADF
-		}
-	case sysFcntl:
-		// args: a0 = fd, a1 = cmd
-		if a1 == 3 { // F_GETFL: get file descriptor flags
-			switch a0 {
-			case fdStdin, fdPreimageRead, fdHintRead:
-				v0 = 0 // O_RDONLY
-			case fdStdout, fdStderr, fdPreimageWrite, fdHintWrite:
-				v0 = 1 // O_WRONLY
-			default:
-				v0 = 0xFFffFFff
-				v1 = MipsEBADF
-			}
 		} else {
-			v0 = 0xFFffFFff
-			v1 = MipsEINVAL // cmd not recognized by this kernel
+			m.debug.stack = m.debug.stack[:len(m.debug.stack)-1]
+			m.debug.caller = m.debug.caller[:len(m.debug.caller)-1]
 		}
-	}
-	m.state.Registers[2] = v0
-	m.state.Registers[7] = v1
-
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
-	return nil
-}
-
-func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
-	if m.state.NextPC != m.state.PC+4 {
-		panic("branch in delay slot")
-	}
-
-	shouldBranch := false
-	if opcode == 4 || opcode == 5 { // beq/bne
-		rt := m.state.Registers[rtReg]
-		shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
-	} else if opcode == 6 {
-		shouldBranch = int32(rs) <= 0 // blez
-	} else if opcode == 7 {
-		shouldBranch = int32(rs) > 0 // bgtz
-	} else if opcode == 1 {
-		// regimm
-		rtv := (insn >> 16) & 0x1F
-		if rtv == 0 { // bltz
-			shouldBranch = int32(rs) < 0
-		}
-		if rtv == 1 { // bgez
-			shouldBranch = int32(rs) >= 0
-		}
-	}
-
-	prevPC := m.state.PC
-	m.state.PC = m.state.NextPC // execute the delay slot first
-	if shouldBranch {
-		m.state.NextPC = prevPC + 4 + (SE(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
 	} else {
-		m.state.NextPC = m.state.NextPC + 4 // branch not taken
+		fmt.Printf("ERROR: stack underflow at pc=%x. step=%d\n", m.state.Cpu.PC, m.state.Step)
 	}
-	return nil
 }
 
-func (m *InstrumentedState) handleHiLo(fun uint32, rs uint32, rt uint32, storeReg uint32) error {
-	val := uint32(0)
-	switch fun {
-	case 0x10: // mfhi
-		val = m.state.HI
-	case 0x11: // mthi
-		m.state.HI = rs
-	case 0x12: // mflo
-		val = m.state.LO
-	case 0x13: // mtlo
-		m.state.LO = rs
-	case 0x18: // mult
-		acc := uint64(int64(int32(rs)) * int64(int32(rt)))
-		m.state.HI = uint32(acc >> 32)
-		m.state.LO = uint32(acc)
-	case 0x19: // multu
-		acc := uint64(uint64(rs) * uint64(rt))
-		m.state.HI = uint32(acc >> 32)
-		m.state.LO = uint32(acc)
-	case 0x1a: // div
-		m.state.HI = uint32(int32(rs) % int32(rt))
-		m.state.LO = uint32(int32(rs) / int32(rt))
-	case 0x1b: // divu
-		m.state.HI = rs % rt
-		m.state.LO = rs / rt
+func (m *InstrumentedState) Traceback() {
+	fmt.Printf("traceback at pc=%x. step=%d\n", m.state.Cpu.PC, m.state.Step)
+	for i := len(m.debug.stack) - 1; i >= 0; i-- {
+		s := m.debug.stack[i]
+		idx := len(m.debug.stack) - i - 1
+		fmt.Printf("\t%d %x in %s caller=%08x\n", idx, s, m.debug.meta.LookupSymbol(s), m.debug.caller[i])
 	}
-
-	if storeReg != 0 {
-		m.state.Registers[storeReg] = val
-	}
-
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
-	return nil
-}
-
-func (m *InstrumentedState) handleJump(linkReg uint32, dest uint32) error {
-	if m.state.NextPC != m.state.PC+4 {
-		panic("jump in delay slot")
-	}
-	prevPC := m.state.PC
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = dest
-	if linkReg != 0 {
-		m.state.Registers[linkReg] = prevPC + 8 // set the link-register to the instr after the delay slot instruction.
-	}
-	return nil
-}
-
-func (m *InstrumentedState) handleRd(storeReg uint32, val uint32, conditional bool) error {
-	if storeReg >= 32 {
-		panic("invalid register")
-	}
-	if storeReg != 0 && conditional {
-		m.state.Registers[storeReg] = val
-	}
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
-	return nil
 }
 
 func (m *InstrumentedState) mipsStep() error {
@@ -280,7 +123,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 	m.state.Step += 1
 	// instruction fetch
-	insn := m.state.Memory.GetMemory(m.state.PC)
+	insn := m.state.Memory.GetMemory(m.state.Cpu.PC)
 	opcode := insn >> 26 // 6-bits
 
 	// j-type j/jal
@@ -290,8 +133,9 @@ func (m *InstrumentedState) mipsStep() error {
 			linkReg = 31
 		}
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-		target := (m.state.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
-		return m.handleJump(linkReg, target)
+		target := (m.state.Cpu.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
+		m.pushStack(target)
+		return handleJump(&m.state.Cpu, &m.state.Registers, linkReg, target)
 	}
 
 	// register fetch
@@ -314,7 +158,7 @@ func (m *InstrumentedState) mipsStep() error {
 			rt = insn & 0xFFFF
 		} else {
 			// SignExtImm
-			rt = SE(insn&0xFFFF, 16)
+			rt = signExtend(insn&0xFFFF, 16)
 		}
 	} else if opcode >= 0x28 || opcode == 0x22 || opcode == 0x26 {
 		// store rt value with store
@@ -325,7 +169,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		return m.handleBranch(opcode, insn, rtReg, rs)
+		return handleBranch(&m.state.Cpu, &m.state.Registers, opcode, insn, rtReg, rs)
 	}
 
 	storeAddr := uint32(0xFF_FF_FF_FF)
@@ -334,7 +178,7 @@ func (m *InstrumentedState) mipsStep() error {
 	mem := uint32(0)
 	if opcode >= 0x20 {
 		// M[R[rs]+SignExtImm]
-		rs += SE(insn&0xFFFF, 16)
+		rs += signExtend(insn&0xFFFF, 16)
 		addr := rs & 0xFFFFFFFC
 		m.trackMemAccess(addr)
 		mem = m.state.Memory.GetMemory(addr)
@@ -347,7 +191,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// ALU
-	val := execute(insn, rs, rt, mem)
+	val := executeMipsInstruction(insn, rs, rt, mem)
 
 	fun := insn & 0x3f // 6-bits
 	if opcode == 0 && fun >= 8 && fun < 0x1c {
@@ -356,14 +200,15 @@ func (m *InstrumentedState) mipsStep() error {
 			if fun == 9 {
 				linkReg = rdReg
 			}
-			return m.handleJump(linkReg, rs)
+			m.popStack()
+			return handleJump(&m.state.Cpu, &m.state.Registers, linkReg, rs)
 		}
 
 		if fun == 0xa { // movz
-			return m.handleRd(rdReg, rs, rt == 0)
+			return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, rs, rt == 0)
 		}
 		if fun == 0xb { // movn
-			return m.handleRd(rdReg, rs, rt != 0)
+			return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, rs, rt != 0)
 		}
 
 		// syscall (can read and write)
@@ -374,7 +219,7 @@ func (m *InstrumentedState) mipsStep() error {
 		// lo and hi registers
 		// can write back
 		if fun >= 0x10 && fun < 0x1c {
-			return m.handleHiLo(fun, rs, rt, rdReg)
+			return handleHiLo(&m.state.Cpu, &m.state.Registers, fun, rs, rt, rdReg)
 		}
 	}
 
@@ -390,180 +235,5 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// write back the value to destination register
-	return m.handleRd(rdReg, val, true)
-}
-
-func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
-	opcode := insn >> 26 // 6-bits
-
-	if opcode == 0 || (opcode >= 8 && opcode < 0xF) {
-		fun := insn & 0x3f // 6-bits
-		// transform ArithLogI to SPECIAL
-		switch opcode {
-		case 8:
-			fun = 0x20 // addi
-		case 9:
-			fun = 0x21 // addiu
-		case 0xA:
-			fun = 0x2A // slti
-		case 0xB:
-			fun = 0x2B // sltiu
-		case 0xC:
-			fun = 0x24 // andi
-		case 0xD:
-			fun = 0x25 // ori
-		case 0xE:
-			fun = 0x26 // xori
-		}
-
-		switch fun {
-		case 0x00: // sll
-			return rt << ((insn >> 6) & 0x1F)
-		case 0x02: // srl
-			return rt >> ((insn >> 6) & 0x1F)
-		case 0x03: // sra
-			shamt := (insn >> 6) & 0x1F
-			return SE(rt>>shamt, 32-shamt)
-		case 0x04: // sllv
-			return rt << (rs & 0x1F)
-		case 0x06: // srlv
-			return rt >> (rs & 0x1F)
-		case 0x07: // srav
-			return SE(rt>>rs, 32-rs)
-		// functs in range [0x8, 0x1b] are handled specially by other functions
-		case 0x08: // jr
-			return rs
-		case 0x09: // jalr
-			return rs
-		case 0x0a: // movz
-			return rs
-		case 0x0b: // movn
-			return rs
-		case 0x0c: // syscall
-			return rs
-		// 0x0d - break not supported
-		case 0x0f: // sync
-			return rs
-		case 0x10: // mfhi
-			return rs
-		case 0x11: // mthi
-			return rs
-		case 0x12: // mflo
-			return rs
-		case 0x13: // mtlo
-			return rs
-		case 0x18: // mult
-			return rs
-		case 0x19: // multu
-			return rs
-		case 0x1a: // div
-			return rs
-		case 0x1b: // divu
-			return rs
-		// The rest includes transformed R-type arith imm instructions
-		case 0x20: // add
-			return rs + rt
-		case 0x21: // addu
-			return rs + rt
-		case 0x22: // sub
-			return rs - rt
-		case 0x23: // subu
-			return rs - rt
-		case 0x24: // and
-			return rs & rt
-		case 0x25: // or
-			return rs | rt
-		case 0x26: // xor
-			return rs ^ rt
-		case 0x27: // nor
-			return ^(rs | rt)
-		case 0x2a: // slti
-			if int32(rs) < int32(rt) {
-				return 1
-			}
-			return 0
-		case 0x2b: // sltiu
-			if rs < rt {
-				return 1
-			}
-			return 0
-		default:
-			panic("invalid instruction")
-		}
-	} else {
-		switch opcode {
-		// SPECIAL2
-		case 0x1C:
-			fun := insn & 0x3f // 6-bits
-			switch fun {
-			case 0x2: // mul
-				return uint32(int32(rs) * int32(rt))
-			case 0x20, 0x21: // clz, clo
-				if fun == 0x20 {
-					rs = ^rs
-				}
-				i := uint32(0)
-				for ; rs&0x80000000 != 0; i++ {
-					rs <<= 1
-				}
-				return i
-			}
-		case 0x0F: // lui
-			return rt << 16
-		case 0x20: // lb
-			return SE((mem>>(24-(rs&3)*8))&0xFF, 8)
-		case 0x21: // lh
-			return SE((mem>>(16-(rs&2)*8))&0xFFFF, 16)
-		case 0x22: // lwl
-			val := mem << ((rs & 3) * 8)
-			mask := uint32(0xFFFFFFFF) << ((rs & 3) * 8)
-			return (rt & ^mask) | val
-		case 0x23: // lw
-			return mem
-		case 0x24: // lbu
-			return (mem >> (24 - (rs&3)*8)) & 0xFF
-		case 0x25: //  lhu
-			return (mem >> (16 - (rs&2)*8)) & 0xFFFF
-		case 0x26: //  lwr
-			val := mem >> (24 - (rs&3)*8)
-			mask := uint32(0xFFFFFFFF) >> (24 - (rs&3)*8)
-			return (rt & ^mask) | val
-		case 0x28: //  sb
-			val := (rt & 0xFF) << (24 - (rs&3)*8)
-			mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
-			return (mem & mask) | val
-		case 0x29: //  sh
-			val := (rt & 0xFFFF) << (16 - (rs&2)*8)
-			mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
-			return (mem & mask) | val
-		case 0x2a: //  swl
-			val := rt >> ((rs & 3) * 8)
-			mask := uint32(0xFFFFFFFF) >> ((rs & 3) * 8)
-			return (mem & ^mask) | val
-		case 0x2b: //  sw
-			return rt
-		case 0x2e: //  swr
-			val := rt << (24 - (rs&3)*8)
-			mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
-			return (mem & ^mask) | val
-		case 0x30: //  ll
-			return mem
-		case 0x38: //  sc
-			return rt
-		default:
-			panic("invalid instruction")
-		}
-	}
-	panic("invalid instruction")
-}
-
-func SE(dat uint32, idx uint32) uint32 {
-	isSigned := (dat >> (idx - 1)) != 0
-	signed := ((uint32(1) << (32 - idx)) - 1) << idx
-	mask := (uint32(1) << idx) - 1
-	if isSigned {
-		return dat&mask | signed
-	} else {
-		return dat & mask
-	}
+	return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, val, true)
 }

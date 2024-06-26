@@ -179,8 +179,9 @@ func NewL1BeaconClient(cl BeaconClient, cfg L1BeaconClientConfig, fallbacks ...B
 	cs := append([]BlobSideCarsFetcher{cl}, fallbacks...)
 	return &L1BeaconClient{
 		cl:   cl,
-		pool: NewClientPool[BlobSideCarsFetcher](cs...),
-		cfg:  cfg}
+		pool: NewClientPool(cs...),
+		cfg:  cfg,
+	}
 }
 
 type TimeToSlotFn func(timestamp uint64) (uint64, error)

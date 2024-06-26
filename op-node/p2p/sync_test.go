@@ -2,7 +2,9 @@ package p2p
 
 import (
 	"context"
+	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -378,7 +380,7 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	require.NoError(t, err, "failed to connect to peer B from peer A")
 	require.Equal(t, hostA.Network().Connectedness(hostB.ID()), network.Connected)
 
-	//wait for async add process done
+	// wait for async add process done
 	<-waitChan
 	_, ok := syncCl.peers[hostB.ID()]
 	require.True(t, ok, "peerB should exist in syncClient")
@@ -386,8 +388,58 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	err = hostA.Network().ClosePeer(hostB.ID())
 	require.NoError(t, err, "close peer fail")
 
-	//wait for async removing process done
+	// wait for async removing process done
 	<-waitChan
 	_, peerBExist3 := syncCl.peers[hostB.ID()]
 	require.True(t, !peerBExist3, "peerB should not exist in syncClient")
+}
+
+func TestPanicGuard(t *testing.T) {
+	mockPanickingFn := func(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
+		panic("gotcha")
+	}
+	require.NotPanics(t, func() {
+		err := panicGuard(mockPanickingFn)(context.Background(), peer.ID(""), 37)
+		require.EqualError(t, err, "recovered from a panic: gotcha")
+	})
+}
+
+func TestRequestResultErr_Error(t *testing.T) {
+	for _, test := range []struct {
+		code   byte
+		expStr string
+	}{
+		{
+			code:   0,
+			expStr: "success",
+		},
+		{
+			code:   1,
+			expStr: "not found",
+		},
+		{
+			code:   2,
+			expStr: "invalid request",
+		},
+		{
+			code:   3,
+			expStr: "unknown error",
+		},
+		{
+			code:   4,
+			expStr: "invalid code",
+		},
+		{
+			code:   0xff,
+			expStr: "invalid code",
+		},
+	} {
+		t.Run(fmt.Sprintf("code %d", test.code), func(t *testing.T) {
+			err := requestResultErr(test.code)
+			errStr := err.Error()
+			if !strings.HasSuffix(errStr, test.expStr) {
+				t.Fatalf("unexpected error string %q, expted suffix %q", errStr, test.expStr)
+			}
+		})
+	}
 }

@@ -49,7 +49,7 @@ func ListGames(ctx *cli.Context) error {
 	if rpcUrl == "" {
 		return fmt.Errorf("missing %v", flags.L1EthRpcFlag.Name)
 	}
-	factoryAddr, err := opservice.ParseAddress(ctx.String(flags.FactoryAddressFlag.Name))
+	factoryAddr, err := flags.FactoryAddress(ctx)
 	if err != nil {
 		return err
 	}
@@ -171,6 +171,7 @@ func listGamesFlags() []cli.Flag {
 		SortByFlag,
 		SortOrderFlag,
 		flags.L1EthRpcFlag,
+		flags.NetworkFlag,
 		flags.FactoryAddressFlag,
 		flags.GameWindowFlag,
 	}
@@ -182,6 +183,6 @@ var ListGamesCommand = &cli.Command{
 	Name:        "list-games",
 	Usage:       "List the games created by a dispute game factory",
 	Description: "Lists the games created by a dispute game factory",
-	Action:      ListGames,
+	Action:      Interruptible(ListGames),
 	Flags:       listGamesFlags(),
 }

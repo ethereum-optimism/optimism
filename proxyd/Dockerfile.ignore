@@ -1,3 +1,0 @@
-# ignore everything but proxyd, proxyd defines all its dependencies in the go.mod
-*
-!/proxyd

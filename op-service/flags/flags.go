@@ -16,6 +16,7 @@ const (
 	CanyonOverrideFlagName  = "override.canyon"
 	DeltaOverrideFlagName   = "override.delta"
 	EcotoneOverrideFlagName = "override.ecotone"
+	FjordOverrideFlagName   = "override.fjord"
 )
 
 func CLIFlags(envPrefix string, category string) []cli.Flag {
@@ -38,6 +39,13 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			Name:     EcotoneOverrideFlagName,
 			Usage:    "Manually specify the Ecotone fork timestamp, overriding the bundled setting",
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_ECOTONE"),
+			Hidden:   false,
+			Category: category,
+		},
+		&cli.Uint64Flag{
+			Name:     FjordOverrideFlagName,
+			Usage:    "Manually specify the Fjord fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_FJORD"),
 			Hidden:   false,
 			Category: category,
 		},

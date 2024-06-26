@@ -283,6 +283,10 @@ func (c *mockDriverClient) OnUnsafeL2Payload(ctx context.Context, payload *eth.E
 	return c.Mock.MethodCalled("OnUnsafeL2Payload").Get(0).(error)
 }
 
+func (c *mockDriverClient) OverrideLeader(ctx context.Context) error {
+	return c.Mock.MethodCalled("OverrideLeader").Get(0).(error)
+}
+
 type mockSafeDBReader struct {
 	mock.Mock
 }

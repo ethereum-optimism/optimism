@@ -24,9 +24,11 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { DeployConfig } from "scripts/DeployConfig.s.sol";
-import { Deploy } from "scripts/Deploy.s.sol";
-import { L2Genesis, L1Dependencies, OutputMode } from "scripts/L2Genesis.s.sol";
+import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+import { Deploy } from "scripts/deploy/Deploy.s.sol";
+import { Fork, LATEST_FORK } from "scripts/Config.sol";
+import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
+import { OutputMode, Fork, ForkUtils } from "scripts/Config.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -46,7 +48,7 @@ import { WETH } from "src/L2/WETH.sol";
 ///      up behind proxies. In the future we will migrate to importing the genesis JSON
 ///      file that is created to set up the L2 contracts instead of setting them up manually.
 contract Setup {
-    error FfiFailed(string);
+    using ForkUtils for Fork;
 
     /// @notice The address of the foundry Vm contract.
     Vm private constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -59,7 +61,7 @@ contract Setup {
         L2Genesis(address(uint160(uint256(keccak256(abi.encode("optimism.l2genesis"))))));
 
     // @notice Allows users of Setup to override what L2 genesis is being created.
-    OutputMode l2OutputMode = OutputMode.LOCAL_LATEST;
+    Fork l2Fork = LATEST_FORK;
 
     OptimismPortal optimismPortal;
     OptimismPortal2 optimismPortal2;
@@ -177,9 +179,10 @@ contract Setup {
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2() public {
-        console.log("Setup: creating L2 genesis, with output mode %d", uint256(l2OutputMode));
+        console.log("Setup: creating L2 genesis with fork %s", l2Fork.toString());
         l2Genesis.runWithOptions(
-            l2OutputMode,
+            OutputMode.NONE,
+            l2Fork,
             L1Dependencies({
                 l1CrossDomainMessengerProxy: payable(address(l1CrossDomainMessenger)),
                 l1StandardBridgeProxy: payable(address(l1StandardBridge)),
@@ -219,8 +222,10 @@ contract Setup {
         labelPreinstall(Preinstalls.DeterministicDeploymentProxy);
         labelPreinstall(Preinstalls.MultiSend_v130);
         labelPreinstall(Preinstalls.Permit2);
-        labelPreinstall(Preinstalls.SenderCreator);
-        labelPreinstall(Preinstalls.EntryPoint);
+        labelPreinstall(Preinstalls.SenderCreator_v060);
+        labelPreinstall(Preinstalls.EntryPoint_v060);
+        labelPreinstall(Preinstalls.SenderCreator_v070);
+        labelPreinstall(Preinstalls.EntryPoint_v070);
         labelPreinstall(Preinstalls.BeaconBlockRoots);
 
         console.log("Setup: completed L2 genesis");

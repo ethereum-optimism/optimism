@@ -102,22 +102,22 @@ func FindMonorepoRoot(t *testing.T) string {
 func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) {
 	require := require.New(t)
 	root := FindMonorepoRoot(t)
-	c.CannonBin = root + "cannon/bin/cannon"
-	c.CannonServer = root + "op-program/bin/op-program"
+	c.Cannon.VmBin = root + "cannon/bin/cannon"
+	c.Cannon.Server = root + "op-program/bin/op-program"
 	c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
-	c.CannonSnapshotFreq = 10_000_000
+	c.Cannon.SnapshotFreq = 10_000_000
 
 	genesisBytes, err := json.Marshal(l2Genesis)
 	require.NoError(err, "marshall l2 genesis config")
 	genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
 	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
-	c.CannonL2GenesisPath = genesisFile
+	c.Cannon.L2GenesisPath = genesisFile
 
 	rollupBytes, err := json.Marshal(rollupCfg)
 	require.NoError(err, "marshall rollup config")
 	rollupFile := filepath.Join(c.Datadir, "rollup.json")
 	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
-	c.CannonRollupConfigPath = rollupFile
+	c.Cannon.RollupConfigPath = rollupFile
 }
 
 func WithCannon(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) Option {
@@ -130,6 +130,12 @@ func WithCannon(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis)
 func WithAlphabet() Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
+	}
+}
+
+func WithFastGames() Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeFast)
 	}
 }
 
@@ -171,12 +177,12 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 	require.NotEmpty(t, cfg.TxMgrConfig.PrivateKey, "Missing private key for TxMgrConfig")
 	require.NoError(t, cfg.Check(), "op-challenger config should be valid")
 
-	if cfg.CannonBin != "" {
-		_, err := os.Stat(cfg.CannonBin)
+	if cfg.Cannon.VmBin != "" {
+		_, err := os.Stat(cfg.Cannon.VmBin)
 		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestate")
 	}
-	if cfg.CannonServer != "" {
-		_, err := os.Stat(cfg.CannonServer)
+	if cfg.Cannon.Server != "" {
+		_, err := os.Stat(cfg.Cannon.Server)
 		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestate")
 	}
 	if cfg.CannonAbsolutePreState != "" {
