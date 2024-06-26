@@ -1,6 +1,7 @@
 package clsync
 
 import (
+	"errors"
 	"math/big"
 	"math/rand" // nosemgrep
 	"testing"
@@ -377,7 +378,7 @@ func TestCLSync(t *testing.T) {
 		emitter.AssertExpectations(t)
 
 		// Pretend the payload is bad. It should not be retried after this.
-		cl.OnEvent(engine.InvalidPayloadEvent{Envelope: payloadA1})
+		cl.OnEvent(engine.PayloadInvalidEvent{Envelope: payloadA1, Err: errors.New("test err")})
 		emitter.AssertExpectations(t)
 		require.Nil(t, cl.unsafePayloads.Peek(), "pop because invalid")
 	})

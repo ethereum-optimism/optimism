@@ -193,6 +193,8 @@ func TestAttributesHandler(t *testing.T) {
 		})
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes)
+		// New attributes will have to get generated after processing the last ones
+		emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt})
 		ah.OnEvent(engine.PendingSafeUpdateEvent{
 			PendingSafe: refA1Alt,
 			Unsafe:      refA1Alt,
@@ -246,7 +248,7 @@ func TestAttributesHandler(t *testing.T) {
 			// The payloadA1 is going to get reorged out in favor of attrA1Alt (turns into payloadA1Alt)
 			l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
 			// fail consolidation, perform force reorg
-			emitter.ExpectOnce(engine.ProcessAttributesEvent{Attributes: attrA1Alt})
+			emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt})
 			ah.OnEvent(engine.PendingSafeUpdateEvent{
 				PendingSafe: refA0,
 				Unsafe:      refA1,
@@ -255,6 +257,7 @@ func TestAttributesHandler(t *testing.T) {
 			emitter.AssertExpectations(t)
 			require.NotNil(t, ah.attributes, "still have attributes, processing still unconfirmed")
 
+			emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt})
 			// recognize reorg as complete
 			ah.OnEvent(engine.PendingSafeUpdateEvent{
 				PendingSafe: refA1Alt,
@@ -299,6 +302,7 @@ func TestAttributesHandler(t *testing.T) {
 				emitter.AssertExpectations(t)
 				require.NotNil(t, ah.attributes, "still have attributes, processing still unconfirmed")
 
+				emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1})
 				ah.OnEvent(engine.PendingSafeUpdateEvent{
 					PendingSafe: refA1,
 					Unsafe:      refA1,
@@ -334,7 +338,7 @@ func TestAttributesHandler(t *testing.T) {
 		require.True(t, attrA1Alt.IsLastInSpan, "must be last in span for attributes to become safe")
 
 		// attrA1Alt will fit right on top of A0
-		emitter.ExpectOnce(engine.ProcessAttributesEvent{Attributes: attrA1Alt})
+		emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt})
 		ah.OnEvent(engine.PendingSafeUpdateEvent{
 			PendingSafe: refA0,
 			Unsafe:      refA0,
@@ -343,6 +347,7 @@ func TestAttributesHandler(t *testing.T) {
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes)
 
+		emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt})
 		ah.OnEvent(engine.PendingSafeUpdateEvent{
 			PendingSafe: refA1Alt,
 			Unsafe:      refA1Alt,

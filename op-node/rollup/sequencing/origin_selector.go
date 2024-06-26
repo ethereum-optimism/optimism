@@ -1,4 +1,4 @@
-package driver
+package sequencing
 
 import (
 	"context"

@@ -63,7 +63,7 @@ type L2Verifier struct {
 
 	rpc *rpc.Server
 
-	failRPC error // mock error
+	failRPC func(call []rpc.BatchElem) error // mock error
 
 	// The L2Verifier actor is embedded in the L2Sequencer actor,
 	// but must not be copied for the deriver-functionality to modify the same state.
@@ -147,7 +147,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		Drain:          executor.Drain,
 	}, opts)
 
-	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, ec), opts)
+	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, metrics, ec), opts)
 
 	rollupNode := &L2Verifier{
 		eventSys:          sys,
@@ -262,10 +262,11 @@ func (s *L2Verifier) RPCClient() client.RPC {
 	cl := rpc.DialInProc(s.rpc)
 	return testutils.RPCErrFaker{
 		RPC: client.NewBaseRPCClient(cl),
-		ErrFn: func() error {
-			err := s.failRPC
-			s.failRPC = nil // reset back, only error once.
-			return err
+		ErrFn: func(call []rpc.BatchElem) error {
+			if s.failRPC == nil {
+				return nil
+			}
+			return s.failRPC(call)
 		},
 	}
 }
@@ -276,7 +277,10 @@ func (s *L2Verifier) ActRPCFail(t Testing) {
 		t.InvalidAction("already set a mock rpc error")
 		return
 	}
-	s.failRPC = errors.New("mock RPC error")
+	s.failRPC = func(call []rpc.BatchElem) error {
+		s.failRPC = nil
+		return errors.New("mock RPC error")
+	}
 }
 
 func (s *L2Verifier) ActL1HeadSignal(t Testing) {
@@ -327,6 +331,10 @@ func (s *L2Verifier) OnEvent(ev event.Event) bool {
 		panic(fmt.Errorf("derivation failed critically: %w", x.Err))
 	case derive.DeriverIdleEvent:
 		s.l2PipelineIdle = true
+	case derive.PipelineStepEvent:
+		s.l2PipelineIdle = false
+	case driver.StepReqEvent:
+		s.synchronousEvents.Emit(driver.StepEvent{})
 	default:
 		return false
 	}
@@ -359,23 +367,8 @@ func (s *L2Verifier) ActL2EventsUntil(t Testing, fn func(ev event.Event) bool, m
 }
 
 func (s *L2Verifier) ActL2PipelineFull(t Testing) {
-	s.l2PipelineIdle = false
-	i := 0
-	for !s.l2PipelineIdle {
-		i += 1
-		// Some tests do generate a lot of derivation steps
-		// (e.g. thousand blocks span-batch, or deep reorgs).
-		// Hence we set the sanity limit to something really high.
-		if i > 10_000 {
-			t.Fatalf("ActL2PipelineFull running for too long. Is a deriver looping?")
-		}
-		if s.l2Building {
-			t.InvalidAction("cannot derive new data while building L2 block")
-			return
-		}
-		s.synchronousEvents.Emit(driver.StepEvent{})
-		require.NoError(t, s.drainer.Drain(), "complete all event processing triggered by deriver step")
-	}
+	s.synchronousEvents.Emit(driver.StepEvent{})
+	require.NoError(t, s.drainer.Drain(), "complete all event processing triggered by deriver step")
 }
 
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
