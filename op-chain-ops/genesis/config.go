@@ -629,12 +629,9 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		return nil, fmt.Errorf("unknown chain ID: %d", d.L2ChainID)
 	}
 
-	superChain, ok := superchain.Superchains[chConfig.Superchain]
-	if !ok {
-		return nil, fmt.Errorf("chain %d specifies unknown superchain: %q", d.L2ChainID, chConfig.Superchain)
-	}
 	protocolVersionAddress := common.Address{}
-	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
+	superChain, ok := superchain.Superchains[chConfig.Superchain]
+	if ok && superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
 		protocolVersionAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
 	}
 
