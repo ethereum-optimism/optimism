@@ -79,7 +79,7 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 	}
 
 	// ALU
-	val := executeMipsInstruction(insn, rs, rt, mem)
+	val := executeMipsInstruction(insn, opcode, fun, rs, rt, mem)
 
 	if opcode == 0 && fun >= 8 && fun < 0x1c {
 		if fun == 8 || fun == 9 { // jr/jalr
@@ -120,11 +120,8 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 	return handleRd(cpu, registers, rdReg, val, true)
 }
 
-func executeMipsInstruction(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
-	opcode := insn >> 26 // 6-bits
-
+func executeMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 	if opcode == 0 || (opcode >= 8 && opcode < 0xF) {
-		fun := insn & 0x3f // 6-bits
 		// transform ArithLogI to SPECIAL
 		switch opcode {
 		case 8:
@@ -221,7 +218,6 @@ func executeMipsInstruction(insn uint32, rs uint32, rt uint32, mem uint32) uint3
 		switch opcode {
 		// SPECIAL2
 		case 0x1C:
-			fun := insn & 0x3f // 6-bits
 			switch fun {
 			case 0x2: // mul
 				return uint32(int32(rs) * int32(rt))
