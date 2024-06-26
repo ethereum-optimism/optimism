@@ -61,8 +61,8 @@ library MIPSInstructions {
             }
 
             // register fetch
-            uint32 rs; // source register 1 value
-            uint32 rt; // source register 2 / temp value
+            uint32 rs = 0; // source register 1 value
+            uint32 rt = 0; // source register 2 / temp value
             uint32 rtReg = (_insn >> 16) & 0x1F;
 
             // R-type or I-type (stores rt)
@@ -106,7 +106,7 @@ library MIPSInstructions {
             uint32 storeAddr = 0xFF_FF_FF_FF;
             // memory fetch (all I-type)
             // we do the load for stores also
-            uint32 mem;
+            uint32 mem = 0;
             if (_opcode >= 0x20) {
                 // M[R[rs]+SignExtImm]
                 rs += signExtend(_insn & 0xFFFF, 16);
