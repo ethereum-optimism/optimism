@@ -48,7 +48,7 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, genericMetrics Metr
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Monitoring chain", "rpc", rpc)
+	logger.Info("Monitoring chain")
 	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, &loggingCallback{logger})
 	return &ChainMonitor{
 		headMonitor: headMonitor,
