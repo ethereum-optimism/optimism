@@ -16,7 +16,7 @@ library CeloPredeploys {
     address internal constant ADDRESS_SORTED_LINKED_LIST_WITH_MEDIAN = 0xED477A99035d0c1e11369F1D7A4e587893cc002B;
     address internal constant FEE_CURRENCY = 0x4200000000000000000000000000000000001022;
     address internal constant BRIDGED_ETH = 0x4200000000000000000000000000000000001023;
-    address internal constant FEE_CURRENCY_DIRECTORY = 0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB;
+    address internal constant FEE_CURRENCY_DIRECTORY = 0x71FFbD48E34bdD5a87c3c683E866dc63b8B2a685;
     address internal constant cUSD = 0x765DE816845861e75A25fCA122bb6898B8B1282a;
 
     /// @notice Returns the name of the predeploy at the given address.
