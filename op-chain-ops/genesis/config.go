@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
 var (
@@ -623,6 +624,20 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		}
 	}
 
+	chConfig, ok := superchain.OPChains[d.L2ChainID]
+	if !ok {
+		return nil, fmt.Errorf("unknown chain ID: %d", d.L2ChainID)
+	}
+
+	superChain, ok := superchain.Superchains[chConfig.Superchain]
+	if !ok {
+		return nil, fmt.Errorf("chain %d specifies unknown superchain: %q", d.L2ChainID, chConfig.Superchain)
+	}
+	protocolVersionAddress := common.Address{}
+	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
+		protocolVersionAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
+	}
+
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
@@ -641,22 +656,23 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 			},
 		},
-		BlockTime:              d.L2BlockTime,
-		MaxSequencerDrift:      d.MaxSequencerDrift,
-		SeqWindowSize:          d.SequencerWindowSize,
-		ChannelTimeout:         d.ChannelTimeout,
-		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
-		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
-		BatchInboxAddress:      d.BatchInboxAddress,
-		DepositContractAddress: d.OptimismPortalProxy,
-		L1SystemConfigAddress:  d.SystemConfigProxy,
-		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
-		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
-		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
-		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
-		FjordTime:              d.FjordTime(l1StartBlock.Time()),
-		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		PlasmaConfig:           plasma,
+		BlockTime:               d.L2BlockTime,
+		MaxSequencerDrift:       d.MaxSequencerDrift,
+		SeqWindowSize:           d.SequencerWindowSize,
+		ChannelTimeout:          d.ChannelTimeout,
+		L1ChainID:               new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:               new(big.Int).SetUint64(d.L2ChainID),
+		BatchInboxAddress:       d.BatchInboxAddress,
+		DepositContractAddress:  d.OptimismPortalProxy,
+		L1SystemConfigAddress:   d.SystemConfigProxy,
+		ProtocolVersionsAddress: protocolVersionAddress,
+		RegolithTime:            d.RegolithTime(l1StartBlock.Time()),
+		CanyonTime:              d.CanyonTime(l1StartBlock.Time()),
+		DeltaTime:               d.DeltaTime(l1StartBlock.Time()),
+		EcotoneTime:             d.EcotoneTime(l1StartBlock.Time()),
+		FjordTime:               d.FjordTime(l1StartBlock.Time()),
+		InteropTime:             d.InteropTime(l1StartBlock.Time()),
+		PlasmaConfig:            plasma,
 	}, nil
 }
 
