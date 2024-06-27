@@ -77,6 +77,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
 	}
 
+	// Note: For easier debugging of a failing step, see MIPS.t.sol#test_step_debug_succeeds()
 	input := encodeStepInput(t, stepWitness, LocalContext{}, m.artifacts.MIPS)
 	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, common.U2560)
 	require.NoError(t, err, "evm should not fail")
