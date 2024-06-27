@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 	"github.com/ethereum/go-ethereum/common"
@@ -61,9 +62,9 @@ var (
 	}
 	TraceTypeFlag = &cli.StringSliceFlag{
 		Name:    "trace-type",
-		Usage:   "The trace types to support. Valid options: " + openum.EnumString(config.TraceTypes),
+		Usage:   "The trace types to support. Valid options: " + openum.EnumString(types.TraceTypes),
 		EnvVars: prefixEnvVars("TRACE_TYPE"),
-		Value:   cli.NewStringSlice(config.TraceTypeCannon.String()),
+		Value:   cli.NewStringSlice(types.TraceTypeCannon.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
@@ -339,7 +340,7 @@ func CheckAsteriscFlags(ctx *cli.Context) error {
 	return nil
 }
 
-func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
+func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
@@ -351,26 +352,26 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 	}
 	for _, traceType := range traceTypes {
 		switch traceType {
-		case config.TraceTypeCannon, config.TraceTypePermissioned:
+		case types.TraceTypeCannon, types.TraceTypePermissioned:
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
-		case config.TraceTypeAsterisc:
+		case types.TraceTypeAsterisc:
 			if err := CheckAsteriscFlags(ctx); err != nil {
 				return err
 			}
-		case config.TraceTypeAlphabet, config.TraceTypeFast:
+		case types.TraceTypeAlphabet, types.TraceTypeFast:
 		default:
-			return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
+			return fmt.Errorf("invalid trace type. must be one of %v", types.TraceTypes)
 		}
 	}
 	return nil
 }
 
-func parseTraceTypes(ctx *cli.Context) ([]config.TraceType, error) {
-	var traceTypes []config.TraceType
+func parseTraceTypes(ctx *cli.Context) ([]types.TraceType, error) {
+	var traceTypes []types.TraceType
 	for _, typeName := range ctx.StringSlice(TraceTypeFlag.Name) {
-		traceType := new(config.TraceType)
+		traceType := new(types.TraceType)
 		if err := traceType.Set(typeName); err != nil {
 			return nil, err
 		}
@@ -514,7 +515,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
 		Cannon: vm.Config{
-			VmType:           config.TraceTypeCannon.String(),
+			VmType:           types.TraceTypeCannon,
 			L1:               l1EthRpc,
 			L1Beacon:         l1Beacon,
 			L2:               l2Rpc,
@@ -530,7 +531,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonAbsolutePreStateBaseURL: cannonPrestatesURL,
 		Datadir:                       ctx.String(DatadirFlag.Name),
 		Asterisc: vm.Config{
-			VmType:           config.TraceTypeAsterisc.String(),
+			VmType:           types.TraceTypeAsterisc,
 			L1:               l1EthRpc,
 			L1Beacon:         l1Beacon,
 			L2:               l2Rpc,
