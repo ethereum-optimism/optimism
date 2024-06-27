@@ -1,19 +1,21 @@
-package derive
+package attributes
 
 import (
-	"math/rand"
+	"math/rand" // nosemgrep
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 var (
@@ -23,6 +25,7 @@ var (
 	validPrevRandao       = eth.Bytes32(common.HexToHash("0x789"))
 	validGasLimit         = eth.Uint64Quantity(1000)
 	validWithdrawals      = types.Withdrawals{}
+	validFeeRecipient     = predeploys.SequencerFeeVaultAddr
 )
 
 type args struct {
@@ -36,11 +39,12 @@ func ecotoneArgs() args {
 		envelope: &eth.ExecutionPayloadEnvelope{
 			ParentBeaconBlockRoot: &validParentBeaconRoot,
 			ExecutionPayload: &eth.ExecutionPayload{
-				ParentHash:  validParentHash,
-				Timestamp:   validTimestamp,
-				PrevRandao:  validPrevRandao,
-				GasLimit:    validGasLimit,
-				Withdrawals: &validWithdrawals,
+				ParentHash:   validParentHash,
+				Timestamp:    validTimestamp,
+				PrevRandao:   validPrevRandao,
+				GasLimit:     validGasLimit,
+				Withdrawals:  &validWithdrawals,
+				FeeRecipient: validFeeRecipient,
 			},
 		},
 		attrs: &eth.PayloadAttributes{
@@ -49,6 +53,7 @@ func ecotoneArgs() args {
 			GasLimit:              &validGasLimit,
 			ParentBeaconBlockRoot: &validParentBeaconRoot,
 			Withdrawals:           &validWithdrawals,
+			SuggestedFeeRecipient: validFeeRecipient,
 		},
 		parentHash: validParentHash,
 	}
@@ -133,6 +138,12 @@ func createMismatchedTimestamp() args {
 	return args
 }
 
+func createMismatchedFeeRecipient() args {
+	args := ecotoneArgs()
+	args.attrs.SuggestedFeeRecipient = common.Address{0xde, 0xad}
+	return args
+}
+
 func TestAttributesMatch(t *testing.T) {
 	rollupCfg := &rollup.Config{}
 
@@ -192,14 +203,18 @@ func TestAttributesMatch(t *testing.T) {
 			shouldMatch: false,
 			args:        createMismatchedTimestamp(),
 		},
+		{
+			shouldMatch: false,
+			args:        createMismatchedFeeRecipient(),
+		},
 	}
 
-	for _, test := range tests {
+	for i, test := range tests {
 		err := AttributesMatchBlock(rollupCfg, test.args.attrs, test.args.parentHash, test.args.envelope, testlog.Logger(t, log.LevelInfo))
 		if test.shouldMatch {
-			require.NoError(t, err)
+			require.NoError(t, err, "fail %d", i)
 		} else {
-			require.Error(t, err)
+			require.Error(t, err, "fail %d", i)
 		}
 	}
 }

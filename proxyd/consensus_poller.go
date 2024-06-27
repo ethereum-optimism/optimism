@@ -122,12 +122,38 @@ func NewPollerAsyncHandler(ctx context.Context, cp *ConsensusPoller) ConsensusAs
 	}
 }
 func (ah *PollerAsyncHandler) Init() {
-	// create the individual backend pollers
-	for _, be := range ah.cp.backendGroup.Backends {
+	// create the individual backend pollers.
+	log.Info("total number of primary candidates", "primaries", len(ah.cp.backendGroup.Primaries()))
+	log.Info("total number of fallback candidates", "fallbacks", len(ah.cp.backendGroup.Fallbacks()))
+
+	for _, be := range ah.cp.backendGroup.Primaries() {
 		go func(be *Backend) {
 			for {
 				timer := time.NewTimer(ah.cp.interval)
 				ah.cp.UpdateBackend(ah.ctx, be)
+				select {
+				case <-timer.C:
+				case <-ah.ctx.Done():
+					timer.Stop()
+					return
+				}
+			}
+		}(be)
+	}
+
+	for _, be := range ah.cp.backendGroup.Fallbacks() {
+		go func(be *Backend) {
+			for {
+				timer := time.NewTimer(ah.cp.interval)
+
+				healthyCandidates := ah.cp.FilterCandidates(ah.cp.backendGroup.Primaries())
+
+				log.Info("number of healthy primary candidates", "healthy_candidates", len(healthyCandidates))
+				if len(healthyCandidates) == 0 {
+					log.Info("zero healthy candidates, querying fallback backend",
+						"backend_name", be.Name)
+					ah.cp.UpdateBackend(ah.ctx, be)
+				}
 
 				select {
 				case <-timer.C:
@@ -143,6 +169,7 @@ func (ah *PollerAsyncHandler) Init() {
 	go func() {
 		for {
 			timer := time.NewTimer(ah.cp.interval)
+			log.Info("updating backend group consensus")
 			ah.cp.UpdateBackendGroupConsensus(ah.ctx)
 
 			select {
@@ -609,6 +636,13 @@ func (cp *ConsensusPoller) getBackendState(be *Backend) *backendState {
 	}
 }
 
+func (cp *ConsensusPoller) GetLastUpdate(be *Backend) time.Time {
+	bs := cp.backendState[be]
+	defer bs.backendStateMux.Unlock()
+	bs.backendStateMux.Lock()
+	return bs.lastUpdate
+}
+
 func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync bool,
 	latestBlockNumber hexutil.Uint64, latestBlockHash string,
 	safeBlockNumber hexutil.Uint64,
@@ -627,7 +661,21 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync
 	return changed
 }
 
-// getConsensusCandidates find out what backends are the candidates to be in the consensus group
+// getConsensusCandidates will search for candidates in the primary group,
+// if there are none it will search for candidates in he fallback group
+func (cp *ConsensusPoller) getConsensusCandidates() map[*Backend]*backendState {
+
+	healthyPrimaries := cp.FilterCandidates(cp.backendGroup.Primaries())
+
+	RecordHealthyCandidates(cp.backendGroup, len(healthyPrimaries))
+	if len(healthyPrimaries) > 0 {
+		return healthyPrimaries
+	}
+
+	return cp.FilterCandidates(cp.backendGroup.Fallbacks())
+}
+
+// filterCandidates find out what backends are the candidates to be in the consensus group
 // and create a copy of current their state
 //
 // a candidate is a serving node within the following conditions:
@@ -637,10 +685,12 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync
 //   - in sync
 //   - updated recently
 //   - not lagging latest block
-func (cp *ConsensusPoller) getConsensusCandidates() map[*Backend]*backendState {
+func (cp *ConsensusPoller) FilterCandidates(backends []*Backend) map[*Backend]*backendState {
+
 	candidates := make(map[*Backend]*backendState, len(cp.backendGroup.Backends))
 
-	for _, be := range cp.backendGroup.Backends {
+	for _, be := range backends {
+
 		bs := cp.getBackendState(be)
 		if be.forcedCandidate {
 			candidates[be] = bs

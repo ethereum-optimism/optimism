@@ -108,6 +108,9 @@ func TestConsensus(t *testing.T) {
 	}
 
 	override := func(node string, method string, block string, response string) {
+		if _, ok := nodes[node]; !ok {
+			t.Fatalf("node %s does not exist in the nodes map", node)
+		}
 		nodes[node].handler.AddOverride(&ms.MethodTemplate{
 			Method:   method,
 			Block:    block,

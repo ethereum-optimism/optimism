@@ -3,6 +3,7 @@ package disputegame
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -33,23 +35,23 @@ type OutputGameHelper struct {
 	Require               *require.Assertions
 	Client                *ethclient.Client
 	Opts                  *bind.TransactOpts
+	PrivKey               *ecdsa.PrivateKey
 	Game                  contracts.FaultDisputeGameContract
-	GameBindings          *bindings.FaultDisputeGame
 	FactoryAddr           common.Address
 	Addr                  common.Address
 	CorrectOutputProvider *outputs.OutputTraceProvider
 	System                DisputeSystem
 }
 
-func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts,
-	game contracts.FaultDisputeGameContract, gameBindings *bindings.FaultDisputeGame, factoryAddr common.Address, addr common.Address, correctOutputProvider *outputs.OutputTraceProvider, system DisputeSystem) *OutputGameHelper {
+func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts, privKey *ecdsa.PrivateKey,
+	game contracts.FaultDisputeGameContract, factoryAddr common.Address, addr common.Address, correctOutputProvider *outputs.OutputTraceProvider, system DisputeSystem) *OutputGameHelper {
 	return &OutputGameHelper{
 		T:                     t,
 		Require:               require,
 		Client:                client,
 		Opts:                  opts,
+		PrivKey:               privKey,
 		Game:                  game,
-		GameBindings:          gameBindings,
 		FactoryAddr:           factoryAddr,
 		Addr:                  addr,
 		CorrectOutputProvider: correctOutputProvider,
@@ -203,22 +205,13 @@ func (g *OutputGameHelper) AvailableCredit(ctx context.Context, addr common.Addr
 }
 
 func (g *OutputGameHelper) CreditUnlockDuration(ctx context.Context) time.Duration {
-	weth, err := g.GameBindings.Weth(&bind.CallOpts{Context: ctx})
-	g.Require.NoError(err, "Failed to get WETH contract")
-	contract, err := bindings.NewDelayedWETH(weth, g.Client)
-	g.Require.NoError(err)
-	period, err := contract.Delay(&bind.CallOpts{Context: ctx})
-	g.Require.NoError(err, "Failed to get WETH unlock period")
-	float, _ := period.Float64()
-	return time.Duration(float) * time.Second
+	_, delay, _, err := g.Game.GetBalanceAndDelay(ctx, rpcblock.Latest)
+	g.Require.NoError(err, "Failed to get withdrawal delay")
+	return delay
 }
 
 func (g *OutputGameHelper) WethBalance(ctx context.Context, addr common.Address) *big.Int {
-	weth, err := g.GameBindings.Weth(&bind.CallOpts{Context: ctx})
-	g.Require.NoError(err, "Failed to get WETH contract")
-	contract, err := bindings.NewDelayedWETH(weth, g.Client)
-	g.Require.NoError(err)
-	balance, err := contract.BalanceOf(&bind.CallOpts{Context: ctx}, addr)
+	balance, _, _, err := g.Game.GetBalanceAndDelay(ctx, rpcblock.Latest)
 	g.Require.NoError(err, "Failed to get WETH balance")
 	return balance
 }
@@ -363,10 +356,9 @@ func (g *OutputGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 func (g *OutputGameHelper) Resolve(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	tx, err := g.GameBindings.Resolve(g.Opts)
+	candidate, err := g.Game.ResolveTx()
 	g.Require.NoError(err)
-	_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
-	g.Require.NoError(err)
+	transactions.RequireSendTx(g.T, ctx, g.Client, candidate, g.PrivKey)
 }
 
 func (g *OutputGameHelper) Status(ctx context.Context) gameTypes.GameStatus {
@@ -545,11 +537,10 @@ func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim com
 	claimData, err := g.Game.GetClaim(ctx, uint64(claimIdx))
 	g.Require.NoError(err, "Failed to get claim data")
 	attackPos := claimData.Position.Attack()
-	transactOpts := g.makeBondedTransactOpts(ctx, claimData.Position.Attack().ToGIndex(), cfg.Opts)
 
-	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
-		return g.GameBindings.Attack(transactOpts, claimData.Value, big.NewInt(claimIdx), claim)
-	})
+	candidate, err := g.Game.AttackTx(ctx, claimData, claim)
+	g.Require.NoError(err, "Failed to create tx candidate")
+	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey)
 	if err != nil {
 		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, attackPos, claim) {
 			return
@@ -565,11 +556,10 @@ func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim com
 	claimData, err := g.Game.GetClaim(ctx, uint64(claimIdx))
 	g.Require.NoError(err, "Failed to get claim data")
 	defendPos := claimData.Position.Defend()
-	transactOpts := g.makeBondedTransactOpts(ctx, defendPos.ToGIndex(), cfg.Opts)
 
-	err = g.sendMove(ctx, func() (*gethtypes.Transaction, error) {
-		return g.GameBindings.Defend(transactOpts, claimData.Value, big.NewInt(claimIdx), claim)
-	})
+	candidate, err := g.Game.DefendTx(ctx, claimData, claim)
+	g.Require.NoError(err, "Failed to create tx candidate")
+	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey)
 	if err != nil {
 		if cfg.ignoreDupes && g.hasClaim(ctx, claimIdx, defendPos, claim) {
 			return
@@ -588,45 +578,27 @@ func (g *OutputGameHelper) hasClaim(ctx context.Context, parentIdx int64, pos ty
 	return false
 }
 
-func (g *OutputGameHelper) sendMove(ctx context.Context, send func() (*gethtypes.Transaction, error)) error {
-	tx, err := send()
-	if err != nil {
-		return fmt.Errorf("transaction did not send: %w", err)
-	}
-	_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
-	if err != nil {
-		return fmt.Errorf("transaction was not ok: %w", err)
-	}
-	return nil
-}
-
-func (g *OutputGameHelper) makeBondedTransactOpts(ctx context.Context, pos *big.Int, Opts *bind.TransactOpts) *bind.TransactOpts {
-	bOpts := *Opts
-	bond, err := g.GameBindings.GetRequiredBond(&bind.CallOpts{Context: ctx}, pos)
-	g.Require.NoError(err, "Failed to get required bond")
-	bOpts.Value = bond
-	return &bOpts
-}
-
 type ErrWithData interface {
 	ErrorData() interface{}
 }
 
 // StepFails attempts to call step and verifies that it fails with ValidStep()
-func (g *OutputGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []byte, proof []byte) {
+func (g *OutputGameHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool, stateData []byte, proof []byte) {
 	g.T.Logf("Attempting step against claim %v isAttack: %v", claimIdx, isAttack)
-	_, err := g.GameBindings.Step(g.Opts, big.NewInt(claimIdx), isAttack, stateData, proof)
-	errData, ok := err.(ErrWithData)
+	candidate, err := g.Game.StepTx(uint64(claimIdx), isAttack, stateData, proof)
+	g.Require.NoError(err, "Failed to create tx candidate")
+	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey, transactions.WithReceiptFail())
+	var errData ErrWithData
+	ok := errors.As(err, &errData)
 	g.Require.Truef(ok, "Error should provide ErrorData method: %v", err)
 	g.Require.Equal("0xfb4e40dd", errData.ErrorData(), "Revert reason should be abi encoded ValidStep()")
 }
 
 // ResolveClaim resolves a single subgame
 func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
-	tx, err := g.GameBindings.ResolveClaim(g.Opts, big.NewInt(claimIdx), common.Big0)
-	g.Require.NoError(err, "ResolveClaim transaction did not send")
-	_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
-	g.Require.NoError(err, "ResolveClaim transaction was not OK")
+	candidate, err := g.Game.ResolveClaimTx(uint64(claimIdx))
+	g.Require.NoError(err, "Failed to create resolve claim candidate tx")
+	transactions.RequireSendTx(g.T, ctx, g.Client, candidate, g.PrivKey)
 }
 
 // ChallengePeriod returns the challenge period fetched from the PreimageOracle contract.

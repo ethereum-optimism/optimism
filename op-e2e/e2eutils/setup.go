@@ -228,8 +228,12 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
 }
 
-func UseFPAC() bool {
-	return os.Getenv("OP_E2E_USE_FPAC") == "true"
+func UseFaultProofs() bool {
+	return !UseL2OO()
+}
+
+func UseL2OO() bool {
+	return os.Getenv("OP_E2E_USE_L2OO") == "true"
 }
 
 func UsePlasma() bool {

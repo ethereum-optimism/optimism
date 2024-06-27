@@ -1,4 +1,4 @@
-package derive
+package attributes
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -59,6 +60,9 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	}
 	if err := checkParentBeaconBlockRootMatch(attrs.ParentBeaconBlockRoot, envelope.ParentBeaconBlockRoot); err != nil {
 		return err
+	}
+	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
+		return fmt.Errorf("fee recipient data does not match, expected %s but got %s", block.FeeRecipient, attrs.SuggestedFeeRecipient)
 	}
 	return nil
 }
@@ -119,8 +123,8 @@ func logL1InfoTxns(rollupCfg *rollup.Config, l log.Logger, l2Number, l2Timestamp
 	}
 
 	// Then decode the ABI encoded parameters
-	safeInfo, errSafe := L1BlockInfoFromBytes(rollupCfg, l2Timestamp, safeTxValue.Data())
-	unsafeInfo, errUnsafe := L1BlockInfoFromBytes(rollupCfg, l2Timestamp, unsafeTxValue.Data())
+	safeInfo, errSafe := derive.L1BlockInfoFromBytes(rollupCfg, l2Timestamp, safeTxValue.Data())
+	unsafeInfo, errUnsafe := derive.L1BlockInfoFromBytes(rollupCfg, l2Timestamp, unsafeTxValue.Data())
 	if errSafe != nil || errUnsafe != nil {
 		l.Error("failed to umarshal l1 info", "errSafe", errSafe, "errUnsafe", errUnsafe)
 		return

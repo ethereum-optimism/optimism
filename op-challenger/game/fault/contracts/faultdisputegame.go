@@ -355,7 +355,7 @@ func (f *FaultDisputeGameContractLatest) getDelayedWETH(ctx context.Context, blo
 
 func (f *FaultDisputeGameContractLatest) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
 	defer f.metrics.StartContractRequest("GetOracle")()
-	vm, err := f.vm(ctx)
+	vm, err := f.Vm(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -458,7 +458,7 @@ func (f *FaultDisputeGameContractLatest) IsResolved(ctx context.Context, block r
 	return resolved, nil
 }
 
-func (f *FaultDisputeGameContractLatest) vm(ctx context.Context) (*VMContract, error) {
+func (f *FaultDisputeGameContractLatest) Vm(ctx context.Context) (*VMContract, error) {
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodVM))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch VM addr: %w", err)
@@ -623,4 +623,5 @@ type FaultDisputeGameContract interface {
 	ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error)
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	ResolveTx() (txmgr.TxCandidate, error)
+	Vm(ctx context.Context) (*VMContract, error)
 }

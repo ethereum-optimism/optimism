@@ -27,6 +27,12 @@ type AttributesBuilder interface {
 	PreparePayloadAttributes(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
 }
 
+type AttributesWithParent struct {
+	Attributes   *eth.PayloadAttributes
+	Parent       eth.L2BlockRef
+	IsLastInSpan bool
+}
+
 type AttributesQueue struct {
 	log          log.Logger
 	config       *rollup.Config

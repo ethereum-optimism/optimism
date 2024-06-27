@@ -133,6 +133,12 @@ func WithAlphabet() Option {
 	}
 }
 
+func WithFastGames() Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeFast)
+	}
+}
+
 func NewChallenger(t *testing.T, ctx context.Context, sys EndpointProvider, name string, options ...Option) *Helper {
 	log := testlog.Logger(t, log.LevelDebug).New("role", name)
 	log.Info("Creating challenger")

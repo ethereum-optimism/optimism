@@ -16,6 +16,11 @@ contract CheckBalanceLowTest is Test {
         c = new CheckBalanceLow();
     }
 
+    /// @notice Test that the `name` function returns the correct value.
+    function test_name_succeeds() external {
+        assertEq(c.name(), "CheckBalanceLow");
+    }
+
     /// @notice Fuzz the `check` function and assert that it always returns true
     ///         when the target's balance is smaller than the threshold.
     function testFuzz_check_succeeds(address _target, uint256 _threshold) external view {

@@ -13,8 +13,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -35,6 +38,9 @@ type L2Verifier struct {
 	// L2 rollup
 	engine     *derive.EngineController
 	derivation *derive.DerivationPipeline
+	clSync     *clsync.CLSync
+
+	finalizer driver.Finalizer
 
 	l1      derive.L1Fetcher
 	l1State *driver.L1State
@@ -63,17 +69,32 @@ type safeDB interface {
 	node.SafeDBReader
 }
 
-func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, plasmaSrc derive.PlasmaInputFetcher, eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB) *L2Verifier {
+func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
 	engine := derive.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode)
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, engine, metrics, syncCfg, safeHeadListener)
+
+	clSync := clsync.NewCLSync(log, cfg, metrics, engine)
+
+	var finalizer driver.Finalizer
+	if cfg.PlasmaEnabled() {
+		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, engine, plasmaSrc)
+	} else {
+		finalizer = finality.NewFinalizer(log, cfg, l1, engine)
+	}
+
+	attributesHandler := attributes.NewAttributesHandler(log, cfg, engine, eng)
+
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, engine, metrics,
+		syncCfg, safeHeadListener, finalizer, attributesHandler)
 	pipeline.Reset()
 
 	rollupNode := &L2Verifier{
 		log:            log,
 		eng:            eng,
 		engine:         engine,
+		clSync:         clSync,
 		derivation:     pipeline,
+		finalizer:      finalizer,
 		l1:             l1,
 		l1State:        driver.NewL1State(log, metrics),
 		l2PipelineIdle: true,
@@ -162,7 +183,7 @@ func (s *L2Verifier) L2BackupUnsafe() eth.L2BlockRef {
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
 		CurrentL1:          s.derivation.Origin(),
-		CurrentL1Finalized: s.derivation.FinalizedL1(),
+		CurrentL1Finalized: s.finalizer.FinalizedL1(),
 		HeadL1:             s.l1State.L1Head(),
 		SafeL1:             s.l1State.L1Safe(),
 		FinalizedL1:        s.l1State.L1Finalized(),
@@ -214,7 +235,23 @@ func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
 	s.l1State.HandleNewL1FinalizedBlock(finalized)
-	s.derivation.Finalize(finalized)
+	s.finalizer.Finalize(t.Ctx(), finalized)
+}
+
+// syncStep represents the Driver.syncStep
+func (s *L2Verifier) syncStep(ctx context.Context) error {
+	if fcuCalled, err := s.engine.TryBackupUnsafeReorg(ctx); fcuCalled {
+		return err
+	}
+	if err := s.engine.TryUpdateEngine(ctx); !errors.Is(err, derive.ErrNoFCUNeeded) {
+		return err
+	}
+	if err := s.clSync.Proceed(ctx); err != io.EOF {
+		return err
+	}
+
+	s.l2PipelineIdle = false
+	return s.derivation.Step(ctx)
 }
 
 // ActL2PipelineStep runs one iteration of the L2 derivation pipeline
@@ -224,8 +261,7 @@ func (s *L2Verifier) ActL2PipelineStep(t Testing) {
 		return
 	}
 
-	s.l2PipelineIdle = false
-	err := s.derivation.Step(t.Ctx())
+	err := s.syncStep(t.Ctx())
 	if err == io.EOF || (err != nil && errors.Is(err, derive.EngineELSyncing)) {
 		s.l2PipelineIdle = true
 		return
@@ -260,7 +296,7 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.derivation.AddUnsafePayload(payload)
+		s.clSync.AddUnsafePayload(payload)
 	}
 }
 
