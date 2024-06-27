@@ -20,11 +20,13 @@ library MIPSInstructions {
         pure
         returns (uint32 insn_, uint32 opcode_, uint32 fun_)
     {
-        insn_ = MIPSMemory.readMem(_memRoot, _pc, _insnProofOffset);
-        opcode_ = insn_ >> 26; // First 6-bits
-        fun_ = insn_ & 0x3f; // Last 6-bits
+        unchecked {
+            insn_ = MIPSMemory.readMem(_memRoot, _pc, _insnProofOffset);
+            opcode_ = insn_ >> 26; // First 6-bits
+            fun_ = insn_ & 0x3f; // Last 6-bits
 
-        return (insn_, opcode_, fun_);
+            return (insn_, opcode_, fun_);
+        }
     }
 
     /// @notice Execute core MIPS step logic.
