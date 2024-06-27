@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// TODO(optimism#10999) Make these configurable and a sensible default
+// TODO(optimism#11032) Make these configurable and a sensible default
 const epochPollInterval = 30 * time.Second
 const pollInterval = 2 * time.Second
 const trustRpc = false
@@ -64,7 +64,6 @@ func (c *ChainMonitor) Stop() error {
 }
 
 // loggingCallback is a temporary implementation of the head monitor callback that just logs the events.
-// TODO(optimism#10999): Replace this with something that actually detects reorgs, fetches logs, and does consolidation
 type loggingCallback struct {
 	log log.Logger
 }
