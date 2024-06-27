@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -29,6 +30,7 @@ type Metrics interface {
 // ChainMonitor monitors a source L2 chain, retrieving the data required to populate the database and perform
 // interop consolidation. It detects and notifies when reorgs occur.
 type ChainMonitor struct {
+	log         log.Logger
 	headMonitor *HeadMonitor
 }
 
@@ -48,14 +50,25 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, genericMetrics Metr
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Monitoring chain")
-	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, &loggingCallback{logger})
+
+	// TODO(optimism#11023): Load the starting block from log db
+	startingHead := eth.L1BlockRef{}
+
+	fetchReceipts := newLogFetcher(cl, &loggingReceiptProcessor{logger})
+	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, fetchReceipts)
+
+	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
+	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)
+	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, callback)
+
 	return &ChainMonitor{
+		log:         logger,
 		headMonitor: headMonitor,
 	}, nil
 }
 
 func (c *ChainMonitor) Start() error {
+	c.log.Info("Started monitoring chain")
 	return c.headMonitor.Start()
 }
 
@@ -63,21 +76,13 @@ func (c *ChainMonitor) Stop() error {
 	return c.headMonitor.Stop()
 }
 
-// loggingCallback is a temporary implementation of the head monitor callback that just logs the events.
-type loggingCallback struct {
+type loggingReceiptProcessor struct {
 	log log.Logger
 }
 
-func (n *loggingCallback) OnNewUnsafeHead(_ context.Context, block eth.L1BlockRef) {
-	n.log.Info("New unsafe head", "block", block)
-}
-
-func (n *loggingCallback) OnNewSafeHead(_ context.Context, block eth.L1BlockRef) {
-	n.log.Info("New safe head", "block", block)
-}
-
-func (n *loggingCallback) OnNewFinalizedHead(_ context.Context, block eth.L1BlockRef) {
-	n.log.Info("New finalized head", "block", block)
+func (n *loggingReceiptProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpts types.Receipts) error {
+	n.log.Info("Process unsafe block", "block", block, "rcpts", len(rcpts))
+	return nil
 }
 
 func newClient(ctx context.Context, logger log.Logger, m caching.Metrics, rpc string, rpcClient *rpc.Client, pollRate time.Duration, trustRPC bool, kind sources.RPCProviderKind) (*sources.L1Client, error) {
