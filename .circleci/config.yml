@@ -1512,7 +1512,7 @@ jobs:
       - run:
           name: Run Kontrol Tests
           command: |
-              curl -X POST \
+            curl -X POST \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $RV_COMPUTE_TOKEN" \
               https://api.github.com/repos/runtimeverification/optimism-ci/actions/workflows/optimism-ci.yaml/dispatches \
@@ -2089,14 +2089,7 @@ workflows:
             - slack
 
   develop-kontrol-tests:
-    when:
-      and:
-        - or:
-          - equal: [ "develop", <<pipeline.git.branch>> ]
-          - equal: [ true, <<pipeline.parameters.kontrol_dispatch>> ]
-          - equal: [ "feature/rv-compute", <<pipeline.git.branch>> ]
-        - not:
-           equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
+    when: true
     jobs:
       - kontrol-tests:
           context:
