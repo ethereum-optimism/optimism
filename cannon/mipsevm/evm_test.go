@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"os"
 	"path"
@@ -40,17 +41,29 @@ func MarkdownTracer() vm.EVMLogger {
 	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 }
 
+func logStepFailureAtCleanup(t *testing.T, mipsEvm *MIPSEVM) {
+	t.Cleanup(func() {
+		if t.Failed() {
+			// Note: For easier debugging of a failing step, see MIPS.t.sol#test_step_debug_succeeds()
+			t.Logf("Failed while executing step %d with input: %x", mipsEvm.lastStep, mipsEvm.lastStepInput)
+		}
+	})
+}
+
 type MIPSEVM struct {
 	env         *vm.EVM
 	evmState    *state.StateDB
 	addrs       *Addresses
 	localOracle PreimageOracle
 	artifacts   *Artifacts
+	// Track step execution for logging purposes
+	lastStep      uint64
+	lastStepInput []byte
 }
 
 func NewMIPSEVM(artifacts *Artifacts, addrs *Addresses) *MIPSEVM {
 	env, evmState := NewEVMEnv(artifacts, addrs)
-	return &MIPSEVM{env, evmState, addrs, nil, artifacts}
+	return &MIPSEVM{env, evmState, addrs, nil, artifacts, math.MaxUint64, nil}
 }
 
 func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
@@ -63,6 +76,8 @@ func (m *MIPSEVM) SetLocalOracle(oracle PreimageOracle) {
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
 func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness, step uint64) []byte {
+	m.lastStep = step
+	m.lastStepInput = nil
 	sender := common.Address{0x13, 0x37}
 	startingGas := uint64(30_000_000)
 
@@ -77,9 +92,8 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness, step uint64) []by
 		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
 	}
 
-	// Note: For easier debugging of a failing step, see MIPS.t.sol#test_step_debug_succeeds()
 	input := encodeStepInput(t, stepWitness, LocalContext{}, m.artifacts.MIPS)
-	t.Logf("Executing step %d with input: %x", step, input)
+	m.lastStepInput = input
 	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, common.U2560)
 	require.NoError(t, err, "evm should not fail")
 	require.Len(t, ret, 32, "expecting 32-byte state hash")
@@ -170,6 +184,7 @@ func TestEVM(t *testing.T) {
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
 			evm.SetLocalOracle(oracle)
+			logStepFailureAtCleanup(t, evm)
 
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
@@ -246,6 +261,8 @@ func TestEVMSingleStep(t *testing.T) {
 
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
+			logStepFailureAtCleanup(t, evm)
+
 			evmPost := evm.Step(t, stepWitness, curStep)
 			goPost, _ := us.state.EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -425,6 +442,8 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
+			logStepFailureAtCleanup(t, evm)
+
 			evmPost := evm.Step(t, stepWitness, curStep)
 			goPost, _ := us.state.EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -483,6 +502,9 @@ func TestEVMFault(t *testing.T) {
 func TestHelloEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
+	evm := NewMIPSEVM(contracts, addrs)
+	evm.SetTracer(tracer)
+	logStepFailureAtCleanup(t, evm)
 
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
@@ -508,9 +530,6 @@ func TestHelloEVM(t *testing.T) {
 			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.Cpu.PC, insn)
 		}
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evm.SetTracer(tracer)
-
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		evmPost := evm.Step(t, stepWitness, curStep)
@@ -534,6 +553,9 @@ func TestHelloEVM(t *testing.T) {
 func TestClaimEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
+	evm := NewMIPSEVM(contracts, addrs)
+	evm.SetTracer(tracer)
+	logStepFailureAtCleanup(t, evm)
 
 	elfProgram, err := elf.Open("../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")
@@ -564,8 +586,6 @@ func TestClaimEVM(t *testing.T) {
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evm.SetTracer(tracer)
 		evmPost := evm.Step(t, stepWitness, curStep)
 
 		goPost, _ := goState.state.EncodeWitness()
