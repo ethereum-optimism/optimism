@@ -30,8 +30,6 @@ type UnsafeBlocksStage struct {
 	processor BlockProcessor
 }
 
-var _ PipelineEventHandler[eth.L1BlockRef] = (*UnsafeBlocksStage)(nil)
-
 func NewUnsafeBlocksStage(log log.Logger, client BlockByNumberSource, startingHead eth.L1BlockRef, processor BlockProcessor) *UnsafeBlocksStage {
 	return &UnsafeBlocksStage{
 		log:       log,
@@ -41,7 +39,7 @@ func NewUnsafeBlocksStage(log log.Logger, client BlockByNumberSource, startingHe
 	}
 }
 
-func (s *UnsafeBlocksStage) Handle(ctx context.Context, head eth.L1BlockRef) {
+func (s *UnsafeBlocksStage) OnNewUnsafeHead(ctx context.Context, head eth.L1BlockRef) {
 	if head.Number <= s.lastBlock.Number {
 		return
 	}

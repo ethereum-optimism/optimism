@@ -29,6 +29,7 @@ type Metrics interface {
 // ChainMonitor monitors a source L2 chain, retrieving the data required to populate the database and perform
 // interop consolidation. It detects and notifies when reorgs occur.
 type ChainMonitor struct {
+	log         log.Logger
 	headMonitor *HeadMonitor
 }
 
@@ -48,14 +49,21 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, genericMetrics Metr
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Monitoring chain")
-	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, &loggingCallback{logger})
+
+	// TODO: Find a starting block ref
+	unsafeBlockProcessor := NewUnsafeBlocksStage(logger, cl, eth.L1BlockRef{}, &loggingBlockProcessor{logger})
+
+	callback := &headUpdateCallback{logger, unsafeBlockProcessor}
+	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, callback)
+
 	return &ChainMonitor{
+		log:         logger,
 		headMonitor: headMonitor,
 	}, nil
 }
 
 func (c *ChainMonitor) Start() error {
+	c.log.Info("Started monitoring chain")
 	return c.headMonitor.Start()
 }
 
@@ -63,21 +71,31 @@ func (c *ChainMonitor) Stop() error {
 	return c.headMonitor.Stop()
 }
 
-// loggingCallback is a temporary implementation of the head monitor callback that just logs the events.
-type loggingCallback struct {
+// headUpdateCallback handles head update events and routes them to the appropriate handlers
+type headUpdateCallback struct {
+	log                  log.Logger
+	unsafeBlockProcessor *UnsafeBlocksStage
+}
+
+func (n *headUpdateCallback) OnNewUnsafeHead(ctx context.Context, block eth.L1BlockRef) {
+	n.log.Info("New unsafe head", "block", block)
+	n.unsafeBlockProcessor.OnNewUnsafeHead(ctx, block)
+}
+
+func (n *headUpdateCallback) OnNewSafeHead(_ context.Context, block eth.L1BlockRef) {
+	n.log.Info("New safe head", "block", block)
+}
+func (n *headUpdateCallback) OnNewFinalizedHead(_ context.Context, block eth.L1BlockRef) {
+	n.log.Info("New finalized head", "block", block)
+}
+
+type loggingBlockProcessor struct {
 	log log.Logger
 }
 
-func (n *loggingCallback) OnNewUnsafeHead(_ context.Context, block eth.L1BlockRef) {
-	n.log.Info("New unsafe head", "block", block)
-}
-
-func (n *loggingCallback) OnNewSafeHead(_ context.Context, block eth.L1BlockRef) {
-	n.log.Info("New safe head", "block", block)
-}
-
-func (n *loggingCallback) OnNewFinalizedHead(_ context.Context, block eth.L1BlockRef) {
-	n.log.Info("New finalized head", "block", block)
+func (n *loggingBlockProcessor) ProcessBlock(_ context.Context, block eth.L1BlockRef) error {
+	n.log.Info("Process unsafe block", "block", block)
+	return nil
 }
 
 func newClient(ctx context.Context, logger log.Logger, m caching.Metrics, rpc string, rpcClient *rpc.Client, pollRate time.Duration, trustRPC bool, kind sources.RPCProviderKind) (*sources.L1Client, error) {
