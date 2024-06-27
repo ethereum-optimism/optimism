@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/celo-migrate/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -135,7 +136,7 @@ func applyStateMigrationChanges(config *genesis.DeployConfig, genesis *core.Gene
 		Number:           migrationBlock,
 		GasLimit:         header.GasLimit,
 		GasUsed:          0,
-		Time:             header.Time + 5,
+		Time:             uint64(time.Now().Unix()),
 		Extra:            []byte("CeL2 migration"),
 		MixDigest:        common.Hash{},
 		Nonce:            types.BlockNonce{},
