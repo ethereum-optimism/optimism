@@ -21,17 +21,17 @@ func (fn BlockProcessorFn) ProcessBlock(ctx context.Context, block eth.L1BlockRe
 	return fn(ctx, block)
 }
 
-// UnsafeBlocksStage is a PipelineEventHandler that watches for UnsafeHeadEvent and backfills any skipped blocks.
-// It emits a UnsafeBlockEvent for each block up to the new unsafe head.
-type UnsafeBlocksStage struct {
+// ChainProcessor is a HeadProcessor that fills in any skipped blocks between head update events.
+// It ensures that, absent reorgs, every block in the chain is processed even if some head advancements are skipped.
+type ChainProcessor struct {
 	log       log.Logger
 	client    BlockByNumberSource
 	lastBlock eth.L1BlockRef
 	processor BlockProcessor
 }
 
-func NewUnsafeBlocksStage(log log.Logger, client BlockByNumberSource, startingHead eth.L1BlockRef, processor BlockProcessor) *UnsafeBlocksStage {
-	return &UnsafeBlocksStage{
+func NewChainProcessor(log log.Logger, client BlockByNumberSource, startingHead eth.L1BlockRef, processor BlockProcessor) *ChainProcessor {
+	return &ChainProcessor{
 		log:       log,
 		client:    client,
 		lastBlock: startingHead,
@@ -39,7 +39,7 @@ func NewUnsafeBlocksStage(log log.Logger, client BlockByNumberSource, startingHe
 	}
 }
 
-func (s *UnsafeBlocksStage) OnNewUnsafeHead(ctx context.Context, head eth.L1BlockRef) {
+func (s *ChainProcessor) OnNewHead(ctx context.Context, head eth.L1BlockRef) {
 	if head.Number <= s.lastBlock.Number {
 		return
 	}

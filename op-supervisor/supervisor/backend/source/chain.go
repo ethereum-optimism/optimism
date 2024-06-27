@@ -50,10 +50,12 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, genericMetrics Metr
 		return nil, err
 	}
 
-	// TODO: Find a starting block ref
-	unsafeBlockProcessor := NewUnsafeBlocksStage(logger, cl, eth.L1BlockRef{}, &loggingBlockProcessor{logger})
+	// TODO(optimism#11023): Load the starting block from log db
+	startingHead := eth.L1BlockRef{}
+	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, &loggingBlockProcessor{logger})
 
-	callback := &headUpdateCallback{logger, unsafeBlockProcessor}
+	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
+	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)
 	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, callback)
 
 	return &ChainMonitor{
@@ -69,24 +71,6 @@ func (c *ChainMonitor) Start() error {
 
 func (c *ChainMonitor) Stop() error {
 	return c.headMonitor.Stop()
-}
-
-// headUpdateCallback handles head update events and routes them to the appropriate handlers
-type headUpdateCallback struct {
-	log                  log.Logger
-	unsafeBlockProcessor *UnsafeBlocksStage
-}
-
-func (n *headUpdateCallback) OnNewUnsafeHead(ctx context.Context, block eth.L1BlockRef) {
-	n.log.Info("New unsafe head", "block", block)
-	n.unsafeBlockProcessor.OnNewUnsafeHead(ctx, block)
-}
-
-func (n *headUpdateCallback) OnNewSafeHead(_ context.Context, block eth.L1BlockRef) {
-	n.log.Info("New safe head", "block", block)
-}
-func (n *headUpdateCallback) OnNewFinalizedHead(_ context.Context, block eth.L1BlockRef) {
-	n.log.Info("New finalized head", "block", block)
 }
 
 type loggingBlockProcessor struct {

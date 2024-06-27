@@ -18,9 +18,9 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		client := &stubBlockByNumberSource{}
 		processor := &stubBlockProcessor{}
-		stage := NewUnsafeBlocksStage(logger, client, eth.L1BlockRef{Number: 100}, processor)
-		stage.Handle(ctx, eth.L1BlockRef{Number: 100})
-		stage.Handle(ctx, eth.L1BlockRef{Number: 99})
+		stage := NewChainProcessor(logger, client, eth.L1BlockRef{Number: 100}, processor)
+		stage.OnNewHead(ctx, eth.L1BlockRef{Number: 100})
+		stage.OnNewHead(ctx, eth.L1BlockRef{Number: 99})
 
 		require.Empty(t, processor.processed)
 		require.Zero(t, client.calls)
@@ -35,12 +35,12 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block2 := eth.L1BlockRef{Number: 102}
 		block3 := eth.L1BlockRef{Number: 103}
 		processor := &stubBlockProcessor{}
-		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
-		stage.Handle(ctx, block1)
+		stage := NewChainProcessor(logger, client, block0, processor)
+		stage.OnNewHead(ctx, block1)
 		require.Equal(t, []eth.L1BlockRef{block1}, processor.processed)
-		stage.Handle(ctx, block2)
+		stage.OnNewHead(ctx, block2)
 		require.Equal(t, []eth.L1BlockRef{block1, block2}, processor.processed)
-		stage.Handle(ctx, block3)
+		stage.OnNewHead(ctx, block3)
 		require.Equal(t, []eth.L1BlockRef{block1, block2, block3}, processor.processed)
 
 		require.Zero(t, client.calls, "should not need to request block info")
@@ -53,13 +53,13 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block0 := eth.L1BlockRef{Number: 100}
 		block1 := eth.L1BlockRef{Number: 101}
 		processor := &stubBlockProcessor{}
-		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
-		stage.Handle(ctx, block1)
+		stage := NewChainProcessor(logger, client, block0, processor)
+		stage.OnNewHead(ctx, block1)
 		require.NotEmpty(t, processor.processed)
 		require.Equal(t, []eth.L1BlockRef{block1}, processor.processed)
 
-		stage.Handle(ctx, block0)
-		stage.Handle(ctx, block1)
+		stage.OnNewHead(ctx, block0)
+		stage.OnNewHead(ctx, block1)
 		require.Equal(t, []eth.L1BlockRef{block1}, processor.processed)
 
 		require.Zero(t, client.calls, "should not need to request block info")
@@ -72,9 +72,9 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block0 := eth.L1BlockRef{Number: 100}
 		block3 := eth.L1BlockRef{Number: 103}
 		processor := &stubBlockProcessor{}
-		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
+		stage := NewChainProcessor(logger, client, block0, processor)
 
-		stage.Handle(ctx, block3)
+		stage.OnNewHead(ctx, block3)
 		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101), makeBlockRef(102), block3}, processor.processed)
 
 		require.Equal(t, 2, client.calls, "should only request the two missing blocks")
@@ -87,13 +87,13 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block0 := eth.L1BlockRef{Number: 100}
 		block3 := eth.L1BlockRef{Number: 103}
 		processor := &stubBlockProcessor{}
-		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
+		stage := NewChainProcessor(logger, client, block0, processor)
 
-		stage.Handle(ctx, block3)
+		stage.OnNewHead(ctx, block3)
 		require.Empty(t, processor.processed, "should not update any blocks because backfill failed")
 
 		client.err = nil
-		stage.Handle(ctx, block3)
+		stage.OnNewHead(ctx, block3)
 		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101), makeBlockRef(102), block3}, processor.processed)
 	})
 
@@ -104,13 +104,13 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block0 := eth.L1BlockRef{Number: 100}
 		block3 := eth.L1BlockRef{Number: 103}
 		processor := &stubBlockProcessor{err: errors.New("boom")}
-		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
+		stage := NewChainProcessor(logger, client, block0, processor)
 
-		stage.Handle(ctx, block3)
+		stage.OnNewHead(ctx, block3)
 		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101)}, processor.processed, "Attempted to process block 101")
 
 		processor.err = nil
-		stage.Handle(ctx, block3)
+		stage.OnNewHead(ctx, block3)
 		// Attempts to process block 101 again, then carries on
 		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101), makeBlockRef(101), makeBlockRef(102), block3}, processor.processed)
 	})
