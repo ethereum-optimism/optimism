@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -52,7 +53,9 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, genericMetrics Metr
 
 	// TODO(optimism#11023): Load the starting block from log db
 	startingHead := eth.L1BlockRef{}
-	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, &loggingBlockProcessor{logger})
+
+	fetchReceipts := newLogFetcher(cl, &loggingReceiptProcessor{logger})
+	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, fetchReceipts)
 
 	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
 	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)
@@ -73,12 +76,12 @@ func (c *ChainMonitor) Stop() error {
 	return c.headMonitor.Stop()
 }
 
-type loggingBlockProcessor struct {
+type loggingReceiptProcessor struct {
 	log log.Logger
 }
 
-func (n *loggingBlockProcessor) ProcessBlock(_ context.Context, block eth.L1BlockRef) error {
-	n.log.Info("Process unsafe block", "block", block)
+func (n *loggingReceiptProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpts types.Receipts) error {
+	n.log.Info("Process unsafe block", "block", block, "rcpts", len(rcpts))
 	return nil
 }
 
