@@ -14,6 +14,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -276,9 +277,12 @@ type SyncClient struct {
 	// Don't allow anything to be added to the wait-group while, or after, we are shutting down.
 	// This is protected by peersLock.
 	closingPeers bool
+
+	extra               ExtraHostFeatures
+	syncOnlyReqToStatic bool
 }
 
-func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer) *SyncClient {
+func NewSyncClient(log log.Logger, cfg *rollup.Config, host host.Host, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer) *SyncClient {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
@@ -286,7 +290,7 @@ func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rc
 		cfg:                 cfg,
 		metrics:             metrics,
 		appScorer:           appScorer,
-		newStreamFn:         newStream,
+		newStreamFn:         host.NewStream,
 		payloadByNumber:     PayloadByNumberProtocolID(cfg.L2ChainID),
 		peers:               make(map[peer.ID]context.CancelFunc),
 		quarantineByNum:     make(map[uint64]common.Hash),
@@ -300,6 +304,10 @@ func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rc
 		resCtx:              ctx,
 		resCancel:           cancel,
 		receivePayload:      rcv,
+	}
+	if extra, ok := host.(ExtraHostFeatures); ok && extra.SyncOnlyReqToStatic() {
+		c.extra = extra
+		c.syncOnlyReqToStatic = true
 	}
 
 	// never errors with positive LRU cache size
@@ -556,6 +564,13 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	// so we don't be too aggressive to the server.
 	rl := rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst)
 
+	// if onlyReqToStatic is on, ensure that only static peers are dealing with the request
+	peerRequests := s.peerRequests
+	if s.syncOnlyReqToStatic && !s.extra.IsStatic(id) {
+		// for non-static peers, set peerRequests to nil
+		peerRequests = nil
+	}
+
 	for {
 		// wait for a global allocation to be available
 		if err := s.globalRL.Wait(ctx); err != nil {
@@ -568,7 +583,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 
 		// once the peer is available, wait for a sync request.
 		select {
-		case pr := <-s.peerRequests:
+		case pr := <-peerRequests:
 			if !s.activeRangeRequests.get(pr.rangeReqId) {
 				log.Debug("dropping cancelled p2p sync request", "num", pr.num)
 				s.inFlight.delete(pr.num)

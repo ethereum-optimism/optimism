@@ -14,46 +14,47 @@ func p2pEnv(envprefix, v string) []string {
 }
 
 var (
-	DisableP2PName         = "p2p.disable"
-	NoDiscoveryName        = "p2p.no-discovery"
-	ScoringName            = "p2p.scoring"
-	PeerScoringName        = "p2p.scoring.peers"
-	PeerScoreBandsName     = "p2p.score.bands"
-	BanningName            = "p2p.ban.peers"
-	BanningThresholdName   = "p2p.ban.threshold"
-	BanningDurationName    = "p2p.ban.duration"
-	TopicScoringName       = "p2p.scoring.topics"
-	P2PPrivPathName        = "p2p.priv.path"
-	P2PPrivRawName         = "p2p.priv.raw"
-	ListenIPName           = "p2p.listen.ip"
-	ListenTCPPortName      = "p2p.listen.tcp"
-	ListenUDPPortName      = "p2p.listen.udp"
-	AdvertiseIPName        = "p2p.advertise.ip"
-	AdvertiseTCPPortName   = "p2p.advertise.tcp"
-	AdvertiseUDPPortName   = "p2p.advertise.udp"
-	BootnodesName          = "p2p.bootnodes"
-	StaticPeersName        = "p2p.static"
-	NetRestrictName        = "p2p.netrestrict"
-	HostMuxName            = "p2p.mux"
-	HostSecurityName       = "p2p.security"
-	PeersLoName            = "p2p.peers.lo"
-	PeersHiName            = "p2p.peers.hi"
-	PeersGraceName         = "p2p.peers.grace"
-	NATName                = "p2p.nat"
-	UserAgentName          = "p2p.useragent"
-	TimeoutNegotiationName = "p2p.timeout.negotiation"
-	TimeoutAcceptName      = "p2p.timeout.accept"
-	TimeoutDialName        = "p2p.timeout.dial"
-	PeerstorePathName      = "p2p.peerstore.path"
-	DiscoveryPathName      = "p2p.discovery.path"
-	SequencerP2PKeyName    = "p2p.sequencer.key"
-	GossipMeshDName        = "p2p.gossip.mesh.d"
-	GossipMeshDloName      = "p2p.gossip.mesh.lo"
-	GossipMeshDhiName      = "p2p.gossip.mesh.dhi"
-	GossipMeshDlazyName    = "p2p.gossip.mesh.dlazy"
-	GossipFloodPublishName = "p2p.gossip.mesh.floodpublish"
-	SyncReqRespName        = "p2p.sync.req-resp"
-	P2PPingName            = "p2p.ping"
+	DisableP2PName          = "p2p.disable"
+	NoDiscoveryName         = "p2p.no-discovery"
+	ScoringName             = "p2p.scoring"
+	PeerScoringName         = "p2p.scoring.peers"
+	PeerScoreBandsName      = "p2p.score.bands"
+	BanningName             = "p2p.ban.peers"
+	BanningThresholdName    = "p2p.ban.threshold"
+	BanningDurationName     = "p2p.ban.duration"
+	TopicScoringName        = "p2p.scoring.topics"
+	P2PPrivPathName         = "p2p.priv.path"
+	P2PPrivRawName          = "p2p.priv.raw"
+	ListenIPName            = "p2p.listen.ip"
+	ListenTCPPortName       = "p2p.listen.tcp"
+	ListenUDPPortName       = "p2p.listen.udp"
+	AdvertiseIPName         = "p2p.advertise.ip"
+	AdvertiseTCPPortName    = "p2p.advertise.tcp"
+	AdvertiseUDPPortName    = "p2p.advertise.udp"
+	BootnodesName           = "p2p.bootnodes"
+	StaticPeersName         = "p2p.static"
+	NetRestrictName         = "p2p.netrestrict"
+	HostMuxName             = "p2p.mux"
+	HostSecurityName        = "p2p.security"
+	PeersLoName             = "p2p.peers.lo"
+	PeersHiName             = "p2p.peers.hi"
+	PeersGraceName          = "p2p.peers.grace"
+	NATName                 = "p2p.nat"
+	UserAgentName           = "p2p.useragent"
+	TimeoutNegotiationName  = "p2p.timeout.negotiation"
+	TimeoutAcceptName       = "p2p.timeout.accept"
+	TimeoutDialName         = "p2p.timeout.dial"
+	PeerstorePathName       = "p2p.peerstore.path"
+	DiscoveryPathName       = "p2p.discovery.path"
+	SequencerP2PKeyName     = "p2p.sequencer.key"
+	GossipMeshDName         = "p2p.gossip.mesh.d"
+	GossipMeshDloName       = "p2p.gossip.mesh.lo"
+	GossipMeshDhiName       = "p2p.gossip.mesh.dhi"
+	GossipMeshDlazyName     = "p2p.gossip.mesh.dlazy"
+	GossipFloodPublishName  = "p2p.gossip.mesh.floodpublish"
+	SyncReqRespName         = "p2p.sync.req-resp"
+	SyncOnlyReqToStaticName = "p2p.sync.onlyreqtostatic"
+	P2PPingName             = "p2p.ping"
 )
 
 func deprecatedP2PFlags(envPrefix string) []cli.Flag {
@@ -391,6 +392,14 @@ func P2PFlags(envPrefix string) []cli.Flag {
 			Value:    true,
 			Required: false,
 			EnvVars:  p2pEnv(envPrefix, "SYNC_REQ_RESP"),
+			Category: P2PCategory,
+		},
+		&cli.BoolFlag{
+			Name:     SyncOnlyReqToStaticName,
+			Usage:    "Configure P2P to forward RequestL2Range requests to static peers only.",
+			Value:    false,
+			Required: false,
+			EnvVars:  p2pEnv(envPrefix, "SYNC_ONLYREQTOSTATIC"),
 			Category: P2PCategory,
 		},
 		&cli.BoolFlag{
