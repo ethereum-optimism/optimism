@@ -10,12 +10,12 @@ import (
 
 func TestPipelineStage(t *testing.T) {
 	t.Run("ProcessEvents", func(t *testing.T) {
-		in := make(chan PipelineEvent, 1)
-		out := make(chan PipelineEvent, 1)
-		handler := func(_ context.Context, e PipelineEvent, out chan<- PipelineEvent) {
+		in := make(chan string, 1)
+		out := make(chan string, 1)
+		handler := func(_ context.Context, e string) {
 			out <- e
 		}
-		stage := NewPipelineStage(in, out, PipelineEventHandlerFn(handler))
+		stage := NewPipelineStage[string](in, PipelineEventHandlerFn[string](handler))
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		require.NoError(t, stage.Start(ctx))
@@ -32,13 +32,13 @@ func TestPipelineStage(t *testing.T) {
 	})
 
 	t.Run("StopShouldWaitUntilEventLoopExits", func(t *testing.T) {
-		in := make(chan PipelineEvent, 1)
-		out := make(chan PipelineEvent, 1)
+		in := make(chan string, 1)
+		out := make(chan string, 1)
 
-		handler := func(_ context.Context, e PipelineEvent, out chan<- PipelineEvent) {
+		handler := func(_ context.Context, e string) {
 			out <- e
 		}
-		stage := NewPipelineStage(in, out, PipelineEventHandlerFn(handler))
+		stage := NewPipelineStage[string](in, PipelineEventHandlerFn[string](handler))
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		require.NoError(t, stage.Start(ctx))
@@ -55,7 +55,7 @@ func TestPipelineStage(t *testing.T) {
 	})
 }
 
-func waitForEvent(t *testing.T, expected PipelineEvent, ch <-chan PipelineEvent) {
+func waitForEvent[E any](t *testing.T, expected E, ch <-chan E) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	select {

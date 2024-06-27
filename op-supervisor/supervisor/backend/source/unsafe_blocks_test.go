@@ -16,33 +16,32 @@ func TestUnsafeBlocksStage(t *testing.T) {
 	t.Run("IgnoreEventsAtOrPriorToStartingHead", func(t *testing.T) {
 		ctx := context.Background()
 		logger := testlog.Logger(t, log.LvlInfo)
-		out := make(chan PipelineEvent, 10)
 		client := &stubBlockByNumberSource{}
-		stage := NewUnsafeBlocksStage(logger, client, eth.L1BlockRef{Number: 100})
-		stage.Handle(ctx, UnsafeHeadEvent{Block: eth.L1BlockRef{Number: 100}}, out)
-		stage.Handle(ctx, UnsafeHeadEvent{Block: eth.L1BlockRef{Number: 99}}, out)
+		processor := &stubBlockProcessor{}
+		stage := NewUnsafeBlocksStage(logger, client, eth.L1BlockRef{Number: 100}, processor)
+		stage.Handle(ctx, eth.L1BlockRef{Number: 100})
+		stage.Handle(ctx, eth.L1BlockRef{Number: 99})
 
-		require.Empty(t, out)
+		require.Empty(t, processor.processed)
 		require.Zero(t, client.calls)
 	})
 
 	t.Run("OutputNewHeadsWithNoMissedBlocks", func(t *testing.T) {
 		ctx := context.Background()
 		logger := testlog.Logger(t, log.LvlInfo)
-		out := make(chan PipelineEvent, 10)
 		client := &stubBlockByNumberSource{}
 		block0 := eth.L1BlockRef{Number: 100}
 		block1 := eth.L1BlockRef{Number: 101}
 		block2 := eth.L1BlockRef{Number: 102}
 		block3 := eth.L1BlockRef{Number: 103}
-		stage := NewUnsafeBlocksStage(logger, client, block0)
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block1}, out)
-		require.NotEmpty(t, out)
-		require.Equal(t, UnsafeBlockEvent{block1}, <-out)
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block2}, out)
-		require.Equal(t, UnsafeBlockEvent{block2}, <-out)
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block3}, out)
-		require.Equal(t, UnsafeBlockEvent{block3}, <-out)
+		processor := &stubBlockProcessor{}
+		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
+		stage.Handle(ctx, block1)
+		require.Equal(t, []eth.L1BlockRef{block1}, processor.processed)
+		stage.Handle(ctx, block2)
+		require.Equal(t, []eth.L1BlockRef{block1, block2}, processor.processed)
+		stage.Handle(ctx, block3)
+		require.Equal(t, []eth.L1BlockRef{block1, block2, block3}, processor.processed)
 
 		require.Zero(t, client.calls, "should not need to request block info")
 	})
@@ -50,18 +49,18 @@ func TestUnsafeBlocksStage(t *testing.T) {
 	t.Run("IgnoreEventsAtOrPriorToPreviousHead", func(t *testing.T) {
 		ctx := context.Background()
 		logger := testlog.Logger(t, log.LvlInfo)
-		out := make(chan PipelineEvent, 10)
 		client := &stubBlockByNumberSource{}
 		block0 := eth.L1BlockRef{Number: 100}
 		block1 := eth.L1BlockRef{Number: 101}
-		stage := NewUnsafeBlocksStage(logger, client, block0)
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block1}, out)
-		require.NotEmpty(t, out)
-		require.Equal(t, UnsafeBlockEvent{block1}, <-out)
+		processor := &stubBlockProcessor{}
+		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
+		stage.Handle(ctx, block1)
+		require.NotEmpty(t, processor.processed)
+		require.Equal(t, []eth.L1BlockRef{block1}, processor.processed)
 
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block0}, out)
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block1}, out)
-		require.Empty(t, out)
+		stage.Handle(ctx, block0)
+		stage.Handle(ctx, block1)
+		require.Equal(t, []eth.L1BlockRef{block1}, processor.processed)
 
 		require.Zero(t, client.calls, "should not need to request block info")
 	})
@@ -69,41 +68,51 @@ func TestUnsafeBlocksStage(t *testing.T) {
 	t.Run("OutputSkippedBlocks", func(t *testing.T) {
 		ctx := context.Background()
 		logger := testlog.Logger(t, log.LvlInfo)
-		out := make(chan PipelineEvent, 10)
 		client := &stubBlockByNumberSource{}
 		block0 := eth.L1BlockRef{Number: 100}
 		block3 := eth.L1BlockRef{Number: 103}
-		stage := NewUnsafeBlocksStage(logger, client, block0)
+		processor := &stubBlockProcessor{}
+		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
 
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block3}, out)
-		// should output block 1, 2 and 3
-		require.Len(t, out, 3)
-		require.Equal(t, UnsafeBlockEvent{makeBlockRef(101)}, <-out)
-		require.Equal(t, UnsafeBlockEvent{makeBlockRef(102)}, <-out)
-		require.Equal(t, UnsafeBlockEvent{block3}, <-out)
+		stage.Handle(ctx, block3)
+		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101), makeBlockRef(102), block3}, processor.processed)
 
 		require.Equal(t, 2, client.calls, "should only request the two missing blocks")
 	})
 
-	t.Run("DoNotUpdateLastBlockOnError", func(t *testing.T) {
+	t.Run("DoNotUpdateLastBlockOnFetchError", func(t *testing.T) {
 		ctx := context.Background()
 		logger := testlog.Logger(t, log.LvlInfo)
-		out := make(chan PipelineEvent, 10)
 		client := &stubBlockByNumberSource{err: errors.New("boom")}
 		block0 := eth.L1BlockRef{Number: 100}
 		block3 := eth.L1BlockRef{Number: 103}
-		stage := NewUnsafeBlocksStage(logger, client, block0)
+		processor := &stubBlockProcessor{}
+		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
 
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block3}, out)
-		require.Empty(t, out, "should not update any blocks because backfill errored")
+		stage.Handle(ctx, block3)
+		require.Empty(t, processor.processed, "should not update any blocks because backfill failed")
 
 		client.err = nil
-		stage.Handle(ctx, UnsafeHeadEvent{Block: block3}, out)
-		// should output block 1, 2 and 3
-		require.Len(t, out, 3)
-		require.Equal(t, UnsafeBlockEvent{makeBlockRef(101)}, <-out)
-		require.Equal(t, UnsafeBlockEvent{makeBlockRef(102)}, <-out)
-		require.Equal(t, UnsafeBlockEvent{block3}, <-out)
+		stage.Handle(ctx, block3)
+		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101), makeBlockRef(102), block3}, processor.processed)
+	})
+
+	t.Run("DoNotUpdateLastBlockOnProcessorError", func(t *testing.T) {
+		ctx := context.Background()
+		logger := testlog.Logger(t, log.LvlInfo)
+		client := &stubBlockByNumberSource{}
+		block0 := eth.L1BlockRef{Number: 100}
+		block3 := eth.L1BlockRef{Number: 103}
+		processor := &stubBlockProcessor{err: errors.New("boom")}
+		stage := NewUnsafeBlocksStage(logger, client, block0, processor)
+
+		stage.Handle(ctx, block3)
+		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101)}, processor.processed, "Attempted to process block 101")
+
+		processor.err = nil
+		stage.Handle(ctx, block3)
+		// Attempts to process block 101 again, then carries on
+		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101), makeBlockRef(101), makeBlockRef(102), block3}, processor.processed)
 	})
 }
 
@@ -118,6 +127,16 @@ func (s *stubBlockByNumberSource) L1BlockRefByNumber(_ context.Context, number u
 		return eth.L1BlockRef{}, s.err
 	}
 	return makeBlockRef(number), nil
+}
+
+type stubBlockProcessor struct {
+	processed []eth.L1BlockRef
+	err       error
+}
+
+func (s *stubBlockProcessor) ProcessBlock(_ context.Context, block eth.L1BlockRef) error {
+	s.processed = append(s.processed, block)
+	return s.err
 }
 
 func makeBlockRef(number uint64) eth.L1BlockRef {

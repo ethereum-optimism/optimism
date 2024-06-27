@@ -6,36 +6,32 @@ import (
 	"sync/atomic"
 )
 
-type PipelineEvent any
-
-type PipelineEventHandler interface {
-	Handle(ctx context.Context, event PipelineEvent, out chan<- PipelineEvent)
+type PipelineEventHandler[E any] interface {
+	Handle(ctx context.Context, event E)
 }
 
-type PipelineEventHandlerFn func(ctx context.Context, event PipelineEvent, out chan<- PipelineEvent)
+type PipelineEventHandlerFn[E any] func(ctx context.Context, event E)
 
-func (f PipelineEventHandlerFn) Handle(ctx context.Context, event PipelineEvent, out chan<- PipelineEvent) {
-	f(ctx, event, out)
+func (f PipelineEventHandlerFn[E]) Handle(ctx context.Context, event E) {
+	f(ctx, event)
 }
 
-type PipelineStage struct {
+type PipelineStage[E any] struct {
 	started atomic.Bool
 	stopped chan interface{}
 	cancel  context.CancelFunc
-	in      <-chan PipelineEvent
-	out     chan<- PipelineEvent
-	handler PipelineEventHandler
+	in      <-chan E
+	handler PipelineEventHandler[E]
 }
 
-func NewPipelineStage(in <-chan PipelineEvent, out chan<- PipelineEvent, handler PipelineEventHandler) *PipelineStage {
-	return &PipelineStage{
+func NewPipelineStage[E any](in <-chan E, handler PipelineEventHandler[E]) *PipelineStage[E] {
+	return &PipelineStage[E]{
 		in:      in,
-		out:     out,
 		handler: handler,
 	}
 }
 
-func (s *PipelineStage) Start(ctx context.Context) error {
+func (s *PipelineStage[E]) Start(ctx context.Context) error {
 	if !s.started.CompareAndSwap(false, true) {
 		return errors.New("stage already started")
 	}
@@ -46,7 +42,7 @@ func (s *PipelineStage) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *PipelineStage) Stop(ctx context.Context) error {
+func (s *PipelineStage[E]) Stop(ctx context.Context) error {
 	if !s.started.CompareAndSwap(true, false) {
 		return errors.New("stage not started")
 	}
@@ -56,14 +52,14 @@ func (s *PipelineStage) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (s *PipelineStage) loop(ctx context.Context) {
+func (s *PipelineStage[E]) loop(ctx context.Context) {
 	defer close(s.stopped)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case evt := <-s.in:
-			s.handler.Handle(ctx, evt, s.out)
+			s.handler.Handle(ctx, evt)
 		}
 	}
 }
