@@ -1519,7 +1519,7 @@ jobs:
               -d '{
                 "ref": "master",
                 "inputs": {
-                  "branch_name": "develop",
+                  "branch_name": "<<pipeline.git.branch>>",
                   "extra_args": "script",
                   "statuses_sha": "<< pipeline.git.revision >>",
                   "org": "ethereum-optimism",
@@ -2094,6 +2094,7 @@ workflows:
         - or:
           - equal: [ "develop", <<pipeline.git.branch>> ]
           - equal: [ true, <<pipeline.parameters.kontrol_dispatch>> ]
+          - equal: [ "feature/rv-compute", <<pipeline.git.branch>> ]
         - not:
            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
