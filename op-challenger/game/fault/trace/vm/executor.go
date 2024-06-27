@@ -83,6 +83,11 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.cfg.SnapshotFreq), 10),
 		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json.gz"),
 	}
+	if e.cfg.VmType == types.TraceTypeCannon {
+		args = append(args, "--type", "cannon")
+	} else if e.cfg.VmType == types.TraceTypeMTCannon {
+		args = append(args, "--type", "mt-cannon")
+	} // only cannon supports the `--type` option
 	if end < math.MaxUint64 {
 		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
 	}

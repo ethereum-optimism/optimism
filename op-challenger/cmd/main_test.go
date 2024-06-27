@@ -853,6 +853,8 @@ func requiredArgs(traceType types.TraceType) map[string]string {
 		addRequiredCannonArgs(args)
 	case types.TraceTypeAsterisc:
 		addRequiredAsteriscArgs(args)
+	case types.TraceTypeMTCannon:
+		addRequiredCannonMTArgs(args)
 	}
 	return args
 }
@@ -870,6 +872,14 @@ func addRequiredAsteriscArgs(args map[string]string) {
 	args["--asterisc-bin"] = asteriscBin
 	args["--asterisc-server"] = asteriscServer
 	args["--asterisc-prestate"] = asteriscPreState
+	args["--l2-eth-rpc"] = l2EthRpc
+}
+
+func addRequiredCannonMTArgs(args map[string]string) {
+	args["--mt-cannon-network"] = cannonNetwork
+	args["--mt-cannon-bin"] = cannonBin
+	args["--mt-cannon-server"] = cannonServer
+	args["--mt-cannon-prestate"] = cannonPreState
 	args["--l2-eth-rpc"] = l2EthRpc
 }
 

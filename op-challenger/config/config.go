@@ -49,6 +49,18 @@ var (
 	ErrAsteriscNetworkAndRollupConfig     = errors.New("only specify one of network or rollup config path")
 	ErrAsteriscNetworkAndL2Genesis        = errors.New("only specify one of network or l2 genesis path")
 	ErrAsteriscNetworkUnknown             = errors.New("unknown asterisc network")
+
+	ErrMissingMTCannonBin                 = errors.New("missing mt-cannon bin")
+	ErrMissingMTCannonServer              = errors.New("missing mt-cannon server")
+	ErrMissingMTCannonAbsolutePreState    = errors.New("missing mt-cannon absolute pre-state")
+	ErrMTCannonAbsolutePreStateAndBaseURL = errors.New("only specify one of mt-cannon absolute pre-state and mt-cannon absolute pre-state base URL")
+	ErrMissingMTCannonSnapshotFreq        = errors.New("missing mt-cannon snapshot freq")
+	ErrMissingMTCannonInfoFreq            = errors.New("missing mt-cannon info freq")
+	ErrMissingMTCannonRollupConfig        = errors.New("missing mt-cannon network or rollup config path")
+	ErrMissingMTCannonL2Genesis           = errors.New("missing mt-cannon network or l2 genesis path")
+	ErrMTCannonNetworkAndRollupConfig     = errors.New("only specify one of network or rollup config path")
+	ErrMTCannonNetworkAndL2Genesis        = errors.New("only specify one of network or l2 genesis path")
+	ErrMTCannonNetworkUnknown             = errors.New("unknown mt-cannon network")
 )
 
 const (
@@ -100,6 +112,11 @@ type Config struct {
 	AsteriscAbsolutePreState        string   // File to load the absolute pre-state for Asterisc traces from
 	AsteriscAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
 
+	// Specific to the multi-threaded cannon trace provider
+	MTCannon                        vm.Config
+	MTCannonAbsolutePreState        string   // File to load the absolute pre-state for MT Cannon traces from
+	MTCannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for MT Cannon traces from
+
 	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
 
 	TxMgrConfig   txmgr.CLIConfig
@@ -150,6 +167,14 @@ func NewConfig(
 			L2:           l2EthRpc,
 			SnapshotFreq: DefaultAsteriscSnapshotFreq,
 			InfoFreq:     DefaultAsteriscInfoFreq,
+		},
+		MTCannon: vm.Config{
+			VmType:       types.TraceTypeMTCannon,
+			L1:           l1EthRpc,
+			L1Beacon:     l1BeaconApi,
+			L2:           l2EthRpc,
+			SnapshotFreq: DefaultCannonSnapshotFreq,
+			InfoFreq:     DefaultCannonInfoFreq,
 		},
 		GameWindow: DefaultGameWindow,
 	}
@@ -258,6 +283,44 @@ func (c Config) Check() error {
 		}
 		if c.Asterisc.InfoFreq == 0 {
 			return ErrMissingAsteriscInfoFreq
+		}
+	}
+	if c.TraceTypeEnabled(types.TraceTypeMTCannon) {
+		if c.MTCannon.VmBin == "" {
+			return ErrMissingMTCannonBin
+		}
+		if c.MTCannon.Server == "" {
+			return ErrMissingMTCannonServer
+		}
+		if c.MTCannon.Network == "" {
+			if c.MTCannon.RollupConfigPath == "" {
+				return ErrMissingMTCannonRollupConfig
+			}
+			if c.MTCannon.L2GenesisPath == "" {
+				return ErrMissingMTCannonL2Genesis
+			}
+		} else {
+			if c.MTCannon.RollupConfigPath != "" {
+				return ErrMTCannonNetworkAndRollupConfig
+			}
+			if c.MTCannon.L2GenesisPath != "" {
+				return ErrMTCannonNetworkAndL2Genesis
+			}
+			if ch := chaincfg.ChainByName(c.MTCannon.Network); ch == nil {
+				return fmt.Errorf("%w: %v", ErrMTCannonNetworkUnknown, c.MTCannon.Network)
+			}
+		}
+		if c.MTCannonAbsolutePreState == "" && c.MTCannonAbsolutePreStateBaseURL == nil {
+			return ErrMissingMTCannonAbsolutePreState
+		}
+		if c.MTCannonAbsolutePreState != "" && c.MTCannonAbsolutePreStateBaseURL != nil {
+			return ErrMTCannonAbsolutePreStateAndBaseURL
+		}
+		if c.MTCannon.SnapshotFreq == 0 {
+			return ErrMissingMTCannonSnapshotFreq
+		}
+		if c.MTCannon.InfoFreq == 0 {
+			return ErrMissingMTCannonInfoFreq
 		}
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {

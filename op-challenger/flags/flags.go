@@ -201,6 +201,59 @@ var (
 		EnvVars: prefixEnvVars("ASTERISC_INFO_FREQ"),
 		Value:   config.DefaultAsteriscInfoFreq,
 	}
+	MTCannonNetworkFlag = &cli.StringFlag{
+		Name:    "mt-cannon-network",
+		Usage:   fmt.Sprintf("Deprecated: Use %v instead", flags.NetworkFlagName),
+		EnvVars: prefixEnvVars("MT_CANNON_NETWORK"),
+	}
+	MTCannonRollupConfigFlag = &cli.StringFlag{
+		Name:    "mt-cannon-rollup-config",
+		Usage:   "Rollup chain parameters (multi-threaded mt-cannon trace type only)",
+		EnvVars: prefixEnvVars("MT_CANNON_ROLLUP_CONFIG"),
+	}
+	MTCannonL2GenesisFlag = &cli.StringFlag{
+		Name:    "mt-cannon-l2-genesis",
+		Usage:   "Path to the op-geth genesis file (mt-cannon trace type only)",
+		EnvVars: prefixEnvVars("MT_CANNON_L2_GENESIS"),
+	}
+	MTCannonBinFlag = &cli.StringFlag{
+		Name:    "mt-cannon-bin",
+		Usage:   "Path to cannon executable to use when generating trace data (mt-cannon trace type only)",
+		EnvVars: prefixEnvVars("MT_CANNON_BIN"),
+	}
+	MTCannonServerFlag = &cli.StringFlag{
+		Name:    "mt-cannon-server",
+		Usage:   "Path to executable to use as pre-image oracle server when generating trace data (mt-cannon trace type only)",
+		EnvVars: prefixEnvVars("MT_CANNON_SERVER"),
+	}
+	MTCannonPreStateFlag = &cli.StringFlag{
+		Name:    "mt-cannon-prestate",
+		Usage:   "Path to absolute prestate to use when generating trace data (mt-cannon trace type only)",
+		EnvVars: prefixEnvVars("MT_CANNON_PRESTATE"),
+	}
+	MTCannonPreStatesURLFlag = &cli.StringFlag{
+		Name: "mt-cannon-prestates-url",
+		Usage: "Base URL to absolute prestates to use when generating trace data. " +
+			"Prestates in this directory should be name as <commitment>.json (mt-cannon trace type only)",
+		EnvVars: prefixEnvVars("MT_CANNON_PRESTATES_URL"),
+	}
+	MTCannonL2Flag = &cli.StringFlag{
+		Name:    "mt-cannon-l2",
+		Usage:   fmt.Sprintf("Deprecated: Use %v instead", L2EthRpcFlag.Name),
+		EnvVars: prefixEnvVars("MT_CANNON_L2"),
+	}
+	MTCannonSnapshotFreqFlag = &cli.UintFlag{
+		Name:    "mt-cannon-snapshot-freq",
+		Usage:   "Frequency of cannon snapshots to generate in VM steps (mt-cannon trace type only)",
+		EnvVars: prefixEnvVars("MT_CANNON_SNAPSHOT_FREQ"),
+		Value:   config.DefaultCannonSnapshotFreq,
+	}
+	MTCannonInfoFreqFlag = &cli.UintFlag{
+		Name:    "mt-cannon-info-freq",
+		Usage:   "Frequency of multi-threaded cannon info log messages to generate in VM steps (mt-cannon trace type only)",
+		EnvVars: prefixEnvVars("MT_CANNON_INFO_FREQ"),
+		Value:   config.DefaultCannonInfoFreq,
+	}
 	GameWindowFlag = &cli.DurationFlag{
 		Name: "game-window",
 		Usage: "The time window which the challenger will look for games to progress and claim bonds. " +
@@ -259,6 +312,15 @@ var optionalFlags = []cli.Flag{
 	AsteriscPreStatesURLFlag,
 	AsteriscSnapshotFreqFlag,
 	AsteriscInfoFreqFlag,
+	MTCannonNetworkFlag,
+	MTCannonRollupConfigFlag,
+	MTCannonL2GenesisFlag,
+	MTCannonBinFlag,
+	MTCannonServerFlag,
+	MTCannonPreStateFlag,
+	MTCannonPreStatesURLFlag,
+	MTCannonSnapshotFreqFlag,
+	MTCannonInfoFreqFlag,
 	GameWindowFlag,
 	SelectiveClaimResolutionFlag,
 	UnsafeAllowInvalidPrestate,
@@ -340,6 +402,38 @@ func CheckAsteriscFlags(ctx *cli.Context) error {
 	return nil
 }
 
+func CheckMTCannonFlags(ctx *cli.Context) error {
+	if ctx.IsSet(MTCannonNetworkFlag.Name) && ctx.IsSet(flags.NetworkFlagName) {
+		return fmt.Errorf("flag %v can not be used with %v", MTCannonNetworkFlag.Name, flags.NetworkFlagName)
+	}
+	if !ctx.IsSet(MTCannonNetworkFlag.Name) &&
+		!ctx.IsSet(flags.NetworkFlagName) &&
+		!(ctx.IsSet(MTCannonRollupConfigFlag.Name) && ctx.IsSet(MTCannonL2GenesisFlag.Name)) {
+		return fmt.Errorf("flag %v, %v or %v and %v is required",
+			MTCannonNetworkFlag.Name, flags.NetworkFlagName, MTCannonRollupConfigFlag.Name, MTCannonL2GenesisFlag.Name)
+	}
+	if ctx.IsSet(flags.NetworkFlagName) &&
+		(ctx.IsSet(MTCannonRollupConfigFlag.Name) || ctx.IsSet(MTCannonL2GenesisFlag.Name)) {
+		return fmt.Errorf("flag %v can not be used with %v and %v",
+			flags.NetworkFlagName, MTCannonRollupConfigFlag.Name, MTCannonL2GenesisFlag.Name)
+	}
+	if ctx.IsSet(MTCannonNetworkFlag.Name) &&
+		(ctx.IsSet(MTCannonRollupConfigFlag.Name) || ctx.IsSet(MTCannonL2GenesisFlag.Name)) {
+		return fmt.Errorf("flag %v can not be used with %v and %v",
+			MTCannonNetworkFlag.Name, MTCannonRollupConfigFlag.Name, MTCannonL2GenesisFlag.Name)
+	}
+	if !ctx.IsSet(MTCannonBinFlag.Name) {
+		return fmt.Errorf("flag %s is required", MTCannonBinFlag.Name)
+	}
+	if !ctx.IsSet(MTCannonServerFlag.Name) {
+		return fmt.Errorf("flag %s is required", MTCannonServerFlag.Name)
+	}
+	if !ctx.IsSet(MTCannonPreStateFlag.Name) && !ctx.IsSet(MTCannonPreStatesURLFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", MTCannonPreStatesURLFlag.Name, MTCannonPreStateFlag.Name)
+	}
+	return nil
+}
+
 func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
@@ -358,6 +452,10 @@ func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 			}
 		case types.TraceTypeAsterisc:
 			if err := CheckAsteriscFlags(ctx); err != nil {
+				return err
+			}
+		case types.TraceTypeMTCannon:
+			if err := CheckMTCannonFlags(ctx); err != nil {
 				return err
 			}
 		case types.TraceTypeAlphabet, types.TraceTypeFast:
@@ -486,6 +584,14 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		}
 		asteriscPreStatesURL = parsed
 	}
+	var mtCannonPrestatesURL *url.URL
+	if ctx.IsSet(MTCannonPreStatesURLFlag.Name) {
+		parsed, err := url.Parse(ctx.String(MTCannonPreStatesURLFlag.Name))
+		if err != nil {
+			return nil, fmt.Errorf("invalid cannon pre states url (%v): %w", ctx.String(MTCannonPreStatesURLFlag.Name), err)
+		}
+		mtCannonPrestatesURL = parsed
+	}
 	l2Rpc, err := getL2Rpc(ctx, logger)
 	if err != nil {
 		return nil, err
@@ -497,6 +603,10 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	asteriscNetwork := ctx.String(AsteriscNetworkFlag.Name)
 	if ctx.IsSet(flags.NetworkFlagName) {
 		asteriscNetwork = ctx.String(flags.NetworkFlagName)
+	}
+	mtCannonNetwork := ctx.String(MTCannonNetworkFlag.Name)
+	if ctx.IsSet(flags.NetworkFlagName) {
+		mtCannonNetwork = ctx.String(flags.NetworkFlagName)
 	}
 	l1EthRpc := ctx.String(L1EthRpcFlag.Name)
 	l1Beacon := ctx.String(L1BeaconFlag.Name)
@@ -545,6 +655,21 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		},
 		AsteriscAbsolutePreState:        ctx.String(AsteriscPreStateFlag.Name),
 		AsteriscAbsolutePreStateBaseURL: asteriscPreStatesURL,
+		MTCannon: vm.Config{
+			VmType:           types.TraceTypeMTCannon,
+			L1:               l1EthRpc,
+			L1Beacon:         l1Beacon,
+			L2:               l2Rpc,
+			VmBin:            ctx.String(MTCannonBinFlag.Name),
+			Server:           ctx.String(MTCannonServerFlag.Name),
+			Network:          mtCannonNetwork,
+			RollupConfigPath: ctx.String(MTCannonRollupConfigFlag.Name),
+			L2GenesisPath:    ctx.String(MTCannonL2GenesisFlag.Name),
+			SnapshotFreq:     ctx.Uint(MTCannonSnapshotFreqFlag.Name),
+			InfoFreq:         ctx.Uint(MTCannonInfoFreqFlag.Name),
+		},
+		MTCannonAbsolutePreState:        ctx.String(MTCannonPreStateFlag.Name),
+		MTCannonAbsolutePreStateBaseURL: mtCannonPrestatesURL,
 		TxMgrConfig:                     txMgrConfig,
 		MetricsConfig:                   metricsConfig,
 		PprofConfig:                     pprofConfig,

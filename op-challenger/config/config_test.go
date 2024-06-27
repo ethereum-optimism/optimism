@@ -31,10 +31,17 @@ var (
 	validAsteriscNetwork                   = "mainnet"
 	validAsteriscAbsolutPreState           = "pre.json"
 	validAsteriscAbsolutPreStateBaseURL, _ = url.Parse("http://localhost/bar/")
+
+	validMTCannonBin                       = "./bin/cannon"
+	validMTCannonOpProgramBin              = "./bin/op-program"
+	validMTCannonNetwork                   = "mainnet"
+	validMTCannonAbsolutPreState           = "pre.json"
+	validMTCannonAbsolutPreStateBaseURL, _ = url.Parse("http://localhost/baz/")
 )
 
 var cannonTraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned}
 var asteriscTraceTypes = []types.TraceType{types.TraceTypeAsterisc}
+var mtCannonTraceTypes = []types.TraceType{types.TraceTypeMTCannon}
 
 func applyValidConfigForCannon(cfg *Config) {
 	cfg.Cannon.VmBin = validCannonBin
@@ -50,6 +57,13 @@ func applyValidConfigForAsterisc(cfg *Config) {
 	cfg.Asterisc.Network = validAsteriscNetwork
 }
 
+func applyValidConfigForMTCannon(cfg *Config) {
+	cfg.MTCannon.VmBin = validMTCannonBin
+	cfg.MTCannon.Server = validMTCannonOpProgramBin
+	cfg.MTCannonAbsolutePreStateBaseURL = validMTCannonAbsolutPreStateBaseURL
+	cfg.MTCannon.Network = validAsteriscNetwork
+}
+
 func validConfig(traceType types.TraceType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, traceType)
 	if traceType == types.TraceTypeCannon || traceType == types.TraceTypePermissioned {
@@ -57,6 +71,9 @@ func validConfig(traceType types.TraceType) Config {
 	}
 	if traceType == types.TraceTypeAsterisc {
 		applyValidConfigForAsterisc(&cfg)
+	}
+	if traceType == types.TraceTypeMTCannon {
+		applyValidConfigForMTCannon(&cfg)
 	}
 	return cfg
 }
@@ -322,6 +339,112 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 	}
 }
 
+func TestMTCannonRequiredArgs(t *testing.T) {
+	for _, traceType := range mtCannonTraceTypes {
+		traceType := traceType
+
+		t.Run(fmt.Sprintf("TestMTCannonBinRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.MTCannon.VmBin = ""
+			require.ErrorIs(t, config.Check(), ErrMissingMTCannonBin)
+		})
+
+		t.Run(fmt.Sprintf("TestMTCannonServerRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.MTCannon.Server = ""
+			require.ErrorIs(t, config.Check(), ErrMissingMTCannonServer)
+		})
+
+		t.Run(fmt.Sprintf("TestMTCannonAbsolutePreStateOrBaseURLRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.MTCannonAbsolutePreState = ""
+			config.MTCannonAbsolutePreStateBaseURL = nil
+			require.ErrorIs(t, config.Check(), ErrMissingMTCannonAbsolutePreState)
+		})
+
+		t.Run(fmt.Sprintf("TestMTCannonAbsolutePreState-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.MTCannonAbsolutePreState = validMTCannonAbsolutPreState
+			config.MTCannonAbsolutePreStateBaseURL = nil
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestMTCannonAbsolutePreStateBaseURL-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.MTCannonAbsolutePreState = ""
+			config.MTCannonAbsolutePreStateBaseURL = validMTCannonAbsolutPreStateBaseURL
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestMustNotSupplyBothMTCannonAbsolutePreStateAndBaseURL-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.MTCannonAbsolutePreState = validMTCannonAbsolutPreState
+			config.MTCannonAbsolutePreStateBaseURL = validMTCannonAbsolutPreStateBaseURL
+			require.ErrorIs(t, config.Check(), ErrMTCannonAbsolutePreStateAndBaseURL)
+		})
+
+		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(traceType)
+			config.L2Rpc = ""
+			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
+		})
+
+		t.Run(fmt.Sprintf("TestMTCannonSnapshotFreq-%v", traceType), func(t *testing.T) {
+			t.Run("MustNotBeZero", func(t *testing.T) {
+				cfg := validConfig(traceType)
+				cfg.MTCannon.SnapshotFreq = 0
+				require.ErrorIs(t, cfg.Check(), ErrMissingMTCannonSnapshotFreq)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestMTCannonInfoFreq-%v", traceType), func(t *testing.T) {
+			t.Run("MustNotBeZero", func(t *testing.T) {
+				cfg := validConfig(traceType)
+				cfg.MTCannon.InfoFreq = 0
+				require.ErrorIs(t, cfg.Check(), ErrMissingMTCannonInfoFreq)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestMTCannonNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(traceType)
+			cfg.MTCannon.Network = ""
+			cfg.MTCannon.RollupConfigPath = ""
+			cfg.MTCannon.L2GenesisPath = "genesis.json"
+			require.ErrorIs(t, cfg.Check(), ErrMissingMTCannonRollupConfig)
+		})
+
+		t.Run(fmt.Sprintf("TestMTCannonNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(traceType)
+			cfg.MTCannon.Network = ""
+			cfg.MTCannon.RollupConfigPath = "foo.json"
+			cfg.MTCannon.L2GenesisPath = ""
+			require.ErrorIs(t, cfg.Check(), ErrMissingMTCannonL2Genesis)
+		})
+
+		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(traceType)
+			cfg.MTCannon.Network = validMTCannonNetwork
+			cfg.MTCannon.RollupConfigPath = "foo.json"
+			cfg.MTCannon.L2GenesisPath = ""
+			require.ErrorIs(t, cfg.Check(), ErrMTCannonNetworkAndRollupConfig)
+		})
+
+		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndL2Genesis-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(traceType)
+			cfg.MTCannon.Network = validMTCannonNetwork
+			cfg.MTCannon.RollupConfigPath = ""
+			cfg.MTCannon.L2GenesisPath = "foo.json"
+			require.ErrorIs(t, cfg.Check(), ErrMTCannonNetworkAndL2Genesis)
+		})
+
+		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(traceType)
+			cfg.MTCannon.Network = "unknown"
+			require.ErrorIs(t, cfg.Check(), ErrMTCannonNetworkUnknown)
+		})
+	}
+}
+
 func TestDatadirRequired(t *testing.T) {
 	config := validConfig(types.TraceTypeAlphabet)
 	config.Datadir = ""
@@ -395,11 +518,30 @@ func TestRequireConfigForMultipleTraceTypesForAsterisc(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
 }
 
-func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
+func TestRequireConfigForMultipleTraceTypesForMTCannon(t *testing.T) {
+	cfg := validConfig(types.TraceTypeMTCannon)
+	cfg.TraceTypes = []types.TraceType{types.TraceTypeMTCannon, types.TraceTypeAlphabet}
+	// Set all required options and check its valid
+	cfg.RollupRpc = validRollupRpc
+	require.NoError(t, cfg.Check())
+
+	// Require mt-cannon specific args
+	cfg.MTCannonAbsolutePreState = ""
+	cfg.MTCannonAbsolutePreStateBaseURL = nil
+	require.ErrorIs(t, cfg.Check(), ErrMissingMTCannonAbsolutePreState)
+	cfg.MTCannonAbsolutePreState = validMTCannonAbsolutPreState
+
+	// Require output mt-cannon specific args
+	cfg.RollupRpc = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
+}
+
+func TestRequireConfigForMultipleTraceTypesForCannonAndAsteriscAndMTCannon(t *testing.T) {
 	cfg := validConfig(types.TraceTypeCannon)
 	applyValidConfigForAsterisc(&cfg)
+	applyValidConfigForMTCannon(&cfg)
 
-	cfg.TraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsterisc, types.TraceTypeAlphabet, types.TraceTypeFast}
+	cfg.TraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsterisc, types.TraceTypeMTCannon, types.TraceTypeAlphabet, types.TraceTypeFast}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())
@@ -415,10 +557,21 @@ func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscAbsolutePreState)
 	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutPreState
 
-	// Require cannon specific args
+	// Require mt-cannon specific args
+	cfg.MTCannonAbsolutePreState = ""
+	cfg.MTCannonAbsolutePreStateBaseURL = nil
+	require.ErrorIs(t, cfg.Check(), ErrMissingMTCannonAbsolutePreState)
+	cfg.MTCannonAbsolutePreState = validMTCannonAbsolutPreState
+
+	// Require asterisc specific args
 	cfg.Asterisc.Server = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscServer)
 	cfg.Asterisc.Server = validAsteriscOpProgramBin
+
+	// Require mt-cannon specific args
+	cfg.MTCannon.Server = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingMTCannonServer)
+	cfg.MTCannon.Server = validMTCannonOpProgramBin
 
 	// Check final config is valid
 	require.NoError(t, cfg.Check())
