@@ -7,7 +7,9 @@
     "forge-artifacts/**/*.json",
     "!forge-artifacts/**/*.t.sol/*.json",
     "deployments/**/*.json",
-    "src/**/*.sol"
+    "src/**/*.sol",
+    "deploy-config/mainnet.json",
+    "deploy-config/sepolia.json"
   ],
   "scripts": {
     "prebuild": "./scripts/checks/check-foundry-install.sh",
