@@ -122,9 +122,9 @@ config=$(cat << EOL
   "respectedGameType": 0,
 
   "usePlasma": $USE_PLASMA,
-  "daCommitmentType": "KeccakCommitment",
-  "daChallengeWindow": 160,
-  "daResolveWindow": 160,
+  "daCommitmentType": "GenericCommitment",
+  "daChallengeWindow": 3600,
+  "daResolveWindow": 3600,
   "daBondSize": 1000000,
   "daResolverRefundPercentage": 0
 }
@@ -133,3 +133,4 @@ EOL
 
 # Write the config file
 echo "$config" > deploy-config/$DEPLOYMENT_CONTEXT.json
+echo "Created file deploy-config/$DEPLOYMENT_CONTEXT.json successfully."
