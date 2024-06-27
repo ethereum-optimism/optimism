@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+type MemTracker func(addr uint32)
+
 func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 	preimage := m.lastPreimage
 	if key != m.lastPreimageKey {
@@ -123,117 +125,14 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 	m.state.Step += 1
 	// instruction fetch
-	insn := m.state.Memory.GetMemory(m.state.Cpu.PC)
-	opcode := insn >> 26 // 6-bits
+	insn, opcode, fun := getInstructionDetails(m.state.Cpu.PC, m.state.Memory)
 
-	// j-type j/jal
-	if opcode == 2 || opcode == 3 {
-		linkReg := uint32(0)
-		if opcode == 3 {
-			linkReg = 31
-		}
-		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-		target := (m.state.Cpu.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
-		m.pushStack(target)
-		return handleJump(&m.state.Cpu, &m.state.Registers, linkReg, target)
+	// Handle syscall separately
+	// syscall (can read and write)
+	if opcode == 0 && fun == 0xC {
+		return m.handleSyscall()
 	}
 
-	// register fetch
-	rs := uint32(0) // source register 1 value
-	rt := uint32(0) // source register 2 / temp value
-	rtReg := (insn >> 16) & 0x1F
-
-	// R-type or I-type (stores rt)
-	rs = m.state.Registers[(insn>>21)&0x1F]
-	rdReg := rtReg
-	if opcode == 0 || opcode == 0x1c {
-		// R-type (stores rd)
-		rt = m.state.Registers[rtReg]
-		rdReg = (insn >> 11) & 0x1F
-	} else if opcode < 0x20 {
-		// rt is SignExtImm
-		// don't sign extend for andi, ori, xori
-		if opcode == 0xC || opcode == 0xD || opcode == 0xe {
-			// ZeroExtImm
-			rt = insn & 0xFFFF
-		} else {
-			// SignExtImm
-			rt = signExtend(insn&0xFFFF, 16)
-		}
-	} else if opcode >= 0x28 || opcode == 0x22 || opcode == 0x26 {
-		// store rt value with store
-		rt = m.state.Registers[rtReg]
-
-		// store actual rt with lwl and lwr
-		rdReg = rtReg
-	}
-
-	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		return handleBranch(&m.state.Cpu, &m.state.Registers, opcode, insn, rtReg, rs)
-	}
-
-	storeAddr := uint32(0xFF_FF_FF_FF)
-	// memory fetch (all I-type)
-	// we do the load for stores also
-	mem := uint32(0)
-	if opcode >= 0x20 {
-		// M[R[rs]+SignExtImm]
-		rs += signExtend(insn&0xFFFF, 16)
-		addr := rs & 0xFFFFFFFC
-		m.trackMemAccess(addr)
-		mem = m.state.Memory.GetMemory(addr)
-		if opcode >= 0x28 && opcode != 0x30 {
-			// store
-			storeAddr = addr
-			// store opcodes don't write back to a register
-			rdReg = 0
-		}
-	}
-
-	// ALU
-	val := executeMipsInstruction(insn, rs, rt, mem)
-
-	fun := insn & 0x3f // 6-bits
-	if opcode == 0 && fun >= 8 && fun < 0x1c {
-		if fun == 8 || fun == 9 { // jr/jalr
-			linkReg := uint32(0)
-			if fun == 9 {
-				linkReg = rdReg
-			}
-			m.popStack()
-			return handleJump(&m.state.Cpu, &m.state.Registers, linkReg, rs)
-		}
-
-		if fun == 0xa { // movz
-			return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, rs, rt == 0)
-		}
-		if fun == 0xb { // movn
-			return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, rs, rt != 0)
-		}
-
-		// syscall (can read and write)
-		if fun == 0xC {
-			return m.handleSyscall()
-		}
-
-		// lo and hi registers
-		// can write back
-		if fun >= 0x10 && fun < 0x1c {
-			return handleHiLo(&m.state.Cpu, &m.state.Registers, fun, rs, rt, rdReg)
-		}
-	}
-
-	// stupid sc, write a 1 to rt
-	if opcode == 0x38 && rtReg != 0 {
-		m.state.Registers[rtReg] = 1
-	}
-
-	// write memory
-	if storeAddr != 0xFF_FF_FF_FF {
-		m.trackMemAccess(storeAddr)
-		m.state.Memory.SetMemory(storeAddr, val)
-	}
-
-	// write back the value to destination register
-	return handleRd(&m.state.Cpu, &m.state.Registers, rdReg, val, true)
+	// Exec the rest of the step logic
+	return execMipsCoreStepLogic(&m.state.Cpu, &m.state.Registers, m.state.Memory, insn, opcode, fun, m.trackMemAccess, m)
 }
