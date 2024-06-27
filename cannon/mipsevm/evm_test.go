@@ -62,7 +62,7 @@ func (m *MIPSEVM) SetLocalOracle(oracle PreimageOracle) {
 }
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
-func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
+func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness, step uint64) []byte {
 	sender := common.Address{0x13, 0x37}
 	startingGas := uint64(30_000_000)
 
@@ -79,6 +79,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 
 	// Note: For easier debugging of a failing step, see MIPS.t.sol#test_step_debug_succeeds()
 	input := encodeStepInput(t, stepWitness, LocalContext{}, m.artifacts.MIPS)
+	t.Logf("Executing step %d with input: %x", step, input)
 	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, common.U2560)
 	require.NoError(t, err, "evm should not fail")
 	require.Len(t, ret, 32, "expecting 32-byte state hash")
@@ -93,7 +94,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 	require.Equal(t, stateHash, postHash, "logged state must be accurate")
 
 	m.env.StateDB.RevertToSnapshot(snap)
-	t.Logf("EVM step took %d gas, and returned stateHash %s", startingGas-leftOverGas, postHash)
+	t.Logf("EVM step %d took %d gas, and returned stateHash %s", step, startingGas-leftOverGas, postHash)
 	return evmPost
 }
 
@@ -183,6 +184,7 @@ func TestEVM(t *testing.T) {
 			goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
+				curStep := goState.state.Step
 				if goState.state.Cpu.PC == endAddr {
 					break
 				}
@@ -194,7 +196,7 @@ func TestEVM(t *testing.T) {
 
 				stepWitness, err := goState.Step(true)
 				require.NoError(t, err)
-				evmPost := evm.Step(t, stepWitness)
+				evmPost := evm.Step(t, stepWitness, curStep)
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 				goPost, _ := goState.state.EncodeWitness()
@@ -236,6 +238,7 @@ func TestEVMSingleStep(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			state := &State{Cpu: CpuScalars{PC: tt.pc, NextPC: tt.nextPC}, Memory: NewMemory()}
 			state.Memory.SetMemory(tt.pc, tt.insn)
+			curStep := state.Step
 
 			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
 			stepWitness, err := us.Step(true)
@@ -243,7 +246,7 @@ func TestEVMSingleStep(t *testing.T) {
 
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
-			evmPost := evm.Step(t, stepWitness)
+			evmPost := evm.Step(t, stepWitness, curStep)
 			goPost, _ := us.state.EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
@@ -413,6 +416,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			err := state.Memory.SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
 			require.NoError(t, err)
 			state.Memory.SetMemory(0, insn)
+			curStep := state.Step
 
 			us := NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr)
 			stepWitness, err := us.Step(true)
@@ -421,7 +425,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
-			evmPost := evm.Step(t, stepWitness)
+			evmPost := evm.Step(t, stepWitness, curStep)
 			goPost, _ := us.state.EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
@@ -495,6 +499,7 @@ func TestHelloEVM(t *testing.T) {
 
 	start := time.Now()
 	for i := 0; i < 400_000; i++ {
+		curStep := goState.state.Step
 		if goState.state.Exited {
 			break
 		}
@@ -508,7 +513,7 @@ func TestHelloEVM(t *testing.T) {
 
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
-		evmPost := evm.Step(t, stepWitness)
+		evmPost := evm.Step(t, stepWitness, curStep)
 		// verify the post-state matches.
 		// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 		goPost, _ := goState.state.EncodeWitness()
@@ -546,6 +551,7 @@ func TestClaimEVM(t *testing.T) {
 	goState := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	for i := 0; i < 2000_000; i++ {
+		curStep := goState.state.Step
 		if goState.state.Exited {
 			break
 		}
@@ -560,7 +566,7 @@ func TestClaimEVM(t *testing.T) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evm.SetTracer(tracer)
-		evmPost := evm.Step(t, stepWitness)
+		evmPost := evm.Step(t, stepWitness, curStep)
 
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
