@@ -48,7 +48,7 @@ contract MIPS is ISemver {
 
     /// @notice The semantic version of the MIPS contract.
     /// @custom:semver 1.0.1
-    string public constant version = "1.1.0-beta.4";
+    string public constant version = "1.1.0-beta.5";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -262,178 +262,30 @@ contract MIPS is ISemver {
 
             // instruction fetch
             uint256 insnProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 0);
-            uint32 insn = MIPSMemory.readMem(state.memRoot, state.pc, insnProofOffset);
-            uint32 opcode = insn >> 26; // 6-bits
+            (uint32 insn, uint32 opcode, uint32 fun) =
+                ins.getInstructionDetails(state.pc, state.memRoot, insnProofOffset);
 
-            // j-type j/jal
-            if (opcode == 2 || opcode == 3) {
-                // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-                uint32 target = (state.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
-                return handleJumpAndReturnOutput(state, opcode == 2 ? 0 : 31, target);
+            // Handle syscall separately
+            // syscall (can read and write)
+            if (opcode == 0 && fun == 0xC) {
+                return handleSyscall(_localContext);
             }
 
-            // register fetch
-            uint32 rs; // source register 1 value
-            uint32 rt; // source register 2 / temp value
-            uint32 rtReg = (insn >> 16) & 0x1F;
+            // Exec the rest of the step logic
+            st.CpuScalars memory cpu = getCpuScalars(state);
+            (state.memRoot) = ins.execMipsCoreStepLogic({
+                _cpu: cpu,
+                _registers: state.registers,
+                _memRoot: state.memRoot,
+                _memProofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
+                _insn: insn,
+                _opcode: opcode,
+                _fun: fun
+            });
+            setStateCpuScalars(state, cpu);
 
-            // R-type or I-type (stores rt)
-            rs = state.registers[(insn >> 21) & 0x1F];
-            uint32 rdReg = rtReg;
-
-            if (opcode == 0 || opcode == 0x1c) {
-                // R-type (stores rd)
-                rt = state.registers[rtReg];
-                rdReg = (insn >> 11) & 0x1F;
-            } else if (opcode < 0x20) {
-                // rt is SignExtImm
-                // don't sign extend for andi, ori, xori
-                if (opcode == 0xC || opcode == 0xD || opcode == 0xe) {
-                    // ZeroExtImm
-                    rt = insn & 0xFFFF;
-                } else {
-                    // SignExtImm
-                    rt = ins.signExtend(insn & 0xFFFF, 16);
-                }
-            } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
-                // store rt value with store
-                rt = state.registers[rtReg];
-
-                // store actual rt with lwl and lwr
-                rdReg = rtReg;
-            }
-
-            if ((opcode >= 4 && opcode < 8) || opcode == 1) {
-                st.CpuScalars memory cpu = getCpuScalars(state);
-
-                ins.handleBranch({
-                    _cpu: cpu,
-                    _registers: state.registers,
-                    _opcode: opcode,
-                    _insn: insn,
-                    _rtReg: rtReg,
-                    _rs: rs
-                });
-                setStateCpuScalars(state, cpu);
-
-                return outputState();
-            }
-
-            uint32 storeAddr = 0xFF_FF_FF_FF;
-            // memory fetch (all I-type)
-            // we do the load for stores also
-            uint32 mem;
-            if (opcode >= 0x20) {
-                // M[R[rs]+SignExtImm]
-                rs += ins.signExtend(insn & 0xFFFF, 16);
-                uint32 addr = rs & 0xFFFFFFFC;
-                uint256 memProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1);
-                mem = MIPSMemory.readMem(state.memRoot, addr, memProofOffset);
-                if (opcode >= 0x28 && opcode != 0x30) {
-                    // store
-                    storeAddr = addr;
-                    // store opcodes don't write back to a register
-                    rdReg = 0;
-                }
-            }
-
-            // ALU
-            // Note: swr outputs more than 4 bytes without the mask 0xffFFffFF
-            uint32 val = ins.executeMipsInstruction(insn, rs, rt, mem) & 0xffFFffFF;
-
-            uint32 func = insn & 0x3f; // 6-bits
-            if (opcode == 0 && func >= 8 && func < 0x1c) {
-                if (func == 8 || func == 9) {
-                    // jr/jalr
-                    return handleJumpAndReturnOutput(state, func == 8 ? 0 : rdReg, rs);
-                }
-
-                if (func == 0xa) {
-                    // movz
-                    return handleRdAndReturnOutput(state, rdReg, rs, rt == 0);
-                }
-                if (func == 0xb) {
-                    // movn
-                    return handleRdAndReturnOutput(state, rdReg, rs, rt != 0);
-                }
-
-                // syscall (can read and write)
-                if (func == 0xC) {
-                    return handleSyscall(_localContext);
-                }
-
-                // lo and hi registers
-                // can write back
-                if (func >= 0x10 && func < 0x1c) {
-                    st.CpuScalars memory cpu = getCpuScalars(state);
-
-                    ins.handleHiLo({
-                        _cpu: cpu,
-                        _registers: state.registers,
-                        _func: func,
-                        _rs: rs,
-                        _rt: rt,
-                        _storeReg: rdReg
-                    });
-
-                    setStateCpuScalars(state, cpu);
-                    return outputState();
-                }
-            }
-
-            // stupid sc, write a 1 to rt
-            if (opcode == 0x38 && rtReg != 0) {
-                state.registers[rtReg] = 1;
-            }
-
-            // write memory
-            if (storeAddr != 0xFF_FF_FF_FF) {
-                uint256 memProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1);
-                state.memRoot = MIPSMemory.writeMem(storeAddr, memProofOffset, val);
-            }
-
-            // write back the value to destination register
-            return handleRdAndReturnOutput(state, rdReg, val, true);
+            return outputState();
         }
-    }
-
-    function handleJumpAndReturnOutput(
-        State memory _state,
-        uint32 _linkReg,
-        uint32 _dest
-    )
-        internal
-        returns (bytes32 out_)
-    {
-        st.CpuScalars memory cpu = getCpuScalars(_state);
-
-        ins.handleJump({ _cpu: cpu, _registers: _state.registers, _linkReg: _linkReg, _dest: _dest });
-
-        setStateCpuScalars(_state, cpu);
-        return outputState();
-    }
-
-    function handleRdAndReturnOutput(
-        State memory _state,
-        uint32 _storeReg,
-        uint32 _val,
-        bool _conditional
-    )
-        internal
-        returns (bytes32 out_)
-    {
-        st.CpuScalars memory cpu = getCpuScalars(_state);
-
-        ins.handleRd({
-            _cpu: cpu,
-            _registers: _state.registers,
-            _storeReg: _storeReg,
-            _val: _val,
-            _conditional: _conditional
-        });
-
-        setStateCpuScalars(_state, cpu);
-        return outputState();
     }
 
     function getCpuScalars(State memory _state) internal pure returns (st.CpuScalars memory) {

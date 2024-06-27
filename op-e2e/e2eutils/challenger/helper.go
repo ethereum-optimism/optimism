@@ -21,6 +21,7 @@ import (
 
 	challenger "github.com/ethereum-optimism/optimism/op-challenger"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -122,20 +123,20 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config,
 
 func WithCannon(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
+		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
 		applyCannonConfig(c, t, rollupCfg, l2Genesis)
 	}
 }
 
 func WithAlphabet() Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
+		c.TraceTypes = append(c.TraceTypes, types.TraceTypeAlphabet)
 	}
 }
 
 func WithFastGames() Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, config.TraceTypeFast)
+		c.TraceTypes = append(c.TraceTypes, types.TraceTypeFast)
 	}
 }
 

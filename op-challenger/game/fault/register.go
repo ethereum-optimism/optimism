@@ -30,8 +30,8 @@ import (
 type CloseFunc func()
 
 type Registry interface {
-	RegisterGameType(gameType uint32, creator scheduler.PlayerCreator)
-	RegisterBondContract(gameType uint32, creator claims.BondContractCreator)
+	RegisterGameType(gameType faultTypes.GameType, creator scheduler.PlayerCreator)
+	RegisterBondContract(gameType faultTypes.GameType, creator claims.BondContractCreator)
 }
 
 type OracleRegistry interface {
@@ -73,27 +73,27 @@ func RegisterGameTypes(
 	}
 	syncValidator := newSyncStatusValidator(rollupClient)
 
-	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypeCannon) {
 		if err := registerCannon(faultTypes.CannonGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register cannon game type: %w", err)
 		}
 	}
-	if cfg.TraceTypeEnabled(config.TraceTypePermissioned) {
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypePermissioned) {
 		if err := registerCannon(faultTypes.PermissionedGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register permissioned cannon game type: %w", err)
 		}
 	}
-	if cfg.TraceTypeEnabled(config.TraceTypeAsterisc) {
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
 		if err := registerAsterisc(faultTypes.AsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register asterisc game type: %w", err)
 		}
 	}
-	if cfg.TraceTypeEnabled(config.TraceTypeFast) {
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypeFast) {
 		if err := registerAlphabet(faultTypes.FastGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, syncValidator, rollupClient, l2Client, txSender, gameFactory, caller, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register fast game type: %w", err)
 		}
 	}
-	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAlphabet) {
 		if err := registerAlphabet(faultTypes.AlphabetGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, syncValidator, rollupClient, l2Client, txSender, gameFactory, caller, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register alphabet game type: %w", err)
 		}
@@ -102,7 +102,7 @@ func RegisterGameTypes(
 }
 
 func registerAlphabet(
-	gameType uint32,
+	gameType faultTypes.GameType,
 	registry Registry,
 	oracles OracleRegistry,
 	ctx context.Context,
@@ -167,7 +167,7 @@ func registerAlphabet(
 	return nil
 }
 
-func registerOracle(ctx context.Context, m metrics.Metricer, oracles OracleRegistry, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType uint32) error {
+func registerOracle(ctx context.Context, m metrics.Metricer, oracles OracleRegistry, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType faultTypes.GameType) error {
 	implAddr, err := gameFactory.GetGameImpl(ctx, gameType)
 	if err != nil {
 		return fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
@@ -185,7 +185,7 @@ func registerOracle(ctx context.Context, m metrics.Metricer, oracles OracleRegis
 }
 
 func registerAsterisc(
-	gameType uint32,
+	gameType faultTypes.GameType,
 	registry Registry,
 	oracles OracleRegistry,
 	ctx context.Context,
@@ -278,7 +278,7 @@ func registerAsterisc(
 }
 
 func registerCannon(
-	gameType uint32,
+	gameType faultTypes.GameType,
 	registry Registry,
 	oracles OracleRegistry,
 	ctx context.Context,

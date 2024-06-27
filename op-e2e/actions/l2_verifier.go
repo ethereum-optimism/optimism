@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -38,6 +39,8 @@ type L2Verifier struct {
 		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	}
 
+	syncStatus driver.SyncStatusTracker
+
 	synchronousEvents *rollup.SynchronousEvents
 
 	syncDeriver *driver.SyncDeriver
@@ -51,8 +54,7 @@ type L2Verifier struct {
 	finalizer        driver.Finalizer
 	syncCfg          *sync.Config
 
-	l1      derive.L1Fetcher
-	l1State *driver.L1State
+	l1 derive.L1Fetcher
 
 	l2PipelineIdle bool
 	l2Building     bool
@@ -107,6 +109,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, metrics)
 	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline, synchronousEvents)
 
+	syncStatusTracker := status.NewStatusTracker(log, metrics)
+
 	syncDeriver := &driver.SyncDeriver{
 		Derivation:     pipeline,
 		Finalizer:      finalizer,
@@ -136,7 +140,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		syncCfg:           syncCfg,
 		syncDeriver:       syncDeriver,
 		l1:                l1,
-		l1State:           driver.NewL1State(log, metrics),
+		syncStatus:        syncStatusTracker,
 		l2PipelineIdle:    true,
 		l2Building:        false,
 		rollupCfg:         cfg,
@@ -145,6 +149,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	}
 
 	*rootDeriver = rollup.SynchronousDerivers{
+		syncStatusTracker,
 		syncDeriver,
 		engineResetDeriver,
 		engDeriv,
@@ -238,17 +243,7 @@ func (s *L2Verifier) L2BackupUnsafe() eth.L2BlockRef {
 }
 
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
-	return &eth.SyncStatus{
-		CurrentL1:          s.derivation.Origin(),
-		CurrentL1Finalized: s.finalizer.FinalizedL1(),
-		HeadL1:             s.l1State.L1Head(),
-		SafeL1:             s.l1State.L1Safe(),
-		FinalizedL1:        s.l1State.L1Finalized(),
-		UnsafeL2:           s.L2Unsafe(),
-		SafeL2:             s.L2Safe(),
-		FinalizedL2:        s.L2Finalized(),
-		PendingSafeL2:      s.L2PendingSafe(),
-	}
+	return s.syncStatus.SyncStatus()
 }
 
 func (s *L2Verifier) RollupClient() *sources.RollupClient {
@@ -279,20 +274,34 @@ func (s *L2Verifier) ActRPCFail(t Testing) {
 func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1HeadBlock(head)
+	s.synchronousEvents.Emit(status.L1UnsafeEvent{L1Unsafe: head})
+	require.NoError(t, s.synchronousEvents.DrainUntil(func(ev rollup.Event) bool {
+		x, ok := ev.(status.L1UnsafeEvent)
+		return ok && x.L1Unsafe == head
+	}, false))
+	require.Equal(t, head, s.syncStatus.SyncStatus().HeadL1)
 }
 
 func (s *L2Verifier) ActL1SafeSignal(t Testing) {
 	safe, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1SafeBlock(safe)
+	s.synchronousEvents.Emit(status.L1SafeEvent{L1Safe: safe})
+	require.NoError(t, s.synchronousEvents.DrainUntil(func(ev rollup.Event) bool {
+		x, ok := ev.(status.L1SafeEvent)
+		return ok && x.L1Safe == safe
+	}, false))
+	require.Equal(t, safe, s.syncStatus.SyncStatus().SafeL1)
 }
 
 func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1FinalizedBlock(finalized)
 	s.synchronousEvents.Emit(finality.FinalizeL1Event{FinalizedL1: finalized})
+	require.NoError(t, s.synchronousEvents.DrainUntil(func(ev rollup.Event) bool {
+		x, ok := ev.(finality.FinalizeL1Event)
+		return ok && x.FinalizedL1 == finalized
+	}, false))
+	require.Equal(t, finalized, s.syncStatus.SyncStatus().FinalizedL1)
 }
 
 func (s *L2Verifier) OnEvent(ev rollup.Event) {

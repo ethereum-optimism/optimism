@@ -34,7 +34,6 @@ const (
 )
 
 type PreimageReader func(key [32]byte, offset uint32) (dat [32]byte, datLen uint32)
-type MemTracker func(addr uint32)
 
 func getSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
 	syscallNum = registers[2] // v0

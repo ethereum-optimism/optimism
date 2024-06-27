@@ -93,8 +93,8 @@ library MIPSMemory {
 
                 newMemRoot_ := node
             }
+            return newMemRoot_;
         }
-        return newMemRoot_;
     }
 
     /// @notice Computes the offset of a memory proof in the calldata.
@@ -114,11 +114,13 @@ library MIPSMemory {
     /// @notice Validates that enough calldata is available to hold a full memory proof at the given offset
     /// @param _proofStartOffset The index of the first byte of the target memory proof in calldata
     function validateMemoryProofAvailability(uint256 _proofStartOffset) internal pure {
-        uint256 s = 0;
-        assembly {
-            s := calldatasize()
+        unchecked {
+            uint256 s = 0;
+            assembly {
+                s := calldatasize()
+            }
+            // A memory proof consists of 28 bytes32 values - verify we have enough calldata
+            require(s >= (_proofStartOffset + 28 * 32), "check that there is enough calldata");
         }
-        // A memory proof consists of 28 bytes32 values - verify we have enough calldata
-        require(s >= (_proofStartOffset + 28 * 32), "check that there is enough calldata");
     }
 }

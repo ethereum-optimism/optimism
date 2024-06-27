@@ -260,9 +260,10 @@ var (
 	}
 	SnapshotLog = &cli.StringFlag{
 		Name:     "snapshotlog.file",
-		Usage:    "Path to the snapshot log file",
+		Usage:    "Deprecated. This flag is ignored, but here for compatibility.",
 		EnvVars:  prefixEnvVars("SNAPSHOT_LOG"),
 		Category: OperationsCategory,
+		Hidden:   true, // non-critical function, removed, flag is no-op to avoid breaking setups.
 	}
 	HeartbeatEnabledFlag = &cli.BoolFlag{
 		Name:     "heartbeat.enabled",

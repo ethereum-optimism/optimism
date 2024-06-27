@@ -17,6 +17,14 @@ func (d DeriverIdleEvent) String() string {
 	return "derivation-idle"
 }
 
+type DeriverL1StatusEvent struct {
+	Origin eth.L1BlockRef
+}
+
+func (d DeriverL1StatusEvent) String() string {
+	return "deriver-l1-status"
+}
+
 type DeriverMoreEvent struct{}
 
 func (d DeriverMoreEvent) String() string {
@@ -83,7 +91,12 @@ func (d *PipelineDeriver) OnEvent(ev rollup.Event) {
 			return
 		}
 		d.pipeline.log.Trace("Derivation pipeline step", "onto_origin", d.pipeline.Origin())
+		preOrigin := d.pipeline.Origin()
 		attrib, err := d.pipeline.Step(d.ctx, x.PendingSafe)
+		postOrigin := d.pipeline.Origin()
+		if preOrigin != postOrigin {
+			d.emitter.Emit(DeriverL1StatusEvent{Origin: postOrigin})
+		}
 		if err == io.EOF {
 			d.pipeline.log.Debug("Derivation process went idle", "progress", d.pipeline.Origin(), "err", err)
 			d.emitter.Emit(DeriverIdleEvent{Origin: d.pipeline.Origin()})

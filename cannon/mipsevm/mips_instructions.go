@@ -1,10 +1,127 @@
 package mipsevm
 
-func executeMipsInstruction(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
-	opcode := insn >> 26 // 6-bits
+type StackTracker interface {
+	pushStack(target uint32)
+	popStack()
+}
 
+func getInstructionDetails(pc uint32, memory *Memory) (insn, opcode, fun uint32) {
+	insn = memory.GetMemory(pc)
+	opcode = insn >> 26 // First 6-bits
+	fun = insn & 0x3f   // Last 6-bits
+
+	return insn, opcode, fun
+}
+
+func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) error {
+	// j-type j/jal
+	if opcode == 2 || opcode == 3 {
+		linkReg := uint32(0)
+		if opcode == 3 {
+			linkReg = 31
+		}
+		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
+		target := (cpu.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
+		stackTracker.pushStack(target)
+		return handleJump(cpu, registers, linkReg, target)
+	}
+
+	// register fetch
+	rs := uint32(0) // source register 1 value
+	rt := uint32(0) // source register 2 / temp value
+	rtReg := (insn >> 16) & 0x1F
+
+	// R-type or I-type (stores rt)
+	rs = registers[(insn>>21)&0x1F]
+	rdReg := rtReg
+	if opcode == 0 || opcode == 0x1c {
+		// R-type (stores rd)
+		rt = registers[rtReg]
+		rdReg = (insn >> 11) & 0x1F
+	} else if opcode < 0x20 {
+		// rt is SignExtImm
+		// don't sign extend for andi, ori, xori
+		if opcode == 0xC || opcode == 0xD || opcode == 0xe {
+			// ZeroExtImm
+			rt = insn & 0xFFFF
+		} else {
+			// SignExtImm
+			rt = signExtend(insn&0xFFFF, 16)
+		}
+	} else if opcode >= 0x28 || opcode == 0x22 || opcode == 0x26 {
+		// store rt value with store
+		rt = registers[rtReg]
+
+		// store actual rt with lwl and lwr
+		rdReg = rtReg
+	}
+
+	if (opcode >= 4 && opcode < 8) || opcode == 1 {
+		return handleBranch(cpu, registers, opcode, insn, rtReg, rs)
+	}
+
+	storeAddr := uint32(0xFF_FF_FF_FF)
+	// memory fetch (all I-type)
+	// we do the load for stores also
+	mem := uint32(0)
+	if opcode >= 0x20 {
+		// M[R[rs]+SignExtImm]
+		rs += signExtend(insn&0xFFFF, 16)
+		addr := rs & 0xFFFFFFFC
+		memTracker(addr)
+		mem = memory.GetMemory(addr)
+		if opcode >= 0x28 && opcode != 0x30 {
+			// store
+			storeAddr = addr
+			// store opcodes don't write back to a register
+			rdReg = 0
+		}
+	}
+
+	// ALU
+	val := executeMipsInstruction(insn, opcode, fun, rs, rt, mem)
+
+	if opcode == 0 && fun >= 8 && fun < 0x1c {
+		if fun == 8 || fun == 9 { // jr/jalr
+			linkReg := uint32(0)
+			if fun == 9 {
+				linkReg = rdReg
+			}
+			stackTracker.popStack()
+			return handleJump(cpu, registers, linkReg, rs)
+		}
+
+		if fun == 0xa { // movz
+			return handleRd(cpu, registers, rdReg, rs, rt == 0)
+		}
+		if fun == 0xb { // movn
+			return handleRd(cpu, registers, rdReg, rs, rt != 0)
+		}
+
+		// lo and hi registers
+		// can write back
+		if fun >= 0x10 && fun < 0x1c {
+			return handleHiLo(cpu, registers, fun, rs, rt, rdReg)
+		}
+	}
+
+	// store conditional, write a 1 to rt
+	if opcode == 0x38 && rtReg != 0 {
+		registers[rtReg] = 1
+	}
+
+	// write memory
+	if storeAddr != 0xFF_FF_FF_FF {
+		memTracker(storeAddr)
+		memory.SetMemory(storeAddr, val)
+	}
+
+	// write back the value to destination register
+	return handleRd(cpu, registers, rdReg, val, true)
+}
+
+func executeMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 	if opcode == 0 || (opcode >= 8 && opcode < 0xF) {
-		fun := insn & 0x3f // 6-bits
 		// transform ArithLogI to SPECIAL
 		switch opcode {
 		case 8:
@@ -101,7 +218,6 @@ func executeMipsInstruction(insn uint32, rs uint32, rt uint32, mem uint32) uint3
 		switch opcode {
 		// SPECIAL2
 		case 0x1C:
-			fun := insn & 0x3f // 6-bits
 			switch fun {
 			case 0x2: // mul
 				return uint32(int32(rs) * int32(rt))
