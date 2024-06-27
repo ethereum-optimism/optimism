@@ -48,6 +48,7 @@ func (s *Queue) Emit(event Event) {
 	s.evLock.Lock()
 	defer s.evLock.Unlock()
 
+	s.log.Debug("Emitting event", "event", event)
 	s.metrics.RecordEmittedEvent(event.String())
 
 	if s.ctx.Err() != nil {
@@ -77,6 +78,7 @@ func (s *Queue) Drain() error {
 		s.events = s.events[1:]
 		s.evLock.Unlock()
 
+		s.log.Debug("Processing event", "event", first)
 		s.root.OnEvent(first)
 		s.metrics.RecordProcessedEvent(first.String())
 	}
@@ -101,6 +103,7 @@ func (s *Queue) DrainUntil(fn func(ev Event) bool, excl bool) error {
 		s.events = s.events[1:]
 		s.evLock.Unlock()
 
+		s.log.Debug("Processing event", "event", first)
 		s.root.OnEvent(first)
 		s.metrics.RecordProcessedEvent(first.String())
 		if stop {

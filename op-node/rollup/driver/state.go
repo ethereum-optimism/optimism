@@ -508,8 +508,10 @@ func (s *SyncDeriver) onStepEvent() {
 	} else if err != nil {
 		s.Log.Error("Derivation process error", "err", err)
 		s.Emitter.Emit(StepReqEvent{})
+	} else {
+		// Revisit SyncStep in 1/2 of a L2 block.
+		s.Emitter.Emit(StepDelayedReqEvent{Delay: (time.Duration(s.Config.BlockTime) * time.Second) / 2})
 	}
-	// If no error, then no need to respond to anything until next event that triggers an update.
 }
 
 func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {

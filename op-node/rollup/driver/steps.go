@@ -16,6 +16,14 @@ func (ev ResetStepBackoffEvent) String() string {
 	return "reset-step-backoff"
 }
 
+type StepDelayedReqEvent struct {
+	Delay time.Duration
+}
+
+func (ev StepDelayedReqEvent) String() string {
+	return "step-delayed-req"
+}
+
 type StepReqEvent struct {
 	ResetBackoff bool
 }
@@ -99,6 +107,10 @@ func (s *StepSchedulingDeriver) OnEvent(ev event.Event) {
 	}
 
 	switch x := ev.(type) {
+	case StepDelayedReqEvent:
+		if s.delayedStepReq == nil {
+			s.delayedStepReq = time.After(x.Delay)
+		}
 	case StepReqEvent:
 		if x.ResetBackoff {
 			s.stepAttempts = 0
