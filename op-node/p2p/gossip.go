@@ -213,6 +213,7 @@ func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.Val
 
 func guardGossipValidator(log log.Logger, fn pubsub.ValidatorEx) pubsub.ValidatorEx {
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) (result pubsub.ValidationResult) {
+		log.Info("gossip validation", "peer", id, "topic", message.Topic)
 		defer func() {
 			if err := recover(); err != nil {
 				log.Error("gossip validation panic", "err", err, "peer", id)
