@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -27,7 +28,7 @@ type PlasmaFinalizer struct {
 }
 
 func NewPlasmaFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
-	l1Fetcher FinalizerL1Interface, emitter rollup.EventEmitter,
+	l1Fetcher FinalizerL1Interface, emitter event.Emitter,
 	backend PlasmaBackend) *PlasmaFinalizer {
 
 	inner := NewFinalizer(ctx, log, cfg, l1Fetcher, emitter)
@@ -45,7 +46,7 @@ func NewPlasmaFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
 	}
 }
 
-func (fi *PlasmaFinalizer) OnEvent(ev rollup.Event) {
+func (fi *PlasmaFinalizer) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.backend.Finalize(x.FinalizedL1)

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -56,7 +57,7 @@ func NewStatusTracker(log log.Logger, metrics Metrics) *StatusTracker {
 	return st
 }
 
-func (st *StatusTracker) OnEvent(ev rollup.Event) {
+func (st *StatusTracker) OnEvent(ev event.Event) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -41,7 +42,7 @@ type Driver struct {
 
 	sched *StepSchedulingDeriver
 
-	synchronousEvents *rollup.SynchronousEvents
+	synchronousEvents event.EmitterDrainer
 
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
@@ -365,7 +366,7 @@ func (s *Driver) eventLoop() {
 // OnEvent handles broadcasted events.
 // The Driver itself is a deriver to catch system-critical events.
 // Other event-handling should be encapsulated into standalone derivers.
-func (s *Driver) OnEvent(ev rollup.Event) {
+func (s *Driver) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case rollup.CriticalErrorEvent:
 		s.Log.Error("Derivation process critical error", "err", x.Err)
@@ -381,7 +382,7 @@ func (s *Driver) OnEvent(ev rollup.Event) {
 	}
 }
 
-func (s *Driver) Emit(ev rollup.Event) {
+func (s *Driver) Emit(ev event.Event) {
 	s.synchronousEvents.Emit(ev)
 }
 
@@ -408,7 +409,7 @@ type SyncDeriver struct {
 	L1 L1Chain
 	L2 L2Chain
 
-	Emitter rollup.EventEmitter
+	Emitter event.Emitter
 
 	Log log.Logger
 
@@ -417,7 +418,7 @@ type SyncDeriver struct {
 	Drain func() error
 }
 
-func (s *SyncDeriver) OnEvent(ev rollup.Event) {
+func (s *SyncDeriver) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case StepEvent:
 		s.onStepEvent()
@@ -507,9 +508,8 @@ func (s *SyncDeriver) onStepEvent() {
 	} else if err != nil {
 		s.Log.Error("Derivation process error", "err", err)
 		s.Emitter.Emit(StepReqEvent{})
-	} else {
-		s.Emitter.Emit(StepReqEvent{ResetBackoff: true}) // continue with the next step if we can
 	}
+	// If no error, then no need to respond to anything until next event that triggers an update.
 }
 
 func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {

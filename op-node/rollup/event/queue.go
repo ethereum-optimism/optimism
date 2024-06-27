@@ -1,4 +1,4 @@
-package rollup
+package event
 
 import (
 	"context"
@@ -12,11 +12,11 @@ import (
 // At some point it's better to drop events and warn something is exploding the number of events.
 const sanityEventLimit = 1000
 
-// SynchronousEvents is a rollup.EventEmitter that a rollup.Deriver can emit events to.
+// Queue is a event.Emitter that a event.Deriver can emit events to.
 // The events will be queued up, and can then be executed synchronously by calling the Drain function,
 // which will apply all events to the root Deriver.
 // New events may be queued up while events are being processed by the root rollup.Deriver.
-type SynchronousEvents struct {
+type Queue struct {
 	// The lock is no-op in FP execution, if running in synchronous FP-VM.
 	// This lock ensures that all emitted events are merged together correctly,
 	// if this util is used in a concurrent context.
@@ -29,19 +29,26 @@ type SynchronousEvents struct {
 	ctx context.Context
 
 	root Deriver
+
+	metrics Metrics
 }
 
-func NewSynchronousEvents(log log.Logger, ctx context.Context, root Deriver) *SynchronousEvents {
-	return &SynchronousEvents{
-		log:  log,
-		ctx:  ctx,
-		root: root,
+var _ EmitterDrainer = (*Queue)(nil)
+
+func NewQueue(log log.Logger, ctx context.Context, root Deriver, metrics Metrics) *Queue {
+	return &Queue{
+		log:     log,
+		ctx:     ctx,
+		root:    root,
+		metrics: metrics,
 	}
 }
 
-func (s *SynchronousEvents) Emit(event Event) {
+func (s *Queue) Emit(event Event) {
 	s.evLock.Lock()
 	defer s.evLock.Unlock()
+
+	s.metrics.RecordEmittedEvent(event.String())
 
 	if s.ctx.Err() != nil {
 		s.log.Warn("Ignoring emitted event during shutdown", "event", event)
@@ -56,7 +63,7 @@ func (s *SynchronousEvents) Emit(event Event) {
 	s.events = append(s.events, event)
 }
 
-func (s *SynchronousEvents) Drain() error {
+func (s *Queue) Drain() error {
 	for {
 		if s.ctx.Err() != nil {
 			return s.ctx.Err()
@@ -71,10 +78,11 @@ func (s *SynchronousEvents) Drain() error {
 		s.evLock.Unlock()
 
 		s.root.OnEvent(first)
+		s.metrics.RecordProcessedEvent(first.String())
 	}
 }
 
-func (s *SynchronousEvents) DrainUntil(fn func(ev Event) bool, excl bool) error {
+func (s *Queue) DrainUntil(fn func(ev Event) bool, excl bool) error {
 	for {
 		if s.ctx.Err() != nil {
 			return s.ctx.Err()
@@ -94,10 +102,11 @@ func (s *SynchronousEvents) DrainUntil(fn func(ev Event) bool, excl bool) error 
 		s.evLock.Unlock()
 
 		s.root.OnEvent(first)
+		s.metrics.RecordProcessedEvent(first.String())
 		if stop {
 			return nil
 		}
 	}
 }
 
-var _ EventEmitter = (*SynchronousEvents)(nil)
+var _ Emitter = (*Queue)(nil)

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -72,7 +73,7 @@ type Finalizer struct {
 
 	ctx context.Context
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 
 	// finalizedL1 is the currently perceived finalized L1 block.
 	// This may be ahead of the current traversed origin when syncing.
@@ -93,7 +94,7 @@ type Finalizer struct {
 	l1Fetcher FinalizerL1Interface
 }
 
-func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fetcher FinalizerL1Interface, emitter rollup.EventEmitter) *Finalizer {
+func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fetcher FinalizerL1Interface, emitter event.Emitter) *Finalizer {
 	lookback := calcFinalityLookback(cfg)
 	return &Finalizer{
 		ctx:              ctx,
@@ -130,7 +131,7 @@ func (ev TryFinalizeEvent) String() string {
 	return "try-finalize"
 }
 
-func (fi *Finalizer) OnEvent(ev rollup.Event) {
+func (fi *Finalizer) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.onL1Finalized(x.FinalizedL1)

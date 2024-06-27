@@ -1,4 +1,4 @@
-package rollup
+package event
 
 import (
 	"context"
@@ -11,14 +11,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestSynchronousEvents(t *testing.T) {
+func TestQueue(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	ctx, cancel := context.WithCancel(context.Background())
 	count := 0
 	deriver := DeriverFunc(func(ev Event) {
 		count += 1
 	})
-	syncEv := NewSynchronousEvents(logger, ctx, deriver)
+	syncEv := NewQueue(logger, ctx, deriver, NoopMetrics{})
 	require.NoError(t, syncEv.Drain(), "can drain, even if empty")
 
 	syncEv.Emit(TestEvent{})
@@ -38,13 +38,13 @@ func TestSynchronousEvents(t *testing.T) {
 	require.Equal(t, 3, count, "didn't process event after trigger close")
 }
 
-func TestSynchronousEventsSanityLimit(t *testing.T) {
-	logger := testlog.Logger(t, log.LevelError)
+func TestQueueSanityLimit(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelCrit) // expecting error log of hitting sanity limit
 	count := 0
 	deriver := DeriverFunc(func(ev Event) {
 		count += 1
 	})
-	syncEv := NewSynchronousEvents(logger, context.Background(), deriver)
+	syncEv := NewQueue(logger, context.Background(), deriver, NoopMetrics{})
 	// emit 1 too many events
 	for i := 0; i < sanityEventLimit+1; i++ {
 		syncEv.Emit(TestEvent{})
@@ -67,7 +67,7 @@ func (ev CyclicEvent) String() string {
 
 func TestSynchronousCyclic(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	var emitter EventEmitter
+	var emitter Emitter
 	result := false
 	deriver := DeriverFunc(func(ev Event) {
 		logger.Info("received event", "event", ev)
@@ -80,7 +80,7 @@ func TestSynchronousCyclic(t *testing.T) {
 			}
 		}
 	})
-	syncEv := NewSynchronousEvents(logger, context.Background(), deriver)
+	syncEv := NewQueue(logger, context.Background(), deriver, NoopMetrics{})
 	emitter = syncEv
 	syncEv.Emit(CyclicEvent{Count: 0})
 	require.NoError(t, syncEv.Drain())

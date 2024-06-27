@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -109,7 +110,7 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	// This will ensure the sync-status and such reflect the latest changes.
 	s.synchronousEvents.Emit(engine.TryUpdateEngineEvent{})
 	s.synchronousEvents.Emit(engine.ForkchoiceRequestEvent{})
-	require.NoError(t, s.synchronousEvents.DrainUntil(func(ev rollup.Event) bool {
+	require.NoError(t, s.synchronousEvents.DrainUntil(func(ev event.Event) bool {
 		x, ok := ev.(engine.ForkchoiceUpdateEvent)
 		return ok && x.UnsafeL2Head == s.engine.UnsafeL2Head()
 	}, false))

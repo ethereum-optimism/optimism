@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -61,10 +61,10 @@ type StepSchedulingDeriver struct {
 
 	log log.Logger
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 }
 
-func NewStepSchedulingDeriver(log log.Logger, emitter rollup.EventEmitter) *StepSchedulingDeriver {
+func NewStepSchedulingDeriver(log log.Logger, emitter event.Emitter) *StepSchedulingDeriver {
 	return &StepSchedulingDeriver{
 		stepAttempts:   0,
 		bOffStrategy:   retry.Exponential(),
@@ -88,7 +88,7 @@ func (s *StepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
 	return s.delayedStepReq
 }
 
-func (s *StepSchedulingDeriver) OnEvent(ev rollup.Event) {
+func (s *StepSchedulingDeriver) OnEvent(ev event.Event) {
 	step := func() {
 		s.delayedStepReq = nil
 		select {
