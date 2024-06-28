@@ -194,7 +194,7 @@ func NewDriver(
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg, synchronousEvents)
 	engineResetDeriver := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, synchronousEvents)
 	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
 

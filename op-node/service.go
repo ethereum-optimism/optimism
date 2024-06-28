@@ -23,6 +23,7 @@ import (
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 )
@@ -269,9 +270,12 @@ func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
 	cfg := &sync.Config{
-		SyncMode:           mode,
-		SkipSyncStartCheck: ctx.Bool(flags.SkipSyncStartCheck.Name),
+		SyncMode:                       mode,
+		SkipSyncStartCheck:             ctx.Bool(flags.SkipSyncStartCheck.Name),
+		SupportsPostFinalizationELSync: engineKind.SupportsPostFinalizationELSync(),
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync

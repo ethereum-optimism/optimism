@@ -37,10 +37,7 @@ import (
 type L2Verifier struct {
 	log log.Logger
 
-	eng interface {
-		engine.Engine
-		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
-	}
+	eng L2API
 
 	syncStatus driver.SyncStatusTracker
 
@@ -100,7 +97,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	})
 
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
+	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg, synchronousEvents)
 	engineResetDeriver := engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg, synchronousEvents)
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
