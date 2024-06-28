@@ -59,7 +59,7 @@ get_log_results(){
     mv results.tar.gz "$RESULTS_LOG"
   else
     docker cp "$CONTAINER_NAME:/home/user/workspace/results.tar.gz" "$RESULTS_LOG"
-    tar -xzvf "$RESULTS_LOG"
+    tar -xzvf "$RESULTS_LOG" > /dev/null 2>&1
   fi
   if [ -f "$RESULTS_LOG" ]; then
     cp "$RESULTS_LOG" "$LOG_PATH/kontrol-results_latest.tar.gz"
