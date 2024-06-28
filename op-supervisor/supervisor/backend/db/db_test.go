@@ -881,11 +881,11 @@ type stubMetrics struct {
 	entriesReadForSearch int64
 }
 
-func (s *stubMetrics) RecordEntryCount(count int64) {
+func (s *stubMetrics) RecordDBEntryCount(count int64) {
 	s.entryCount = count
 }
 
-func (s *stubMetrics) RecordSearchEntriesRead(count int64) {
+func (s *stubMetrics) RecordDBSearchEntriesRead(count int64) {
 	s.entriesReadForSearch = count
 }
 
