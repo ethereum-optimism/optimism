@@ -242,7 +242,7 @@ contract DeputyGuardianModule_NoPortalCollisions_Test is DeputyGuardianModule_Te
         string[] memory excludes = new string[](2);
         excludes[0] = "src/L1/OptimismPortal2.sol";
         excludes[1] = "src/dispute/lib/*";
-        Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,universal}/", excludes);
+        Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,universal}", excludes);
         for (uint256 i; i < abis.length; i++) {
             for (uint256 j; j < abis[i].entries.length; j++) {
                 bytes4 sel = abis[i].entries[j].sel;

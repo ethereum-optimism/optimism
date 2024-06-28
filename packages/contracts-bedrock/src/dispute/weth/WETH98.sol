@@ -50,7 +50,7 @@ contract WETH98 is IWETH {
     }
 
     /// @inheritdoc IWETH
-    function deposit() public payable {
+    function deposit() public payable virtual {
         balanceOf[msg.sender] += msg.value;
         emit Deposit(msg.sender, msg.value);
     }
