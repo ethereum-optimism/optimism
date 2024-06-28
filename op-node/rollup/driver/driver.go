@@ -154,13 +154,13 @@ type SequencerStateListener interface {
 	SequencerStopped() error
 }
 
-// 1000 events per second is plenty.
+// 10,000 events per second is plenty.
 // If we are going through more events, the driver needs to breathe, and warn the user of a potential issue.
-const eventsLimit = rate.Limit(1000)
+const eventsLimit = rate.Limit(10_000)
 
-// 100 events of burst: the maximum amount of events to eat up
+// 500 events of burst: the maximum amount of events to eat up
 // past the rate limit before the rate limit becomes applicable.
-const eventsBurst = 100
+const eventsBurst = 500
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
 func NewDriver(
