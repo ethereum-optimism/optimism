@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 )
@@ -22,10 +23,10 @@ type EndCondition interface {
 type Driver struct {
 	logger log.Logger
 
-	events []rollup.Event
+	events []event.Event
 
 	end     EndCondition
-	deriver rollup.Deriver
+	deriver event.Deriver
 }
 
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
@@ -51,7 +52,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 		targetBlockNum: targetBlockNum,
 	}
 
-	d.deriver = &rollup.SynchronousDerivers{
+	d.deriver = &event.DeriverMux{
 		prog,
 		engineDeriv,
 		pipelineDeriver,
@@ -62,7 +63,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 	return d
 }
 
-func (d *Driver) Emit(ev rollup.Event) {
+func (d *Driver) Emit(ev event.Event) {
 	if d.end.Closing() {
 		return
 	}

@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -67,12 +68,12 @@ type PipelineDeriver struct {
 
 	ctx context.Context
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 
 	needAttributesConfirmation bool
 }
 
-func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitter rollup.EventEmitter) *PipelineDeriver {
+func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitter event.Emitter) *PipelineDeriver {
 	return &PipelineDeriver{
 		pipeline: pipeline,
 		ctx:      ctx,
@@ -80,7 +81,7 @@ func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitt
 	}
 }
 
-func (d *PipelineDeriver) OnEvent(ev rollup.Event) {
+func (d *PipelineDeriver) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		d.pipeline.Reset()

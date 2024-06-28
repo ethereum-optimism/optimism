@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -25,14 +26,14 @@ type CLSync struct {
 	cfg     *rollup.Config
 	metrics Metrics
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 
 	mu sync.Mutex
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 }
 
-func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, emitter rollup.EventEmitter) *CLSync {
+func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, emitter event.Emitter) *CLSync {
 	return &CLSync{
 		log:            log,
 		cfg:            cfg,
@@ -63,7 +64,7 @@ func (ev ReceivedUnsafePayloadEvent) String() string {
 	return "received-unsafe-payload"
 }
 
-func (eq *CLSync) OnEvent(ev rollup.Event) {
+func (eq *CLSync) OnEvent(ev event.Event) {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the payloads queue.
 	eq.mu.Lock()
 	defer eq.mu.Unlock()

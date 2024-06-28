@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
@@ -27,11 +28,11 @@ type EngineResetDeriver struct {
 	l2      sync.L2Chain
 	syncCfg *sync.Config
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 }
 
 func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Config,
-	l1 sync.L1Chain, l2 sync.L2Chain, syncCfg *sync.Config, emitter rollup.EventEmitter) *EngineResetDeriver {
+	l1 sync.L1Chain, l2 sync.L2Chain, syncCfg *sync.Config, emitter event.Emitter) *EngineResetDeriver {
 	return &EngineResetDeriver{
 		ctx:     ctx,
 		log:     log,
@@ -43,7 +44,7 @@ func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Conf
 	}
 }
 
-func (d *EngineResetDeriver) OnEvent(ev rollup.Event) {
+func (d *EngineResetDeriver) OnEvent(ev event.Event) {
 	switch ev.(type) {
 	case ResetEngineRequestEvent:
 		result, err := sync.FindL2Heads(d.ctx, d.cfg, d.l1, d.l2, d.log, d.syncCfg)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -46,6 +49,8 @@ type Metrics interface {
 	EngineMetrics
 	L1FetcherMetrics
 	SequencerMetrics
+	event.Metrics
+	RecordEventsRateLimited()
 }
 
 type L1Chain interface {
@@ -93,7 +98,7 @@ type AttributesHandler interface {
 
 type Finalizer interface {
 	FinalizedL1() eth.L1BlockRef
-	rollup.Deriver
+	event.Deriver
 }
 
 type PlasmaIface interface {
@@ -106,7 +111,7 @@ type PlasmaIface interface {
 }
 
 type SyncStatusTracker interface {
-	rollup.Deriver
+	event.Deriver
 	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
 }
@@ -149,6 +154,14 @@ type SequencerStateListener interface {
 	SequencerStopped() error
 }
 
+// 10,000 events per second is plenty.
+// If we are going through more events, the driver needs to breathe, and warn the user of a potential issue.
+const eventsLimit = rate.Limit(10_000)
+
+// 500 events of burst: the maximum amount of events to eat up
+// past the rate limit before the rate limit becomes applicable.
+const eventsBurst = 500
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
 func NewDriver(
 	driverCfg *Config,
@@ -167,8 +180,13 @@ func NewDriver(
 	plasma PlasmaIface,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
-	rootDeriver := &rollup.SynchronousDerivers{}
-	synchronousEvents := rollup.NewSynchronousEvents(log, driverCtx, rootDeriver)
+	rootDeriver := &event.DeriverMux{}
+	var synchronousEvents event.EmitterDrainer
+	synchronousEvents = event.NewQueue(log, driverCtx, rootDeriver, metrics)
+	synchronousEvents = event.NewLimiterDrainer(context.Background(), synchronousEvents, eventsLimit, eventsBurst, func() {
+		metrics.RecordEventsRateLimited()
+		log.Warn("Driver is hitting events rate limit.")
+	})
 
 	statusTracker := status.NewStatusTracker(log, metrics)
 
@@ -240,7 +258,7 @@ func NewDriver(
 		sequencerConductor: sequencerConductor,
 	}
 
-	*rootDeriver = []rollup.Deriver{
+	*rootDeriver = []event.Deriver{
 		syncDeriver,
 		engineResetDeriver,
 		engDeriv,
