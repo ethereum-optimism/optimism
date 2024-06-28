@@ -446,7 +446,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
             value: 100,
             gasLimit: 100_000,
             data: hex"aa" // includes calldata for ERC20 withdrawal test
-        });
+         });
         // Get withdrawal proof data we can use for testing.
         (_stateRoot, _storageRoot, _outputRoot, _withdrawalHash, _withdrawalProof) =
             ffi.getProveWithdrawalTransactionInputs(_defaultTx);
@@ -1516,6 +1516,7 @@ contract OptimismPortal2_ResourceFuzz_Test is CommonTest {
         });
     }
 }
+
 contract OptimismPortal2WithMockERC20_Test is OptimismPortal2_FinalizeWithdrawal_Test {
     MockERC20 token;
 
