@@ -155,11 +155,6 @@ func setupMonitorTest(
 ) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource, *stubPreimageScheduler, *mockScheduler) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	source := &stubGameSource{}
-	i := uint64(1)
-	fetchBlockNum := func(ctx context.Context) (uint64, error) {
-		i++
-		return i, nil
-	}
 	sched := &stubScheduler{}
 	preimages := &stubPreimageScheduler{}
 	mockHeadSource := &mockNewHeadSource{}
@@ -172,7 +167,6 @@ func setupMonitorTest(
 		preimages,
 		time.Duration(0),
 		stubClaimer,
-		fetchBlockNum,
 		allowedGames,
 		mockHeadSource,
 	)

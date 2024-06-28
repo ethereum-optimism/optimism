@@ -60,19 +60,26 @@ func (su *SupervisorService) initFromCLIConfig(ctx context.Context, cfg *config.
 	if err := su.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start Metrics server: %w", err)
 	}
-	su.initBackend(cfg)
+	if err := su.initBackend(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to start backend: %w", err)
+	}
 	if err := su.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to start RPC server: %w", err)
 	}
 	return nil
 }
 
-func (su *SupervisorService) initBackend(cfg *config.Config) {
+func (su *SupervisorService) initBackend(ctx context.Context, cfg *config.Config) error {
 	if cfg.MockRun {
 		su.backend = backend.NewMockBackend()
-	} else {
-		su.backend = backend.NewSupervisorBackend()
+		return nil
 	}
+	be, err := backend.NewSupervisorBackend(ctx, su.log, su.metrics, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create supervisor backend: %w", err)
+	}
+	su.backend = be
+	return nil
 }
 
 func (su *SupervisorService) initMetrics(cfg *config.Config) {
@@ -150,6 +157,10 @@ func (su *SupervisorService) Start(ctx context.Context) error {
 	su.log.Info("Starting JSON-RPC server")
 	if err := su.rpcServer.Start(); err != nil {
 		return fmt.Errorf("unable to start RPC server: %w", err)
+	}
+
+	if err := su.backend.Start(ctx); err != nil {
+		return fmt.Errorf("unable to start backend: %w", err)
 	}
 
 	su.metrics.RecordUp()

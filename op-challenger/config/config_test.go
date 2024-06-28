@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -32,8 +33,8 @@ var (
 	validAsteriscAbsolutPreStateBaseURL, _ = url.Parse("http://localhost/bar/")
 )
 
-var cannonTraceTypes = []TraceType{TraceTypeCannon, TraceTypePermissioned}
-var asteriscTraceTypes = []TraceType{TraceTypeAsterisc}
+var cannonTraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned}
+var asteriscTraceTypes = []types.TraceType{types.TraceTypeAsterisc}
 
 func applyValidConfigForCannon(cfg *Config) {
 	cfg.Cannon.VmBin = validCannonBin
@@ -49,12 +50,12 @@ func applyValidConfigForAsterisc(cfg *Config) {
 	cfg.Asterisc.Network = validAsteriscNetwork
 }
 
-func validConfig(traceType TraceType) Config {
+func validConfig(traceType types.TraceType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, traceType)
-	if traceType == TraceTypeCannon || traceType == TraceTypePermissioned {
+	if traceType == types.TraceTypeCannon || traceType == types.TraceTypePermissioned {
 		applyValidConfigForCannon(&cfg)
 	}
-	if traceType == TraceTypeAsterisc {
+	if traceType == types.TraceTypeAsterisc {
 		applyValidConfigForAsterisc(&cfg)
 	}
 	return cfg
@@ -62,7 +63,7 @@ func validConfig(traceType TraceType) Config {
 
 // TestValidConfigIsValid checks that the config provided by validConfig is actually valid
 func TestValidConfigIsValid(t *testing.T) {
-	for _, traceType := range TraceTypes {
+	for _, traceType := range types.TraceTypes {
 		traceType := traceType
 		t.Run(traceType.String(), func(t *testing.T) {
 			err := validConfig(traceType).Check()
@@ -73,38 +74,38 @@ func TestValidConfigIsValid(t *testing.T) {
 
 func TestTxMgrConfig(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
-		config := validConfig(TraceTypeCannon)
+		config := validConfig(types.TraceTypeCannon)
 		config.TxMgrConfig = txmgr.CLIConfig{}
 		require.Equal(t, config.Check().Error(), "must provide a L1 RPC url")
 	})
 }
 
 func TestL1EthRpcRequired(t *testing.T) {
-	config := validConfig(TraceTypeCannon)
+	config := validConfig(types.TraceTypeCannon)
 	config.L1EthRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingL1EthRPC)
 }
 
 func TestL1BeaconRequired(t *testing.T) {
-	config := validConfig(TraceTypeCannon)
+	config := validConfig(types.TraceTypeCannon)
 	config.L1Beacon = ""
 	require.ErrorIs(t, config.Check(), ErrMissingL1Beacon)
 }
 
 func TestGameFactoryAddressRequired(t *testing.T) {
-	config := validConfig(TraceTypeCannon)
+	config := validConfig(types.TraceTypeCannon)
 	config.GameFactoryAddress = common.Address{}
 	require.ErrorIs(t, config.Check(), ErrMissingGameFactoryAddress)
 }
 
 func TestSelectiveClaimResolutionNotRequired(t *testing.T) {
-	config := validConfig(TraceTypeCannon)
+	config := validConfig(types.TraceTypeCannon)
 	require.Equal(t, false, config.SelectiveClaimResolution)
 	require.NoError(t, config.Check())
 }
 
 func TestGameAllowlistNotRequired(t *testing.T) {
-	config := validConfig(TraceTypeCannon)
+	config := validConfig(types.TraceTypeCannon)
 	config.GameAllowlist = []common.Address{}
 	require.NoError(t, config.Check())
 }
@@ -322,33 +323,33 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 }
 
 func TestDatadirRequired(t *testing.T) {
-	config := validConfig(TraceTypeAlphabet)
+	config := validConfig(types.TraceTypeAlphabet)
 	config.Datadir = ""
 	require.ErrorIs(t, config.Check(), ErrMissingDatadir)
 }
 
 func TestMaxConcurrency(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		config := validConfig(TraceTypeAlphabet)
+		config := validConfig(types.TraceTypeAlphabet)
 		config.MaxConcurrency = 0
 		require.ErrorIs(t, config.Check(), ErrMaxConcurrencyZero)
 	})
 
 	t.Run("DefaultToNumberOfCPUs", func(t *testing.T) {
-		config := validConfig(TraceTypeAlphabet)
+		config := validConfig(types.TraceTypeAlphabet)
 		require.EqualValues(t, runtime.NumCPU(), config.MaxConcurrency)
 	})
 }
 
 func TestHttpPollInterval(t *testing.T) {
 	t.Run("Default", func(t *testing.T) {
-		config := validConfig(TraceTypeAlphabet)
+		config := validConfig(types.TraceTypeAlphabet)
 		require.EqualValues(t, DefaultPollInterval, config.PollInterval)
 	})
 }
 
 func TestRollupRpcRequired(t *testing.T) {
-	for _, traceType := range TraceTypes {
+	for _, traceType := range types.TraceTypes {
 		traceType := traceType
 		t.Run(traceType.String(), func(t *testing.T) {
 			config := validConfig(traceType)
@@ -359,8 +360,8 @@ func TestRollupRpcRequired(t *testing.T) {
 }
 
 func TestRequireConfigForMultipleTraceTypesForCannon(t *testing.T) {
-	cfg := validConfig(TraceTypeCannon)
-	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet}
+	cfg := validConfig(types.TraceTypeCannon)
+	cfg.TraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypeAlphabet}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())
@@ -377,8 +378,8 @@ func TestRequireConfigForMultipleTraceTypesForCannon(t *testing.T) {
 }
 
 func TestRequireConfigForMultipleTraceTypesForAsterisc(t *testing.T) {
-	cfg := validConfig(TraceTypeAsterisc)
-	cfg.TraceTypes = []TraceType{TraceTypeAsterisc, TraceTypeAlphabet}
+	cfg := validConfig(types.TraceTypeAsterisc)
+	cfg.TraceTypes = []types.TraceType{types.TraceTypeAsterisc, types.TraceTypeAlphabet}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())
@@ -395,10 +396,10 @@ func TestRequireConfigForMultipleTraceTypesForAsterisc(t *testing.T) {
 }
 
 func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
-	cfg := validConfig(TraceTypeCannon)
+	cfg := validConfig(types.TraceTypeCannon)
 	applyValidConfigForAsterisc(&cfg)
 
-	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAsterisc, TraceTypeAlphabet, TraceTypeFast}
+	cfg.TraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsterisc, types.TraceTypeAlphabet, types.TraceTypeFast}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())

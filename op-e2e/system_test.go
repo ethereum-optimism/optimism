@@ -765,7 +765,6 @@ func TestSystemP2PAltSync(t *testing.T) {
 
 	// set up our syncer node, connect it to alice/bob
 	cfg.Loggers["syncer"] = testlog.Logger(t, log.LevelInfo).New("role", "syncer")
-	snapLog := log.NewLogger(log.DiscardHandler())
 
 	// Create a peer, and hook up alice and bob
 	h, err := sys.newMockNetPeer()
@@ -803,7 +802,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 
 	configureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
 
-	syncerNode, err := rollupNode.New(ctx, syncNodeCfg, cfg.Loggers["syncer"], snapLog, "", metrics.NewMetrics(""))
+	syncerNode, err := rollupNode.New(ctx, syncNodeCfg, cfg.Loggers["syncer"], "", metrics.NewMetrics(""))
 	require.NoError(t, err)
 	err = syncerNode.Start(ctx)
 	require.NoError(t, err)

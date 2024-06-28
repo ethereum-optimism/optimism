@@ -10,9 +10,6 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/holiman/uint256"
-	"golang.org/x/exp/maps"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -794,42 +791,6 @@ func NewL1Deployments(path string) (*L1Deployments, error) {
 	}
 
 	return &deployments, nil
-}
-
-type ForgeAllocs struct {
-	Accounts types.GenesisAlloc
-}
-
-func (d *ForgeAllocs) Copy() *ForgeAllocs {
-	out := make(types.GenesisAlloc, len(d.Accounts))
-	maps.Copy(out, d.Accounts)
-	return &ForgeAllocs{Accounts: out}
-}
-
-func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
-	// forge, since integrating Alloy, likes to hex-encode everything.
-	type forgeAllocAccount struct {
-		Balance hexutil.U256                `json:"balance"`
-		Nonce   hexutil.Uint64              `json:"nonce"`
-		Code    hexutil.Bytes               `json:"code,omitempty"`
-		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
-	}
-	var allocs map[common.Address]forgeAllocAccount
-	if err := json.Unmarshal(b, &allocs); err != nil {
-		return err
-	}
-	d.Accounts = make(types.GenesisAlloc, len(allocs))
-	for addr, acc := range allocs {
-		acc := acc
-		d.Accounts[addr] = types.Account{
-			Code:       acc.Code,
-			Storage:    acc.Storage,
-			Balance:    (*uint256.Int)(&acc.Balance).ToBig(),
-			Nonce:      (uint64)(acc.Nonce),
-			PrivateKey: nil,
-		}
-	}
-	return nil
 }
 
 type MarshalableRPCBlockNumberOrHash rpc.BlockNumberOrHash

@@ -71,6 +71,7 @@ func (c canonicalHash) encode() entrydb.Entry {
 type initiatingEvent struct {
 	blockDiff       uint8
 	incrementLogIdx bool
+	hasExecMsg      bool
 	logHash         TruncatedHash
 }
 
@@ -83,11 +84,12 @@ func newInitiatingEventFromEntry(data entrydb.Entry) (initiatingEvent, error) {
 	return initiatingEvent{
 		blockDiff:       blockNumDiff,
 		incrementLogIdx: flags&eventFlagIncrementLogIdx != 0,
+		hasExecMsg:      flags&eventFlagHasExecutingMessage != 0,
 		logHash:         TruncatedHash(data[3:23]),
 	}, nil
 }
 
-func newInitiatingEvent(pre logContext, blockNum uint64, logIdx uint32, logHash TruncatedHash) (initiatingEvent, error) {
+func newInitiatingEvent(pre logContext, blockNum uint64, logIdx uint32, logHash TruncatedHash, hasExecMsg bool) (initiatingEvent, error) {
 	blockDiff := blockNum - pre.blockNum
 	if blockDiff > math.MaxUint8 {
 		// TODO(optimism#10857): Need to find a way to support this.
@@ -106,6 +108,7 @@ func newInitiatingEvent(pre logContext, blockNum uint64, logIdx uint32, logHash 
 	return initiatingEvent{
 		blockDiff:       uint8(blockDiff),
 		incrementLogIdx: logDiff > 0,
+		hasExecMsg:      hasExecMsg,
 		logHash:         logHash,
 	}, nil
 }
@@ -120,6 +123,9 @@ func (i initiatingEvent) encode() entrydb.Entry {
 	if i.incrementLogIdx {
 		// Set flag to indicate log idx needs to be incremented (ie we're not directly after a checkpoint)
 		flags = flags | eventFlagIncrementLogIdx
+	}
+	if i.hasExecMsg {
+		flags = flags | eventFlagHasExecutingMessage
 	}
 	data[2] = flags
 	copy(data[3:23], i.logHash[:])
@@ -138,4 +144,107 @@ func (i initiatingEvent) postContext(pre logContext) logContext {
 		post.logIdx++
 	}
 	return post
+}
+
+// preContext is the reverse of postContext and calculates the logContext required as input to get the specified post
+// context after applying this init event.
+func (i initiatingEvent) preContext(post logContext) logContext {
+	pre := post
+	pre.blockNum = post.blockNum - uint64(i.blockDiff)
+	if i.incrementLogIdx {
+		pre.logIdx--
+	}
+	return pre
+}
+
+type executingLink struct {
+	chain     uint32
+	blockNum  uint64
+	logIdx    uint32
+	timestamp uint64
+}
+
+func newExecutingLink(msg ExecutingMessage) (executingLink, error) {
+	if msg.LogIdx > 1<<24 {
+		return executingLink{}, fmt.Errorf("log idx is too large (%v)", msg.LogIdx)
+	}
+	return executingLink{
+		chain:     msg.Chain,
+		blockNum:  msg.BlockNum,
+		logIdx:    msg.LogIdx,
+		timestamp: msg.Timestamp,
+	}, nil
+}
+
+func newExecutingLinkFromEntry(data entrydb.Entry) (executingLink, error) {
+	if data[0] != typeExecutingLink {
+		return executingLink{}, fmt.Errorf("%w: attempting to decode executing link but was type %v", ErrDataCorruption, data[0])
+	}
+	timestamp := binary.LittleEndian.Uint64(data[16:24])
+	return executingLink{
+		chain:     binary.LittleEndian.Uint32(data[1:5]),
+		blockNum:  binary.LittleEndian.Uint64(data[5:13]),
+		logIdx:    uint32(data[13]) | uint32(data[14])<<8 | uint32(data[15])<<16,
+		timestamp: timestamp,
+	}, nil
+}
+
+// encode creates an executing link entry
+// type 3: "executing link" <type><chain: 4 bytes><blocknum: 8 bytes><event index: 3 bytes><uint64 timestamp: 8 bytes> = 24 bytes
+func (e executingLink) encode() entrydb.Entry {
+	var entry entrydb.Entry
+	entry[0] = typeExecutingLink
+	binary.LittleEndian.PutUint32(entry[1:5], e.chain)
+	binary.LittleEndian.PutUint64(entry[5:13], e.blockNum)
+
+	entry[13] = byte(e.logIdx)
+	entry[14] = byte(e.logIdx >> 8)
+	entry[15] = byte(e.logIdx >> 16)
+
+	binary.LittleEndian.PutUint64(entry[16:24], e.timestamp)
+	return entry
+}
+
+type executingCheck struct {
+	hash TruncatedHash
+}
+
+func newExecutingCheck(hash TruncatedHash) executingCheck {
+	return executingCheck{hash: hash}
+}
+
+func newExecutingCheckFromEntry(entry entrydb.Entry) (executingCheck, error) {
+	if entry[0] != typeExecutingCheck {
+		return executingCheck{}, fmt.Errorf("%w: attempting to decode executing check but was type %v", ErrDataCorruption, entry[0])
+	}
+	var hash TruncatedHash
+	copy(hash[:], entry[1:21])
+	return newExecutingCheck(hash), nil
+}
+
+// encode creates an executing check entry
+// type 4: "executing check" <type><event-hash: 20 bytes> = 21 bytes
+func (e executingCheck) encode() entrydb.Entry {
+	var entry entrydb.Entry
+	entry[0] = typeExecutingCheck
+	copy(entry[1:21], e.hash[:])
+	return entry
+}
+
+func newExecutingMessageFromEntries(linkEntry entrydb.Entry, checkEntry entrydb.Entry) (ExecutingMessage, error) {
+	link, err := newExecutingLinkFromEntry(linkEntry)
+	if err != nil {
+		return ExecutingMessage{}, fmt.Errorf("invalid executing link: %w", err)
+	}
+	check, err := newExecutingCheckFromEntry(checkEntry)
+	if err != nil {
+		return ExecutingMessage{}, fmt.Errorf("invalid executing check: %w", err)
+	}
+	return ExecutingMessage{
+		Chain:     link.chain,
+		BlockNum:  link.blockNum,
+		LogIdx:    link.logIdx,
+		Timestamp: link.timestamp,
+		Hash:      check.hash,
+	}, nil
 }
