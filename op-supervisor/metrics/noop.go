@@ -19,3 +19,6 @@ func (*noopMetrics) RecordUp()                 {}
 
 func (m *noopMetrics) CacheAdd(_ *big.Int, _ string, _ int, _ bool) {}
 func (m *noopMetrics) CacheGet(_ *big.Int, _ string, _ bool)        {}
+
+func (m *noopMetrics) RecordDBEntryCount(_ *big.Int, _ int64)        {}
+func (m *noopMetrics) RecordDBSearchEntriesRead(_ *big.Int, _ int64) {}
