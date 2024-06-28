@@ -78,12 +78,14 @@ func (s *HTTPServer) Stop(ctx context.Context) error {
 // If the function exits due to a ctx cancellation the listener is closed but active connections may remain,
 // a call to Close() can force-close any remaining active connections.
 func (s *HTTPServer) Shutdown(ctx context.Context) error {
+	defer s.closed.Store(true)
 	// closes the underlying listener too.
 	return s.srv.Shutdown(ctx)
 }
 
 // Close force-closes the HTTPServer, its listener, and all its active connections.
 func (s *HTTPServer) Close() error {
+	defer s.closed.Store(true)
 	// closes the underlying listener too
 	return s.srv.Close()
 }
