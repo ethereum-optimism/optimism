@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
@@ -22,7 +23,7 @@ import (
 )
 
 func TestSupervisorService(t *testing.T) {
-	cfg := &CLIConfig{
+	cfg := &config.Config{
 		Version: "",
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelError,
@@ -50,7 +51,7 @@ func TestSupervisorService(t *testing.T) {
 		MockRun: true,
 	}
 	logger := testlog.Logger(t, log.LevelError)
-	supervisor, err := SupervisorFromCLIConfig(context.Background(), cfg, logger)
+	supervisor, err := SupervisorFromConfig(context.Background(), cfg, logger)
 	require.NoError(t, err)
 	require.NoError(t, supervisor.Start(context.Background()), "start service")
 	// run some RPC tests against the service with the mock backend

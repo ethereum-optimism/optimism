@@ -3,7 +3,6 @@ package disputegame
 import (
 	"context"
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -19,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -578,20 +578,15 @@ func (g *OutputGameHelper) hasClaim(ctx context.Context, parentIdx int64, pos ty
 	return false
 }
 
-type ErrWithData interface {
-	ErrorData() interface{}
-}
-
 // StepFails attempts to call step and verifies that it fails with ValidStep()
 func (g *OutputGameHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool, stateData []byte, proof []byte) {
 	g.T.Logf("Attempting step against claim %v isAttack: %v", claimIdx, isAttack)
 	candidate, err := g.Game.StepTx(uint64(claimIdx), isAttack, stateData, proof)
 	g.Require.NoError(err, "Failed to create tx candidate")
 	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey, transactions.WithReceiptFail())
-	var errData ErrWithData
-	ok := errors.As(err, &errData)
-	g.Require.Truef(ok, "Error should provide ErrorData method: %v", err)
-	g.Require.Equal("0xfb4e40dd", errData.ErrorData(), "Revert reason should be abi encoded ValidStep()")
+	err = errutil.TryAddRevertReason(err)
+	g.Require.Error(err, "Transaction should fail")
+	g.Require.Contains(err.Error(), "0xfb4e40dd", "Revert reason should be abi encoded ValidStep()")
 }
 
 // ResolveClaim resolves a single subgame

@@ -453,18 +453,18 @@ func (oc *OpConductor) LeaderWithID(_ context.Context) *consensus.ServerInfo {
 }
 
 // AddServerAsVoter adds a server as a voter to the cluster.
-func (oc *OpConductor) AddServerAsVoter(_ context.Context, id string, addr string) error {
-	return oc.cons.AddVoter(id, addr)
+func (oc *OpConductor) AddServerAsVoter(_ context.Context, id string, addr string, version uint64) error {
+	return oc.cons.AddVoter(id, addr, version)
 }
 
 // AddServerAsNonvoter adds a server as a non-voter to the cluster. non-voter will not participate in leader election.
-func (oc *OpConductor) AddServerAsNonvoter(_ context.Context, id string, addr string) error {
-	return oc.cons.AddNonVoter(id, addr)
+func (oc *OpConductor) AddServerAsNonvoter(_ context.Context, id string, addr string, version uint64) error {
+	return oc.cons.AddNonVoter(id, addr, version)
 }
 
 // RemoveServer removes a server from the cluster.
-func (oc *OpConductor) RemoveServer(_ context.Context, id string) error {
-	return oc.cons.RemoveServer(id)
+func (oc *OpConductor) RemoveServer(_ context.Context, id string, version uint64) error {
+	return oc.cons.RemoveServer(id, version)
 }
 
 // TransferLeader transfers leadership to another server.
@@ -488,7 +488,7 @@ func (oc *OpConductor) SequencerHealthy(_ context.Context) bool {
 }
 
 // ClusterMembership returns current cluster's membership information.
-func (oc *OpConductor) ClusterMembership(_ context.Context) ([]*consensus.ServerInfo, error) {
+func (oc *OpConductor) ClusterMembership(_ context.Context) (*consensus.ClusterMembership, error) {
 	return oc.cons.ClusterMembership()
 }
 

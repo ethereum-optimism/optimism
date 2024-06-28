@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/tools"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -22,7 +22,7 @@ var (
 		Name:    "trace-type",
 		Usage:   "Trace types to support.",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "TRACE_TYPE"),
-		Value:   config.TraceTypeCannon.String(),
+		Value:   types.TraceTypeCannon.String(),
 	}
 	OutputRootFlag = &cli.StringFlag{
 		Name:    "output-root",

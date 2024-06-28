@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -14,7 +16,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -45,6 +49,8 @@ type Metrics interface {
 	EngineMetrics
 	L1FetcherMetrics
 	SequencerMetrics
+	event.Metrics
+	RecordEventsRateLimited()
 }
 
 type L1Chain interface {
@@ -91,9 +97,8 @@ type AttributesHandler interface {
 }
 
 type Finalizer interface {
-	Finalize(ctx context.Context, ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
-	engine.FinalizerHooks
+	event.Deriver
 }
 
 type PlasmaIface interface {
@@ -105,14 +110,10 @@ type PlasmaIface interface {
 	derive.PlasmaInputFetcher
 }
 
-type L1StateIface interface {
-	HandleNewL1HeadBlock(head eth.L1BlockRef)
-	HandleNewL1SafeBlock(safe eth.L1BlockRef)
-	HandleNewL1FinalizedBlock(finalized eth.L1BlockRef)
-
+type SyncStatusTracker interface {
+	event.Deriver
+	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
-	L1Safe() eth.L1BlockRef
-	L1Finalized() eth.L1BlockRef
 }
 
 type SequencerIface interface {
@@ -153,6 +154,14 @@ type SequencerStateListener interface {
 	SequencerStopped() error
 }
 
+// 10,000 events per second is plenty.
+// If we are going through more events, the driver needs to breathe, and warn the user of a potential issue.
+const eventsLimit = rate.Limit(10_000)
+
+// 500 events of burst: the maximum amount of events to eat up
+// past the rate limit before the rate limit becomes applicable.
+const eventsBurst = 500
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
 func NewDriver(
 	driverCfg *Config,
@@ -163,7 +172,6 @@ func NewDriver(
 	altSync AltSync,
 	network Network,
 	log log.Logger,
-	snapshotLog log.Logger,
 	metrics Metrics,
 	sequencerStateListener SequencerStateListener,
 	safeHeadListener rollup.SafeHeadListener,
@@ -172,53 +180,59 @@ func NewDriver(
 	plasma PlasmaIface,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
-	rootDeriver := &rollup.SynchronousDerivers{}
-	synchronousEvents := rollup.NewSynchronousEvents(log, driverCtx, rootDeriver)
+	rootDeriver := &event.DeriverMux{}
+	var synchronousEvents event.EmitterDrainer
+	synchronousEvents = event.NewQueue(log, driverCtx, rootDeriver, metrics)
+	synchronousEvents = event.NewLimiterDrainer(context.Background(), synchronousEvents, eventsLimit, eventsBurst, func() {
+		metrics.RecordEventsRateLimited()
+		log.Warn("Driver is hitting events rate limit.")
+	})
+
+	statusTracker := status.NewStatusTracker(log, metrics)
 
 	l1 = NewMeteredL1Fetcher(l1, metrics)
-	l1State := NewL1State(log, metrics)
-	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
+	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
-	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
+	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
 	engineResetDeriver := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, synchronousEvents)
 	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
 
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, ec, plasma)
+		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, synchronousEvents, plasma)
 	} else {
-		finalizer = finality.NewFinalizer(log, cfg, l1, ec)
+		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, synchronousEvents)
 	}
 
-	attributesHandler := attributes.NewAttributesHandler(log, cfg, ec, l2)
+	attributesHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, synchronousEvents)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
+	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline, synchronousEvents)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, ec, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 
 	syncDeriver := &SyncDeriver{
-		Derivation:        derivationPipeline,
-		Finalizer:         finalizer,
-		AttributesHandler: attributesHandler,
-		SafeHeadNotifs:    safeHeadListener,
-		CLSync:            clSync,
-		Engine:            ec,
-		SyncCfg:           syncCfg,
-		Config:            cfg,
-		L1:                l1,
-		L2:                l2,
-		Emitter:           synchronousEvents,
-		Log:               log,
-		Ctx:               driverCtx,
-		Drain:             synchronousEvents.Drain,
+		Derivation:     derivationPipeline,
+		Finalizer:      finalizer,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		L2:             l2,
+		Emitter:        synchronousEvents,
+		Log:            log,
+		Ctx:            driverCtx,
+		Drain:          synchronousEvents.Drain,
 	}
 	engDeriv := engine.NewEngDeriver(log, driverCtx, cfg, ec, synchronousEvents)
 	schedDeriv := NewStepSchedulingDeriver(log, synchronousEvents)
 
 	driver := &Driver{
-		l1State:            l1State,
+		statusTracker:      statusTracker,
 		SyncDeriver:        syncDeriver,
 		sched:              schedDeriv,
 		synchronousEvents:  synchronousEvents,
@@ -232,7 +246,6 @@ func NewDriver(
 		driverCtx:          driverCtx,
 		driverCancel:       driverCancel,
 		log:                log,
-		snapshotLog:        snapshotLog,
 		sequencer:          sequencer,
 		network:            network,
 		metrics:            metrics,
@@ -245,13 +258,17 @@ func NewDriver(
 		sequencerConductor: sequencerConductor,
 	}
 
-	*rootDeriver = []rollup.Deriver{
+	*rootDeriver = []event.Deriver{
 		syncDeriver,
 		engineResetDeriver,
 		engDeriv,
 		schedDeriv,
 		driver,
 		clSync,
+		pipelineDeriver,
+		attributesHandler,
+		finalizer,
+		statusTracker,
 	}
 
 	return driver

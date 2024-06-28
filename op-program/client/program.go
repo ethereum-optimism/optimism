@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -73,12 +72,8 @@ func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainCon
 
 	logger.Info("Starting derivation")
 	d := cldr.NewDriver(logger, cfg, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
-	for {
-		if err = d.Step(context.Background()); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return err
-		}
+	if err := d.RunComplete(); err != nil {
+		return fmt.Errorf("failed to run program to completion: %w", err)
 	}
 	return claim.ValidateClaim(logger, l2ClaimBlockNum, eth.Bytes32(l2Claim), l2Source)
 }

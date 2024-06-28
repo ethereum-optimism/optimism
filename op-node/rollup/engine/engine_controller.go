@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -54,7 +55,7 @@ type EngineController struct {
 	elStart    time.Time
 	clock      clock.Clock
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 
 	// Block Head State
 	unsafeHead       eth.L2BlockRef
@@ -78,7 +79,7 @@ type EngineController struct {
 }
 
 func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics,
-	rollupCfg *rollup.Config, syncMode sync.Mode, emitter rollup.EventEmitter) *EngineController {
+	rollupCfg *rollup.Config, syncMode sync.Mode, emitter event.Emitter) *EngineController {
 	syncStatus := syncStatusCL
 	if syncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
@@ -266,9 +267,6 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.IsLastInSpan
 	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor)
 	if err != nil {
-		if !errors.Is(err, derive.ErrTemporary) {
-			e.emitter.Emit(InvalidPayloadEvent{})
-		}
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingInfo.ID, errTyp, err)
 	}
 	ref, err := derive.PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)

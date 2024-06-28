@@ -259,20 +259,6 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 	}
 }
 
-func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
-	snapshotFile := ctx.String(flags.SnapshotLog.Name)
-	if snapshotFile == "" {
-		return log.NewLogger(log.DiscardHandler()), nil
-	}
-
-	sf, err := os.OpenFile(snapshotFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-	handler := log.JSONHandler(sf)
-	return log.NewLogger(handler), nil
-}
-
 func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
 	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) && ctx.IsSet(flags.SyncModeFlag.Name) {
 		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time")

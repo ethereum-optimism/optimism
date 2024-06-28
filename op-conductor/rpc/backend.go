@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -18,21 +19,21 @@ type conductor interface {
 
 	Leader(ctx context.Context) bool
 	LeaderWithID(ctx context.Context) *consensus.ServerInfo
-	AddServerAsVoter(ctx context.Context, id string, addr string) error
-	AddServerAsNonvoter(ctx context.Context, id string, addr string) error
-	RemoveServer(ctx context.Context, id string) error
+	AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error
+	AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error
+	RemoveServer(ctx context.Context, id string, version uint64) error
 	TransferLeader(ctx context.Context) error
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
-	ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error)
+	ClusterMembership(ctx context.Context) (*consensus.ClusterMembership, error)
 }
 
 // APIBackend is the backend implementation of the API.
 // TODO: (https://github.com/ethereum-optimism/protocol-quest/issues/45) Add metrics tracer here.
-// TODO: (https://github.com/ethereum-optimism/protocol-quest/issues/44) add tests after e2e setup.
 type APIBackend struct {
-	log log.Logger
-	con conductor
+	log            log.Logger
+	con            conductor
+	leaderOverride atomic.Bool
 }
 
 // NewAPIBackend creates a new APIBackend instance.
@@ -44,6 +45,12 @@ func NewAPIBackend(log log.Logger, con conductor) *APIBackend {
 }
 
 var _ API = (*APIBackend)(nil)
+
+// OverrideLeader implements API.
+func (api *APIBackend) OverrideLeader(ctx context.Context) error {
+	api.leaderOverride.Store(true)
+	return nil
+}
 
 // Paused implements API.
 func (api *APIBackend) Paused(ctx context.Context) (bool, error) {
@@ -61,13 +68,18 @@ func (api *APIBackend) Active(_ context.Context) (bool, error) {
 }
 
 // AddServerAsNonvoter implements API.
-func (api *APIBackend) AddServerAsNonvoter(ctx context.Context, id string, addr string) error {
-	return api.con.AddServerAsNonvoter(ctx, id, addr)
+func (api *APIBackend) AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error {
+	return api.con.AddServerAsNonvoter(ctx, id, addr, version)
 }
 
 // AddServerAsVoter implements API.
-func (api *APIBackend) AddServerAsVoter(ctx context.Context, id string, addr string) error {
-	return api.con.AddServerAsVoter(ctx, id, addr)
+func (api *APIBackend) AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error {
+	return api.con.AddServerAsVoter(ctx, id, addr, version)
+}
+
+// RemoveServer implements API.
+func (api *APIBackend) RemoveServer(ctx context.Context, id string, version uint64) error {
+	return api.con.RemoveServer(ctx, id, version)
 }
 
 // CommitUnsafePayload implements API.
@@ -77,22 +89,25 @@ func (api *APIBackend) CommitUnsafePayload(ctx context.Context, payload *eth.Exe
 
 // Leader implements API, returns true if current conductor is leader of the cluster.
 func (api *APIBackend) Leader(ctx context.Context) (bool, error) {
-	return api.con.Leader(ctx), nil
+	return api.leaderOverride.Load() || api.con.Leader(ctx), nil
 }
 
 // LeaderWithID implements API, returns the leader's server ID and address (not necessarily the current conductor).
 func (api *APIBackend) LeaderWithID(ctx context.Context) (*consensus.ServerInfo, error) {
+	if api.leaderOverride.Load() {
+		return &consensus.ServerInfo{
+			ID:       "N/A (Leader overridden)",
+			Addr:     "N/A",
+			Suffrage: 0,
+		}, nil
+	}
+
 	return api.con.LeaderWithID(ctx), nil
 }
 
 // Pause implements API.
 func (api *APIBackend) Pause(ctx context.Context) error {
 	return api.con.Pause(ctx)
-}
-
-// RemoveServer implements API.
-func (api *APIBackend) RemoveServer(ctx context.Context, id string) error {
-	return api.con.RemoveServer(ctx, id)
 }
 
 // Resume implements API.
@@ -118,6 +133,6 @@ func (api *APIBackend) SequencerHealthy(ctx context.Context) (bool, error) {
 }
 
 // ClusterMembership implements API.
-func (api *APIBackend) ClusterMembership(ctx context.Context) ([]*consensus.ServerInfo, error) {
+func (api *APIBackend) ClusterMembership(ctx context.Context) (*consensus.ClusterMembership, error) {
 	return api.con.ClusterMembership(ctx)
 }

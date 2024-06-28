@@ -25,13 +25,16 @@ contract Specification_Test is CommonTest {
         CHALLENGER,
         SYSTEMCONFIGOWNER,
         GUARDIAN,
+        DEPUTYGUARDIAN,
         MESSENGER,
         L1PROXYADMINOWNER,
         GOVERNANCETOKENOWNER,
         MINTMANAGEROWNER,
         DATAAVAILABILITYCHALLENGEOWNER,
         DISPUTEGAMEFACTORYOWNER,
-        DELAYEDWETHOWNER
+        DELAYEDWETHOWNER,
+        COUNCILSAFE,
+        COUNCILSAFEOWNER
     }
 
     /// @notice Represents the specification of a function.
@@ -47,6 +50,7 @@ contract Specification_Test is CommonTest {
     }
 
     mapping(string => mapping(bytes4 => Spec)) specs;
+    mapping(Role => Spec[]) public specsByRole;
     mapping(string => uint256) public numEntries;
     uint256 numSpecs;
 
@@ -776,6 +780,51 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "WETH98", _sel: _getSel("transfer(address,uint256)") });
         _addSpec({ _name: "WETH98", _sel: _getSel("transferFrom(address,address,uint256)") });
         _addSpec({ _name: "WETH98", _sel: _getSel("withdraw(uint256)") });
+
+        // DeputyGuardianModule
+        _addSpec({
+            _name: "DeputyGuardianModule",
+            _sel: _getSel("blacklistDisputeGame(address,address)"),
+            _auth: Role.DEPUTYGUARDIAN
+        });
+        _addSpec({
+            _name: "DeputyGuardianModule",
+            _sel: _getSel("setRespectedGameType(address,uint32)"),
+            _auth: Role.DEPUTYGUARDIAN
+        });
+        _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("pause()"), _auth: Role.DEPUTYGUARDIAN });
+        _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("unpause()"), _auth: Role.DEPUTYGUARDIAN });
+        _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("deputyGuardian()") });
+        _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("safe()") });
+        _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("superchainConfig()") });
+        _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("version()") });
+
+        // LivenessGuard
+        _addSpec({ _name: "LivenessGuard", _sel: _getSel("checkAfterExecution(bytes32,bool)"), _auth: Role.COUNCILSAFE });
+        _addSpec({
+            _name: "LivenessGuard",
+            _sel: _getSel(
+                "checkTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,address)"
+            ),
+            _auth: Role.COUNCILSAFE
+        });
+        _addSpec({ _name: "LivenessGuard", _sel: _getSel("lastLive(address)") });
+        _addSpec({ _name: "LivenessGuard", _sel: _getSel("safe()") });
+        _addSpec({ _name: "LivenessGuard", _sel: _getSel("showLiveness()"), _auth: Role.COUNCILSAFEOWNER });
+        _addSpec({ _name: "LivenessGuard", _sel: _getSel("version()") });
+
+        // LivenessModule
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("canRemove(address)") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("fallbackOwner()") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("getRequiredThreshold(uint256)") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("livenessGuard()") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("livenessInterval()") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("minOwners()") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("ownershipTransferredToFallback()") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("removeOwners(address[],address[])") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("safe()") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("thresholdPercentage()") });
+        _addSpec({ _name: "LivenessModule", _sel: _getSel("version()") });
     }
 
     /// @dev Computes the selector from a function signature.
@@ -785,8 +834,10 @@ contract Specification_Test is CommonTest {
 
     /// @dev Adds a spec for a function.
     function _addSpec(string memory _name, bytes4 _sel, Role _auth, bool _pausable) internal {
-        specs[_name][_sel] = Spec({ name: _name, sel: _sel, auth: _auth, pausable: _pausable });
+        Spec memory spec = Spec({ name: _name, sel: _sel, auth: _auth, pausable: _pausable });
+        specs[_name][_sel] = spec;
         numEntries[_name]++;
+        specsByRole[_auth].push(spec);
         numSpecs++;
     }
 
@@ -807,11 +858,13 @@ contract Specification_Test is CommonTest {
 
     /// @notice Ensures that there's an auth spec for every L1 contract function.
     function testContractAuth() public {
-        string[] memory pathExcludes = new string[](2);
+        string[] memory pathExcludes = new string[](3);
         pathExcludes[0] = "src/dispute/interfaces/*";
         pathExcludes[1] = "src/dispute/lib/*";
-        Abi[] memory abis =
-            ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,governance,universal/ProxyAdmin.sol}", pathExcludes);
+        pathExcludes[2] = "src/Safe/SafeSigners.sol";
+        Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis(
+            "src/{L1,dispute,governance,Safe,universal/ProxyAdmin.sol}", pathExcludes
+        );
 
         uint256 numCheckedEntries = 0;
         for (uint256 i = 0; i < abis.length; i++) {
@@ -843,5 +896,34 @@ contract Specification_Test is CommonTest {
             }
         }
         assertEq(numSpecs, numCheckedEntries, "Some specs were not checked");
+    }
+
+    /// @dev Asserts that two roles are equal by comparing their uint256 representations.
+    function _assertRolesEq(Role leftRole, Role rightRole) internal pure {
+        assertEq(uint256(leftRole), uint256(rightRole));
+    }
+
+    /// @notice Ensures that the DeputyGuardian is authorized to take all Guardian actions.
+    function testDeputyGuardianAuth() public view {
+        assertEq(specsByRole[Role.DEPUTYGUARDIAN].length, specsByRole[Role.GUARDIAN].length);
+        assertEq(specsByRole[Role.DEPUTYGUARDIAN].length, 4);
+
+        mapping(bytes4 => Spec) storage dgmFuncSpecs = specs["DeputyGuardianModule"];
+        mapping(bytes4 => Spec) storage superchainConfigFuncSpecs = specs["SuperchainConfig"];
+        mapping(bytes4 => Spec) storage portal2FuncSpecs = specs["OptimismPortal2"];
+
+        // Ensure that for each of the DeputyGuardianModule's methods there is a corresponding method on another
+        // system contract authed to the Guardian role.
+        _assertRolesEq(dgmFuncSpecs[_getSel("pause()")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(superchainConfigFuncSpecs[_getSel("pause(string)")].auth, Role.GUARDIAN);
+
+        _assertRolesEq(dgmFuncSpecs[_getSel("unpause()")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(superchainConfigFuncSpecs[_getSel("unpause()")].auth, Role.GUARDIAN);
+
+        _assertRolesEq(dgmFuncSpecs[_getSel("blacklistDisputeGame(address,address)")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(portal2FuncSpecs[_getSel("blacklistDisputeGame(address)")].auth, Role.GUARDIAN);
+
+        _assertRolesEq(dgmFuncSpecs[_getSel("setRespectedGameType(address,uint32)")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(portal2FuncSpecs[_getSel("setRespectedGameType(uint32)")].auth, Role.GUARDIAN);
     }
 }

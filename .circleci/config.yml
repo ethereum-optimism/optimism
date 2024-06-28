@@ -427,11 +427,13 @@ jobs:
                   ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
       - when:
           condition:
-            and:
-              - or:
+            or:
+              - and:
                 - "<<parameters.publish>>"
                 - "<<parameters.release>>"
-              - equal: [develop, << pipeline.git.branch >>]
+              - and:
+                - "<<parameters.publish>>"
+                - equal: [develop, << pipeline.git.branch >>]
           steps:
             - gcp-oidc-authenticate:
                 service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
@@ -1629,6 +1631,10 @@ workflows:
           name: op-service-tests
           module: op-service
           requires: ["go-mod-download"]
+      - go-test:
+          name: op-supervisor-tests
+          module: op-supervisor
+          requires: ["go-mod-download"]
       - go-e2e-test:
           name: op-e2e-HTTP-tests<< matrix.variant >>
           matrix:
@@ -1684,10 +1690,12 @@ workflows:
             - op-program-tests
             - op-program-compat
             - op-service-tests
+            - op-supervisor-tests
             - op-service-rethdb-tests
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
+            - op-e2e-action-tests-plasma
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
@@ -1733,6 +1741,11 @@ workflows:
           docker_name: da-server
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           save_image_tag: <<pipeline.git.revision>> # for devnet later
+      - docker-build:
+          name: op-supervisor-docker-build
+          docker_name: op-supervisor
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          # op-supervisor is not (yet) part of the devnet, we don't save it
       - cannon-prestate:
           requires:
             - go-mod-download
@@ -1949,6 +1962,26 @@ workflows:
           requires:
             - hold
       - docker-build:
+          name: op-supervisor-docker-release
+          filters:
+            tags:
+              only: /^op-supervisor\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: op-supervisor
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['hold']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-supervisor-cross-platform
+          op_component: op-supervisor
+          requires:
+            - op-supervisor-docker-release
+      - docker-build:
           name: chain-mon-docker-release
           filters:
             tags:
@@ -2128,6 +2161,15 @@ workflows:
       - docker-build:
           name: op-heartbeat-docker-publish
           docker_name: op-heartbeat
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          context:
+            - oplabs-gcr
+            - slack
+      - docker-build:
+          name: op-supervisor-docker-publish
+          docker_name: op-supervisor
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
           publish: true

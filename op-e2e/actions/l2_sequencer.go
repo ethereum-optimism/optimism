@@ -4,16 +4,19 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -47,7 +50,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
 	ver := NewL2Verifier(t, log, l1, blobSrc, plasmaSrc, eng, cfg, &sync.Config{}, safedb.Disabled)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
-	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.l1State.L1Head, l1)
+	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.syncStatus.L1Head, l1)
 	l1OriginSelector := &MockL1OriginSelector{
 		actual: driver.NewL1OriginSelector(log, cfg, seqConfDepthL1),
 	}
@@ -103,7 +106,16 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	// For advanced tests we can catch those and print a warning instead.
 	require.NoError(t, err)
 
-	// TODO: action-test publishing of payload on p2p
+	// After having built a L2 block, make sure to get an engine update processed.
+	// This will ensure the sync-status and such reflect the latest changes.
+	s.synchronousEvents.Emit(engine.TryUpdateEngineEvent{})
+	s.synchronousEvents.Emit(engine.ForkchoiceRequestEvent{})
+	require.NoError(t, s.synchronousEvents.DrainUntil(func(ev event.Event) bool {
+		x, ok := ev.(engine.ForkchoiceUpdateEvent)
+		return ok && x.UnsafeL2Head == s.engine.UnsafeL2Head()
+	}, false))
+	require.Equal(t, s.engine.UnsafeL2Head(), s.syncStatus.SyncStatus().UnsafeL2,
+		"sync status must be accurate after block building")
 }
 
 // ActL2KeepL1Origin makes the sequencer use the current L1 origin, even if the next origin is available.
@@ -117,7 +129,7 @@ func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
 
 // ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
 func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
-	for s.engine.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+	for s.engine.UnsafeL2Head().L1Origin.Number < s.syncStatus.L1Head().Number {
 		s.ActL2PipelineFull(t)
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
@@ -126,7 +138,7 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 
 // ActBuildToL1HeadUnsafe builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
 func (s *L2Sequencer) ActBuildToL1HeadUnsafe(t Testing) {
-	for s.engine.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+	for s.engine.UnsafeL2Head().L1Origin.Number < s.syncStatus.L1Head().Number {
 		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
@@ -139,7 +151,7 @@ func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 		s.ActL2PipelineFull(t)
 		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.engine.UnsafeL2Head())
 		require.NoError(t, err)
-		if nextOrigin.Number >= s.l1State.L1Head().Number {
+		if nextOrigin.Number >= s.syncStatus.L1Head().Number {
 			break
 		}
 		s.ActL2StartBlock(t)
@@ -153,7 +165,7 @@ func (s *L2Sequencer) ActBuildToL1HeadExclUnsafe(t Testing) {
 		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
 		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.engine.UnsafeL2Head())
 		require.NoError(t, err)
-		if nextOrigin.Number >= s.l1State.L1Head().Number {
+		if nextOrigin.Number >= s.syncStatus.L1Head().Number {
 			break
 		}
 		s.ActL2StartBlock(t)
