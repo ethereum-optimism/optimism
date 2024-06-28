@@ -353,6 +353,8 @@ func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) 
 	for l1head <= blockNum {
 		l.Log.Debug("Waiting for l1 head > l1blocknum1+1", "l1head", l1head, "l1blocknum", blockNum)
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-ticker.C:
 			l1head, err = l.Txmgr.BlockNumber(ctx)
 			if err != nil {
@@ -456,6 +458,8 @@ func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
 	defer ticker.Stop()
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
 			output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
 			if err != nil || !shouldPropose {
@@ -474,6 +478,8 @@ func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 	defer ticker.Stop()
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
 			blockNumber, err := l.FetchCurrentBlockNumber(ctx)
 			if err != nil {
