@@ -13,8 +13,6 @@ import concurrent.futures
 from collections import namedtuple
 
 
-import devnet.log_setup
-
 pjoin = os.path.join
 
 parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
