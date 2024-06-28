@@ -50,6 +50,7 @@ type Metrics interface {
 	L1FetcherMetrics
 	SequencerMetrics
 	event.Metrics
+	RecordEventsRateLimited()
 }
 
 type L1Chain interface {
@@ -183,6 +184,7 @@ func NewDriver(
 	var synchronousEvents event.EmitterDrainer
 	synchronousEvents = event.NewQueue(log, driverCtx, rootDeriver, metrics)
 	synchronousEvents = event.NewLimiterDrainer(context.Background(), synchronousEvents, eventsLimit, eventsBurst, func() {
+		metrics.RecordEventsRateLimited()
 		log.Warn("Driver is hitting events rate limit.")
 	})
 

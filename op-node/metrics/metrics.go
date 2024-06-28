@@ -41,6 +41,7 @@ type Metricer interface {
 	RecordDerivationError()
 	RecordEmittedEvent(name string)
 	RecordProcessedEvent(name string)
+	RecordEventsRateLimited()
 	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	RecordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash)
 	RecordL1Ref(name string, ref eth.L1BlockRef)
@@ -96,6 +97,8 @@ type Metrics struct {
 
 	EmittedEvents   *prometheus.CounterVec
 	ProcessedEvents *prometheus.CounterVec
+
+	EventsRateLimited *metrics.Event
 
 	DerivedBatches metrics.EventVec
 
@@ -215,6 +218,8 @@ func NewMetrics(procName string) *Metrics {
 				Name:      "processed",
 				Help:      "number of processed events",
 			}, []string{"event_type"}),
+
+		EventsRateLimited: metrics.NewEvent(factory, ns, "events", "rate_limited", "events rate limiter hits"),
 
 		DerivedBatches: metrics.NewEventVec(factory, ns, "", "derived_batches", "derived batches", []string{"type"}),
 
@@ -470,6 +475,10 @@ func (m *Metrics) RecordProcessedEvent(name string) {
 	m.ProcessedEvents.WithLabelValues(name).Inc()
 }
 
+func (m *Metrics) RecordEventsRateLimited() {
+	m.EventsRateLimited.Record()
+}
+
 func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
@@ -675,6 +684,9 @@ func (n *noopMetricer) RecordEmittedEvent(name string) {
 }
 
 func (n *noopMetricer) RecordProcessedEvent(name string) {
+}
+
+func (n *noopMetricer) RecordEventsRateLimited() {
 }
 
 func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
