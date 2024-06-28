@@ -39,6 +39,9 @@ type Metricer interface {
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
+	RecordEmittedEvent(name string)
+	RecordProcessedEvent(name string)
+	RecordEventsRateLimited()
 	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	RecordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash)
 	RecordL1Ref(name string, ref eth.L1BlockRef)
@@ -91,6 +94,11 @@ type Metrics struct {
 	DerivationErrors *metrics.Event
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
+
+	EmittedEvents   *prometheus.CounterVec
+	ProcessedEvents *prometheus.CounterVec
+
+	EventsRateLimited *metrics.Event
 
 	DerivedBatches metrics.EventVec
 
@@ -194,6 +202,24 @@ func NewMetrics(procName string) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
+
+		EmittedEvents: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: ns,
+				Subsystem: "events",
+				Name:      "emitted",
+				Help:      "number of emitted events",
+			}, []string{"event_type"}),
+
+		ProcessedEvents: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: ns,
+				Subsystem: "events",
+				Name:      "processed",
+				Help:      "number of processed events",
+			}, []string{"event_type"}),
+
+		EventsRateLimited: metrics.NewEvent(factory, ns, "events", "rate_limited", "events rate limiter hits"),
 
 		DerivedBatches: metrics.NewEventVec(factory, ns, "", "derived_batches", "derived batches", []string{"type"}),
 
@@ -441,6 +467,18 @@ func (m *Metrics) RecordPublishingError() {
 	m.PublishingErrors.Record()
 }
 
+func (m *Metrics) RecordEmittedEvent(name string) {
+	m.EmittedEvents.WithLabelValues(name).Inc()
+}
+
+func (m *Metrics) RecordProcessedEvent(name string) {
+	m.ProcessedEvents.WithLabelValues(name).Inc()
+}
+
+func (m *Metrics) RecordEventsRateLimited() {
+	m.EventsRateLimited.Record()
+}
+
 func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
@@ -640,6 +678,15 @@ func (n *noopMetricer) RecordPublishingError() {
 }
 
 func (n *noopMetricer) RecordDerivationError() {
+}
+
+func (n *noopMetricer) RecordEmittedEvent(name string) {
+}
+
+func (n *noopMetricer) RecordProcessedEvent(name string) {
+}
+
+func (n *noopMetricer) RecordEventsRateLimited() {
 }
 
 func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {

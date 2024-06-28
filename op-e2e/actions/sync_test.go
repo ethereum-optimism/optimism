@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	engine2 "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -141,7 +142,8 @@ func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	verifier.ActL2PipelineFull(t)
 
 	// Verify the verifier finalized something new
-	require.Less(t, verifierStartStatus.FinalizedL2.Number, verifier.SyncStatus().FinalizedL2.Number, "verifier finalized L2 blocks during sync")
+	result := verifier.SyncStatus()
+	require.Less(t, verifierStartStatus.FinalizedL2.Number, result.FinalizedL2.Number, "verifier finalized L2 blocks during sync")
 }
 
 // TestUnsafeSync tests that a verifier properly imports unsafe blocks via gossip.
@@ -446,10 +448,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// NextAttributes is called
-	sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
-		_, ok := ev.(engine2.ProcessAttributesEvent)
-		return ok
-	}, 100, true)
+	sequencer.ActL2EventsUntil(t, event.Is[engine2.ProcessAttributesEvent], 100, true)
 	// mock forkChoiceUpdate error while restoring previous unsafe chain using backupUnsafe.
 	seqEng.ActL2RPCFail(t, eth.InputError{Inner: errors.New("mock L2 RPC error"), Code: eth.InvalidForkchoiceState})
 
@@ -582,20 +581,14 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// wait till attributes processing (excl.) before mocking errors
-	sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
-		_, ok := ev.(engine2.ProcessAttributesEvent)
-		return ok
-	}, 100, true)
+	sequencer.ActL2EventsUntil(t, event.Is[engine2.ProcessAttributesEvent], 100, true)
 
 	serverErrCnt := 2
 	for i := 0; i < serverErrCnt; i++ {
 		// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
 		seqEng.ActL2RPCFail(t, gethengine.GenericServerError)
 		// TryBackupUnsafeReorg is called - forkChoiceUpdate returns GenericServerError so retry
-		sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
-			_, ok := ev.(rollup.EngineTemporaryErrorEvent)
-			return ok
-		}, 100, false)
+		sequencer.ActL2EventsUntil(t, event.Is[rollup.EngineTemporaryErrorEvent], 100, false)
 		// backupUnsafeHead not emptied yet
 		require.Equal(t, targetUnsafeHeadHash, sequencer.L2BackupUnsafe().Hash)
 	}
@@ -1033,11 +1026,8 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
 		// wait for next pending block
-		verifier.ActL2EventsUntil(t, func(ev rollup.Event) bool {
-			_, pending := ev.(engine2.PendingSafeUpdateEvent)
-			_, idle := ev.(derive.DeriverIdleEvent)
-			return pending || idle
-		}, 1000, false)
+		verifier.ActL2EventsUntil(t, event.Any(
+			event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent]), 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
@@ -1085,11 +1075,8 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
 		// wait for next pending block
-		verifier.ActL2EventsUntil(t, func(ev rollup.Event) bool {
-			_, pending := ev.(engine2.PendingSafeUpdateEvent)
-			_, idle := ev.(derive.DeriverIdleEvent)
-			return pending || idle
-		}, 1000, false)
+		verifier.ActL2EventsUntil(t, event.Any(
+			event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent]), 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))

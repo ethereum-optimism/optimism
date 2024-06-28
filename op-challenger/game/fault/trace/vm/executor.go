@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -19,7 +20,7 @@ type Metricer interface {
 }
 
 type Config struct {
-	VmType           string
+	VmType           types.TraceType
 	L1               string
 	L1Beacon         string
 	L2               string
@@ -121,6 +122,6 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	e.logger.Info("Generating trace", "proof", end, "cmd", e.cfg.VmBin, "args", strings.Join(args, ", "))
 	execStart := time.Now()
 	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cfg.VmBin, args...)
-	e.metrics.RecordVmExecutionTime(e.cfg.VmType, time.Since(execStart))
+	e.metrics.RecordVmExecutionTime(e.cfg.VmType.String(), time.Since(execStart))
 	return err
 }

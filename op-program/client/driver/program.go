@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 )
 
 // ProgramDeriver expresses how engine and derivation events are
@@ -17,7 +18,7 @@ import (
 type ProgramDeriver struct {
 	logger log.Logger
 
-	Emitter rollup.EventEmitter
+	Emitter event.Emitter
 
 	closing        bool
 	result         error
@@ -32,7 +33,7 @@ func (d *ProgramDeriver) Result() error {
 	return d.result
 }
 
-func (d *ProgramDeriver) OnEvent(ev rollup.Event) {
+func (d *ProgramDeriver) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case engine.EngineResetConfirmedEvent:
 		d.Emitter.Emit(derive.ConfirmPipelineResetEvent{})

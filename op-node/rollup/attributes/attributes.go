@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -31,12 +32,12 @@ type AttributesHandler struct {
 
 	mu sync.Mutex
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 
 	attributes *derive.AttributesWithParent
 }
 
-func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, emitter rollup.EventEmitter) *AttributesHandler {
+func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, emitter event.Emitter) *AttributesHandler {
 	return &AttributesHandler{
 		log:        log,
 		cfg:        cfg,
@@ -47,7 +48,7 @@ func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Contex
 	}
 }
 
-func (eq *AttributesHandler) OnEvent(ev rollup.Event) {
+func (eq *AttributesHandler) OnEvent(ev event.Event) {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the attributes.
 	eq.mu.Lock()
 	defer eq.mu.Unlock()

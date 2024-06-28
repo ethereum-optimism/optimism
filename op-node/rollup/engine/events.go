@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -148,13 +149,13 @@ type EngDeriver struct {
 	cfg     *rollup.Config
 	ec      *EngineController
 	ctx     context.Context
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 }
 
-var _ rollup.Deriver = (*EngDeriver)(nil)
+var _ event.Deriver = (*EngDeriver)(nil)
 
 func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
-	ec *EngineController, emitter rollup.EventEmitter) *EngDeriver {
+	ec *EngineController, emitter event.Emitter) *EngDeriver {
 	return &EngDeriver{
 		log:     log,
 		cfg:     cfg,
@@ -164,7 +165,7 @@ func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
 	}
 }
 
-func (d *EngDeriver) OnEvent(ev rollup.Event) {
+func (d *EngDeriver) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case TryBackupUnsafeReorgEvent:
 		// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
@@ -265,6 +266,8 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 			return
 		}
 		d.ec.SetFinalizedHead(x.Ref)
+		// Try to apply the forkchoice changes
+		d.emitter.Emit(TryUpdateEngineEvent{})
 	}
 }
 

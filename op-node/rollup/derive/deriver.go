@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -15,6 +16,14 @@ type DeriverIdleEvent struct {
 
 func (d DeriverIdleEvent) String() string {
 	return "derivation-idle"
+}
+
+type DeriverL1StatusEvent struct {
+	Origin eth.L1BlockRef
+}
+
+func (d DeriverL1StatusEvent) String() string {
+	return "deriver-l1-status"
 }
 
 type DeriverMoreEvent struct{}
@@ -59,12 +68,12 @@ type PipelineDeriver struct {
 
 	ctx context.Context
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 
 	needAttributesConfirmation bool
 }
 
-func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitter rollup.EventEmitter) *PipelineDeriver {
+func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitter event.Emitter) *PipelineDeriver {
 	return &PipelineDeriver{
 		pipeline: pipeline,
 		ctx:      ctx,
@@ -72,7 +81,7 @@ func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitt
 	}
 }
 
-func (d *PipelineDeriver) OnEvent(ev rollup.Event) {
+func (d *PipelineDeriver) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		d.pipeline.Reset()
@@ -83,7 +92,12 @@ func (d *PipelineDeriver) OnEvent(ev rollup.Event) {
 			return
 		}
 		d.pipeline.log.Trace("Derivation pipeline step", "onto_origin", d.pipeline.Origin())
+		preOrigin := d.pipeline.Origin()
 		attrib, err := d.pipeline.Step(d.ctx, x.PendingSafe)
+		postOrigin := d.pipeline.Origin()
+		if preOrigin != postOrigin {
+			d.emitter.Emit(DeriverL1StatusEvent{Origin: postOrigin})
+		}
 		if err == io.EOF {
 			d.pipeline.log.Debug("Derivation process went idle", "progress", d.pipeline.Origin(), "err", err)
 			d.emitter.Emit(DeriverIdleEvent{Origin: d.pipeline.Origin()})

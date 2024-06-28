@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 /// @title SafeCall
 /// @notice Perform low level safe calls
@@ -57,6 +57,14 @@ library SafeCall {
                     0 // outlen
                 )
         }
+    }
+
+    /// @notice Perform a low level call without copying any returndata
+    /// @param _target   Address to call
+    /// @param _value    Amount of value to pass to the call
+    /// @param _calldata Calldata to pass to the call
+    function call(address _target, uint256 _value, bytes memory _calldata) internal returns (bool success_) {
+        success_ = call({ _target: _target, _gas: gasleft(), _value: _value, _calldata: _calldata });
     }
 
     /// @notice Helper function to determine if there is sufficient gas remaining within the context

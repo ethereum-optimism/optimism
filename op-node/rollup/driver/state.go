@@ -3,7 +3,6 @@ package driver
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	gosync "sync"
@@ -18,7 +17,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -35,13 +36,13 @@ type SyncStatus = eth.SyncStatus
 const sealingDuration = time.Millisecond * 50
 
 type Driver struct {
-	l1State L1StateIface
+	statusTracker SyncStatusTracker
 
 	*SyncDeriver
 
 	sched *StepSchedulingDeriver
 
-	synchronousEvents *rollup.SynchronousEvents
+	synchronousEvents event.EmitterDrainer
 
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
@@ -95,9 +96,8 @@ type Driver struct {
 	sequencer SequencerIface
 	network   Network // may be nil, network for is optional
 
-	metrics     Metrics
-	log         log.Logger
-	snapshotLog log.Logger
+	metrics Metrics
+	log     log.Logger
 
 	wg gosync.WaitGroup
 
@@ -233,7 +233,7 @@ func (s *Driver) eventLoop() {
 		// This may adjust at any time based on fork-choice changes or previous errors.
 		// And avoid sequencing if the derivation pipeline indicates the engine is not ready.
 		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped &&
-			s.l1State.L1Head() != (eth.L1BlockRef{}) && s.Derivation.DerivationReady() {
+			s.statusTracker.L1Head() != (eth.L1BlockRef{}) && s.Derivation.DerivationReady() {
 			if s.driverConfig.SequencerMaxSafeLag > 0 && s.Engine.SafeL2Head().Number+s.driverConfig.SequencerMaxSafeLag <= s.Engine.UnsafeL2Head().Number {
 				// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
 				// until the safe lag is below SequencerMaxSafeLag.
@@ -284,7 +284,6 @@ func (s *Driver) eventLoop() {
 				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
 			}
 		case envelope := <-s.unsafeL2Payloads:
-			s.snapshot("New unsafe payload")
 			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 			if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
@@ -306,13 +305,12 @@ func (s *Driver) eventLoop() {
 				}
 			}
 		case newL1Head := <-s.l1HeadSig:
-			s.l1State.HandleNewL1HeadBlock(newL1Head)
+			s.Emitter.Emit(status.L1UnsafeEvent{L1Unsafe: newL1Head})
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case newL1Safe := <-s.l1SafeSig:
-			s.l1State.HandleNewL1SafeBlock(newL1Safe)
+			s.Emitter.Emit(status.L1SafeEvent{L1Safe: newL1Safe})
 			// no step, justified L1 information does not do anything for L2 derivation or status
 		case newL1Finalized := <-s.l1FinalizedSig:
-			s.l1State.HandleNewL1FinalizedBlock(newL1Finalized)
 			s.Emit(finality.FinalizeL1Event{FinalizedL1: newL1Finalized})
 			reqStep() // we may be able to mark more L2 data as finalized now
 		case <-s.sched.NextDelayedStep():
@@ -368,7 +366,7 @@ func (s *Driver) eventLoop() {
 // OnEvent handles broadcasted events.
 // The Driver itself is a deriver to catch system-critical events.
 // Other event-handling should be encapsulated into standalone derivers.
-func (s *Driver) OnEvent(ev rollup.Event) {
+func (s *Driver) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case rollup.CriticalErrorEvent:
 		s.Log.Error("Derivation process critical error", "err", x.Err)
@@ -384,7 +382,7 @@ func (s *Driver) OnEvent(ev rollup.Event) {
 	}
 }
 
-func (s *Driver) Emit(ev rollup.Event) {
+func (s *Driver) Emit(ev event.Event) {
 	s.synchronousEvents.Emit(ev)
 }
 
@@ -411,7 +409,7 @@ type SyncDeriver struct {
 	L1 L1Chain
 	L2 L2Chain
 
-	Emitter rollup.EventEmitter
+	Emitter event.Emitter
 
 	Log log.Logger
 
@@ -420,7 +418,7 @@ type SyncDeriver struct {
 	Drain func() error
 }
 
-func (s *SyncDeriver) OnEvent(ev rollup.Event) {
+func (s *SyncDeriver) OnEvent(ev event.Event) {
 	switch x := ev.(type) {
 	case StepEvent:
 		s.onStepEvent()
@@ -511,7 +509,8 @@ func (s *SyncDeriver) onStepEvent() {
 		s.Log.Error("Derivation process error", "err", err)
 		s.Emitter.Emit(StepReqEvent{})
 	} else {
-		s.Emitter.Emit(StepReqEvent{ResetBackoff: true}) // continue with the next step if we can
+		// Revisit SyncStep in 1/2 of a L2 block.
+		s.Emitter.Emit(StepDelayedReqEvent{Delay: (time.Duration(s.Config.BlockTime) * time.Second) / 2})
 	}
 }
 
@@ -640,34 +639,9 @@ func (s *Driver) OverrideLeader(ctx context.Context) error {
 	return s.sequencerConductor.OverrideLeader(ctx)
 }
 
-// syncStatus returns the current sync status, and should only be called synchronously with
-// the driver event loop to avoid retrieval of an inconsistent status.
-func (s *Driver) syncStatus() *eth.SyncStatus {
-	return &eth.SyncStatus{
-		CurrentL1:          s.Derivation.Origin(),
-		CurrentL1Finalized: s.Finalizer.FinalizedL1(),
-		HeadL1:             s.l1State.L1Head(),
-		SafeL1:             s.l1State.L1Safe(),
-		FinalizedL1:        s.l1State.L1Finalized(),
-		UnsafeL2:           s.Engine.UnsafeL2Head(),
-		SafeL2:             s.Engine.SafeL2Head(),
-		FinalizedL2:        s.Engine.Finalized(),
-		PendingSafeL2:      s.Engine.PendingSafeL2Head(),
-	}
-}
-
 // SyncStatus blocks the driver event loop and captures the syncing status.
-// If the event loop is too busy and the context expires, a context error is returned.
 func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	wait := make(chan struct{})
-	select {
-	case s.stateReq <- wait:
-		resp := s.syncStatus()
-		<-wait
-		return resp, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	return s.statusTracker.SyncStatus(), nil
 }
 
 // BlockRefWithStatus blocks the driver event loop and captures the syncing status,
@@ -677,32 +651,13 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	wait := make(chan struct{})
 	select {
 	case s.stateReq <- wait:
-		resp := s.syncStatus()
+		resp := s.statusTracker.SyncStatus()
 		ref, err := s.L2.L2BlockRefByNumber(ctx, num)
 		<-wait
 		return ref, resp, err
 	case <-ctx.Done():
 		return eth.L2BlockRef{}, nil, ctx.Err()
 	}
-}
-
-// deferJSONString helps avoid a JSON-encoding performance hit if the snapshot logger does not run
-type deferJSONString struct {
-	x any
-}
-
-func (v deferJSONString) String() string {
-	out, _ := json.Marshal(v.x)
-	return string(out)
-}
-
-func (s *Driver) snapshot(event string) {
-	s.snapshotLog.Info("Rollup State Snapshot",
-		"event", event,
-		"l1Head", deferJSONString{s.l1State.L1Head()},
-		"l2Head", deferJSONString{s.Engine.UnsafeL2Head()},
-		"l2Safe", deferJSONString{s.Engine.SafeL2Head()},
-		"l2FinalizedHead", deferJSONString{s.Engine.Finalized()})
 }
 
 type hashAndError struct {
