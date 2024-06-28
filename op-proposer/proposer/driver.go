@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	_ "net/http/pprof"
 	"sync"
 	"time"
 

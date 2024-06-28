@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	_ "net/http/pprof"
 	"sync"
 	"time"
 
