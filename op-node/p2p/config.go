@@ -126,7 +126,8 @@ type Config struct {
 	// Underlying store that hosts connection-gater and peerstore data.
 	Store ds.Batching
 
-	EnableReqRespSync bool
+	EnableReqRespSync   bool
+	SyncOnlyReqToStatic bool
 
 	EnablePingService bool
 }
