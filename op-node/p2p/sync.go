@@ -14,7 +14,6 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -282,7 +281,7 @@ type SyncClient struct {
 	syncOnlyReqToStatic bool
 }
 
-func NewSyncClient(log log.Logger, cfg *rollup.Config, host host.Host, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer) *SyncClient {
+func NewSyncClient(log log.Logger, cfg *rollup.Config, host HostNewStream, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer) *SyncClient {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
@@ -568,6 +567,8 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	peerRequests := s.peerRequests
 	if s.syncOnlyReqToStatic && !s.extra.IsStatic(id) {
 		// for non-static peers, set peerRequests to nil
+		// this will effectively make the peer loop not perform outgoing sync-requests.
+		// while sync-requests will block, the loop may still process other events (if added in the future).
 		peerRequests = nil
 	}
 
