@@ -114,13 +114,21 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, opt
 	ethCfg.NoPruning = true // force everything to be an archive node
 	n, err := node.New(nodeCfg)
 	if err != nil {
-		n.Close()
+		if n != nil {
+			cerr := n.Close()
+			if cerr != nil {
+				err = fmt.Errorf("%w; failed to close node: %v", err, cerr)
+			}
+		}
 		return nil, nil, err
 	}
 
 	backend, err := eth.New(n, ethCfg)
 	if err != nil {
-		n.Close()
+		cerr := n.Close()
+		if cerr != nil {
+			err = fmt.Errorf("%w; failed to close node: %v", err, cerr)
+		}
 		return nil, nil, err
 
 	}
@@ -134,7 +142,10 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, opt
 	// Enable catalyst if l2
 	if l2 {
 		if err := catalyst.Register(n, backend); err != nil {
-			n.Close()
+			cerr := n.Close()
+			if cerr != nil {
+				err = fmt.Errorf("%w; failed to close node: %v", err, cerr)
+			}
 			return nil, nil, err
 		}
 	}
