@@ -235,7 +235,9 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	defer file.Close()
 
 	var rollupConfig rollup.Config
-	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
+	dec := json.NewDecoder(file)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
 	return &rollupConfig, nil
