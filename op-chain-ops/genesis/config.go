@@ -444,7 +444,7 @@ func (d *DeployConfig) Check() error {
 			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using alt-da mode", ErrInvalidDeployConfig)
 		}
 		if !(d.DACommitmentType == plasma.KeccakCommitmentString || d.DACommitmentType == plasma.GenericCommitmentString) {
-			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommtiment or GenericCommitment", ErrInvalidDeployConfig)
+			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommitment or GenericCommitment", ErrInvalidDeployConfig)
 		}
 	}
 	if d.UseCustomGasToken {
