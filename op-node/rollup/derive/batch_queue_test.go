@@ -420,7 +420,6 @@ func BatchQueueInvalidInternalAdvance(t *testing.T, batchType int) {
 	b, _, e = bq.NextBatch(context.Background(), safeHead)
 	require.ErrorIs(t, e, io.EOF)
 	require.Nil(t, b)
-
 }
 
 func BatchQueueMissing(t *testing.T, batchType int) {
@@ -794,16 +793,16 @@ func TestBatchQueueOverlappingSpanBatch(t *testing.T) {
 				// In CheckBatch(), "L2BlockRefByNumber" is called when fetching the parent block of overlapped span batch
 				// so blocks at 12, 14, 16 should be called.
 				// CheckBatch() is called twice for a batch - before pushing to the queue, after popping from the queue
-				l2Client.Mock.On("L2BlockRefByNumber", uint64(i+1)).Times(2).Return(blockRef, &nilErr)
+				l2Client.Mock.On("L2BlockRefByNumber", uint64(i+1)).Times(1).Return(blockRef, &nilErr)
 			}
 			if i == 1 || i == 4 {
 				// In CheckBatch(), "PayloadByNumber" is called when fetching the overlapped blocks.
 				// blocks at 14, 20 are included in overlapped blocks once.
 				// CheckBatch() is called twice for a batch - before adding to the queue, after getting from the queue
-				l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Times(2).Return(&payload, &nilErr)
+				l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Times(1).Return(&payload, &nilErr)
 			} else if i == 2 || i == 3 {
 				// blocks at 16, 18 are included in overlapped blocks twice.
-				l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Times(4).Return(&payload, &nilErr)
+				l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Times(2).Return(&payload, &nilErr)
 			}
 		}
 	}

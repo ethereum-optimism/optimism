@@ -13,6 +13,7 @@ import (
 type BatchWithL1InclusionBlock struct {
 	Batch
 	L1InclusionBlock eth.L1BlockRef
+	CachedValidity   *BatchValidity
 }
 
 type BatchValidity uint8
@@ -34,25 +35,35 @@ const (
 func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef,
 	l2SafeHead eth.L2BlockRef, batch *BatchWithL1InclusionBlock, l2Fetcher SafeBlockFetcher,
 ) BatchValidity {
+	if batch.CachedValidity != nil && *batch.CachedValidity == BatchAccept {
+		return BatchAccept
+	}
+
+	var validity BatchValidity
 	switch typ := batch.GetBatchType(); typ {
 	case SingularBatchType:
 		singularBatch, ok := batch.AsSingularBatch()
 		if !ok {
 			log.Error("failed type assertion to SingularBatch")
-			return BatchDrop
+			validity = BatchDrop
+			break
 		}
-		return checkSingularBatch(cfg, log, l1Blocks, l2SafeHead, singularBatch, batch.L1InclusionBlock)
+		validity = checkSingularBatch(cfg, log, l1Blocks, l2SafeHead, singularBatch, batch.L1InclusionBlock)
 	case SpanBatchType:
 		spanBatch, ok := batch.AsSpanBatch()
 		if !ok {
 			log.Error("failed type assertion to SpanBatch")
-			return BatchDrop
+			validity = BatchDrop
+			break
 		}
-		return checkSpanBatch(ctx, cfg, log, l1Blocks, l2SafeHead, spanBatch, batch.L1InclusionBlock, l2Fetcher)
+		validity = checkSpanBatch(ctx, cfg, log, l1Blocks, l2SafeHead, spanBatch, batch.L1InclusionBlock, l2Fetcher)
 	default:
 		log.Warn("Unrecognized batch type: %d", typ)
-		return BatchDrop
+		validity = BatchDrop
 	}
+
+	batch.CachedValidity = &validity
+	return validity
 }
 
 // checkSingularBatch implements SingularBatch validation rule.
