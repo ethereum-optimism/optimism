@@ -52,7 +52,6 @@ type DerivationPipeline struct {
 	log       log.Logger
 	rollupCfg *rollup.Config
 	l1Fetcher L1Fetcher
-	plasma    PlasmaInputFetcher
 
 	l2 L2Source
 
@@ -99,7 +98,6 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 		log:       log,
 		rollupCfg: rollupCfg,
 		l1Fetcher: l1Fetcher,
-		plasma:    plasma,
 		resetting: 0,
 		stages:    stages,
 		metrics:   metrics,
