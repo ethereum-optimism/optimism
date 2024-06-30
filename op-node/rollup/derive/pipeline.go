@@ -92,7 +92,12 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	// Reset from ResetEngine then up from L1 Traversal. The stages do not talk to each other during
 	// the ResetEngine, but after the ResetEngine, this is the order in which the stages could talk to each other.
 	// Note: The ResetEngine is the only reset that can fail.
-	stages := []ResettableStage{l1Traversal, l1Src, plasma, frameQueue, bank, chInReader, batchQueue, attributesQueue}
+	var stages []ResettableStage
+	if plasma != nil {
+		stages = []ResettableStage{l1Traversal, l1Src, plasma, frameQueue, bank, chInReader, batchQueue, attributesQueue}
+	} else {
+		stages = []ResettableStage{l1Traversal, l1Src, frameQueue, bank, chInReader, batchQueue, attributesQueue}
+	}
 
 	return &DerivationPipeline{
 		log:       log,

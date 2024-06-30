@@ -385,12 +385,15 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 		sequencerConductor = NewConductorClient(cfg, n.log, n.metrics)
 	}
 
-	// if plasma is not explicitly activated in the node CLI, the config + any error will be ignored.
-	rpCfg, err := cfg.Rollup.GetOPPlasmaConfig()
-	if cfg.Plasma.Enabled && err != nil {
-		return fmt.Errorf("failed to get plasma config: %w", err)
+	var plasmaDA driver.PlasmaIface
+	if cfg.Plasma.Enabled {
+		rpCfg, err := cfg.Rollup.GetOPPlasmaConfig()
+		if err != nil {
+			return fmt.Errorf("failed to get plasma config: %w", err)
+		}
+		plasmaDA = plasma.NewPlasmaDA(n.log, cfg.Plasma, rpCfg, n.metrics.PlasmaMetrics)
 	}
-	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma, rpCfg, n.metrics.PlasmaMetrics)
+
 	if cfg.SafeDBPath != "" {
 		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
 		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)
