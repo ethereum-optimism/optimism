@@ -88,9 +88,8 @@ type OpNode struct {
 	cancel context.CancelCauseFunc
 	halted atomic.Bool
 
-	httpEventStream          *sse.Server
-	httpEventStreamServer    *httputil.HTTPServer
-	httpEventStreamServerCtx context.Context
+	httpEventStream       *sse.Server
+	httpEventStreamServer *httputil.HTTPServer
 }
 
 // The OpNode handles incoming gossip
