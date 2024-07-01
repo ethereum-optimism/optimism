@@ -325,18 +325,24 @@ func (s *Driver) eventLoop() {
 		case envelope := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			ref, err := derive.PayloadToBlockRef(s.config, envelope.ExecutionPayload)
-			if err != nil {
-				s.log.Info("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
-				continue
+			if s.syncCfg.SyncMode == sync.CLSync || !s.engineController.IsEngineSyncing() {
+				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
+				s.clSync.AddUnsafePayload(envelope)
+				s.metrics.RecordReceivedUnsafePayload(envelope)
+				reqStep()
+			} else if s.syncCfg.SyncMode == sync.ELSync {
+				if err != nil {
+					s.log.Info("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
+					continue
+				}
+				if ref.Number <= s.engineController.UnsafeL2Head().Number {
+					continue
+				}
+				s.log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
+				if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
+					s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
+				}
 			}
-			if ref.Number <= s.engineController.UnsafeL2Head().Number {
-				continue
-			}
-			s.log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
-			if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
-				s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
-			}
-			s.PublishL2Attributes(s.driverCtx, ref)
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.

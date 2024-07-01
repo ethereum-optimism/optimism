@@ -11,6 +11,7 @@ volumes:
   challenger_data:
   da_data:
   op_log:
+  builder_data:
 
 networks:
   custom_net:
@@ -283,7 +284,7 @@ services:
       --p2p.bootnodes=enr:-J24QGG7tyXLYkko-b6VwT1tI23jesehLEjMS_Dv8OepXrNPd3DObDrHAYpwDJLh-Go95HclbPVdm91oEDXfhE5ZUPaGAY5jmAZxgmlkgnY0gmlwhAoFAAWHb3BzdGFja4OFBwCJc2VjcDI1NmsxoQNNEvj5nPIMVFBRRvGU95BqlwRDrY_8aua6eTI_sV_yKIN0Y3CCIyuDdWRwgiMr
       --rpc.addr=0.0.0.0
       --rpc.port=9545
-      --syncmode=execution-layer
+      --syncmode=consensus-layer
     volumes:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
@@ -298,15 +299,17 @@ services:
     ports:
       - "5545:8545"
     volumes:
+      - "builder_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/entrypoint-l2.sh:/entrypoint.sh"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
       - "--http.api=web3,debug,eth,txpool,net,engine"
-      - "--syncmode=snap"
-      - "--bootnodes=enode://e42b01e82d3cf3e43bf8709509baf2043923f998693b405f67c7643950c904391bb58e363ac48e9b7137cb5491b6fa359e4d4b95caaa0ef3570073332e09f659@10.5.0.200:30303"
+      - "--syncmode=full"
+      # - "--bootnodes=enode://e42b01e82d3cf3e43bf8709509baf2043923f998693b405f67c7643950c904391bb58e363ac48e9b7137cb5491b6fa359e4d4b95caaa0ef3570073332e09f659@10.5.0.200:30303"
       - "--nat=extip:10.5.0.201"
       - "--rollup.disabletxpoolgossip"
       - "--builder"
