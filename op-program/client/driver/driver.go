@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -53,8 +54,21 @@ type Driver struct {
 	targetBlockNum uint64
 }
 
+type nilBuilderClient struct {
+}
+
+func (f *nilBuilderClient) GetPayload(_ context.Context, _ eth.L2BlockRef, _ log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
+	return nil, nil, nil
+}
+
+func (f *nilBuilderClient) Enabled() bool {
+	return false
+}
+
+var _ derive.BuilderClient = (*nilBuilderClient)(nil)
+
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l1BlobsSource derive.L1BlobsFetcher, l2Source L2Source, targetBlockNum uint64) *Driver {
-	engine := derive.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync)
+	engine := derive.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync, &nilBuilderClient{})
 	attributesHandler := attributes.NewAttributesHandler(logger, cfg, engine, l2Source)
 	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, engine, metrics.NoopMetrics, &sync.Config{}, safedb.Disabled, NoopFinalizer{}, attributesHandler)
 	pipeline.Reset()

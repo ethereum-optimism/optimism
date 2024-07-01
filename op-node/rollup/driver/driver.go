@@ -140,6 +140,7 @@ func NewDriver(
 	cfg *rollup.Config,
 	l2 L2Chain,
 	l1 L1Chain,
+	builder derive.BuilderClient,
 	l1Blobs derive.L1BlobsFetcher,
 	altSync AltSync,
 	network Network,
@@ -157,7 +158,7 @@ func NewDriver(
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, builder)
 	clSync := clsync.NewCLSync(log, cfg, metrics, engine)
 
 	var finalizer Finalizer
