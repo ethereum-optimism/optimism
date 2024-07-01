@@ -95,7 +95,7 @@ type Driver struct {
 	// Interface to signal the L2 block range to sync.
 	altSync AltSync
 
-	l1OriginSelector L1OriginSelector
+	l1OriginSelector *L1OriginSelector
 	attrBuilder      *derive.FetchingAttributesBuilder
 
 	// async gossiper for payloads to be gossiped without

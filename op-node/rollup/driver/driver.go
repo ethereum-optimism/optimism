@@ -207,5 +207,7 @@ func NewDriver(
 		altSync:            altSync,
 		asyncGossiper:      asyncGossiper,
 		sequencerConductor: sequencerConductor,
+		l1OriginSelector:   findL1Origin,
+		attrBuilder:        attrBuilder,
 	}
 }
