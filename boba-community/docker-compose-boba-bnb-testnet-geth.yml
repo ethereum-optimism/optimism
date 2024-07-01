@@ -1,0 +1,68 @@
+version: '3.4'
+
+# The geth db can be downloaded from
+# https://boba-db.s3.us-east-2.amazonaws.com/bnb-testnet/boba-bnb-testnet-geth-db.tgz
+# and extracted to the DATA_DIR
+
+# The jwt-secret.txt file should be a random string of32 characters and should be kept secret.
+
+# The p2p-node-key.txt is the private key used for the node to identify itself.
+
+# The discovery and peerstore directories are used to store the peerstore and discovery data.
+
+services:
+  l2:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:${GETH_VERSION:-v1.101308.1}
+    command: >
+      --datadir=/db
+      --networkid=9728
+      --http
+      --http.addr=0.0.0.0
+      --http.port=9545
+      --http.corsdomain=*
+      --http.vhosts=*
+      --authrpc.addr=0.0.0.0
+      --authrpc.port=8551
+      --authrpc.vhosts=*
+      --authrpc.jwtsecret=/config/jwt-secret.txt
+      --rollup.disabletxpoolgossip=true
+      --http.api=eth,debug,net,web3
+      --nodiscover
+      --syncmode=full
+      --maxpeers=0
+      --rollup.sequencerhttp=https://testnet.bnb.boba.network
+    ports:
+      - "9545:9545"
+      - "8551:8551"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+      - DATA_DIR:/db
+  op-node:
+    depends_on:
+      - l2
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:${OP_NODE_VERSION:-latest}
+    command: >
+      op-node
+      --l1=${ETH1_HTTP:-https://bsc-testnet.public.blastapi.io.co}
+      --l1.beacon.ignore=true
+      --l2=http://l2:8551
+      --l2.jwt-secret=/config/jwt-secret.txt
+      --network=boba-bnb-testnet
+      --rpc.addr=0.0.0.0
+      --rpc.port=8545
+      --plasma.enabled=false
+    # Optional flags
+    # These flags are optional and can be used to identify the node and store the peerstore and discovery data.
+    # We recommend adding these flags to your configuration to help identify your node and store the peerstore and discovery data.
+    #  --p2p.ban.peers=false
+    #  --p2p.priv.path=/config/p2p-node-key.txt
+    #  --p2p.discovery.path=/p2p_discovery_db
+    #  --p2p.peerstore.path=/p2p_peerstore_db
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+    #  - ./p2p-node-key.txt:/config/p2p-node-key.txt
+    #  - ./discovery:/p2p_discovery_db
+    #  - ./peerstore:/p2p_peerstore_db
+    restart: always

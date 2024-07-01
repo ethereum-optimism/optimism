@@ -1,0 +1,46 @@
+version: '3.4'
+
+# The legacy geth can be downloaded from
+# https://boba-db.s3.us-east-2.amazonaws.com/bnb-testnet/boba-bnb-testnet-geth-db-legacy.tgz
+# and extracted to the DATA_DIR
+
+# This service serves as the legacy chain before the migration
+services:
+  legacy-l2:
+    image: bobanetwork/l2geth:v0.9.5
+    environment:
+      CHAIN_ID: '9728'
+      NETWORK_ID: '9728'
+      NO_USB: 'true'
+      NO_DISCOVER: 'true'
+      DATADIR: '/root/.ethereum'
+      GCMODE: 'archive'
+      IPC_DISABLE: 'true'
+      TARGET_GAS_LIMIT: '11000000'
+      USING_OVM: 'true'
+      RPC_ENABLE: 'true'
+      RPC_ADDR: '0.0.0.0'
+      RPC_PORT: '8545'
+      RPC_API: eth,net,rollup,web3,debug
+      RPC_CORS_DOMAIN: '*'
+      RPC_VHOSTS: '*'
+      WS: 'true'
+      WS_ADDR: '0.0.0.0'
+      WS_PORT: '8546'
+      WS_API: 'eth,net,rollup,web3'
+      WS_ORIGINS: '*'
+      ROLLUP_BACKEND: 'l2'
+      ROLLUP_VERIFIER_ENABLE: 'true'
+      ROLLUP_READONLY: 'true'
+      BLOCK_SIGNER_KEY: "6587ae678cf4fc9a33000cdbf9f35226b71dcc6a4684a31203241f9bcfd55d27"
+      BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
+      ROLLUP_ENFORCE_FEES: 'true'
+      TURING_CREDIT_ADDRESS: "0x4200000000000000000000000000000000000020"
+      L2_BOBA_TOKEN_ADDRESS: "0x4200000000000000000000000000000000000023"
+      BOBA_GAS_PRICE_ORACLE_ADDRESS: "0x4200000000000000000000000000000000000024"
+    ports:
+      - ${LEGACY_L2_HTTP_PORT:-8545}:8545
+      - ${LEGACY_L2_WS_PORT:-8546}:8546
+    volumes:
+      - DATA_DIR:/root/.ethereum
+    restart: always
