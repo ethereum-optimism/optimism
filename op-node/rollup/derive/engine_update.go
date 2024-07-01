@@ -198,10 +198,10 @@ func confirmPayload(
 	if builderEnvelope != nil {
 		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
 		if err == nil {
-			fmt.Printf("\033[32msucceessfully inserted payload from builder\033[0m\n")
+			log.Info("succeessfully inserted payload from builder")
 			return builderEnvelope, errTyp, err
 		}
-		fmt.Printf("\033[31mfailed to insert payload from builder errType: %v error: %s\033[0m\n", errTyp, err.Error())
+		log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
 	}
 
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, engineEnvelope)
