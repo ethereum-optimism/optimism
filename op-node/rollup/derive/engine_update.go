@@ -127,7 +127,7 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 		return payload, nil, nil, err
 	}
 
-	fmt.Printf("\033[32mattempting to get payload from builder l2head: %s payloadInfo: %+v\033[0m\n", l2head.String(), payloadInfo)
+	log.Debug("requesting payload from builder", l2head.String(), "payloadInfo", payloadInfo)
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*500)
 	defer cancel()
 	type result struct {
@@ -153,13 +153,10 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	// select the payload from builder if possible
 	select {
 	case <-ctxTimeout.Done():
-		fmt.Printf("\033[31mbuilder request failed: %s\033[0m\n", ctxTimeout.Err())
+		log.Warn("builder request failed", "error", ctxTimeout.Err())
 		return envelope, nil, nil, err
 	case result := <-ch:
-		fmt.Printf("\033[32mReceived payload from builder hash: %s number: %d\033[0m\n",
-			result.envelope.ExecutionPayload.BlockHash.String(),
-			uint64(result.envelope.ExecutionPayload.BlockNumber))
-		// log.Info("Received payload from builder", "hash", builderEnvelope.ExecutionPayload.BlockHash, "number", uint64(builderEnvelope.ExecutionPayload.BlockNumber))
+		log.Info("received payload from builder", "hash", result.envelope.ExecutionPayload.BlockHash.String(), "number", uint64(result.envelope.ExecutionPayload.BlockNumber))
 		return envelope, result.envelope, result.profit, err
 	}
 }
