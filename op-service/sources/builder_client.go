@@ -62,8 +62,9 @@ type httpErrorResp struct {
 
 func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
 	responsePayload := new(builderApi.VersionedExecutionPayload)
-	url := fmt.Sprintf("%s/%d/%s", PathGetPayload, ref.Number+1, ref.Hash)
-	log.Info("Fetching payload", "url", url)
+	slot := ref.Number + 1
+	parentHash := ref.Hash
+	url := fmt.Sprintf("%s/%d/%s", PathGetPayload, slot, parentHash.String())
 	header := http.Header{"Accept": {"application/json"}}
 	resp, err := s.httpClient.Get(ctx, url, nil, header)
 	if err != nil {
@@ -72,27 +73,17 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 
 	defer resp.Body.Close()
 
-	log.Info("Response", "status", resp.Status, "header", resp.Header, "statuscode", resp.StatusCode, "body", resp.Body)
-
 	bodyBytes, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Error("Failed to read response body", "error", err)
 		return nil, nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		var errResp httpErrorResp
-		err = json.Unmarshal(bodyBytes, &errResp)
-		if err != nil {
-			log.Error("Failed to unmarshal error response", "error", err)
-		}
-		log.Error("HTTP error response", "status", resp.Status, "code", errResp.Code, "message", errResp.Message)
 		return nil, nil, errHTTPErrorResponse
 	}
 
 	if err := json.Unmarshal(bodyBytes, responsePayload); err != nil {
-		log.Error("Failed to unmarshal response payload", "error", err)
 		return nil, nil, err
 	}
 
