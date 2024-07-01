@@ -128,7 +128,7 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	}
 
 	fmt.Printf("\033[32mattempting to get payload from builder l2head: %s payloadInfo: %+v\033[0m\n", l2head.String(), payloadInfo)
-	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*2000)
+	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*500)
 	defer cancel()
 	type result struct {
 		envelope *eth.ExecutionPayloadEnvelope
