@@ -6,6 +6,9 @@ import (
 	"io"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -31,6 +34,40 @@ type AttributesWithParent struct {
 	Attributes   *eth.PayloadAttributes
 	Parent       eth.L2BlockRef
 	IsLastInSpan bool
+}
+
+func (a *AttributesWithParent) ToBuilderPayloadAttributes() *BuilderPayloadAttributes {
+	transactions := make([]*types.Transaction, len(a.Attributes.Transactions))
+	for i, txBytes := range a.Attributes.Transactions {
+		var ttx types.Transaction
+		ttx.UnmarshalBinary(txBytes)
+		transactions[i] = &ttx
+	}
+
+	return &BuilderPayloadAttributes{
+		Timestamp:             a.Attributes.Timestamp,
+		Random:                common.HexToHash(a.Attributes.PrevRandao.String()),
+		SuggestedFeeRecipient: a.Attributes.SuggestedFeeRecipient,
+		Slot:                  a.Parent.Number + 1,
+		HeadHash:              a.Parent.Hash,
+		Withdrawals:           *a.Attributes.Withdrawals,
+		ParentBeaconBlockRoot: a.Attributes.ParentBeaconBlockRoot,
+		Transactions:          transactions,
+		GasLimit:              uint64(*a.Attributes.GasLimit),
+	}
+}
+
+type BuilderPayloadAttributes struct {
+	Timestamp             hexutil.Uint64     `json:"timestamp"`
+	Random                common.Hash        `json:"prevRandao"`
+	SuggestedFeeRecipient common.Address     `json:"suggestedFeeRecipient,omitempty"`
+	Slot                  uint64             `json:"slot"`
+	HeadHash              common.Hash        `json:"blockHash"`
+	Withdrawals           types.Withdrawals  `json:"withdrawals"`
+	ParentBeaconBlockRoot *common.Hash       `json:"parentBeaconBlockRoot"`
+	Transactions          types.Transactions `json:"transactions"`
+	GasLimit              uint64             `json:"gasLimit"`
+	NoTxPool              bool               `json:"noTxPool,omitempty"`
 }
 
 type AttributesQueue struct {
