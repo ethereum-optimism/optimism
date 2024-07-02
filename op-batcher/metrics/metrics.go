@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"io"
+	"math/big"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -9,7 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -48,6 +52,13 @@ type Metricer interface {
 
 	RecordBlobUsedBytes(num int)
 
+	RecordAutoChoosedDAType(daType flags.DataAvailabilityType)
+	RecordEconomicAutoSwitchCount()
+	RecordReservedErrorSwitchCount()
+	RecordAutoSwitchTimeDuration(duration time.Duration)
+	RecordEstimatedCalldataTypeFee(fee *big.Int)
+	RecordEstimatedBlobTypeFee(fee *big.Int)
+
 	Document() []opmetrics.DocumentedMetric
 }
 
@@ -83,6 +94,13 @@ type Metrics struct {
 	batcherTxEvs opmetrics.EventVec
 
 	blobUsedBytes prometheus.Histogram
+
+	autoChoosedDAType        prometheus.Gauge
+	economicAutoSwitchCount  prometheus.Counter
+	reservedErrorSwitchCount prometheus.Counter
+	autoSwitchTimeDuration   prometheus.Gauge
+	estimatedCalldataTypeFee prometheus.Gauge
+	estimatedBlobTypeFee     prometheus.Gauge
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -190,6 +208,36 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "blob_used_bytes",
 			Help:      "Blob size in bytes (of last blob only for multi-blob txs).",
 			Buckets:   prometheus.LinearBuckets(0.0, eth.MaxBlobDataSize/13, 14),
+		}),
+		autoChoosedDAType: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "auto_choosed_da_type",
+			Help:      "Current DA type choosed by auto switch",
+		}),
+		economicAutoSwitchCount: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "economic_auto_switch_count",
+			Help:      "Total number of switch action caused by economic calculation",
+		}),
+		reservedErrorSwitchCount: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "reserved_error_switch_count",
+			Help:      "Total number of switch action caused by txpool addressReservedError",
+		}),
+		autoSwitchTimeDuration: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "auto_switch_time_duration",
+			Help:      "Time duration in milliseconds of auto switch action",
+		}),
+		estimatedCalldataTypeFee: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "estimated_calldata_type_fee",
+			Help:      "Current estimated fee in gwei of calldata type(6 txes) by auto switch routine",
+		}),
+		estimatedBlobTypeFee: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "estimated_blob_type_fee",
+			Help:      "Current estimated fee in gwei of blob type(1 tx with 6 blobs) by auto switch routine",
 		}),
 
 		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
@@ -316,6 +364,34 @@ func (m *Metrics) RecordBatchTxFailed() {
 
 func (m *Metrics) RecordBlobUsedBytes(num int) {
 	m.blobUsedBytes.Observe(float64(num))
+}
+
+func (m *Metrics) RecordAutoChoosedDAType(daType flags.DataAvailabilityType) {
+	if daType == flags.CalldataType {
+		m.autoChoosedDAType.Set(0)
+	} else if daType == flags.BlobsType {
+		m.autoChoosedDAType.Set(1)
+	}
+}
+
+func (m *Metrics) RecordEconomicAutoSwitchCount() {
+	m.economicAutoSwitchCount.Inc()
+}
+
+func (m *Metrics) RecordReservedErrorSwitchCount() {
+	m.reservedErrorSwitchCount.Inc()
+}
+
+func (m *Metrics) RecordAutoSwitchTimeDuration(duration time.Duration) {
+	m.autoSwitchTimeDuration.Set(float64(duration.Milliseconds()))
+}
+
+func (m *Metrics) RecordEstimatedCalldataTypeFee(fee *big.Int) {
+	m.estimatedCalldataTypeFee.Set(float64(fee.Uint64()) / params.GWei)
+}
+
+func (m *Metrics) RecordEstimatedBlobTypeFee(fee *big.Int) {
+	m.estimatedBlobTypeFee.Set(float64(fee.Uint64()) / params.GWei)
 }
 
 // estimateBatchSize estimates the size of the batch

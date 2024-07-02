@@ -2,12 +2,15 @@ package metrics
 
 import (
 	"io"
+	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -46,3 +49,10 @@ func (*noopMetrics) RecordBlobUsedBytes(int) {}
 func (*noopMetrics) StartBalanceMetrics(log.Logger, *ethclient.Client, common.Address) io.Closer {
 	return nil
 }
+
+func (*noopMetrics) RecordAutoChoosedDAType(daType flags.DataAvailabilityType) {}
+func (*noopMetrics) RecordEconomicAutoSwitchCount()                            {}
+func (*noopMetrics) RecordReservedErrorSwitchCount()                           {}
+func (*noopMetrics) RecordAutoSwitchTimeDuration(duration time.Duration)       {}
+func (*noopMetrics) RecordEstimatedCalldataTypeFee(fee *big.Int)               {}
+func (*noopMetrics) RecordEstimatedBlobTypeFee(fee *big.Int)                   {}

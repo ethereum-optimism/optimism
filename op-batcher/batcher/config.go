@@ -137,7 +137,7 @@ func (c *CLIConfig) Check() error {
 	if c.CheckRecentTxsDepth > 128 {
 		return fmt.Errorf("CheckRecentTxsDepth cannot be set higher than 128: %v", c.CheckRecentTxsDepth)
 	}
-	if c.DataAvailabilityType == flags.BlobsType && c.TargetNumFrames > 6 {
+	if (c.DataAvailabilityType == flags.BlobsType || c.DataAvailabilityType == flags.AutoType) && c.TargetNumFrames > 6 {
 		return errors.New("too many frames for blob transactions, max 6")
 	}
 	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {

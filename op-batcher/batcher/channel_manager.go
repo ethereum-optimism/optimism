@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -224,6 +225,22 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	s.metr.RecordChannelOpened(pc.ID(), len(s.blocks))
 
 	return nil
+}
+
+// SwitchDAType switch related configs to target DA type
+func (s *channelManager) SwitchDAType(targetDAType flags.DataAvailabilityType) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch targetDAType {
+	case flags.BlobsType:
+		s.cfg.MaxFrameSize = eth.MaxBlobDataSize - 1
+		s.cfg.MultiFrameTxs = true
+	case flags.CalldataType:
+		s.cfg.MaxFrameSize = CallDataTxMaxSize - 1
+		s.cfg.MultiFrameTxs = false
+	default:
+		s.log.Crit("channel manager switch to a invalid DA type", "targetDAType", targetDAType.String())
+	}
 }
 
 // registerL1Block registers the given block at the pending channel.
