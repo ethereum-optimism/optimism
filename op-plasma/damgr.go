@@ -306,7 +306,7 @@ func (d *DA) AdvanceCommitmentOrigin(ctx context.Context, l1 L1Fetcher, block et
 
 // AdvanceL1Origin syncs any challenge events included in the l1 block, expires any active challenges
 // after the new resolveWindow, computes and signals the new finalized head and sets the l1 block
-// as the new head for tracking challenges and commitments. If forwards an error if any new challenge have expired to
+// as the new head for tracking challenges and commitments. It forwards an error if any new challenge have expired to
 // trigger a derivation reset.
 func (d *DA) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, block eth.BlockID) error {
 	if err := d.AdvanceChallengeOrigin(ctx, l1, block); err != nil {
