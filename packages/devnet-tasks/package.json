@@ -37,7 +37,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@types/node": "^20.11.17",
     "ethereum-waffle": "^4.0.10",
-    "ethers": "^5.7.2",
+    "ethers": "^6.13.1",
     "hardhat": "^2.20.1",
     "hardhat-deploy": "^0.12.2",
     "nyc": "^15.1.0",
