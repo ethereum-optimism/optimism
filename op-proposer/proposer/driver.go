@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -320,7 +321,7 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 }
 
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse) ([]byte, *big.Int, error) {
-	bond, err := l.dgfContract.InitBonds(&bind.CallOpts{}, l.Cfg.DisputeGameType)
+	bond, err := l.dgfContract.InitBonds(&bind.CallOpts{}, uint32(l.Cfg.DisputeGameType))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -332,7 +333,7 @@ func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse)
 }
 
 // proposeL2OutputDGFTxData creates the transaction data for the DisputeGameFactory's `create` function
-func proposeL2OutputDGFTxData(abi *abi.ABI, gameType uint32, output *eth.OutputResponse) ([]byte, error) {
+func proposeL2OutputDGFTxData(abi *abi.ABI, gameType faultTypes.GameType, output *eth.OutputResponse) ([]byte, error) {
 	return abi.Pack("create", gameType, output.OutputRoot, math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)))
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -54,7 +55,7 @@ type CLIConfig struct {
 	ProposalInterval time.Duration
 
 	// DisputeGameType is the type of dispute game to create when submitting an output proposal.
-	DisputeGameType uint32
+	DisputeGameType faultTypes.GameType
 
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
@@ -110,7 +111,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		DGFAddress:                   ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
 		ProposalInterval:             ctx.Duration(flags.ProposalIntervalFlag.Name),
-		DisputeGameType:              uint32(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
+		DisputeGameType:              faultTypes.GameType(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
 		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
 	}

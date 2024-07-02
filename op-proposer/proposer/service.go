@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -37,7 +38,7 @@ type ProposerConfig struct {
 
 	L2OutputOracleAddr     *common.Address
 	DisputeGameFactoryAddr *common.Address
-	DisputeGameType        uint32
+	DisputeGameType        faultTypes.GameType
 
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
