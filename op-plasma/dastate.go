@@ -213,7 +213,7 @@ func (s *State) Prune(origin eth.BlockID) {
 	s.pruneChallenges(origin)
 }
 
-// pruneCommitments removes commitments which have are beyond a given block number.
+// pruneCommitments removes commitments which are beyond a given block number.
 // It will remove commitments in order of inclusion until it finds a commitment which is not beyond the given block number.
 func (s *State) pruneCommitments(origin eth.BlockID) {
 	for len(s.expiredCommitments) > 0 {
