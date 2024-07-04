@@ -52,7 +52,7 @@
     "@eth-optimism/core-utils": "^0.13.2",
     "@eth-optimism/sdk": "^3.3.2",
     "@types/dateformat": "^5.0.0",
-    "chai-as-promised": "^7.1.1",
+    "chai-as-promised": "^8.0.0",
     "dateformat": "^4.5.1",
     "dotenv": "^16.4.5",
     "ethers": "^5.7.2"
