@@ -57,7 +57,7 @@ type State struct {
 	challenges           []*Challenge          // challenges ordered by L1 inclusion
 	expiredChallenges    []*Challenge          // challenges ordered by L1 inclusion
 	challengesMap        map[string]*Challenge // challenges by seralized comm + block number for easy lookup
-	lastPrunedCommitment eth.L1BlockRef        // the last commitment to be pruned
+	lastPrunedCommitment eth.L1BlockRef        // the last commitment pruned
 	cfg                  Config
 	log                  log.Logger
 	metrics              Metricer
