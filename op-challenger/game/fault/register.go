@@ -84,8 +84,13 @@ func RegisterGameTypes(
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
-		if err := registerAsterisc(faultTypes.AsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
-			return nil, fmt.Errorf("failed to register asterisc game type: %w", err)
+		if err := registerAsterisc(faultTypes.AsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, faultTypes.ServerTypeOpProgram); err != nil {
+			return nil, fmt.Errorf("failed to register op-program-asterisc game type: %w", err)
+		}
+	}
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
+		if err := registerAsterisc(faultTypes.KonaAsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, faultTypes.ServerTypeKona); err != nil {
+			return nil, fmt.Errorf("failed to register kona-asterisc game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeFast) {
@@ -203,6 +208,7 @@ func registerAsterisc(
 	l1HeaderSource L1HeaderSource,
 	selective bool,
 	claimants []common.Address,
+	serverType faultTypes.ServerType,
 ) error {
 	var prestateSource PrestateSource
 	if cfg.AsteriscAbsolutePreStateBaseURL != nil {
@@ -254,7 +260,7 @@ func registerAsterisc(
 			if err != nil {
 				return nil, fmt.Errorf("failed to get asterisc prestate: %w", err)
 			}
-			accessor, err := outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg.Asterisc, l2Client, prestateProvider, asteriscPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg.Asterisc, l2Client, prestateProvider, asteriscPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock, serverType)
 			if err != nil {
 				return nil, err
 			}
@@ -321,7 +327,6 @@ func registerCannon(
 		}
 
 		cannonPrestateProvider, err := prestateProviderCache.GetOrCreate(requiredPrestatehash)
-
 		if err != nil {
 			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
 		}

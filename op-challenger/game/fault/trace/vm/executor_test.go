@@ -5,10 +5,12 @@ import (
 	"math"
 	"math/big"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -42,7 +44,7 @@ func TestGenerateProof(t *testing.T) {
 	}
 	captureExec := func(t *testing.T, cfg Config, proofAt uint64) (string, string, map[string]string) {
 		m := &stubVmMetrics{}
-		executor := NewExecutor(testlog.Logger(t, log.LevelInfo), m, cfg, prestate, inputs)
+		executor := NewExecutor(testlog.Logger(t, log.LevelInfo), m, cfg, prestate, inputs, types.ServerTypeOpProgram)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 			return input, nil
 		}
@@ -128,6 +130,63 @@ func TestGenerateProof(t *testing.T) {
 		// so expect that it will be omitted. We'll ultimately want asterisc to execute until the program exits.
 		require.NotContains(t, args, "--stop-at")
 	})
+}
+
+func TestFillHostCommand(t *testing.T) {
+	dir := "mockdir"
+	cfg := Config{
+		L1:       "http://localhost:8888",
+		L1Beacon: "http://localhost:9000",
+		L2:       "http://localhost:9999",
+		Server:   "./bin/mockserver",
+	}
+	prestate := "pre.json"
+	inputs := utils.LocalGameInputs{
+		L1Head:        common.Hash{0x11},
+		L2Head:        common.Hash{0x22},
+		L2OutputRoot:  common.Hash{0x33},
+		L2Claim:       common.Hash{0x44},
+		L2BlockNumber: big.NewInt(3333),
+	}
+
+	serverTypesWithInvalid := append(types.ServerTypes, types.ServerType("Moose"))
+	for _, serverType := range serverTypesWithInvalid {
+		t.Run(serverType.String(), func(t *testing.T) {
+			executor := NewExecutor(testlog.Logger(t, log.LevelInfo), metrics.NoopMetrics, cfg, prestate, inputs, serverType)
+			args := executor.fillHostCommand([]string{}, dir)
+
+			if args != nil {
+				require.True(t, slices.Contains(args, "--"))
+				require.True(t, slices.Contains(args, "--server"))
+			}
+
+			// Check that the command is filled out correctly
+			switch serverType {
+			case types.ServerTypeOpProgram:
+				require.True(t, slices.Contains(args, "--l1"))
+				require.True(t, slices.Contains(args, "--l1.beacon"))
+				require.True(t, slices.Contains(args, "--l2"))
+				require.True(t, slices.Contains(args, "--datadir"))
+				require.True(t, slices.Contains(args, "--l1.head"))
+				require.True(t, slices.Contains(args, "--l2.head"))
+				require.True(t, slices.Contains(args, "--l2.outputroot"))
+				require.True(t, slices.Contains(args, "--l2.claim"))
+				require.True(t, slices.Contains(args, "--l2.blocknumber"))
+			case types.ServerTypeKona:
+				require.True(t, slices.Contains(args, "--l1-node-address"))
+				require.True(t, slices.Contains(args, "--l1-beacon-address"))
+				require.True(t, slices.Contains(args, "--l2-node-address"))
+				require.True(t, slices.Contains(args, "--data-dir"))
+				require.True(t, slices.Contains(args, "--l1-head"))
+				require.True(t, slices.Contains(args, "--l2-head"))
+				require.True(t, slices.Contains(args, "--l2-output-root"))
+				require.True(t, slices.Contains(args, "--l2-claim"))
+				require.True(t, slices.Contains(args, "--l2-block-number"))
+			default:
+				require.Nil(t, args, "Should not have filled out host command for invalid server type")
+			}
+		})
+	}
 }
 
 type stubVmMetrics struct {

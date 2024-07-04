@@ -41,9 +41,10 @@ type Executor struct {
 	inputs           utils.LocalGameInputs
 	selectSnapshot   SnapshotSelect
 	cmdExecutor      CmdExecutor
+	serverType       types.ServerType
 }
 
-func NewExecutor(logger log.Logger, m Metricer, cfg Config, prestate string, inputs utils.LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m Metricer, cfg Config, prestate string, inputs utils.LocalGameInputs, serverType types.ServerType) *Executor {
 	return &Executor{
 		cfg:              cfg,
 		logger:           logger,
@@ -52,6 +53,7 @@ func NewExecutor(logger log.Logger, m Metricer, cfg Config, prestate string, inp
 		absolutePreState: prestate,
 		selectSnapshot:   FindStartingSnapshot,
 		cmdExecutor:      RunCmd,
+		serverType:       serverType,
 	}
 }
 
@@ -87,19 +89,7 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
 	}
 	args = append(args, extraVmArgs...)
-	args = append(args,
-		"--",
-		e.cfg.Server, "--server",
-		"--l1", e.cfg.L1,
-		"--l1.beacon", e.cfg.L1Beacon,
-		"--l2", e.cfg.L2,
-		"--datadir", dataDir,
-		"--l1.head", e.inputs.L1Head.Hex(),
-		"--l2.head", e.inputs.L2Head.Hex(),
-		"--l2.outputroot", e.inputs.L2OutputRoot.Hex(),
-		"--l2.claim", e.inputs.L2Claim.Hex(),
-		"--l2.blocknumber", e.inputs.L2BlockNumber.Text(10),
-	)
+	args = e.fillHostCommand(args, dataDir)
 	if e.cfg.Network != "" {
 		args = append(args, "--network", e.cfg.Network)
 	}
@@ -124,4 +114,41 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cfg.VmBin, args...)
 	e.metrics.RecordVmExecutionTime(e.cfg.VmType.String(), time.Since(execStart))
 	return err
+}
+
+func (e *Executor) fillHostCommand(args []string, dataDir string) []string {
+	switch e.serverType {
+	case types.ServerTypeOpProgram:
+		args = append(args,
+			"--",
+			e.cfg.Server, "--server",
+			"--l1", e.cfg.L1,
+			"--l1.beacon", e.cfg.L1Beacon,
+			"--l2", e.cfg.L2,
+			"--datadir", dataDir,
+			"--l1.head", e.inputs.L1Head.Hex(),
+			"--l2.head", e.inputs.L2Head.Hex(),
+			"--l2.outputroot", e.inputs.L2OutputRoot.Hex(),
+			"--l2.claim", e.inputs.L2Claim.Hex(),
+			"--l2.blocknumber", e.inputs.L2BlockNumber.Text(10),
+		)
+		return args
+	case types.ServerTypeKona:
+		args = append(args,
+			"--",
+			e.cfg.Server, "--server",
+			"--l1-node-address", e.cfg.L1,
+			"--l1-beacon-address", e.cfg.L1Beacon,
+			"--l2-node-address", e.cfg.L2,
+			"--data-dir", dataDir,
+			"--l1-head", e.inputs.L1Head.Hex(),
+			"--l2-head", e.inputs.L2Head.Hex(),
+			"--l2-output-root", e.inputs.L2OutputRoot.Hex(),
+			"--l2-claim", e.inputs.L2Claim.Hex(),
+			"--l2-block-number", e.inputs.L2BlockNumber.Text(10),
+		)
+		return args
+	default:
+		return nil
+	}
 }

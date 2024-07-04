@@ -31,6 +31,7 @@ func NewOutputAsteriscTraceAccessor(
 	splitDepth types.Depth,
 	prestateBlock uint64,
 	poststateBlock uint64,
+	serverType types.ServerType,
 ) (*trace.Accessor, error) {
 	outputProvider := NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 	asteriscCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
@@ -40,7 +41,7 @@ func NewOutputAsteriscTraceAccessor(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch asterisc local inputs: %w", err)
 		}
-		provider := asterisc.NewTraceProvider(logger, m, cfg, prestateProvider, asteriscPrestate, localInputs, subdir, depth)
+		provider := asterisc.NewTraceProvider(logger, m, cfg, prestateProvider, asteriscPrestate, localInputs, subdir, depth, serverType)
 		return provider, nil
 	}
 

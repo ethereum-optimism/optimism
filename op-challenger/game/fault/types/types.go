@@ -26,6 +26,7 @@ const (
 	CannonGameType       GameType = 0
 	PermissionedGameType GameType = 1
 	AsteriscGameType     GameType = 2
+	KonaAsteriscGameType GameType = 3
 	FastGameType         GameType = 254
 	AlphabetGameType     GameType = 255
 	UnknownGameType      GameType = math.MaxUint32
@@ -106,6 +107,42 @@ func (t TraceType) GameType() GameType {
 	default:
 		return UnknownGameType
 	}
+}
+
+type ServerType string
+
+const (
+	ServerTypeOpProgram ServerType = "op_program"
+	ServerTypeKona      ServerType = "kona"
+)
+
+var ServerTypes = []ServerType{ServerTypeOpProgram, ServerTypeKona}
+
+func (t ServerType) String() string {
+	return string(t)
+}
+
+// Set implements the Set method required by the [cli.Generic] interface.
+func (t *ServerType) Set(value string) error {
+	if !ValidServerType(ServerType(value)) {
+		return fmt.Errorf("unknown server type: %q", value)
+	}
+	*t = ServerType(value)
+	return nil
+}
+
+func (t *ServerType) Clone() any {
+	cpy := *t
+	return &cpy
+}
+
+func ValidServerType(value ServerType) bool {
+	for _, t := range ServerTypes {
+		if t == value {
+			return true
+		}
+	}
+	return false
 }
 
 type ClockReader interface {
