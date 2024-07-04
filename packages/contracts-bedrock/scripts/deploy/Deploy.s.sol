@@ -400,6 +400,7 @@ contract Deploy is Deployer {
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both.
         if (cfg.useFaultProofs()) {
+            require(!cfg.usePlasma(), "Fault proof can't be used together with plasma");
             console.log("Fault proofs enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
         } else {
