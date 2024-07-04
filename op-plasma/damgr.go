@@ -116,6 +116,9 @@ func (d *DA) OnFinalizedHeadSignal(f HeadSignalFn) {
 // It is called by the Finalize function, as it has an L1 finalized head to use.
 func (d *DA) updateFinalizedHead(l1Finalized eth.L1BlockRef) {
 	d.l1FinalizedHead = l1Finalized
+	if d.commitmentOrigin.Number < l1Finalized.Number {
+		return
+	}
 	// Prune the state to the finalized head
 	d.state.Prune(l1Finalized.ID())
 	d.finalizedHead = d.state.lastPrunedCommitment
@@ -127,6 +130,9 @@ func (d *DA) updateFinalizedHead(l1Finalized eth.L1BlockRef) {
 func (d *DA) updateFinalizedFromL1(ctx context.Context, l1 L1Fetcher) error {
 	// don't update if the finalized head is smaller than the challenge window
 	if d.l1FinalizedHead.Number < d.cfg.ChallengeWindow {
+		return nil
+	}
+	if d.commitmentOrigin.Number < d.l1FinalizedHead.Number {
 		return nil
 	}
 	ref, err := l1.L1BlockRefByNumber(ctx, d.l1FinalizedHead.Number-d.cfg.ChallengeWindow)
