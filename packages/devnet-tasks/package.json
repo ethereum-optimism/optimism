@@ -47,7 +47,7 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",
-    "@eth-optimism/sdk": "^3.3.1"
+    "@eth-optimism/sdk": "^3.3.2"
   },
   "peerDependencies": {
     "ethers": "^5"

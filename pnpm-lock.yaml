@@ -123,8 +123,8 @@ importers:
         specifier: ^0.13.2
         version: 0.13.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
       '@eth-optimism/sdk':
-        specifier: ^3.3.1
-        version: 3.3.1(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(utf-8-validate@5.0.7)
+        specifier: ^3.3.2
+        version: 3.3.2(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(utf-8-validate@5.0.7)
       '@types/dateformat':
         specifier: ^5.0.0
         version: 5.0.0
@@ -181,8 +181,8 @@ importers:
         specifier: ^0.13.2
         version: 0.13.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
       '@eth-optimism/sdk':
-        specifier: ^3.3.1
-        version: 3.3.1(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(utf-8-validate@5.0.7)
+        specifier: ^3.3.2
+        version: 3.3.2(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(utf-8-validate@5.0.7)
     devDependencies:
       '@nomiclabs/hardhat-ethers':
         specifier: ^2.2.3
@@ -581,8 +581,8 @@ packages:
   '@eth-optimism/core-utils@0.13.2':
     resolution: {integrity: sha512-u7TOKm1RxH1V5zw7dHmfy91bOuEAZU68LT/9vJPkuWEjaTl+BgvPDRDTurjzclHzN0GbWdcpOqPZg4ftjkJGaw==}
 
-  '@eth-optimism/sdk@3.3.1':
-    resolution: {integrity: sha512-zf8qL+KwYWUUwvdcjF1HpBxgKSt5wsKr8oa6jwqUhdPkQHUtVK5SRKtqXqYplnAgKtxDQYwlK512GU16odEl1w==}
+  '@eth-optimism/sdk@3.3.2':
+    resolution: {integrity: sha512-+zhxT0YkBIEzHsuIayQGjr8g9NawZo6/HYfzg1NSEFsE2Yt0NyCWqVDFTuuak0T6AvIa2kNcl3r0Z8drdb2QmQ==}
     peerDependencies:
       ethers: ^5
 
@@ -5879,7 +5879,7 @@ snapshots:
       - encoding
       - utf-8-validate
 
-  '@eth-optimism/sdk@3.3.1(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(utf-8-validate@5.0.7)':
+  '@eth-optimism/sdk@3.3.2(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(utf-8-validate@5.0.7)':
     dependencies:
       '@eth-optimism/contracts': 0.6.0(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(utf-8-validate@5.0.7)
       '@eth-optimism/core-utils': 0.13.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
