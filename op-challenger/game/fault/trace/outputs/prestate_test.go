@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newOutputPrestateProvider(t *testing.T, prestateBlock uint64) (*OutputPrestateProvider, *stubRollupClient) {
+func newOutputPrestateProvider(_ *testing.T, prestateBlock uint64) (*OutputPrestateProvider, *stubRollupClient) {
 	rollupClient := &stubRollupClient{
 		outputs: map[uint64]*eth.OutputResponse{
 			prestateBlock: {
@@ -29,7 +29,7 @@ func newOutputPrestateProvider(t *testing.T, prestateBlock uint64) (*OutputPrest
 }
 
 func TestAbsolutePreStateCommitment(t *testing.T) {
-	var prestateBlock = uint64(100)
+	prestateBlock := uint64(100)
 
 	t.Run("FailedToFetchOutput", func(t *testing.T) {
 		provider, rollupClient := newOutputPrestateProvider(t, prestateBlock)
