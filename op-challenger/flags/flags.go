@@ -66,6 +66,12 @@ var (
 		EnvVars: prefixEnvVars("TRACE_TYPE"),
 		Value:   cli.NewStringSlice(types.TraceTypeCannon.String()),
 	}
+	ServerTypeFlag = &cli.StringSliceFlag{
+		Name:    "server-type",
+		Usage:   "The server types to support. Valid options: " + openum.EnumString(types.ServerTypes),
+		EnvVars: prefixEnvVars("SERVER_TYPE"),
+		Value:   cli.NewStringSlice(types.ServerTypeOpProgram.String()),
+	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
 		Usage:   "Directory to store data generated as part of responding to games",
@@ -288,7 +294,7 @@ func init() {
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
-func CheckCannonFlags(ctx *cli.Context, logger log.Logger) error {
+func CheckCannonFlags(ctx *cli.Context, serverTypes []types.ServerType) error {
 	if ctx.IsSet(CannonNetworkFlag.Name) && ctx.IsSet(flags.NetworkFlagName) {
 		return fmt.Errorf("flag %v can not be used with %v", CannonNetworkFlag.Name, flags.NetworkFlagName)
 	}
@@ -314,8 +320,8 @@ func CheckCannonFlags(ctx *cli.Context, logger log.Logger) error {
 	if !ctx.IsSet(CannonServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
 	}
-	if !ctx.IsSet(CannonServerKonaFlag.Name) {
-		logger.Warn("Cannon kona server flag is not set. This will cause issues if there is a kona + cannon game type registered in the factory.")
+	if !ctx.IsSet(CannonServerKonaFlag.Name) && slices.Contains(serverTypes, types.ServerTypeKona) {
+		return fmt.Errorf("flag %s is not set, and the `kona` server type is enabled.", CannonServerKonaFlag.Name)
 	}
 	if !ctx.IsSet(CannonPreStateFlag.Name) && !ctx.IsSet(CannonPreStatesURLFlag.Name) {
 		return fmt.Errorf("flag %s or %s is required", CannonPreStatesURLFlag.Name, CannonPreStateFlag.Name)
@@ -323,7 +329,7 @@ func CheckCannonFlags(ctx *cli.Context, logger log.Logger) error {
 	return nil
 }
 
-func CheckAsteriscFlags(ctx *cli.Context, logger log.Logger) error {
+func CheckAsteriscFlags(ctx *cli.Context, serverTypes []types.ServerType) error {
 	if ctx.IsSet(AsteriscNetworkFlag.Name) && ctx.IsSet(flags.NetworkFlagName) {
 		return fmt.Errorf("flag %v can not be used with %v", AsteriscNetworkFlag.Name, flags.NetworkFlagName)
 	}
@@ -349,8 +355,8 @@ func CheckAsteriscFlags(ctx *cli.Context, logger log.Logger) error {
 	if !ctx.IsSet(AsteriscServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", AsteriscServerFlag.Name)
 	}
-	if !ctx.IsSet(AsteriscServerKonaFlag.Name) {
-		logger.Warn("Asterisc kona server flag is not set. This will cause issues if there is a kona + asterisc game type registered in the factory.")
+	if !ctx.IsSet(AsteriscServerKonaFlag.Name) && slices.Contains(serverTypes, types.ServerTypeKona) {
+		return fmt.Errorf("flag %s is not set, and the `kona` server type is enabled.", AsteriscServerKonaFlag.Name)
 	}
 	if !ctx.IsSet(AsteriscPreStateFlag.Name) && !ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
 		return fmt.Errorf("flag %s or %s is required", AsteriscPreStatesURLFlag.Name, AsteriscPreStateFlag.Name)
@@ -358,7 +364,7 @@ func CheckAsteriscFlags(ctx *cli.Context, logger log.Logger) error {
 	return nil
 }
 
-func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType, logger log.Logger) error {
+func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType, serverTypes []types.ServerType) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
@@ -371,11 +377,11 @@ func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType, logger log.Lo
 	for _, traceType := range traceTypes {
 		switch traceType {
 		case types.TraceTypeCannon, types.TraceTypePermissioned:
-			if err := CheckCannonFlags(ctx, logger); err != nil {
+			if err := CheckCannonFlags(ctx, serverTypes); err != nil {
 				return err
 			}
 		case types.TraceTypeAsterisc:
-			if err := CheckAsteriscFlags(ctx, logger); err != nil {
+			if err := CheckAsteriscFlags(ctx, serverTypes); err != nil {
 				return err
 			}
 		case types.TraceTypeAlphabet, types.TraceTypeFast:
@@ -398,6 +404,20 @@ func parseTraceTypes(ctx *cli.Context) ([]types.TraceType, error) {
 		}
 	}
 	return traceTypes, nil
+}
+
+func parseServerTypes(ctx *cli.Context) ([]types.ServerType, error) {
+	var serverTypes []types.ServerType
+	for _, typeName := range ctx.StringSlice(ServerTypeFlag.Name) {
+		serverType := new(types.ServerType)
+		if err := serverType.Set(typeName); err != nil {
+			return nil, err
+		}
+		if !slices.Contains(serverTypes, *serverType) {
+			serverTypes = append(serverTypes, *serverType)
+		}
+	}
+	return serverTypes, nil
 }
 
 func getL2Rpc(ctx *cli.Context, logger log.Logger) (string, error) {
@@ -452,7 +472,11 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckRequired(ctx, traceTypes, logger); err != nil {
+	serverTypes, err := parseServerTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := CheckRequired(ctx, traceTypes, serverTypes); err != nil {
 		return nil, err
 	}
 	gameFactoryAddress, err := FactoryAddress(ctx)

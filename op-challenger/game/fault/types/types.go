@@ -122,6 +122,15 @@ func (t ServerType) String() string {
 	return string(t)
 }
 
+// Set implements the Set method required by the [cli.Generic] interface.
+func (t *ServerType) Set(value string) error {
+	if !ValidServerType(ServerType(value)) {
+		return fmt.Errorf("unknown server type: %q", value)
+	}
+	*t = ServerType(value)
+	return nil
+}
+
 func (t *ServerType) Clone() any {
 	cpy := *t
 	return &cpy
