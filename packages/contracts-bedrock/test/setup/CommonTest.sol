@@ -6,7 +6,7 @@ import { Setup } from "test/setup/Setup.sol";
 import { Events } from "test/setup/Events.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import "scripts/DeployConfig.s.sol";
+import "scripts/deploy/DeployConfig.s.sol";
 
 /// @title CommonTest
 /// @dev An extenstion to `Test` that sets up the optimism smart contracts.

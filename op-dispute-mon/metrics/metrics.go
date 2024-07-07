@@ -163,6 +163,8 @@ type Metricer interface {
 
 	RecordCredit(expectation CreditExpectation, count int)
 
+	RecordHonestWithdrawableAmounts(map[common.Address]*big.Int)
+
 	RecordClaims(statuses *ClaimStatuses)
 
 	RecordWithdrawalRequests(delayedWeth common.Address, matches bool, count int)
@@ -208,7 +210,8 @@ type Metrics struct {
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
-	credits prometheus.GaugeVec
+	credits                   prometheus.GaugeVec
+	honestWithdrawableAmounts prometheus.GaugeVec
 
 	lastOutputFetch prometheus.Gauge
 
@@ -294,6 +297,13 @@ func NewMetrics() *Metrics {
 		}, []string{
 			"credit",
 			"withdrawable",
+		}),
+		honestWithdrawableAmounts: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "honest_actor_pending_withdrawals",
+			Help:      "Current amount of withdrawable ETH for an honest actor",
+		}, []string{
+			"actor",
 		}),
 		claims: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -451,6 +461,12 @@ func (m *Metrics) RecordCredit(expectation CreditExpectation, count int) {
 		}
 	}
 	m.credits.WithLabelValues(asLabels(expectation)...).Set(float64(count))
+}
+
+func (m *Metrics) RecordHonestWithdrawableAmounts(amounts map[common.Address]*big.Int) {
+	for addr, amount := range amounts {
+		m.honestWithdrawableAmounts.WithLabelValues(addr.Hex()).Set(weiToEther(amount))
+	}
 }
 
 func (m *Metrics) RecordClaims(statuses *ClaimStatuses) {

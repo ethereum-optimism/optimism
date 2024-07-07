@@ -4,11 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/holiman/uint256"
+	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // Artifact represents a foundry compilation artifact.
@@ -49,7 +55,7 @@ func (a Artifact) MarshalJSON() ([]byte, error) {
 	return json.Marshal(artifact)
 }
 
-// artifactMarshaling is a helper struct for marshaling and unmarshaling
+// artifactMarshaling is a helper struct for marshaling and unmarshalling
 // foundry artifacts.
 type artifactMarshaling struct {
 	ABI              json.RawMessage    `json:"abi"`
@@ -66,7 +72,7 @@ type DeployedBytecode struct {
 	ImmutableReferences json.RawMessage `json:"immutableReferences,omitempty"`
 }
 
-// DeployedBytecode represents the bytecode section of the solc compiler output.
+// Bytecode represents the bytecode section of the solc compiler output.
 type Bytecode struct {
 	SourceMap           string          `json:"sourceMap"`
 	Object              hexutil.Bytes   `json:"object"`
@@ -85,4 +91,54 @@ func ReadArtifact(path string) (*Artifact, error) {
 		return nil, err
 	}
 	return &artifact, nil
+}
+
+type ForgeAllocs struct {
+	Accounts types.GenesisAlloc
+}
+
+func (d *ForgeAllocs) Copy() *ForgeAllocs {
+	out := make(types.GenesisAlloc, len(d.Accounts))
+	maps.Copy(out, d.Accounts)
+	return &ForgeAllocs{Accounts: out}
+}
+
+func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
+	// forge, since integrating Alloy, likes to hex-encode everything.
+	type forgeAllocAccount struct {
+		Balance hexutil.U256                `json:"balance"`
+		Nonce   hexutil.Uint64              `json:"nonce"`
+		Code    hexutil.Bytes               `json:"code,omitempty"`
+		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
+	}
+	var allocs map[common.Address]forgeAllocAccount
+	if err := json.Unmarshal(b, &allocs); err != nil {
+		return err
+	}
+	d.Accounts = make(types.GenesisAlloc, len(allocs))
+	for addr, acc := range allocs {
+		acc := acc
+		d.Accounts[addr] = types.Account{
+			Code:       acc.Code,
+			Storage:    acc.Storage,
+			Balance:    (*uint256.Int)(&acc.Balance).ToBig(),
+			Nonce:      (uint64)(acc.Nonce),
+			PrivateKey: nil,
+		}
+	}
+	return nil
+}
+
+func LoadForgeAllocs(allocsPath string) (*ForgeAllocs, error) {
+	path := filepath.Join(allocsPath)
+	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open forge allocs %q: %w", path, err)
+	}
+	defer f.Close()
+	var out ForgeAllocs
+	if err := json.NewDecoder(f).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to json-decode forge allocs %q: %w", path, err)
+	}
+	return &out, nil
 }

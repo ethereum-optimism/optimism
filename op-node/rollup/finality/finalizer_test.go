@@ -13,24 +13,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
-
-type fakeEngine struct {
-	finalized eth.L2BlockRef
-}
-
-func (f *fakeEngine) Finalized() eth.L2BlockRef {
-	return f.finalized
-}
-
-func (f *fakeEngine) SetFinalizedHead(ref eth.L2BlockRef) {
-	f.finalized = ref
-}
-
-var _ FinalizerEngine = (*fakeEngine)(nil)
 
 func TestEngineQueue_Finalize(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
@@ -80,12 +67,12 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		ParentHash: refG.Hash,
 		Time:       refG.Time + l1Time,
 	}
-	refI := eth.L1BlockRef{
-		Hash:       testutils.RandomHash(rng),
-		Number:     refH.Number + 1,
-		ParentHash: refH.Hash,
-		Time:       refH.Time + l1Time,
-	}
+	//refI := eth.L1BlockRef{
+	//	Hash:       testutils.RandomHash(rng),
+	//	Number:     refH.Number + 1,
+	//	ParentHash: refH.Hash,
+	//	Time:       refH.Time + l1Time,
+	//}
 
 	refA0 := eth.L2BlockRef{
 		Hash:           testutils.RandomHash(rng),
@@ -203,22 +190,29 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 
-		ec := &fakeEngine{}
-		ec.SetFinalizedHead(refA1)
-
-		fi := NewFinalizer(logger, &rollup.Config{}, l1F, ec)
+		emitter := &testutils.MockEmitter{}
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
 
 		// now say C1 was included in D and became the new safe head
-		fi.PostProcessSafeL2(refC1, refD)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refD))
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC1, DerivedFrom: refD})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refD})
+		emitter.AssertExpectations(t)
 
 		// now say D0 was included in E and became the new safe head
-		fi.PostProcessSafeL2(refD0, refE)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refD0, DerivedFrom: refE})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refE})
+		emitter.AssertExpectations(t)
 
-		// let's finalize D from which we fully derived C1, but not D0
-		fi.Finalize(context.Background(), refD)
-		require.Equal(t, refC1, ec.Finalized(), "C1 was included in finalized D, and should now be finalized, as finality signal is instantly picked up")
+		// Let's finalize D from which we fully derived C1, but not D0
+		// This will trigger an attempt of L2 finalization.
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(FinalizeL1Event{FinalizedL1: refD})
+		emitter.AssertExpectations(t)
+
+		// C1 was included in finalized D, and should now be finalized
+		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC1})
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
 	})
 
 	// Finality signal is received, but couldn't immediately be checked
@@ -230,25 +224,37 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // to check finality signal
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // to check what was derived from (same in this case)
 
-		ec := &fakeEngine{}
-		ec.SetFinalizedHead(refA1)
-
-		fi := NewFinalizer(logger, &rollup.Config{}, l1F, ec)
+		emitter := &testutils.MockEmitter{}
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
 
 		// now say C1 was included in D and became the new safe head
-		fi.PostProcessSafeL2(refC1, refD)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refD))
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC1, DerivedFrom: refD})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refD})
+		emitter.AssertExpectations(t)
 
 		// now say D0 was included in E and became the new safe head
-		fi.PostProcessSafeL2(refD0, refE)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refD0, DerivedFrom: refE})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refE})
+		emitter.AssertExpectations(t)
 
 		// let's finalize D from which we fully derived C1, but not D0
-		fi.Finalize(context.Background(), refD)
-		require.Equal(t, refA1, ec.Finalized(), "C1 was included in finalized D, but finality could not be verified yet, due to temporary test error")
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(FinalizeL1Event{FinalizedL1: refD})
+		emitter.AssertExpectations(t)
+		// C1 was included in finalized D, but finality could not be verified yet, due to temporary test error
+		emitter.ExpectOnceType("L1TemporaryErrorEvent")
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
 
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refF))
-		require.Equal(t, refC1, ec.Finalized(), "C1 was included in finalized D, and should now be finalized, as check can succeed when revisited")
+		// upon the next signal we should schedule a finalization re-attempt
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refF})
+		emitter.AssertExpectations(t)
+
+		// C1 was included in finalized D, and should now be finalized, as check can succeed when revisited
+		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC1})
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
 	})
 
 	// Test that finality progression can repeat a few times.
@@ -257,43 +263,80 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F := &testutils.MockL1Source{}
 		defer l1F.AssertExpectations(t)
 
+		emitter := &testutils.MockEmitter{}
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
+
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC1, DerivedFrom: refD})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refD})
+		emitter.AssertExpectations(t)
+
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refD0, DerivedFrom: refE})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refE})
+		emitter.AssertExpectations(t)
+
+		// L1 finality signal will trigger L2 finality attempt
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(FinalizeL1Event{FinalizedL1: refD})
+		emitter.AssertExpectations(t)
+
+		// C1 was included in D, and should be finalized now
+		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC1})
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
+		l1F.AssertExpectations(t)
+
+		// Another L1 finality event, trigger L2 finality attempt again
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(FinalizeL1Event{FinalizedL1: refE})
+		emitter.AssertExpectations(t)
+
+		// D0 was included in E, and should be finalized now
+		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refD0})
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
+		l1F.AssertExpectations(t)
+
+		// D0 is still there in the buffer, and may be finalized again, if it were not for the latest forkchoice update.
+		fi.OnEvent(engine.ForkchoiceUpdateEvent{FinalizedL2Head: refD0})
+		emitter.AssertExpectations(t) // should trigger no events
+
+		// we expect a finality attempt, since we have not idled on something yet
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refG})
+		emitter.AssertExpectations(t)
+
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refD1, DerivedFrom: refH})
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refE0, DerivedFrom: refH})
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refE1, DerivedFrom: refH})
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refF0, DerivedFrom: refH})
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refF1, DerivedFrom: refH})
+		emitter.AssertExpectations(t) // above updates add data, but no attempt is made until idle or L1 signal
+
+		// We recently finalized already, and there is no new L1 finality data
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refH})
+		emitter.AssertExpectations(t)
+
+		// D1-F1 were included in L1 blocks that have not been finalized yet.
+		// D0 is known to be finalized already.
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
+
+		// Now L1 block H is actually finalized, and we can proceed with another attempt
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(FinalizeL1Event{FinalizedL1: refH})
+		emitter.AssertExpectations(t)
+
+		// F1 should be finalized now, since it was included in H
+		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refF1})
 		l1F.ExpectL1BlockRefByNumber(refH.Number, refH, nil)
 		l1F.ExpectL1BlockRefByNumber(refH.Number, refH, nil)
-
-		ec := &fakeEngine{}
-		ec.SetFinalizedHead(refA1)
-
-		fi := NewFinalizer(logger, &rollup.Config{}, l1F, ec)
-
-		fi.PostProcessSafeL2(refC1, refD)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refD))
-
-		fi.PostProcessSafeL2(refD0, refE)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
-
-		fi.Finalize(context.Background(), refD)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refF))
-		require.Equal(t, refC1, ec.Finalized(), "C1 was included in D, and should be finalized now")
-
-		fi.Finalize(context.Background(), refE)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refG))
-		require.Equal(t, refD0, ec.Finalized(), "D0 was included in E, and should be finalized now")
-
-		fi.PostProcessSafeL2(refD1, refH)
-		fi.PostProcessSafeL2(refE0, refH)
-		fi.PostProcessSafeL2(refE1, refH)
-		fi.PostProcessSafeL2(refF0, refH)
-		fi.PostProcessSafeL2(refF1, refH)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refH))
-		require.Equal(t, refD0, ec.Finalized(), "D1-F1 were included in L1 blocks that have not been finalized yet")
-
-		fi.Finalize(context.Background(), refH)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refI))
-		require.Equal(t, refF1, ec.Finalized(), "F1 should be finalized now")
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
+		l1F.AssertExpectations(t)
 	})
 
 	// In this test the finality signal is for a block more than
@@ -305,22 +348,28 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // check the signal
 		l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil) // check what we derived the L2 block from
 
-		ec := &fakeEngine{}
-		ec.SetFinalizedHead(refA1)
-
-		fi := NewFinalizer(logger, &rollup.Config{}, l1F, ec)
+		emitter := &testutils.MockEmitter{}
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
 
 		// now say B1 was included in C and became the new safe head
-		fi.PostProcessSafeL2(refB1, refC)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refC))
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refB1, DerivedFrom: refC})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refC})
+		emitter.AssertExpectations(t)
 
 		// now say C0 was included in E and became the new safe head
-		fi.PostProcessSafeL2(refC0, refE)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC0, DerivedFrom: refE})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refE})
+		emitter.AssertExpectations(t)
 
 		// let's finalize D, from which we fully derived B1, but not C0 (referenced L1 origin in L2 block != inclusion of L2 block in L1 chain)
-		fi.Finalize(context.Background(), refD)
-		require.Equal(t, refB1, ec.Finalized(), "B1 was included in finalized D, and should now be finalized")
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(FinalizeL1Event{FinalizedL1: refD})
+		emitter.AssertExpectations(t)
+
+		// B1 was included in finalized D, and should now be finalized
+		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refB1})
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
 	})
 
 	// Test that reorg race condition is handled.
@@ -335,14 +384,13 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refF.Number, refF, nil) // check signal
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil) // post-reorg
 
-		ec := &fakeEngine{}
-		ec.SetFinalizedHead(refA1)
-
-		fi := NewFinalizer(logger, &rollup.Config{}, l1F, ec)
+		emitter := &testutils.MockEmitter{}
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
 
 		// now say B1 was included in C and became the new safe head
-		fi.PostProcessSafeL2(refB1, refC)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refC))
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refB1, DerivedFrom: refC})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refC})
+		emitter.AssertExpectations(t)
 
 		// temporary fork of the L1, and derived safe L2 blocks from.
 		refC0Alt := eth.L2BlockRef{
@@ -367,34 +415,56 @@ func TestEngineQueue_Finalize(t *testing.T) {
 			ParentHash: refC.Hash,
 			Time:       refC.Time + l1Time,
 		}
-		fi.PostProcessSafeL2(refC0Alt, refDAlt)
-		fi.PostProcessSafeL2(refC1Alt, refDAlt)
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC0Alt, DerivedFrom: refDAlt})
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC1Alt, DerivedFrom: refDAlt})
 
 		// We get an early finality signal for F, of the chain that did not include refC0Alt and refC1Alt,
 		// as L1 block F does not build on DAlt.
 		// The finality signal was for a new chain, while derivation is on an old stale chain.
 		// It should be detected that C0Alt and C1Alt cannot actually be finalized,
 		// even though they are older than the latest finality signal.
-		fi.Finalize(context.Background(), refF)
-		require.Equal(t, refA1, ec.Finalized(), "cannot verify refC0Alt and refC1Alt, and refB1 is older and not checked")
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(FinalizeL1Event{FinalizedL1: refF})
+		emitter.AssertExpectations(t)
+		// cannot verify refC0Alt and refC1Alt, and refB1 is older and not checked
+		emitter.ExpectOnceType("ResetEvent")
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t) // no change in finality
+
 		// And process DAlt, still stuck on old chain.
-		require.ErrorIs(t, derive.ErrReset, fi.OnDerivationL1End(context.Background(), refDAlt))
-		require.Equal(t, refA1, ec.Finalized(), "no new finalized L2 blocks after early finality signal with stale chain")
-		require.Equal(t, refF, fi.FinalizedL1(), "remember the new finality signal for later however")
+
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refDAlt})
+		emitter.AssertExpectations(t)
+		// no new finalized L2 blocks after early finality signal with stale chain
+		emitter.ExpectOnceType("ResetEvent")
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
 		// Now reset, because of the reset error
-		fi.Reset()
+		fi.OnEvent(rollup.ResetEvent{})
+		require.Equal(t, refF, fi.FinalizedL1(), "remember the new finality signal for later however")
 
 		// And process the canonical chain, with empty block D (no post-processing of canonical C0 blocks yet)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refD))
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refD})
+		emitter.AssertExpectations(t)
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t) // no new finality
 
 		// Include C0 in E
-		fi.PostProcessSafeL2(refC0, refE)
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
-		// Due to the "finalityDelay" we don't repeat finality checks shortly after one another.
-		require.Equal(t, refA1, ec.Finalized())
+		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC0, DerivedFrom: refE})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refE})
+		// Due to the "finalityDelay" we don't repeat finality checks shortly after one another,
+		// and don't expect a finality attempt.
+		emitter.AssertExpectations(t)
+
 		// if we reset the attempt, then we can finalize however.
 		fi.triedFinalizeAt = 0
-		require.NoError(t, fi.OnDerivationL1End(context.Background(), refE))
-		require.Equal(t, refC0, ec.Finalized())
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnEvent(derive.DeriverIdleEvent{Origin: refE})
+		emitter.AssertExpectations(t)
+		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC0})
+		fi.OnEvent(TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
 	})
 }

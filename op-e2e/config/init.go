@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/external"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -39,12 +40,12 @@ var (
 	// in end to end tests.
 
 	// L1Allocs represents the L1 genesis block state.
-	L1Allocs *genesis.ForgeAllocs
+	L1Allocs *foundry.ForgeAllocs
 	// L1Deployments maps contract names to accounts in the L1
 	// genesis block state.
 	L1Deployments *genesis.L1Deployments
 	// l2Allocs represents the L2 allocs, by hardfork/mode (e.g. delta, ecotone, interop, other)
-	l2Allocs map[genesis.L2AllocsMode]*genesis.ForgeAllocs
+	l2Allocs map[genesis.L2AllocsMode]*foundry.ForgeAllocs
 	// DeployConfig represents the deploy config used by the system.
 	DeployConfig *genesis.DeployConfig
 	// ExternalL2Shim is the shim to use if external ethereum client testing is
@@ -107,17 +108,14 @@ func init() {
 		return
 	}
 
-	L1Allocs, err = genesis.LoadForgeAllocs(l1AllocsPath)
+	L1Allocs, err = foundry.LoadForgeAllocs(l1AllocsPath)
 	if err != nil {
 		panic(err)
 	}
-	l2Allocs = make(map[genesis.L2AllocsMode]*genesis.ForgeAllocs)
+	l2Allocs = make(map[genesis.L2AllocsMode]*foundry.ForgeAllocs)
 	mustL2Allocs := func(mode genesis.L2AllocsMode) {
-		name := "allocs-l2"
-		if mode != "" {
-			name += "-" + string(mode)
-		}
-		allocs, err := genesis.LoadForgeAllocs(filepath.Join(l2AllocsDir, name+".json"))
+		name := "allocs-l2-" + string(mode)
+		allocs, err := foundry.LoadForgeAllocs(filepath.Join(l2AllocsDir, name+".json"))
 		if err != nil {
 			panic(err)
 		}
@@ -156,7 +154,7 @@ func init() {
 	}
 }
 
-func L2Allocs(mode genesis.L2AllocsMode) *genesis.ForgeAllocs {
+func L2Allocs(mode genesis.L2AllocsMode) *foundry.ForgeAllocs {
 	allocs, ok := l2Allocs[mode]
 	if !ok {
 		panic(fmt.Errorf("unknown L2 allocs mode: %q", mode))

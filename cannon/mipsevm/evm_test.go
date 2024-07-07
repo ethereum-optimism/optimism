@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"os"
 	"path"
@@ -40,17 +41,29 @@ func MarkdownTracer() vm.EVMLogger {
 	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 }
 
+func logStepFailureAtCleanup(t *testing.T, mipsEvm *MIPSEVM) {
+	t.Cleanup(func() {
+		if t.Failed() {
+			// Note: For easier debugging of a failing step, see MIPS.t.sol#test_step_debug_succeeds()
+			t.Logf("Failed while executing step %d with input: %x", mipsEvm.lastStep, mipsEvm.lastStepInput)
+		}
+	})
+}
+
 type MIPSEVM struct {
 	env         *vm.EVM
 	evmState    *state.StateDB
 	addrs       *Addresses
 	localOracle PreimageOracle
 	artifacts   *Artifacts
+	// Track step execution for logging purposes
+	lastStep      uint64
+	lastStepInput []byte
 }
 
 func NewMIPSEVM(artifacts *Artifacts, addrs *Addresses) *MIPSEVM {
 	env, evmState := NewEVMEnv(artifacts, addrs)
-	return &MIPSEVM{env, evmState, addrs, nil, artifacts}
+	return &MIPSEVM{env, evmState, addrs, nil, artifacts, math.MaxUint64, nil}
 }
 
 func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
@@ -62,7 +75,9 @@ func (m *MIPSEVM) SetLocalOracle(oracle PreimageOracle) {
 }
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
-func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
+func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness, step uint64) []byte {
+	m.lastStep = step
+	m.lastStepInput = nil
 	sender := common.Address{0x13, 0x37}
 	startingGas := uint64(30_000_000)
 
@@ -78,6 +93,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 	}
 
 	input := encodeStepInput(t, stepWitness, LocalContext{}, m.artifacts.MIPS)
+	m.lastStepInput = input
 	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, common.U2560)
 	require.NoError(t, err, "evm should not fail")
 	require.Len(t, ret, 32, "expecting 32-byte state hash")
@@ -92,7 +108,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 	require.Equal(t, stateHash, postHash, "logged state must be accurate")
 
 	m.env.StateDB.RevertToSnapshot(snap)
-	t.Logf("EVM step took %d gas, and returned stateHash %s", startingGas-leftOverGas, postHash)
+	t.Logf("EVM step %d took %d gas, and returned stateHash %s", step, startingGas-leftOverGas, postHash)
 	return evmPost
 }
 
@@ -168,11 +184,12 @@ func TestEVM(t *testing.T) {
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
 			evm.SetLocalOracle(oracle)
+			logStepFailureAtCleanup(t, evm)
 
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+			state := &State{Cpu: CpuScalars{PC: 0, NextPC: 4}, Memory: NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -182,30 +199,31 @@ func TestEVM(t *testing.T) {
 			goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
-				if goState.state.PC == endAddr {
+				curStep := goState.state.Step
+				if goState.state.Cpu.PC == endAddr {
 					break
 				}
 				if exitGroup && goState.state.Exited {
 					break
 				}
-				insn := state.Memory.GetMemory(state.PC)
-				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
+				insn := state.Memory.GetMemory(state.Cpu.PC)
+				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.Cpu.PC, insn)
 
 				stepWitness, err := goState.Step(true)
 				require.NoError(t, err)
-				evmPost := evm.Step(t, stepWitness)
+				evmPost := evm.Step(t, stepWitness, curStep)
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
-				goPost := goState.state.EncodeWitness()
+				goPost, _ := goState.state.EncodeWitness()
 				require.Equalf(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 					"mipsevm produced different state than EVM at step %d", state.Step)
 			}
 			if exitGroup {
-				require.NotEqual(t, uint32(endAddr), goState.state.PC, "must not reach end")
+				require.NotEqual(t, uint32(endAddr), goState.state.Cpu.PC, "must not reach end")
 				require.True(t, goState.state.Exited, "must set exited state")
 				require.Equal(t, uint8(1), goState.state.ExitCode, "must exit with 1")
 			} else {
-				require.Equal(t, uint32(endAddr), state.PC, "must reach end")
+				require.Equal(t, uint32(endAddr), state.Cpu.PC, "must reach end")
 				// inspect test result
 				done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
 				require.Equal(t, done, uint32(1), "must be done")
@@ -233,8 +251,9 @@ func TestEVMSingleStep(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &State{PC: tt.pc, NextPC: tt.nextPC, Memory: NewMemory()}
+			state := &State{Cpu: CpuScalars{PC: tt.pc, NextPC: tt.nextPC}, Memory: NewMemory()}
 			state.Memory.SetMemory(tt.pc, tt.insn)
+			curStep := state.Step
 
 			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
 			stepWitness, err := us.Step(true)
@@ -242,8 +261,10 @@ func TestEVMSingleStep(t *testing.T) {
 
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
-			evmPost := evm.Step(t, stepWitness)
-			goPost := us.state.EncodeWitness()
+			logStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, curStep)
+			goPost, _ := us.state.EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
@@ -401,7 +422,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			oracle := hintTrackingOracle{}
-			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+			state := &State{Cpu: CpuScalars{PC: 0, NextPC: 4}, Memory: NewMemory()}
 
 			state.LastHint = tt.lastHint
 			state.Registers[2] = sysWrite
@@ -412,6 +433,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			err := state.Memory.SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
 			require.NoError(t, err)
 			state.Memory.SetMemory(0, insn)
+			curStep := state.Step
 
 			us := NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr)
 			stepWitness, err := us.Step(true)
@@ -420,8 +442,10 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 			evm := NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
-			evmPost := evm.Step(t, stepWitness)
-			goPost := us.state.EncodeWitness()
+			logStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, curStep)
+			goPost, _ := us.state.EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
@@ -448,8 +472,8 @@ func TestEVMFault(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &State{PC: 0, NextPC: tt.nextPC, Memory: NewMemory()}
-			initialState := &State{PC: 0, NextPC: tt.nextPC, Memory: state.Memory}
+			state := &State{Cpu: CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: NewMemory()}
+			initialState := &State{Cpu: CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: state.Memory}
 			state.Memory.SetMemory(0, tt.insn)
 
 			// set the return address ($ra) to jump into when test completes
@@ -459,8 +483,9 @@ func TestEVMFault(t *testing.T) {
 			require.Panics(t, func() { _, _ = us.Step(true) })
 
 			insnProof := initialState.Memory.MerkleProof(0)
+			encodedWitness, _ := initialState.EncodeWitness()
 			stepWitness := &StepWitness{
-				State:    initialState.EncodeWitness(),
+				State:    encodedWitness,
 				MemProof: insnProof[:],
 			}
 			input := encodeStepInput(t, stepWitness, LocalContext{}, contracts.MIPS)
@@ -477,6 +502,9 @@ func TestEVMFault(t *testing.T) {
 func TestHelloEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
+	evm := NewMIPSEVM(contracts, addrs)
+	evm.SetTracer(tracer)
+	logStepFailureAtCleanup(t, evm)
 
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
@@ -493,23 +521,21 @@ func TestHelloEVM(t *testing.T) {
 
 	start := time.Now()
 	for i := 0; i < 400_000; i++ {
+		curStep := goState.state.Step
 		if goState.state.Exited {
 			break
 		}
-		insn := state.Memory.GetMemory(state.PC)
+		insn := state.Memory.GetMemory(state.Cpu.PC)
 		if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
-			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
+			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.Cpu.PC, insn)
 		}
-
-		evm := NewMIPSEVM(contracts, addrs)
-		evm.SetTracer(tracer)
 
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
-		evmPost := evm.Step(t, stepWitness)
+		evmPost := evm.Step(t, stepWitness, curStep)
 		// verify the post-state matches.
 		// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
-		goPost := goState.state.EncodeWitness()
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	}
@@ -527,6 +553,9 @@ func TestHelloEVM(t *testing.T) {
 func TestClaimEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see MarkdownTracer
+	evm := NewMIPSEVM(contracts, addrs)
+	evm.SetTracer(tracer)
+	logStepFailureAtCleanup(t, evm)
 
 	elfProgram, err := elf.Open("../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")
@@ -544,23 +573,22 @@ func TestClaimEVM(t *testing.T) {
 	goState := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	for i := 0; i < 2000_000; i++ {
+		curStep := goState.state.Step
 		if goState.state.Exited {
 			break
 		}
 
-		insn := state.Memory.GetMemory(state.PC)
+		insn := state.Memory.GetMemory(state.Cpu.PC)
 		if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
-			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
+			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.Cpu.PC, insn)
 		}
 
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evm.SetTracer(tracer)
-		evmPost := evm.Step(t, stepWitness)
+		evmPost := evm.Step(t, stepWitness, curStep)
 
-		goPost := goState.state.EncodeWitness()
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	}

@@ -15,6 +15,9 @@ func WaitRollupSync(
 	l1BlockTarget uint64,
 	pollInterval time.Duration,
 ) error {
+	timer := time.NewTimer(pollInterval)
+	defer timer.Stop()
+
 	for {
 		syncst, err := rollup.SyncStatus(ctx)
 		if err != nil {
@@ -29,12 +32,12 @@ func WaitRollupSync(
 		}
 
 		lgr.Info("rollup current L1 block still behind target, retrying")
-		timer := time.NewTimer(pollInterval)
+
+		timer.Reset(pollInterval)
 		select {
 		case <-timer.C: // next try
 		case <-ctx.Done():
 			lgr.Warn("waiting for rollup sync timed out")
-			timer.Stop()
 			return ctx.Err()
 		}
 	}

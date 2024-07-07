@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -21,10 +22,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
-
-type CannonMetricer interface {
-	RecordCannonExecutionTime(t float64)
-}
 
 type CannonTraceProvider struct {
 	logger         log.Logger
@@ -41,14 +38,14 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:           logger,
 		dir:              dir,
 		prestate:         prestate,
-		generator:        NewExecutor(logger, m, cfg, prestate, localInputs),
+		generator:        vm.NewExecutor(logger, m, cfg, prestate, localInputs),
 		gameDepth:        gameDepth,
-		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
 	}
 }
@@ -135,11 +132,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 				p.lastStep = state.Step - 1
 				// Extend the trace out to the full length using a no-op instruction that doesn't change any state
 				// No execution is done, so no proof-data or oracle values are required.
-				witness := state.EncodeWitness()
-				witnessHash, err := mipsevm.StateWitness(witness).StateHash()
-				if err != nil {
-					return nil, fmt.Errorf("cannot hash witness: %w", err)
-				}
+				witness, witnessHash := state.EncodeWitness()
 				proof := &utils.ProofData{
 					ClaimValue:   witnessHash,
 					StateData:    hexutil.Bytes(witness),
@@ -170,7 +163,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 }
 
 func (c *CannonTraceProvider) finalState() (*mipsevm.State, error) {
-	state, err := parseState(filepath.Join(c.dir, utils.FinalState))
+	state, err := parseState(filepath.Join(c.dir, vm.FinalState))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read final state: %w", err)
 	}
@@ -183,21 +176,21 @@ type CannonTraceProviderForTest struct {
 	*CannonTraceProvider
 }
 
-func NewTraceProviderForTest(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
+func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
 	p := &CannonTraceProvider{
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.CannonAbsolutePreState,
-		generator:      NewExecutor(logger, m, cfg, cfg.CannonAbsolutePreState, localInputs),
+		generator:      vm.NewExecutor(logger, m, cfg.Cannon, cfg.CannonAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(utils.PreimageDir(dir)).Get),
+		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 	}
 	return &CannonTraceProviderForTest{p}
 }
 
 func (p *CannonTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage utils.PreimageOpt) (uint64, error) {
 	// Run cannon to find the step that meets the preimage conditions
-	if err := p.generator.(*Executor).generateProof(ctx, p.dir, start, math.MaxUint64, preimage()...); err != nil {
+	if err := p.generator.(*vm.Executor).DoGenerateProof(ctx, p.dir, start, math.MaxUint64, preimage()...); err != nil {
 		return 0, fmt.Errorf("generate cannon trace (until preimage read): %w", err)
 	}
 	// Load the step from the state cannon finished with

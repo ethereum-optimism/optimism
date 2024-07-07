@@ -4,18 +4,14 @@ import os
 import subprocess
 import json
 import socket
-import calendar
 import datetime
 import time
 import shutil
 import http.client
-import gzip
 from multiprocessing import Process, Queue
 import concurrent.futures
 from collections import namedtuple
 
-
-import devnet.log_setup
 
 pjoin = os.path.join
 
@@ -25,6 +21,9 @@ parser.add_argument('--allocs', help='Only create the allocs and exit', type=boo
 parser.add_argument('--test', help='Tests the deployment, must already be deployed', type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
+
+# Global constants
+FORKS = ["delta", "ecotone", "fjord"]
 
 # Global environment variables
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
@@ -71,7 +70,7 @@ def main():
     devnet_config_path = pjoin(deploy_config_dir, 'devnetL1.json')
     devnet_config_template_path = pjoin(deploy_config_dir, 'devnetL1-template.json')
     ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
-    sdk_dir = pjoin(monorepo_dir, 'packages', 'sdk')
+    tasks_dir = pjoin(monorepo_dir, 'packages', 'devnet-tasks')
 
     paths = Bunch(
       mono_repo_dir=monorepo_dir,
@@ -86,7 +85,7 @@ def main():
       op_node_dir=op_node_dir,
       ops_bedrock_dir=ops_bedrock_dir,
       ops_chain_ops=ops_chain_ops,
-      sdk_dir=sdk_dir,
+      tasks_dir=tasks_dir,
       genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
       genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
       allocs_l1_path=pjoin(devnet_dir, 'allocs-l1.json'),
@@ -142,7 +141,7 @@ def devnet_l1_allocs(paths):
     log.info('Generating L1 genesis allocs')
     init_devnet_l1_deploy_config(paths)
 
-    fqn = 'scripts/Deploy.s.sol:Deploy'
+    fqn = 'scripts/deploy/Deploy.s.sol:Deploy'
     run_command([
         # We need to set the sender here to an account we know the private key of,
         # because the sender ends up being the owner of the ProxyAdmin SAFE
@@ -171,9 +170,9 @@ def devnet_l2_allocs(paths):
 
     # For the previous forks, and the latest fork (default, thus empty prefix),
     # move the forge-dumps into place as .devnet allocs.
-    for suffix in ["-delta", "-ecotone", ""]:
-        input_path = pjoin(paths.contracts_bedrock_dir, f"state-dump-901{suffix}.json")
-        output_path = pjoin(paths.devnet_dir, f'allocs-l2{suffix}.json')
+    for fork in FORKS:
+        input_path = pjoin(paths.contracts_bedrock_dir, f"state-dump-901-{fork}.json")
+        output_path = pjoin(paths.devnet_dir, f'allocs-l2-{fork}.json')
         shutil.move(src=input_path, dst=output_path)
         log.info("Generated L2 allocs: "+output_path)
 
@@ -218,7 +217,7 @@ def devnet_deploy(paths):
         log.info('L2 genesis and rollup configs already generated.')
     else:
         log.info('Generating L2 genesis and rollup configs.')
-        l2_allocs_path = pjoin(paths.devnet_dir, 'allocs-l2.json')
+        l2_allocs_path = pjoin(paths.devnet_dir, f'allocs-l2-{FORKS[-1]}.json')
         if os.path.exists(l2_allocs_path) == False or DEVNET_L2OO == True:
             # Also regenerate if L2OO.
             # The L2OO flag may affect the L1 deployments addresses, which may affect the L2 genesis.
@@ -294,7 +293,7 @@ def devnet_deploy(paths):
         log.info('Bringing up `op-challenger`.')
         run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
-    # Optionally bring up Plasma Mode components.
+    # Optionally bring up Alt-DA Mode components.
     if DEVNET_PLASMA:
         log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
         run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
@@ -334,11 +333,11 @@ def devnet_test(paths):
         CommandPreset('erc20-test',
           ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1',
            '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '14'],
-          cwd=paths.sdk_dir, timeout=8*60),
+          cwd=paths.tasks_dir, timeout=8*60),
         CommandPreset('eth-test',
           ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
            '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
-          cwd=paths.sdk_dir, timeout=8*60)
+          cwd=paths.tasks_dir, timeout=8*60)
     ], max_workers=1)
 
 

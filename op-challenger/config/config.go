@@ -8,12 +8,13 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -50,45 +51,6 @@ var (
 	ErrAsteriscNetworkUnknown             = errors.New("unknown asterisc network")
 )
 
-type TraceType string
-
-const (
-	TraceTypeAlphabet     TraceType = "alphabet"
-	TraceTypeFast         TraceType = "fast"
-	TraceTypeCannon       TraceType = "cannon"
-	TraceTypeAsterisc     TraceType = "asterisc"
-	TraceTypePermissioned TraceType = "permissioned"
-)
-
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeFast}
-
-func (t TraceType) String() string {
-	return string(t)
-}
-
-// Set implements the Set method required by the [cli.Generic] interface.
-func (t *TraceType) Set(value string) error {
-	if !ValidTraceType(TraceType(value)) {
-		return fmt.Errorf("unknown trace type: %q", value)
-	}
-	*t = TraceType(value)
-	return nil
-}
-
-func (t *TraceType) Clone() any {
-	cpy := *t
-	return &cpy
-}
-
-func ValidTraceType(value TraceType) bool {
-	for _, t := range TraceTypes {
-		if t == value {
-			return true
-		}
-	}
-	return false
-}
-
 const (
 	DefaultPollInterval         = time.Second * 12
 	DefaultCannonSnapshotFreq   = uint(1_000_000_000)
@@ -122,33 +84,21 @@ type Config struct {
 
 	SelectiveClaimResolution bool // Whether to only resolve claims for the claimants in AdditionalBondClaimants union [TxSender.From()]
 
-	TraceTypes []TraceType // Type of traces supported
+	TraceTypes []types.TraceType // Type of traces supported
 
 	RollupRpc string // L2 Rollup RPC Url
 
 	L2Rpc string // L2 RPC Url
 
 	// Specific to the cannon trace provider
-	CannonBin                     string   // Path to the cannon executable to run when generating trace data
-	CannonServer                  string   // Path to the op-program executable that provides the pre-image oracle server
+	Cannon                        vm.Config
 	CannonAbsolutePreState        string   // File to load the absolute pre-state for Cannon traces from
 	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
-	CannonNetwork                 string
-	CannonRollupConfigPath        string
-	CannonL2GenesisPath           string
-	CannonSnapshotFreq            uint // Frequency of snapshots to create when executing cannon (in VM instructions)
-	CannonInfoFreq                uint // Frequency of cannon progress log messages (in VM instructions)
 
 	// Specific to the asterisc trace provider
-	AsteriscBin                     string   // Path to the asterisc executable to run when generating trace data
-	AsteriscServer                  string   // Path to the op-program executable that provides the pre-image oracle server
+	Asterisc                        vm.Config
 	AsteriscAbsolutePreState        string   // File to load the absolute pre-state for Asterisc traces from
 	AsteriscAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
-	AsteriscNetwork                 string
-	AsteriscRollupConfigPath        string
-	AsteriscL2GenesisPath           string
-	AsteriscSnapshotFreq            uint // Frequency of snapshots to create when executing asterisc (in VM instructions)
-	AsteriscInfoFreq                uint // Frequency of asterisc progress log messages (in VM instructions)
 
 	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
 
@@ -164,7 +114,7 @@ func NewConfig(
 	l2RollupRpc string,
 	l2EthRpc string,
 	datadir string,
-	supportedTraceTypes ...TraceType,
+	supportedTraceTypes ...types.TraceType,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
@@ -185,15 +135,27 @@ func NewConfig(
 
 		Datadir: datadir,
 
-		CannonSnapshotFreq:   DefaultCannonSnapshotFreq,
-		CannonInfoFreq:       DefaultCannonInfoFreq,
-		AsteriscSnapshotFreq: DefaultAsteriscSnapshotFreq,
-		AsteriscInfoFreq:     DefaultAsteriscInfoFreq,
-		GameWindow:           DefaultGameWindow,
+		Cannon: vm.Config{
+			VmType:       types.TraceTypeCannon,
+			L1:           l1EthRpc,
+			L1Beacon:     l1BeaconApi,
+			L2:           l2EthRpc,
+			SnapshotFreq: DefaultCannonSnapshotFreq,
+			InfoFreq:     DefaultCannonInfoFreq,
+		},
+		Asterisc: vm.Config{
+			VmType:       types.TraceTypeAsterisc,
+			L1:           l1EthRpc,
+			L1Beacon:     l1BeaconApi,
+			L2:           l2EthRpc,
+			SnapshotFreq: DefaultAsteriscSnapshotFreq,
+			InfoFreq:     DefaultAsteriscInfoFreq,
+		},
+		GameWindow: DefaultGameWindow,
 	}
 }
 
-func (c Config) TraceTypeEnabled(t TraceType) bool {
+func (c Config) TraceTypeEnabled(t types.TraceType) bool {
 	return slices.Contains(c.TraceTypes, t)
 }
 
@@ -222,29 +184,29 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceTypeEnabled(TraceTypeCannon) || c.TraceTypeEnabled(TraceTypePermissioned) {
-		if c.CannonBin == "" {
+	if c.TraceTypeEnabled(types.TraceTypeCannon) || c.TraceTypeEnabled(types.TraceTypePermissioned) {
+		if c.Cannon.VmBin == "" {
 			return ErrMissingCannonBin
 		}
-		if c.CannonServer == "" {
+		if c.Cannon.Server == "" {
 			return ErrMissingCannonServer
 		}
-		if c.CannonNetwork == "" {
-			if c.CannonRollupConfigPath == "" {
+		if c.Cannon.Network == "" {
+			if c.Cannon.RollupConfigPath == "" {
 				return ErrMissingCannonRollupConfig
 			}
-			if c.CannonL2GenesisPath == "" {
+			if c.Cannon.L2GenesisPath == "" {
 				return ErrMissingCannonL2Genesis
 			}
 		} else {
-			if c.CannonRollupConfigPath != "" {
+			if c.Cannon.RollupConfigPath != "" {
 				return ErrCannonNetworkAndRollupConfig
 			}
-			if c.CannonL2GenesisPath != "" {
+			if c.Cannon.L2GenesisPath != "" {
 				return ErrCannonNetworkAndL2Genesis
 			}
-			if ch := chaincfg.ChainByName(c.CannonNetwork); ch == nil {
-				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
+			if ch := chaincfg.ChainByName(c.Cannon.Network); ch == nil {
+				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.Cannon.Network)
 			}
 		}
 		if c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
@@ -253,36 +215,36 @@ func (c Config) Check() error {
 		if c.CannonAbsolutePreState != "" && c.CannonAbsolutePreStateBaseURL != nil {
 			return ErrCannonAbsolutePreStateAndBaseURL
 		}
-		if c.CannonSnapshotFreq == 0 {
+		if c.Cannon.SnapshotFreq == 0 {
 			return ErrMissingCannonSnapshotFreq
 		}
-		if c.CannonInfoFreq == 0 {
+		if c.Cannon.InfoFreq == 0 {
 			return ErrMissingCannonInfoFreq
 		}
 	}
-	if c.TraceTypeEnabled(TraceTypeAsterisc) {
-		if c.AsteriscBin == "" {
+	if c.TraceTypeEnabled(types.TraceTypeAsterisc) {
+		if c.Asterisc.VmBin == "" {
 			return ErrMissingAsteriscBin
 		}
-		if c.AsteriscServer == "" {
+		if c.Asterisc.Server == "" {
 			return ErrMissingAsteriscServer
 		}
-		if c.AsteriscNetwork == "" {
-			if c.AsteriscRollupConfigPath == "" {
+		if c.Asterisc.Network == "" {
+			if c.Asterisc.RollupConfigPath == "" {
 				return ErrMissingAsteriscRollupConfig
 			}
-			if c.AsteriscL2GenesisPath == "" {
+			if c.Asterisc.L2GenesisPath == "" {
 				return ErrMissingAsteriscL2Genesis
 			}
 		} else {
-			if c.AsteriscRollupConfigPath != "" {
+			if c.Asterisc.RollupConfigPath != "" {
 				return ErrAsteriscNetworkAndRollupConfig
 			}
-			if c.AsteriscL2GenesisPath != "" {
+			if c.Asterisc.L2GenesisPath != "" {
 				return ErrAsteriscNetworkAndL2Genesis
 			}
-			if ch := chaincfg.ChainByName(c.AsteriscNetwork); ch == nil {
-				return fmt.Errorf("%w: %v", ErrAsteriscNetworkUnknown, c.AsteriscNetwork)
+			if ch := chaincfg.ChainByName(c.Asterisc.Network); ch == nil {
+				return fmt.Errorf("%w: %v", ErrAsteriscNetworkUnknown, c.Asterisc.Network)
 			}
 		}
 		if c.AsteriscAbsolutePreState == "" && c.AsteriscAbsolutePreStateBaseURL == nil {
@@ -291,10 +253,10 @@ func (c Config) Check() error {
 		if c.AsteriscAbsolutePreState != "" && c.AsteriscAbsolutePreStateBaseURL != nil {
 			return ErrAsteriscAbsolutePreStateAndBaseURL
 		}
-		if c.AsteriscSnapshotFreq == 0 {
+		if c.Asterisc.SnapshotFreq == 0 {
 			return ErrMissingAsteriscSnapshotFreq
 		}
-		if c.AsteriscInfoFreq == 0 {
+		if c.Asterisc.InfoFreq == 0 {
 			return ErrMissingAsteriscInfoFreq
 		}
 	}

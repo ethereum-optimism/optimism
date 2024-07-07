@@ -16,7 +16,7 @@ var (
 	ErrAlreadyReserved = errors.New("address already reserved")
 
 	// Returned by CriticalError when the system is unable to get the tx into the mempool in the
-	// alloted time
+	// allotted time
 	ErrMempoolDeadlineExpired = errors.New("failed to get tx into the mempool")
 )
 
@@ -125,7 +125,7 @@ func (s *SendState) CriticalError() error {
 		// we have exceeded the nonce too low count
 		return core.ErrNonceTooLow
 	case s.successFullPublishCount == 0 && s.now().After(s.txInMempoolDeadline):
-		// unable to get the tx into the mempool in the alloted time
+		// unable to get the tx into the mempool in the allotted time
 		return ErrMempoolDeadlineExpired
 	case s.alreadyReserved:
 		// incompatible tx type in mempool

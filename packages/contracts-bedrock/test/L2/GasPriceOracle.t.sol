@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { OutputMode } from "scripts/L2Genesis.s.sol";
+import { Fork } from "scripts/Config.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
@@ -39,7 +39,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
         // The gasPriceOracle tests rely on an L2 genesis that is not past Ecotone.
-        l2OutputMode = OutputMode.LOCAL_DELTA;
+        l2Fork = Fork.DELTA;
         super.setUp();
         assertEq(gasPriceOracle.isEcotone(), false);
 
@@ -120,7 +120,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
 contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
-        l2OutputMode = OutputMode.LOCAL_ECOTONE; // activate ecotone
+        l2Fork = Fork.ECOTONE;
         super.setUp();
         assertEq(gasPriceOracle.isEcotone(), true);
 
@@ -213,7 +213,7 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
 contract GasPriceOracleFjordActive_Test is GasPriceOracle_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
-        l2OutputMode = OutputMode.LOCAL_LATEST; // activate fjord
+        l2Fork = Fork.FJORD;
         super.setUp();
 
         bytes memory calldataPacked = Encoding.encodeSetL1BlockValuesEcotone(

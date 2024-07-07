@@ -6,6 +6,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
 
 /// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
 error NotEntered();
@@ -59,8 +60,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 1.0.0-beta.1
+    string public constant version = "1.0.0-beta.1";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -175,7 +176,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
 
         _storeMessageMetadata(_source, _sender);
 
-        bool success = _callWithAllGas(_target, _message);
+        bool success = SafeCall.call(_target, msg.value, _message);
 
         if (success) {
             successfulMessages[messageHash] = true;
@@ -211,25 +212,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
-        }
-    }
-
-    /// @notice Calls the target address with the message payload and all available gas.
-    /// @param _target  Target address to call.
-    /// @param _message Message payload to call target with.
-    /// @return _success True if the call was successful, and false otherwise.
-    function _callWithAllGas(address _target, bytes memory _message) internal returns (bool _success) {
-        assembly {
-            _success :=
-                call(
-                    gas(), // gas
-                    _target, // recipient
-                    callvalue(), // ether value
-                    add(_message, 32), // inloc
-                    mload(_message), // inlen
-                    0, // outloc
-                    0 // outlen
-                )
         }
     }
 }

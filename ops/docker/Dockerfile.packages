@@ -98,10 +98,6 @@ FROM base as balance-mon
 WORKDIR /opt/optimism/packages/chain-mon/internal
 CMD ["start:balance-mon"]
 
-FROM base as drippie-mon
-WORKDIR /opt/optimism/packages/chain-mon/contrib
-CMD ["start:drippie-mon"]
-
 from base as fault-mon
 WORKDIR /opt/optimism/packages/chain-mon/
 CMD ["start:fault-mon"]

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -21,6 +22,7 @@ type Metrics interface {
 	RecordFrame()
 	RecordDerivedBatches(batchType string)
 	SetDerivationIdle(idle bool)
+	RecordPipelineReset()
 }
 
 type L1Fetcher interface {
@@ -34,6 +36,15 @@ type L1Fetcher interface {
 type ResettableStage interface {
 	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
 	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
+}
+
+type L2Source interface {
+	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
+	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	SystemConfigL2Fetcher
 }
 
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to generate attributes
@@ -79,9 +90,9 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1Fetcher, l2Source)
 	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchQueue)
 
-	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
-	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
-	// Note: The engine queue stage is the only reset that can fail.
+	// Reset from ResetEngine then up from L1 Traversal. The stages do not talk to each other during
+	// the ResetEngine, but after the ResetEngine, this is the order in which the stages could talk to each other.
+	// Note: The ResetEngine is the only reset that can fail.
 	stages := []ResettableStage{l1Traversal, l1Src, plasma, frameQueue, bank, chInReader, batchQueue, attributesQueue}
 
 	return &DerivationPipeline{
@@ -184,6 +195,8 @@ func (dp *DerivationPipeline) Step(ctx context.Context, pendingSafeHead eth.L2Bl
 // initialReset does the initial reset work of finding the L1 point to rewind back to
 func (dp *DerivationPipeline) initialReset(ctx context.Context, resetL2Safe eth.L2BlockRef) error {
 	dp.log.Info("Rewinding derivation-pipeline L1 traversal to handle reset")
+
+	dp.metrics.RecordPipelineReset()
 
 	// Walk back L2 chain to find the L1 origin that is old enough to start buffering channel data from.
 	pipelineL2 := resetL2Safe

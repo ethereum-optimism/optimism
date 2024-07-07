@@ -21,7 +21,6 @@ build-ts: submodules
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
 	pnpm install:ci
-	pnpm prepare
 	pnpm build
 .PHONY: build-ts
 
@@ -38,7 +37,7 @@ golang-docker:
 			--progress plain \
 			--load \
 			-f docker-bake.hcl \
-			op-node op-batcher op-proposer op-challenger op-dispute-mon
+			op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor
 .PHONY: golang-docker
 
 docker-builder-clean:
@@ -237,7 +236,7 @@ update-op-geth:
 
 bedrock-markdown-links:
 	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
-		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org --exclude vitalik.ca \
+		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org --exclude vitalik.eth.limo \
 		--exclude-mail /input/README.md "/input/specs/**/*.md"
 .PHONY: bedrock-markdown-links
 

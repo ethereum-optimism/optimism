@@ -3,17 +3,11 @@ ifeq ($(shell uname),Darwin)
 	FUZZLDFLAGS := -ldflags=-extldflags=-Wl,-ld_classic
 endif
 
-op-version-check:
-	go build -o ./bin/op-version-check ./cmd/op-version-check/main.go
-
 ecotone-scalar:
 	go build -o ./bin/ecotone-scalar ./cmd/ecotone-scalar/main.go
 
 receipt-reference-builder:
 	go build -o ./bin/receipt-reference-builder ./cmd/receipt-reference-builder/*.go
-
-op-upgrade:
-	go build -o ./bin/op-upgrade ./cmd/op-upgrade/main.go
 
 test:
 	go test ./...

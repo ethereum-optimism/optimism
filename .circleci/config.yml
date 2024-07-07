@@ -243,25 +243,25 @@ jobs:
             - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
             - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
             - ".devnet/allocs-l1.json"
-            - ".devnet/allocs-l2.json"
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
+            - ".devnet/allocs-l2-fjord.json"
             - ".devnet/addresses.json"
             - ".devnet-l2oo/allocs-l1.json"
             - ".devnet-l2oo/addresses.json"
-            - ".devnet-l2oo/allocs-l2.json"
             - ".devnet-l2oo/allocs-l2-delta.json"
             - ".devnet-l2oo/allocs-l2-ecotone.json"
+            - ".devnet-l2oo/allocs-l2-fjord.json"
             - ".devnet-plasma/allocs-l1.json"
             - ".devnet-plasma/addresses.json"
-            - ".devnet-plasma/allocs-l2.json"
             - ".devnet-plasma/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l2-ecotone.json"
+            - ".devnet-plasma/allocs-l2-fjord.json"
             - ".devnet-plasma-generic/allocs-l1.json"
             - ".devnet-plasma-generic/addresses.json"
-            - ".devnet-plasma-generic/allocs-l2.json"
             - ".devnet-plasma-generic/allocs-l2-delta.json"
             - ".devnet-plasma-generic/allocs-l2-ecotone.json"
+            - ".devnet-plasma-generic/allocs-l2-fjord.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -427,11 +427,13 @@ jobs:
                   ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
       - when:
           condition:
-            and:
-              - or:
+            or:
+              - and:
                 - "<<parameters.publish>>"
                 - "<<parameters.release>>"
-              - equal: [develop, << pipeline.git.branch >>]
+              - and:
+                - "<<parameters.publish>>"
+                - equal: [develop, << pipeline.git.branch >>]
           steps:
             - gcp-oidc-authenticate:
                 service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
@@ -736,61 +738,6 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
-  sdk-next-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore pnpm Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
-      - check-changed:
-          patterns: sdk
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: sepolia-fork
-          background: true
-          # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_SEPOLIA_FORK_URL --fork-block-number 5580113 --port 8545
-
-      - run:
-          name: op-sepolia-fork
-          background: true
-          # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_OP_SEPOLIA_FORK_URL --port 9545 --fork-block-number 9925328
-
-      - run:
-          name: build
-          command: pnpm build
-          working_directory: packages/sdk
-      - run:
-          name: lint
-          command: pnpm lint:check
-          working_directory: packages/sdk
-      - run:
-          name: make sure anvil l1 is up
-          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
-      - run:
-          name: make sure anvil l2 is up
-          command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
-      - run:
-          name: test:next
-          command: pnpm test:next:run
-          no_output_timeout: 5m
-          working_directory: packages/sdk
-          environment:
-            # anvil[0] test private key
-            VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-            VITE_E2E_RPC_URL_L1: http://localhost:8545
-            VITE_E2E_RPC_URL_L2: http://localhost:9545
-      - notify-failures-on-develop
-
   todo-issues:
     machine:
       image: <<pipeline.parameters.base_image>>
@@ -839,23 +786,6 @@ jobs:
           key: golang-build-cache
           paths:
             - "/root/.cache/go-build"
-
-  depcheck:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: packages
-      - run:
-          name: Check sdk
-          command: npx depcheck
-          working_directory: packages/sdk
 
   l1-geth-version-check:
     docker:
@@ -1000,9 +930,9 @@ jobs:
           name: Load devnet-allocs
           command: |
             mkdir -p .devnet
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2.json .devnet/allocs-l2.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-fjord.json .devnet/allocs-l2-fjord.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
@@ -1085,69 +1015,6 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
-  indexer-tests:
-    parameters:
-      variant:
-        type: string
-        default: ''
-    environment:
-      DEVNET_L2OO: 'false'
-      OP_E2E_USE_L2OO: 'false'
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-      - image: cimg/postgres:14.1
-    resource_class: xlarge
-    steps:
-      - checkout
-      - when:
-          condition:
-            equal: ['l2oo', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set DEVNET_L2OO = true
-                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
-            - run:
-                name: Set OP_E2E_USE_L2OO = true
-                command: echo 'export OP_E2E_USE_L2OO=true' >> $BASH_ENV
-      - check-changed:
-          patterns: indexer
-      - run:
-          name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 4m -e "errors.As" -e "errors.Is" ./...
-          working_directory: indexer
-      - run:
-          name: git submodules
-          command: make submodules
-      - run:
-          name: generate cannon prestate
-          command: make cannon-prestate
-      - run:
-          name: generate L1 state
-          command: make devnet-allocs
-      - run:
-          name: Test
-          command: |
-            mkdir -p /test-results
-            DB_USER=postgres gotestsum --format=standard-verbose --junitfile=/test-results/indexer_tests.xml -- -parallel=4 ./...
-          working_directory: indexer
-      - store_test_results:
-          path: /test-results
-      - run:
-          name: Build
-          command: make indexer
-          working_directory: indexer
-      - run:
-          name: Install node_modules
-          command: pnpm install:ci
-      - run:
-          name: Install tygo
-          command: go install github.com/gzuidhof/tygo@latest
-          working_directory: indexer/api-ts
-      - run:
-          name: Check generated code
-          command: npm run generate && git diff --exit-code
-          working_directory: indexer/api-ts
-
   cannon-prestate:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -1206,6 +1073,8 @@ jobs:
               echo 'export EXPECTED_PRESTATE_HASH="0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55"' >> $BASH_ENV
             elif [[ "<<parameters.version>>" == "1.1.0" ]]; then
               echo 'export EXPECTED_PRESTATE_HASH="0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.2.0" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x03617abec0b255dc7fc7a0513a2c2220140a1dcd7a1c8eca567659bd67e05cea"' >> $BASH_ENV
             else
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
@@ -1248,9 +1117,9 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - ".devnet/allocs-l2.json"
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
+            - ".devnet/allocs-l2-fjord.json"
             - ".devnet/allocs-l1.json"
             - ".devnet/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
@@ -1270,13 +1139,6 @@ jobs:
       DEVNET_PLASMA: 'false'
     steps:
       - checkout
-      - when:
-          condition:
-            equal: ['l2oo', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set DEVNET_L2OO = true
-                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
       - when:
           condition:
             equal: ['plasma', <<parameters.variant>>]
@@ -1695,18 +1557,6 @@ workflows:
           dependencies: "contracts-bedrock"
           requires:
             - pnpm-monorepo
-      - depcheck:
-          requires:
-            - pnpm-monorepo
-      - go-lint-test-build:
-          name: proxyd-tests
-          binary_name: proxyd
-          working_directory: proxyd
-      - indexer-tests:
-          name: indexer-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-l2oo"]
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1781,6 +1631,10 @@ workflows:
           name: op-service-tests
           module: op-service
           requires: ["go-mod-download"]
+      - go-test:
+          name: op-supervisor-tests
+          module: op-supervisor
+          requires: ["go-mod-download"]
       - go-e2e-test:
           name: op-e2e-HTTP-tests<< matrix.variant >>
           matrix:
@@ -1836,10 +1690,12 @@ workflows:
             - op-program-tests
             - op-program-compat
             - op-service-tests
+            - op-supervisor-tests
             - op-service-rethdb-tests
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
+            - op-e2e-action-tests-plasma
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
@@ -1885,13 +1741,18 @@ workflows:
           docker_name: da-server
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           save_image_tag: <<pipeline.git.revision>> # for devnet later
+      - docker-build:
+          name: op-supervisor-docker-build
+          docker_name: op-supervisor
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          # op-supervisor is not (yet) part of the devnet, we don't save it
       - cannon-prestate:
           requires:
             - go-mod-download
       - devnet:
           matrix:
             parameters:
-              variant: ["default", "l2oo", "plasma", "plasma-generic"]
+              variant: ["default", "plasma", "plasma-generic"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
@@ -1900,10 +1761,6 @@ workflows:
             - op-challenger-docker-build
             - da-server-docker-build
             - cannon-prestate
-      - docker-build:
-          name: indexer-docker-build
-          docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test:
@@ -1926,7 +1783,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build:
@@ -2105,35 +1962,25 @@ workflows:
           requires:
             - hold
       - docker-build:
-          name: proxyd-docker-release
+          name: op-supervisor-docker-release
           filters:
             tags:
-              only: /^proxyd\/v.*/
+              only: /^op-supervisor\/v.*/
             branches:
               ignore: /.*/
-          docker_name: proxyd
+          docker_name: op-supervisor
           docker_tags: <<pipeline.git.revision>>
+          requires: ['hold']
+          platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
           context:
             - oplabs-gcr-release
+      - check-cross-platform:
+          name: op-supervisor-cross-platform
+          op_component: op-supervisor
           requires:
-            - hold
-      - docker-build:
-          name: indexer-docker-release
-          filters:
-            tags:
-              only: /^indexer\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
+            - op-supervisor-docker-release
       - docker-build:
           name: chain-mon-docker-release
           filters:
@@ -2244,26 +2091,6 @@ workflows:
           context:
             - slack
 
-  develop-sdk-next-tests:
-    when:
-      and:
-        - or:
-          - equal: [ "develop", <<pipeline.git.branch>> ]
-          - equal: [ true, <<pipeline.parameters.sdk_dispatch>> ]
-        - not:
-           equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
-    jobs:
-      - pnpm-monorepo:
-          name: pnpm-monorepo
-          context:
-            - slack
-      - sdk-next-tests:
-          name: sdk-next-tests
-          requires:
-            - pnpm-monorepo
-          context:
-            - slack
-
   scheduled-docker-publish:
     when:
       equal: [ build_hourly, <<pipeline.schedule.name>> ]
@@ -2341,14 +2168,14 @@ workflows:
             - oplabs-gcr
             - slack
       - docker-build:
-          name: indexer-docker-publish
-          docker_name: indexer
+          name: op-supervisor-docker-publish
+          docker_name: op-supervisor
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
           publish: true
           context:
             - oplabs-gcr
             - slack
-          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: chain-mon-docker-publish
           docker_name: chain-mon
@@ -2379,6 +2206,6 @@ workflows:
       - preimage-reproducibility:
           matrix:
             parameters:
-              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0"]
+              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0"]
           context:
             slack

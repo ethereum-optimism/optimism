@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	metrics2 "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -192,21 +195,21 @@ func TestL2OutputSubmitterFaultProofs(t *testing.T) {
 		require.Nil(t, err)
 
 		if latestGameCount.Cmp(initialGameCount) > 0 {
+			caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
 			committedL2Output, err := disputeGameFactory.GameAtIndex(&bind.CallOpts{}, new(big.Int).Sub(latestGameCount, common.Big1))
 			require.Nil(t, err)
-			proxy, err := bindings.NewFaultDisputeGameCaller(committedL2Output.Proxy, l1Client)
+			proxy, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics2.NoopContractMetrics, committedL2Output.Proxy, caller)
 			require.Nil(t, err)
-			committedOutputRoot, err := proxy.RootClaim(&bind.CallOpts{})
+			claim, err := proxy.GetClaim(context.Background(), 0)
 			require.Nil(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			extradata, err := proxy.ExtraData(&bind.CallOpts{})
+			_, gameBlockNumber, err := proxy.GetBlockRange(ctx)
 			require.Nil(t, err)
-			gameBlockNumber := new(big.Int).SetBytes(extradata[0:32])
-			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber.Uint64())
+			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber)
 			require.Nil(t, err)
-			require.Equal(t, l2Output.OutputRoot[:], committedOutputRoot[:])
+			require.EqualValues(t, l2Output.OutputRoot, claim.Value)
 			break
 		}
 
@@ -614,7 +617,6 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 // TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
-	t.Skip("flaky in CI") // TODO(CLI-3859): Re-enable this test.
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
@@ -763,7 +765,6 @@ func TestSystemP2PAltSync(t *testing.T) {
 
 	// set up our syncer node, connect it to alice/bob
 	cfg.Loggers["syncer"] = testlog.Logger(t, log.LevelInfo).New("role", "syncer")
-	snapLog := log.NewLogger(log.DiscardHandler())
 
 	// Create a peer, and hook up alice and bob
 	h, err := sys.newMockNetPeer()
@@ -801,7 +802,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 
 	configureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
 
-	syncerNode, err := rollupNode.New(ctx, syncNodeCfg, cfg.Loggers["syncer"], snapLog, "", metrics.NewMetrics(""))
+	syncerNode, err := rollupNode.New(ctx, syncNodeCfg, cfg.Loggers["syncer"], "", metrics.NewMetrics(""))
 	require.NoError(t, err)
 	err = syncerNode.Start(ctx)
 	require.NoError(t, err)
@@ -1350,7 +1351,7 @@ func testFees(t *testing.T, cfg SystemConfig) {
 
 	// Tally BaseFee
 	baseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(receipt.GasUsed))
-	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee fee mismatch")
+	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee mismatch")
 
 	// Tally L1 Fee
 	tx, _, err := l2Seq.TransactionByHash(context.Background(), receipt.TxHash)

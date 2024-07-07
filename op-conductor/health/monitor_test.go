@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
@@ -53,11 +54,10 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		ps1 := &p2p.PeerStats{
 			Connected: healthyPeerCount,
 		}
-		mockP2P.EXPECT().PeerStats(context.Background()).Return(ps1, nil)
+		mockP2P.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
 	}
 	monitor := &SequencerHealthMonitor{
 		log:            s.log,
-		done:           make(chan struct{}),
 		interval:       s.interval,
 		metrics:        &metrics.NoopMetricsImpl{},
 		healthUpdateCh: make(chan error),
@@ -70,7 +70,7 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		node:           mockRollupClient,
 		p2p:            mockP2P,
 	}
-	err := monitor.Start()
+	err := monitor.Start(context.Background())
 	s.NoError(err)
 	return monitor
 }
@@ -88,7 +88,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
 	ps1 := &p2p.PeerStats{
 		Connected: unhealthyPeerCount,
 	}
-	pc.EXPECT().PeerStats(context.Background()).Return(ps1, nil).Times(1)
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil).Times(1)
 
 	monitor := s.SetupMonitor(now, 60, 60, rc, pc)
 

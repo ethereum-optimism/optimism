@@ -5,6 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { TransientContext, TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
 
 /// @title IDependencySet
 /// @notice Interface for L1Block with only `isInDependencySet(uint256)` method.
@@ -55,8 +56,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     bytes32 internal constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 1.0.0-beta.1
+    string public constant version = "1.0.0-beta.1";
 
     /// @notice Emitted when a cross chain message is being executed.
     /// @param encodedId Encoded Identifier of the message.
@@ -122,7 +123,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         _storeIdentifier(_id);
 
         // Call the target account with the message payload.
-        bool success = _callWithAllGas(_target, _message);
+        bool success = SafeCall.call(_target, msg.value, _message);
 
         // Revert if the target call failed.
         if (!success) revert TargetCallFailed();
@@ -138,24 +139,5 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         TransientContext.set(LOG_INDEX_SLOT, _id.logIndex);
         TransientContext.set(TIMESTAMP_SLOT, _id.timestamp);
         TransientContext.set(CHAINID_SLOT, _id.chainId);
-    }
-
-    /// @notice Calls the target address with the message payload and all available gas.
-    /// @param _target  Target address to call.
-    /// @param _message Message payload to call target with.
-    /// @return _success True if the call was successful, and false otherwise.
-    function _callWithAllGas(address _target, bytes memory _message) internal returns (bool _success) {
-        assembly {
-            _success :=
-                call(
-                    gas(), // gas
-                    _target, // recipient
-                    callvalue(), // ether value
-                    add(_message, 32), // inloc
-                    mload(_message), // inlen
-                    0, // outloc
-                    0 // outlen
-                )
-        }
     }
 }

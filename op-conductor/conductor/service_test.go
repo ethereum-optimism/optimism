@@ -122,7 +122,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.conductor = conductor
 
 	s.healthUpdateCh = make(chan error, 1)
-	s.hmon.EXPECT().Start().Return(nil)
+	s.hmon.EXPECT().Start(mock.Anything).Return(nil)
 	s.conductor.healthUpdateCh = s.healthUpdateCh
 
 	s.leaderUpdateCh = make(chan bool, 1)
@@ -160,6 +160,7 @@ func (s *OpConductorTestSuite) enableSynchronization() {
 		s.wg.Done()
 	}
 	s.startConductor()
+	s.executeAction()
 }
 
 func (s *OpConductorTestSuite) disableSynchronization() {
@@ -848,6 +849,22 @@ func (s *OpConductorTestSuite) TestFailureAndRetry4() {
 		}
 		return res
 	}, 2*time.Second, 100*time.Millisecond)
+}
+
+func (s *OpConductorTestSuite) TestConductorRestart() {
+	// set initial state
+	s.conductor.leader.Store(false)
+	s.conductor.healthy.Store(true)
+	s.conductor.seqActive.Store(true)
+	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, nil).Times(1)
+
+	s.enableSynchronization()
+
+	// expect to stay as follower, go to [follower, healthy, not sequencing]
+	s.False(s.conductor.leader.Load())
+	s.True(s.conductor.healthy.Load())
+	s.False(s.conductor.seqActive.Load())
+	s.ctrl.AssertCalled(s.T(), "StopSequencer", mock.Anything)
 }
 
 func (s *OpConductorTestSuite) TestHandleInitError() {

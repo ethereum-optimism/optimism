@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
@@ -39,9 +40,9 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	c3 := conductors[Sequencer3Name]
 	membership, err := c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 3, len(membership), "Expected 3 members in cluster")
+	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster")
 	ids := make([]string, 0)
-	for _, member := range membership {
+	for _, member := range membership.Servers {
 		ids = append(ids, member.ID)
 		require.Equal(t, consensus.Voter, member.Suffrage, "Expected all members to be voters")
 	}
@@ -112,37 +113,54 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint())
+	membership, err = leader.client.ClusterMembership(ctx)
+	require.NoError(t, err)
+
+	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint(), membership.Version-1)
+	require.ErrorContains(t, err, "configuration changed since", "Expected leader to fail to add nonvoter due to version mismatch")
+	membership, err = leader.client.ClusterMembership(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster")
+
+	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint(), 0)
 	require.NoError(t, err, "Expected leader to add non-voter")
 	membership, err = leader.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 4, len(membership), "Expected 4 members in cluster")
-	require.Equal(t, consensus.Nonvoter, membership[3].Suffrage, "Expected last member to be non-voter")
+	require.Equal(t, 4, len(membership.Servers), "Expected 4 members in cluster")
+	require.Equal(t, consensus.Nonvoter, membership.Servers[3].Suffrage, "Expected last member to be non-voter")
 
 	t.Log("Testing RemoveServer, call remove on follower, expected to fail")
 	lid, leader = findLeader(t, conductors)
 	fid, follower = findFollower(t, conductors)
-	err = follower.client.RemoveServer(ctx, lid)
+	err = follower.client.RemoveServer(ctx, lid, membership.Version)
 	require.ErrorContains(t, err, "node is not the leader", "Expected follower to fail to remove leader")
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 4, len(membership), "Expected 4 members in cluster")
+	require.Equal(t, 4, len(membership.Servers), "Expected 4 members in cluster")
 
 	t.Log("Testing RemoveServer, call remove on leader, expect non-voter to be removed")
-	err = leader.client.RemoveServer(ctx, VerifierName)
+	err = leader.client.RemoveServer(ctx, VerifierName, membership.Version)
 	require.NoError(t, err, "Expected leader to remove non-voter")
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 3, len(membership), "Expected 2 members in cluster after removal")
-	require.NotContains(t, membership, VerifierName, "Expected follower to be removed from cluster")
+	require.Equal(t, 3, len(membership.Servers), "Expected 2 members in cluster after removal")
+	require.NotContains(t, memberIDs(membership), VerifierName, "Expected follower to be removed from cluster")
+
+	t.Log("Testing RemoveServer, call remove on leader with incorrect version, expect voter not to be removed")
+	err = leader.client.RemoveServer(ctx, fid, membership.Version-1)
+	require.ErrorContains(t, err, "configuration changed since", "Expected leader to fail to remove follower due to version mismatch")
+	membership, err = c1.client.ClusterMembership(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster after failed removal")
+	require.Contains(t, memberIDs(membership), fid, "Expected follower to not be removed from cluster")
 
 	t.Log("Testing RemoveServer, call remove on leader, expect voter to be removed")
-	err = leader.client.RemoveServer(ctx, fid)
+	err = leader.client.RemoveServer(ctx, fid, membership.Version)
 	require.NoError(t, err, "Expected leader to remove follower")
 	membership, err = c1.client.ClusterMembership(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(membership), "Expected 2 members in cluster after removal")
-	require.NotContains(t, membership, fid, "Expected follower to be removed from cluster")
+	require.Equal(t, 2, len(membership.Servers), "Expected 2 members in cluster after removal")
+	require.NotContains(t, memberIDs(membership), fid, "Expected follower to be removed from cluster")
 }
 
 // [Category: Sequencer Failover]
@@ -171,4 +189,45 @@ func TestSequencerFailover_ActiveSequencerDown(t *testing.T) {
 	active, err := sys.RollupClient(newLeaderId).SequencerActive(ctx)
 	require.NoError(t, err)
 	require.True(t, active, "Expected new leader to be sequencing")
+}
+
+// [Category: Disaster Recovery]
+// Test that sequencer can successfully be started with the overrideLeader flag set to true.
+func TestSequencerFailover_DisasterRecovery_OverrideLeader(t *testing.T) {
+	sys, conductors, cleanup := setupSequencerFailoverTest(t)
+	defer cleanup()
+
+	// randomly stop 2 nodes in the cluster to simulate a disaster.
+	ctx := context.Background()
+	err := conductors[Sequencer1Name].service.Stop(ctx)
+	require.NoError(t, err)
+	err = conductors[Sequencer2Name].service.Stop(ctx)
+	require.NoError(t, err)
+
+	require.False(t, conductors[Sequencer3Name].service.Leader(ctx), "Expected sequencer to not be the leader")
+	active, err := sys.RollupClient(Sequencer3Name).SequencerActive(ctx)
+	require.NoError(t, err)
+	require.False(t, active, "Expected sequencer to be inactive")
+
+	// Start sequencer without the overrideLeader flag set to true, should fail
+	err = sys.RollupClient(Sequencer3Name).StartSequencer(ctx, common.Hash{1, 2, 3})
+	require.ErrorContains(t, err, "sequencer is not the leader, aborting.", "Expected sequencer to fail to start")
+
+	// Start sequencer with the overrideLeader flag set to true, should succeed
+	err = sys.RollupClient(Sequencer3Name).OverrideLeader(ctx)
+	require.NoError(t, err)
+	blk, err := sys.NodeClient(Sequencer3Name).BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+	err = sys.RollupClient(Sequencer3Name).StartSequencer(ctx, blk.Hash())
+	require.NoError(t, err)
+
+	active, err = sys.RollupClient(Sequencer3Name).SequencerActive(ctx)
+	require.NoError(t, err)
+	require.True(t, active, "Expected sequencer to be active")
+
+	err = conductors[Sequencer3Name].client.OverrideLeader(ctx)
+	require.NoError(t, err)
+	leader, err := conductors[Sequencer3Name].client.Leader(ctx)
+	require.NoError(t, err)
+	require.True(t, leader, "Expected conductor to return leader true after override")
 }

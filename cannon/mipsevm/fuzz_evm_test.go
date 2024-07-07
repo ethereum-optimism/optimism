@@ -21,10 +21,12 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &State{
-			PC:             pc,
-			NextPC:         nextPC,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     pc,
+				NextPC: nextPC,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
@@ -44,10 +46,10 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, pc+4, state.PC)
-		require.Equal(t, nextPC+4, state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, pc+4, state.Cpu.PC)
+		require.Equal(t, nextPC+4, state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
@@ -58,8 +60,8 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		require.Equal(t, preimageOffset, state.PreimageOffset)
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
@@ -71,10 +73,12 @@ func FuzzStateSyscallClone(f *testing.F) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &State{
-			PC:             pc,
-			NextPC:         nextPC,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     pc,
+				NextPC: nextPC,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
@@ -93,10 +97,10 @@ func FuzzStateSyscallClone(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, pc+4, state.PC)
-		require.Equal(t, nextPC+4, state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, pc+4, state.Cpu.PC)
+		require.Equal(t, nextPC+4, state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
@@ -107,8 +111,8 @@ func FuzzStateSyscallClone(f *testing.F) {
 		require.Equal(t, preimageOffset, state.PreimageOffset)
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
@@ -116,18 +120,21 @@ func FuzzStateSyscallClone(f *testing.F) {
 
 func FuzzStateSyscallMmap(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
+	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, siz uint32, heap uint32) {
 		state := &State{
-			PC:             0,
-			NextPC:         4,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     0,
+				NextPC: 4,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           heap,
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         NewMemory(),
 			Registers:      [32]uint32{2: sysMmap, 4: addr, 5: siz},
-			Step:           0,
+			Step:           step,
 			PreimageOffset: 0,
 		}
 		state.Memory.SetMemory(0, syscallInsn)
@@ -139,10 +146,10 @@ func FuzzStateSyscallMmap(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.PC)
-		require.Equal(t, uint32(8), state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(4), state.Cpu.PC)
+		require.Equal(t, uint32(8), state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
@@ -166,8 +173,8 @@ func FuzzStateSyscallMmap(f *testing.F) {
 		}
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
@@ -179,10 +186,12 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &State{
-			PC:             pc,
-			NextPC:         nextPC,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     pc,
+				NextPC: nextPC,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
@@ -200,10 +209,10 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, pc, state.PC)
-		require.Equal(t, nextPC, state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, pc, state.Cpu.PC)
+		require.Equal(t, nextPC, state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(exitCode), state.ExitCode)
 		require.Equal(t, true, state.Exited)
@@ -214,27 +223,30 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		require.Equal(t, uint32(0), state.PreimageOffset)
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
 
-func FuzzStateSyscallFnctl(f *testing.F) {
+func FuzzStateSyscallFcntl(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
+	step := uint64(0)
 	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32) {
 		state := &State{
-			PC:             0,
-			NextPC:         4,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     0,
+				NextPC: 4,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         NewMemory(),
 			Registers:      [32]uint32{2: sysFcntl, 4: fd, 5: cmd},
-			Step:           0,
+			Step:           step,
 			PreimageOffset: 0,
 		}
 		state.Memory.SetMemory(0, syscallInsn)
@@ -246,10 +258,10 @@ func FuzzStateSyscallFnctl(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.PC)
-		require.Equal(t, uint32(8), state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(4), state.Cpu.PC)
+		require.Equal(t, uint32(8), state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
@@ -277,8 +289,8 @@ func FuzzStateSyscallFnctl(f *testing.F) {
 		}
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
@@ -286,19 +298,22 @@ func FuzzStateSyscallFnctl(f *testing.F) {
 
 func FuzzStateHintRead(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
+	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
 		state := &State{
-			PC:             0,
-			NextPC:         4,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     0,
+				NextPC: 4,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         NewMemory(),
 			Registers:      [32]uint32{2: sysRead, 4: fdHintRead, 5: addr, 6: count},
-			Step:           0,
+			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 0,
 		}
@@ -314,10 +329,10 @@ func FuzzStateHintRead(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.PC)
-		require.Equal(t, uint32(8), state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(4), state.Cpu.PC)
+		require.Equal(t, uint32(8), state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
@@ -327,8 +342,8 @@ func FuzzStateHintRead(f *testing.F) {
 		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
@@ -336,22 +351,25 @@ func FuzzStateHintRead(f *testing.F) {
 
 func FuzzStatePreimageRead(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
+	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32) {
 		preimageData := []byte("hello world")
 		if preimageOffset >= uint32(len(preimageData)) {
 			t.SkipNow()
 		}
 		state := &State{
-			PC:             0,
-			NextPC:         4,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     0,
+				NextPC: 4,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         NewMemory(),
 			Registers:      [32]uint32{2: sysRead, 4: fdPreimageRead, 5: addr, 6: count},
-			Step:           0,
+			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: preimageOffset,
 		}
@@ -372,10 +390,10 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.NoError(t, err)
 		require.True(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.PC)
-		require.Equal(t, uint32(8), state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(4), state.Cpu.PC)
+		require.Equal(t, uint32(8), state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
@@ -391,8 +409,8 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
@@ -400,19 +418,22 @@ func FuzzStatePreimageRead(f *testing.F) {
 
 func FuzzStateHintWrite(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
+	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
 		preimageData := []byte("hello world")
 		state := &State{
-			PC:             0,
-			NextPC:         4,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     0,
+				NextPC: 4,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         NewMemory(),
 			Registers:      [32]uint32{2: sysWrite, 4: fdHintWrite, 5: addr, 6: count},
-			Step:           0,
+			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 0,
 			LastHint:       nil,
@@ -436,10 +457,10 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.PC)
-		require.Equal(t, uint32(8), state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(4), state.Cpu.PC)
+		require.Equal(t, uint32(8), state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
@@ -449,8 +470,8 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
@@ -458,13 +479,16 @@ func FuzzStateHintWrite(f *testing.F) {
 
 func FuzzStatePreimageWrite(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
+	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
 		state := &State{
-			PC:             0,
-			NextPC:         4,
-			LO:             0,
-			HI:             0,
+			Cpu: CpuScalars{
+				PC:     0,
+				NextPC: 4,
+				LO:     0,
+				HI:     0,
+			},
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
@@ -489,10 +513,10 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.PC)
-		require.Equal(t, uint32(8), state.NextPC)
-		require.Equal(t, uint32(0), state.LO)
-		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(4), state.Cpu.PC)
+		require.Equal(t, uint32(8), state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
@@ -502,8 +526,8 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness)
-		goPost := goState.state.EncodeWitness()
+		evmPost := evm.Step(t, stepWitness, step)
+		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})

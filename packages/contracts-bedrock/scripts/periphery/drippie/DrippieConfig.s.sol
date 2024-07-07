@@ -46,8 +46,14 @@ contract DrippieConfig is Script, Artifacts {
     /// @notice Gelato automation contract.
     IGelato public gelato;
 
+    /// @notice Prefix for the configuration file.
+    string public prefix;
+
     /// @notice Drip configuration array.
     FullDripConfig[] public drips;
+
+    /// @notice Mapping of drip names in the config.
+    mapping(string => bool) public names;
 
     /// @param _path Path to the configuration file.
     constructor(string memory _path) {
@@ -69,6 +75,9 @@ contract DrippieConfig is Script, Artifacts {
         // Load the Gelato contract address.
         gelato = IGelato(stdJson.readAddress(_json, "$.gelato"));
 
+        // Load the prefix.
+        prefix = stdJson.readString(_json, "$.prefix");
+
         // Determine the number of drips.
         // In an ideal world we'd be able to load this array in one go by parsing it as an array
         // of structs that include the checkparams as bytes. Unfortunately, Foundry parses the
@@ -83,7 +92,8 @@ contract DrippieConfig is Script, Artifacts {
         for (uint256 i = 0; i < corecfg.length; i++) {
             // Log so we know what's being loaded.
             string memory name = corecfg[i].name;
-            console.log("DrippieConfig: attempting to load config for %s", name);
+            string memory fullname = string.concat(prefix, "_", name);
+            console.log("DrippieConfig: attempting to load config for %s", fullname);
 
             // Make sure the dripcheck is deployed.
             string memory dripcheck = corecfg[i].dripcheck;
@@ -97,7 +107,7 @@ contract DrippieConfig is Script, Artifacts {
             bytes memory checkparams = stdJson.parseRaw(_json, string.concat(p, ".02__checkparams"));
 
             // Determine if the parameters are decodable.
-            console.log("DrippieConfig: attempting to decode check parameters for %s", name);
+            console.log("DrippieConfig: attempting to decode check parameters for %s", fullname);
             if (strcmp(dripcheck, "CheckBalanceLow")) {
                 abi.decode(checkparams, (CheckBalanceLow.Params));
             } else if (strcmp(dripcheck, "CheckGelatoLow")) {
@@ -114,7 +124,7 @@ contract DrippieConfig is Script, Artifacts {
             // Parse all the easy stuff first.
             console.log("DrippieConfig: attempting to load core configuration for %s", name);
             FullDripConfig memory dripcfg = FullDripConfig({
-                name: name,
+                name: fullname,
                 dripcheck: dripcheck,
                 checkparams: checkparams,
                 recipient: stdJson.readAddress(_json, string.concat(p, ".03__recipient")),
@@ -125,6 +135,7 @@ contract DrippieConfig is Script, Artifacts {
 
             // Ok we're good to go.
             drips.push(dripcfg);
+            names[fullname] = true;
         }
     }
 

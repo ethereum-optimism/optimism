@@ -18,6 +18,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/core/sec/insecure"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
@@ -39,10 +40,16 @@ const (
 	staticPeerTag = "static"
 )
 
+type HostNewStream interface {
+	NewStream(ctx context.Context, p peer.ID, pids ...protocol.ID) (network.Stream, error)
+}
+
 type ExtraHostFeatures interface {
 	host.Host
 	ConnectionGater() gating.BlockingConnectionGater
 	ConnectionManager() connmgr.ConnManager
+	IsStatic(peerID peer.ID) bool
+	SyncOnlyReqToStatic() bool
 }
 
 type extraHost struct {
@@ -51,11 +58,14 @@ type extraHost struct {
 	connMgr connmgr.ConnManager
 	log     log.Logger
 
-	staticPeers []*peer.AddrInfo
+	staticPeers   []*peer.AddrInfo
+	staticPeerIDs map[peer.ID]struct{}
 
 	pinging *PingService
 
 	quitC chan struct{}
+
+	syncOnlyReqToStatic bool
 }
 
 func (e *extraHost) ConnectionGater() gating.BlockingConnectionGater {
@@ -64,6 +74,15 @@ func (e *extraHost) ConnectionGater() gating.BlockingConnectionGater {
 
 func (e *extraHost) ConnectionManager() connmgr.ConnManager {
 	return e.connMgr
+}
+
+func (e *extraHost) IsStatic(peerID peer.ID) bool {
+	_, exists := e.staticPeerIDs[peerID]
+	return exists
+}
+
+func (e *extraHost) SyncOnlyReqToStatic() bool {
+	return e.syncOnlyReqToStatic
 }
 
 func (e *extraHost) Close() error {
@@ -236,6 +255,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	}
 
 	staticPeers := make([]*peer.AddrInfo, 0, len(conf.StaticPeers))
+	staticPeerIDs := make(map[peer.ID]struct{})
 	for _, peerAddr := range conf.StaticPeers {
 		addr, err := peer.AddrInfoFromP2pAddr(peerAddr)
 		if err != nil {
@@ -246,14 +266,17 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 			continue
 		}
 		staticPeers = append(staticPeers, addr)
+		staticPeerIDs[addr.ID] = struct{}{}
 	}
 
 	out := &extraHost{
-		Host:        h,
-		connMgr:     connMngr,
-		log:         log,
-		staticPeers: staticPeers,
-		quitC:       make(chan struct{}),
+		Host:                h,
+		connMgr:             connMngr,
+		log:                 log,
+		staticPeers:         staticPeers,
+		staticPeerIDs:       staticPeerIDs,
+		quitC:               make(chan struct{}),
+		syncOnlyReqToStatic: conf.SyncOnlyReqToStatic,
 	}
 
 	if conf.EnablePingService {

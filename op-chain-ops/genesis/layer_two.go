@@ -1,11 +1,8 @@
 package genesis
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
-	"path/filepath"
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/holiman/uint256"
@@ -16,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
@@ -24,7 +22,7 @@ type L2AllocsMode string
 const (
 	L2AllocsDelta   L2AllocsMode = "delta"
 	L2AllocsEcotone L2AllocsMode = "ecotone"
-	L2AllocsFjord   L2AllocsMode = "" // the default in solidity scripting / testing
+	L2AllocsFjord   L2AllocsMode = "fjord"
 )
 
 var (
@@ -34,10 +32,10 @@ var (
 	testMnemonic = "test test test test test test test test test test test junk"
 )
 
-type AllocsLoader func(mode L2AllocsMode) *ForgeAllocs
+type AllocsLoader func(mode L2AllocsMode) *foundry.ForgeAllocs
 
 // BuildL2Genesis will build the L2 genesis block.
-func BuildL2Genesis(config *DeployConfig, dump *ForgeAllocs, l1StartBlock *types.Block) (*core.Genesis, error) {
+func BuildL2Genesis(config *DeployConfig, dump *foundry.ForgeAllocs, l1StartBlock *types.Block) (*core.Genesis, error) {
 	genspec, err := NewL2Genesis(config, l1StartBlock)
 	if err != nil {
 		return nil, err
@@ -93,18 +91,4 @@ func HasAnyDevAccounts(allocs types.GenesisAlloc) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-func LoadForgeAllocs(allocsPath string) (*ForgeAllocs, error) {
-	path := filepath.Join(allocsPath)
-	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open forge allocs %q: %w", path, err)
-	}
-	defer f.Close()
-	var out ForgeAllocs
-	if err := json.NewDecoder(f).Decode(&out); err != nil {
-		return nil, fmt.Errorf("failed to json-decode forge allocs %q: %w", path, err)
-	}
-	return &out, nil
 }
