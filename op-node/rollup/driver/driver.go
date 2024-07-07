@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"golang.org/x/time/rate"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -50,7 +48,6 @@ type Metrics interface {
 	L1FetcherMetrics
 	SequencerMetrics
 	event.Metrics
-	RecordEventsRateLimited()
 }
 
 type L1Chain interface {
@@ -154,14 +151,6 @@ type SequencerStateListener interface {
 	SequencerStopped() error
 }
 
-// 10,000 events per second is plenty.
-// If we are going through more events, the driver needs to breathe, and warn the user of a potential issue.
-const eventsLimit = rate.Limit(10_000)
-
-// 500 events of burst: the maximum amount of events to eat up
-// past the rate limit before the rate limit becomes applicable.
-const eventsBurst = 500
-
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
 func NewDriver(
 	driverCfg *Config,
@@ -179,63 +168,103 @@ func NewDriver(
 	sequencerConductor conductor.SequencerConductor,
 	plasma PlasmaIface,
 ) *Driver {
+	var executor event.Executor
+	var drain func() error
+	// This instantiation will be one of more options: soon there will be a parallel events executor
+	{
+		s := event.NewGlobalSynchronous()
+		executor = s
+		drain = s.Drain
+	}
+	sys := event.NewSystem(log, executor)
+
+	opts := event.DefaultRegisterOpts()
+
 	driverCtx, driverCancel := context.WithCancel(context.Background())
-	rootDeriver := &event.DeriverMux{}
-	var synchronousEvents event.EmitterDrainer
-	synchronousEvents = event.NewQueue(log, driverCtx, rootDeriver, metrics)
-	synchronousEvents = event.NewLimiterDrainer(context.Background(), synchronousEvents, eventsLimit, eventsBurst, func() {
-		metrics.RecordEventsRateLimited()
-		log.Warn("Driver is hitting events rate limit.")
-	})
 
 	statusTracker := status.NewStatusTracker(log, metrics)
+	sys.Register("status", statusTracker, opts)
 
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg, synchronousEvents)
-	engineResetDeriver := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, synchronousEvents)
-	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
+
+	var ec *engine.EngineController
+	event.Setup(sys, "engine-controller", opts, func(em event.Emitter) event.Deriver {
+		ec = engine.NewEngineController(l2, log, metrics, cfg, syncCfg, em)
+		return nil // does not respond to events yet
+	})
+	event.Setup(sys, "engine-reset", opts, func(em event.Emitter) event.Deriver {
+		return engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, em)
+	})
+
+	var clSync CLSync // alt-sync still uses cl-sync state to determine what to sync to
+	event.Setup(sys, "clsync", opts, func(em event.Emitter) event.Deriver {
+		out := clsync.NewCLSync(log, cfg, metrics, em)
+		clSync = out
+		return out
+	})
 
 	var finalizer Finalizer
-	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, synchronousEvents, plasma)
-	} else {
-		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, synchronousEvents)
-	}
+	event.Setup(sys, "finalizer", opts, func(em event.Emitter) event.Deriver {
+		if cfg.PlasmaEnabled() {
+			finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, em, plasma)
+		} else {
+			finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, em)
+		}
+		return finalizer
+	})
 
-	attributesHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, synchronousEvents)
+	event.Setup(sys, "attributes-handler", opts, func(em event.Emitter) event.Deriver {
+		return attributes.NewAttributesHandler(log, cfg, driverCtx, l2, em)
+	})
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
-	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline, synchronousEvents)
+	event.Setup(sys, "pipeline", opts, func(em event.Emitter) event.Deriver {
+		return derive.NewPipelineDeriver(driverCtx, derivationPipeline, em)
+	})
+
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, ec, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 
-	syncDeriver := &SyncDeriver{
-		Derivation:     derivationPipeline,
-		Finalizer:      finalizer,
-		SafeHeadNotifs: safeHeadListener,
-		CLSync:         clSync,
-		Engine:         ec,
-		SyncCfg:        syncCfg,
-		Config:         cfg,
-		L1:             l1,
-		L2:             l2,
-		Emitter:        synchronousEvents,
-		Log:            log,
-		Ctx:            driverCtx,
-		Drain:          synchronousEvents.Drain,
-	}
-	engDeriv := engine.NewEngDeriver(log, driverCtx, cfg, ec, synchronousEvents)
-	schedDeriv := NewStepSchedulingDeriver(log, synchronousEvents)
+	var syncDeriver *SyncDeriver
+	event.Setup(sys, "sync", opts, func(em event.Emitter) event.Deriver {
+		syncDeriver = &SyncDeriver{
+			Derivation:     derivationPipeline,
+			SafeHeadNotifs: safeHeadListener,
+			CLSync:         clSync,
+			Engine:         ec,
+			SyncCfg:        syncCfg,
+			Config:         cfg,
+			L1:             l1,
+			L2:             l2,
+			Emitter:        em,
+			Log:            log,
+			Ctx:            driverCtx,
+			Drain:          drain,
+		}
+		return syncDeriver
+	})
+	event.Setup(sys, "engine", opts, func(em event.Emitter) event.Deriver {
+		return engine.NewEngDeriver(log, driverCtx, cfg, ec, em)
+	})
 
+	var schedDeriv *StepSchedulingDeriver
+	event.Setup(sys, "step-scheduler", opts, func(em event.Emitter) event.Deriver {
+		schedDeriv = NewStepSchedulingDeriver(log, em)
+		return schedDeriv
+	})
+
+	driverEmitter := sys.Register("driver", nil, opts)
 	driver := &Driver{
+		eventSys:           sys,
 		statusTracker:      statusTracker,
 		SyncDeriver:        syncDeriver,
 		sched:              schedDeriv,
-		synchronousEvents:  synchronousEvents,
+		emitter:            driverEmitter,
+		drain:              drain,
 		stateReq:           make(chan chan struct{}),
 		forceReset:         make(chan chan struct{}, 10),
 		startSequencer:     make(chan hashAndErrorChannel, 10),
@@ -256,19 +285,6 @@ func NewDriver(
 		altSync:            altSync,
 		asyncGossiper:      asyncGossiper,
 		sequencerConductor: sequencerConductor,
-	}
-
-	*rootDeriver = []event.Deriver{
-		syncDeriver,
-		engineResetDeriver,
-		engDeriv,
-		schedDeriv,
-		driver,
-		clSync,
-		pipelineDeriver,
-		attributesHandler,
-		finalizer,
-		statusTracker,
 	}
 
 	return driver

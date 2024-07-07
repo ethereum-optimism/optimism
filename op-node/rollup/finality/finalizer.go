@@ -131,7 +131,7 @@ func (ev TryFinalizeEvent) String() string {
 	return "try-finalize"
 }
 
-func (fi *Finalizer) OnEvent(ev event.Event) {
+func (fi *Finalizer) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.onL1Finalized(x.FinalizedL1)
@@ -145,7 +145,10 @@ func (fi *Finalizer) OnEvent(ev event.Event) {
 		fi.tryFinalize()
 	case engine.ForkchoiceUpdateEvent:
 		fi.lastFinalizedL2 = x.FinalizedL2Head
+	default:
+		return false
 	}
+	return true
 }
 
 // onL1Finalized applies a L1 finality signal

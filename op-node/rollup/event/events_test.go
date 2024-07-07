@@ -15,14 +15,17 @@ func (ev TestEvent) String() string {
 
 func TestDeriverMux_OnEvent(t *testing.T) {
 	result := ""
-	a := DeriverFunc(func(ev Event) {
+	a := DeriverFunc(func(ev Event) bool {
 		result += fmt.Sprintf("A:%s\n", ev)
+		return true
 	})
-	b := DeriverFunc(func(ev Event) {
+	b := DeriverFunc(func(ev Event) bool {
 		result += fmt.Sprintf("B:%s\n", ev)
+		return true
 	})
-	c := DeriverFunc(func(ev Event) {
+	c := DeriverFunc(func(ev Event) bool {
 		result += fmt.Sprintf("C:%s\n", ev)
+		return true
 	})
 
 	x := DeriverMux{}

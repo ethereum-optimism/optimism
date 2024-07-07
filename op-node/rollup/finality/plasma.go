@@ -46,11 +46,12 @@ func NewPlasmaFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
 	}
 }
 
-func (fi *PlasmaFinalizer) OnEvent(ev event.Event) {
+func (fi *PlasmaFinalizer) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.backend.Finalize(x.FinalizedL1)
+		return true
 	default:
-		fi.Finalizer.OnEvent(ev)
+		return fi.Finalizer.OnEvent(ev)
 	}
 }

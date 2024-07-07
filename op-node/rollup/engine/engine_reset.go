@@ -44,18 +44,21 @@ func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Conf
 	}
 }
 
-func (d *EngineResetDeriver) OnEvent(ev event.Event) {
+func (d *EngineResetDeriver) OnEvent(ev event.Event) bool {
 	switch ev.(type) {
 	case ResetEngineRequestEvent:
 		result, err := sync.FindL2Heads(d.ctx, d.cfg, d.l1, d.l2, d.log, d.syncCfg)
 		if err != nil {
 			d.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err)})
-			return
+			return true
 		}
 		d.emitter.Emit(ForceEngineResetEvent{
 			Unsafe:    result.Unsafe,
 			Safe:      result.Safe,
 			Finalized: result.Finalized,
 		})
+	default:
+		return false
 	}
+	return true
 }

@@ -96,7 +96,7 @@ func (s *StepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
 	return s.delayedStepReq
 }
 
-func (s *StepSchedulingDeriver) OnEvent(ev event.Event) {
+func (s *StepSchedulingDeriver) OnEvent(ev event.Event) bool {
 	step := func() {
 		s.delayedStepReq = nil
 		select {
@@ -138,5 +138,8 @@ func (s *StepSchedulingDeriver) OnEvent(ev event.Event) {
 		s.emitter.Emit(StepEvent{})
 	case ResetStepBackoffEvent:
 		s.stepAttempts = 0
+	default:
+		return false
 	}
+	return true
 }

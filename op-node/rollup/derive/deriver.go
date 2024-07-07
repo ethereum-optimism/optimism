@@ -81,7 +81,7 @@ func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitt
 	}
 }
 
-func (d *PipelineDeriver) OnEvent(ev event.Event) {
+func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		d.pipeline.Reset()
@@ -89,7 +89,7 @@ func (d *PipelineDeriver) OnEvent(ev event.Event) {
 		// Don't generate attributes if there are already attributes in-flight
 		if d.needAttributesConfirmation {
 			d.pipeline.log.Debug("Previously sent attributes are unconfirmed to be received")
-			return
+			return true
 		}
 		d.pipeline.log.Trace("Derivation pipeline step", "onto_origin", d.pipeline.Origin())
 		preOrigin := d.pipeline.Origin()
@@ -128,5 +128,8 @@ func (d *PipelineDeriver) OnEvent(ev event.Event) {
 		d.pipeline.ConfirmEngineReset()
 	case ConfirmReceivedAttributesEvent:
 		d.needAttributesConfirmation = false
+	default:
+		return false
 	}
+	return true
 }

@@ -33,8 +33,9 @@ func TestDriver(t *testing.T) {
 			logger: logger,
 			end:    end,
 		}
-		d.deriver = event.DeriverFunc(func(ev event.Event) {
+		d.deriver = event.DeriverFunc(func(ev event.Event) bool {
 			onEvent(d, end, ev)
+			return true
 		})
 		return d
 	}

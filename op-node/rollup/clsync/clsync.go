@@ -64,7 +64,7 @@ func (ev ReceivedUnsafePayloadEvent) String() string {
 	return "received-unsafe-payload"
 }
 
-func (eq *CLSync) OnEvent(ev event.Event) {
+func (eq *CLSync) OnEvent(ev event.Event) bool {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the payloads queue.
 	eq.mu.Lock()
 	defer eq.mu.Unlock()
@@ -76,7 +76,10 @@ func (eq *CLSync) OnEvent(ev event.Event) {
 		eq.onForkchoiceUpdate(x)
 	case ReceivedUnsafePayloadEvent:
 		eq.onUnsafePayload(x)
+	default:
+		return false
 	}
+	return true
 }
 
 // onInvalidPayload checks if the first next-up payload matches the invalid payload.

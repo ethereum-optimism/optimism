@@ -48,7 +48,7 @@ func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Contex
 	}
 }
 
-func (eq *AttributesHandler) OnEvent(ev event.Event) {
+func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the attributes.
 	eq.mu.Lock()
 	defer eq.mu.Unlock()
@@ -68,7 +68,10 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) {
 		// Time to re-evaluate without attributes.
 		// (the pending-safe state will then be forwarded to our source of attributes).
 		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
+	default:
+		return false
 	}
+	return true
 }
 
 // onPendingSafeUpdate applies the queued-up block attributes, if any, on top of the signaled pending state.
