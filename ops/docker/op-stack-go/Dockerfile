@@ -6,32 +6,18 @@ ARG TARGETARCH
 ARG TARGET_BASE_IMAGE=alpine:3.18
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.21.3-bullseye as builder
+FROM --platform=$BUILDPLATFORM golang:1.21.3-alpine3.18 as builder
 
-#RUN apk add --no-cache make gcc g++ musl-dev linux-headers git jq bash
-#RUN apk add --no-cache crossbuild-essential-arm64 crossbuild-essential-amd64
-
-# Update package lists
-RUN apt-get update && apt-get install -y \
-    make gcc g++ \
-    git jq bash \
-    crossbuild-essential-arm64 crossbuild-essential-amd64
+RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash cross-build
 
 # Default values for TARGETARCH="amd64"
-ENV CC=gcc
-ENV CXX=g++
+ARG CC=gcc
+ARG CXX=g++
 
-# Conditional installation of linux-headers based on architecture
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        apt-get install -y linux-headers-amd64; \
-    else \
-        apt-get install -y linux-headers-arm64 && \
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
         CC=aarch64-linux-gnu-gcc && \
         CXX=aarch64-linux-gnu-g++; \
     fi
-
-# Clean up to reduce image size
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
 COPY ./go.mod /app/go.mod
