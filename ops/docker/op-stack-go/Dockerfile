@@ -1,3 +1,9 @@
+# automatically set by buildkit, can be changed with --platform flag
+# see https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+# TARGETOS
+# TARGETARCH
+# TARGETPLATFORM
+# BUILDPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -9,14 +15,15 @@ ARG TARGET_BASE_IMAGE=alpine:3.18
 FROM --platform=$BUILDPLATFORM golang:1.21.3-alpine3.18 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash cross-build
+RUN apk add --no-cache aarch64-linux-gnu-gcc aarch64-linux-gnu-g++
 
 # Default values for TARGETARCH="amd64"
 ARG CC=gcc
 ARG CXX=g++
 
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-        CC=aarch64-linux-gnu-gcc && \
-        CXX=aarch64-linux-gnu-g++; \
+      CC=aarch64-linux-gnu-gcc && \
+      CXX=aarch64-linux-gnu-g++; \
     fi
 
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
