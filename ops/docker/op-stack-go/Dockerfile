@@ -23,7 +23,7 @@ ENV CXX=g++
 
 # Conditional installation of linux-headers based on architecture
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        apt-get install -y linux-headers-amd64 &&  \
+        apt-get install -y linux-headers-amd64; \
     else \
         apt-get install -y linux-headers-arm64 && \
         CC=aarch64-linux-gnu-gcc && \
