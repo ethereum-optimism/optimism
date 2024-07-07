@@ -1,6 +1,5 @@
 ARG TARGETOS
 ARG TARGETARCH
-ARG BUILDPLATFORM
 
 # All target images use this as base image, and add the final build results.
 # It will default to the target platform.
