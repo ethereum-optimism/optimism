@@ -33,8 +33,10 @@ var (
 	validAsteriscAbsolutPreStateBaseURL, _ = url.Parse("http://localhost/bar/")
 )
 
-var cannonTraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned}
-var asteriscTraceTypes = []types.TraceType{types.TraceTypeAsterisc}
+var (
+	cannonTraceTypes   = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned}
+	asteriscTraceTypes = []types.TraceType{types.TraceTypeAsterisc}
+)
 
 func applyValidConfigForCannon(cfg *Config) {
 	cfg.Cannon.VmBin = validCannonBin
@@ -51,7 +53,7 @@ func applyValidConfigForAsterisc(cfg *Config) {
 }
 
 func validConfig(traceType types.TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, traceType)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, []types.ServerType{types.ServerTypeOpProgram}, []types.TraceType{traceType})
 	if traceType == types.TraceTypeCannon || traceType == types.TraceTypePermissioned {
 		applyValidConfigForCannon(&cfg)
 	}

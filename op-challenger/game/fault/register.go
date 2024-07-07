@@ -92,7 +92,7 @@ func RegisterGameTypes(
 			return nil, fmt.Errorf("failed to register op-program-asterisc game type: %w", err)
 		}
 	}
-	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) && cfg.ServerTypeEnabled(faultTypes.ServerTypeKona) {
 		vmArgs := vm.NewKonaVmArgs(cfg.AsteriscKona, nil)
 		if err := registerAsterisc(faultTypes.KonaAsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, vmArgs); err != nil {
 			return nil, fmt.Errorf("failed to register kona-asterisc game type: %w", err)

@@ -157,7 +157,7 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l1Beacon := sys.L1BeaconEndpoint()
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName), sys.NodeEndpoint(l2NodeName), t.TempDir())
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName), sys.NodeEndpoint(l2NodeName), t.TempDir(), []types.ServerType{}, []types.TraceType{})
 	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
 	// before the L2 genesis is known.
 	cfg.AllowInvalidPrestate = true

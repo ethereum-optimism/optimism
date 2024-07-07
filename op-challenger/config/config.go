@@ -84,7 +84,8 @@ type Config struct {
 
 	SelectiveClaimResolution bool // Whether to only resolve claims for the claimants in AdditionalBondClaimants union [TxSender.From()]
 
-	TraceTypes []types.TraceType // Type of traces supported
+	TraceTypes  []types.TraceType  // Type of traces supported
+	ServerTypes []types.ServerType // Type of servers supported
 
 	RollupRpc string // L2 Rollup RPC Url
 
@@ -115,7 +116,8 @@ func NewConfig(
 	l2RollupRpc string,
 	l2EthRpc string,
 	datadir string,
-	supportedTraceTypes ...types.TraceType,
+	supportedServerTypes []types.ServerType,
+	supportedTraceTypes []types.TraceType,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
@@ -166,6 +168,10 @@ func NewConfig(
 
 func (c Config) TraceTypeEnabled(t types.TraceType) bool {
 	return slices.Contains(c.TraceTypes, t)
+}
+
+func (c Config) ServerTypeEnabled(t types.ServerType) bool {
+	return slices.Contains(c.ServerTypes, t)
 }
 
 func (c Config) Check() error {
@@ -237,6 +243,11 @@ func (c Config) Check() error {
 		}
 		if c.Asterisc.Server == "" {
 			return ErrMissingAsteriscServer
+		}
+		if c.ServerTypeEnabled(types.ServerTypeKona) {
+			if c.AsteriscKona.Server == "" {
+				return ErrMissingAsteriscServer
+			}
 		}
 		if c.Asterisc.Network == "" {
 			if c.Asterisc.RollupConfigPath == "" {

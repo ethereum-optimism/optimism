@@ -547,6 +547,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		L1EthRpc:                l1EthRpc,
 		L1Beacon:                l1Beacon,
 		TraceTypes:              traceTypes,
+		ServerTypes:             serverTypes,
 		GameFactoryAddress:      gameFactoryAddress,
 		GameAllowlist:           allowedGames,
 		GameWindow:              ctx.Duration(GameWindowFlag.Name),
