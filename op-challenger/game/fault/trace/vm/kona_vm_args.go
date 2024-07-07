@@ -6,33 +6,33 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 )
 
-type KonaServerArgs struct {
+type KonaVmArgs struct {
 	vmConfig    Config
 	localInputs *utils.LocalGameInputs
 }
 
-var _ ServerArgs = (*KonaServerArgs)(nil)
+var _ VmArgs = (*KonaVmArgs)(nil)
 
-func NewKonaServerArgs(vmConfig Config, localInputs *utils.LocalGameInputs) *KonaServerArgs {
-	return &KonaServerArgs{
+func NewKonaVmArgs(vmConfig Config, localInputs *utils.LocalGameInputs) *KonaVmArgs {
+	return &KonaVmArgs{
 		vmConfig:    vmConfig,
 		localInputs: localInputs,
 	}
 }
 
-func (s *KonaServerArgs) Cfg() Config {
+func (s *KonaVmArgs) Cfg() Config {
 	return s.vmConfig
 }
 
-func (s *KonaServerArgs) LocalInputs() *utils.LocalGameInputs {
+func (s *KonaVmArgs) LocalInputs() *utils.LocalGameInputs {
 	return s.localInputs
 }
 
-func (s *KonaServerArgs) SetLocalInputs(inputs utils.LocalGameInputs) {
+func (s *KonaVmArgs) SetLocalInputs(inputs utils.LocalGameInputs) {
 	s.localInputs = &inputs
 }
 
-func (s *KonaServerArgs) FillHostCommand(args *[]string, dataDir string) error {
+func (s *KonaVmArgs) FillHostCommand(args *[]string, dataDir string) error {
 	if args == nil {
 		return errors.New("args is nil")
 	}

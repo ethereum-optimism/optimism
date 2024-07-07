@@ -147,8 +147,8 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")
-	serverArgs := vm.NewOpProgramServerArgs(cfg.Cannon, &inputs)
-	executor := vm.NewExecutor(logger, metrics.NoopMetrics, cfg.CannonAbsolutePreState, serverArgs)
+	vmArgs := vm.NewOpProgramVmArgs(cfg.Cannon, &inputs)
+	executor := vm.NewExecutor(logger, metrics.NoopMetrics, cfg.CannonAbsolutePreState, vmArgs)
 
 	t.Log("Running cannon")
 	err := executor.DoGenerateProof(ctx, proofsDir, math.MaxUint, math.MaxUint, extraVmArgs...)

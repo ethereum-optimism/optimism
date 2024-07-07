@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpProgramFillHostCommand(t *testing.T) {
+func TestKonaFillHostCommand(t *testing.T) {
 	dir := "mockdir"
 	cfg := Config{
 		L1:       "http://localhost:8888",
@@ -25,21 +25,21 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		L2Claim:       common.Hash{0x44},
 		L2BlockNumber: big.NewInt(3333),
 	}
-	serverArgs := NewOpProgramServerArgs(cfg, &inputs)
+	vmArgs := NewKonaVmArgs(cfg, &inputs)
 
 	args := []string{}
-	err := serverArgs.FillHostCommand(&args, dir)
+	err := vmArgs.FillHostCommand(&args, dir)
 	require.NoError(t, err)
 
 	require.True(t, slices.Contains(args, "--"))
 	require.True(t, slices.Contains(args, "--server"))
-	require.True(t, slices.Contains(args, "--l1"))
-	require.True(t, slices.Contains(args, "--l1.beacon"))
-	require.True(t, slices.Contains(args, "--l2"))
-	require.True(t, slices.Contains(args, "--datadir"))
-	require.True(t, slices.Contains(args, "--l1.head"))
-	require.True(t, slices.Contains(args, "--l2.head"))
-	require.True(t, slices.Contains(args, "--l2.outputroot"))
-	require.True(t, slices.Contains(args, "--l2.claim"))
-	require.True(t, slices.Contains(args, "--l2.blocknumber"))
+	require.True(t, slices.Contains(args, "--l1-node-address"))
+	require.True(t, slices.Contains(args, "--l1-beacon-address"))
+	require.True(t, slices.Contains(args, "--l2-node-address"))
+	require.True(t, slices.Contains(args, "--data-dir"))
+	require.True(t, slices.Contains(args, "--l1-head"))
+	require.True(t, slices.Contains(args, "--l2-head"))
+	require.True(t, slices.Contains(args, "--l2-output-root"))
+	require.True(t, slices.Contains(args, "--l2-claim"))
+	require.True(t, slices.Contains(args, "--l2-block-number"))
 }

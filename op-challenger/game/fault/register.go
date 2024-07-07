@@ -75,26 +75,26 @@ func RegisterGameTypes(
 	syncValidator := newSyncStatusValidator(rollupClient)
 
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeCannon) {
-		serverArgs := vm.NewOpProgramServerArgs(cfg.Cannon, nil)
-		if err := registerCannon(faultTypes.CannonGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, serverArgs); err != nil {
+		vmArgs := vm.NewOpProgramVmArgs(cfg.Cannon, nil)
+		if err := registerCannon(faultTypes.CannonGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, vmArgs); err != nil {
 			return nil, fmt.Errorf("failed to register cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypePermissioned) {
-		serverArgs := vm.NewOpProgramServerArgs(cfg.Cannon, nil)
-		if err := registerCannon(faultTypes.PermissionedGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, serverArgs); err != nil {
+		vmArgs := vm.NewOpProgramVmArgs(cfg.Cannon, nil)
+		if err := registerCannon(faultTypes.PermissionedGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, vmArgs); err != nil {
 			return nil, fmt.Errorf("failed to register permissioned cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
-		serverArgs := vm.NewOpProgramServerArgs(cfg.Asterisc, nil)
-		if err := registerAsterisc(faultTypes.AsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, serverArgs); err != nil {
+		vmArgs := vm.NewOpProgramVmArgs(cfg.Asterisc, nil)
+		if err := registerAsterisc(faultTypes.AsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, vmArgs); err != nil {
 			return nil, fmt.Errorf("failed to register op-program-asterisc game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
-		serverArgs := vm.NewKonaServerArgs(cfg.Asterisc, nil)
-		if err := registerAsterisc(faultTypes.KonaAsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, serverArgs); err != nil {
+		vmArgs := vm.NewKonaVmArgs(cfg.AsteriscKona, nil)
+		if err := registerAsterisc(faultTypes.KonaAsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants, vmArgs); err != nil {
 			return nil, fmt.Errorf("failed to register kona-asterisc game type: %w", err)
 		}
 	}
@@ -213,7 +213,7 @@ func registerAsterisc(
 	l1HeaderSource L1HeaderSource,
 	selective bool,
 	claimants []common.Address,
-	serverArgs vm.ServerArgs,
+	vmArgs vm.VmArgs,
 ) error {
 	var prestateSource PrestateSource
 	if cfg.AsteriscAbsolutePreStateBaseURL != nil {
@@ -265,7 +265,7 @@ func registerAsterisc(
 			if err != nil {
 				return nil, fmt.Errorf("failed to get asterisc prestate: %w", err)
 			}
-			accessor, err := outputs.NewOutputAsteriscTraceAccessor(logger, m, serverArgs, l2Client, prestateProvider, asteriscPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAsteriscTraceAccessor(logger, m, vmArgs, l2Client, prestateProvider, asteriscPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -307,7 +307,7 @@ func registerCannon(
 	l1HeaderSource L1HeaderSource,
 	selective bool,
 	claimants []common.Address,
-	serverArgs vm.ServerArgs,
+	vmArgs vm.VmArgs,
 ) error {
 	var prestateSource PrestateSource
 	if cfg.CannonAbsolutePreStateBaseURL != nil {
@@ -360,7 +360,7 @@ func registerCannon(
 			if err != nil {
 				return nil, fmt.Errorf("failed to get cannon prestate: %w", err)
 			}
-			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, serverArgs, l2Client, prestateProvider, cannonPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, vmArgs, l2Client, prestateProvider, cannonPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}

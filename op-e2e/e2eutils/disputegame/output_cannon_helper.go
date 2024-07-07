@@ -62,9 +62,9 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	rollupClient := g.System.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 	l1Head := g.GetL1Head(ctx)
-	serverArgs := vm.NewOpProgramServerArgs(cfg.Cannon, nil)
+	vmArgs := vm.NewOpProgramVmArgs(cfg.Cannon, nil)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		logger, metrics.NoopMetrics, serverArgs, l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+		logger, metrics.NoopMetrics, vmArgs, l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 	g.Require.NoError(err, "Failed to create output cannon trace accessor")
 	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, g.Game, accessor)
 }

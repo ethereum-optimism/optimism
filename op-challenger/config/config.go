@@ -97,6 +97,7 @@ type Config struct {
 
 	// Specific to the asterisc trace provider
 	Asterisc                        vm.Config
+	AsteriscKona                    vm.Config
 	AsteriscAbsolutePreState        string   // File to load the absolute pre-state for Asterisc traces from
 	AsteriscAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
 
@@ -144,6 +145,14 @@ func NewConfig(
 			InfoFreq:     DefaultCannonInfoFreq,
 		},
 		Asterisc: vm.Config{
+			VmType:       types.TraceTypeAsterisc,
+			L1:           l1EthRpc,
+			L1Beacon:     l1BeaconApi,
+			L2:           l2EthRpc,
+			SnapshotFreq: DefaultAsteriscSnapshotFreq,
+			InfoFreq:     DefaultAsteriscInfoFreq,
+		},
+		AsteriscKona: vm.Config{
 			VmType:       types.TraceTypeAsterisc,
 			L1:           l1EthRpc,
 			L1Beacon:     l1BeaconApi,

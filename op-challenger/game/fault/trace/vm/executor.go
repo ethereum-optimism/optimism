@@ -33,7 +33,7 @@ type Config struct {
 	InfoFreq         uint // Frequency of progress log messages (in VM instructions)
 }
 
-type ServerArgs interface {
+type VmArgs interface {
 	Cfg() Config
 	LocalInputs() *utils.LocalGameInputs
 	SetLocalInputs(utils.LocalGameInputs)
@@ -41,7 +41,7 @@ type ServerArgs interface {
 }
 
 type Executor struct {
-	ServerArgs
+	VmArgs
 
 	logger           log.Logger
 	metrics          Metricer
@@ -50,9 +50,9 @@ type Executor struct {
 	cmdExecutor      CmdExecutor
 }
 
-func NewExecutor(logger log.Logger, m Metricer, prestate string, serverArgs ServerArgs) *Executor {
+func NewExecutor(logger log.Logger, m Metricer, prestate string, vmArgs VmArgs) *Executor {
 	return &Executor{
-		ServerArgs:       serverArgs,
+		VmArgs:           vmArgs,
 		logger:           logger,
 		metrics:          m,
 		absolutePreState: prestate,

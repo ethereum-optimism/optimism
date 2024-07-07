@@ -6,33 +6,33 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 )
 
-type OpProgramServerArgs struct {
+type OpProgramVmArgs struct {
 	vmConfig    Config
 	localInputs *utils.LocalGameInputs
 }
 
-var _ ServerArgs = (*OpProgramServerArgs)(nil)
+var _ VmArgs = (*OpProgramVmArgs)(nil)
 
-func NewOpProgramServerArgs(vmConfig Config, localInputs *utils.LocalGameInputs) *OpProgramServerArgs {
-	return &OpProgramServerArgs{
+func NewOpProgramVmArgs(vmConfig Config, localInputs *utils.LocalGameInputs) *OpProgramVmArgs {
+	return &OpProgramVmArgs{
 		vmConfig:    vmConfig,
 		localInputs: localInputs,
 	}
 }
 
-func (s *OpProgramServerArgs) Cfg() Config {
+func (s *OpProgramVmArgs) Cfg() Config {
 	return s.vmConfig
 }
 
-func (s *OpProgramServerArgs) LocalInputs() *utils.LocalGameInputs {
+func (s *OpProgramVmArgs) LocalInputs() *utils.LocalGameInputs {
 	return s.localInputs
 }
 
-func (s *OpProgramServerArgs) SetLocalInputs(inputs utils.LocalGameInputs) {
+func (s *OpProgramVmArgs) SetLocalInputs(inputs utils.LocalGameInputs) {
 	s.localInputs = &inputs
 }
 
-func (s *OpProgramServerArgs) FillHostCommand(args *[]string, dataDir string) error {
+func (s *OpProgramVmArgs) FillHostCommand(args *[]string, dataDir string) error {
 	if args == nil {
 		return errors.New("args is nil")
 	}
