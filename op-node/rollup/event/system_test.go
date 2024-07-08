@@ -1,6 +1,7 @@
 package event
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,7 @@ import (
 
 func TestSysTracing(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	ex := NewGlobalSynchronous()
+	ex := NewGlobalSynchronous(context.Background())
 	sys := NewSystem(logger, ex)
 	count := 0
 	foo := DeriverFunc(func(ev Event) bool {
@@ -58,7 +59,7 @@ func TestSysTracing(t *testing.T) {
 
 func TestSystemBroadcast(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	ex := NewGlobalSynchronous()
+	ex := NewGlobalSynchronous(context.Background())
 	sys := NewSystem(logger, ex)
 	fooCount := 0
 	foo := DeriverFunc(func(ev Event) bool {

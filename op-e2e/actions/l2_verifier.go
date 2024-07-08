@@ -88,7 +88,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	executor := event.NewGlobalSynchronous()
+	executor := event.NewGlobalSynchronous(ctx)
 	sys := event.NewSystem(log, executor)
 	t.Cleanup(sys.Stop)
 	opts := event.DefaultRegisterOpts()

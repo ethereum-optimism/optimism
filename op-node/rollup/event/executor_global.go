@@ -1,6 +1,7 @@
 package event
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"slices"
@@ -18,12 +19,14 @@ type GlobalSyncExec struct {
 
 	handles     []*globalHandle
 	handlesLock sync.RWMutex
+
+	ctx context.Context
 }
 
 var _ Executor = (*GlobalSyncExec)(nil)
 
-func NewGlobalSynchronous() *GlobalSyncExec {
-	return &GlobalSyncExec{}
+func NewGlobalSynchronous(ctx context.Context) *GlobalSyncExec {
+	return &GlobalSyncExec{ctx: ctx}
 }
 
 func (gs *GlobalSyncExec) Add(d Executable, _ *ExecutorOpts) (leaveExecutor func()) {
@@ -48,57 +51,90 @@ func (gs *GlobalSyncExec) remove(h *globalHandle) {
 	}
 }
 
-func (s *GlobalSyncExec) Enqueue(ev AnnotatedEvent) error {
+func (gs *GlobalSyncExec) Enqueue(ev AnnotatedEvent) error {
+	gs.eventsLock.Lock()
+	defer gs.eventsLock.Unlock()
 	// sanity limit, never queue too many events
-	if len(s.events) >= sanityEventLimit {
+	if len(gs.events) >= sanityEventLimit {
 		return fmt.Errorf("something is very wrong, queued up too many events! Dropping event %q", ev)
 	}
-	s.events = append(s.events, ev)
+	gs.events = append(gs.events, ev)
 	return nil
 }
 
-func (s *GlobalSyncExec) pop() AnnotatedEvent {
-	if len(s.events) == 0 {
+func (gs *GlobalSyncExec) pop() AnnotatedEvent {
+	gs.eventsLock.Lock()
+	defer gs.eventsLock.Unlock()
+
+	if len(gs.events) == 0 {
 		return AnnotatedEvent{}
 	}
 
-	first := s.events[0]
-	s.events = s.events[1:]
+	first := gs.events[0]
+	gs.events = gs.events[1:]
 	return first
 }
 
 func (gs *GlobalSyncExec) Drain() error {
 	for {
+		if gs.ctx.Err() != nil {
+			return gs.ctx.Err()
+		}
 		ev := gs.pop()
 		if ev.Event == nil {
 			return nil
 		}
+		// Note: event execution may call Drain(), that is allowed.
 		for _, h := range gs.handles {
 			h.onEvent(ev)
 		}
 	}
 }
 
-func (s *GlobalSyncExec) DrainUntil(fn func(ev Event) bool, excl bool) error {
-	for {
-		if len(s.events) == 0 {
-			return io.EOF
+func (gs *GlobalSyncExec) DrainUntil(fn func(ev Event) bool, excl bool) error {
+	// In order of operation:
+	// stopExcl: stop draining, and leave the event.
+	// no stopExcl, and no event: EOF, exhausted events before condition hit.
+	// no stopExcl, and event: process event.
+	// stopIncl: stop draining, after having processed the event first.
+	iter := func() (ev AnnotatedEvent, stopIncl bool, stopExcl bool) {
+		gs.eventsLock.Lock()
+		defer gs.eventsLock.Unlock()
+
+		if len(gs.events) == 0 {
+			return AnnotatedEvent{}, false, false
 		}
 
-		s.eventsLock.Lock()
-		ev := s.events[0]
+		ev = gs.events[0]
 		stop := fn(ev.Event)
 		if excl && stop {
-			s.eventsLock.Unlock()
-			return nil
-		}
-		s.events = s.events[1:]
-		s.eventsLock.Unlock()
-
-		for _, h := range s.handles {
-			h.onEvent(ev)
+			ev = AnnotatedEvent{}
+			stopExcl = true
+		} else {
+			gs.events = gs.events[1:]
 		}
 		if stop {
+			stopIncl = true
+		}
+		return
+	}
+
+	for {
+		if gs.ctx.Err() != nil {
+			return gs.ctx.Err()
+		}
+		// includes popping of the event, so we can handle Drain() calls by onEvent() execution
+		ev, stopIncl, stopExcl := iter()
+		if stopExcl {
+			return nil
+		}
+		if ev.Event == nil {
+			return io.EOF
+		}
+		for _, h := range gs.handles {
+			h.onEvent(ev)
+		}
+		if stopIncl {
 			return nil
 		}
 	}
@@ -109,15 +145,15 @@ type globalHandle struct {
 	d Executable
 }
 
-func (ga *globalHandle) onEvent(ev AnnotatedEvent) {
-	if ga.g.Load() == nil { // don't process more events while we are being removed
+func (gh *globalHandle) onEvent(ev AnnotatedEvent) {
+	if gh.g.Load() == nil { // don't process more events while we are being removed
 		return
 	}
-	ga.d.RunEvent(ev)
+	gh.d.RunEvent(ev)
 }
 
-func (ga *globalHandle) leave() {
-	if old := ga.g.Swap(nil); old != nil {
-		old.remove(ga)
+func (gh *globalHandle) leave() {
+	if old := gh.g.Swap(nil); old != nil {
+		old.remove(gh)
 	}
 }

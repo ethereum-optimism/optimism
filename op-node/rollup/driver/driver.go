@@ -168,19 +168,19 @@ func NewDriver(
 	sequencerConductor conductor.SequencerConductor,
 	plasma PlasmaIface,
 ) *Driver {
+	driverCtx, driverCancel := context.WithCancel(context.Background())
+
 	var executor event.Executor
 	var drain func() error
 	// This instantiation will be one of more options: soon there will be a parallel events executor
 	{
-		s := event.NewGlobalSynchronous()
+		s := event.NewGlobalSynchronous(driverCtx)
 		executor = s
 		drain = s.Drain
 	}
 	sys := event.NewSystem(log, executor)
 
 	opts := event.DefaultRegisterOpts()
-
-	driverCtx, driverCancel := context.WithCancel(context.Background())
 
 	statusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", statusTracker, opts)
