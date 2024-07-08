@@ -481,6 +481,12 @@ func (db *DB) readCanonicalHash(entryIdx int64) (canonicalHash, error) {
 	return newCanonicalHashFromEntry(data)
 }
 
+func (db *DB) GetLogBlockNum() uint64 {
+    db.rwLock.RLock()
+    defer db.rwLock.RUnlock()
+    return db.lastEntryContext.blockNum
+}
+
 func (db *DB) Close() error {
 	return db.store.Close()
 }

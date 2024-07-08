@@ -31,15 +31,16 @@ type ChainMonitor struct {
 	headMonitor *HeadMonitor
 }
 
-func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID *big.Int, rpc string, client client.RPC) (*ChainMonitor, error) {
+func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID *big.Int, rpc string, client client.RPC, block uint64) (*ChainMonitor, error) {
 	logger = logger.New("chainID", chainID)
 	cl, err := newClient(ctx, logger, m, rpc, client, pollInterval, trustRpc, rpcKind)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO(optimism#11023): Load the starting block from log db
-	startingHead := eth.L1BlockRef{}
+	startingHead := eth.L1BlockRef{
+		Number: block,
+	}
 
 	fetchReceipts := newLogFetcher(cl, &loggingReceiptProcessor{logger})
 	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, fetchReceipts)
