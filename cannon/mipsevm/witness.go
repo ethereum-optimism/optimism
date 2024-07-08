@@ -9,7 +9,7 @@ type StepWitness struct {
 	State     []byte
 	StateHash common.Hash
 
-	MemProof []byte
+	ProofData []byte
 
 	PreimageKey    [32]byte // zeroed when no pre-image is accessed
 	PreimageValue  []byte   // including the 8-byte length prefix
