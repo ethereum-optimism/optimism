@@ -3,14 +3,14 @@ package source
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -31,7 +31,7 @@ type ChainMonitor struct {
 	headMonitor *HeadMonitor
 }
 
-func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID *big.Int, rpc string, client client.RPC) (*ChainMonitor, error) {
+func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC) (*ChainMonitor, error) {
 	logger = logger.New("chainID", chainID)
 	cl, err := newClient(ctx, logger, m, rpc, client, pollInterval, trustRpc, rpcKind)
 	if err != nil {
@@ -67,7 +67,7 @@ type loggingReceiptProcessor struct {
 	log log.Logger
 }
 
-func (n *loggingReceiptProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpts types.Receipts) error {
+func (n *loggingReceiptProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpts ethTypes.Receipts) error {
 	n.log.Info("Process unsafe block", "block", block, "rcpts", len(rcpts))
 	return nil
 }
