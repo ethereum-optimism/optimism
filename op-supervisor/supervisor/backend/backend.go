@@ -52,9 +52,19 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 			return nil, fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 		}
 		logDBs[i] = logDB
-		block, _ ,err := logDB.ClosestBlockInfo(math.MaxUint64)
+
+		//we'll need to get the last checkpoint that was written (could use ClosestBlockInfo and pass math.maxUInt64)
+		//then Rewind the db to the block prior to that block and start from there.
+		//That guarantees we will always roll back at least one block
+		//so we know we're always starting from a fully written block.
+		checkPointBlock, _ ,err := logDB.ClosestBlockInfo(math.MaxUint64)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get block from checkpoint: %w", err)
+		}
+		block := checkPointBlock - 1
+		err = logDB.Rewind(block)
+		if err != nil {
+			return nil, fmt.Errorf("failed to 'Rewind' the database: %w", err)
 		}
 		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, block)
 		if err != nil {
