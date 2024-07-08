@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -51,7 +52,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 			return nil, fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 		}
 		logDBs[i] = logDB
-		block := logDB.GetLogBlockNum()
+		block, _ ,err := logDB.ClosestBlockInfo(math.MaxUint64)
 		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, block)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create monitor for rpc %v: %w", rpc, err)
