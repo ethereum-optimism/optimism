@@ -92,7 +92,7 @@ func newInitiatingEventFromEntry(data entrydb.Entry) (initiatingEvent, error) {
 func newInitiatingEvent(pre logContext, blockNum uint64, logIdx uint32, logHash TruncatedHash, hasExecMsg bool) (initiatingEvent, error) {
 	blockDiff := blockNum - pre.blockNum
 	if blockDiff > math.MaxUint8 {
-		// TODO(optimism#10857): Need to find a way to support this.
+		// TODO(optimism#11091): Need to find a way to support this.
 		return initiatingEvent{}, fmt.Errorf("too many block skipped between %v and %v", pre.blockNum, blockNum)
 	}
 
