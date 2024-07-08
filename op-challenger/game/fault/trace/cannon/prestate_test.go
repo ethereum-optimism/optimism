@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 		actual, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
 		state := mipsevm.State{
-			Memory:         mipsevm.NewMemory(),
+			Memory:         core.NewMemory(),
 			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 			PreimageOffset: 0,
 			Cpu: mipsevm.CpuScalars{

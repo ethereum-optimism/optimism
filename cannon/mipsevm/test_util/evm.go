@@ -1,9 +1,12 @@
-package mipsevm
+package test_util
 
 import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"os"
+
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
@@ -117,4 +120,8 @@ func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
 		BaseFee:         big.NewInt(7),
 		WithdrawalsHash: &types.EmptyWithdrawalsHash,
 	}
+}
+
+func MarkdownTracer() vm.EVMLogger {
+	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 }

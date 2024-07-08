@@ -7,7 +7,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -359,7 +359,7 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProof":
 		// <pc, insn, [memAddr, memValue]>
-		mem := mipsevm.NewMemory()
+		mem := core.NewMemory()
 		if len(args) != 3 && len(args) != 5 {
 			panic("Error: cannonMemoryProofWithProof requires 2 or 4 arguments")
 		}
@@ -392,7 +392,7 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProofWrongLeaf":
 		// <pc, insn, memAddr, memValue>
-		mem := mipsevm.NewMemory()
+		mem := core.NewMemory()
 		if len(args) != 5 {
 			panic("Error: cannonMemoryProofWrongLeaf requires 4 arguments")
 		}

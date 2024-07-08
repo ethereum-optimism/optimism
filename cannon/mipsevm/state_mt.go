@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -37,7 +39,7 @@ func (t *ThreadState) serializeThread() []byte {
 
 	out = binary.BigEndian.AppendUint32(out, t.ThreadId)
 	out = append(out, t.ExitCode)
-	out = AppendBoolToWitness(out, t.Exited)
+	out = core.AppendBoolToWitness(out, t.Exited)
 	out = binary.BigEndian.AppendUint32(out, t.FutexAddr)
 	out = binary.BigEndian.AppendUint32(out, t.FutexVal)
 	out = binary.BigEndian.AppendUint64(out, t.FutexTimeoutStep)
@@ -83,7 +85,7 @@ const (
 )
 
 type MTState struct {
-	Memory *Memory `json:"memory"`
+	Memory *core.Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
@@ -132,7 +134,7 @@ func CreateEmptyMTState() *MTState {
 	}
 
 	return &MTState{
-		Memory:           NewMemory(),
+		Memory:           core.NewMemory(),
 		Heap:             0,
 		ExitCode:         0,
 		Exited:           false,
@@ -221,7 +223,7 @@ func (s *MTState) VMStatus() uint8 {
 	return vmStatus(s.Exited, s.ExitCode)
 }
 
-func (s *MTState) GetMemory() *Memory {
+func (s *MTState) GetMemory() *core.Memory {
 	return s.Memory
 }
 
@@ -233,7 +235,7 @@ func (s *MTState) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	out = AppendBoolToWitness(out, s.Exited)
+	out = core.AppendBoolToWitness(out, s.Exited)
 
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	out = binary.BigEndian.AppendUint64(out, s.StepsSinceLastContextSwitch)
@@ -241,7 +243,7 @@ func (s *MTState) EncodeWitness() ([]byte, common.Hash) {
 
 	leftStackRoot := s.getLeftThreadStackRoot()
 	rightStackRoot := s.getRightThreadStackRoot()
-	out = AppendBoolToWitness(out, s.TraverseRight)
+	out = core.AppendBoolToWitness(out, s.TraverseRight)
 	out = append(out, (leftStackRoot)[:]...)
 	out = append(out, (rightStackRoot)[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.NextThreadId)

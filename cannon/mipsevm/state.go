@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -21,7 +22,7 @@ type CpuScalars struct {
 }
 
 type State struct {
-	Memory *Memory `json:"memory"`
+	Memory *core.Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
@@ -58,7 +59,7 @@ func CreateEmptyState() *State {
 		},
 		Heap:      0,
 		Registers: [32]uint32{},
-		Memory:    NewMemory(),
+		Memory:    core.NewMemory(),
 		ExitCode:  0,
 		Exited:    false,
 		Step:      0,
@@ -75,7 +76,7 @@ func CreateInitialState(pc, heapStart uint32) *State {
 }
 
 type stateMarshaling struct {
-	Memory         *Memory       `json:"memory"`
+	Memory         *core.Memory  `json:"memory"`
 	PreimageKey    common.Hash   `json:"preimageKey"`
 	PreimageOffset uint32        `json:"preimageOffset"`
 	PC             uint32        `json:"pc"`
@@ -142,7 +143,7 @@ func (s *State) VMStatus() uint8 {
 	return vmStatus(s.Exited, s.ExitCode)
 }
 
-func (s *State) GetMemory() *Memory {
+func (s *State) GetMemory() *core.Memory {
 	return s.Memory
 }
 
@@ -158,7 +159,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.Cpu.HI)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	out = AppendBoolToWitness(out, s.Exited)
+	out = core.AppendBoolToWitness(out, s.Exited)
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	for _, r := range s.Registers {
 		out = binary.BigEndian.AppendUint32(out, r)
@@ -180,6 +181,12 @@ func (sw StateWitness) StateHash() (common.Hash, error) {
 		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), STATE_WITNESS_SIZE)
 	}
 	return stateHashFromWitness(sw), nil
+}
+
+func GetStateHashFn() core.HashFn {
+	return func(sw []byte) (common.Hash, error) {
+		return StateWitness(sw).StateHash()
+	}
 }
 
 func stateHashFromWitness(sw []byte) common.Hash {

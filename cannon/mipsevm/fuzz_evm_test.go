@@ -6,6 +6,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
+
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -30,7 +33,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysBrk},
 			Step:           step,
 			PreimageKey:    common.Hash{},
@@ -59,8 +62,8 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, preimageOffset, state.PreimageOffset)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
@@ -82,7 +85,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysClone},
 			Step:           step,
 			PreimageOffset: preimageOffset,
@@ -110,8 +113,8 @@ func FuzzStateSyscallClone(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, preimageOffset, state.PreimageOffset)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
@@ -132,7 +135,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			Heap:           heap,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysMmap, 4: addr, 5: siz},
 			Step:           step,
 			PreimageOffset: 0,
@@ -161,8 +164,8 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			expectedRegisters[2] = heap
 			require.Equal(t, expectedRegisters, state.Registers)
 			sizAlign := siz
-			if sizAlign&PageAddrMask != 0 { // adjust size to align with page size
-				sizAlign = siz + PageSize - (siz & PageAddrMask)
+			if sizAlign&core.PageAddrMask != 0 { // adjust size to align with page size
+				sizAlign = siz + core.PageSize - (siz & core.PageAddrMask)
 			}
 			require.Equal(t, uint32(heap+sizAlign), state.Heap)
 		} else {
@@ -172,8 +175,8 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			require.Equal(t, uint32(heap), state.Heap)
 		}
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
@@ -195,7 +198,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysExitGroup, 4: uint32(exitCode)},
 			Step:           step,
 			PreimageOffset: 0,
@@ -222,8 +225,8 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, uint32(0), state.PreimageOffset)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
@@ -244,7 +247,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysFcntl, 4: fd, 5: cmd},
 			Step:           step,
 			PreimageOffset: 0,
@@ -288,8 +291,8 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 			require.Equal(t, expectedRegisters, state.Registers)
 		}
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
@@ -311,7 +314,7 @@ func FuzzStateHintRead(f *testing.F) {
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysRead, 4: fdHintRead, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
@@ -341,8 +344,8 @@ func FuzzStateHintRead(f *testing.F) {
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
@@ -367,7 +370,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysRead, 4: fdPreimageRead, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
@@ -408,8 +411,8 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
@@ -431,7 +434,7 @@ func FuzzStateHintWrite(f *testing.F) {
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysWrite, 4: fdHintWrite, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
@@ -469,8 +472,8 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
@@ -492,7 +495,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 			Heap:           0,
 			ExitCode:       0,
 			Exited:         false,
-			Memory:         NewMemory(),
+			Memory:         core.NewMemory(),
 			Registers:      [32]uint32{2: sysWrite, 4: fdPreimageWrite, 5: addr, 6: count},
 			Step:           0,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
@@ -525,8 +528,8 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, uint32(0), state.PreimageOffset)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := NewMIPSEVM(contracts, addrs)
-		evmPost := evm.Step(t, stepWitness, step)
+		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evmPost := evm.Step(t, stepWitness, step, GetStateHashFn())
 		goPost, _ := goState.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")

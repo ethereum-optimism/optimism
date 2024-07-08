@@ -6,13 +6,15 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 )
 
 const HEAP_START = 0x05000000
 
-type CreateFPVMState[T FPVMState] func(pc, heapStart uint32) T
+type CreateFPVMState[T core.FPVMState] func(pc, heapStart uint32) T
 
-func LoadELF[T FPVMState](f *elf.File, initState CreateFPVMState[T]) (T, error) {
+func LoadELF[T core.FPVMState](f *elf.File, initState CreateFPVMState[T]) (T, error) {
 	var empty T
 	s := initState(uint32(f.Entry), HEAP_START)
 
@@ -96,7 +98,7 @@ func PatchStack(st *State) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow
-	if err := st.Memory.SetMemoryRange(sp-4*PageSize, bytes.NewReader(make([]byte, 5*PageSize))); err != nil {
+	if err := st.Memory.SetMemoryRange(sp-4*core.PageSize, bytes.NewReader(make([]byte, 5*core.PageSize))); err != nil {
 		return fmt.Errorf("failed to allocate page for stack content")
 	}
 	st.Registers[29] = sp

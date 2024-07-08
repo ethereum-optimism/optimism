@@ -1,4 +1,4 @@
-package mipsevm
+package core
 
 import "github.com/ethereum/go-ethereum/common"
 
@@ -19,6 +19,8 @@ type StepWitness struct {
 func (wit *StepWitness) HasPreimage() bool {
 	return wit.PreimageKey != ([32]byte{})
 }
+
+type HashFn func(sw []byte) (common.Hash, error)
 
 func AppendBoolToWitness(witnessData []byte, boolVal bool) []byte {
 	if boolVal {
