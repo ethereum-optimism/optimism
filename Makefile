@@ -234,12 +234,6 @@ update-op-geth:
 	./ops/scripts/update-op-geth.py
 .PHONY: update-op-geth
 
-bedrock-markdown-links:
-	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
-		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org --exclude vitalik.eth.limo \
-		--exclude-mail /input/README.md "/input/specs/**/*.md"
-.PHONY: bedrock-markdown-links
-
 install-geth:
 	./ops/scripts/geth-version-checker.sh && \
 	 	(echo "Geth versions match, not installing geth..."; true) || \
