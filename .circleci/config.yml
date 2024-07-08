@@ -1703,16 +1703,7 @@ workflows:
           name: op-node-docker-build
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          #save_image_tag: <<pipeline.git.revision>> # for devnet later
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-      - check-cross-platform:
-          name: op-node-cross-platform
-          op_component: op-node
-          requires:
-            - op-node-docker-build
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-batcher-docker-build
           docker_name: op-batcher
@@ -2116,6 +2107,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-node-cross-platform
+          op_component: op-node
+          requires:
+            - op-node-docker-publish
       - docker-build:
           name: op-batcher-docker-publish
           docker_name: op-batcher
