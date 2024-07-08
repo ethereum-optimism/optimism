@@ -57,7 +57,6 @@ ARG TARGETARCH
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
 FROM --platform=$BUILDPLATFORM builder as cannon-builder
 ARG CANNON_VERSION=v0.0.0
-RUN echo "hello"
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 
