@@ -36,7 +36,6 @@ ifeq ($(TARGETARCH),arm64)
 endif
 
 op-node:
-	@echo "Compiling for $(TARGETARCH) with CC=$(CC) and CXX=$(CXX)"
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) go build -v $(LDFLAGS) -o ./bin/op-node ./cmd/main.go
 
 clean:
