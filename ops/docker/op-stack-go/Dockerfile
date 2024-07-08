@@ -4,8 +4,6 @@
 # TARGETARCH
 # TARGETPLATFORM
 # BUILDPLATFORM
-ARG TARGETOS
-ARG TARGETARCH
 
 # All target images use this as base image, and add the final build results.
 # It will default to the target platform.
@@ -22,15 +20,6 @@ RUN apt-get update && apt-get install -y \
 
 # Install other necessary tools and libraries
 RUN apt-get install -y make git jq bash
-
-# Default values for TARGETARCH="amd64"
-ARG CC=gcc
-ARG CXX=g++
-
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-      CC=aarch64-linux-gnu-gcc && \
-      CXX=aarch64-linux-gnu-g++; \
-    fi
 
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
 COPY ./go.mod /app/go.mod
@@ -53,6 +42,9 @@ COPY . /app
 # --build-arg GIT_DATE=$(git show -s --format='%ct')
 ARG GIT_COMMIT
 ARG GIT_DATE
+
+ARG TARGETOS
+ARG TARGETARCH
 
 # separate docker-builds:
 # - proxyd

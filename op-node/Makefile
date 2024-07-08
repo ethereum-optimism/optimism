@@ -25,6 +25,16 @@ ifeq ($(shell uname),Darwin)
 	FUZZLDFLAGS := -ldflags=-extldflags=-Wl,-ld_classic
 endif
 
+# Default values for compilers
+CC := gcc
+CXX := g++
+
+# Check if TARGETARCH is set to arm64 and adjust compilers accordingly
+ifeq ($(TARGETARCH),arm64)
+    CC := aarch64-linux-gnu-gcc
+    CXX := aarch64-linux-gnu-g++
+endif
+
 op-node:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) go build -v $(LDFLAGS) -o ./bin/op-node ./cmd/main.go
 
