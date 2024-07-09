@@ -1,5 +1,13 @@
 package driver
 
+// derivation process를 관리
+
+// L1 head block을 tracking
+
+// L2 체인의 sync progress를 tracking
+
+// 새로운 input을 사용할 수 있게 되면 derivation 단계를 반복
+
 import (
 	"bytes"
 	"context"
@@ -36,6 +44,7 @@ const sealingDuration = time.Millisecond * 50
 type Driver struct {
 	l1State L1StateIface
 
+	// derivation pipeline은 reorg되면 reset, 새로운 l2Safe를 결정
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2Safe.
 	derivation DerivationPipeline
@@ -82,6 +91,9 @@ type Driver struct {
 	// Sync Mod Config
 	syncCfg *sync.Config
 
+	// 모든 L1 block이나 변경사항이 signalled될 필요 없음
+	// 필요에 따라 reorgs를 handle
+	// driver 실행가능한 데이터에 뒤처지지 않도록 최신 신호를 충분히 인식하기만 하면 됨
 	// L1 Signals:
 	//
 	// Not all L1 blocks, or all changes, have to be signalled:
