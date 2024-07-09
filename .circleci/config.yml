@@ -2096,7 +2096,14 @@ workflows:
 
   scheduled-docker-publish:
     when:
-      equal: [ build_hourly, <<pipeline.schedule.name>> ]
+      and:
+        - or:
+            # Trigger on new commits
+          - equal: [ webhook, << pipeline.trigger_source >> ]
+            # Trigger on manual triggers if explicitly requested
+          - equal: [ true, << pipeline.parameters.main_dispatch >> ]
+        - not:
+            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - docker-build:
           name: op-node-docker-publish
@@ -2106,7 +2113,6 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
       - check-cross-platform:
           name: op-node-cross-platform
           op_component: op-node
@@ -2120,7 +2126,11 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-batcher-cross-platform
+          op_component: op-batcher
+          requires:
+            - op-batcher-docker-publish
       - docker-build:
           name: op-program-docker-publish
           docker_name: op-program
@@ -2129,7 +2139,11 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-program-cross-platform
+          op_component: op-program
+          requires:
+            - op-program-docker-publish
       - docker-build:
           name: op-proposer-docker-publish
           docker_name: op-proposer
@@ -2138,7 +2152,11 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-proposer-cross-platform
+          op_component: op-proposer
+          requires:
+            - op-proposer-docker-publish
       - docker-build:
           name: op-challenger-docker-publish
           docker_name: op-challenger
@@ -2147,7 +2165,11 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-challenger-cross-platform
+          op_component: op-challenger
+          requires:
+            - op-challenger-docker-publish
       - docker-build:
           name: op-dispute-mon-docker-publish
           docker_name: op-dispute-mon
@@ -2156,7 +2178,11 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-dispute-mon-cross-platform
+          op_component: op-dispute-mon
+          requires:
+            - op-dispute-mon-docker-publish
       - docker-build:
           name: op-conductor-docker-publish
           docker_name: op-conductor
@@ -2165,7 +2191,11 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-conductor-cross-platform
+          op_component: op-conductor
+          requires:
+            - op-conductor-docker-publish
       - docker-build:
           name: op-heartbeat-docker-publish
           docker_name: op-heartbeat
@@ -2174,7 +2204,11 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-heartbeat-cross-platform
+          op_component: op-heartbeat
+          requires:
+            - op-heartbeat-docker-publish
       - docker-build:
           name: op-supervisor-docker-publish
           docker_name: op-supervisor
@@ -2183,7 +2217,11 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-supervisor-cross-platform
+          op_component: op-supervisor
+          requires:
+            - op-supervisor-docker-publish
       - docker-build:
           name: chain-mon-docker-publish
           docker_name: chain-mon
@@ -2192,7 +2230,6 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
       - docker-build:
           name: contracts-bedrock-docker-publish
           docker_name: contracts-bedrock
@@ -2202,7 +2239,6 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
-            - slack
 
   scheduled-preimage-reproducibility:
     when:
