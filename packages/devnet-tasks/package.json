@@ -40,7 +40,7 @@
     "ethers": "^5.7.2",
     "hardhat": "^2.20.1",
     "hardhat-deploy": "^0.12.4",
-    "nyc": "^15.1.0",
+    "nyc": "^17.0.0",
     "ts-node": "^10.9.2",
     "typedoc": "^0.25.7",
     "typescript": "^5.4.5"
