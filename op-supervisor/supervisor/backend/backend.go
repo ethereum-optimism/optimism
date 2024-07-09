@@ -65,7 +65,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		if err != nil {
 			return nil, fmt.Errorf("failed to 'Rewind' the database: %w", err)
 		}
-		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, block)
+		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, logDB, block)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create monitor for rpc %v: %w", rpc, err)
 		}

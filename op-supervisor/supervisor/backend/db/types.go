@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/hex"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,6 +19,10 @@ func TruncateHash(hash common.Hash) TruncatedHash {
 	var truncated TruncatedHash
 	copy(truncated[:], hash[0:20])
 	return truncated
+}
+
+func (h TruncatedHash) String() string {
+	return hex.EncodeToString(h[:])
 }
 
 type ExecutingMessage struct {

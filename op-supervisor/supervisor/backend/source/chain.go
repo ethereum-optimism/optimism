@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -31,7 +30,7 @@ type ChainMonitor struct {
 	headMonitor *HeadMonitor
 }
 
-func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, block uint64) (*ChainMonitor, error) {
+func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, store LogStorage, block uint64) (*ChainMonitor, error) {
 	logger = logger.New("chainID", chainID)
 	cl, err := newClient(ctx, logger, m, rpc, client, pollInterval, trustRpc, rpcKind)
 	if err != nil {
@@ -42,7 +41,8 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 		Number: block,
 	}
 
-	fetchReceipts := newLogFetcher(cl, &loggingReceiptProcessor{logger})
+	processLogs := newLogProcessor(store)
+	fetchReceipts := newLogFetcher(cl, processLogs)
 	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, fetchReceipts)
 
 	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
@@ -62,15 +62,6 @@ func (c *ChainMonitor) Start() error {
 
 func (c *ChainMonitor) Stop() error {
 	return c.headMonitor.Stop()
-}
-
-type loggingReceiptProcessor struct {
-	log log.Logger
-}
-
-func (n *loggingReceiptProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpts ethTypes.Receipts) error {
-	n.log.Info("Process unsafe block", "block", block, "rcpts", len(rcpts))
-	return nil
 }
 
 func newClient(ctx context.Context, logger log.Logger, m caching.Metrics, rpc string, rpcClient client.RPC, pollRate time.Duration, trustRPC bool, kind sources.RPCProviderKind) (*sources.L1Client, error) {
