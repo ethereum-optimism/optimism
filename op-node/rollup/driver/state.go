@@ -492,7 +492,7 @@ func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) erro
 	if isLeader, err := s.sequencerConductor.Leader(ctx); err != nil {
 		return fmt.Errorf("sequencer leader check failed: %w", err)
 	} else if !isLeader {
-		return errors.New("sequencer is not the leader, aborting.")
+		return errors.New("sequencer is not the leader, aborting")
 	}
 	h := hashAndErrorChannel{
 		hash: blockHash,
