@@ -165,4 +165,4 @@ CMD ["da-server"]
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-supervisor-target
 COPY --from=op-supervisor-builder /app/op-supervisor/bin/op-supervisor /usr/local/bin/
-ENTRYPOINT ["op-supervisor"]
+CMD ["op-supervisor"]
