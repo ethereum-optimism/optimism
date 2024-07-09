@@ -15,13 +15,19 @@ LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-program/version.Meta
 
 COMPAT_DIR := temp/compat
 
+# Check if TARGETARCH is set to arm64 and adjust compilers accordingly
+ifeq ($(TARGETARCH),arm64)
+    CC := aarch64-linux-gnu-gcc
+    CXX := aarch64-linux-gnu-g++
+endif
+
 op-program: \
 	op-program-host \
 	op-program-client \
 	op-program-client-mips
 
 op-program-host:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(LDFLAGSSTRING)" -o ./bin/op-program ./host/cmd/main.go
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) go build -v -ldflags "$(LDFLAGSSTRING)" -o ./bin/op-program ./host/cmd/main.go
 
 op-program-client:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client ./client/cmd/main.go
