@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/big"
 	"sync/atomic"
 	"time"
 
