@@ -42,7 +42,7 @@
     "hardhat-deploy": "^0.12.4",
     "nyc": "^15.1.0",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.25.7",
+    "typedoc": "^0.26.3",
     "typescript": "^5.4.5"
   },
   "dependencies": {
