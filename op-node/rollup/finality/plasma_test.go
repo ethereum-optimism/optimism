@@ -97,7 +97,8 @@ func TestPlasmaFinalityData(t *testing.T) {
 	}
 
 	emitter := &testutils.MockEmitter{}
-	fi := NewPlasmaFinalizer(context.Background(), logger, cfg, l1F, emitter, plasmaBackend)
+	fi := NewPlasmaFinalizer(context.Background(), logger, cfg, l1F, plasmaBackend)
+	fi.AttachEmitter(emitter)
 	require.NotNil(t, plasmaBackend.forwardTo, "plasma backend must have access to underlying standard finalizer")
 
 	require.Equal(t, expFinalityLookback, cap(fi.finalityData))

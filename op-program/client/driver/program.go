@@ -33,7 +33,7 @@ func (d *ProgramDeriver) Result() error {
 	return d.result
 }
 
-func (d *ProgramDeriver) OnEvent(ev event.Event) {
+func (d *ProgramDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case engine.EngineResetConfirmedEvent:
 		d.Emitter.Emit(derive.ConfirmPipelineResetEvent{})
@@ -84,6 +84,7 @@ func (d *ProgramDeriver) OnEvent(ev event.Event) {
 		// Other events can be ignored safely.
 		// They are broadcast, but only consumed by the other derivers,
 		// or do not affect the state-transition.
-		return
+		return false
 	}
+	return true
 }
