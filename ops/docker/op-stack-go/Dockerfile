@@ -7,7 +7,7 @@
 
 # All target images use this as base image, and add the final build results.
 # It will default to the target platform.
-ARG TARGET_BASE_IMAGE=debian:bullseye-slim
+ARG TARGET_BASE_IMAGE=alpine:3.18
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
 FROM --platform=$BUILDPLATFORM golang:1.21.3-bullseye as builder

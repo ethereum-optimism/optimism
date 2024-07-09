@@ -20,7 +20,7 @@ ifeq ($(TARGETARCH),arm64)
 endif
 
 op-challenger:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) go build -v $(LDFLAGS) -o ./bin/op-challenger ./cmd
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-challenger ./cmd
 
 fuzz:
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzKeccak ./game/keccak/matrix

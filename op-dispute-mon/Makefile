@@ -15,7 +15,7 @@ ifeq ($(TARGETARCH),arm64)
 endif
 
 op-dispute-mon:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) go build -v $(LDFLAGS) -o ./bin/op-dispute-mon ./cmd
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-dispute-mon ./cmd
 .PHONY: op-dispute-mon
 
 clean:

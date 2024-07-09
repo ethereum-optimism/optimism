@@ -31,7 +31,7 @@ ifeq ($(TARGETARCH),arm64)
 endif
 
 op-batcher:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) go build -v $(LDFLAGS) -o ./bin/op-batcher ./cmd
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-batcher ./cmd
 
 clean:
 	rm bin/op-batcher
