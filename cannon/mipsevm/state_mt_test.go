@@ -17,7 +17,7 @@ func setWitnessField(witness MTStateWitness, fieldOffset int, fieldData []byte) 
 
 // Run through all permutations of `exited` / `exitCode` and ensure that the
 // correct witness, state hash, and VM Status is produced.
-func TestMTEncodeWitness(t *testing.T) {
+func TestMTState_EncodeWitness(t *testing.T) {
 	cases := []struct {
 		exited   bool
 		exitCode uint8
@@ -77,7 +77,7 @@ func TestMTEncodeWitness(t *testing.T) {
 	}
 }
 
-func TestMTStateJSONCodec(t *testing.T) {
+func TestMTState_JSONCodec(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 	state, err := LoadELF(elfProgram, CreateInitialMTState)
@@ -115,9 +115,25 @@ func TestMTStateJSONCodec(t *testing.T) {
 	require.Equal(t, state.LastHint, newState.LastHint)
 }
 
-func TestEmptyThreadsRoot(t *testing.T) {
+func TestMTState_EmptyThreadsRoot(t *testing.T) {
 	data := [64]byte{}
 	expectedEmptyRoot := crypto.Keccak256Hash(data[:])
 
 	require.Equal(t, expectedEmptyRoot, EmptyThreadsRoot)
+}
+
+func TestMTState_UpdateCurrentThread(t *testing.T) {
+	t.Skip("TODO - enable this once thread serialization logic is implemented")
+	state := CreateEmptyMTState()
+
+	initialThreadRoot := state.RightThreadStackRoots[0]
+
+	state.UpdateCurrentThread(func(t *ThreadContext) {
+		t.Cpu.PC += 4
+		t.Cpu.NextPC += 4
+	})
+
+	// Verify the thread root has been updated
+	postUpdateThreadRoot := state.RightThreadStackRoots[0]
+	require.NotEqual(t, initialThreadRoot, postUpdateThreadRoot)
 }
