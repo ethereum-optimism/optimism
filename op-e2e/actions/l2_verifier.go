@@ -94,8 +94,10 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	opts := event.DefaultRegisterOpts()
 	opts.Emitter = event.EmitterOpts{
 		Limiting: true,
-		Rate:     rate.Limit(1000),
-		Burst:    1000,
+		// TestSyncBatchType/DerivationWithFlakyL1RPC does *a lot* of quick retries
+		// TestL2BatcherBatchType/ExtendedTimeWithoutL1Batches as well.
+		Rate:  rate.Limit(100_000),
+		Burst: 100_000,
 		OnLimited: func() {
 			log.Warn("Hitting events rate-limit. An events code-path may be hot-looping.")
 			t.Fatal("Tests must not hot-loop events")
