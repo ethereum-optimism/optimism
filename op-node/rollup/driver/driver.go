@@ -190,72 +190,55 @@ func NewDriver(
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
-	var ec *engine.EngineController
-	event.Setup(sys, "engine-controller", opts, func(em event.Emitter) event.Deriver {
-		ec = engine.NewEngineController(l2, log, metrics, cfg, syncCfg, em)
-		return nil // does not respond to events yet
-	})
-	event.Setup(sys, "engine-reset", opts, func(em event.Emitter) event.Deriver {
-		return engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, em)
-	})
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
+		sys.Register("engine-controller", nil, opts))
 
-	var clSync CLSync // alt-sync still uses cl-sync state to determine what to sync to
-	event.Setup(sys, "clsync", opts, func(em event.Emitter) event.Deriver {
-		out := clsync.NewCLSync(log, cfg, metrics, em)
-		clSync = out
-		return out
-	})
+	sys.Register("engine-reset",
+		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg), opts)
+
+	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
+	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer Finalizer
-	event.Setup(sys, "finalizer", opts, func(em event.Emitter) event.Deriver {
-		if cfg.PlasmaEnabled() {
-			finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, em, plasma)
-		} else {
-			finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, em)
-		}
-		return finalizer
-	})
+	if cfg.PlasmaEnabled() {
+		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, plasma)
+	} else {
+		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1)
+	}
+	sys.Register("finalizer", finalizer, opts)
 
-	event.Setup(sys, "attributes-handler", opts, func(em event.Emitter) event.Deriver {
-		return attributes.NewAttributesHandler(log, cfg, driverCtx, l2, em)
-	})
+	sys.Register("attributes-handler",
+		attributes.NewAttributesHandler(log, cfg, driverCtx, l2), opts)
+
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
-	event.Setup(sys, "pipeline", opts, func(em event.Emitter) event.Deriver {
-		return derive.NewPipelineDeriver(driverCtx, derivationPipeline, em)
-	})
+
+	sys.Register("pipeline",
+		derive.NewPipelineDeriver(driverCtx, derivationPipeline), opts)
 
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, ec, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 
-	var syncDeriver *SyncDeriver
-	event.Setup(sys, "sync", opts, func(em event.Emitter) event.Deriver {
-		syncDeriver = &SyncDeriver{
-			Derivation:     derivationPipeline,
-			SafeHeadNotifs: safeHeadListener,
-			CLSync:         clSync,
-			Engine:         ec,
-			SyncCfg:        syncCfg,
-			Config:         cfg,
-			L1:             l1,
-			L2:             l2,
-			Emitter:        em,
-			Log:            log,
-			Ctx:            driverCtx,
-			Drain:          drain,
-		}
-		return syncDeriver
-	})
-	event.Setup(sys, "engine", opts, func(em event.Emitter) event.Deriver {
-		return engine.NewEngDeriver(log, driverCtx, cfg, ec, em)
-	})
+	syncDeriver := &SyncDeriver{
+		Derivation:     derivationPipeline,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		L2:             l2,
+		Log:            log,
+		Ctx:            driverCtx,
+		Drain:          drain,
+	}
+	sys.Register("sync", syncDeriver, opts)
 
-	var schedDeriv *StepSchedulingDeriver
-	event.Setup(sys, "step-scheduler", opts, func(em event.Emitter) event.Deriver {
-		schedDeriv = NewStepSchedulingDeriver(log, em)
-		return schedDeriv
-	})
+	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, ec), opts)
+
+	schedDeriv := NewStepSchedulingDeriver(log)
+	sys.Register("step-scheduler", schedDeriv, opts)
 
 	driverEmitter := sys.Register("driver", nil, opts)
 	driver := &Driver{

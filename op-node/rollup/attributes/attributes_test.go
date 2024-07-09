@@ -161,7 +161,8 @@ func TestAttributesHandler(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2)
+		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
@@ -182,7 +183,8 @@ func TestAttributesHandler(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2)
+		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
@@ -204,7 +206,8 @@ func TestAttributesHandler(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2)
+		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
@@ -229,7 +232,8 @@ func TestAttributesHandler(t *testing.T) {
 			logger := testlog.Logger(t, log.LevelInfo)
 			l2 := &testutils.MockL2Client{}
 			emitter := &testutils.MockEmitter{}
-			ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
+			ah := NewAttributesHandler(logger, cfg, context.Background(), l2)
+			ah.AttachEmitter(emitter)
 
 			// attrA1Alt does not match block A1, so will cause force-reorg.
 			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
@@ -264,7 +268,8 @@ func TestAttributesHandler(t *testing.T) {
 				logger := testlog.Logger(t, log.LevelInfo)
 				l2 := &testutils.MockL2Client{}
 				emitter := &testutils.MockEmitter{}
-				ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
+				ah := NewAttributesHandler(logger, cfg, context.Background(), l2)
+				ah.AttachEmitter(emitter)
 
 				attr := &derive.AttributesWithParent{
 					Attributes:   attrA1.Attributes, // attributes will match, passing consolidation
@@ -316,7 +321,8 @@ func TestAttributesHandler(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2)
+		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
@@ -351,7 +357,8 @@ func TestAttributesHandler(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2)
+		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnceType("ResetEvent")
 		ah.OnEvent(engine.PendingSafeUpdateEvent{
@@ -366,7 +373,8 @@ func TestAttributesHandler(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, emitter)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2)
+		ah.AttachEmitter(emitter)
 
 		// If there are no attributes, we expect the pipeline to be requested to generate attributes.
 		emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1})

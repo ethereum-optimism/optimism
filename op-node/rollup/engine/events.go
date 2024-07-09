@@ -155,14 +155,17 @@ type EngDeriver struct {
 var _ event.Deriver = (*EngDeriver)(nil)
 
 func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
-	ec *EngineController, emitter event.Emitter) *EngDeriver {
+	ec *EngineController) *EngDeriver {
 	return &EngDeriver{
-		log:     log,
-		cfg:     cfg,
-		ec:      ec,
-		ctx:     ctx,
-		emitter: emitter,
+		log: log,
+		cfg: cfg,
+		ec:  ec,
+		ctx: ctx,
 	}
+}
+
+func (d *EngDeriver) AttachEmitter(em event.Emitter) {
+	d.emitter = em
 }
 
 func (d *EngDeriver) OnEvent(ev event.Event) bool {

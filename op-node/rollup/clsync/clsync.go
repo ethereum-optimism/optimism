@@ -33,14 +33,17 @@ type CLSync struct {
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 }
 
-func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, emitter event.Emitter) *CLSync {
+func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics) *CLSync {
 	return &CLSync{
 		log:            log,
 		cfg:            cfg,
 		metrics:        metrics,
-		emitter:        emitter,
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
+}
+
+func (eq *CLSync) AttachEmitter(em event.Emitter) {
+	eq.emitter = em
 }
 
 // LowestQueuedUnsafeBlock retrieves the first queued-up L2 unsafe payload, or a zeroed reference if there is none.

@@ -17,7 +17,8 @@ func TestStepSchedulingDeriver(t *testing.T) {
 	emitter := event.EmitterFunc(func(ev event.Event) {
 		queued = append(queued, ev)
 	})
-	sched := NewStepSchedulingDeriver(logger, emitter)
+	sched := NewStepSchedulingDeriver(logger)
+	sched.AttachEmitter(emitter)
 	require.Len(t, sched.NextStep(), 0, "start empty")
 	sched.OnEvent(StepReqEvent{})
 	require.Len(t, sched.NextStep(), 1, "take request")

@@ -14,6 +14,8 @@ import (
 type System interface {
 	// Register registers a named event-emitter, optionally processing events itself:
 	// deriver may be nil, not all registrants have to process events.
+	// A non-nil deriver may implement AttachEmitter to automatically attach the Emitter to it,
+	// before the deriver itself becomes executable.
 	Register(name string, deriver Deriver, opts *RegisterOpts) Emitter
 	// Unregister removes a named emitter,
 	// also removing it from the set of events-receiving derivers (if registered with non-nil deriver).
@@ -28,27 +30,8 @@ type System interface {
 	Stop()
 }
 
-// DeferEmitter wraps an Emitter, setting up the emitter after making available the interface,
-// so Setup can register components that both derive and emit events.
-type DeferEmitter struct {
-	inner Emitter
-}
-
-func (em *DeferEmitter) Emit(ev Event) {
-	if em.inner == nil {
-		panic("emitter not set up yet")
-	}
-	em.inner.Emit(ev)
-}
-
-// Setup is a convenience method to register a combined deriver/emitter with a System.
-// The deriver/emitter is registered by name, and should be instantiated by the given fn.
-// This allows the deriver to reference its emitter before being fully instantiated.
-// The emitter must not be used before the fn returns.
-func Setup(sys System, name string, opts *RegisterOpts, fn func(em Emitter) Deriver) {
-	var de DeferEmitter
-	d := fn(&de)
-	de.inner = sys.Register(name, d, opts)
+type AttachEmitter interface {
+	AttachEmitter(em Emitter)
 }
 
 type AnnotatedEvent struct {
@@ -142,20 +125,26 @@ func (s *Sys) Register(name string, deriver Deriver, opts *RegisterOpts) Emitter
 		ctx:    ctx,
 		cancel: cancel,
 	}
-	if deriver != nil {
-		r.leaveExecutor = s.executor.Add(r, &opts.Executor)
-	}
 	s.regs[name] = r
+	var em Emitter = r
 	if opts.Emitter.Limiting {
 		limitedCallback := opts.Emitter.OnLimited
-		return NewLimiter(ctx, r, opts.Emitter.Rate, opts.Emitter.Burst, func() {
+		em = NewLimiter(ctx, r, opts.Emitter.Rate, opts.Emitter.Burst, func() {
 			r.sys.recordRateLimited(name, r.currentEvent)
 			if limitedCallback != nil {
 				limitedCallback()
 			}
 		})
 	}
-	return r
+	// If it can emit, attach an emitter to it
+	if attachTo, ok := deriver.(AttachEmitter); ok {
+		attachTo.AttachEmitter(em)
+	}
+	// If it can derive, add it to the executor (and only after attaching the emitter)
+	if deriver != nil {
+		r.leaveExecutor = s.executor.Add(r, &opts.Executor)
+	}
+	return em
 }
 
 func (s *Sys) Unregister(name string) (previous Emitter) {

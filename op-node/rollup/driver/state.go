@@ -420,6 +420,10 @@ type SyncDeriver struct {
 	Drain func() error
 }
 
+func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
+	s.Emitter = em
+}
+
 func (s *SyncDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case StepEvent:

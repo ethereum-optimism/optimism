@@ -32,7 +32,7 @@ type EngineResetDeriver struct {
 }
 
 func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Config,
-	l1 sync.L1Chain, l2 sync.L2Chain, syncCfg *sync.Config, emitter event.Emitter) *EngineResetDeriver {
+	l1 sync.L1Chain, l2 sync.L2Chain, syncCfg *sync.Config) *EngineResetDeriver {
 	return &EngineResetDeriver{
 		ctx:     ctx,
 		log:     log,
@@ -40,8 +40,11 @@ func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Conf
 		l1:      l1,
 		l2:      l2,
 		syncCfg: syncCfg,
-		emitter: emitter,
 	}
+}
+
+func (d *EngineResetDeriver) AttachEmitter(em event.Emitter) {
+	d.emitter = em
 }
 
 func (d *EngineResetDeriver) OnEvent(ev event.Event) bool {

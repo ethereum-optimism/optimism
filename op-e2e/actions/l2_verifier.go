@@ -105,64 +105,49 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	}
 
 	metrics := &testutils.TestDerivationMetrics{}
-	var ec *engine.EngineController
-	event.Setup(sys, "engine-controller", opts, func(em event.Emitter) event.Deriver {
-		ec = engine.NewEngineController(eng, log, metrics, cfg, syncCfg, em)
-		return nil // does not respond to events yet
-	})
-	event.Setup(sys, "engine-reset", opts, func(em event.Emitter) event.Deriver {
-		return engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg, em)
-	})
+	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg,
+		sys.Register("engine-controller", nil, opts))
 
-	var clSync driver.CLSync
-	event.Setup(sys, "cl-sync", opts, func(em event.Emitter) event.Deriver {
-		out := clsync.NewCLSync(log, cfg, metrics, em)
-		clSync = out
-		return out
-	})
+	sys.Register("engine-reset",
+		engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg), opts)
 
-	event.Setup(sys, "finalizer", opts, func(em event.Emitter) event.Deriver {
-		if cfg.PlasmaEnabled() {
-			return finality.NewPlasmaFinalizer(ctx, log, cfg, l1, em, plasmaSrc)
-		} else {
-			return finality.NewFinalizer(ctx, log, cfg, l1, em)
-		}
-	})
+	clSync := clsync.NewCLSync(log, cfg, metrics)
+	sys.Register("cl-sync", clSync, opts)
 
-	event.Setup(sys, "attributes-handler", opts, func(em event.Emitter) event.Deriver {
-		return attributes.NewAttributesHandler(log, cfg, ctx, eng, em)
-	})
+	var finalizer driver.Finalizer
+	if cfg.PlasmaEnabled() {
+		finalizer = finality.NewPlasmaFinalizer(ctx, log, cfg, l1, plasmaSrc)
+	} else {
+		finalizer = finality.NewFinalizer(ctx, log, cfg, l1)
+	}
+	sys.Register("finalizer", finalizer, opts)
+
+	sys.Register("attributes-handler",
+		attributes.NewAttributesHandler(log, cfg, ctx, eng), opts)
 
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, metrics)
-	event.Setup(sys, "pipeline", opts, func(em event.Emitter) event.Deriver {
-		return derive.NewPipelineDeriver(ctx, pipeline, em)
-	})
+	sys.Register("pipeline", derive.NewPipelineDeriver(ctx, pipeline), opts)
 
 	testActionEmitter := sys.Register("test-action", nil, opts)
 
 	syncStatusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", syncStatusTracker, opts)
 
-	event.Setup(sys, "sync", opts, func(em event.Emitter) event.Deriver {
-		return &driver.SyncDeriver{
-			Derivation:     pipeline,
-			SafeHeadNotifs: safeHeadListener,
-			CLSync:         clSync,
-			Engine:         ec,
-			SyncCfg:        syncCfg,
-			Config:         cfg,
-			L1:             l1,
-			L2:             eng,
-			Emitter:        em,
-			Log:            log,
-			Ctx:            ctx,
-			Drain:          executor.Drain,
-		}
-	})
+	sys.Register("sync", &driver.SyncDeriver{
+		Derivation:     pipeline,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		L2:             eng,
+		Log:            log,
+		Ctx:            ctx,
+		Drain:          executor.Drain,
+	}, opts)
 
-	event.Setup(sys, "engine", opts, func(em event.Emitter) event.Deriver {
-		return engine.NewEngDeriver(log, ctx, cfg, ec, em)
-	})
+	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, ec), opts)
 
 	rollupNode := &L2Verifier{
 		eventSys:          sys,

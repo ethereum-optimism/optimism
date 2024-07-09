@@ -37,15 +37,18 @@ type AttributesHandler struct {
 	attributes *derive.AttributesWithParent
 }
 
-func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, emitter event.Emitter) *AttributesHandler {
+func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2) *AttributesHandler {
 	return &AttributesHandler{
 		log:        log,
 		cfg:        cfg,
 		ctx:        ctx,
 		l2:         l2,
-		emitter:    emitter,
 		attributes: nil,
 	}
+}
+
+func (eq *AttributesHandler) AttachEmitter(em event.Emitter) {
+	eq.emitter = em
 }
 
 func (eq *AttributesHandler) OnEvent(ev event.Event) bool {

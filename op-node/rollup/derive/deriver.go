@@ -73,12 +73,15 @@ type PipelineDeriver struct {
 	needAttributesConfirmation bool
 }
 
-func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitter event.Emitter) *PipelineDeriver {
+func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline) *PipelineDeriver {
 	return &PipelineDeriver{
 		pipeline: pipeline,
 		ctx:      ctx,
-		emitter:  emitter,
 	}
+}
+
+func (d *PipelineDeriver) AttachEmitter(em event.Emitter) {
+	d.emitter = em
 }
 
 func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
