@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"sync/atomic"
 	"time"
 
@@ -21,12 +20,18 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type LogStore interface {
+	io.Closer
+	ClosestBlockInfo(blockNum uint64) (uint64, db.TruncatedHash, error)
+	Rewind(headBlockNum uint64) error
+}
+
 type SupervisorBackend struct {
 	started atomic.Bool
 	logger  log.Logger
 
 	chainMonitors []*source.ChainMonitor
-	logDBs        []*db.DB
+	logDBs        []LogStore
 }
 
 var _ frontend.Backend = (*SupervisorBackend)(nil)
@@ -35,7 +40,7 @@ var _ io.Closer = (*SupervisorBackend)(nil)
 
 func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg *config.Config) (*SupervisorBackend, error) {
 	chainMonitors := make([]*source.ChainMonitor, len(cfg.L2RPCs))
-	logDBs := make([]*db.DB, len(cfg.L2RPCs))
+	logDBs := make([]LogStore, len(cfg.L2RPCs))
 	for i, rpc := range cfg.L2RPCs {
 		rpcClient, chainID, err := createRpcClient(ctx, logger, rpc)
 		if err != nil {
@@ -52,18 +57,9 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		}
 		logDBs[i] = logDB
 
-		// Get the last checkpoint that was written then Rewind the db
-		// to the block prior to that block and start from there.
-		// Guarantees we will always roll back at least one block
-		// so we know we're always starting from a fully written block.
-		checkPointBlock, _, err := logDB.ClosestBlockInfo(math.MaxUint64)
+		block, err := Resume(logDB)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get block from checkpoint: %w", err)
-		}
-		block := checkPointBlock - 1
-		err = logDB.Rewind(block)
-		if err != nil {
-			return nil, fmt.Errorf("failed to 'Rewind' the database: %w", err)
+			return nil, err
 		}
 		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, logDB, block)
 		if err != nil {
