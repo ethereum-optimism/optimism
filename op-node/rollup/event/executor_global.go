@@ -75,6 +75,14 @@ func (gs *GlobalSyncExec) pop() AnnotatedEvent {
 	return first
 }
 
+func (gs *GlobalSyncExec) processEvent(ev AnnotatedEvent) {
+	gs.handlesLock.RLock() // read lock, to allow Drain() to be called during event processing.
+	defer gs.handlesLock.RUnlock()
+	for _, h := range gs.handles {
+		h.onEvent(ev)
+	}
+}
+
 func (gs *GlobalSyncExec) Drain() error {
 	for {
 		if gs.ctx.Err() != nil {
@@ -85,9 +93,7 @@ func (gs *GlobalSyncExec) Drain() error {
 			return nil
 		}
 		// Note: event execution may call Drain(), that is allowed.
-		for _, h := range gs.handles {
-			h.onEvent(ev)
-		}
+		gs.processEvent(ev)
 	}
 }
 
@@ -131,9 +137,7 @@ func (gs *GlobalSyncExec) DrainUntil(fn func(ev Event) bool, excl bool) error {
 		if ev.Event == nil {
 			return io.EOF
 		}
-		for _, h := range gs.handles {
-			h.onEvent(ev)
-		}
+		gs.processEvent(ev)
 		if stopIncl {
 			return nil
 		}
