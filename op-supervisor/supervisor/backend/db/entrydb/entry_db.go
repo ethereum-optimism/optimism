@@ -52,7 +52,7 @@ func NewEntryDB(logger log.Logger, path string) (*EntryDB, error) {
 		size: size,
 	}
 	if size*EntrySize != info.Size() {
-		logger.Warn("File size (%v) is nut a multiple of entry size %v. Truncating to last complete entry", size, EntrySize)
+		logger.Warn("File size is nut a multiple of entry size. Truncating to last complete entry", "fileSize", size, "entrySize", EntrySize)
 		if err := db.recover(); err != nil {
 			return nil, fmt.Errorf("failed to recover database at %v: %w", path, err)
 		}
