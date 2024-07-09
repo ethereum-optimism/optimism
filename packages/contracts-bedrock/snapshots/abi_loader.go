@@ -22,6 +22,9 @@ var mips []byte
 //go:embed abi/DelayedWETH.json
 var delayedWETH []byte
 
+//go:embed abi/CrossL2Inbox.json
+var crossL2Inbox []byte
+
 func LoadDisputeGameFactoryABI() *abi.ABI {
 	return loadABI(disputeGameFactory)
 }
@@ -36,6 +39,9 @@ func LoadMIPSABI() *abi.ABI {
 }
 func LoadDelayedWETHABI() *abi.ABI {
 	return loadABI(delayedWETH)
+}
+func LoadCrossL2InboxABI() *abi.ABI {
+	return loadABI(crossL2Inbox)
 }
 
 func loadABI(json []byte) *abi.ABI {

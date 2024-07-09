@@ -62,7 +62,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @notice Emitted when a cross chain message is being executed.
     /// @param encodedId Encoded Identifier of the message.
     /// @param message   Message payload being executed.
-    event ExecutingMessage(bytes encodedId, bytes message);
+    event ExecutingMessage(Identifier encodedId, bytes message);
 
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
     ///         Used to differentiate between 0 and nil in transient storage.
@@ -128,7 +128,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         // Revert if the target call failed.
         if (!success) revert TargetCallFailed();
 
-        emit ExecutingMessage(abi.encode(_id), _message);
+        emit ExecutingMessage(_id, _message);
     }
 
     /// @notice Stores the Identifier in transient storage.

@@ -3,6 +3,7 @@ package types
 import (
 	"encoding/json"
 	"math"
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,9 +23,8 @@ func FuzzRoundtripIdentifierJSONMarshal(f *testing.F) {
 			BlockNumber: blockNumber,
 			LogIndex:    logIndex,
 			Timestamp:   timestamp,
-			ChainID:     uint256.Int{},
+			ChainID:     ChainIDFromBig(new(big.Int).SetBytes(chainID)),
 		}
-		id.ChainID.SetBytes(chainID)
 
 		raw, err := json.Marshal(&id)
 		require.NoError(t, err)

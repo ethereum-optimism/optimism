@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -75,6 +76,46 @@ func TestLogProcessor(t *testing.T) {
 				logIdx:    0,
 				logHash:   logToHash(rcpts[1].Logs[0]),
 				execMsg:   nil,
+			},
+		}
+		require.Equal(t, expected, store.logs)
+	})
+
+	t.Run("IncludeExecutingMessage", func(t *testing.T) {
+		rcpts := types.Receipts{
+			{
+				Logs: []*types.Log{
+					{
+						Address: predeploys.CrossL2InboxAddr,
+						Topics:  []common.Hash{},
+						Data:    []byte{0xff},
+					},
+				},
+			},
+		}
+		execMsg := db.ExecutingMessage{
+			Chain:     2,
+			BlockNum:  6,
+			LogIdx:    8,
+			Timestamp: 10,
+			Hash:      db.TruncatedHash{0xaa},
+		}
+		store := &stubLogStorage{}
+		processor := newLogProcessor(store)
+		processor.eventDecoder = EventDecoderFn(func(l *types.Log) (db.ExecutingMessage, error) {
+			require.Equal(t, rcpts[0].Logs[0], l)
+			return execMsg, nil
+		})
+
+		err := processor.ProcessLogs(ctx, block1, rcpts)
+		require.NoError(t, err)
+		expected := []storedLog{
+			{
+				block:     block1.ID(),
+				timestamp: block1.Time,
+				logIdx:    0,
+				logHash:   logToHash(rcpts[0].Logs[0]),
+				execMsg:   &execMsg,
 			},
 		}
 		require.Equal(t, expected, store.logs)
@@ -158,4 +199,10 @@ type storedLog struct {
 	logIdx    uint32
 	logHash   db.TruncatedHash
 	execMsg   *db.ExecutingMessage
+}
+
+type EventDecoderFn func(*types.Log) (db.ExecutingMessage, error)
+
+func (f EventDecoderFn) DecodeExecutingMessageLog(log *types.Log) (db.ExecutingMessage, error) {
+	return f(log)
 }
