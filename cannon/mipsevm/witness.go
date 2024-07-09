@@ -19,3 +19,11 @@ type StepWitness struct {
 func (wit *StepWitness) HasPreimage() bool {
 	return wit.PreimageKey != ([32]byte{})
 }
+
+func AppendBoolToWitness(witnessData []byte, boolVal bool) []byte {
+	if boolVal {
+		return append(witnessData, 1)
+	} else {
+		return append(witnessData, 0)
+	}
+}

@@ -46,7 +46,7 @@ func LoadELF(ctx *cli.Context) error {
 	if elfProgram.Machine != elf.EM_MIPS {
 		return fmt.Errorf("ELF is not big-endian MIPS R3000, but got %q", elfProgram.Machine.String())
 	}
-	state, err := mipsevm.LoadELF(elfProgram)
+	state, err := mipsevm.LoadELF(elfProgram, mipsevm.CreateInitialState)
 	if err != nil {
 		return fmt.Errorf("failed to load ELF data into VM state: %w", err)
 	}

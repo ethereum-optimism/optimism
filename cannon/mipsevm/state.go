@@ -48,6 +48,32 @@ type State struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
+func CreateEmptyState() *State {
+	return &State{
+		Cpu: CpuScalars{
+			PC:     0,
+			NextPC: 0,
+			LO:     0,
+			HI:     0,
+		},
+		Heap:      0,
+		Registers: [32]uint32{},
+		Memory:    NewMemory(),
+		ExitCode:  0,
+		Exited:    false,
+		Step:      0,
+	}
+}
+
+func CreateInitialState(pc, heapStart uint32) *State {
+	state := CreateEmptyState()
+	state.Cpu.PC = pc
+	state.Cpu.NextPC = pc + 4
+	state.Heap = heapStart
+
+	return state
+}
+
 type stateMarshaling struct {
 	Memory         *Memory       `json:"memory"`
 	PreimageKey    common.Hash   `json:"preimageKey"`
@@ -132,11 +158,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.Cpu.HI)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	if s.Exited {
-		out = append(out, 1)
-	} else {
-		out = append(out, 0)
-	}
+	out = AppendBoolToWitness(out, s.Exited)
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	for _, r := range s.Registers {
 		out = binary.BigEndian.AppendUint32(out, r)
@@ -154,14 +176,14 @@ const (
 )
 
 func (sw StateWitness) StateHash() (common.Hash, error) {
-	if len(sw) != 226 {
-		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected 226", len(sw))
+	if len(sw) != StateWitnessSize {
+		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), StateWitnessSize)
 	}
 	return stateHashFromWitness(sw), nil
 }
 
 func stateHashFromWitness(sw []byte) common.Hash {
-	if len(sw) != 226 {
+	if len(sw) != StateWitnessSize {
 		panic("Invalid witness length")
 	}
 	hash := crypto.Keccak256Hash(sw)

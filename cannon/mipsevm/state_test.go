@@ -266,7 +266,7 @@ func loadELFProgram(t *testing.T, name string) *State {
 	elfProgram, err := elf.Open(name)
 	require.NoError(t, err, "open ELF file")
 
-	state, err := LoadELF(elfProgram)
+	state, err := LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	err = PatchGo(elfProgram, state)
@@ -337,7 +337,7 @@ func selectOracleFixture(t *testing.T, programName string) PreimageOracle {
 func TestStateJSONCodec(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
-	state, err := LoadELF(elfProgram)
+	state, err := LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	stateJSON, err := state.MarshalJSON()

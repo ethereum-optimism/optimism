@@ -509,7 +509,7 @@ func TestHelloEVM(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 
-	state, err := LoadELF(elfProgram)
+	state, err := LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	err = PatchGo(elfProgram, state)
@@ -560,7 +560,7 @@ func TestClaimEVM(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")
 
-	state, err := LoadELF(elfProgram)
+	state, err := LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	err = PatchGo(elfProgram, state)
