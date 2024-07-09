@@ -17,7 +17,7 @@ func setWitnessField(witness MTStateWitness, fieldOffset int, fieldData []byte) 
 
 // Run through all permutations of `exited` / `exitCode` and ensure that the
 // correct witness, state hash, and VM Status is produced.
-func TestMTStateHash(t *testing.T) {
+func TestMTEncodeWitness(t *testing.T) {
 	cases := []struct {
 		exited   bool
 		exitCode uint8
@@ -32,10 +32,18 @@ func TestMTStateHash(t *testing.T) {
 		{exited: true, exitCode: 3},
 	}
 
+	heap := uint32(12)
+	preimageKey := crypto.Keccak256Hash([]byte{1, 2, 3, 4})
+	preimageOffset := uint32(24)
+	step := uint64(33)
 	for _, c := range cases {
 		state := CreateEmptyMTState()
 		state.Exited = c.exited
 		state.ExitCode = c.exitCode
+		state.PreimageKey = preimageKey
+		state.PreimageOffset = preimageOffset
+		state.Heap = heap
+		state.Step = step
 
 		memRoot := state.Memory.MerkleRoot()
 		rightStackRoot := state.RightThreadStackRoots[0]
@@ -44,10 +52,14 @@ func TestMTStateHash(t *testing.T) {
 		// Set up expected witness
 		expectedWitness := make(MTStateWitness, MT_STATE_WITNESS_SIZE)
 		setWitnessField(expectedWitness, MT_WITNESS_MEMROOT_OFFSET, memRoot[:])
+		setWitnessField(expectedWitness, MT_WITNESS_PREIMAGE_KEY_OFFSET, preimageKey[:])
+		setWitnessField(expectedWitness, MT_WITNESS_PREIMAGE_OFFSET_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
+		setWitnessField(expectedWitness, MT_WITNESS_HEAP_OFFSET, []byte{0, 0, 0, byte(heap)})
 		setWitnessField(expectedWitness, MT_WITNESS_EXITCODE_OFFSET, []byte{c.exitCode})
 		if c.exited {
 			setWitnessField(expectedWitness, MT_WITNESS_EXITED_OFFSET, []byte{1})
 		}
+		setWitnessField(expectedWitness, MT_WITNESS_STEP_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
 		setWitnessField(expectedWitness, MT_WITNESS_WAKEUP_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
 		setWitnessField(expectedWitness, MT_WITNESS_TRAVERSE_RIGHT_OFFSET, []byte{1})
 		setWitnessField(expectedWitness, MT_WITNESS_LEFT_THREADS_ROOT_OFFSET, leftStackRoot[:])
@@ -70,6 +82,14 @@ func TestMTStateJSONCodec(t *testing.T) {
 	require.NoError(t, err, "open ELF file")
 	state, err := LoadELF(elfProgram, CreateInitialMTState)
 	require.NoError(t, err, "load ELF into state")
+	// Set a few additional fields
+	state.PreimageKey = crypto.Keccak256Hash([]byte{1, 2, 3, 4})
+	state.PreimageOffset = 4
+	state.Heap = 555
+	state.Step = 99_999
+	state.Exited = true
+	state.ExitCode = 2
+	state.LastHint = []byte{11, 12, 13}
 
 	stateJSON, err := json.Marshal(state)
 	require.NoError(t, err)
