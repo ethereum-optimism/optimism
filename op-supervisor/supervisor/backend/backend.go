@@ -79,16 +79,16 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	}, nil
 }
 
-func createRpcClient(ctx context.Context, logger log.Logger, rpc string) (client.RPC, *big.Int, error) {
+func createRpcClient(ctx context.Context, logger log.Logger, rpc string) (client.RPC, types.ChainID, error) {
 	ethClient, err := dial.DialEthClientWithTimeout(ctx, 10*time.Second, logger, rpc)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to connect to rpc %v: %w", rpc, err)
+		return nil, types.ChainID{}, fmt.Errorf("failed to connect to rpc %v: %w", rpc, err)
 	}
 	chainID, err := ethClient.ChainID(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load chain id for rpc %v: %w", rpc, err)
+		return nil, types.ChainID{}, fmt.Errorf("failed to load chain id for rpc %v: %w", rpc, err)
 	}
-	return client.NewBaseRPCClient(ethClient.Client()), chainID, nil
+	return client.NewBaseRPCClient(ethClient.Client()), types.ChainIDFromBig(chainID), nil
 }
 
 func (su *SupervisorBackend) Start(ctx context.Context) error {
