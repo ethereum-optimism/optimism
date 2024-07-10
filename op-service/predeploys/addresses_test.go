@@ -8,7 +8,7 @@ import (
 )
 
 func TestGethAddresses(t *testing.T) {
-	// We test if the addresses in geth match those in op-bindings, to avoid an import-cycle:
-	// we import geth in the monorepo, and do not want to import op-bindings into geth.
+	// We test if the addresses in geth match those in op monorepo, to avoid an import-cycle:
+	// we import geth in the monorepo, and do not want to import op monorepo into geth.
 	require.Equal(t, L1BlockAddr, types.L1BlockAddr)
 }
