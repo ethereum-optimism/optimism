@@ -23,6 +23,11 @@ type Metrics interface {
 	caching.Metrics
 }
 
+type LogDB interface {
+	LogStorage
+	DatabaseRewinder
+}
+
 // ChainMonitor monitors a source L2 chain, retrieving the data required to populate the database and perform
 // interop consolidation. It detects and notifies when reorgs occur.
 type ChainMonitor struct {
@@ -30,7 +35,7 @@ type ChainMonitor struct {
 	headMonitor *HeadMonitor
 }
 
-func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, store LogStorage, block uint64) (*ChainMonitor, error) {
+func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, store LogDB, block uint64) (*ChainMonitor, error) {
 	logger = logger.New("chainID", chainID)
 	cl, err := newClient(ctx, logger, m, rpc, client, pollInterval, trustRpc, rpcKind)
 	if err != nil {
@@ -43,7 +48,7 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 
 	processLogs := newLogProcessor(store)
 	fetchReceipts := newLogFetcher(cl, processLogs)
-	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, fetchReceipts)
+	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, fetchReceipts, store)
 
 	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
 	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)
