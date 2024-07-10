@@ -24,6 +24,7 @@
     * [Overview](contents/developer/node-operators/overview.md)
     * [Run a Node With Docker](contents/developer/node-operators/run-node-docker.md)
     * [Run a Node From Source](contents/developer/node-operators/run-node-source.md)
+    * [Network Upgrades](contents/developer/node-operators/network-upgrades.md)
     * [Snapshot downloads](contents/developer/node-operators/snapshot-downloads.md)
     * [Software release](contents/developer/node-operators/software-release.md)
     * [Replica node (Legacy)](https://github.com/bobanetwork/boba_legacy/blob/docs-in-monrepo/boba_community/boba-node/README.md)
