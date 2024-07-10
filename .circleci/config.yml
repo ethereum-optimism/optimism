@@ -162,11 +162,11 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon/mipsevm/open_mips_tests/test
+          patterns: cannon/mipsevm/tests/open_mips_tests/test
       - run:
           name: Build MIPS test vectors
           command: python3 maketests.py && git diff --exit-code
-          working_directory: cannon/mipsevm/open_mips_tests
+          working_directory: cannon/mipsevm/tests/open_mips_tests
 
   pnpm-monorepo:
     docker:
