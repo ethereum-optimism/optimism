@@ -29,7 +29,6 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpt
 			logHash := logToHash(l)
 			err := p.logStore.AddLog(logHash, block.ID(), block.Time, uint32(l.Index), nil)
 			if err != nil {
-				// TODO(optimism#11044): Need to roll back to the start of the block....
 				return fmt.Errorf("failed to add log %d from block %v: %w", l.Index, block.ID(), err)
 			}
 		}
