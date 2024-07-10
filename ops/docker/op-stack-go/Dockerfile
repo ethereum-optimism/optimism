@@ -10,16 +10,9 @@
 ARG TARGET_BASE_IMAGE=alpine:3.18
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.21.3-bullseye as builder
+FROM --platform=$BUILDPLATFORM golang:1.21.3-alpine3.18 as builder
 
-# Install cross-compilation tools
-RUN apt-get update && apt-get install -y \
-    crossbuild-essential-arm64 \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu
-
-# Install other necessary tools and libraries
-RUN apt-get install -y make git jq bash
+RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
 COPY ./go.mod /app/go.mod
