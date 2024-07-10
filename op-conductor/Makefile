@@ -7,14 +7,8 @@ LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
 LDFLAGSSTRING +=-X main.Version=$(VERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
-# Check if TARGETARCH is set to arm64 and adjust compilers accordingly
-ifeq ($(TARGETARCH),arm64)
-    CC := aarch64-linux-gnu-gcc
-    CXX := aarch64-linux-gnu-g++
-endif
-
 op-conductor:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CC=$(CC) CXX=$(CXX) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-conductor ./cmd
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-conductor ./cmd
 
 clean:
 	rm bin/op-conductor
