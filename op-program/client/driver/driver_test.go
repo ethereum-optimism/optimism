@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -26,21 +26,22 @@ func (d *fakeEnd) Result() error {
 }
 
 func TestDriver(t *testing.T) {
-	newTestDriver := func(t *testing.T, onEvent func(d *Driver, end *fakeEnd, ev rollup.Event)) *Driver {
+	newTestDriver := func(t *testing.T, onEvent func(d *Driver, end *fakeEnd, ev event.Event)) *Driver {
 		logger := testlog.Logger(t, log.LevelInfo)
 		end := &fakeEnd{}
 		d := &Driver{
 			logger: logger,
 			end:    end,
 		}
-		d.deriver = rollup.DeriverFunc(func(ev rollup.Event) {
+		d.deriver = event.DeriverFunc(func(ev event.Event) bool {
 			onEvent(d, end, ev)
+			return true
 		})
 		return d
 	}
 
 	t.Run("insta complete", func(t *testing.T) {
-		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev rollup.Event) {
+		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			end.closing = true
 		})
 		require.NoError(t, d.RunComplete())
@@ -48,7 +49,7 @@ func TestDriver(t *testing.T) {
 
 	t.Run("insta error", func(t *testing.T) {
 		mockErr := errors.New("mock error")
-		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev rollup.Event) {
+		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			end.closing = true
 			end.result = mockErr
 		})
@@ -57,7 +58,7 @@ func TestDriver(t *testing.T) {
 
 	t.Run("success after a few events", func(t *testing.T) {
 		count := 0
-		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev rollup.Event) {
+		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count > 3 {
 				end.closing = true
 				return
@@ -71,7 +72,7 @@ func TestDriver(t *testing.T) {
 	t.Run("error after a few events", func(t *testing.T) {
 		count := 0
 		mockErr := errors.New("mock error")
-		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev rollup.Event) {
+		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count > 3 {
 				end.closing = true
 				end.result = mockErr
@@ -85,7 +86,7 @@ func TestDriver(t *testing.T) {
 
 	t.Run("exhaust events", func(t *testing.T) {
 		count := 0
-		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev rollup.Event) {
+		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count < 3 { // stop generating events after a while, without changing end condition
 				d.Emit(TestEvent{})
 			}
@@ -96,7 +97,7 @@ func TestDriver(t *testing.T) {
 
 	t.Run("queued events", func(t *testing.T) {
 		count := 0
-		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev rollup.Event) {
+		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count < 3 {
 				d.Emit(TestEvent{})
 				d.Emit(TestEvent{})

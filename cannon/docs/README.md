@@ -99,10 +99,10 @@ since all sibling data that is combined with the new leaf value was already auth
 ### Pre-image data
 
 Pre-image data is accessed through syscalls exclusively.
-The OP-stack fault-proof [Pre-image Oracle specs](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof.md#pre-image-oracle)
+The OP-stack fault-proof [Pre-image Oracle specs](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/index.md#pre-image-oracle)
 define the ABI for communicating pre-images.
 
-This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](https://github.com/ethereum-optimism/specs/blob/main/specs/cannon-fault-proof-vm.md#io) for more details.
+This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/cannon-fault-proof-vm.md#io) for more details.
 
 The data is loaded into `PreimageOracle.sol` using the respective loading function based on the pre-image type.
 And then retrieved during execution of the `read` syscall.

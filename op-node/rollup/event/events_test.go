@@ -1,4 +1,4 @@
-package rollup
+package event
 
 import (
 	"fmt"
@@ -13,38 +13,41 @@ func (ev TestEvent) String() string {
 	return "X"
 }
 
-func TestSynchronousDerivers_OnEvent(t *testing.T) {
+func TestDeriverMux_OnEvent(t *testing.T) {
 	result := ""
-	a := DeriverFunc(func(ev Event) {
+	a := DeriverFunc(func(ev Event) bool {
 		result += fmt.Sprintf("A:%s\n", ev)
+		return true
 	})
-	b := DeriverFunc(func(ev Event) {
+	b := DeriverFunc(func(ev Event) bool {
 		result += fmt.Sprintf("B:%s\n", ev)
+		return true
 	})
-	c := DeriverFunc(func(ev Event) {
+	c := DeriverFunc(func(ev Event) bool {
 		result += fmt.Sprintf("C:%s\n", ev)
+		return true
 	})
 
-	x := SynchronousDerivers{}
+	x := DeriverMux{}
 	x.OnEvent(TestEvent{})
 	require.Equal(t, "", result)
 
-	x = SynchronousDerivers{a}
+	x = DeriverMux{a}
 	x.OnEvent(TestEvent{})
 	require.Equal(t, "A:X\n", result)
 
 	result = ""
-	x = SynchronousDerivers{a, a}
+	x = DeriverMux{a, a}
 	x.OnEvent(TestEvent{})
 	require.Equal(t, "A:X\nA:X\n", result)
 
 	result = ""
-	x = SynchronousDerivers{a, b}
+	x = DeriverMux{a, b}
 	x.OnEvent(TestEvent{})
 	require.Equal(t, "A:X\nB:X\n", result)
 
 	result = ""
-	x = SynchronousDerivers{a, b, c}
+	x = DeriverMux{a, b, c}
 	x.OnEvent(TestEvent{})
 	require.Equal(t, "A:X\nB:X\nC:X\n", result)
 }

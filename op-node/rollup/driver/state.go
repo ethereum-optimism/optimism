@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -35,13 +36,16 @@ type SyncStatus = eth.SyncStatus
 const sealingDuration = time.Millisecond * 50
 
 type Driver struct {
+	eventSys event.System
+
 	statusTracker SyncStatusTracker
 
 	*SyncDeriver
 
 	sched *StepSchedulingDeriver
 
-	synchronousEvents *rollup.SynchronousEvents
+	emitter event.Emitter
+	drain   func() error
 
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
@@ -133,6 +137,7 @@ func (s *Driver) Start() error {
 func (s *Driver) Close() error {
 	s.driverCancel()
 	s.wg.Wait()
+	s.eventSys.Stop()
 	s.asyncGossiper.Stop()
 	s.sequencerConductor.Close()
 	return nil
@@ -188,7 +193,7 @@ func (s *Driver) eventLoop() {
 
 	// reqStep requests a derivation step nicely, with a delay if this is a reattempt, or not at all if we already scheduled a reattempt.
 	reqStep := func() {
-		s.Emit(StepReqEvent{})
+		s.emitter.Emit(StepReqEvent{})
 	}
 
 	// We call reqStep right away to finish syncing to the tip of the chain if we're behind.
@@ -219,13 +224,15 @@ func (s *Driver) eventLoop() {
 			return
 		}
 
-		// While event-processing is synchronous we have to drain
-		// (i.e. process all queued-up events) before creating any new events.
-		if err := s.synchronousEvents.Drain(); err != nil {
-			if s.driverCtx.Err() != nil {
-				return
+		if s.drain != nil {
+			// While event-processing is synchronous we have to drain
+			// (i.e. process all queued-up events) before creating any new events.
+			if err := s.drain(); err != nil {
+				if s.driverCtx.Err() != nil {
+					return
+				}
+				s.log.Error("unexpected error from event-draining", "err", err)
 			}
-			s.log.Error("unexpected error from event-draining", "err", err)
 		}
 
 		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
@@ -310,12 +317,12 @@ func (s *Driver) eventLoop() {
 			s.Emitter.Emit(status.L1SafeEvent{L1Safe: newL1Safe})
 			// no step, justified L1 information does not do anything for L2 derivation or status
 		case newL1Finalized := <-s.l1FinalizedSig:
-			s.Emit(finality.FinalizeL1Event{FinalizedL1: newL1Finalized})
+			s.emitter.Emit(finality.FinalizeL1Event{FinalizedL1: newL1Finalized})
 			reqStep() // we may be able to mark more L2 data as finalized now
 		case <-s.sched.NextDelayedStep():
-			s.Emit(StepAttemptEvent{})
+			s.emitter.Emit(StepAttemptEvent{})
 		case <-s.sched.NextStep():
-			s.Emit(StepAttemptEvent{})
+			s.emitter.Emit(StepAttemptEvent{})
 		case respCh := <-s.stateReq:
 			respCh <- struct{}{}
 		case respCh := <-s.forceReset:
@@ -365,7 +372,7 @@ func (s *Driver) eventLoop() {
 // OnEvent handles broadcasted events.
 // The Driver itself is a deriver to catch system-critical events.
 // Other event-handling should be encapsulated into standalone derivers.
-func (s *Driver) OnEvent(ev rollup.Event) {
+func (s *Driver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.CriticalErrorEvent:
 		s.Log.Error("Derivation process critical error", "err", x.Err)
@@ -377,20 +384,16 @@ func (s *Driver) OnEvent(ev rollup.Event) {
 				logger.Error("Failed to shutdown driver on critical error", "err", err)
 			}
 		}()
-		return
+		return true
+	default:
+		return false
 	}
-}
-
-func (s *Driver) Emit(ev rollup.Event) {
-	s.synchronousEvents.Emit(ev)
 }
 
 type SyncDeriver struct {
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2Safe.
 	Derivation DerivationPipeline
-
-	Finalizer Finalizer
 
 	SafeHeadNotifs rollup.SafeHeadListener // notified when safe head is updated
 
@@ -408,7 +411,7 @@ type SyncDeriver struct {
 	L1 L1Chain
 	L2 L2Chain
 
-	Emitter rollup.EventEmitter
+	Emitter event.Emitter
 
 	Log log.Logger
 
@@ -417,7 +420,11 @@ type SyncDeriver struct {
 	Drain func() error
 }
 
-func (s *SyncDeriver) OnEvent(ev rollup.Event) {
+func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
+	s.Emitter = em
+}
+
+func (s *SyncDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case StepEvent:
 		s.onStepEvent()
@@ -445,7 +452,10 @@ func (s *SyncDeriver) OnEvent(ev rollup.Event) {
 		s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(x)
+	default:
+		return false
 	}
+	return true
 }
 
 func (s *SyncDeriver) onSafeDerivedBlock(x engine.SafeDerivedEvent) {
@@ -508,7 +518,8 @@ func (s *SyncDeriver) onStepEvent() {
 		s.Log.Error("Derivation process error", "err", err)
 		s.Emitter.Emit(StepReqEvent{})
 	} else {
-		s.Emitter.Emit(StepReqEvent{ResetBackoff: true}) // continue with the next step if we can
+		// Revisit SyncStep in 1/2 of a L2 block.
+		s.Emitter.Emit(StepDelayedReqEvent{Delay: (time.Duration(s.Config.BlockTime) * time.Second) / 2})
 	}
 }
 

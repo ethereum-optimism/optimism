@@ -7,17 +7,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestStepSchedulingDeriver(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	var queued []rollup.Event
-	emitter := rollup.EmitterFunc(func(ev rollup.Event) {
+	var queued []event.Event
+	emitter := event.EmitterFunc(func(ev event.Event) {
 		queued = append(queued, ev)
 	})
-	sched := NewStepSchedulingDeriver(logger, emitter)
+	sched := NewStepSchedulingDeriver(logger)
+	sched.AttachEmitter(emitter)
 	require.Len(t, sched.NextStep(), 0, "start empty")
 	sched.OnEvent(StepReqEvent{})
 	require.Len(t, sched.NextStep(), 1, "take request")
@@ -26,7 +27,7 @@ func TestStepSchedulingDeriver(t *testing.T) {
 	require.Empty(t, queued, "only scheduled so far, no step attempts yet")
 	<-sched.NextStep()
 	sched.OnEvent(StepAttemptEvent{})
-	require.Equal(t, []rollup.Event{StepEvent{}}, queued, "got step event")
+	require.Equal(t, []event.Event{StepEvent{}}, queued, "got step event")
 	require.Nil(t, sched.NextDelayedStep(), "no delayed steps yet")
 	sched.OnEvent(StepReqEvent{})
 	require.NotNil(t, sched.NextDelayedStep(), "2nd attempt before backoff reset causes delayed step to be scheduled")

@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -25,21 +26,24 @@ type CLSync struct {
 	cfg     *rollup.Config
 	metrics Metrics
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 
 	mu sync.Mutex
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 }
 
-func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, emitter rollup.EventEmitter) *CLSync {
+func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics) *CLSync {
 	return &CLSync{
 		log:            log,
 		cfg:            cfg,
 		metrics:        metrics,
-		emitter:        emitter,
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
+}
+
+func (eq *CLSync) AttachEmitter(em event.Emitter) {
+	eq.emitter = em
 }
 
 // LowestQueuedUnsafeBlock retrieves the first queued-up L2 unsafe payload, or a zeroed reference if there is none.
@@ -63,7 +67,7 @@ func (ev ReceivedUnsafePayloadEvent) String() string {
 	return "received-unsafe-payload"
 }
 
-func (eq *CLSync) OnEvent(ev rollup.Event) {
+func (eq *CLSync) OnEvent(ev event.Event) bool {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the payloads queue.
 	eq.mu.Lock()
 	defer eq.mu.Unlock()
@@ -75,7 +79,10 @@ func (eq *CLSync) OnEvent(ev rollup.Event) {
 		eq.onForkchoiceUpdate(x)
 	case ReceivedUnsafePayloadEvent:
 		eq.onUnsafePayload(x)
+	default:
+		return false
 	}
+	return true
 }
 
 // onInvalidPayload checks if the first next-up payload matches the invalid payload.

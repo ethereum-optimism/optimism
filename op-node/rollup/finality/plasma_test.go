@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -96,7 +97,8 @@ func TestPlasmaFinalityData(t *testing.T) {
 	}
 
 	emitter := &testutils.MockEmitter{}
-	fi := NewPlasmaFinalizer(context.Background(), logger, cfg, l1F, emitter, plasmaBackend)
+	fi := NewPlasmaFinalizer(context.Background(), logger, cfg, l1F, plasmaBackend)
+	fi.AttachEmitter(emitter)
 	require.NotNil(t, plasmaBackend.forwardTo, "plasma backend must have access to underlying standard finalizer")
 
 	require.Equal(t, expFinalityLookback, cap(fi.finalityData))
@@ -134,7 +136,7 @@ func TestPlasmaFinalityData(t *testing.T) {
 			emitter.AssertExpectations(t)
 		}
 		// might trigger finalization attempt, if expired finality delay
-		emitter.ExpectMaybeRun(func(ev rollup.Event) {
+		emitter.ExpectMaybeRun(func(ev event.Event) {
 			require.IsType(t, TryFinalizeEvent{}, ev)
 		})
 		fi.OnEvent(derive.DeriverIdleEvent{})
@@ -166,7 +168,7 @@ func TestPlasmaFinalityData(t *testing.T) {
 			l1F.ExpectL1BlockRefByNumber(commitmentInclusionFinalized.Number, commitmentInclusionFinalized, nil)
 			l1F.ExpectL1BlockRefByNumber(commitmentInclusionFinalized.Number, commitmentInclusionFinalized, nil)
 			var finalizedL2 eth.L2BlockRef
-			emitter.ExpectOnceRun(func(ev rollup.Event) {
+			emitter.ExpectOnceRun(func(ev event.Event) {
 				if x, ok := ev.(engine.PromoteFinalizedEvent); ok {
 					finalizedL2 = x.Ref
 				} else {

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -148,23 +149,26 @@ type EngDeriver struct {
 	cfg     *rollup.Config
 	ec      *EngineController
 	ctx     context.Context
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 }
 
-var _ rollup.Deriver = (*EngDeriver)(nil)
+var _ event.Deriver = (*EngDeriver)(nil)
 
 func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
-	ec *EngineController, emitter rollup.EventEmitter) *EngDeriver {
+	ec *EngineController) *EngDeriver {
 	return &EngDeriver{
-		log:     log,
-		cfg:     cfg,
-		ec:      ec,
-		ctx:     ctx,
-		emitter: emitter,
+		log: log,
+		cfg: cfg,
+		ec:  ec,
+		ctx: ctx,
 	}
 }
 
-func (d *EngDeriver) OnEvent(ev rollup.Event) {
+func (d *EngDeriver) AttachEmitter(em event.Emitter) {
+	d.emitter = em
+}
+
+func (d *EngDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case TryBackupUnsafeReorgEvent:
 		// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
@@ -203,7 +207,7 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 		ref, err := derive.PayloadToBlockRef(d.cfg, x.Envelope.ExecutionPayload)
 		if err != nil {
 			d.log.Error("failed to decode L2 block ref from payload", "err", err)
-			return
+			return true
 		}
 		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref); err != nil {
 			d.log.Info("failed to insert payload", "ref", ref,
@@ -258,16 +262,19 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 	case PromoteFinalizedEvent:
 		if x.Ref.Number < d.ec.Finalized().Number {
 			d.log.Error("Cannot rewind finality,", "ref", x.Ref, "finalized", d.ec.Finalized())
-			return
+			return true
 		}
 		if x.Ref.Number > d.ec.SafeL2Head().Number {
 			d.log.Error("Block must be safe before it can be finalized", "ref", x.Ref, "safe", d.ec.SafeL2Head())
-			return
+			return true
 		}
 		d.ec.SetFinalizedHead(x.Ref)
 		// Try to apply the forkchoice changes
 		d.emitter.Emit(TryUpdateEngineEvent{})
+	default:
+		return false
 	}
+	return true
 }
 
 // onForceNextSafeAttributes inserts the provided attributes, reorging away any conflicting unsafe chain.

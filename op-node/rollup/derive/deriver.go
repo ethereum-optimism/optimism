@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -67,20 +68,23 @@ type PipelineDeriver struct {
 
 	ctx context.Context
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 
 	needAttributesConfirmation bool
 }
 
-func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline, emitter rollup.EventEmitter) *PipelineDeriver {
+func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline) *PipelineDeriver {
 	return &PipelineDeriver{
 		pipeline: pipeline,
 		ctx:      ctx,
-		emitter:  emitter,
 	}
 }
 
-func (d *PipelineDeriver) OnEvent(ev rollup.Event) {
+func (d *PipelineDeriver) AttachEmitter(em event.Emitter) {
+	d.emitter = em
+}
+
+func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		d.pipeline.Reset()
@@ -88,7 +92,7 @@ func (d *PipelineDeriver) OnEvent(ev rollup.Event) {
 		// Don't generate attributes if there are already attributes in-flight
 		if d.needAttributesConfirmation {
 			d.pipeline.log.Debug("Previously sent attributes are unconfirmed to be received")
-			return
+			return true
 		}
 		d.pipeline.log.Trace("Derivation pipeline step", "onto_origin", d.pipeline.Origin())
 		preOrigin := d.pipeline.Origin()
@@ -127,5 +131,8 @@ func (d *PipelineDeriver) OnEvent(ev rollup.Event) {
 		d.pipeline.ConfirmEngineReset()
 	case ConfirmReceivedAttributesEvent:
 		d.needAttributesConfirmation = false
+	default:
+		return false
 	}
+	return true
 }

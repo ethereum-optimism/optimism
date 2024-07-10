@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -46,6 +47,7 @@ type Metrics interface {
 	EngineMetrics
 	L1FetcherMetrics
 	SequencerMetrics
+	event.Metrics
 }
 
 type L1Chain interface {
@@ -93,7 +95,7 @@ type AttributesHandler interface {
 
 type Finalizer interface {
 	FinalizedL1() eth.L1BlockRef
-	rollup.Deriver
+	event.Deriver
 }
 
 type PlasmaIface interface {
@@ -106,7 +108,7 @@ type PlasmaIface interface {
 }
 
 type SyncStatusTracker interface {
-	rollup.Deriver
+	event.Deriver
 	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
 }
@@ -167,29 +169,52 @@ func NewDriver(
 	plasma PlasmaIface,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
-	rootDeriver := &rollup.SynchronousDerivers{}
-	synchronousEvents := rollup.NewSynchronousEvents(log, driverCtx, rootDeriver)
+
+	var executor event.Executor
+	var drain func() error
+	// This instantiation will be one of more options: soon there will be a parallel events executor
+	{
+		s := event.NewGlobalSynchronous(driverCtx)
+		executor = s
+		drain = s.Drain
+	}
+	sys := event.NewSystem(log, executor)
+
+	opts := event.DefaultRegisterOpts()
 
 	statusTracker := status.NewStatusTracker(log, metrics)
+	sys.Register("status", statusTracker, opts)
 
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
-	engineResetDeriver := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, synchronousEvents)
-	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
+
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
+		sys.Register("engine-controller", nil, opts))
+
+	sys.Register("engine-reset",
+		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg), opts)
+
+	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
+	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, synchronousEvents, plasma)
+		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, plasma)
 	} else {
-		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, synchronousEvents)
+		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1)
 	}
+	sys.Register("finalizer", finalizer, opts)
 
-	attributesHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, synchronousEvents)
+	sys.Register("attributes-handler",
+		attributes.NewAttributesHandler(log, cfg, driverCtx, l2), opts)
+
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
-	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline, synchronousEvents)
+
+	sys.Register("pipeline",
+		derive.NewPipelineDeriver(driverCtx, derivationPipeline), opts)
+
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, ec, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
@@ -197,7 +222,6 @@ func NewDriver(
 
 	syncDeriver := &SyncDeriver{
 		Derivation:     derivationPipeline,
-		Finalizer:      finalizer,
 		SafeHeadNotifs: safeHeadListener,
 		CLSync:         clSync,
 		Engine:         ec,
@@ -205,19 +229,25 @@ func NewDriver(
 		Config:         cfg,
 		L1:             l1,
 		L2:             l2,
-		Emitter:        synchronousEvents,
 		Log:            log,
 		Ctx:            driverCtx,
-		Drain:          synchronousEvents.Drain,
+		Drain:          drain,
 	}
-	engDeriv := engine.NewEngDeriver(log, driverCtx, cfg, ec, synchronousEvents)
-	schedDeriv := NewStepSchedulingDeriver(log, synchronousEvents)
+	sys.Register("sync", syncDeriver, opts)
 
+	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, ec), opts)
+
+	schedDeriv := NewStepSchedulingDeriver(log)
+	sys.Register("step-scheduler", schedDeriv, opts)
+
+	driverEmitter := sys.Register("driver", nil, opts)
 	driver := &Driver{
+		eventSys:           sys,
 		statusTracker:      statusTracker,
 		SyncDeriver:        syncDeriver,
 		sched:              schedDeriv,
-		synchronousEvents:  synchronousEvents,
+		emitter:            driverEmitter,
+		drain:              drain,
 		stateReq:           make(chan chan struct{}),
 		forceReset:         make(chan chan struct{}, 10),
 		startSequencer:     make(chan hashAndErrorChannel, 10),
@@ -238,19 +268,6 @@ func NewDriver(
 		altSync:            altSync,
 		asyncGossiper:      asyncGossiper,
 		sequencerConductor: sequencerConductor,
-	}
-
-	*rootDeriver = []rollup.Deriver{
-		syncDeriver,
-		engineResetDeriver,
-		engDeriv,
-		schedDeriv,
-		driver,
-		clSync,
-		pipelineDeriver,
-		attributesHandler,
-		finalizer,
-		statusTracker,
 	}
 
 	return driver

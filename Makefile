@@ -16,6 +16,10 @@ lint-go:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
 .PHONY: lint-go
 
+lint-go-fix:
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./... --fix
+.PHONY: lint-go-fix
+
 build-ts: submodules
 	if [ -f "$$NVM_DIR/nvm.sh" ]; then \
 		. $$NVM_DIR/nvm.sh && nvm use; \
@@ -233,12 +237,6 @@ tag-bedrock-go-modules:
 update-op-geth:
 	./ops/scripts/update-op-geth.py
 .PHONY: update-op-geth
-
-bedrock-markdown-links:
-	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
-		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org --exclude vitalik.ca \
-		--exclude-mail /input/README.md "/input/specs/**/*.md"
-.PHONY: bedrock-markdown-links
 
 install-geth:
 	./ops/scripts/geth-version-checker.sh && \

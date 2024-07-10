@@ -21,6 +21,7 @@
 /op-program     @ethereum-optimism/go-reviewers
 /op-proposer    @ethereum-optimism/go-reviewers
 /op-service     @ethereum-optimism/go-reviewers
+/op-supervisor  @ethereum-optimism/go-reviewers
 /op-wheel       @ethereum-optimism/go-reviewers
 /ops-bedrock    @ethereum-optimism/go-reviewers
 /op-conductor   @0x00101010 @zhwrd @mslipper

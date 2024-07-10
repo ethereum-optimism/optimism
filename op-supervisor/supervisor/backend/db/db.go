@@ -28,8 +28,8 @@ const (
 )
 
 type Metrics interface {
-	RecordEntryCount(count int64)
-	RecordSearchEntriesRead(count int64)
+	RecordDBEntryCount(count int64)
+	RecordDBSearchEntriesRead(count int64)
 }
 
 type logContext struct {
@@ -166,7 +166,7 @@ func (db *DB) trimInvalidTrailingEntries() error {
 }
 
 func (db *DB) updateEntryCountMetric() {
-	db.m.RecordEntryCount(db.lastEntryIdx() + 1)
+	db.m.RecordDBEntryCount(db.lastEntryIdx() + 1)
 }
 
 // ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
@@ -244,7 +244,7 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (TruncatedHash, *itera
 	}
 	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.current.blockNum, "logIdx", i.current.logIdx)
 	defer func() {
-		db.m.RecordSearchEntriesRead(i.entriesRead)
+		db.m.RecordDBSearchEntriesRead(i.entriesRead)
 	}()
 	for {
 		evtBlockNum, evtLogIdx, evtHash, err := i.NextLog()
