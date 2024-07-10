@@ -2099,7 +2099,7 @@ workflows:
 
   scheduled-docker-publish:
     when:
-      - or:
+      or:
         - equal: [ build_hourly, <<pipeline.schedule.name>> ]
         # Trigger on manual triggers if explicitly requested
         - equal: [ true, << pipeline.parameters.docker_publish_dispatch >> ]
