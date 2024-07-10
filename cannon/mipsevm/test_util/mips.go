@@ -85,48 +85,44 @@ func EncodeStepInput(t *testing.T, wit *core.StepWitness, localContext core.Loca
 }
 
 func EncodePreimageOracleInput(t *testing.T, wit *core.StepWitness, localContext core.LocalContext, localOracle core.PreimageOracle, oracle *foundry.Artifact) ([]byte, error) {
-	preimageKey := wit.PreimageKey
-	preimageVal := wit.PreimageValue
-	preimageOffset := wit.PreimageOffset
-
-	if preimageKey == ([32]byte{}) {
+	if wit.PreimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
 
-	switch preimage.KeyType(preimageKey[0]) {
+	switch preimage.KeyType(wit.PreimageKey[0]) {
 	case preimage.LocalKeyType:
-		if len(preimageVal) > 32+8 {
-			return nil, fmt.Errorf("local pre-image exceeds maximum size of 32 bytes with key 0x%x", preimageKey)
+		if len(wit.PreimageValue) > 32+8 {
+			return nil, fmt.Errorf("local pre-image exceeds maximum size of 32 bytes with key 0x%x", wit.PreimageKey)
 		}
-		preimagePart := preimageKey[8:]
+		preimagePart := wit.PreimageValue[8:]
 		var tmp [32]byte
 		copy(tmp[:], preimagePart)
 		input, err := oracle.ABI.Pack("loadLocalData",
-			new(big.Int).SetBytes(preimageKey[1:]),
+			new(big.Int).SetBytes(wit.PreimageKey[1:]),
 			localContext,
 			tmp,
 			new(big.Int).SetUint64(uint64(len(preimagePart))),
-			new(big.Int).SetUint64(uint64(preimageOffset)),
+			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
 		)
 		require.NoError(t, err)
 		return input, nil
 	case preimage.Keccak256KeyType:
 		input, err := oracle.ABI.Pack(
 			"loadKeccak256PreimagePart",
-			new(big.Int).SetUint64(uint64(preimageOffset)),
-			preimageVal[8:])
+			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
+			wit.PreimageValue[8:])
 		require.NoError(t, err)
 		return input, nil
 	case preimage.PrecompileKeyType:
 		if localOracle == nil {
 			return nil, fmt.Errorf("local oracle is required for precompile preimages")
 		}
-		preimage := localOracle.GetPreimage(preimage.Keccak256Key(preimageKey).PreimageKey())
+		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
 		precompile := common.BytesToAddress(preimage[:20])
 		callInput := preimage[20:]
 		input, err := oracle.ABI.Pack(
 			"loadPrecompilePreimagePart",
-			new(big.Int).SetUint64(uint64(preimageOffset)),
+			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
 			precompile,
 			callInput,
 		)
@@ -134,7 +130,7 @@ func EncodePreimageOracleInput(t *testing.T, wit *core.StepWitness, localContext
 		return input, nil
 	default:
 		return nil, fmt.Errorf("unsupported pre-image type %d, cannot prepare preimage with key %x offset %d for oracle",
-			preimageKey[0], preimageKey, preimageOffset)
+			wit.PreimageKey[0], wit.PreimageKey, wit.PreimageOffset)
 	}
 }
 
