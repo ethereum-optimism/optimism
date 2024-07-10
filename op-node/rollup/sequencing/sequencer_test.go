@@ -2,6 +2,7 @@ package sequencing
 
 import (
 	"context"
+	"encoding/binary"
 	"math/rand" // nosemgrep
 	"testing"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
@@ -30,6 +30,21 @@ type FakeAttributesBuilder struct {
 	rng *rand.Rand
 }
 
+// used to put the L1 origin into the data-tx, without all the deposit-tx complexity, for testing purposes.
+func encodeID(id eth.BlockID) []byte {
+	var out [32 + 8]byte
+	copy(out[:32], id.Hash[:])
+	binary.BigEndian.PutUint64(out[32:], id.Number)
+	return out[:]
+}
+
+func decodeID(data []byte) eth.BlockID {
+	return eth.BlockID{
+		Hash:   common.Hash(data[:32]),
+		Number: binary.BigEndian.Uint64(data[32:]),
+	}
+}
+
 func (m *FakeAttributesBuilder) PreparePayloadAttributes(ctx context.Context,
 	l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error) {
 	gasLimit := eth.Uint64Quantity(30_000_000)
@@ -39,7 +54,7 @@ func (m *FakeAttributesBuilder) PreparePayloadAttributes(ctx context.Context,
 		SuggestedFeeRecipient: predeploys.SequencerFeeVaultAddr,
 		Withdrawals:           nil,
 		ParentBeaconBlockRoot: nil,
-		Transactions:          []eth.Data{eth.Data("mock tx")},
+		Transactions:          []eth.Data{encodeID(epoch)},
 		NoTxPool:              false,
 		GasLimit:              &gasLimit,
 	}
@@ -201,6 +216,7 @@ func TestSequencerBuild(t *testing.T) {
 	seq, deps := createSequencer(logger)
 	testClock := clock.NewSimpleClock()
 	seq.timeNow = testClock.Now
+	testClock.SetTime(30000)
 	emitter := &testutils.MockEmitter{}
 	seq.AttachEmitter(emitter)
 
@@ -223,7 +239,7 @@ func TestSequencerBuild(t *testing.T) {
 			Hash:   common.Hash{0x11, 0xa},
 			Number: 1000,
 		},
-		Time: 30000,
+		Time: uint64(testClock.Now().Unix()),
 	}
 	seq.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
 	emitter.AssertExpectations(t)
@@ -290,6 +306,8 @@ func TestSequencerBuild(t *testing.T) {
 			FeeRecipient: sentAttributes.Attributes.SuggestedFeeRecipient,
 			BlockNumber:  eth.Uint64Quantity(sentAttributes.Parent.Number + 1),
 			BlockHash:    common.Hash{0x12, 0x34},
+			Timestamp:    sentAttributes.Attributes.Timestamp,
+			Transactions: sentAttributes.Attributes.Transactions,
 			// Not all attributes matter to sequencer. We can leave these nil.
 		},
 	}
@@ -360,8 +378,28 @@ type sequencerTestDeps struct {
 }
 
 func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
-	cfg := chaincfg.Mainnet
 	rng := rand.New(rand.NewSource(123))
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1: eth.BlockID{
+				Hash:   testutils.RandomHash(rng),
+				Number: 3000000,
+			},
+			L2: eth.BlockID{
+				Hash:   testutils.RandomHash(rng),
+				Number: 0,
+			},
+			L2Time:       10000000,
+			SystemConfig: eth.SystemConfig{},
+		},
+		BlockTime:         2,
+		MaxSequencerDrift: 15 * 60,
+		RegolithTime:      new(uint64),
+		CanyonTime:        new(uint64),
+		DeltaTime:         new(uint64),
+		EcotoneTime:       new(uint64),
+		FjordTime:         new(uint64),
+	}
 	deps := &sequencerTestDeps{
 		cfg:           cfg,
 		attribBuilder: &FakeAttributesBuilder{cfg: cfg, rng: rng},
@@ -374,7 +412,19 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		conductor:   &FakeConductor{},
 		asyncGossip: &FakeAsyncGossip{},
 	}
-	return NewSequencer(context.Background(), log, cfg, deps.attribBuilder,
+	seq := NewSequencer(context.Background(), log, cfg, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,
-		deps.asyncGossip, metrics.NoopMetrics), deps
+		deps.asyncGossip, metrics.NoopMetrics)
+	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
+	seq.toBlockRef = func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
+		return eth.L2BlockRef{
+			Hash:           payload.BlockHash,
+			Number:         uint64(payload.BlockNumber),
+			ParentHash:     payload.ParentHash,
+			Time:           uint64(payload.Timestamp),
+			L1Origin:       decodeID(payload.Transactions[0]),
+			SequenceNumber: 0,
+		}, nil
+	}
+	return seq, deps
 }

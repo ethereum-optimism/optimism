@@ -113,6 +113,9 @@ type Sequencer struct {
 
 	latest     BuildingState
 	latestHead eth.L2BlockRef
+
+	// toBlockRef converts a payload to a block-ref, and is only configurable for test-purposes
+	toBlockRef func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error)
 }
 
 var _ SequencerIface = (*Sequencer)(nil)
@@ -136,6 +139,7 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 		l1OriginSelector: l1OriginSelector,
 		metrics:          metrics,
 		timeNow:          time.Now,
+		toBlockRef:       derive.PayloadToBlockRef,
 	}
 }
 
@@ -147,11 +151,20 @@ func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 	if x.DerivedFrom != (eth.L1BlockRef{}) {
 		return
 	}
+	if d.latest.Onto != x.Parent {
+		d.log.Warn("Canceling stale block-building job that was just started, as target to build onto has changed",
+			"stale", x.Parent, "new", d.latest.Onto, "job_id", x.Info.ID, "job_timestamp", x.Info.Timestamp)
+		d.emitter.Emit(engine.BuildCancelEvent{
+			Info:  x.Info,
+			Force: true,
+		})
+		d.handleInvalid()
+		return
+	}
 	// if not a derived block, then it is work of the sequencer
 	d.log.Debug("Sequencer started building new block",
 		"payloadID", x.Info.ID, "parent", x.Parent, "parent_time", x.Parent.Time)
 	d.latest.Info = x.Info
-	d.latest.Onto = x.Parent
 	d.latest.Started = x.BuildStarted
 
 	d.nextActionOK = d.active.Load()
@@ -179,7 +192,7 @@ func (d *Sequencer) handleInvalid() {
 }
 
 func (d *Sequencer) onInvalidPayloadAttributes(x engine.InvalidPayloadAttributesEvent) {
-	if x.Attributes.DerivedFrom == (eth.L1BlockRef{}) {
+	if x.Attributes.DerivedFrom != (eth.L1BlockRef{}) {
 		return // not our payload, should be ignored.
 	}
 	d.log.Error("Cannot sequence invalid payload attributes",
@@ -251,13 +264,15 @@ func (d *Sequencer) onPayloadInvalid(x engine.PayloadInvalidEvent) {
 }
 
 func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
-	if d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
+	// d.latest as building state may already be empty,
+	// if the forkchoice update (that dropped the stale building job) was received before the payload-success.
+	if d.latest.Ref != (eth.L2BlockRef{}) && d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
 		// Not a payload that was built by this sequencer.
 		// It must be either from another conflicting sequencer, or more likely derived from L1 data.
 
 		// If we are adding new blocks onto the tip of the chain, don't try to build on top of it immediately.
 		d.log.Warn("Avoiding sequencing to not interrupt outside chain-extension",
-			"block", x.Envelope.ExecutionPayload.BlockHash,
+			"block", x.Envelope.ExecutionPayload.BlockHash, "expected", d.latest.Ref,
 			"unsafe_head_time", uint64(x.Envelope.ExecutionPayload.Timestamp), "derived_from", x.DerivedFrom)
 
 		d.nextActionOK = false
@@ -284,14 +299,22 @@ func (d *Sequencer) onSequencerAction(x SequencerActionEvent) {
 				"number", uint64(payload.ExecutionPayload.BlockNumber),
 				"parent", payload.ExecutionPayload.ParentHash)
 		}
-		// Payload is known, meaning that we have seen BuildSealedEvent already.
-		// We can retry processing and making it canonical.
-		d.emitter.Emit(engine.BuildSealedEvent{
+		ref, err := d.toBlockRef(d.rollupCfg, payload.ExecutionPayload)
+		if err != nil {
+			d.log.Error("Payload from async-gossip buffer could not be turned into block-ref", "err", err)
+			d.asyncGossip.Clear() // bad payload
+			return
+		}
+		// Payload is known, we must have resumed sequencer-actions after a temporary error,
+		// meaning that we have seen BuildSealedEvent already.
+		// We can retry processing to make it canonical.
+		d.emitter.Emit(engine.PayloadProcessEvent{
 			IsLastInSpan: false,
 			DerivedFrom:  eth.L1BlockRef{},
-			Info:         d.latest.Info,
 			Envelope:     payload,
+			Ref:          ref,
 		})
+		d.latest.Ref = ref
 	} else {
 		if d.latest.Info != (eth.PayloadInfo{}) {
 			// We should not repeat the seal request.
@@ -304,7 +327,8 @@ func (d *Sequencer) onSequencerAction(x SequencerActionEvent) {
 				IsLastInSpan: false,
 				DerivedFrom:  eth.L1BlockRef{},
 			})
-		} else {
+		} else if d.latest == (BuildingState{}) {
+			// If we have not started building anything, start building.
 			d.startBuildingBlock()
 		}
 	}
@@ -322,6 +346,12 @@ func (d *Sequencer) onEngineTemporaryError(x rollup.EngineTemporaryErrorEvent) {
 	// Any unfinished block building work eventually times out, and will be cleaned up that way.
 	// Note that this only applies to temporary errors upon starting a block-building job.
 	// If the engine errors upon sealing, an PayloadSealInvalidEvent will be get it to restart the attributes.
+
+	// If we don't have an ID of a job to resume, then start over.
+	// (d.latest.Onto would be set if we emitted BuildStart already)
+	if d.latest.Info == (eth.PayloadInfo{}) {
+		d.latest = BuildingState{}
+	}
 }
 
 func (d *Sequencer) onReset(x rollup.ResetEvent) {
@@ -346,6 +376,8 @@ func (d *Sequencer) onEngineResetConfirmedEvent(x engine.EngineResetConfirmedEve
 }
 
 func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
+	d.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "latest", d.latestHead)
+
 	if !d.active.Load() {
 		d.latestHead = x.UnsafeL2Head
 		return
@@ -358,7 +390,10 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 		d.nextActionOK = false
 	}
 	// Drop stale block-building job if the chain has moved past it already.
-	if d.latest.Onto.Number < x.UnsafeL2Head.Number {
+	if d.latest != (BuildingState{}) && d.latest.Onto.Number < x.UnsafeL2Head.Number {
+		d.log.Debug("Dropping stale/completed block-building job",
+			"state", d.latest.Onto, "unsafe_head", x.UnsafeL2Head)
+		// The cleared state will block further BuildStarted/BuildSealed responses from continuing the stale build job.
 		d.latest = BuildingState{}
 	}
 	if x.UnsafeL2Head.Number > d.latestHead.Number {
@@ -386,7 +421,8 @@ func (d *Sequencer) OnEvent(ev event.Event) bool {
 	preOk := d.nextActionOK
 	defer func() {
 		if d.nextActionOK != preOk || d.nextAction != preTime {
-			d.log.Debug("Sequencer action schedule changed", "time", d.nextAction, "ok", d.nextActionOK, "event", ev)
+			d.log.Debug("Sequencer action schedule changed",
+				"time", d.nextAction, "wait", d.nextAction.Sub(d.timeNow()), "ok", d.nextActionOK, "event", ev)
 		}
 	}()
 
@@ -429,6 +465,10 @@ func (d *Sequencer) startBuildingBlock() {
 	// If we do not have data to know what to build on, then request a forkchoice update
 	if l2Head == (eth.L2BlockRef{}) {
 		d.emitter.Emit(engine.ForkchoiceRequestEvent{})
+		return
+	}
+	// If we have already started trying to build on top of this block, we can avoid starting over again.
+	if d.latest.Onto == l2Head {
 		return
 	}
 
@@ -501,6 +541,10 @@ func (d *Sequencer) startBuildingBlock() {
 
 	// Don't try to start building a block again, until we have heard back from this attempt
 	d.nextActionOK = false
+
+	// Reset building state, and remember what we are building on.
+	// If we get a forkchoice update that conflicts, we will have to abort building.
+	d.latest = BuildingState{Onto: l2Head}
 
 	d.emitter.Emit(engine.BuildStartEvent{
 		Attributes: withParent,
