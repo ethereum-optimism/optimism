@@ -133,7 +133,7 @@ func TestMTState_UpdateCurrentThread(t *testing.T) {
 
 	initialThreadRoot := state.RightThreadStackRoots[0]
 
-	state.UpdateCurrentThread(func(t *ThreadContext) {
+	state.UpdateCurrentThread(func(t *ThreadState) {
 		t.Cpu.PC += 4
 		t.Cpu.NextPC += 4
 	})

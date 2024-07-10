@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// SERIALIZED_THREAD_SIZE is the size of a serialized ThreadContext object
+// SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
 const SERIALIZED_THREAD_SIZE = 166
 
 // THREAD_WITNESS_SIZE is the size of a thread witness encoded in bytes.
@@ -21,7 +21,7 @@ const THREAD_WITNESS_SIZE = SERIALIZED_THREAD_SIZE + 32
 // The empty thread root - keccak256(bytes32(0) ++ bytes32(0))
 var EmptyThreadsRoot common.Hash = common.HexToHash("0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5")
 
-type ThreadContext struct {
+type ThreadState struct {
 	// Metadata
 	ThreadId uint32 `json:"threadId"`
 	ExitCode uint8  `json:"exit"`
@@ -34,7 +34,7 @@ type ThreadContext struct {
 	Registers        [32]uint32 `json:"registers"`
 }
 
-func (t *ThreadContext) serializeThread() []byte {
+func (t *ThreadState) serializeThread() []byte {
 	// TODO
 	out := make([]byte, 0, SERIALIZED_THREAD_SIZE)
 
@@ -50,7 +50,7 @@ func (t *ThreadContext) serializeThread() []byte {
 	return out
 }
 
-func computeThreadRoot(prevStackRoot common.Hash, threadToPush *ThreadContext) common.Hash {
+func computeThreadRoot(prevStackRoot common.Hash, threadToPush *ThreadState) common.Hash {
 	hashedThread := crypto.Keccak256Hash(threadToPush.serializeThread())
 
 	var hashData []byte
@@ -93,12 +93,12 @@ type MTState struct {
 	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
 	Wakeup                      uint32 `json:"wakeup"`
 
-	TraverseRight         bool            `json:"traverseRight"`
-	LeftThreadStack       []ThreadContext `json:"leftThreadStack"`
-	RightThreadStack      []ThreadContext `json:"rightThreadStack"`
-	LeftThreadStackRoots  []common.Hash   `json:"leftThreadStackRoots"`
-	RightThreadStackRoots []common.Hash   `json:"rightThreadStackRoots"`
-	NextThreadId          uint32          `json:"nextThreadId"`
+	TraverseRight         bool          `json:"traverseRight"`
+	LeftThreadStack       []ThreadState `json:"leftThreadStack"`
+	RightThreadStack      []ThreadState `json:"rightThreadStack"`
+	LeftThreadStackRoots  []common.Hash `json:"leftThreadStackRoots"`
+	RightThreadStackRoots []common.Hash `json:"rightThreadStackRoots"`
+	NextThreadId          uint32        `json:"nextThreadId"`
 
 	// LastHint is optional metadata, and not part of the VM state itself.
 	// It is used to remember the last pre-image hint,
@@ -113,7 +113,7 @@ type MTState struct {
 
 func CreateEmptyMTState() *MTState {
 	initThreadId := uint32(0)
-	initThread := ThreadContext{
+	initThread := ThreadState{
 		ThreadId: initThreadId,
 		ExitCode: 0,
 		Exited:   false,
@@ -138,8 +138,8 @@ func CreateEmptyMTState() *MTState {
 		Step:                  0,
 		Wakeup:                ^uint32(0),
 		TraverseRight:         true,
-		LeftThreadStack:       []ThreadContext{},
-		RightThreadStack:      []ThreadContext{initThread},
+		LeftThreadStack:       []ThreadState{},
+		RightThreadStack:      []ThreadState{initThread},
 		LeftThreadStackRoots:  []common.Hash{},
 		RightThreadStackRoots: []common.Hash{initThreadRoot},
 		NextThreadId:          initThreadId + 1,
@@ -148,7 +148,7 @@ func CreateEmptyMTState() *MTState {
 
 func CreateInitialMTState(pc, heapStart uint32) *MTState {
 	state := CreateEmptyMTState()
-	state.UpdateCurrentThread(func(t *ThreadContext) {
+	state.UpdateCurrentThread(func(t *ThreadState) {
 		t.Cpu.PC = pc
 		t.Cpu.NextPC = pc + 4
 	})
@@ -157,7 +157,7 @@ func CreateInitialMTState(pc, heapStart uint32) *MTState {
 	return state
 }
 
-func (s *MTState) getCurrentThread() *ThreadContext {
+func (s *MTState) getCurrentThread() *ThreadState {
 	activeStack, _ := s.getActiveThreadStack()
 
 	activeStackSize := len(activeStack)
@@ -181,7 +181,7 @@ func (s *MTState) updateCurrentThreadRoot() {
 	activeRoots[activeStackSize-1] = newRoot
 }
 
-type ThreadMutator func(thread *ThreadContext)
+type ThreadMutator func(thread *ThreadState)
 
 func (s *MTState) UpdateCurrentThread(mutator ThreadMutator) {
 	activeThread := s.getCurrentThread()
@@ -189,8 +189,8 @@ func (s *MTState) UpdateCurrentThread(mutator ThreadMutator) {
 	s.updateCurrentThreadRoot()
 }
 
-func (s *MTState) getActiveThreadStack() ([]ThreadContext, []common.Hash) {
-	var activeStack []ThreadContext
+func (s *MTState) getActiveThreadStack() ([]ThreadState, []common.Hash) {
+	var activeStack []ThreadState
 	var activeStackRoots []common.Hash
 	if s.TraverseRight {
 		activeStack = s.RightThreadStack
@@ -224,7 +224,7 @@ func (s *MTState) PreemptThread() {
 	// TODO
 }
 
-func (s *MTState) PushThread(thread *ThreadContext) {
+func (s *MTState) PushThread(thread *ThreadState) {
 	// TODO
 }
 
