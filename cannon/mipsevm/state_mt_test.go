@@ -36,6 +36,7 @@ func TestMTState_EncodeWitness(t *testing.T) {
 	preimageKey := crypto.Keccak256Hash([]byte{1, 2, 3, 4})
 	preimageOffset := uint32(24)
 	step := uint64(33)
+	stepsSinceContextSwitch := uint64(123)
 	for _, c := range cases {
 		state := CreateEmptyMTState()
 		state.Exited = c.exited
@@ -44,6 +45,7 @@ func TestMTState_EncodeWitness(t *testing.T) {
 		state.PreimageOffset = preimageOffset
 		state.Heap = heap
 		state.Step = step
+		state.StepsSinceLastContextSwitch = stepsSinceContextSwitch
 
 		memRoot := state.Memory.MerkleRoot()
 		rightStackRoot := state.RightThreadStackRoots[0]
@@ -60,6 +62,7 @@ func TestMTState_EncodeWitness(t *testing.T) {
 			setWitnessField(expectedWitness, MT_WITNESS_EXITED_OFFSET, []byte{1})
 		}
 		setWitnessField(expectedWitness, MT_WITNESS_STEP_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
+		setWitnessField(expectedWitness, MT_WITNESS_STEPS_SINCE_CONTEXT_SWITCH_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(stepsSinceContextSwitch)})
 		setWitnessField(expectedWitness, MT_WITNESS_WAKEUP_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
 		setWitnessField(expectedWitness, MT_WITNESS_TRAVERSE_RIGHT_OFFSET, []byte{1})
 		setWitnessField(expectedWitness, MT_WITNESS_LEFT_THREADS_ROOT_OFFSET, leftStackRoot[:])
@@ -87,6 +90,7 @@ func TestMTState_JSONCodec(t *testing.T) {
 	state.PreimageOffset = 4
 	state.Heap = 555
 	state.Step = 99_999
+	state.StepsSinceLastContextSwitch = 123
 	state.Exited = true
 	state.ExitCode = 2
 	state.LastHint = []byte{11, 12, 13}
@@ -105,6 +109,7 @@ func TestMTState_JSONCodec(t *testing.T) {
 	require.Equal(t, state.Exited, newState.Exited)
 	require.Equal(t, state.Memory.MerkleRoot(), newState.Memory.MerkleRoot())
 	require.Equal(t, state.Step, newState.Step)
+	require.Equal(t, state.StepsSinceLastContextSwitch, newState.StepsSinceLastContextSwitch)
 	require.Equal(t, state.Wakeup, newState.Wakeup)
 	require.Equal(t, state.TraverseRight, newState.TraverseRight)
 	require.Equal(t, state.LeftThreadStack, newState.LeftThreadStack)

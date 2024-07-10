@@ -61,20 +61,21 @@ func computeThreadRoot(prevStackRoot common.Hash, threadToPush *ThreadContext) c
 }
 
 // MT_STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
-const MT_STATE_WITNESS_SIZE = 155
+const MT_STATE_WITNESS_SIZE = 163
 const (
-	MT_WITNESS_MEMROOT_OFFSET            = 0
-	MT_WITNESS_PREIMAGE_KEY_OFFSET       = MT_WITNESS_MEMROOT_OFFSET + 32
-	MT_WITNESS_PREIMAGE_OFFSET_OFFSET    = MT_WITNESS_PREIMAGE_KEY_OFFSET + 32
-	MT_WITNESS_HEAP_OFFSET               = MT_WITNESS_PREIMAGE_OFFSET_OFFSET + 4
-	MT_WITNESS_EXITCODE_OFFSET           = MT_WITNESS_HEAP_OFFSET + 4
-	MT_WITNESS_EXITED_OFFSET             = MT_WITNESS_EXITCODE_OFFSET + 1
-	MT_WITNESS_STEP_OFFSET               = MT_WITNESS_EXITED_OFFSET + 1
-	MT_WITNESS_WAKEUP_OFFSET             = MT_WITNESS_STEP_OFFSET + 8
-	MT_WITNESS_TRAVERSE_RIGHT_OFFSET     = MT_WITNESS_WAKEUP_OFFSET + 4
-	MT_WITNESS_LEFT_THREADS_ROOT_OFFSET  = MT_WITNESS_TRAVERSE_RIGHT_OFFSET + 1
-	MT_WITNESS_RIGHT_THREADS_ROOT_OFFSET = MT_WITNESS_LEFT_THREADS_ROOT_OFFSET + 32
-	MT_WITNESS_THREAD_ID_OFFSET          = MT_WITNESS_RIGHT_THREADS_ROOT_OFFSET + 32
+	MT_WITNESS_MEMROOT_OFFSET                    = 0
+	MT_WITNESS_PREIMAGE_KEY_OFFSET               = MT_WITNESS_MEMROOT_OFFSET + 32
+	MT_WITNESS_PREIMAGE_OFFSET_OFFSET            = MT_WITNESS_PREIMAGE_KEY_OFFSET + 32
+	MT_WITNESS_HEAP_OFFSET                       = MT_WITNESS_PREIMAGE_OFFSET_OFFSET + 4
+	MT_WITNESS_EXITCODE_OFFSET                   = MT_WITNESS_HEAP_OFFSET + 4
+	MT_WITNESS_EXITED_OFFSET                     = MT_WITNESS_EXITCODE_OFFSET + 1
+	MT_WITNESS_STEP_OFFSET                       = MT_WITNESS_EXITED_OFFSET + 1
+	MT_WITNESS_STEPS_SINCE_CONTEXT_SWITCH_OFFSET = MT_WITNESS_STEP_OFFSET + 8
+	MT_WITNESS_WAKEUP_OFFSET                     = MT_WITNESS_STEPS_SINCE_CONTEXT_SWITCH_OFFSET + 8
+	MT_WITNESS_TRAVERSE_RIGHT_OFFSET             = MT_WITNESS_WAKEUP_OFFSET + 4
+	MT_WITNESS_LEFT_THREADS_ROOT_OFFSET          = MT_WITNESS_TRAVERSE_RIGHT_OFFSET + 1
+	MT_WITNESS_RIGHT_THREADS_ROOT_OFFSET         = MT_WITNESS_LEFT_THREADS_ROOT_OFFSET + 32
+	MT_WITNESS_THREAD_ID_OFFSET                  = MT_WITNESS_RIGHT_THREADS_ROOT_OFFSET + 32
 )
 
 type MTState struct {
@@ -88,8 +89,9 @@ type MTState struct {
 	ExitCode uint8 `json:"exit"`
 	Exited   bool  `json:"exited"`
 
-	Step   uint64 `json:"step"`
-	Wakeup uint32 `json:"wakeup"`
+	Step                        uint64 `json:"step"`
+	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
+	Wakeup                      uint32 `json:"wakeup"`
 
 	TraverseRight         bool            `json:"traverseRight"`
 	LeftThreadStack       []ThreadContext `json:"leftThreadStack"`
@@ -256,6 +258,7 @@ func (s *MTState) EncodeWitness() ([]byte, common.Hash) {
 	out = AppendBoolToWitness(out, s.Exited)
 
 	out = binary.BigEndian.AppendUint64(out, s.Step)
+	out = binary.BigEndian.AppendUint64(out, s.StepsSinceLastContextSwitch)
 	out = binary.BigEndian.AppendUint32(out, s.Wakeup)
 
 	leftStackRoot := s.getLeftThreadStackRoot()
