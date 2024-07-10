@@ -9,14 +9,14 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// SerializedThreadSize is the size of a serialized ThreadContext object
-var SerializedThreadSize = 166
+// SERIALIZED_THREAD_SIZE is the size of a serialized ThreadContext object
+const SERIALIZED_THREAD_SIZE = 166
 
-// ThreadWitnessSize is the size of a thread witness encoded in bytes.
+// THREAD_WITNESS_SIZE is the size of a thread witness encoded in bytes.
 //
 //	It consists of the active thread serialized and concatenated with the
 //	32 byte hash onion of the active thread stack without the active thread
-var ThreadWitnessSize = SerializedThreadSize + 32
+const THREAD_WITNESS_SIZE = SERIALIZED_THREAD_SIZE + 32
 
 // The empty thread root - keccak256(bytes32(0) ++ bytes32(0))
 var EmptyThreadsRoot common.Hash = common.HexToHash("0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5")
@@ -36,7 +36,7 @@ type ThreadContext struct {
 
 func (t *ThreadContext) serializeThread() []byte {
 	// TODO
-	out := make([]byte, SerializedThreadSize)
+	out := make([]byte, 0, SERIALIZED_THREAD_SIZE)
 
 	//out = binary.BigEndian.AppendUint32(out, t.Cpu.PC)
 	//out = binary.BigEndian.AppendUint32(out, t.Cpu.NextPC)
@@ -246,7 +246,7 @@ func (s *MTState) GetMemory() *Memory {
 }
 
 func (s *MTState) EncodeWitness() ([]byte, common.Hash) {
-	out := make([]byte, 0)
+	out := make([]byte, 0, MT_STATE_WITNESS_SIZE)
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
 	out = append(out, s.PreimageKey[:]...)

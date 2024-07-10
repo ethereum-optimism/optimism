@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// StateWitnessSize is the size of the state witness encoding in bytes.
-var StateWitnessSize = 226
+// STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
+const STATE_WITNESS_SIZE = 226
 
 type CpuScalars struct {
 	PC     uint32 `json:"pc"`
@@ -147,7 +147,7 @@ func (s *State) GetMemory() *Memory {
 }
 
 func (s *State) EncodeWitness() ([]byte, common.Hash) {
-	out := make([]byte, 0)
+	out := make([]byte, 0, STATE_WITNESS_SIZE)
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
 	out = append(out, s.PreimageKey[:]...)
@@ -176,14 +176,14 @@ const (
 )
 
 func (sw StateWitness) StateHash() (common.Hash, error) {
-	if len(sw) != StateWitnessSize {
-		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), StateWitnessSize)
+	if len(sw) != STATE_WITNESS_SIZE {
+		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), STATE_WITNESS_SIZE)
 	}
 	return stateHashFromWitness(sw), nil
 }
 
 func stateHashFromWitness(sw []byte) common.Hash {
-	if len(sw) != StateWitnessSize {
+	if len(sw) != STATE_WITNESS_SIZE {
 		panic("Invalid witness length")
 	}
 	hash := crypto.Keccak256Hash(sw)

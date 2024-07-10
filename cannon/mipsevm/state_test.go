@@ -105,7 +105,7 @@ func TestStateHash(t *testing.T) {
 		}
 
 		actualWitness, actualStateHash := state.EncodeWitness()
-		require.Equal(t, len(actualWitness), StateWitnessSize, "Incorrect witness size")
+		require.Equal(t, len(actualWitness), STATE_WITNESS_SIZE, "Incorrect witness size")
 
 		expectedWitness := make(StateWitness, 226)
 		memRoot := state.Memory.MerkleRoot()
