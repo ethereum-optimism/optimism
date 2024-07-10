@@ -9,14 +9,31 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// PayloadSealInvalidEvent identifies a permanent in-consensus problem with the payload sealing.
 type PayloadSealInvalidEvent struct {
-	Info     eth.PayloadInfo
-	Envelope *eth.ExecutionPayloadEnvelope
-	Err      error
+	Info eth.PayloadInfo
+	Err  error
+
+	IsLastInSpan bool
+	DerivedFrom  eth.L1BlockRef
 }
 
 func (ev PayloadSealInvalidEvent) String() string {
 	return "payload-seal-invalid"
+}
+
+// PayloadSealTemporaryErrorEvent identifies temporarily failed payload-sealing.
+// The user should re-attempt by starting a new build process.
+type PayloadSealTemporaryErrorEvent struct {
+	Info eth.PayloadInfo
+	Err  error
+
+	IsLastInSpan bool
+	DerivedFrom  eth.L1BlockRef
+}
+
+func (ev PayloadSealTemporaryErrorEvent) String() string {
+	return "payload-seal-temporary-error"
 }
 
 type BuildSealEvent struct {
@@ -47,20 +64,22 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 		// As verifier it is safe to ignore this event, attributes will be re-attempted,
 		// and any invalid-attributes error should be raised upon
 		// the start of block-building and/or later block insertion.
-		eq.emitter.Emit(PayloadSealInvalidEvent{
-			Info:     ev.Info,
-			Envelope: envelope,
-			Err:      fmt.Errorf("failed to seal execution payload (ID: %s): %w", ev.Info.ID, err),
+		eq.emitter.Emit(PayloadSealTemporaryErrorEvent{
+			Info:         ev.Info,
+			Err:          fmt.Errorf("failed to seal execution payload (ID: %s): %w", ev.Info.ID, err),
+			IsLastInSpan: ev.IsLastInSpan,
+			DerivedFrom:  ev.DerivedFrom,
 		})
 		return
 	}
 
 	if err := sanityCheckPayload(envelope.ExecutionPayload); err != nil {
 		eq.emitter.Emit(PayloadSealInvalidEvent{
-			Info:     ev.Info,
-			Envelope: envelope,
+			Info: ev.Info,
 			Err: fmt.Errorf("failed sanity-check of execution payload contents (ID: %s, blockhash: %s): %w",
 				ev.Info.ID, envelope.ExecutionPayload.BlockHash, err),
+			IsLastInSpan: ev.IsLastInSpan,
+			DerivedFrom:  ev.DerivedFrom,
 		})
 		return
 	}
@@ -68,9 +87,10 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 	ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
 	if err != nil {
 		eq.emitter.Emit(PayloadSealInvalidEvent{
-			Info:     ev.Info,
-			Envelope: envelope,
-			Err:      fmt.Errorf("failed to decode L2 block ref from payload: %w", err),
+			Info:         ev.Info,
+			Err:          fmt.Errorf("failed to decode L2 block ref from payload: %w", err),
+			IsLastInSpan: ev.IsLastInSpan,
+			DerivedFrom:  ev.DerivedFrom,
 		})
 		return
 	}

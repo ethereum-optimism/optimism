@@ -7,14 +7,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // BuildInvalidEvent is an internal engine event, to post-process upon invalid attributes.
 // Not for temporary processing problems.
 type BuildInvalidEvent struct {
-	Info eth.PayloadInfo
-
 	Attributes *derive.AttributesWithParent
 	Err        error
 }
@@ -25,8 +22,6 @@ func (ev BuildInvalidEvent) String() string {
 
 // InvalidPayloadAttributesEvent is a signal to external derivers that the attributes were invalid.
 type InvalidPayloadAttributesEvent struct {
-	Info eth.PayloadInfo
-
 	Attributes *derive.AttributesWithParent
 	Err        error
 }
@@ -36,7 +31,6 @@ func (ev InvalidPayloadAttributesEvent) String() string {
 }
 
 func (eq *EngDeriver) onBuildInvalid(ev BuildInvalidEvent) {
-	eq.emitter.Emit(BuildCancelEvent{Info: ev.Info, Force: true})
 	eq.log.Warn("could not process payload attributes", "err", ev.Err)
 
 	// Count the number of deposits to see if the tx list is deposit only.

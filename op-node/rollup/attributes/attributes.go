@@ -71,12 +71,32 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 	case rollup.EngineTemporaryErrorEvent:
 		eq.sentAttributes = false
 	case engine.InvalidPayloadAttributesEvent:
+		if x.Attributes.DerivedFrom == (eth.L1BlockRef{}) {
+			return true // from sequencing
+		}
 		eq.sentAttributes = false
 		// If the engine signals that attributes are invalid,
 		// that should match our last applied attributes, which we should thus drop.
 		eq.attributes = nil
 		// Time to re-evaluate without attributes.
 		// (the pending-safe state will then be forwarded to our source of attributes).
+		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
+	case engine.PayloadSealTemporaryErrorEvent:
+		if x.DerivedFrom == (eth.L1BlockRef{}) {
+			return true // from sequencing
+		}
+		eq.log.Warn("Temporarily failed to seal derived block attributes",
+			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
+		// If the engine failed to seal temporarily, just allow to resubmit (triggered on next safe-head poke)
+		eq.sentAttributes = false
+	case engine.PayloadSealInvalidEvent:
+		if x.DerivedFrom == (eth.L1BlockRef{}) {
+			return true // from sequencing
+		}
+		eq.log.Warn("Cannot seal derived block attributes, input is invalid",
+			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
+		eq.sentAttributes = false
+		eq.attributes = nil
 		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
 	default:
 		return false
