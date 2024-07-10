@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -43,7 +44,7 @@ type SupervisorService struct {
 
 var _ cliapp.Lifecycle = (*SupervisorService)(nil)
 
-func SupervisorFromCLIConfig(ctx context.Context, cfg *CLIConfig, logger log.Logger) (*SupervisorService, error) {
+func SupervisorFromConfig(ctx context.Context, cfg *config.Config, logger log.Logger) (*SupervisorService, error) {
 	su := &SupervisorService{log: logger}
 	if err := su.initFromCLIConfig(ctx, cfg); err != nil {
 		return nil, errors.Join(err, su.Stop(ctx)) // try to clean up our failed initialization attempt
@@ -51,7 +52,7 @@ func SupervisorFromCLIConfig(ctx context.Context, cfg *CLIConfig, logger log.Log
 	return su, nil
 }
 
-func (su *SupervisorService) initFromCLIConfig(ctx context.Context, cfg *CLIConfig) error {
+func (su *SupervisorService) initFromCLIConfig(ctx context.Context, cfg *config.Config) error {
 	su.initMetrics(cfg)
 	if err := su.initPProf(cfg); err != nil {
 		return fmt.Errorf("failed to start PProf server: %w", err)
@@ -66,7 +67,7 @@ func (su *SupervisorService) initFromCLIConfig(ctx context.Context, cfg *CLIConf
 	return nil
 }
 
-func (su *SupervisorService) initBackend(cfg *CLIConfig) {
+func (su *SupervisorService) initBackend(cfg *config.Config) {
 	if cfg.MockRun {
 		su.backend = backend.NewMockBackend()
 	} else {
@@ -74,7 +75,7 @@ func (su *SupervisorService) initBackend(cfg *CLIConfig) {
 	}
 }
 
-func (su *SupervisorService) initMetrics(cfg *CLIConfig) {
+func (su *SupervisorService) initMetrics(cfg *config.Config) {
 	if cfg.MetricsConfig.Enabled {
 		procName := "default"
 		su.metrics = metrics.NewMetrics(procName)
@@ -84,7 +85,7 @@ func (su *SupervisorService) initMetrics(cfg *CLIConfig) {
 	}
 }
 
-func (su *SupervisorService) initPProf(cfg *CLIConfig) error {
+func (su *SupervisorService) initPProf(cfg *config.Config) error {
 	su.pprofService = oppprof.New(
 		cfg.PprofConfig.ListenEnabled,
 		cfg.PprofConfig.ListenAddr,
@@ -101,7 +102,7 @@ func (su *SupervisorService) initPProf(cfg *CLIConfig) error {
 	return nil
 }
 
-func (su *SupervisorService) initMetricsServer(cfg *CLIConfig) error {
+func (su *SupervisorService) initMetricsServer(cfg *config.Config) error {
 	if !cfg.MetricsConfig.Enabled {
 		su.log.Info("Metrics disabled")
 		return nil
@@ -120,7 +121,7 @@ func (su *SupervisorService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
-func (su *SupervisorService) initRPCServer(cfg *CLIConfig) error {
+func (su *SupervisorService) initRPCServer(cfg *config.Config) error {
 	server := oprpc.NewServer(
 		cfg.RPC.ListenAddr,
 		cfg.RPC.ListenPort,

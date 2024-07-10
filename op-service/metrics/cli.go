@@ -17,6 +17,8 @@ const (
 	defaultListenPort  = 7300
 )
 
+var ErrInvalidPort = errors.New("invalid metrics port")
+
 func DefaultCLIConfig() CLIConfig {
 	return CLIConfig{
 		Enabled:    false,
@@ -59,7 +61,7 @@ func (m CLIConfig) Check() error {
 	}
 
 	if m.ListenPort < 0 || m.ListenPort > math.MaxUint16 {
-		return errors.New("invalid metrics port")
+		return ErrInvalidPort
 	}
 
 	return nil

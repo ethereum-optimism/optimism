@@ -23,8 +23,8 @@ Once your environment variables have been set, run via:
 pnpm start:<service name>
 ```
 
-For example, to run `drippie-mon`, execute:
+For example, to run `balance-mon`, execute:
 
 ```
-pnpm start:drippie-mon
+pnpm start:balance-mon
 ```

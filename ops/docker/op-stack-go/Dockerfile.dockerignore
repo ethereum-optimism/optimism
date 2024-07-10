@@ -17,6 +17,7 @@
 !/op-program
 !/op-proposer
 !/op-service
+!/op-supervisor
 !/op-wheel
 !/op-plasma
 !/go.mod

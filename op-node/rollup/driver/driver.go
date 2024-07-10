@@ -77,8 +77,6 @@ type EngineController interface {
 
 type CLSync interface {
 	LowestQueuedUnsafeBlock() eth.L2BlockRef
-	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
-	Proceed(ctx context.Context) error
 }
 
 type AttributesHandler interface {
@@ -93,9 +91,8 @@ type AttributesHandler interface {
 }
 
 type Finalizer interface {
-	Finalize(ctx context.Context, ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
-	engine.FinalizerHooks
+	rollup.Deriver
 }
 
 type PlasmaIface interface {
@@ -173,47 +170,48 @@ func NewDriver(
 	sequencerConductor conductor.SequencerConductor,
 	plasma PlasmaIface,
 ) *Driver {
+	driverCtx, driverCancel := context.WithCancel(context.Background())
+	rootDeriver := &rollup.SynchronousDerivers{}
+	synchronousEvents := rollup.NewSynchronousEvents(log, driverCtx, rootDeriver)
+
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
-	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, synchronousEvents)
+	engineResetDeriver := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg, synchronousEvents)
+	clSync := clsync.NewCLSync(log, cfg, metrics, synchronousEvents)
 
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, ec, plasma)
+		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, synchronousEvents, plasma)
 	} else {
-		finalizer = finality.NewFinalizer(log, cfg, l1, ec)
+		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, synchronousEvents)
 	}
 
-	attributesHandler := attributes.NewAttributesHandler(log, cfg, ec, l2)
+	attributesHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, synchronousEvents)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
+	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline, synchronousEvents)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, ec, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
-	driverCtx, driverCancel := context.WithCancel(context.Background())
 	asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 
-	rootDeriver := &rollup.SynchronousDerivers{}
-	synchronousEvents := NewSynchronousEvents(log, driverCtx, rootDeriver)
-
 	syncDeriver := &SyncDeriver{
-		Derivation:        derivationPipeline,
-		Finalizer:         finalizer,
-		AttributesHandler: attributesHandler,
-		SafeHeadNotifs:    safeHeadListener,
-		CLSync:            clSync,
-		Engine:            ec,
-		SyncCfg:           syncCfg,
-		Config:            cfg,
-		L1:                l1,
-		L2:                l2,
-		Emitter:           synchronousEvents,
-		Log:               log,
-		Ctx:               driverCtx,
-		Drain:             synchronousEvents.Drain,
+		Derivation:     derivationPipeline,
+		Finalizer:      finalizer,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		L2:             l2,
+		Emitter:        synchronousEvents,
+		Log:            log,
+		Ctx:            driverCtx,
+		Drain:          synchronousEvents.Drain,
 	}
 	engDeriv := engine.NewEngDeriver(log, driverCtx, cfg, ec, synchronousEvents)
 	schedDeriv := NewStepSchedulingDeriver(log, synchronousEvents)
@@ -248,9 +246,14 @@ func NewDriver(
 
 	*rootDeriver = []rollup.Deriver{
 		syncDeriver,
+		engineResetDeriver,
 		engDeriv,
 		schedDeriv,
 		driver,
+		clSync,
+		pipelineDeriver,
+		attributesHandler,
+		finalizer,
 	}
 
 	return driver

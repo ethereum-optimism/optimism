@@ -83,13 +83,13 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 		// skip the input
 		return s.Next(ctx)
 	} else if errors.Is(err, plasma.ErrMissingPastWindow) {
-		return nil, NewCriticalError(fmt.Errorf("data for comm %x not available: %w", s.comm, err))
+		return nil, NewCriticalError(fmt.Errorf("data for comm %s not available: %w", s.comm, err))
 	} else if errors.Is(err, plasma.ErrPendingChallenge) {
 		// continue stepping without slowing down.
 		return nil, NotEnoughData
 	} else if err != nil {
 		// return temporary error so we can keep retrying.
-		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %x from da service: %w", s.comm, err))
+		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %s from da service: %w", s.comm, err))
 	}
 	// inputs are limited to a max size to ensure they can be challenged in the DA contract.
 	if s.comm.CommitmentType() == plasma.Keccak256CommitmentType && len(data) > plasma.MaxInputSize {
