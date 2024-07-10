@@ -335,3 +335,5 @@ func (m *Memory) Usage() string {
 	// KiB, MiB, GiB, TiB, ...
 	return fmt.Sprintf("%.1f %ciB", float64(total)/float64(div), "KMGTPE"[exp])
 }
+
+type MemTracker func(addr uint32)

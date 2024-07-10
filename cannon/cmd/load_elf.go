@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -46,16 +47,16 @@ func LoadELF(ctx *cli.Context) error {
 	if elfProgram.Machine != elf.EM_MIPS {
 		return fmt.Errorf("ELF is not big-endian MIPS R3000, but got %q", elfProgram.Machine.String())
 	}
-	state, err := mipsevm.LoadELF(elfProgram, mipsevm.CreateInitialState)
+	state, err := patch.LoadELF(elfProgram, mipsevm.CreateInitialState)
 	if err != nil {
 		return fmt.Errorf("failed to load ELF data into VM state: %w", err)
 	}
 	for _, typ := range ctx.StringSlice(LoadELFPatchFlag.Name) {
 		switch typ {
 		case "stack":
-			err = mipsevm.PatchStack(state)
+			err = patch.PatchStack(state)
 		case "go":
-			err = mipsevm.PatchGo(elfProgram, state)
+			err = patch.PatchGo(elfProgram, state)
 		default:
 			return fmt.Errorf("unrecognized form of patching: %q", typ)
 		}

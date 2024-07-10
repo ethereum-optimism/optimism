@@ -45,7 +45,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 			Memory:         core.NewMemory(),
 			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 			PreimageOffset: 0,
-			Cpu: mipsevm.CpuScalars{
+			Cpu: core.CpuScalars{
 				PC:     0,
 				NextPC: 1,
 				LO:     0,

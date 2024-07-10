@@ -10,6 +10,8 @@ type FPVMState interface {
 	// GetPC returns the currently executing program counter
 	GetPC() uint32
 
+	GetRegisters() *[32]uint32
+
 	// GetStep returns the current VM step
 	GetStep() uint64
 
@@ -38,4 +40,11 @@ type FPVM interface {
 
 	// GetDebugInfo returns debug information about the VM
 	GetDebugInfo() *DebugInfo
+}
+
+type CpuScalars struct {
+	PC     uint32 `json:"pc"`
+	NextPC uint32 `json:"nextPC"`
+	LO     uint32 `json:"lo"`
+	HI     uint32 `json:"hi"`
 }

@@ -1,32 +1,31 @@
-package mipsevm
+package core
 
 import (
 	"encoding/binary"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 const (
-	sysMmap      = 4090
-	sysBrk       = 4045
-	sysClone     = 4120
-	sysExitGroup = 4246
-	sysRead      = 4003
-	sysWrite     = 4004
-	sysFcntl     = 4055
+	SysMmap      = 4090
+	SysBrk       = 4045
+	SysClone     = 4120
+	SysExitGroup = 4246
+	SysRead      = 4003
+	SysWrite     = 4004
+	SysFcntl     = 4055
 )
 
 const (
-	fdStdin         = 0
-	fdStdout        = 1
-	fdStderr        = 2
-	fdHintRead      = 3
-	fdHintWrite     = 4
-	fdPreimageRead  = 5
-	fdPreimageWrite = 6
+	FdStdin         = 0
+	FdStdout        = 1
+	FdStderr        = 2
+	FdHintRead      = 3
+	FdHintWrite     = 4
+	FdPreimageRead  = 5
+	FdPreimageWrite = 6
 )
 
 const (
@@ -36,7 +35,7 @@ const (
 
 type PreimageReader func(key [32]byte, offset uint32) (dat [32]byte, datLen uint32)
 
-func getSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
+func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
 	syscallNum = registers[2] // v0
 
 	a0 = registers[4]
@@ -46,13 +45,13 @@ func getSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
 	return syscallNum, a0, a1, a2
 }
 
-func handleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
+func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	v1 = uint32(0)
 	newHeap = heap
 
 	sz := a1
-	if sz&core.PageAddrMask != 0 { // adjust size to align with page size
-		sz += core.PageSize - (sz & core.PageAddrMask)
+	if sz&PageAddrMask != 0 { // adjust size to align with page size
+		sz += PageSize - (sz & PageAddrMask)
 	}
 	if a0 == 0 {
 		v0 = heap
@@ -66,7 +65,7 @@ func handleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	return v0, v1, newHeap
 }
 
-func handleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *core.Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint32) {
+func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = read, v1 = err code
 	v0 = uint32(0)
@@ -74,9 +73,9 @@ func handleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 	newPreimageOffset = preimageOffset
 
 	switch a0 {
-	case fdStdin:
+	case FdStdin:
 		// leave v0 and v1 zero: read nothing, no error
-	case fdPreimageRead: // pre-image oracle
+	case FdPreimageRead: // pre-image oracle
 		effAddr := a1 & 0xFFffFFfc
 		memTracker(effAddr)
 		mem := memory.GetMemory(effAddr)
@@ -97,7 +96,7 @@ func handleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 		newPreimageOffset += datLen
 		v0 = datLen
 		//fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
-	case fdHintRead: // hint response
+	case FdHintRead: // hint response
 		// don't actually read into memory, just say we read it all, we ignore the result anyway
 		v0 = a2
 	default:
@@ -108,7 +107,7 @@ func handleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 	return v0, v1, newPreimageOffset
 }
 
-func handleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle core.PreimageOracle, memory *core.Memory, memTracker MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
+func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle PreimageOracle, memory *Memory, memTracker MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = written, v1 = err code
 	v1 = uint32(0)
@@ -117,13 +116,13 @@ func handleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]b
 	newPreimageOffset = preimageOffset
 
 	switch a0 {
-	case fdStdout:
+	case FdStdout:
 		_, _ = io.Copy(stdOut, memory.ReadMemoryRange(a1, a2))
 		v0 = a2
-	case fdStderr:
+	case FdStderr:
 		_, _ = io.Copy(stdErr, memory.ReadMemoryRange(a1, a2))
 		v0 = a2
-	case fdHintWrite:
+	case FdHintWrite:
 		hintData, _ := io.ReadAll(memory.ReadMemoryRange(a1, a2))
 		lastHint = append(lastHint, hintData...)
 		for len(lastHint) >= 4 { // process while there is enough data to check if there are any hints
@@ -138,7 +137,7 @@ func handleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]b
 		}
 		newLastHint = lastHint
 		v0 = a2
-	case fdPreimageWrite:
+	case FdPreimageWrite:
 		effAddr := a1 & 0xFFffFFfc
 		memTracker(effAddr)
 		mem := memory.GetMemory(effAddr)
@@ -164,15 +163,15 @@ func handleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]b
 	return v0, v1, newLastHint, newPreimageKey, newPreimageOffset
 }
 
-func handleSysFcntl(a0, a1 uint32) (v0, v1 uint32) {
+func HandleSysFcntl(a0, a1 uint32) (v0, v1 uint32) {
 	// args: a0 = fd, a1 = cmd
 	v1 = uint32(0)
 
 	if a1 == 3 { // F_GETFL: get file descriptor flags
 		switch a0 {
-		case fdStdin, fdPreimageRead, fdHintRead:
+		case FdStdin, FdPreimageRead, FdHintRead:
 			v0 = 0 // O_RDONLY
-		case fdStdout, fdStderr, fdPreimageWrite, fdHintWrite:
+		case FdStdout, FdStderr, FdPreimageWrite, FdHintWrite:
 			v0 = 1 // O_WRONLY
 		default:
 			v0 = 0xFFffFFff
@@ -186,7 +185,7 @@ func handleSysFcntl(a0, a1 uint32) (v0, v1 uint32) {
 	return v0, v1
 }
 
-func handleSyscallUpdates(cpu *CpuScalars, registers *[32]uint32, v0, v1 uint32) {
+func HandleSyscallUpdates(cpu *CpuScalars, registers *[32]uint32, v0, v1 uint32) {
 	registers[2] = v0
 	registers[7] = v1
 

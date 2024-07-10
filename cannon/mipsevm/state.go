@@ -14,20 +14,13 @@ import (
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
 const STATE_WITNESS_SIZE = 226
 
-type CpuScalars struct {
-	PC     uint32 `json:"pc"`
-	NextPC uint32 `json:"nextPC"`
-	LO     uint32 `json:"lo"`
-	HI     uint32 `json:"hi"`
-}
-
 type State struct {
 	Memory *core.Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
 
-	Cpu CpuScalars `json:"cpu"`
+	Cpu core.CpuScalars `json:"cpu"`
 
 	Heap uint32 `json:"heap"` // to handle mmap growth
 
@@ -51,7 +44,7 @@ type State struct {
 
 func CreateEmptyState() *State {
 	return &State{
-		Cpu: CpuScalars{
+		Cpu: core.CpuScalars{
 			PC:     0,
 			NextPC: 0,
 			LO:     0,
@@ -132,6 +125,8 @@ func (s *State) UnmarshalJSON(data []byte) error {
 }
 
 func (s *State) GetPC() uint32 { return s.Cpu.PC }
+
+func (s *State) GetRegisters() *[32]uint32 { return &s.Registers }
 
 func (s *State) GetExitCode() uint8 { return s.ExitCode }
 

@@ -30,7 +30,7 @@ type ThreadState struct {
 	FutexAddr        uint32     `json:"futexAddr"`
 	FutexVal         uint32     `json:"futexVal"`
 	FutexTimeoutStep uint64     `json:"futexTimeoutStep"`
-	Cpu              CpuScalars `json:"cpu"`
+	Cpu              core.CpuScalars `json:"cpu"`
 	Registers        [32]uint32 `json:"registers"`
 }
 
@@ -121,7 +121,7 @@ func CreateEmptyMTState() *MTState {
 		ThreadId: initThreadId,
 		ExitCode: 0,
 		Exited:   false,
-		Cpu: CpuScalars{
+		Cpu: core.CpuScalars{
 			PC:     0,
 			NextPC: 0,
 			LO:     0,
@@ -211,6 +211,11 @@ func (s *MTState) PushThread(thread *ThreadState) {
 func (s *MTState) GetPC() uint32 {
 	activeThread := s.getCurrentThread()
 	return activeThread.Cpu.PC
+}
+
+func (s *MTState) GetRegisters() *[32]uint32 {
+	activeThread := s.getCurrentThread()
+	return &activeThread.Registers
 }
 
 func (s *MTState) GetExitCode() uint8 { return s.ExitCode }

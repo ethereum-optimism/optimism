@@ -4,11 +4,10 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
-
-type MemTracker func(addr uint32)
 
 func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 	preimage := m.lastPreimage
@@ -37,46 +36,46 @@ func (m *InstrumentedState) trackMemAccess(effAddr uint32) {
 }
 
 func (m *InstrumentedState) handleSyscall() error {
-	syscallNum, a0, a1, a2 := getSyscallArgs(&m.state.Registers)
+	syscallNum, a0, a1, a2 := core.GetSyscallArgs(&m.state.Registers)
 
 	v0 := uint32(0)
 	v1 := uint32(0)
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
-	case sysMmap:
+	case core.SysMmap:
 		var newHeap uint32
-		v0, v1, newHeap = handleSysMmap(a0, a1, m.state.Heap)
+		v0, v1, newHeap = core.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
-	case sysBrk:
+	case core.SysBrk:
 		v0 = 0x40000000
-	case sysClone: // clone (not supported)
+	case core.SysClone: // clone (not supported)
 		v0 = 1
-	case sysExitGroup:
+	case core.SysExitGroup:
 		m.state.Exited = true
 		m.state.ExitCode = uint8(a0)
 		return nil
-	case sysRead:
+	case core.SysRead:
 		var newPreimageOffset uint32
-		v0, v1, newPreimageOffset = handleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.readPreimage, m.state.Memory, m.trackMemAccess)
+		v0, v1, newPreimageOffset = core.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.readPreimage, m.state.Memory, m.trackMemAccess)
 		m.state.PreimageOffset = newPreimageOffset
-	case sysWrite:
+	case core.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
 		var newPreimageOffset uint32
-		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = handleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.trackMemAccess, m.stdOut, m.stdErr)
+		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = core.HandleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.trackMemAccess, m.stdOut, m.stdErr)
 		m.state.LastHint = newLastHint
 		m.state.PreimageKey = newPreimageKey
 		m.state.PreimageOffset = newPreimageOffset
-	case sysFcntl:
-		v0, v1 = handleSysFcntl(a0, a1)
+	case core.SysFcntl:
+		v0, v1 = core.HandleSysFcntl(a0, a1)
 	}
 
-	handleSyscallUpdates(&m.state.Cpu, &m.state.Registers, v0, v1)
+	core.HandleSyscallUpdates(&m.state.Cpu, &m.state.Registers, v0, v1)
 	return nil
 }
 
-func (m *InstrumentedState) pushStack(target uint32) {
+func (m *InstrumentedState) PushStack(target uint32) {
 	if !m.debugEnabled {
 		return
 	}
@@ -84,7 +83,7 @@ func (m *InstrumentedState) pushStack(target uint32) {
 	m.debug.caller = append(m.debug.caller, m.state.Cpu.PC)
 }
 
-func (m *InstrumentedState) popStack() {
+func (m *InstrumentedState) PopStack() {
 	if !m.debugEnabled {
 		return
 	}
@@ -125,7 +124,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 	m.state.Step += 1
 	// instruction fetch
-	insn, opcode, fun := getInstructionDetails(m.state.Cpu.PC, m.state.Memory)
+	insn, opcode, fun := core.GetInstructionDetails(m.state.Cpu.PC, m.state.Memory)
 
 	// Handle syscall separately
 	// syscall (can read and write)
@@ -134,5 +133,5 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// Exec the rest of the step logic
-	return execMipsCoreStepLogic(&m.state.Cpu, &m.state.Registers, m.state.Memory, insn, opcode, fun, m.trackMemAccess, m)
+	return core.ExecMipsCoreStepLogic(&m.state.Cpu, &m.state.Registers, m.state.Memory, insn, opcode, fun, m.trackMemAccess, m)
 }

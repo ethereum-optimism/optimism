@@ -24,12 +24,12 @@ import (
 
 // LoadArtifacts loads the Cannon contracts, from the contracts package.
 func LoadArtifacts() (*Artifacts, error) {
-	mips, err := foundry.ReadArtifact("../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
+	mips, err := foundry.ReadArtifact("../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
 	}
 
-	oracle, err := foundry.ReadArtifact("../../packages/contracts-bedrock/forge-artifacts/PreimageOracle.sol/PreimageOracle.json")
+	oracle, err := foundry.ReadArtifact("../../../packages/contracts-bedrock/forge-artifacts/PreimageOracle.sol/PreimageOracle.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Oracle contract: %w", err)
 	}
