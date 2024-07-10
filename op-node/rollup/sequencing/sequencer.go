@@ -179,11 +179,13 @@ func (d *Sequencer) handleInvalid() {
 }
 
 func (d *Sequencer) onInvalidPayloadAttributes(x engine.InvalidPayloadAttributesEvent) {
-	if d.latest.Info != x.Info {
+	if x.Attributes.DerivedFrom == (eth.L1BlockRef{}) {
 		return // not our payload, should be ignored.
 	}
 	d.log.Error("Cannot sequence invalid payload attributes",
-		"payloadID", x.Info.ID, "attributes", x.Attributes, "err", x.Err)
+		"attributes_parent", x.Attributes.Parent,
+		"timestamp", x.Attributes.Attributes.Timestamp, "err", x.Err)
+
 	d.handleInvalid()
 }
 
@@ -223,7 +225,19 @@ func (d *Sequencer) onPayloadSealInvalid(x engine.PayloadSealInvalidEvent) {
 	if d.latest.Info != x.Info {
 		return // not our payload, should be ignored.
 	}
-	d.log.Error("Sequencer could not seal block", "payloadID", x.Info.ID, "err", x.Err)
+	d.log.Error("Sequencer could not seal block",
+		"payloadID", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
+	d.handleInvalid()
+}
+
+func (d *Sequencer) onPayloadSealTemporaryError(x engine.PayloadSealTemporaryErrorEvent) {
+	if d.latest.Info != x.Info {
+		return // not our payload, should be ignored.
+	}
+	d.log.Error("Sequencer temporarily could not seal block",
+		"payloadID", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
+	// Restart building, this way we get a block we should be able to seal
+	// (smaller, since we adapt build time).
 	d.handleInvalid()
 }
 
@@ -385,6 +399,8 @@ func (d *Sequencer) OnEvent(ev event.Event) bool {
 		d.onBuildSealed(x)
 	case engine.PayloadSealInvalidEvent:
 		d.onPayloadSealInvalid(x)
+	case engine.PayloadSealTemporaryErrorEvent:
+		d.onPayloadSealTemporaryError(x)
 	case engine.PayloadInvalidEvent:
 		d.onPayloadInvalid(x)
 	case engine.PayloadSuccessEvent:
@@ -483,7 +499,7 @@ func (d *Sequencer) startBuildingBlock() {
 		DerivedFrom:  eth.L1BlockRef{}, // zero, not going to be pending-safe / safe
 	}
 
-	// Don't try to start building a block again, until we have head back from this attempt
+	// Don't try to start building a block again, until we have heard back from this attempt
 	d.nextActionOK = false
 
 	d.emitter.Emit(engine.BuildStartEvent{

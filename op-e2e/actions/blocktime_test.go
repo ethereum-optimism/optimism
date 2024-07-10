@@ -166,8 +166,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	log := testlog.Logger(t, log.LevelDebug)
 
 	sd, _, miner, sequencer, sequencerEngine, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
-	//sequencer.eventSys.AddTracer(event.NewLogTracer(log.New("role", "sequencer"), slog.LevelInfo))
-	//verifier.eventSys.AddTracer(event.NewLogTracer(log.New("role", "verifier"), slog.LevelInfo))
+
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()
 	aliceNonce := uint64(0) // manual nonce, avoid pending-tx nonce management, that causes flakes

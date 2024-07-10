@@ -43,6 +43,8 @@ func (m *FakeAttributesBuilder) PreparePayloadAttributes(ctx context.Context,
 		NoTxPool:              false,
 		GasLimit:              &gasLimit,
 	}
+	// TODO: build L1 info tx
+
 	if m.cfg.IsEcotone(uint64(attrs.Timestamp)) {
 		r := testutils.RandomHash(m.rng)
 		attrs.ParentBeaconBlockRoot = &r
@@ -53,14 +55,13 @@ func (m *FakeAttributesBuilder) PreparePayloadAttributes(ctx context.Context,
 var _ derive.AttributesBuilder = (*FakeAttributesBuilder)(nil)
 
 type FakeL1OriginSelector struct {
-	request  eth.L2BlockRef
-	l1Origin eth.L1BlockRef
-	err      error
+	request    eth.L2BlockRef
+	l1OriginFn func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
 }
 
 func (f *FakeL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 	f.request = l2Head
-	return f.l1Origin, f.err
+	return f.l1OriginFn(l2Head)
 }
 
 var _ L1OriginSelectorIface = (*FakeL1OriginSelector)(nil)
@@ -228,11 +229,14 @@ func TestSequencerBuild(t *testing.T) {
 	emitter.AssertExpectations(t)
 
 	// pretend we progress to the next L1 origin, catching up with the L2 time
-	deps.l1OriginSelector.l1Origin = eth.L1BlockRef{
+	l1Origin := eth.L1BlockRef{
 		Hash:       common.Hash{0x11, 0xb},
 		ParentHash: common.Hash{0x11, 0xa},
 		Number:     1001,
 		Time:       29998,
+	}
+	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+		return l1Origin, nil
 	}
 	var sentAttributes *derive.AttributesWithParent
 	emitter.ExpectOnceRun(func(ev event.Event) {
@@ -294,7 +298,7 @@ func TestSequencerBuild(t *testing.T) {
 		Number:         uint64(payloadEnvelope.ExecutionPayload.BlockNumber),
 		ParentHash:     payloadEnvelope.ExecutionPayload.ParentHash,
 		Time:           uint64(payloadEnvelope.ExecutionPayload.Timestamp),
-		L1Origin:       deps.l1OriginSelector.l1Origin.ID(),
+		L1Origin:       l1Origin.ID(),
 		SequenceNumber: 0,
 	}
 	emitter.ExpectOnce(engine.PayloadProcessEvent{
@@ -359,12 +363,16 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 	cfg := chaincfg.Mainnet
 	rng := rand.New(rand.NewSource(123))
 	deps := &sequencerTestDeps{
-		cfg:              cfg,
-		attribBuilder:    &FakeAttributesBuilder{cfg: cfg, rng: rng},
-		l1OriginSelector: &FakeL1OriginSelector{},
-		seqState:         &BasicSequencerStateListener{},
-		conductor:        &FakeConductor{},
-		asyncGossip:      &FakeAsyncGossip{},
+		cfg:           cfg,
+		attribBuilder: &FakeAttributesBuilder{cfg: cfg, rng: rng},
+		l1OriginSelector: &FakeL1OriginSelector{
+			l1OriginFn: func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+				panic("override this")
+			},
+		},
+		seqState:    &BasicSequencerStateListener{},
+		conductor:   &FakeConductor{},
+		asyncGossip: &FakeAsyncGossip{},
 	}
 	return NewSequencer(context.Background(), log, cfg, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,

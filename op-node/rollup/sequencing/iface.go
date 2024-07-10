@@ -11,6 +11,7 @@ import (
 
 type SequencerIface interface {
 	event.Deriver
+	// NextAction returns when the sequencer needs to do the next change, and iff it should do so.
 	NextAction() (t time.Time, ok bool)
 	Active() bool
 	Init(ctx context.Context, active bool) error
