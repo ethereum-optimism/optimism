@@ -53,21 +53,21 @@ func TestMTState_EncodeWitness(t *testing.T) {
 
 		// Set up expected witness
 		expectedWitness := make(MTStateWitness, MT_STATE_WITNESS_SIZE)
-		setWitnessField(expectedWitness, MT_WITNESS_MEMROOT_OFFSET, memRoot[:])
-		setWitnessField(expectedWitness, MT_WITNESS_PREIMAGE_KEY_OFFSET, preimageKey[:])
-		setWitnessField(expectedWitness, MT_WITNESS_PREIMAGE_OFFSET_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
-		setWitnessField(expectedWitness, MT_WITNESS_HEAP_OFFSET, []byte{0, 0, 0, byte(heap)})
-		setWitnessField(expectedWitness, MT_WITNESS_EXITCODE_OFFSET, []byte{c.exitCode})
+		setWitnessField(expectedWitness, MEMROOT_MT_WITNESS_OFFSET, memRoot[:])
+		setWitnessField(expectedWitness, PREIMAGE_KEY_MT_WITNESS_OFFSET, preimageKey[:])
+		setWitnessField(expectedWitness, PREIMAGE_OFFSET_MT_WITNESS_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
+		setWitnessField(expectedWitness, HEAP_MT_WITNESS_OFFSET, []byte{0, 0, 0, byte(heap)})
+		setWitnessField(expectedWitness, EXITCODE_MT_WITNESS_OFFSET, []byte{c.exitCode})
 		if c.exited {
-			setWitnessField(expectedWitness, MT_WITNESS_EXITED_OFFSET, []byte{1})
+			setWitnessField(expectedWitness, EXITED_MT_WITNESS_OFFSET, []byte{1})
 		}
-		setWitnessField(expectedWitness, MT_WITNESS_STEP_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
-		setWitnessField(expectedWitness, MT_WITNESS_STEPS_SINCE_CONTEXT_SWITCH_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(stepsSinceContextSwitch)})
-		setWitnessField(expectedWitness, MT_WITNESS_WAKEUP_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
-		setWitnessField(expectedWitness, MT_WITNESS_TRAVERSE_RIGHT_OFFSET, []byte{1})
-		setWitnessField(expectedWitness, MT_WITNESS_LEFT_THREADS_ROOT_OFFSET, leftStackRoot[:])
-		setWitnessField(expectedWitness, MT_WITNESS_RIGHT_THREADS_ROOT_OFFSET, rightStackRoot[:])
-		setWitnessField(expectedWitness, MT_WITNESS_THREAD_ID_OFFSET, []byte{0, 0, 0, 1})
+		setWitnessField(expectedWitness, STEP_MT_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
+		setWitnessField(expectedWitness, STEPS_SINCE_CONTEXT_SWITCH_MT_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(stepsSinceContextSwitch)})
+		setWitnessField(expectedWitness, WAKEUP_MT_WITNESS_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
+		setWitnessField(expectedWitness, TRAVERSE_RIGHT_MT_WITNESS_OFFSET, []byte{1})
+		setWitnessField(expectedWitness, LEFT_THREADS_ROOT_MT_WITNESS_OFFSET, leftStackRoot[:])
+		setWitnessField(expectedWitness, RIGHT_THREADS_ROOT_MT_WITNESS_OFFSET, rightStackRoot[:])
+		setWitnessField(expectedWitness, THREAD_ID_MT_WITNESS_OFFSET, []byte{0, 0, 0, 1})
 
 		// Validate witness
 		actualWitness, actualStateHash := state.EncodeWitness()
