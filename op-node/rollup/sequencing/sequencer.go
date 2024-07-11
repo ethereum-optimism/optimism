@@ -374,6 +374,10 @@ func (d *Sequencer) onSequencerAction(x SequencerActionEvent) {
 }
 
 func (d *Sequencer) onEngineTemporaryError(x rollup.EngineTemporaryErrorEvent) {
+	if d.latest == (BuildingState{}) {
+		d.log.Debug("Engine reported temporary error, but sequencer is not using engine", "err", x.Err)
+		return
+	}
 	d.log.Error("Engine failed temporarily, backing off sequencer", "err", x.Err)
 	if errors.Is(x.Err, engine.ErrEngineSyncing) { // if it is syncing we can back off by more
 		d.nextAction = d.timeNow().Add(30 * time.Second)
