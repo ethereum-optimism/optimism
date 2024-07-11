@@ -147,6 +147,50 @@ func (d *Sequencer) AttachEmitter(em event.Emitter) {
 	d.emitter = em
 }
 
+func (d *Sequencer) OnEvent(ev event.Event) bool {
+	d.l.Lock()
+	defer d.l.Unlock()
+
+	preTime := d.nextAction
+	preOk := d.nextActionOK
+	defer func() {
+		if d.nextActionOK != preOk || d.nextAction != preTime {
+			d.log.Debug("Sequencer action schedule changed",
+				"time", d.nextAction, "wait", d.nextAction.Sub(d.timeNow()), "ok", d.nextActionOK, "event", ev)
+		}
+	}()
+
+	switch x := ev.(type) {
+	case engine.BuildStartedEvent:
+		d.onBuildStarted(x)
+	case engine.InvalidPayloadAttributesEvent:
+		d.onInvalidPayloadAttributes(x)
+	case engine.BuildSealedEvent:
+		d.onBuildSealed(x)
+	case engine.PayloadSealInvalidEvent:
+		d.onPayloadSealInvalid(x)
+	case engine.PayloadSealTemporaryErrorEvent:
+		d.onPayloadSealTemporaryError(x)
+	case engine.PayloadInvalidEvent:
+		d.onPayloadInvalid(x)
+	case engine.PayloadSuccessEvent:
+		d.onPayloadSuccess(x)
+	case SequencerActionEvent:
+		d.onSequencerAction(x)
+	case rollup.EngineTemporaryErrorEvent:
+		d.onEngineTemporaryError(x)
+	case rollup.ResetEvent:
+		d.onReset(x)
+	case engine.EngineResetConfirmedEvent:
+		d.onEngineResetConfirmedEvent(x)
+	case engine.ForkchoiceUpdateEvent:
+		d.onForkchoiceUpdate(x)
+	default:
+		return false
+	}
+	return true
+}
+
 func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 	if x.DerivedFrom != (eth.L1BlockRef{}) {
 		return
@@ -411,50 +455,6 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 		}
 	}
 	d.latestHead = x.UnsafeL2Head
-}
-
-func (d *Sequencer) OnEvent(ev event.Event) bool {
-	d.l.Lock()
-	defer d.l.Unlock()
-
-	preTime := d.nextAction
-	preOk := d.nextActionOK
-	defer func() {
-		if d.nextActionOK != preOk || d.nextAction != preTime {
-			d.log.Debug("Sequencer action schedule changed",
-				"time", d.nextAction, "wait", d.nextAction.Sub(d.timeNow()), "ok", d.nextActionOK, "event", ev)
-		}
-	}()
-
-	switch x := ev.(type) {
-	case engine.BuildStartedEvent:
-		d.onBuildStarted(x)
-	case engine.InvalidPayloadAttributesEvent:
-		d.onInvalidPayloadAttributes(x)
-	case engine.BuildSealedEvent:
-		d.onBuildSealed(x)
-	case engine.PayloadSealInvalidEvent:
-		d.onPayloadSealInvalid(x)
-	case engine.PayloadSealTemporaryErrorEvent:
-		d.onPayloadSealTemporaryError(x)
-	case engine.PayloadInvalidEvent:
-		d.onPayloadInvalid(x)
-	case engine.PayloadSuccessEvent:
-		d.onPayloadSuccess(x)
-	case SequencerActionEvent:
-		d.onSequencerAction(x)
-	case rollup.EngineTemporaryErrorEvent:
-		d.onEngineTemporaryError(x)
-	case rollup.ResetEvent:
-		d.onReset(x)
-	case engine.EngineResetConfirmedEvent:
-		d.onEngineResetConfirmedEvent(x)
-	case engine.ForkchoiceUpdateEvent:
-		d.onForkchoiceUpdate(x)
-	default:
-		return false
-	}
-	return true
 }
 
 // StartBuildingBlock initiates a block building job on top of the given L2 head, safe and finalized blocks, and using the provided l1Origin.
