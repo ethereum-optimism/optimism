@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
@@ -293,8 +294,8 @@ func TestEVMSysWriteHint(t *testing.T) {
 			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
 
 			state.LastHint = tt.lastHint
-			state.Registers[2] = core.SysWrite
-			state.Registers[4] = core.FdHintWrite
+			state.Registers[2] = exec.SysWrite
+			state.Registers[4] = exec.FdHintWrite
 			state.Registers[5] = uint32(tt.memOffset)
 			state.Registers[6] = uint32(tt.bytesToWrite)
 

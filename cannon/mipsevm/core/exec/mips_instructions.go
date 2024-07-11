@@ -1,6 +1,9 @@
-package core
+package exec
 
-import "github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+import (
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+)
 
 type StackTracker interface {
 	PushStack(target uint32)
@@ -15,7 +18,7 @@ func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun 
 	return insn, opcode, fun
 }
 
-func ExecMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker memory.MemTracker, stackTracker StackTracker) error {
+func ExecMipsCoreStepLogic(cpu *core.CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker memory.MemTracker, stackTracker StackTracker) error {
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
 		linkReg := uint32(0)
@@ -293,7 +296,7 @@ func SignExtend(dat uint32, idx uint32) uint32 {
 	}
 }
 
-func HandleBranch(cpu *CpuScalars, registers *[32]uint32, opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
+func HandleBranch(cpu *core.CpuScalars, registers *[32]uint32, opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
 	if cpu.NextPC != cpu.PC+4 {
 		panic("branch in delay slot")
 	}
@@ -327,7 +330,7 @@ func HandleBranch(cpu *CpuScalars, registers *[32]uint32, opcode uint32, insn ui
 	return nil
 }
 
-func HandleHiLo(cpu *CpuScalars, registers *[32]uint32, fun uint32, rs uint32, rt uint32, storeReg uint32) error {
+func HandleHiLo(cpu *core.CpuScalars, registers *[32]uint32, fun uint32, rs uint32, rt uint32, storeReg uint32) error {
 	val := uint32(0)
 	switch fun {
 	case 0x10: // mfhi
@@ -363,7 +366,7 @@ func HandleHiLo(cpu *CpuScalars, registers *[32]uint32, fun uint32, rs uint32, r
 	return nil
 }
 
-func HandleJump(cpu *CpuScalars, registers *[32]uint32, linkReg uint32, dest uint32) error {
+func HandleJump(cpu *core.CpuScalars, registers *[32]uint32, linkReg uint32, dest uint32) error {
 	if cpu.NextPC != cpu.PC+4 {
 		panic("jump in delay slot")
 	}
@@ -376,7 +379,7 @@ func HandleJump(cpu *CpuScalars, registers *[32]uint32, linkReg uint32, dest uin
 	return nil
 }
 
-func HandleRd(cpu *CpuScalars, registers *[32]uint32, storeReg uint32, val uint32, conditional bool) error {
+func HandleRd(cpu *core.CpuScalars, registers *[32]uint32, storeReg uint32, val uint32, conditional bool) error {
 	if storeReg >= 32 {
 		panic("invalid register")
 	}

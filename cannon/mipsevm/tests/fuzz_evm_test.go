@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
@@ -37,7 +38,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysBrk},
+			Registers:      [32]uint32{2: exec.SysBrk},
 			Step:           step,
 			PreimageKey:    common.Hash{},
 			PreimageOffset: preimageOffset,
@@ -89,7 +90,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysClone},
+			Registers:      [32]uint32{2: exec.SysClone},
 			Step:           step,
 			PreimageOffset: preimageOffset,
 		}
@@ -139,7 +140,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysMmap, 4: addr, 5: siz},
+			Registers:      [32]uint32{2: exec.SysMmap, 4: addr, 5: siz},
 			Step:           step,
 			PreimageOffset: 0,
 		}
@@ -202,7 +203,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysExitGroup, 4: uint32(exitCode)},
+			Registers:      [32]uint32{2: exec.SysExitGroup, 4: uint32(exitCode)},
 			Step:           step,
 			PreimageOffset: 0,
 		}
@@ -251,7 +252,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysFcntl, 4: fd, 5: cmd},
+			Registers:      [32]uint32{2: exec.SysFcntl, 4: fd, 5: cmd},
 			Step:           step,
 			PreimageOffset: 0,
 		}
@@ -278,19 +279,19 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 		if cmd == 3 {
 			expectedRegisters := preStateRegisters
 			switch fd {
-			case core.FdStdin, core.FdPreimageRead, core.FdHintRead:
+			case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
 				expectedRegisters[2] = 0
-			case core.FdStdout, core.FdStderr, core.FdPreimageWrite, core.FdHintWrite:
+			case exec.FdStdout, exec.FdStderr, exec.FdPreimageWrite, exec.FdHintWrite:
 				expectedRegisters[2] = 1
 			default:
 				expectedRegisters[2] = 0xFF_FF_FF_FF
-				expectedRegisters[7] = core.MipsEBADF
+				expectedRegisters[7] = exec.MipsEBADF
 			}
 			require.Equal(t, expectedRegisters, state.Registers)
 		} else {
 			expectedRegisters := preStateRegisters
 			expectedRegisters[2] = 0xFF_FF_FF_FF
-			expectedRegisters[7] = core.MipsEINVAL
+			expectedRegisters[7] = exec.MipsEINVAL
 			require.Equal(t, expectedRegisters, state.Registers)
 		}
 
@@ -318,7 +319,7 @@ func FuzzStateHintRead(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysRead, 4: core.FdHintRead, 5: addr, 6: count},
+			Registers:      [32]uint32{2: exec.SysRead, 4: exec.FdHintRead, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 0,
@@ -374,7 +375,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysRead, 4: core.FdPreimageRead, 5: addr, 6: count},
+			Registers:      [32]uint32{2: exec.SysRead, 4: exec.FdPreimageRead, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: preimageOffset,
@@ -438,7 +439,7 @@ func FuzzStateHintWrite(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysWrite, 4: core.FdHintWrite, 5: addr, 6: count},
+			Registers:      [32]uint32{2: exec.SysWrite, 4: exec.FdHintWrite, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 0,
@@ -499,7 +500,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: core.SysWrite, 4: core.FdPreimageWrite, 5: addr, 6: count},
+			Registers:      [32]uint32{2: exec.SysWrite, 4: exec.FdPreimageWrite, 5: addr, 6: count},
 			Step:           0,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 128,
