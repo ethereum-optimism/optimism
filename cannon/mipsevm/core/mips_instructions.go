@@ -1,11 +1,13 @@
 package core
 
+import "github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+
 type StackTracker interface {
 	PushStack(target uint32)
 	PopStack()
 }
 
-func GetInstructionDetails(pc uint32, memory *Memory) (insn, opcode, fun uint32) {
+func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun uint32) {
 	insn = memory.GetMemory(pc)
 	opcode = insn >> 26 // First 6-bits
 	fun = insn & 0x3f   // Last 6-bits
@@ -13,7 +15,7 @@ func GetInstructionDetails(pc uint32, memory *Memory) (insn, opcode, fun uint32)
 	return insn, opcode, fun
 }
 
-func ExecMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) error {
+func ExecMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker memory.MemTracker, stackTracker StackTracker) error {
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
 		linkReg := uint32(0)

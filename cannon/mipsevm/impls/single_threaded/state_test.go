@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
 )
 
@@ -31,7 +32,7 @@ func TestStateHash(t *testing.T) {
 	exitedOffset := 32*2 + 4*6
 	for _, c := range cases {
 		state := &State{
-			Memory:   core.NewMemory(),
+			Memory:   memory.NewMemory(),
 			Exited:   c.exited,
 			ExitCode: c.exitCode,
 		}

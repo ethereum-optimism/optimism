@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -85,7 +86,7 @@ const (
 )
 
 type MTState struct {
-	Memory *core.Memory `json:"memory"`
+	Memory *memory.Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
@@ -134,7 +135,7 @@ func CreateEmptyMTState() *MTState {
 	}
 
 	return &MTState{
-		Memory:           core.NewMemory(),
+		Memory:           memory.NewMemory(),
 		Heap:             0,
 		ExitCode:         0,
 		Exited:           false,
@@ -228,7 +229,7 @@ func (s *MTState) VMStatus() uint8 {
 	return core.VmStatus(s.Exited, s.ExitCode)
 }
 
-func (s *MTState) GetMemory() *core.Memory {
+func (s *MTState) GetMemory() *memory.Memory {
 	return s.Memory
 }
 

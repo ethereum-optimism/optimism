@@ -9,16 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
 )
 
 func testContractsSetup(t require.TestingT) (*test_util.Artifacts, *test_util.Addresses) {
@@ -56,7 +57,7 @@ func TestEVM(t *testing.T) {
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: core.NewMemory()}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -118,7 +119,7 @@ func TestEVMSingleStep(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &single_threaded.State{Cpu: core.CpuScalars{PC: tt.pc, NextPC: tt.nextPC}, Memory: core.NewMemory()}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: tt.pc, NextPC: tt.nextPC}, Memory: memory.NewMemory()}
 			state.Memory.SetMemory(tt.pc, tt.insn)
 			curStep := state.Step
 
@@ -289,7 +290,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			oracle := hintTrackingOracle{}
-			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: core.NewMemory()}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
 
 			state.LastHint = tt.lastHint
 			state.Registers[2] = core.SysWrite
@@ -339,7 +340,7 @@ func TestEVMFault(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: core.NewMemory()}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: memory.NewMemory()}
 			initialState := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: state.Memory}
 			state.Memory.SetMemory(0, tt.insn)
 

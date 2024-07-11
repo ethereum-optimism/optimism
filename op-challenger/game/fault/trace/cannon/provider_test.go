@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -52,7 +52,7 @@ func TestGet(t *testing.T) {
 	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &single_threaded.State{
-			Memory: &core.Memory{},
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -108,7 +108,7 @@ func TestGetStepData(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &single_threaded.State{
-			Memory: &core.Memory{},
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -134,7 +134,7 @@ func TestGetStepData(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &single_threaded.State{
-			Memory: &core.Memory{},
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -160,7 +160,7 @@ func TestGetStepData(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, initGenerator := setupWithTestData(t, dataDir, prestate)
 		initGenerator.finalState = &single_threaded.State{
-			Memory: &core.Memory{},
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -178,7 +178,7 @@ func TestGetStepData(t *testing.T) {
 
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &single_threaded.State{
-			Memory: &core.Memory{},
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}

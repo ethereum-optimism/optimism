@@ -6,6 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 )
 
 const (
@@ -50,8 +52,8 @@ func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	newHeap = heap
 
 	sz := a1
-	if sz&PageAddrMask != 0 { // adjust size to align with page size
-		sz += PageSize - (sz & PageAddrMask)
+	if sz&memory.PageAddrMask != 0 { // adjust size to align with page size
+		sz += memory.PageSize - (sz & memory.PageAddrMask)
 	}
 	if a0 == 0 {
 		v0 = heap
@@ -65,7 +67,7 @@ func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	return v0, v1, newHeap
 }
 
-func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint32) {
+func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *memory.Memory, memTracker memory.MemTracker) (v0, v1, newPreimageOffset uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = read, v1 = err code
 	v0 = uint32(0)
@@ -107,7 +109,7 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 	return v0, v1, newPreimageOffset
 }
 
-func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle PreimageOracle, memory *Memory, memTracker MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
+func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle PreimageOracle, memory *memory.Memory, memTracker memory.MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = written, v1 = err code
 	v1 = uint32(0)

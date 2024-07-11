@@ -10,13 +10,14 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 )
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
 const STATE_WITNESS_SIZE = 226
 
 type State struct {
-	Memory *core.Memory `json:"memory"`
+	Memory *memory.Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
@@ -53,7 +54,7 @@ func CreateEmptyState() *State {
 		},
 		Heap:      0,
 		Registers: [32]uint32{},
-		Memory:    core.NewMemory(),
+		Memory:    memory.NewMemory(),
 		ExitCode:  0,
 		Exited:    false,
 		Step:      0,
@@ -70,19 +71,19 @@ func CreateInitialState(pc, heapStart uint32) *State {
 }
 
 type stateMarshaling struct {
-	Memory         *core.Memory  `json:"memory"`
-	PreimageKey    common.Hash   `json:"preimageKey"`
-	PreimageOffset uint32        `json:"preimageOffset"`
-	PC             uint32        `json:"pc"`
-	NextPC         uint32        `json:"nextPC"`
-	LO             uint32        `json:"lo"`
-	HI             uint32        `json:"hi"`
-	Heap           uint32        `json:"heap"`
-	ExitCode       uint8         `json:"exit"`
-	Exited         bool          `json:"exited"`
-	Step           uint64        `json:"step"`
-	Registers      [32]uint32    `json:"registers"`
-	LastHint       hexutil.Bytes `json:"lastHint,omitempty"`
+	Memory         *memory.Memory `json:"memory"`
+	PreimageKey    common.Hash    `json:"preimageKey"`
+	PreimageOffset uint32         `json:"preimageOffset"`
+	PC             uint32         `json:"pc"`
+	NextPC         uint32         `json:"nextPC"`
+	LO             uint32         `json:"lo"`
+	HI             uint32         `json:"hi"`
+	Heap           uint32         `json:"heap"`
+	ExitCode       uint8          `json:"exit"`
+	Exited         bool           `json:"exited"`
+	Step           uint64         `json:"step"`
+	Registers      [32]uint32     `json:"registers"`
+	LastHint       hexutil.Bytes  `json:"lastHint,omitempty"`
 }
 
 func (s *State) MarshalJSON() ([]byte, error) { // nosemgrep
@@ -139,7 +140,7 @@ func (s *State) VMStatus() uint8 {
 	return core.VmStatus(s.Exited, s.ExitCode)
 }
 
-func (s *State) GetMemory() *core.Memory {
+func (s *State) GetMemory() *memory.Memory {
 	return s.Memory
 }
 

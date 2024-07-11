@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 )
 
@@ -43,7 +44,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 		actual, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
 		state := single_threaded.State{
-			Memory:         core.NewMemory(),
+			Memory:         memory.NewMemory(),
 			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 			PreimageOffset: 0,
 			Cpu: core.CpuScalars{

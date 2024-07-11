@@ -2,10 +2,12 @@ package core
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 )
 
 type FPVMState interface {
-	GetMemory() *Memory
+	GetMemory() *memory.Memory
 
 	// GetPC returns the currently executing program counter
 	GetPC() uint32

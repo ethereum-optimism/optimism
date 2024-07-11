@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 )
 
 const HEAP_START = 0x05000000
@@ -98,7 +99,7 @@ func PatchStack(st core.FPVMState) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow
-	if err := st.GetMemory().SetMemoryRange(sp-4*core.PageSize, bytes.NewReader(make([]byte, 5*core.PageSize))); err != nil {
+	if err := st.GetMemory().SetMemoryRange(sp-4*memory.PageSize, bytes.NewReader(make([]byte, 5*memory.PageSize))); err != nil {
 		return fmt.Errorf("failed to allocate page for stack content")
 	}
 	st.GetRegisters()[29] = sp
