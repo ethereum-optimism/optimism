@@ -81,11 +81,11 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 		// Time to re-evaluate without attributes.
 		// (the pending-safe state will then be forwarded to our source of attributes).
 		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
-	case engine.PayloadSealTemporaryErrorEvent:
+	case engine.PayloadSealExpiredErrorEvent:
 		if x.DerivedFrom == (eth.L1BlockRef{}) {
 			return true // from sequencing
 		}
-		eq.log.Warn("Temporarily failed to seal derived block attributes",
+		eq.log.Warn("Block sealing job of derived attributes expired, job will be re-attempted.",
 			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
 		// If the engine failed to seal temporarily, just allow to resubmit (triggered on next safe-head poke)
 		eq.sentAttributes = false

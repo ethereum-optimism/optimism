@@ -22,9 +22,11 @@ func (ev PayloadSealInvalidEvent) String() string {
 	return "payload-seal-invalid"
 }
 
-// PayloadSealTemporaryErrorEvent identifies temporarily failed payload-sealing.
-// The user should re-attempt by starting a new build process.
-type PayloadSealTemporaryErrorEvent struct {
+// PayloadSealExpiredErrorEvent identifies a form of failed payload-sealing that is not coupled
+// to the attributes themselves, but rather the build-job process.
+// The user should re-attempt by starting a new build process. The payload-sealing job should not be re-attempted,
+// as it most likely expired, timed out, or referenced an otherwise invalidated block-building job identifier.
+type PayloadSealExpiredErrorEvent struct {
 	Info eth.PayloadInfo
 	Err  error
 
@@ -32,8 +34,8 @@ type PayloadSealTemporaryErrorEvent struct {
 	DerivedFrom  eth.L1BlockRef
 }
 
-func (ev PayloadSealTemporaryErrorEvent) String() string {
-	return "payload-seal-temporary-error"
+func (ev PayloadSealExpiredErrorEvent) String() string {
+	return "payload-seal-expired-error"
 }
 
 type BuildSealEvent struct {
@@ -61,10 +63,12 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 				"payloadID", ev.Info.ID, "payload_time", ev.Info.Timestamp,
 				"started_time", ev.BuildStarted)
 		}
-		// As verifier it is safe to ignore this event, attributes will be re-attempted,
-		// and any invalid-attributes error should be raised upon
-		// the start of block-building and/or later block insertion.
-		eq.emitter.Emit(PayloadSealTemporaryErrorEvent{
+		// Although the engine will very likely not be able to continue from here with the same building job,
+		// we still call it "temporary", since the exact same payload-attributes have not been invalidated in-consensus.
+		// So the user (attributes-handler or sequencer) should be able to re-attempt the exact
+		// same attributes with a new block-building job from here to recover from this error.
+		// We name it "expired", as this generally identifies a timeout, unknown job, or otherwise invalidated work.
+		eq.emitter.Emit(PayloadSealExpiredErrorEvent{
 			Info:         ev.Info,
 			Err:          fmt.Errorf("failed to seal execution payload (ID: %s): %w", ev.Info.ID, err),
 			IsLastInSpan: ev.IsLastInSpan,

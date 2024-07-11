@@ -169,8 +169,8 @@ func (d *Sequencer) OnEvent(ev event.Event) bool {
 		d.onBuildSealed(x)
 	case engine.PayloadSealInvalidEvent:
 		d.onPayloadSealInvalid(x)
-	case engine.PayloadSealTemporaryErrorEvent:
-		d.onPayloadSealTemporaryError(x)
+	case engine.PayloadSealExpiredErrorEvent:
+		d.onPayloadSealExpiredError(x)
 	case engine.PayloadInvalidEvent:
 		d.onPayloadInvalid(x)
 	case engine.PayloadSuccessEvent:
@@ -293,7 +293,7 @@ func (d *Sequencer) onPayloadSealInvalid(x engine.PayloadSealInvalidEvent) {
 	d.handleInvalid()
 }
 
-func (d *Sequencer) onPayloadSealTemporaryError(x engine.PayloadSealTemporaryErrorEvent) {
+func (d *Sequencer) onPayloadSealExpiredError(x engine.PayloadSealExpiredErrorEvent) {
 	if d.latest.Info != x.Info {
 		return // not our payload, should be ignored.
 	}

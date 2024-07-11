@@ -123,7 +123,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 		c.clockRandomIncrement(0, time.Millisecond*300)
 
 		if c.currentPayloadInfo == (eth.PayloadInfo{}) {
-			c.emitter.Emit(engine.PayloadSealTemporaryErrorEvent{
+			c.emitter.Emit(engine.PayloadSealExpiredErrorEvent{
 				Info:         x.Info,
 				Err:          errors.New("job was cancelled"),
 				IsLastInSpan: false,
@@ -148,7 +148,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				DerivedFrom:  x.DerivedFrom,
 			})
 		case p < 0.08: // 5%
-			c.emitter.Emit(engine.PayloadSealTemporaryErrorEvent{
+			c.emitter.Emit(engine.PayloadSealExpiredErrorEvent{
 				Info:         x.Info,
 				Err:          errors.New("mock temp engine error"),
 				IsLastInSpan: x.IsLastInSpan,
