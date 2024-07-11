@@ -179,6 +179,7 @@ func NewDriver(
 		drain = s.Drain
 	}
 	sys := event.NewSystem(log, executor)
+	sys.AddTracer(event.NewMetricsTracer(metrics))
 
 	opts := event.DefaultRegisterOpts()
 
