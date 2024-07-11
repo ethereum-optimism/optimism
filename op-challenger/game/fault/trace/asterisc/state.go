@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -27,7 +27,7 @@ func (state *VMState) validateStateHash() error {
 	if exitCode >= 4 {
 		return fmt.Errorf("invalid stateHash: unknown exitCode %d", exitCode)
 	}
-	if (state.Exited && exitCode == mipsevm.VMStatusUnfinished) || (!state.Exited && exitCode != mipsevm.VMStatusUnfinished) {
+	if (state.Exited && exitCode == core.VMStatusUnfinished) || (!state.Exited && exitCode != core.VMStatusUnfinished) {
 		return fmt.Errorf("invalid stateHash: invalid exitCode %d", exitCode)
 	}
 	return nil

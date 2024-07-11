@@ -109,7 +109,7 @@ func TestStateHash(t *testing.T) {
 		require.EqualValues(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
 
 		expectedStateHash := crypto.Keccak256Hash(actualWitness)
-		expectedStateHash[0] = vmStatus(c.exited, c.exitCode)
+		expectedStateHash[0] = core.VmStatus(c.exited, c.exitCode)
 		require.Equal(t, expectedStateHash, actualStateHash, "Incorrect state hash")
 	}
 }

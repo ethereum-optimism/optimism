@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -76,7 +77,7 @@ func TestMTState_EncodeWitness(t *testing.T) {
 		require.EqualValues(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
 		// Validate witness hash
 		expectedStateHash := crypto.Keccak256Hash(actualWitness)
-		expectedStateHash[0] = vmStatus(c.exited, c.exitCode)
+		expectedStateHash[0] = core.VmStatus(c.exited, c.exitCode)
 		require.Equal(t, expectedStateHash, actualStateHash, "Incorrect state hash")
 	}
 }

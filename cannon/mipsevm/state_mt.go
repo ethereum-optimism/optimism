@@ -225,7 +225,7 @@ func (s *MTState) GetExited() bool { return s.Exited }
 func (s *MTState) GetStep() uint64 { return s.Step }
 
 func (s *MTState) VMStatus() uint8 {
-	return vmStatus(s.Exited, s.ExitCode)
+	return core.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *MTState) GetMemory() *core.Memory {
@@ -272,7 +272,7 @@ func mtStateHashFromWitness(sw []byte) common.Hash {
 	hash := crypto.Keccak256Hash(sw)
 	exitCode := sw[EXITCODE_MT_WITNESS_OFFSET]
 	exited := sw[EXITED_MT_WITNESS_OFFSET]
-	status := vmStatus(exited == 1, exitCode)
+	status := core.VmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash
 }

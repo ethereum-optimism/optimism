@@ -135,7 +135,7 @@ func (s *State) GetExited() bool { return s.Exited }
 func (s *State) GetStep() uint64 { return s.Step }
 
 func (s *State) VMStatus() uint8 {
-	return vmStatus(s.Exited, s.ExitCode)
+	return core.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *State) GetMemory() *core.Memory {
@@ -164,13 +164,6 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 
 type StateWitness []byte
 
-const (
-	VMStatusValid      = 0
-	VMStatusInvalid    = 1
-	VMStatusPanic      = 2
-	VMStatusUnfinished = 3
-)
-
 func (sw StateWitness) StateHash() (common.Hash, error) {
 	if len(sw) != STATE_WITNESS_SIZE {
 		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), STATE_WITNESS_SIZE)
@@ -192,22 +185,7 @@ func stateHashFromWitness(sw []byte) common.Hash {
 	offset := 32*2 + 4*6
 	exitCode := sw[offset]
 	exited := sw[offset+1]
-	status := vmStatus(exited == 1, exitCode)
+	status := core.VmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash
-}
-
-func vmStatus(exited bool, exitCode uint8) uint8 {
-	if !exited {
-		return VMStatusUnfinished
-	}
-
-	switch exitCode {
-	case 0:
-		return VMStatusValid
-	case 1:
-		return VMStatusInvalid
-	default:
-		return VMStatusPanic
-	}
 }
