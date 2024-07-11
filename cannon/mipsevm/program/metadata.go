@@ -1,4 +1,4 @@
-package mipsevm
+package program
 
 import (
 	"debug/elf"

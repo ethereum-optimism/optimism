@@ -20,6 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/oracle"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/util"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -173,8 +175,8 @@ func NewProcessPreimageOracle(name string, args []string, stdout log.Logger, std
 	}
 
 	cmd := exec.Command(name, args...) // nosemgrep
-	cmd.Stdout = &mipsevm.LoggingWriter{Log: stdout}
-	cmd.Stderr = &mipsevm.LoggingWriter{Log: stderr}
+	cmd.Stdout = &util.LoggingWriter{Log: stdout}
+	cmd.Stderr = &util.LoggingWriter{Log: stderr}
 	cmd.ExtraFiles = []*os.File{
 		hOracleRW.Reader(),
 		hOracleRW.Writer(),
@@ -276,8 +278,8 @@ func Run(ctx *cli.Context) error {
 	}
 
 	guestLogger := Logger(os.Stderr, log.LevelInfo)
-	outLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
-	errLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
+	outLog := &util.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
+	errLog := &util.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
 
 	l := Logger(os.Stderr, log.LevelInfo).With("module", "vm")
 
@@ -352,12 +354,12 @@ func Run(ctx *cli.Context) error {
 	snapshotAt := ctx.Generic(RunSnapshotAtFlag.Name).(*StepMatcherFlag).Matcher()
 	infoAt := ctx.Generic(RunInfoAtFlag.Name).(*StepMatcherFlag).Matcher()
 
-	var meta *mipsevm.Metadata
+	var meta *program.Metadata
 	if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
 		l.Info("no metadata file specified, defaulting to empty metadata")
-		meta = &mipsevm.Metadata{Symbols: nil} // provide empty metadata by default
+		meta = &program.Metadata{Symbols: nil} // provide empty metadata by default
 	} else {
-		if m, err := jsonutil.LoadJSON[mipsevm.Metadata](metaPath); err != nil {
+		if m, err := jsonutil.LoadJSON[program.Metadata](metaPath); err != nil {
 			return fmt.Errorf("failed to load metadata: %w", err)
 		} else {
 			meta = m
@@ -413,8 +415,8 @@ func Run(ctx *cli.Context) error {
 			delta := time.Since(start)
 			l.Info("processing",
 				"step", step,
-				"pc", mipsevm.HexU32(state.GetPC()),
-				"insn", mipsevm.HexU32(state.GetMemory().GetMemory(state.GetPC())),
+				"pc", program.HexU32(state.GetPC()),
+				"insn", program.HexU32(state.GetMemory().GetMemory(state.GetPC())),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
 				"pages", state.GetMemory().PageCount(),
 				"mem", state.GetMemory().Usage(),

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 // Run through all permutations of `exited` / `exitCode` and ensure that the
@@ -60,7 +60,7 @@ func TestStateHash(t *testing.T) {
 func TestStateJSONCodec(t *testing.T) {
 	elfProgram, err := elf.Open("../../../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
-	state, err := patch.LoadELF(elfProgram, CreateInitialState)
+	state, err := program.LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	stateJSON, err := state.MarshalJSON()

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 func setWitnessField(witness MTStateWitness, fieldOffset int, fieldData []byte) {
@@ -86,7 +86,7 @@ func TestMTState_EncodeWitness(t *testing.T) {
 func TestMTState_JSONCodec(t *testing.T) {
 	elfProgram, err := elf.Open("../../../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
-	state, err := patch.LoadELF(elfProgram, CreateInitialMTState)
+	state, err := program.LoadELF(elfProgram, CreateInitialMTState)
 	require.NoError(t, err, "load ELF into state")
 	// Set a few additional fields
 	state.PreimageKey = crypto.Keccak256Hash([]byte{1, 2, 3, 4})

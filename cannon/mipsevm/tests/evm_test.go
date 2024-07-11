@@ -20,7 +20,7 @@ import (
 	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
 )
 
@@ -379,12 +379,12 @@ func TestHelloEVM(t *testing.T) {
 	elfProgram, err := elf.Open("../../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 
-	state, err := patch.LoadELF(elfProgram, single_threaded.CreateInitialState)
+	state, err := program.LoadELF(elfProgram, single_threaded.CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
-	err = patch.PatchGo(elfProgram, state)
+	err = program.PatchGo(elfProgram, state)
 	require.NoError(t, err, "apply Go runtime patches")
-	require.NoError(t, patch.PatchStack(state), "add initial stack")
+	require.NoError(t, program.PatchStack(state), "add initial stack")
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	goState := mipsevm.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
@@ -430,12 +430,12 @@ func TestClaimEVM(t *testing.T) {
 	elfProgram, err := elf.Open("../../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")
 
-	state, err := patch.LoadELF(elfProgram, single_threaded.CreateInitialState)
+	state, err := program.LoadELF(elfProgram, single_threaded.CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
-	err = patch.PatchGo(elfProgram, state)
+	err = program.PatchGo(elfProgram, state)
 	require.NoError(t, err, "apply Go runtime patches")
-	require.NoError(t, patch.PatchStack(state), "add initial stack")
+	require.NoError(t, program.PatchStack(state), "add initial stack")
 
 	oracle, expectedStdOut, expectedStdErr := test_util.ClaimTestOracle(t)
 

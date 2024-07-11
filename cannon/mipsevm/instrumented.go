@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/oracle"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -16,7 +17,7 @@ import (
 type Debug struct {
 	stack  []uint32
 	caller []uint32
-	meta   *Metadata
+	meta   *program.Metadata
 }
 
 type InstrumentedState struct {
@@ -64,7 +65,7 @@ func NewInstrumentedStateFromFile(stateFile string, po oracle.PreimageOracle, st
 	}, nil
 }
 
-func (m *InstrumentedState) InitDebug(meta *Metadata) error {
+func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 	if meta == nil {
 		return errors.New("metadata is nil")
 	}
