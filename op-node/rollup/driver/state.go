@@ -406,7 +406,6 @@ func (s *SyncDeriver) onEngineConfirmedReset(x engine.EngineResetConfirmedEvent)
 			}
 		}
 	}
-	s.Log.Warn("IMPORTANT")
 	s.Emitter.Emit(derive.ConfirmPipelineResetEvent{})
 }
 
