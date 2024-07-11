@@ -1,4 +1,4 @@
-package core
+package state
 
 type CpuScalars struct {
 	PC     uint32 `json:"pc"`

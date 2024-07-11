@@ -7,8 +7,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/oracle"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
 )
 
 const (
@@ -110,7 +111,7 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 	return v0, v1, newPreimageOffset
 }
 
-func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle core.PreimageOracle, memory *memory.Memory, memTracker memory.MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
+func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle oracle.PreimageOracle, memory *memory.Memory, memTracker memory.MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = written, v1 = err code
 	v1 = uint32(0)
@@ -188,7 +189,7 @@ func HandleSysFcntl(a0, a1 uint32) (v0, v1 uint32) {
 	return v0, v1
 }
 
-func HandleSyscallUpdates(cpu *core.CpuScalars, registers *[32]uint32, v0, v1 uint32) {
+func HandleSyscallUpdates(cpu *state.CpuScalars, registers *[32]uint32, v0, v1 uint32) {
 	registers[2] = v0
 	registers[7] = v1
 

@@ -4,10 +4,11 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 )
 
 var absolutePrestate = common.FromHex("0000000000000000000000000000000000000000000000000000000000000060")
@@ -24,6 +25,6 @@ type alphabetPrestateProvider struct{}
 
 func (ap *alphabetPrestateProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
 	hash := common.BytesToHash(crypto.Keccak256(absolutePrestate))
-	hash[0] = core.VMStatusUnfinished
+	hash[0] = state.VMStatusUnfinished
 	return hash, nil
 }

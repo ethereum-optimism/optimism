@@ -7,20 +7,22 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/oracle"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 type MIPSEVM struct {
 	env         *vm.EVM
 	evmState    *state.StateDB
 	addrs       *Addresses
-	localOracle core.PreimageOracle
+	localOracle oracle.PreimageOracle
 	artifacts   *Artifacts
 	// Track step execution for logging purposes
 	lastStep      uint64
@@ -36,12 +38,12 @@ func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
 	m.env.Config.Tracer = tracer
 }
 
-func (m *MIPSEVM) SetLocalOracle(oracle core.PreimageOracle) {
+func (m *MIPSEVM) SetLocalOracle(oracle oracle.PreimageOracle) {
 	m.localOracle = oracle
 }
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
-func (m *MIPSEVM) Step(t *testing.T, stepWitness *core.StepWitness, step uint64, stateHashFn core.HashFn) []byte {
+func (m *MIPSEVM) Step(t *testing.T, stepWitness *witness.StepWitness, step uint64, stateHashFn witness.HashFn) []byte {
 	m.lastStep = step
 	m.lastStepInput = nil
 	sender := common.Address{0x13, 0x37}
@@ -52,13 +54,13 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *core.StepWitness, step uint64,
 
 	if stepWitness.HasPreimage() {
 		t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
-		poInput, err := EncodePreimageOracleInput(t, stepWitness, core.LocalContext{}, m.localOracle, m.artifacts.Oracle)
+		poInput, err := EncodePreimageOracleInput(t, stepWitness, witness.LocalContext{}, m.localOracle, m.artifacts.Oracle)
 		require.NoError(t, err, "encode preimage oracle input")
 		_, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.Oracle, poInput, startingGas, common.U2560)
 		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
 	}
 
-	input := EncodeStepInput(t, stepWitness, core.LocalContext{}, m.artifacts.MIPS)
+	input := EncodeStepInput(t, stepWitness, witness.LocalContext{}, m.artifacts.MIPS)
 	m.lastStepInput = input
 	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, common.U2560)
 	require.NoError(t, err, "evm should not fail")
@@ -78,13 +80,13 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *core.StepWitness, step uint64,
 	return evmPost
 }
 
-func EncodeStepInput(t *testing.T, wit *core.StepWitness, localContext core.LocalContext, mips *foundry.Artifact) []byte {
+func EncodeStepInput(t *testing.T, wit *witness.StepWitness, localContext witness.LocalContext, mips *foundry.Artifact) []byte {
 	input, err := mips.ABI.Pack("step", wit.State, wit.ProofData, localContext)
 	require.NoError(t, err)
 	return input
 }
 
-func EncodePreimageOracleInput(t *testing.T, wit *core.StepWitness, localContext core.LocalContext, localOracle core.PreimageOracle, oracle *foundry.Artifact) ([]byte, error) {
+func EncodePreimageOracleInput(t *testing.T, wit *witness.StepWitness, localContext witness.LocalContext, localOracle oracle.PreimageOracle, oracle *foundry.Artifact) ([]byte, error) {
 	if wit.PreimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}

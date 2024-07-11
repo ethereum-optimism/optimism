@@ -10,15 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
-	"github.com/pkg/profile"
-
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/oracle"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -240,10 +241,10 @@ func (p *ProcessPreimageOracle) wait() {
 	close(p.waitErr)
 }
 
-type StepFn func(proof bool) (*core.StepWitness, error)
+type StepFn func(proof bool) (*witness.StepWitness, error)
 
 func Guard(proc *os.ProcessState, fn StepFn) StepFn {
-	return func(proof bool) (*core.StepWitness, error) {
+	return func(proof bool) (*witness.StepWitness, error) {
 		wit, err := fn(proof)
 		if err != nil {
 			if proc.Exited() {
@@ -256,7 +257,7 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 	}
 }
 
-var _ core.PreimageOracle = (*ProcessPreimageOracle)(nil)
+var _ oracle.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
 type VMType string
 

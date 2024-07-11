@@ -1,4 +1,4 @@
-package core
+package witness
 
 import "github.com/ethereum/go-ethereum/common"
 

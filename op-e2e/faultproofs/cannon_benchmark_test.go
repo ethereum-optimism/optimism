@@ -11,15 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -30,6 +21,16 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/debug"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestBenchmarkCannon_FPP(t *testing.T) {
@@ -101,7 +102,7 @@ func TestBenchmarkCannon_FPP(t *testing.T) {
 	runCannon(t, ctx, sys, inputs, "sequencer", "--debug-info", debugfile)
 	data, err := os.ReadFile(debugfile)
 	require.NoError(t, err)
-	var debuginfo core.DebugInfo
+	var debuginfo debug.DebugInfo
 	require.NoError(t, json.Unmarshal(data, &debuginfo))
 	t.Logf("Debug info: %#v", debuginfo)
 	// TODO(client-pod#906): Use maximum witness size for assertions against pages allocated by the VM

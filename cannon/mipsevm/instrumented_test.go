@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
 )
@@ -34,7 +34,7 @@ func TestState(t *testing.T) {
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
+			state := &single_threaded.State{Cpu: state.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 

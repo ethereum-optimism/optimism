@@ -9,8 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 )
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
@@ -22,7 +23,7 @@ type State struct {
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
 
-	Cpu core.CpuScalars `json:"cpu"`
+	Cpu state.CpuScalars `json:"cpu"`
 
 	Heap uint32 `json:"heap"` // to handle mmap growth
 
@@ -46,7 +47,7 @@ type State struct {
 
 func CreateEmptyState() *State {
 	return &State{
-		Cpu: core.CpuScalars{
+		Cpu: state.CpuScalars{
 			PC:     0,
 			NextPC: 0,
 			LO:     0,
@@ -137,7 +138,7 @@ func (s *State) GetExited() bool { return s.Exited }
 func (s *State) GetStep() uint64 { return s.Step }
 
 func (s *State) VMStatus() uint8 {
-	return core.VmStatus(s.Exited, s.ExitCode)
+	return state.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *State) GetMemory() *memory.Memory {
@@ -156,7 +157,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.Cpu.HI)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	out = core.AppendBoolToWitness(out, s.Exited)
+	out = witness.AppendBoolToWitness(out, s.Exited)
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	for _, r := range s.Registers {
 		out = binary.BigEndian.AppendUint32(out, r)
@@ -173,7 +174,7 @@ func (sw StateWitness) StateHash() (common.Hash, error) {
 	return stateHashFromWitness(sw), nil
 }
 
-func GetStateHashFn() core.HashFn {
+func GetStateHashFn() witness.HashFn {
 	return func(sw []byte) (common.Hash, error) {
 		return StateWitness(sw).StateHash()
 	}
@@ -187,7 +188,7 @@ func stateHashFromWitness(sw []byte) common.Hash {
 	offset := 32*2 + 4*6
 	exitCode := sw[offset]
 	exited := sw[offset+1]
-	status := core.VmStatus(exited == 1, exitCode)
+	status := state.VmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash
 }

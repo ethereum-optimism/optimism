@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
 )
 
@@ -52,7 +52,7 @@ func TestStateHash(t *testing.T) {
 		require.EqualValues(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
 
 		expectedStateHash := crypto.Keccak256Hash(actualWitness)
-		expectedStateHash[0] = core.VmStatus(c.exited, c.exitCode)
+		expectedStateHash[0] = vmstate.VmStatus(c.exited, c.exitCode)
 		require.Equal(t, expectedStateHash, actualStateHash, "Incorrect state hash")
 	}
 }

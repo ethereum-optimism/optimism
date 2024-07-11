@@ -4,8 +4,9 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -31,7 +32,7 @@ type ThreadState struct {
 	FutexAddr        uint32     `json:"futexAddr"`
 	FutexVal         uint32     `json:"futexVal"`
 	FutexTimeoutStep uint64     `json:"futexTimeoutStep"`
-	Cpu              core.CpuScalars `json:"cpu"`
+	Cpu              state.CpuScalars `json:"cpu"`
 	Registers        [32]uint32 `json:"registers"`
 }
 
@@ -122,7 +123,7 @@ func CreateEmptyMTState() *MTState {
 		ThreadId: initThreadId,
 		ExitCode: 0,
 		Exited:   false,
-		Cpu: core.CpuScalars{
+		Cpu: state.CpuScalars{
 			PC:     0,
 			NextPC: 0,
 			LO:     0,
@@ -226,7 +227,7 @@ func (s *MTState) GetExited() bool { return s.Exited }
 func (s *MTState) GetStep() uint64 { return s.Step }
 
 func (s *MTState) VMStatus() uint8 {
-	return core.VmStatus(s.Exited, s.ExitCode)
+	return state.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *MTState) GetMemory() *memory.Memory {
@@ -241,7 +242,7 @@ func (s *MTState) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	out = core.AppendBoolToWitness(out, s.Exited)
+	out = witness.AppendBoolToWitness(out, s.Exited)
 
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	out = binary.BigEndian.AppendUint64(out, s.StepsSinceLastContextSwitch)
@@ -249,7 +250,7 @@ func (s *MTState) EncodeWitness() ([]byte, common.Hash) {
 
 	leftStackRoot := s.getLeftThreadStackRoot()
 	rightStackRoot := s.getRightThreadStackRoot()
-	out = core.AppendBoolToWitness(out, s.TraverseRight)
+	out = witness.AppendBoolToWitness(out, s.TraverseRight)
 	out = append(out, (leftStackRoot)[:]...)
 	out = append(out, (rightStackRoot)[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.NextThreadId)
@@ -273,7 +274,7 @@ func mtStateHashFromWitness(sw []byte) common.Hash {
 	hash := crypto.Keccak256Hash(sw)
 	exitCode := sw[EXITCODE_MT_WITNESS_OFFSET]
 	exited := sw[EXITED_MT_WITNESS_OFFSET]
-	status := core.VmStatus(exited == 1, exitCode)
+	status := state.VmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash
 }
