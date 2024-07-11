@@ -193,6 +193,12 @@ func (d *Sequencer) OnEvent(ev event.Event) bool {
 
 func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 	if x.DerivedFrom != (eth.L1BlockRef{}) {
+		// If we are adding new blocks onto the tip of the chain, derived from L1,
+		// then don't try to build on top of it immediately, as sequencer.
+		d.log.Warn("Detected new block-building from L1 derivation, avoiding sequencing for now.",
+			"build_job", x.Info.ID, "build_timestamp", x.Info.Timestamp,
+			"parent", x.Parent, "derived_from", x.DerivedFrom)
+		d.nextActionOK = false
 		return
 	}
 	if d.latest.Onto != x.Parent {
@@ -311,18 +317,7 @@ func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 	// d.latest as building state may already be empty,
 	// if the forkchoice update (that dropped the stale building job) was received before the payload-success.
 	if d.latest.Ref != (eth.L2BlockRef{}) && d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
-		// Not a payload that was built by this sequencer.
-		// It must be either from another conflicting sequencer, or more likely derived from L1 data.
-
-		// If we are adding new blocks onto the tip of the chain, don't try to build on top of it immediately.
-		d.log.Warn("Avoiding sequencing to not interrupt outside chain-extension",
-			"block", x.Envelope.ExecutionPayload.BlockHash, "expected", d.latest.Ref,
-			"unsafe_head_time", uint64(x.Envelope.ExecutionPayload.Timestamp), "derived_from", x.DerivedFrom)
-
-		d.nextActionOK = false
-		// If we are in a sequencer switch-over, and thus legitimately seeing a block from another
-		// sequencer before building the next one ourselves, we'll still update the nextAction timing upon
-		// later forkchoice-update and/or sequencer activation.
+		// Not a payload that was built by this sequencer. We can ignore it, and continue upon forkchoice update.
 		return
 	}
 	d.latest = BuildingState{}
