@@ -4,11 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 )
 
 type iterator struct {
 	db           *DB
-	nextEntryIdx int64
+	nextEntryIdx entrydb.EntryIdx
 
 	current    logContext
 	hasExecMsg bool
@@ -16,7 +19,7 @@ type iterator struct {
 	entriesRead int64
 }
 
-func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedHash, outErr error) {
+func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error) {
 	for i.nextEntryIdx <= i.db.lastEntryIdx() {
 		entryIdx := i.nextEntryIdx
 		entry, err := i.db.store.Read(entryIdx)
@@ -60,29 +63,29 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash TruncatedH
 	return
 }
 
-func (i *iterator) ExecMessage() (ExecutingMessage, error) {
+func (i *iterator) ExecMessage() (types.ExecutingMessage, error) {
 	if !i.hasExecMsg {
-		return ExecutingMessage{}, nil
+		return types.ExecutingMessage{}, nil
 	}
 	// Look ahead to find the exec message info
 	logEntryIdx := i.nextEntryIdx - 1
 	execMsg, err := i.readExecMessage(logEntryIdx)
 	if err != nil {
-		return ExecutingMessage{}, fmt.Errorf("failed to read exec message for initiating event at %v: %w", logEntryIdx, err)
+		return types.ExecutingMessage{}, fmt.Errorf("failed to read exec message for initiating event at %v: %w", logEntryIdx, err)
 	}
 	return execMsg, nil
 }
 
-func (i *iterator) readExecMessage(initEntryIdx int64) (ExecutingMessage, error) {
+func (i *iterator) readExecMessage(initEntryIdx entrydb.EntryIdx) (types.ExecutingMessage, error) {
 	linkIdx := initEntryIdx + 1
 	if linkIdx%searchCheckpointFrequency == 0 {
 		linkIdx += 2 // skip the search checkpoint and canonical hash entries
 	}
 	linkEntry, err := i.db.store.Read(linkIdx)
 	if errors.Is(err, io.EOF) {
-		return ExecutingMessage{}, fmt.Errorf("%w: missing expected executing link event at idx %v", ErrDataCorruption, linkIdx)
+		return types.ExecutingMessage{}, fmt.Errorf("%w: missing expected executing link event at idx %v", ErrDataCorruption, linkIdx)
 	} else if err != nil {
-		return ExecutingMessage{}, fmt.Errorf("failed to read executing link event at idx %v: %w", linkIdx, err)
+		return types.ExecutingMessage{}, fmt.Errorf("failed to read executing link event at idx %v: %w", linkIdx, err)
 	}
 
 	checkIdx := linkIdx + 1
@@ -91,9 +94,9 @@ func (i *iterator) readExecMessage(initEntryIdx int64) (ExecutingMessage, error)
 	}
 	checkEntry, err := i.db.store.Read(checkIdx)
 	if errors.Is(err, io.EOF) {
-		return ExecutingMessage{}, fmt.Errorf("%w: missing expected executing check event at idx %v", ErrDataCorruption, checkIdx)
+		return types.ExecutingMessage{}, fmt.Errorf("%w: missing expected executing check event at idx %v", ErrDataCorruption, checkIdx)
 	} else if err != nil {
-		return ExecutingMessage{}, fmt.Errorf("failed to read executing check event at idx %v: %w", checkIdx, err)
+		return types.ExecutingMessage{}, fmt.Errorf("failed to read executing check event at idx %v: %w", checkIdx, err)
 	}
 	return newExecutingMessageFromEntries(linkEntry, checkEntry)
 }

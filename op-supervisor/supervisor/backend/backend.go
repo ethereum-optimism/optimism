@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source"
+	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -22,7 +23,7 @@ import (
 
 type LogStore interface {
 	io.Closer
-	ClosestBlockInfo(blockNum uint64) (uint64, db.TruncatedHash, error)
+	ClosestBlockInfo(blockNum uint64) (uint64, backendTypes.TruncatedHash, error)
 	Rewind(headBlockNum uint64) error
 }
 

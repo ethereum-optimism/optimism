@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 )
 
 type searchCheckpoint struct {
@@ -45,10 +46,10 @@ func (s searchCheckpoint) encode() entrydb.Entry {
 }
 
 type canonicalHash struct {
-	hash TruncatedHash
+	hash types.TruncatedHash
 }
 
-func newCanonicalHash(hash TruncatedHash) canonicalHash {
+func newCanonicalHash(hash types.TruncatedHash) canonicalHash {
 	return canonicalHash{hash: hash}
 }
 
@@ -56,7 +57,7 @@ func newCanonicalHashFromEntry(data entrydb.Entry) (canonicalHash, error) {
 	if data[0] != typeCanonicalHash {
 		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %v", ErrDataCorruption, data[0])
 	}
-	var truncated TruncatedHash
+	var truncated types.TruncatedHash
 	copy(truncated[:], data[1:21])
 	return newCanonicalHash(truncated), nil
 }
@@ -72,7 +73,7 @@ type initiatingEvent struct {
 	blockDiff       uint8
 	incrementLogIdx bool
 	hasExecMsg      bool
-	logHash         TruncatedHash
+	logHash         types.TruncatedHash
 }
 
 func newInitiatingEventFromEntry(data entrydb.Entry) (initiatingEvent, error) {
@@ -85,11 +86,11 @@ func newInitiatingEventFromEntry(data entrydb.Entry) (initiatingEvent, error) {
 		blockDiff:       blockNumDiff,
 		incrementLogIdx: flags&eventFlagIncrementLogIdx != 0,
 		hasExecMsg:      flags&eventFlagHasExecutingMessage != 0,
-		logHash:         TruncatedHash(data[3:23]),
+		logHash:         types.TruncatedHash(data[3:23]),
 	}, nil
 }
 
-func newInitiatingEvent(pre logContext, blockNum uint64, logIdx uint32, logHash TruncatedHash, hasExecMsg bool) (initiatingEvent, error) {
+func newInitiatingEvent(pre logContext, blockNum uint64, logIdx uint32, logHash types.TruncatedHash, hasExecMsg bool) (initiatingEvent, error) {
 	blockDiff := blockNum - pre.blockNum
 	if blockDiff > math.MaxUint8 {
 		// TODO(optimism#11091): Need to find a way to support this.
@@ -164,7 +165,7 @@ type executingLink struct {
 	timestamp uint64
 }
 
-func newExecutingLink(msg ExecutingMessage) (executingLink, error) {
+func newExecutingLink(msg types.ExecutingMessage) (executingLink, error) {
 	if msg.LogIdx > 1<<24 {
 		return executingLink{}, fmt.Errorf("log idx is too large (%v)", msg.LogIdx)
 	}
@@ -206,10 +207,10 @@ func (e executingLink) encode() entrydb.Entry {
 }
 
 type executingCheck struct {
-	hash TruncatedHash
+	hash types.TruncatedHash
 }
 
-func newExecutingCheck(hash TruncatedHash) executingCheck {
+func newExecutingCheck(hash types.TruncatedHash) executingCheck {
 	return executingCheck{hash: hash}
 }
 
@@ -217,7 +218,7 @@ func newExecutingCheckFromEntry(entry entrydb.Entry) (executingCheck, error) {
 	if entry[0] != typeExecutingCheck {
 		return executingCheck{}, fmt.Errorf("%w: attempting to decode executing check but was type %v", ErrDataCorruption, entry[0])
 	}
-	var hash TruncatedHash
+	var hash types.TruncatedHash
 	copy(hash[:], entry[1:21])
 	return newExecutingCheck(hash), nil
 }
@@ -231,16 +232,16 @@ func (e executingCheck) encode() entrydb.Entry {
 	return entry
 }
 
-func newExecutingMessageFromEntries(linkEntry entrydb.Entry, checkEntry entrydb.Entry) (ExecutingMessage, error) {
+func newExecutingMessageFromEntries(linkEntry entrydb.Entry, checkEntry entrydb.Entry) (types.ExecutingMessage, error) {
 	link, err := newExecutingLinkFromEntry(linkEntry)
 	if err != nil {
-		return ExecutingMessage{}, fmt.Errorf("invalid executing link: %w", err)
+		return types.ExecutingMessage{}, fmt.Errorf("invalid executing link: %w", err)
 	}
 	check, err := newExecutingCheckFromEntry(checkEntry)
 	if err != nil {
-		return ExecutingMessage{}, fmt.Errorf("invalid executing check: %w", err)
+		return types.ExecutingMessage{}, fmt.Errorf("invalid executing check: %w", err)
 	}
-	return ExecutingMessage{
+	return types.ExecutingMessage{
 		Chain:     link.chain,
 		BlockNum:  link.blockNum,
 		LogIdx:    link.logIdx,

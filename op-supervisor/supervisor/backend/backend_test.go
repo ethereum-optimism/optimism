@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,11 +56,11 @@ func (s *stubLogStore) Close() error {
 	return nil
 }
 
-func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, db.TruncatedHash, error) {
+func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, error) {
 	if s.closestBlockErr != nil {
-		return 0, db.TruncatedHash{}, s.closestBlockErr
+		return 0, types.TruncatedHash{}, s.closestBlockErr
 	}
-	return s.closestBlockNumber, db.TruncatedHash{}, nil
+	return s.closestBlockNumber, types.TruncatedHash{}, nil
 }
 
 func (s *stubLogStore) Rewind(headBlockNum uint64) error {

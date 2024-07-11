@@ -13,6 +13,8 @@ const (
 	EntrySize = 24
 )
 
+type EntryIdx int64
+
 type Entry [EntrySize]byte
 
 // dataAccess defines a minimal API required to manipulate the actual stored data.
@@ -25,8 +27,8 @@ type dataAccess interface {
 }
 
 type EntryDB struct {
-	data dataAccess
-	size int64
+	data         dataAccess
+	lastEntryIdx EntryIdx
 
 	cleanupFailedWrite bool
 }
@@ -48,8 +50,8 @@ func NewEntryDB(logger log.Logger, path string) (*EntryDB, error) {
 	}
 	size := info.Size() / EntrySize
 	db := &EntryDB{
-		data: file,
-		size: size,
+		data:         file,
+		lastEntryIdx: EntryIdx(size - 1),
 	}
 	if size*EntrySize != info.Size() {
 		logger.Warn("File size is nut a multiple of entry size. Truncating to last complete entry", "fileSize", size, "entrySize", EntrySize)
@@ -61,16 +63,20 @@ func NewEntryDB(logger log.Logger, path string) (*EntryDB, error) {
 }
 
 func (e *EntryDB) Size() int64 {
-	return e.size
+	return int64(e.lastEntryIdx) + 1
+}
+
+func (e *EntryDB) LastEntryIdx() EntryIdx {
+	return e.lastEntryIdx
 }
 
 // Read an entry from the database by index. Returns io.EOF iff idx is after the last entry.
-func (e *EntryDB) Read(idx int64) (Entry, error) {
-	if idx >= e.size {
+func (e *EntryDB) Read(idx EntryIdx) (Entry, error) {
+	if idx > e.lastEntryIdx {
 		return Entry{}, io.EOF
 	}
 	var out Entry
-	read, err := e.data.ReadAt(out[:], idx*EntrySize)
+	read, err := e.data.ReadAt(out[:], int64(idx)*EntrySize)
 	// Ignore io.EOF if we read the entire last entry as ReadAt may return io.EOF or nil when it reads the last byte
 	if err != nil && !(errors.Is(err, io.EOF) && read == EntrySize) {
 		return Entry{}, fmt.Errorf("failed to read entry %v: %w", idx, err)
@@ -85,7 +91,7 @@ func (e *EntryDB) Read(idx int64) (Entry, error) {
 func (e *EntryDB) Append(entries ...Entry) error {
 	if e.cleanupFailedWrite {
 		// Try to rollback partially written data from a previous Append
-		if truncateErr := e.Truncate(e.size - 1); truncateErr != nil {
+		if truncateErr := e.Truncate(e.lastEntryIdx); truncateErr != nil {
 			return fmt.Errorf("failed to recover from previous write error: %w", truncateErr)
 		}
 	}
@@ -99,7 +105,7 @@ func (e *EntryDB) Append(entries ...Entry) error {
 			return err
 		}
 		// Try to rollback the partially written data
-		if truncateErr := e.Truncate(e.size - 1); truncateErr != nil {
+		if truncateErr := e.Truncate(e.lastEntryIdx); truncateErr != nil {
 			// Failed to rollback, set a flag to attempt the clean up on the next write
 			e.cleanupFailedWrite = true
 			return errors.Join(err, fmt.Errorf("failed to remove partially written data: %w", truncateErr))
@@ -107,24 +113,24 @@ func (e *EntryDB) Append(entries ...Entry) error {
 		// Successfully rolled back the changes, still report the failed write
 		return err
 	}
-	e.size += int64(len(entries))
+	e.lastEntryIdx += EntryIdx(len(entries))
 	return nil
 }
 
 // Truncate the database so that the last retained entry is idx. Any entries after idx are deleted.
-func (e *EntryDB) Truncate(idx int64) error {
-	if err := e.data.Truncate((idx + 1) * EntrySize); err != nil {
+func (e *EntryDB) Truncate(idx EntryIdx) error {
+	if err := e.data.Truncate((int64(idx) + 1) * EntrySize); err != nil {
 		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
 	}
 	// Update the lastEntryIdx cache
-	e.size = idx + 1
+	e.lastEntryIdx = idx
 	e.cleanupFailedWrite = false
 	return nil
 }
 
 // recover an invalid database by truncating back to the last complete event.
 func (e *EntryDB) recover() error {
-	if err := e.data.Truncate((e.size) * EntrySize); err != nil {
+	if err := e.data.Truncate((e.Size()) * EntrySize); err != nil {
 		return fmt.Errorf("failed to truncate trailing partial entries: %w", err)
 	}
 	return nil
