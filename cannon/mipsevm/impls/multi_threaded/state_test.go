@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
-func setWitnessField(witness MTStateWitness, fieldOffset int, fieldData []byte) {
+func setWitnessField(witness StateWitness, fieldOffset int, fieldData []byte) {
 	start := fieldOffset
 	end := fieldOffset + len(fieldData)
 	copy(witness[start:end], fieldData)
@@ -20,7 +20,7 @@ func setWitnessField(witness MTStateWitness, fieldOffset int, fieldData []byte) 
 
 // Run through all permutations of `exited` / `exitCode` and ensure that the
 // correct witness, state hash, and VM Status is produced.
-func TestMTState_EncodeWitness(t *testing.T) {
+func TestState_EncodeWitness(t *testing.T) {
 	cases := []struct {
 		exited   bool
 		exitCode uint8
@@ -41,7 +41,7 @@ func TestMTState_EncodeWitness(t *testing.T) {
 	step := uint64(33)
 	stepsSinceContextSwitch := uint64(123)
 	for _, c := range cases {
-		state := CreateEmptyMTState()
+		state := CreateEmptyState()
 		state.Exited = c.exited
 		state.ExitCode = c.exitCode
 		state.PreimageKey = preimageKey
@@ -55,26 +55,26 @@ func TestMTState_EncodeWitness(t *testing.T) {
 		rightStackRoot := EmptyThreadsRoot
 
 		// Set up expected witness
-		expectedWitness := make(MTStateWitness, MT_STATE_WITNESS_SIZE)
-		setWitnessField(expectedWitness, MEMROOT_MT_WITNESS_OFFSET, memRoot[:])
-		setWitnessField(expectedWitness, PREIMAGE_KEY_MT_WITNESS_OFFSET, preimageKey[:])
-		setWitnessField(expectedWitness, PREIMAGE_OFFSET_MT_WITNESS_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
-		setWitnessField(expectedWitness, HEAP_MT_WITNESS_OFFSET, []byte{0, 0, 0, byte(heap)})
-		setWitnessField(expectedWitness, EXITCODE_MT_WITNESS_OFFSET, []byte{c.exitCode})
+		expectedWitness := make(StateWitness, STATE_WITNESS_SIZE)
+		setWitnessField(expectedWitness, MEMROOT_WITNESS_OFFSET, memRoot[:])
+		setWitnessField(expectedWitness, PREIMAGE_KEY_WITNESS_OFFSET, preimageKey[:])
+		setWitnessField(expectedWitness, PREIMAGE_OFFSET_WITNESS_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
+		setWitnessField(expectedWitness, HEAP_WITNESS_OFFSET, []byte{0, 0, 0, byte(heap)})
+		setWitnessField(expectedWitness, EXITCODE_WITNESS_OFFSET, []byte{c.exitCode})
 		if c.exited {
-			setWitnessField(expectedWitness, EXITED_MT_WITNESS_OFFSET, []byte{1})
+			setWitnessField(expectedWitness, EXITED_WITNESS_OFFSET, []byte{1})
 		}
-		setWitnessField(expectedWitness, STEP_MT_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
-		setWitnessField(expectedWitness, STEPS_SINCE_CONTEXT_SWITCH_MT_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(stepsSinceContextSwitch)})
-		setWitnessField(expectedWitness, WAKEUP_MT_WITNESS_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
-		setWitnessField(expectedWitness, TRAVERSE_RIGHT_MT_WITNESS_OFFSET, []byte{0})
-		setWitnessField(expectedWitness, LEFT_THREADS_ROOT_MT_WITNESS_OFFSET, leftStackRoot[:])
-		setWitnessField(expectedWitness, RIGHT_THREADS_ROOT_MT_WITNESS_OFFSET, rightStackRoot[:])
-		setWitnessField(expectedWitness, THREAD_ID_MT_WITNESS_OFFSET, []byte{0, 0, 0, 1})
+		setWitnessField(expectedWitness, STEP_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
+		setWitnessField(expectedWitness, STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(stepsSinceContextSwitch)})
+		setWitnessField(expectedWitness, WAKEUP_WITNESS_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
+		setWitnessField(expectedWitness, TRAVERSE_RIGHT_WITNESS_OFFSET, []byte{0})
+		setWitnessField(expectedWitness, LEFT_THREADS_ROOT_WITNESS_OFFSET, leftStackRoot[:])
+		setWitnessField(expectedWitness, RIGHT_THREADS_ROOT_WITNESS_OFFSET, rightStackRoot[:])
+		setWitnessField(expectedWitness, THREAD_ID_WITNESS_OFFSET, []byte{0, 0, 0, 1})
 
 		// Validate witness
 		actualWitness, actualStateHash := state.EncodeWitness()
-		require.Equal(t, len(actualWitness), MT_STATE_WITNESS_SIZE, "Incorrect witness size")
+		require.Equal(t, len(actualWitness), STATE_WITNESS_SIZE, "Incorrect witness size")
 		require.EqualValues(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
 		// Validate witness hash
 		expectedStateHash := crypto.Keccak256Hash(actualWitness)
@@ -83,10 +83,10 @@ func TestMTState_EncodeWitness(t *testing.T) {
 	}
 }
 
-func TestMTState_JSONCodec(t *testing.T) {
+func TestState_JSONCodec(t *testing.T) {
 	elfProgram, err := elf.Open("../../../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
-	state, err := program.LoadELF(elfProgram, CreateInitialMTState)
+	state, err := program.LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 	// Set a few additional fields
 	state.PreimageKey = crypto.Keccak256Hash([]byte{1, 2, 3, 4})
@@ -101,7 +101,7 @@ func TestMTState_JSONCodec(t *testing.T) {
 	stateJSON, err := json.Marshal(state)
 	require.NoError(t, err)
 
-	var newState *MTState
+	var newState *State
 	err = json.Unmarshal(stateJSON, &newState)
 	require.NoError(t, err)
 
@@ -121,7 +121,7 @@ func TestMTState_JSONCodec(t *testing.T) {
 	require.Equal(t, state.LastHint, newState.LastHint)
 }
 
-func TestMTState_EmptyThreadsRoot(t *testing.T) {
+func TestState_EmptyThreadsRoot(t *testing.T) {
 	data := [64]byte{}
 	expectedEmptyRoot := crypto.Keccak256Hash(data[:])
 
