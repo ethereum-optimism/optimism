@@ -12,13 +12,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-func createTruncatedHash(i int) TruncatedHash {
-	return TruncateHash(createHash(i))
+func createTruncatedHash(i int) types.TruncatedHash {
+	return types.TruncateHash(createHash(i))
 }
 
 func createHash(i int) common.Hash {
@@ -311,12 +312,12 @@ func TestAddLog(t *testing.T) {
 }
 
 func TestAddDependentLog(t *testing.T) {
-	execMsg := ExecutingMessage{
+	execMsg := types.ExecutingMessage{
 		Chain:     3,
 		BlockNum:  42894,
 		LogIdx:    42,
 		Timestamp: 8742482,
-		Hash:      TruncateHash(createHash(8844)),
+		Hash:      types.TruncateHash(createHash(8844)),
 	}
 	t.Run("FirstEntry", func(t *testing.T) {
 		runDBTest(t,
@@ -418,26 +419,26 @@ func TestContains(t *testing.T) {
 			requireNotContains(t, db, 50, 3, createHash(2))
 
 			// Should not find log when hash doesn't match log at block number and index
-			requireWrongHash(t, db, 50, 0, createHash(5), ExecutingMessage{})
+			requireWrongHash(t, db, 50, 0, createHash(5), types.ExecutingMessage{})
 		})
 }
 
 func TestExecutes(t *testing.T) {
-	execMsg1 := ExecutingMessage{
+	execMsg1 := types.ExecutingMessage{
 		Chain:     33,
 		BlockNum:  22,
 		LogIdx:    99,
 		Timestamp: 948294,
 		Hash:      createTruncatedHash(332299),
 	}
-	execMsg2 := ExecutingMessage{
+	execMsg2 := types.ExecutingMessage{
 		Chain:     44,
 		BlockNum:  55,
 		LogIdx:    66,
 		Timestamp: 77777,
 		Hash:      createTruncatedHash(445566),
 	}
-	execMsg3 := ExecutingMessage{
+	execMsg3 := types.ExecutingMessage{
 		Chain:     77,
 		BlockNum:  88,
 		LogIdx:    89,
@@ -454,9 +455,9 @@ func TestExecutes(t *testing.T) {
 		},
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			// Should find added logs
-			requireExecutingMessage(t, db, 50, 0, ExecutingMessage{})
+			requireExecutingMessage(t, db, 50, 0, types.ExecutingMessage{})
 			requireExecutingMessage(t, db, 50, 1, execMsg1)
-			requireExecutingMessage(t, db, 50, 2, ExecutingMessage{})
+			requireExecutingMessage(t, db, 50, 2, types.ExecutingMessage{})
 			requireExecutingMessage(t, db, 52, 0, execMsg2)
 			requireExecutingMessage(t, db, 52, 1, execMsg3)
 
@@ -540,20 +541,20 @@ func requireClosestBlockInfo(t *testing.T, db *DB, searchFor uint64, expectedBlo
 	blockNum, hash, err := db.ClosestBlockInfo(searchFor)
 	require.NoError(t, err)
 	require.Equal(t, expectedBlockNum, blockNum)
-	require.Equal(t, TruncateHash(expectedHash), hash)
+	require.Equal(t, types.TruncateHash(expectedHash), hash)
 }
 
-func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, execMsg ...ExecutingMessage) {
+func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, execMsg ...types.ExecutingMessage) {
 	require.LessOrEqual(t, len(execMsg), 1, "cannot have multiple executing messages for a single log")
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
+	result, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Truef(t, result, "Did not find log %v in block %v with hash %v", logIdx, blockNum, logHash)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
 
-	var expectedExecMsg ExecutingMessage
+	var expectedExecMsg types.ExecutingMessage
 	if len(execMsg) == 1 {
 		expectedExecMsg = execMsg[0]
 	}
@@ -563,7 +564,7 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHa
 func requireNotContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
+	result, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Falsef(t, result, "Found unexpected log %v in block %v with hash %v", logIdx, blockNum, logHash)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
@@ -573,7 +574,7 @@ func requireNotContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, lo
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
 }
 
-func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint32, execMsg ExecutingMessage) {
+func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint32, execMsg types.ExecutingMessage) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
 	actualExecMsg, err := db.Executes(blockNum, logIdx)
@@ -583,10 +584,10 @@ func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint3
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
 }
 
-func requireWrongHash(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, execMsg ExecutingMessage) {
+func requireWrongHash(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, execMsg types.ExecutingMessage) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, TruncateHash(logHash))
+	result, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Falsef(t, result, "Found unexpected log %v in block %v with hash %v", logIdx, blockNum, logHash)
 
@@ -637,7 +638,7 @@ func TestRecoverOnCreate(t *testing.T) {
 
 			t.Run("NoTruncateWhenLastEntryIsExecutingCheck", func(t *testing.T) {
 				initEvent, err := newInitiatingEvent(logContext{blockNum: 3, logIdx: 0}, 3, 0, createTruncatedHash(1), true)
-				execMsg := ExecutingMessage{
+				execMsg := types.ExecutingMessage{
 					Chain:     4,
 					BlockNum:  10,
 					LogIdx:    4,
@@ -693,7 +694,7 @@ func TestRecoverOnCreate(t *testing.T) {
 			t.Run("TruncateWhenLastEntryInitEventWithExecLink", func(t *testing.T) {
 				initEvent, err := newInitiatingEvent(logContext{blockNum: 3, logIdx: 0}, 3, 0, createTruncatedHash(1), true)
 				require.NoError(t, err)
-				execMsg := ExecutingMessage{
+				execMsg := types.ExecutingMessage{
 					Chain:     4,
 					BlockNum:  10,
 					LogIdx:    4,

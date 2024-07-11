@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -25,6 +26,12 @@ const (
 	typeInitiatingEvent
 	typeExecutingLink
 	typeExecutingCheck
+)
+
+var (
+	ErrLogOutOfOrder  = errors.New("log out of order")
+	ErrDataCorruption = errors.New("data corruption")
+	ErrNotFound       = errors.New("not found")
 )
 
 type Metrics interface {
@@ -172,20 +179,20 @@ func (db *DB) updateEntryCountMetric() {
 // ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
 // Since block data is only recorded in search checkpoints, this may return an earlier block even if log data is
 // recorded for the requested block.
-func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
+func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	checkpointIdx, err := db.searchCheckpoint(blockNum, math.MaxUint32)
 	if err != nil {
-		return 0, TruncatedHash{}, fmt.Errorf("no checkpoint at or before block %v found: %w", blockNum, err)
+		return 0, types.TruncatedHash{}, fmt.Errorf("no checkpoint at or before block %v found: %w", blockNum, err)
 	}
 	checkpoint, err := db.readSearchCheckpoint(checkpointIdx)
 	if err != nil {
-		return 0, TruncatedHash{}, fmt.Errorf("failed to reach checkpoint: %w", err)
+		return 0, types.TruncatedHash{}, fmt.Errorf("failed to reach checkpoint: %w", err)
 	}
 	entry, err := db.readCanonicalHash(checkpointIdx + 1)
 	if err != nil {
-		return 0, TruncatedHash{}, fmt.Errorf("failed to read canonical hash: %w", err)
+		return 0, types.TruncatedHash{}, fmt.Errorf("failed to read canonical hash: %w", err)
 	}
 	return checkpoint.blockNum, entry.hash, nil
 }
@@ -193,7 +200,7 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
 // logIdx is the index of the log in the array of all logs the block.
 // This can be used to check the validity of cross-chain interop events.
-func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (bool, error) {
+func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash types.TruncatedHash) (bool, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", logHash)
@@ -215,32 +222,32 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (b
 // logIdx is the index of the log in the array of all logs the block.
 // Returns the ExecutingMessage if it exists, or ExecutingMessage{} if the log is found but has no ExecutingMessage.
 // Returns ErrNotFound if the specified log does not exist in the database.
-func (db *DB) Executes(blockNum uint64, logIdx uint32) (ExecutingMessage, error) {
+func (db *DB) Executes(blockNum uint64, logIdx uint32) (types.ExecutingMessage, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	_, iter, err := db.findLogInfo(blockNum, logIdx)
 	if err != nil {
-		return ExecutingMessage{}, err
+		return types.ExecutingMessage{}, err
 	}
 	execMsg, err := iter.ExecMessage()
 	if err != nil {
-		return ExecutingMessage{}, fmt.Errorf("failed to read executing message: %w", err)
+		return types.ExecutingMessage{}, fmt.Errorf("failed to read executing message: %w", err)
 	}
 	return execMsg, nil
 }
 
-func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (TruncatedHash, *iterator, error) {
+func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, *iterator, error) {
 	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
-		return TruncatedHash{}, nil, ErrNotFound
+		return types.TruncatedHash{}, nil, ErrNotFound
 	} else if err != nil {
-		return TruncatedHash{}, nil, err
+		return types.TruncatedHash{}, nil, err
 	}
 
 	i, err := db.newIterator(entryIdx)
 	if err != nil {
-		return TruncatedHash{}, nil, fmt.Errorf("failed to create iterator: %w", err)
+		return types.TruncatedHash{}, nil, fmt.Errorf("failed to create iterator: %w", err)
 	}
 	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.current.blockNum, "logIdx", i.current.logIdx)
 	defer func() {
@@ -250,9 +257,9 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (TruncatedHash, *itera
 		evtBlockNum, evtLogIdx, evtHash, err := i.NextLog()
 		if errors.Is(err, io.EOF) {
 			// Reached end of log without finding the event
-			return TruncatedHash{}, nil, ErrNotFound
+			return types.TruncatedHash{}, nil, ErrNotFound
 		} else if err != nil {
-			return TruncatedHash{}, nil, fmt.Errorf("failed to read next log: %w", err)
+			return types.TruncatedHash{}, nil, fmt.Errorf("failed to read next log: %w", err)
 		}
 		if evtBlockNum == blockNum && evtLogIdx == logIdx {
 			db.log.Trace("Found initiatingEvent", "blockNum", evtBlockNum, "logIdx", evtLogIdx, "hash", evtHash)
@@ -260,7 +267,7 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (TruncatedHash, *itera
 		}
 		if evtBlockNum > blockNum || (evtBlockNum == blockNum && evtLogIdx > logIdx) {
 			// Progressed past the requested log without finding it.
-			return TruncatedHash{}, nil, ErrNotFound
+			return types.TruncatedHash{}, nil, ErrNotFound
 		}
 	}
 }
@@ -351,7 +358,7 @@ func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
 	return (i - 1) * searchCheckpointFrequency, nil
 }
 
-func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *ExecutingMessage) error {
+func (db *DB) AddLog(logHash types.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	postState := logContext{
@@ -381,7 +388,7 @@ func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64,
 	maybeAddCheckpoint := func() {
 		if (lastEntryIdx+1)%searchCheckpointFrequency == 0 {
 			addEntry(newSearchCheckpoint(block.Number, logIdx, timestamp).encode())
-			addEntry(newCanonicalHash(TruncateHash(block.Hash)).encode())
+			addEntry(newCanonicalHash(types.TruncateHash(block.Hash)).encode())
 			newContext = postState
 		}
 	}
