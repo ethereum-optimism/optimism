@@ -46,9 +46,10 @@ type logContext struct {
 
 type EntryStore interface {
 	Size() int64
-	Read(idx int64) (entrydb.Entry, error)
+	LastEntryIdx() entrydb.EntryIdx
+	Read(idx entrydb.EntryIdx) (entrydb.Entry, error)
 	Append(entries ...entrydb.Entry) error
-	Truncate(idx int64) error
+	Truncate(idx entrydb.EntryIdx) error
 	Close() error
 }
 
@@ -110,8 +111,8 @@ func NewFromEntryStore(logger log.Logger, m Metrics, store EntryStore) (*DB, err
 	return db, nil
 }
 
-func (db *DB) lastEntryIdx() int64 {
-	return db.store.Size() - 1
+func (db *DB) lastEntryIdx() entrydb.EntryIdx {
+	return db.store.LastEntryIdx()
 }
 
 func (db *DB) init() error {
@@ -173,7 +174,7 @@ func (db *DB) trimInvalidTrailingEntries() error {
 }
 
 func (db *DB) updateEntryCountMetric() {
-	db.m.RecordDBEntryCount(db.lastEntryIdx() + 1)
+	db.m.RecordDBEntryCount(db.store.Size())
 }
 
 // ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
@@ -272,7 +273,7 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, 
 	}
 }
 
-func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
+func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*iterator, error) {
 	checkpoint, err := db.readSearchCheckpoint(startCheckpointEntry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
@@ -322,13 +323,13 @@ func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
 // searchCheckpoint performs a binary search of the searchCheckpoint entries to find the closest one at or before
 // the requested log.
 // Returns the index of the searchCheckpoint to begin reading from or an error
-func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
+func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (entrydb.EntryIdx, error) {
 	n := (db.lastEntryIdx() / searchCheckpointFrequency) + 1
 	// Define x[-1] < target and x[n] >= target.
 	// Invariant: x[i-1] < target, x[j] >= target.
-	i, j := int64(0), n
+	i, j := entrydb.EntryIdx(0), n
 	for i < j {
-		h := int64(uint64(i+j) >> 1) // avoid overflow when computing h
+		h := entrydb.EntryIdx(uint64(i+j) >> 1) // avoid overflow when computing h
 		checkpoint, err := db.readSearchCheckpoint(h * searchCheckpointFrequency)
 		if err != nil {
 			return 0, fmt.Errorf("failed to read entry %v: %w", h, err)
@@ -472,7 +473,7 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 	return nil
 }
 
-func (db *DB) readSearchCheckpoint(entryIdx int64) (searchCheckpoint, error) {
+func (db *DB) readSearchCheckpoint(entryIdx entrydb.EntryIdx) (searchCheckpoint, error) {
 	data, err := db.store.Read(entryIdx)
 	if err != nil {
 		return searchCheckpoint{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
@@ -480,7 +481,7 @@ func (db *DB) readSearchCheckpoint(entryIdx int64) (searchCheckpoint, error) {
 	return newSearchCheckpointFromEntry(data)
 }
 
-func (db *DB) readCanonicalHash(entryIdx int64) (canonicalHash, error) {
+func (db *DB) readCanonicalHash(entryIdx entrydb.EntryIdx) (canonicalHash, error) {
 	data, err := db.store.Read(entryIdx)
 	if err != nil {
 		return canonicalHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)

@@ -900,8 +900,12 @@ func (s *stubEntryStore) Size() int64 {
 	return int64(len(s.entries))
 }
 
-func (s *stubEntryStore) Read(idx int64) (entrydb.Entry, error) {
-	if idx < int64(len(s.entries)) {
+func (s *stubEntryStore) LastEntryIdx() entrydb.EntryIdx {
+	return entrydb.EntryIdx(s.Size() - 1)
+}
+
+func (s *stubEntryStore) Read(idx entrydb.EntryIdx) (entrydb.Entry, error) {
+	if idx < entrydb.EntryIdx(len(s.entries)) {
 		return s.entries[idx], nil
 	}
 	return entrydb.Entry{}, io.EOF
@@ -912,8 +916,8 @@ func (s *stubEntryStore) Append(entries ...entrydb.Entry) error {
 	return nil
 }
 
-func (s *stubEntryStore) Truncate(idx int64) error {
-	s.entries = s.entries[:min(s.Size()-1, idx+1)]
+func (s *stubEntryStore) Truncate(idx entrydb.EntryIdx) error {
+	s.entries = s.entries[:min(s.Size()-1, int64(idx+1))]
 	return nil
 }
 

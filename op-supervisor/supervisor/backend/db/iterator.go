@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 )
 
 type iterator struct {
 	db           *DB
-	nextEntryIdx int64
+	nextEntryIdx entrydb.EntryIdx
 
 	current    logContext
 	hasExecMsg bool
@@ -75,7 +76,7 @@ func (i *iterator) ExecMessage() (types.ExecutingMessage, error) {
 	return execMsg, nil
 }
 
-func (i *iterator) readExecMessage(initEntryIdx int64) (types.ExecutingMessage, error) {
+func (i *iterator) readExecMessage(initEntryIdx entrydb.EntryIdx) (types.ExecutingMessage, error) {
 	linkIdx := initEntryIdx + 1
 	if linkIdx%searchCheckpointFrequency == 0 {
 		linkIdx += 2 // skip the search checkpoint and canonical hash entries
