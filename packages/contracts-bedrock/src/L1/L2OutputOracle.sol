@@ -21,6 +21,7 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @notice An array of L2 output proposals.
     Types.OutputProposal[] internal l2Outputs;
 
+    // submissionInterval: L2 블록 output을 제출하는 interval
     /// @notice The interval in L2 blocks at which checkpoints must be submitted.
     /// @custom:network-specific
     uint256 public submissionInterval;

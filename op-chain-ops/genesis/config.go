@@ -48,6 +48,7 @@ const (
 	SystemTxMaxGas = 1_000_000
 )
 
+// DeployConfig는 OP stack chain L1 contract를 배포할때 configuration을 설정하는데 사용
 // DeployConfig represents the deployment configuration for an OP Stack chain.
 // It is used to deploy the L1 contracts as well as create the L2 genesis state.
 type DeployConfig struct {
@@ -81,6 +82,7 @@ type DeployConfig struct {
 	// BatchSenderAddress represents the initial sequencer account that authorizes batches.
 	// Transactions sent from this account to the batch inbox address are considered valid.
 	BatchSenderAddress common.Address `json:"batchSenderAddress"`
+	// L2OutputOracleSubmissionInterval은 proposer가 L2 output을 제출하는 interval을 블록 단위로 설정
 	// L2OutputOracleSubmissionInterval is the number of L2 blocks between outputs that are submitted
 	// to the L2OutputOracle contract located on L1.
 	L2OutputOracleSubmissionInterval uint64 `json:"l2OutputOracleSubmissionInterval"`

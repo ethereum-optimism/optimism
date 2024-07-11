@@ -28,6 +28,7 @@ block=$(cast block finalized --rpc-url "$L1_RPC_URL")
 timestamp=$(echo "$block" | awk '/timestamp/ { print $2 }')
 blockhash=$(echo "$block" | awk '/hash/ { print $2 }')
 
+# L1 contract 배포시 사용되는 config file 생성
 # Generate the config file
 config=$(cat << EOL
 {
