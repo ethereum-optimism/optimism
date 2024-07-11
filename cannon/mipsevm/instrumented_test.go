@@ -2,17 +2,16 @@ package mipsevm
 
 import (
 	"bytes"
-	"debug/elf"
 	"io"
 	"os"
 	"path"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
 )
 
 func TestState(t *testing.T) {
@@ -34,7 +33,7 @@ func TestState(t *testing.T) {
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: core.NewMemory()}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: core.NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -69,53 +68,8 @@ func TestState(t *testing.T) {
 	}
 }
 
-// Run through all permutations of `exited` / `exitCode` and ensure that the
-// correct witness, state hash, and VM Status is produced.
-func TestStateHash(t *testing.T) {
-	cases := []struct {
-		exited   bool
-		exitCode uint8
-	}{
-		{exited: false, exitCode: 0},
-		{exited: false, exitCode: 1},
-		{exited: false, exitCode: 2},
-		{exited: false, exitCode: 3},
-		{exited: true, exitCode: 0},
-		{exited: true, exitCode: 1},
-		{exited: true, exitCode: 2},
-		{exited: true, exitCode: 3},
-	}
-
-	exitedOffset := 32*2 + 4*6
-	for _, c := range cases {
-		state := &State{
-			Memory:   core.NewMemory(),
-			Exited:   c.exited,
-			ExitCode: c.exitCode,
-		}
-
-		actualWitness, actualStateHash := state.EncodeWitness()
-		require.Equal(t, len(actualWitness), STATE_WITNESS_SIZE, "Incorrect witness size")
-
-		expectedWitness := make(StateWitness, 226)
-		memRoot := state.Memory.MerkleRoot()
-		copy(expectedWitness[:32], memRoot[:])
-		expectedWitness[exitedOffset] = c.exitCode
-		var exited uint8
-		if c.exited {
-			exited = 1
-		}
-		expectedWitness[exitedOffset+1] = uint8(exited)
-		require.EqualValues(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
-
-		expectedStateHash := crypto.Keccak256Hash(actualWitness)
-		expectedStateHash[0] = core.VmStatus(c.exited, c.exitCode)
-		require.Equal(t, expectedStateHash, actualStateHash, "Incorrect state hash")
-	}
-}
-
 func TestHello(t *testing.T) {
-	state := test_util.LoadELFProgram(t, "../example/bin/hello.elf", CreateInitialState)
+	state := test_util.LoadELFProgram(t, "../example/bin/hello.elf", single_threaded.CreateInitialState)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
@@ -135,10 +89,8 @@ func TestHello(t *testing.T) {
 	require.Equal(t, "", stdErrBuf.String(), "stderr silent")
 }
 
-var _ core.PreimageOracle = (*test_util.TestOracle)(nil)
-
 func TestClaim(t *testing.T) {
-	state := test_util.LoadELFProgram(t, "../example/bin/claim.elf", CreateInitialState)
+	state := test_util.LoadELFProgram(t, "../example/bin/claim.elf", single_threaded.CreateInitialState)
 
 	oracle, expectedStdOut, expectedStdErr := test_util.ClaimTestOracle(t)
 
@@ -163,7 +115,7 @@ func TestClaim(t *testing.T) {
 func TestAlloc(t *testing.T) {
 	t.Skip("TODO(client-pod#906): Currently fails on Single threaded Cannon. Re-enable for the MT FPVM")
 
-	state := test_util.LoadELFProgram(t, "../example/bin/alloc.elf", CreateInitialState)
+	state := test_util.LoadELFProgram(t, "../example/bin/alloc.elf", single_threaded.CreateInitialState)
 	const numAllocs = 100 // where each alloc is a 32 MiB chunk
 	oracle := test_util.AllocOracle(t, numAllocs)
 
@@ -183,27 +135,4 @@ func TestAlloc(t *testing.T) {
 	require.True(t, state.Exited, "must complete program")
 	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
 	require.Less(t, state.Memory.PageCount()*core.PageSize, 1*1024*1024*1024, "must not allocate more than 1 GiB")
-}
-
-func TestStateJSONCodec(t *testing.T) {
-	elfProgram, err := elf.Open("../example/bin/hello.elf")
-	require.NoError(t, err, "open ELF file")
-	state, err := patch.LoadELF(elfProgram, CreateInitialState)
-	require.NoError(t, err, "load ELF into state")
-
-	stateJSON, err := state.MarshalJSON()
-	require.NoError(t, err)
-
-	newState := new(State)
-	require.NoError(t, newState.UnmarshalJSON(stateJSON))
-
-	require.Equal(t, state.PreimageKey, newState.PreimageKey)
-	require.Equal(t, state.PreimageOffset, newState.PreimageOffset)
-	require.Equal(t, state.Cpu, newState.Cpu)
-	require.Equal(t, state.Heap, newState.Heap)
-	require.Equal(t, state.ExitCode, newState.ExitCode)
-	require.Equal(t, state.Exited, newState.Exited)
-	require.Equal(t, state.Memory.MerkleRoot(), newState.Memory.MerkleRoot())
-	require.Equal(t, state.Registers, newState.Registers)
-	require.Equal(t, state.Step, newState.Step)
 }

@@ -1,4 +1,4 @@
-package mipsevm
+package multi_threaded
 
 import (
 	"encoding/binary"

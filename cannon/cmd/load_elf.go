@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -47,7 +48,7 @@ func LoadELF(ctx *cli.Context) error {
 	if elfProgram.Machine != elf.EM_MIPS {
 		return fmt.Errorf("ELF is not big-endian MIPS R3000, but got %q", elfProgram.Machine.String())
 	}
-	state, err := patch.LoadELF(elfProgram, mipsevm.CreateInitialState)
+	state, err := patch.LoadELF(elfProgram, single_threaded.CreateInitialState)
 	if err != nil {
 		return fmt.Errorf("failed to load ELF data into VM state: %w", err)
 	}
@@ -71,7 +72,7 @@ func LoadELF(ctx *cli.Context) error {
 	if err := jsonutil.WriteJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to output metadata: %w", err)
 	}
-	return jsonutil.WriteJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state, OutFilePerm)
+	return jsonutil.WriteJSON[*single_threaded.State](ctx.Path(LoadELFOutFlag.Name), state, OutFilePerm)
 }
 
 var LoadELFCommand = &cli.Command{

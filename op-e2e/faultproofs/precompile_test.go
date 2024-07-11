@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
+
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -160,13 +161,13 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	t.Logf("Completed in %d steps", state.Step)
 }
 
-func parseState(path string) (*mipsevm.State, error) {
+func parseState(path string) (*single_threaded.State, error) {
 	file, err := ioutil.OpenDecompressed(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open state file (%v): %w", path, err)
 	}
 	defer file.Close()
-	var state mipsevm.State
+	var state single_threaded.State
 	err = json.NewDecoder(file).Decode(&state)
 	if err != nil {
 		return nil, fmt.Errorf("invalid mipsevm state (%v): %w", path, err)

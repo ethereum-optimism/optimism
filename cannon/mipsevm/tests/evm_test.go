@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/patch"
@@ -54,7 +56,7 @@ func TestEVM(t *testing.T) {
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &mipsevm.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: core.NewMemory()}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: core.NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -76,7 +78,7 @@ func TestEVM(t *testing.T) {
 
 				stepWitness, err := goState.Step(true)
 				require.NoError(t, err)
-				evmPost := evm.Step(t, stepWitness, curStep, mipsevm.GetStateHashFn())
+				evmPost := evm.Step(t, stepWitness, curStep, single_threaded.GetStateHashFn())
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 				goPost, _ := goState.GetState().EncodeWitness()
@@ -116,7 +118,7 @@ func TestEVMSingleStep(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &mipsevm.State{Cpu: core.CpuScalars{PC: tt.pc, NextPC: tt.nextPC}, Memory: core.NewMemory()}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: tt.pc, NextPC: tt.nextPC}, Memory: core.NewMemory()}
 			state.Memory.SetMemory(tt.pc, tt.insn)
 			curStep := state.Step
 
@@ -128,7 +130,7 @@ func TestEVMSingleStep(t *testing.T) {
 			evm.SetTracer(tracer)
 			test_util.LogStepFailureAtCleanup(t, evm)
 
-			evmPost := evm.Step(t, stepWitness, curStep, mipsevm.GetStateHashFn())
+			evmPost := evm.Step(t, stepWitness, curStep, single_threaded.GetStateHashFn())
 			goPost, _ := us.GetState().EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
@@ -287,7 +289,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			oracle := hintTrackingOracle{}
-			state := &mipsevm.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: core.NewMemory()}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: core.NewMemory()}
 
 			state.LastHint = tt.lastHint
 			state.Registers[2] = core.SysWrite
@@ -309,7 +311,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			evm.SetTracer(tracer)
 			test_util.LogStepFailureAtCleanup(t, evm)
 
-			evmPost := evm.Step(t, stepWitness, curStep, mipsevm.GetStateHashFn())
+			evmPost := evm.Step(t, stepWitness, curStep, single_threaded.GetStateHashFn())
 			goPost, _ := us.GetState().EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
@@ -337,8 +339,8 @@ func TestEVMFault(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &mipsevm.State{Cpu: core.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: core.NewMemory()}
-			initialState := &mipsevm.State{Cpu: core.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: state.Memory}
+			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: core.NewMemory()}
+			initialState := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: state.Memory}
 			state.Memory.SetMemory(0, tt.insn)
 
 			// set the return address ($ra) to jump into when test completes
@@ -374,7 +376,7 @@ func TestHelloEVM(t *testing.T) {
 	elfProgram, err := elf.Open("../../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 
-	state, err := patch.LoadELF(elfProgram, mipsevm.CreateInitialState)
+	state, err := patch.LoadELF(elfProgram, single_threaded.CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	err = patch.PatchGo(elfProgram, state)
@@ -397,7 +399,7 @@ func TestHelloEVM(t *testing.T) {
 
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
-		evmPost := evm.Step(t, stepWitness, curStep, mipsevm.GetStateHashFn())
+		evmPost := evm.Step(t, stepWitness, curStep, single_threaded.GetStateHashFn())
 		// verify the post-state matches.
 		// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 		goPost, _ := goState.GetState().EncodeWitness()
@@ -425,7 +427,7 @@ func TestClaimEVM(t *testing.T) {
 	elfProgram, err := elf.Open("../../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")
 
-	state, err := patch.LoadELF(elfProgram, mipsevm.CreateInitialState)
+	state, err := patch.LoadELF(elfProgram, single_threaded.CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	err = patch.PatchGo(elfProgram, state)
@@ -451,7 +453,7 @@ func TestClaimEVM(t *testing.T) {
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 
-		evmPost := evm.Step(t, stepWitness, curStep, mipsevm.GetStateHashFn())
+		evmPost := evm.Step(t, stepWitness, curStep, single_threaded.GetStateHashFn())
 
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
