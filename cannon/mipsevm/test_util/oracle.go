@@ -20,6 +20,8 @@ type TestOracle struct {
 	getPreimage func(k [32]byte) []byte
 }
 
+var _ oracle.PreimageOracle = (*TestOracle)(nil)
+
 func (t *TestOracle) Hint(v []byte) {
 	t.hint(v)
 }
