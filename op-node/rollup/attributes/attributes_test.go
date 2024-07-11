@@ -31,6 +31,9 @@ func TestAttributesHandler(t *testing.T) {
 		ParentHash: refA.Hash,
 		Time:       refA.Time + 12,
 	}
+	// Copy with different hash, as alternative where the alt-L2 block may come from
+	refBAlt := refB
+	refBAlt.Hash = testutils.RandomHash(rng)
 
 	aL1Info := &testutils.MockBlockInfo{
 		InfoParentHash:  refA.ParentHash,
@@ -116,6 +119,7 @@ func TestAttributesHandler(t *testing.T) {
 		},
 		Parent:       refA0,
 		IsLastInSpan: true,
+		DerivedFrom:  refB,
 	}
 	refA1, err := derive.PayloadToBlockRef(cfg, payloadA1.ExecutionPayload)
 	require.NoError(t, err)
@@ -152,6 +156,7 @@ func TestAttributesHandler(t *testing.T) {
 		},
 		Parent:       refA0,
 		IsLastInSpan: true,
+		DerivedFrom:  refBAlt,
 	}
 
 	refA1Alt, err := derive.PayloadToBlockRef(cfg, payloadA1Alt.ExecutionPayload)
