@@ -415,8 +415,8 @@ func Run(ctx *cli.Context) error {
 			delta := time.Since(start)
 			l.Info("processing",
 				"step", step,
-				"pc", program.HexU32(state.GetPC()),
-				"insn", program.HexU32(state.GetMemory().GetMemory(state.GetPC())),
+				"pc", util.HexU32(state.GetPC()),
+				"insn", util.HexU32(state.GetMemory().GetMemory(state.GetPC())),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
 				"pages", state.GetMemory().PageCount(),
 				"mem", state.GetMemory().Usage(),
