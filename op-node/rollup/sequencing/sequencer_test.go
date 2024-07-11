@@ -54,11 +54,10 @@ func (m *FakeAttributesBuilder) PreparePayloadAttributes(ctx context.Context,
 		SuggestedFeeRecipient: predeploys.SequencerFeeVaultAddr,
 		Withdrawals:           nil,
 		ParentBeaconBlockRoot: nil,
-		Transactions:          []eth.Data{encodeID(epoch)},
+		Transactions:          []eth.Data{encodeID(epoch)}, // simplified replacement for L1-info tx.
 		NoTxPool:              false,
 		GasLimit:              &gasLimit,
 	}
-	// TODO: build L1 info tx
 
 	if m.cfg.IsEcotone(uint64(attrs.Timestamp)) {
 		r := testutils.RandomHash(m.rng)
