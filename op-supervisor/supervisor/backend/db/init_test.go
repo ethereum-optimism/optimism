@@ -1,10 +1,11 @@
-package backend
+package db
 
 import (
 	"fmt"
 	"io"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/stretchr/testify/require"
 )
@@ -47,10 +48,6 @@ type stubLogStore struct {
 	rewoundTo          uint64
 }
 
-func (s *stubLogStore) Close() error {
-	return nil
-}
-
 func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, error) {
 	if s.closestBlockErr != nil {
 		return 0, types.TruncatedHash{}, s.closestBlockErr
@@ -60,5 +57,17 @@ func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, types.Truncate
 
 func (s *stubLogStore) Rewind(headBlockNum uint64) error {
 	s.rewoundTo = headBlockNum
+	return nil
+}
+
+func (s *stubLogStore) AddLog(logHash types.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
+	panic("not supported")
+}
+
+func (s *stubLogStore) LatestBlockNum() uint64 {
+	panic("not supported")
+}
+
+func (s *stubLogStore) Close() error {
 	return nil
 }

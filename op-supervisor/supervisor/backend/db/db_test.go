@@ -54,6 +54,10 @@ type stubLogDB struct {
 	headBlockNum uint64
 }
 
+func (s *stubLogDB) ClosestBlockInfo(_ uint64) (uint64, backendTypes.TruncatedHash, error) {
+	panic("not implemented")
+}
+
 func (s *stubLogDB) AddLog(logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
 	s.addLogCalls++
 	return nil

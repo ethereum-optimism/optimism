@@ -1,23 +1,16 @@
-package backend
+package db
 
 import (
 	"errors"
 	"fmt"
 	"io"
 	"math"
-
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 )
-
-type LogStore interface {
-	ClosestBlockInfo(blockNum uint64) (uint64, backendTypes.TruncatedHash, error)
-	Rewind(headBlockNum uint64) error
-}
 
 // Resume prepares the given LogStore to resume recording events.
 // It returns the block number of the last block that is guaranteed to have been fully recorded to the database
 // and rewinds the database to ensure it can resume recording from the first log of the next block.
-func Resume(logDB LogStore) error {
+func Resume(logDB LogStorage) error {
 	// Get the last checkpoint that was written then Rewind the db
 	// to the block prior to that block and start from there.
 	// Guarantees we will always roll back at least one block

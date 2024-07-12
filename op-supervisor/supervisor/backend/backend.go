@@ -60,15 +60,14 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		if err != nil {
 			return nil, fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 		}
-		err = Resume(logDB)
-		if err != nil {
-			return nil, err
-		}
 		logDBs[chainID] = logDB
 		chainRPCs[chainID] = rpc
 		chainClients[chainID] = rpcClient
 	}
 	chainsDB := db.NewChainsDB(logDBs, headTracker)
+	if err := chainsDB.Resume(); err != nil {
+		return nil, fmt.Errorf("failed to resume chains db: %w", err)
+	}
 
 	chainMonitors := make([]*source.ChainMonitor, 0, len(cfg.L2RPCs))
 	for chainID, rpc := range chainRPCs {

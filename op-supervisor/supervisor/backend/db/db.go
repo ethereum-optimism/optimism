@@ -19,6 +19,7 @@ type LogStorage interface {
 	AddLog(logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
 	Rewind(newHeadBlockNum uint64) error
 	LatestBlockNum() uint64
+	ClosestBlockInfo(blockNum uint64) (uint64, backendTypes.TruncatedHash, error)
 }
 
 type HeadsStorage interface {
@@ -34,6 +35,18 @@ func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage) *Chain
 		logDBs: logDBs,
 		heads:  heads,
 	}
+}
+
+// Resume prepares the chains db to resume recording events after a restart.
+// It rewinds the database to the last block that is guaranteed to have been fully recorded to the database
+// to ensure it can resume recording from the first log of the next block.
+func (db *ChainsDB) Resume() error {
+	for chain, logStore := range db.logDBs {
+		if err := Resume(logStore); err != nil {
+			return fmt.Errorf("failed to resume chain %v: %w", chain, err)
+		}
+	}
+	return nil
 }
 
 func (db *ChainsDB) LatestBlockNum(chain types.ChainID) uint64 {
