@@ -100,15 +100,27 @@ func TestConfDepthCachingReorgs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, out, mockL1BlockRef(101))
 
-	// trigger a reorg of block 100, invalidating the following cache elements
-	l1Head = mockL1BlockRef(100)
+	l1Head = mockL1BlockRef(102)
+
+	// from cache
+	out, err = cd.L1BlockRefByNumber(context.Background(), 102)
+	require.NoError(t, err)
+	require.Equal(t, out, mockL1BlockRef(102))
+
+	// trigger a reorg of block 101, invalidating the following cache elements
+	l1Head = mockL1BlockRef(101)
 	l1Head.Hash = common.Hash{0xde, 0xad, 0xbe, 0xef}
 
-	l1Fetcher.ExpectL1BlockRefByNumber(101, mockL1BlockRef(101), nil)
-	out, err = cd.L1BlockRefByNumber(context.Background(), 101)
+	l1Fetcher.ExpectL1BlockRefByNumber(102, mockL1BlockRef(102), nil)
+	out, err = cd.L1BlockRefByNumber(context.Background(), 102)
 	require.NoError(t, err)
-	require.Equal(t, out, mockL1BlockRef(101))
+	require.Equal(t, out, mockL1BlockRef(102))
 	l1Fetcher.AssertExpectations(t)
+
+	// block 100 is still in the cache
+	out, err = cd.L1BlockRefByNumber(context.Background(), 100)
+	require.NoError(t, err)
+	require.Equal(t, out, mockL1BlockRef(100))
 
 	// head jumps ahead, invalidating the entire cache
 	l1Head = mockL1BlockRef(200)

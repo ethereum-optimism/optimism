@@ -19,15 +19,13 @@ import (
 type confDepth struct {
 	// everything fetched by hash is trusted already, so we implement those by embedding the fetcher
 	derive.L1Fetcher
-	l1Head           func() eth.L1BlockRef
-	depth            uint64
-	l1Cache          map[uint64]eth.L1BlockRef
-	oldestCacheEntry uint64
-	newestCacheEntry uint64
+	l1Head  func() eth.L1BlockRef
+	depth   uint64
+	l1Cache *l1HeadBuffer
 }
 
 func NewConfDepth(depth uint64, l1Head func() eth.L1BlockRef, fetcher derive.L1Fetcher) *confDepth {
-	return &confDepth{L1Fetcher: fetcher, l1Head: l1Head, depth: depth, l1Cache: make(map[uint64]eth.L1BlockRef)}
+	return &confDepth{L1Fetcher: fetcher, l1Head: l1Head, depth: depth, l1Cache: newL1HeadBuffer(1000)}
 }
 
 // L1BlockRefByNumber is used for L1 traversal and for finding a safe common point between the L2 engine and L1 chain.
@@ -40,36 +38,11 @@ func (c *confDepth) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1B
 		return c.L1Fetcher.L1BlockRefByNumber(ctx, num)
 	}
 
-	// First, check if the L1 head is in the cache.
-	// If the hash doesn't match the one in the cache, we have a reorg and need to remove all entries after the new head.
-	if ref, ok := c.l1Cache[l1Head.Number]; ok {
-		if ref.Hash != l1Head.Hash {
-			// Reorg detected, invalidate all entries after the new head.
-			for idx := l1Head.Number + 1; idx <= c.newestCacheEntry; idx++ {
-				delete(c.l1Cache, idx)
-			}
-			c.l1Cache[l1Head.Number] = l1Head
-			c.newestCacheEntry = l1Head.Number
-		}
-	} else if ref, ok := c.l1Cache[l1Head.Number-1]; ok && ref.Hash == l1Head.ParentHash {
-		// Parent hash matches, so we can safely add the new head to the cache.
-		c.l1Cache[l1Head.Number] = l1Head
-		c.newestCacheEntry = l1Head.Number
-		if len(c.l1Cache) > 1000 {
-			delete(c.l1Cache, c.oldestCacheEntry)
-			c.oldestCacheEntry++
-		}
-	} else {
-		// Parent not found or doesn't match, so invalidate the entire cache.
-		c.l1Cache = make(map[uint64]eth.L1BlockRef)
-		c.l1Cache[l1Head.Number] = l1Head
-		c.oldestCacheEntry = l1Head.Number
-		c.newestCacheEntry = l1Head.Number
-	}
+	c.l1Cache.Insert(l1Head)
 
 	if num == 0 || c.depth == 0 || num+c.depth <= l1Head.Number {
 		// Attempt to retrieve from the cache first, falling back to a live fetch
-		if ref, ok := c.l1Cache[num]; ok {
+		if ref, ok := c.l1Cache.Get(num); ok {
 			return ref, nil
 		}
 
