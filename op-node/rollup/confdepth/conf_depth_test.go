@@ -13,8 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-var exHash = common.Hash{0xff}
-
 type confTest struct {
 	name      string
 	head      uint64
