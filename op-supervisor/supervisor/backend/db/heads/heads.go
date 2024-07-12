@@ -2,16 +2,11 @@ package heads
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-)
-
-var (
-	ErrRewindRequired = errors.New("rewind required")
 )
 
 // HeadTracker records the current chain head pointers for a single chain.
