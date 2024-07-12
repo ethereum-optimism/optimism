@@ -23,9 +23,10 @@ type Metrics interface {
 	caching.Metrics
 }
 
-type LogDB interface {
+type Storage interface {
 	LogStorage
 	DatabaseRewinder
+	LatestBlockNum(chainID types.ChainID) uint64
 }
 
 // ChainMonitor monitors a source L2 chain, retrieving the data required to populate the database and perform
@@ -35,7 +36,7 @@ type ChainMonitor struct {
 	headMonitor *HeadMonitor
 }
 
-func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, store LogDB, block uint64) (*ChainMonitor, error) {
+func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, store Storage) (*ChainMonitor, error) {
 	logger = logger.New("chainID", chainID)
 	cl, err := newClient(ctx, logger, m, rpc, client, pollInterval, trustRpc, rpcKind)
 	if err != nil {
@@ -43,12 +44,12 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 	}
 
 	startingHead := eth.L1BlockRef{
-		Number: block,
+		Number: store.LatestBlockNum(chainID),
 	}
 
-	processLogs := newLogProcessor(store)
+	processLogs := newLogProcessor(chainID, store)
 	fetchReceipts := newLogFetcher(cl, processLogs)
-	unsafeBlockProcessor := NewChainProcessor(logger, cl, startingHead, fetchReceipts, store)
+	unsafeBlockProcessor := NewChainProcessor(logger, cl, chainID, startingHead, fetchReceipts, store)
 
 	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
 	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)

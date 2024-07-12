@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -16,7 +17,7 @@ type BlockProcessor interface {
 }
 
 type DatabaseRewinder interface {
-	Rewind(headBlockNum uint64) error
+	Rewind(chain types.ChainID, headBlockNum uint64) error
 }
 
 type BlockProcessorFn func(ctx context.Context, block eth.L1BlockRef) error
@@ -30,15 +31,17 @@ func (fn BlockProcessorFn) ProcessBlock(ctx context.Context, block eth.L1BlockRe
 type ChainProcessor struct {
 	log       log.Logger
 	client    BlockByNumberSource
+	chain     types.ChainID
 	lastBlock eth.L1BlockRef
 	processor BlockProcessor
 	rewinder  DatabaseRewinder
 }
 
-func NewChainProcessor(log log.Logger, client BlockByNumberSource, startingHead eth.L1BlockRef, processor BlockProcessor, rewinder DatabaseRewinder) *ChainProcessor {
+func NewChainProcessor(log log.Logger, client BlockByNumberSource, chain types.ChainID, startingHead eth.L1BlockRef, processor BlockProcessor, rewinder DatabaseRewinder) *ChainProcessor {
 	return &ChainProcessor{
 		log:       log,
 		client:    client,
+		chain:     chain,
 		lastBlock: startingHead,
 		processor: processor,
 		rewinder:  rewinder,
@@ -68,7 +71,7 @@ func (s *ChainProcessor) processBlock(ctx context.Context, block eth.L1BlockRef)
 	if err := s.processor.ProcessBlock(ctx, block); err != nil {
 		s.log.Error("Failed to process block", "block", block, "err", err)
 		// Try to rewind the database to the previous block to remove any logs from this block that were written
-		if err := s.rewinder.Rewind(s.lastBlock.Number); err != nil {
+		if err := s.rewinder.Rewind(s.chain, s.lastBlock.Number); err != nil {
 			// If any logs were written, our next attempt to write will fail and we'll retry this rewind.
 			// If no logs were written successfully then the rewind wouldn't have done anything anyway.
 			s.log.Error("Failed to rewind after error processing block", "block", block, "err", err)

@@ -3,14 +3,18 @@ package source
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+var processorChainID = types.ChainIDFromUInt64(4)
 
 func TestUnsafeBlocksStage(t *testing.T) {
 	t.Run("IgnoreEventsAtOrPriorToStartingHead", func(t *testing.T) {
@@ -18,7 +22,7 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		client := &stubBlockByNumberSource{}
 		processor := &stubBlockProcessor{}
-		stage := NewChainProcessor(logger, client, eth.L1BlockRef{Number: 100}, processor, &stubRewinder{})
+		stage := NewChainProcessor(logger, client, processorChainID, eth.L1BlockRef{Number: 100}, processor, &stubRewinder{})
 		stage.OnNewHead(ctx, eth.L1BlockRef{Number: 100})
 		stage.OnNewHead(ctx, eth.L1BlockRef{Number: 99})
 
@@ -35,7 +39,7 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block2 := eth.L1BlockRef{Number: 102}
 		block3 := eth.L1BlockRef{Number: 103}
 		processor := &stubBlockProcessor{}
-		stage := NewChainProcessor(logger, client, block0, processor, &stubRewinder{})
+		stage := NewChainProcessor(logger, client, processorChainID, block0, processor, &stubRewinder{})
 		stage.OnNewHead(ctx, block1)
 		require.Equal(t, []eth.L1BlockRef{block1}, processor.processed)
 		stage.OnNewHead(ctx, block2)
@@ -53,7 +57,7 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block0 := eth.L1BlockRef{Number: 100}
 		block1 := eth.L1BlockRef{Number: 101}
 		processor := &stubBlockProcessor{}
-		stage := NewChainProcessor(logger, client, block0, processor, &stubRewinder{})
+		stage := NewChainProcessor(logger, client, processorChainID, block0, processor, &stubRewinder{})
 		stage.OnNewHead(ctx, block1)
 		require.NotEmpty(t, processor.processed)
 		require.Equal(t, []eth.L1BlockRef{block1}, processor.processed)
@@ -72,7 +76,7 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block0 := eth.L1BlockRef{Number: 100}
 		block3 := eth.L1BlockRef{Number: 103}
 		processor := &stubBlockProcessor{}
-		stage := NewChainProcessor(logger, client, block0, processor, &stubRewinder{})
+		stage := NewChainProcessor(logger, client, processorChainID, block0, processor, &stubRewinder{})
 
 		stage.OnNewHead(ctx, block3)
 		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101), makeBlockRef(102), block3}, processor.processed)
@@ -88,7 +92,7 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block3 := eth.L1BlockRef{Number: 103}
 		processor := &stubBlockProcessor{}
 		rewinder := &stubRewinder{}
-		stage := NewChainProcessor(logger, client, block0, processor, rewinder)
+		stage := NewChainProcessor(logger, client, processorChainID, block0, processor, rewinder)
 
 		stage.OnNewHead(ctx, block3)
 		require.Empty(t, processor.processed, "should not update any blocks because backfill failed")
@@ -107,7 +111,7 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block3 := eth.L1BlockRef{Number: 103}
 		processor := &stubBlockProcessor{err: errors.New("boom")}
 		rewinder := &stubRewinder{}
-		stage := NewChainProcessor(logger, client, block0, processor, rewinder)
+		stage := NewChainProcessor(logger, client, processorChainID, block0, processor, rewinder)
 
 		stage.OnNewHead(ctx, block3)
 		require.Equal(t, []eth.L1BlockRef{makeBlockRef(101)}, processor.processed, "Attempted to process block 101")
@@ -127,7 +131,7 @@ func TestUnsafeBlocksStage(t *testing.T) {
 		block1 := eth.L1BlockRef{Number: 101}
 		processor := &stubBlockProcessor{err: errors.New("boom")}
 		rewinder := &stubRewinder{}
-		stage := NewChainProcessor(logger, client, block0, processor, rewinder)
+		stage := NewChainProcessor(logger, client, processorChainID, block0, processor, rewinder)
 
 		// No skipped blocks
 		stage.OnNewHead(ctx, block1)
@@ -173,7 +177,10 @@ type stubRewinder struct {
 	rewindCalled bool
 }
 
-func (s *stubRewinder) Rewind(headBlockNum uint64) error {
+func (s *stubRewinder) Rewind(chainID types.ChainID, headBlockNum uint64) error {
+	if chainID != processorChainID {
+		return fmt.Errorf("chainID mismatch, expected %v but was %v", processorChainID, chainID)
+	}
 	s.rewoundTo = headBlockNum
 	s.rewindCalled = true
 	return nil

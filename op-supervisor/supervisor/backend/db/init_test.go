@@ -1,46 +1,42 @@
-package backend
+package db
 
 import (
 	"fmt"
 	"io"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRecover(t *testing.T) {
 	tests := []struct {
-		name             string
-		stubDB           *stubLogStore
-		expectedBlockNum uint64
-		expectRewoundTo  uint64
+		name            string
+		stubDB          *stubLogStore
+		expectRewoundTo uint64
 	}{
 		{
-			name:             "emptydb",
-			stubDB:           &stubLogStore{closestBlockErr: fmt.Errorf("no entries: %w", io.EOF)},
-			expectedBlockNum: 0,
-			expectRewoundTo:  0,
+			name:            "emptydb",
+			stubDB:          &stubLogStore{closestBlockErr: fmt.Errorf("no entries: %w", io.EOF)},
+			expectRewoundTo: 0,
 		},
 		{
-			name:             "genesis",
-			stubDB:           &stubLogStore{},
-			expectedBlockNum: 0,
-			expectRewoundTo:  0,
+			name:            "genesis",
+			stubDB:          &stubLogStore{},
+			expectRewoundTo: 0,
 		},
 		{
-			name:             "with_blocks",
-			stubDB:           &stubLogStore{closestBlockNumber: 15},
-			expectedBlockNum: 14,
-			expectRewoundTo:  14,
+			name:            "with_blocks",
+			stubDB:          &stubLogStore{closestBlockNumber: 15},
+			expectRewoundTo: 14,
 		},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			block, err := Resume(test.stubDB)
+			err := Resume(test.stubDB)
 			require.NoError(t, err)
-			require.Equal(t, test.expectedBlockNum, block)
 			require.Equal(t, test.expectRewoundTo, test.stubDB.rewoundTo)
 		})
 	}
@@ -52,10 +48,6 @@ type stubLogStore struct {
 	rewoundTo          uint64
 }
 
-func (s *stubLogStore) Close() error {
-	return nil
-}
-
 func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, error) {
 	if s.closestBlockErr != nil {
 		return 0, types.TruncatedHash{}, s.closestBlockErr
@@ -65,5 +57,17 @@ func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, types.Truncate
 
 func (s *stubLogStore) Rewind(headBlockNum uint64) error {
 	s.rewoundTo = headBlockNum
+	return nil
+}
+
+func (s *stubLogStore) AddLog(logHash types.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
+	panic("not supported")
+}
+
+func (s *stubLogStore) LatestBlockNum() uint64 {
+	panic("not supported")
+}
+
+func (s *stubLogStore) Close() error {
 	return nil
 }

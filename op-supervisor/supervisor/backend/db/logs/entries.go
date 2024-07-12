@@ -1,4 +1,4 @@
-package db
+package logs
 
 import (
 	"encoding/binary"
