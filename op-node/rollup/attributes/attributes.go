@@ -34,7 +34,8 @@ type AttributesHandler struct {
 
 	emitter event.Emitter
 
-	attributes *derive.AttributesWithParent
+	attributes     *derive.AttributesWithParent
+	sentAttributes bool
 }
 
 func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2) *AttributesHandler {
@@ -64,12 +65,38 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 		eq.emitter.Emit(derive.ConfirmReceivedAttributesEvent{})
 		// to make sure we have a pre-state signal to process the attributes from
 		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
+	case rollup.ResetEvent:
+		eq.sentAttributes = false
+		eq.attributes = nil
+	case rollup.EngineTemporaryErrorEvent:
+		eq.sentAttributes = false
 	case engine.InvalidPayloadAttributesEvent:
+		if x.Attributes.DerivedFrom == (eth.L1BlockRef{}) {
+			return true // from sequencing
+		}
+		eq.sentAttributes = false
 		// If the engine signals that attributes are invalid,
 		// that should match our last applied attributes, which we should thus drop.
 		eq.attributes = nil
 		// Time to re-evaluate without attributes.
 		// (the pending-safe state will then be forwarded to our source of attributes).
+		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
+	case engine.PayloadSealExpiredErrorEvent:
+		if x.DerivedFrom == (eth.L1BlockRef{}) {
+			return true // from sequencing
+		}
+		eq.log.Warn("Block sealing job of derived attributes expired, job will be re-attempted.",
+			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
+		// If the engine failed to seal temporarily, just allow to resubmit (triggered on next safe-head poke)
+		eq.sentAttributes = false
+	case engine.PayloadSealInvalidEvent:
+		if x.DerivedFrom == (eth.L1BlockRef{}) {
+			return true // from sequencing
+		}
+		eq.log.Warn("Cannot seal derived block attributes, input is invalid",
+			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
+		eq.sentAttributes = false
+		eq.attributes = nil
 		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
 	default:
 		return false
@@ -88,6 +115,7 @@ func (eq *AttributesHandler) onPendingSafeUpdate(x engine.PendingSafeUpdateEvent
 	}
 
 	if eq.attributes == nil {
+		eq.sentAttributes = false
 		// Request new attributes to be generated, only if we don't currently have attributes that have yet to be processed.
 		// It is safe to request the pipeline, the attributes-handler is the only user of it,
 		// and the pipeline will not generate another set of attributes until the last set is recognized.
@@ -95,11 +123,19 @@ func (eq *AttributesHandler) onPendingSafeUpdate(x engine.PendingSafeUpdateEvent
 		return
 	}
 
-	// Drop attributes if they don't apply on top of the pending safe head
+	// Drop attributes if they don't apply on top of the pending safe head.
+	// This is expected after successful processing of these attributes.
 	if eq.attributes.Parent.Number != x.PendingSafe.Number {
-		eq.log.Warn("dropping stale attributes",
+		eq.log.Debug("dropping stale attributes, requesting new ones",
 			"pending", x.PendingSafe, "attributes_parent", eq.attributes.Parent)
 		eq.attributes = nil
+		eq.sentAttributes = false
+		eq.emitter.Emit(derive.PipelineStepEvent{PendingSafe: x.PendingSafe})
+		return
+	}
+
+	if eq.sentAttributes {
+		eq.log.Warn("already sent the existing attributes")
 		return
 	}
 
@@ -118,7 +154,8 @@ func (eq *AttributesHandler) onPendingSafeUpdate(x engine.PendingSafeUpdateEvent
 			eq.consolidateNextSafeAttributes(eq.attributes, x.PendingSafe)
 		} else {
 			// append to tip otherwise
-			eq.emitter.Emit(engine.ProcessAttributesEvent{Attributes: eq.attributes})
+			eq.sentAttributes = true
+			eq.emitter.Emit(engine.BuildStartEvent{Attributes: eq.attributes})
 		}
 	}
 }
@@ -144,8 +181,9 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1",
 			"err", err, "unsafe", envelope.ExecutionPayload.ID(), "pending_safe", onto)
 
+		eq.sentAttributes = true
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
-		eq.emitter.Emit(engine.ProcessAttributesEvent{Attributes: attributes})
+		eq.emitter.Emit(engine.BuildStartEvent{Attributes: attributes})
 		return
 	} else {
 		ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)

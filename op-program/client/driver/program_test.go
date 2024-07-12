@@ -64,7 +64,7 @@ func TestProgramDeriver(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		attrib := &derive.AttributesWithParent{Parent: eth.L2BlockRef{Number: 123}}
 		m.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		m.ExpectOnce(engine.ProcessAttributesEvent{Attributes: attrib})
+		m.ExpectOnce(engine.BuildStartEvent{Attributes: attrib})
 		p.OnEvent(derive.DerivedAttributesEvent{Attributes: attrib})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)

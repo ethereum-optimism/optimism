@@ -73,7 +73,7 @@ func (eq *CLSync) OnEvent(ev event.Event) bool {
 	defer eq.mu.Unlock()
 
 	switch x := ev.(type) {
-	case engine.InvalidPayloadEvent:
+	case engine.PayloadInvalidEvent:
 		eq.onInvalidPayload(x)
 	case engine.ForkchoiceUpdateEvent:
 		eq.onForkchoiceUpdate(x)
@@ -87,7 +87,7 @@ func (eq *CLSync) OnEvent(ev event.Event) bool {
 
 // onInvalidPayload checks if the first next-up payload matches the invalid payload.
 // If so, the payload is dropped, to give the next payloads a try.
-func (eq *CLSync) onInvalidPayload(x engine.InvalidPayloadEvent) {
+func (eq *CLSync) onInvalidPayload(x engine.PayloadInvalidEvent) {
 	eq.log.Debug("CL sync received invalid-payload report", x.Envelope.ExecutionPayload.ID())
 
 	block := x.Envelope.ExecutionPayload

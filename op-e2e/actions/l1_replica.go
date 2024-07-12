@@ -3,6 +3,8 @@ package actions
 import (
 	"errors"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/stretchr/testify/require"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -43,7 +45,7 @@ type L1Replica struct {
 	l1Cfg      *core.Genesis
 	l1Signer   types.Signer
 
-	failL1RPC func() error // mock error
+	failL1RPC func(call []rpc.BatchElem) error // mock error
 }
 
 // NewL1Replica constructs a L1Replica starting at the given genesis.
@@ -152,18 +154,16 @@ func (s *L1Replica) CanonL1Chain() func(num uint64) *types.Block {
 
 // ActL1RPCFail makes the next L1 RPC request to this node fail
 func (s *L1Replica) ActL1RPCFail(t Testing) {
-	failed := false
-	s.failL1RPC = func() error {
-		if failed {
-			return nil
-		}
-		failed = true
+	s.failL1RPC = func(call []rpc.BatchElem) error {
+		s.failL1RPC = nil
 		return errors.New("mock L1 RPC error")
 	}
 }
 
 func (s *L1Replica) MockL1RPCErrors(fn func() error) {
-	s.failL1RPC = fn
+	s.failL1RPC = func(call []rpc.BatchElem) error {
+		return fn()
+	}
 }
 
 func (s *L1Replica) EthClient() *ethclient.Client {
@@ -175,12 +175,11 @@ func (s *L1Replica) RPCClient() client.RPC {
 	cl := s.node.Attach()
 	return testutils.RPCErrFaker{
 		RPC: client.NewBaseRPCClient(cl),
-		ErrFn: func() error {
-			if s.failL1RPC != nil {
-				return s.failL1RPC()
-			} else {
+		ErrFn: func(call []rpc.BatchElem) error {
+			if s.failL1RPC == nil {
 				return nil
 			}
+			return s.failL1RPC(call)
 		},
 	}
 }
