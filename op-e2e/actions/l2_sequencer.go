@@ -2,25 +2,31 @@ package actions
 
 import (
 	"context"
-	"errors"
 
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/confdepth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // MockL1OriginSelector is a shim to override the origin as sequencer, so we can force it to stay on an older origin.
 type MockL1OriginSelector struct {
-	actual         *driver.L1OriginSelector
+	actual         *sequencing.L1OriginSelector
 	originOverride eth.L1BlockRef // override which origin gets picked
 }
 
@@ -36,7 +42,7 @@ func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 type L2Sequencer struct {
 	*L2Verifier
 
-	sequencer *driver.Sequencer
+	sequencer *sequencing.Sequencer
 
 	failL2GossipUnsafeBlock error // mock error
 
@@ -47,13 +53,33 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
 	ver := NewL2Verifier(t, log, l1, blobSrc, plasmaSrc, eng, cfg, &sync.Config{}, safedb.Disabled)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
-	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.l1State.L1Head, l1)
+	seqConfDepthL1 := confdepth.NewConfDepth(seqConfDepth, ver.syncStatus.L1Head, l1)
 	l1OriginSelector := &MockL1OriginSelector{
-		actual: driver.NewL1OriginSelector(log, cfg, seqConfDepthL1),
+		actual: sequencing.NewL1OriginSelector(log, cfg, seqConfDepthL1),
 	}
+	metr := metrics.NoopMetrics
+	seqStateListener := node.DisabledConfigPersistence{}
+	conduc := &conductor.NoOpConductor{}
+	asyncGossip := async.NoOpGossiper{}
+	seq := sequencing.NewSequencer(t.Ctx(), log, cfg, attrBuilder, l1OriginSelector,
+		seqStateListener, conduc, asyncGossip, metr)
+	opts := event.DefaultRegisterOpts()
+	opts.Emitter = event.EmitterOpts{
+		Limiting: true,
+		// TestSyncBatchType/DerivationWithFlakyL1RPC does *a lot* of quick retries
+		// TestL2BatcherBatchType/ExtendedTimeWithoutL1Batches as well.
+		Rate:  rate.Limit(100_000),
+		Burst: 100_000,
+		OnLimited: func() {
+			log.Warn("Hitting events rate-limit. An events code-path may be hot-looping.")
+			t.Fatal("Tests must not hot-loop events")
+		},
+	}
+	ver.eventSys.Register("sequencer", seq, opts)
+	require.NoError(t, seq.Init(t.Ctx(), true))
 	return &L2Sequencer{
 		L2Verifier:              ver,
-		sequencer:               driver.NewSequencer(log, cfg, ver.engine, attrBuilder, l1OriginSelector, metrics.NoopMetrics),
+		sequencer:               seq,
 		mockL1OriginSelector:    l1OriginSelector,
 		failL2GossipUnsafeBlock: nil,
 	}
@@ -61,10 +87,6 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 
 // ActL2StartBlock starts building of a new L2 block on top of the head
 func (s *L2Sequencer) ActL2StartBlock(t Testing) {
-	s.ActL2StartBlockCheckErr(t, nil)
-}
-
-func (s *L2Sequencer) ActL2StartBlockCheckErr(t Testing, checkErr error) {
 	if !s.l2PipelineIdle {
 		t.InvalidAction("cannot start L2 build when derivation is not idle")
 		return
@@ -73,21 +95,11 @@ func (s *L2Sequencer) ActL2StartBlockCheckErr(t Testing, checkErr error) {
 		t.InvalidAction("already started building L2 block")
 		return
 	}
+	s.synchronousEvents.Emit(sequencing.SequencerActionEvent{})
+	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.BuildStartedEvent], false),
+		"failed to start block building")
 
-	err := s.sequencer.StartBuildingBlock(t.Ctx())
-	if checkErr == nil {
-		require.NoError(t, err, "failed to start block building")
-	} else {
-		require.ErrorIs(t, err, checkErr, "expected typed error")
-	}
-
-	if errors.Is(err, derive.ErrReset) {
-		s.derivation.Reset()
-	}
-
-	if err == nil {
-		s.l2Building = true
-	}
+	s.l2Building = true
 }
 
 // ActL2EndBlock completes a new L2 block and applies it to the L2 chain as new canonical unsafe head
@@ -98,12 +110,20 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	}
 	s.l2Building = false
 
-	_, err := s.sequencer.CompleteBuildingBlock(t.Ctx(), async.NoOpGossiper{}, &conductor.NoOpConductor{})
-	// TODO: there may be legitimate temporary errors here, if we mock engine API RPC-failure.
-	// For advanced tests we can catch those and print a warning instead.
-	require.NoError(t, err)
+	s.synchronousEvents.Emit(sequencing.SequencerActionEvent{})
+	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.PayloadSuccessEvent], false),
+		"failed to complete block building")
 
-	// TODO: action-test publishing of payload on p2p
+	// After having built a L2 block, make sure to get an engine update processed.
+	// This will ensure the sync-status and such reflect the latest changes.
+	s.synchronousEvents.Emit(engine.TryUpdateEngineEvent{})
+	s.synchronousEvents.Emit(engine.ForkchoiceRequestEvent{})
+	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
+		x, ok := ev.(engine.ForkchoiceUpdateEvent)
+		return ok && x.UnsafeL2Head == s.engine.UnsafeL2Head()
+	}, false))
+	require.Equal(t, s.engine.UnsafeL2Head(), s.syncStatus.SyncStatus().UnsafeL2,
+		"sync status must be accurate after block building")
 }
 
 // ActL2KeepL1Origin makes the sequencer use the current L1 origin, even if the next origin is available.
@@ -117,7 +137,7 @@ func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
 
 // ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
 func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
-	for s.engine.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+	for s.engine.UnsafeL2Head().L1Origin.Number < s.syncStatus.L1Head().Number {
 		s.ActL2PipelineFull(t)
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
@@ -126,7 +146,7 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 
 // ActBuildToL1HeadUnsafe builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
 func (s *L2Sequencer) ActBuildToL1HeadUnsafe(t Testing) {
-	for s.engine.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+	for s.engine.UnsafeL2Head().L1Origin.Number < s.syncStatus.L1Head().Number {
 		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
@@ -139,7 +159,7 @@ func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 		s.ActL2PipelineFull(t)
 		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.engine.UnsafeL2Head())
 		require.NoError(t, err)
-		if nextOrigin.Number >= s.l1State.L1Head().Number {
+		if nextOrigin.Number >= s.syncStatus.L1Head().Number {
 			break
 		}
 		s.ActL2StartBlock(t)
@@ -153,7 +173,7 @@ func (s *L2Sequencer) ActBuildToL1HeadExclUnsafe(t Testing) {
 		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
 		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.engine.UnsafeL2Head())
 		require.NoError(t, err)
-		if nextOrigin.Number >= s.l1State.L1Head().Number {
+		if nextOrigin.Number >= s.syncStatus.L1Head().Number {
 			break
 		}
 		s.ActL2StartBlock(t)

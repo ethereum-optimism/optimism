@@ -163,7 +163,7 @@ func TestSinglePeerSync(t *testing.T) {
 	hostA.SetStreamHandler(PayloadByNumberProtocolID(cfg.L2ChainID), payloadByNumber)
 
 	// Setup host B as the client
-	cl := NewSyncClient(log.New("role", "client"), cfg, hostB.NewStream, receivePayload, metrics.NoopMetrics, &NoopApplicationScorer{})
+	cl := NewSyncClient(log.New("role", "client"), cfg, hostB, receivePayload, metrics.NoopMetrics, &NoopApplicationScorer{})
 
 	// Setup host B (client) to sync from its peer Host A (server)
 	cl.AddPeer(hostA.ID())
@@ -224,7 +224,7 @@ func TestMultiPeerSync(t *testing.T) {
 		payloadByNumber := MakeStreamHandler(ctx, log.New("serve", "payloads_by_number"), srv.HandleSyncRequest)
 		h.SetStreamHandler(PayloadByNumberProtocolID(cfg.L2ChainID), payloadByNumber)
 
-		cl := NewSyncClient(log.New("role", "client"), cfg, h.NewStream, receivePayload, metrics.NoopMetrics, &NoopApplicationScorer{})
+		cl := NewSyncClient(log.New("role", "client"), cfg, h, receivePayload, metrics.NoopMetrics, &NoopApplicationScorer{})
 		return cl, received
 	}
 
@@ -356,7 +356,7 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 
-	syncCl := NewSyncClient(log, cfg, hostA.NewStream, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
+	syncCl := NewSyncClient(log, cfg, hostA, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
 		return nil
 	}, metrics.NoopMetrics, &NoopApplicationScorer{})
 

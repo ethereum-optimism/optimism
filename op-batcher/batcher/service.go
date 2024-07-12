@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	_ "net/http/pprof"
 	"strings"
 	"sync/atomic"
 	"time"

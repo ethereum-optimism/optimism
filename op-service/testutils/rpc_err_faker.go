@@ -13,9 +13,9 @@ import (
 type RPCErrFaker struct {
 	// RPC to call when no ErrFn is set, or the ErrFn does not return an error
 	RPC client.RPC
-	// ErrFn returns an error when the RPC needs to return error upon a call, batch call or subscription.
+	// ErrFn returns an error when the RPC needs to return error upon a call, batch call or subscription (nil input).
 	// The RPC operates without fake errors if the ErrFn is nil, or returns nil.
-	ErrFn func() error
+	ErrFn func(call []rpc.BatchElem) error
 }
 
 func (r RPCErrFaker) Close() {
@@ -24,7 +24,11 @@ func (r RPCErrFaker) Close() {
 
 func (r RPCErrFaker) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	if r.ErrFn != nil {
-		if err := r.ErrFn(); err != nil {
+		if err := r.ErrFn([]rpc.BatchElem{{
+			Method: method,
+			Args:   args,
+			Result: result,
+		}}); err != nil {
 			return err
 		}
 	}
@@ -33,7 +37,7 @@ func (r RPCErrFaker) CallContext(ctx context.Context, result any, method string,
 
 func (r RPCErrFaker) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
 	if r.ErrFn != nil {
-		if err := r.ErrFn(); err != nil {
+		if err := r.ErrFn(b); err != nil {
 			return err
 		}
 	}
@@ -42,7 +46,7 @@ func (r RPCErrFaker) BatchCallContext(ctx context.Context, b []rpc.BatchElem) er
 
 func (r RPCErrFaker) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	if r.ErrFn != nil {
-		if err := r.ErrFn(); err != nil {
+		if err := r.ErrFn(nil); err != nil {
 			return nil, err
 		}
 	}

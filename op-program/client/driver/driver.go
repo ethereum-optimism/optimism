@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 )
@@ -22,10 +23,10 @@ type EndCondition interface {
 type Driver struct {
 	logger log.Logger
 
-	events []rollup.Event
+	events []event.Event
 
 	end     EndCondition
-	deriver rollup.Deriver
+	deriver event.Deriver
 }
 
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
@@ -36,12 +37,15 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 	}
 
 	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, metrics.NoopMetrics)
-	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline, d)
+	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline)
+	pipelineDeriver.AttachEmitter(d)
 
-	ec := engine.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, sync.CLSync, d)
-	engineDeriv := engine.NewEngDeriver(logger, context.Background(), cfg, ec, d)
+	ec := engine.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, d)
+	engineDeriv := engine.NewEngDeriver(logger, context.Background(), cfg, metrics.NoopMetrics, ec)
+	engineDeriv.AttachEmitter(d)
 	syncCfg := &sync.Config{SyncMode: sync.CLSync}
-	engResetDeriv := engine.NewEngineResetDeriver(context.Background(), logger, cfg, l1Source, l2Source, syncCfg, d)
+	engResetDeriv := engine.NewEngineResetDeriver(context.Background(), logger, cfg, l1Source, l2Source, syncCfg)
+	engResetDeriv.AttachEmitter(d)
 
 	prog := &ProgramDeriver{
 		logger:         logger,
@@ -51,7 +55,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 		targetBlockNum: targetBlockNum,
 	}
 
-	d.deriver = &rollup.SynchronousDerivers{
+	d.deriver = &event.DeriverMux{
 		prog,
 		engineDeriv,
 		pipelineDeriver,
@@ -62,7 +66,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 	return d
 }
 
-func (d *Driver) Emit(ev rollup.Event) {
+func (d *Driver) Emit(ev event.Event) {
 	if d.end.Closing() {
 		return
 	}

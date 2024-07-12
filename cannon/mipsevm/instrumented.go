@@ -3,6 +3,8 @@ package mipsevm
 import (
 	"errors"
 	"io"
+
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 type PreimageOracle interface {
@@ -48,6 +50,19 @@ func NewInstrumentedState(state *State, po PreimageOracle, stdOut, stdErr io.Wri
 	}
 }
 
+func NewInstrumentedStateFromFile(stateFile string, po PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
+	state, err := jsonutil.LoadJSON[State](stateFile)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrumentedState{
+		state:          state,
+		stdOut:         stdOut,
+		stdErr:         stdErr,
+		preimageOracle: &trackingOracle{po: po},
+	}, nil
+}
+
 func (m *InstrumentedState) InitDebug(meta *Metadata) error {
 	if meta == nil {
 		return errors.New("metadata is nil")
@@ -64,9 +79,11 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 
 	if proof {
 		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
+		encodedWitness, stateHash := m.state.EncodeWitness()
 		wit = &StepWitness{
-			State:    m.state.EncodeWitness(),
-			MemProof: insnProof[:],
+			State:     encodedWitness,
+			StateHash: stateHash,
+			MemProof:  insnProof[:],
 		}
 	}
 	err = m.mipsStep()
@@ -89,11 +106,15 @@ func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
 	return m.lastPreimageKey, m.lastPreimage, m.lastPreimageOffset
 }
 
-func (d *InstrumentedState) GetDebugInfo() *DebugInfo {
+func (m *InstrumentedState) GetState() FPVMState {
+	return m.state
+}
+
+func (m *InstrumentedState) GetDebugInfo() *DebugInfo {
 	return &DebugInfo{
-		Pages:               d.state.Memory.PageCount(),
-		NumPreimageRequests: d.preimageOracle.numPreimageRequests,
-		TotalPreimageSize:   d.preimageOracle.totalPreimageSize,
+		Pages:               m.state.Memory.PageCount(),
+		NumPreimageRequests: m.preimageOracle.numPreimageRequests,
+		TotalPreimageSize:   m.preimageOracle.totalPreimageSize,
 	}
 }
 

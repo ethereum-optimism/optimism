@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -14,6 +14,14 @@ type ResetStepBackoffEvent struct {
 
 func (ev ResetStepBackoffEvent) String() string {
 	return "reset-step-backoff"
+}
+
+type StepDelayedReqEvent struct {
+	Delay time.Duration
+}
+
+func (ev StepDelayedReqEvent) String() string {
+	return "step-delayed-req"
 }
 
 type StepReqEvent struct {
@@ -61,18 +69,21 @@ type StepSchedulingDeriver struct {
 
 	log log.Logger
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 }
 
-func NewStepSchedulingDeriver(log log.Logger, emitter rollup.EventEmitter) *StepSchedulingDeriver {
+func NewStepSchedulingDeriver(log log.Logger) *StepSchedulingDeriver {
 	return &StepSchedulingDeriver{
 		stepAttempts:   0,
 		bOffStrategy:   retry.Exponential(),
 		stepReqCh:      make(chan struct{}, 1),
 		delayedStepReq: nil,
 		log:            log,
-		emitter:        emitter,
 	}
+}
+
+func (s *StepSchedulingDeriver) AttachEmitter(em event.Emitter) {
+	s.emitter = em
 }
 
 // NextStep is a channel to await, and if triggered,
@@ -88,7 +99,7 @@ func (s *StepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
 	return s.delayedStepReq
 }
 
-func (s *StepSchedulingDeriver) OnEvent(ev rollup.Event) {
+func (s *StepSchedulingDeriver) OnEvent(ev event.Event) bool {
 	step := func() {
 		s.delayedStepReq = nil
 		select {
@@ -99,6 +110,10 @@ func (s *StepSchedulingDeriver) OnEvent(ev rollup.Event) {
 	}
 
 	switch x := ev.(type) {
+	case StepDelayedReqEvent:
+		if s.delayedStepReq == nil {
+			s.delayedStepReq = time.After(x.Delay)
+		}
 	case StepReqEvent:
 		if x.ResetBackoff {
 			s.stepAttempts = 0
@@ -126,5 +141,8 @@ func (s *StepSchedulingDeriver) OnEvent(ev rollup.Event) {
 		s.emitter.Emit(StepEvent{})
 	case ResetStepBackoffEvent:
 		s.stepAttempts = 0
+	default:
+		return false
 	}
+	return true
 }

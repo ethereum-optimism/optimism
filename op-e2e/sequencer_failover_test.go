@@ -211,7 +211,7 @@ func TestSequencerFailover_DisasterRecovery_OverrideLeader(t *testing.T) {
 
 	// Start sequencer without the overrideLeader flag set to true, should fail
 	err = sys.RollupClient(Sequencer3Name).StartSequencer(ctx, common.Hash{1, 2, 3})
-	require.ErrorContains(t, err, "sequencer is not the leader, aborting.", "Expected sequencer to fail to start")
+	require.ErrorContains(t, err, "sequencer is not the leader, aborting", "Expected sequencer to fail to start")
 
 	// Start sequencer with the overrideLeader flag set to true, should succeed
 	err = sys.RollupClient(Sequencer3Name).OverrideLeader(ctx)

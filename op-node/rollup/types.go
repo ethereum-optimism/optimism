@@ -335,6 +335,7 @@ func validatePlasmaConfig(cfg *Config) error {
 			DAChallengeAddress: cfg.LegacyDAChallengeAddress,
 			DAChallengeWindow:  cfg.LegacyDAChallengeWindow,
 			DAResolveWindow:    cfg.LegacyDAResolveWindow,
+			CommitmentType:     plasma.KeccakCommitmentString,
 		}
 	} else if cfg.LegacyUsePlasma && cfg.PlasmaConfig != nil {
 		// validate that both are the same

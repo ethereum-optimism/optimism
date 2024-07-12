@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-plasma/bindings"
@@ -500,7 +501,7 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 
 	// advance the pipeline until it errors out as it is still stuck
 	// on deriving the first commitment
-	a.sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+	a.sequencer.ActL2EventsUntil(t, func(ev event.Event) bool {
 		x, ok := ev.(rollup.EngineTemporaryErrorEvent)
 		if ok {
 			require.ErrorContains(t, x.Err, "failed to fetch input data")

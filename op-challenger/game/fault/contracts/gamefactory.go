@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -76,7 +77,7 @@ func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, bl
 	return f.decodeGame(idx, result), nil
 }
 
-func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType uint32) (common.Address, error) {
+func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType faultTypes.GameType) (common.Address, error) {
 	defer f.metrics.StartContractRequest("GetGameImpl")()
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameImpls, gameType))
 	if err != nil {

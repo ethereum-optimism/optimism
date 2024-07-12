@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
@@ -27,11 +28,11 @@ type EngineResetDeriver struct {
 	l2      sync.L2Chain
 	syncCfg *sync.Config
 
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 }
 
 func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Config,
-	l1 sync.L1Chain, l2 sync.L2Chain, syncCfg *sync.Config, emitter rollup.EventEmitter) *EngineResetDeriver {
+	l1 sync.L1Chain, l2 sync.L2Chain, syncCfg *sync.Config) *EngineResetDeriver {
 	return &EngineResetDeriver{
 		ctx:     ctx,
 		log:     log,
@@ -39,22 +40,28 @@ func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Conf
 		l1:      l1,
 		l2:      l2,
 		syncCfg: syncCfg,
-		emitter: emitter,
 	}
 }
 
-func (d *EngineResetDeriver) OnEvent(ev rollup.Event) {
+func (d *EngineResetDeriver) AttachEmitter(em event.Emitter) {
+	d.emitter = em
+}
+
+func (d *EngineResetDeriver) OnEvent(ev event.Event) bool {
 	switch ev.(type) {
 	case ResetEngineRequestEvent:
 		result, err := sync.FindL2Heads(d.ctx, d.cfg, d.l1, d.l2, d.log, d.syncCfg)
 		if err != nil {
 			d.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err)})
-			return
+			return true
 		}
 		d.emitter.Emit(ForceEngineResetEvent{
 			Unsafe:    result.Unsafe,
 			Safe:      result.Safe,
 			Finalized: result.Finalized,
 		})
+	default:
+		return false
 	}
+	return true
 }
