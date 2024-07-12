@@ -177,6 +177,10 @@ func (db *DB) updateEntryCountMetric() {
 	db.m.RecordDBEntryCount(db.store.Size())
 }
 
+func (db *DB) LatestBlockNum() uint64 {
+	return db.lastEntryContext.blockNum
+}
+
 // ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
 // Since block data is only recorded in search checkpoints, this may return an earlier block even if log data is
 // recorded for the requested block.

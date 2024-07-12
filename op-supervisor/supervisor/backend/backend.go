@@ -5,15 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,18 +23,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type LogStore interface {
-	io.Closer
-	ClosestBlockInfo(blockNum uint64) (uint64, backendTypes.TruncatedHash, error)
-	Rewind(headBlockNum uint64) error
-}
-
 type SupervisorBackend struct {
 	started atomic.Bool
 	logger  log.Logger
 
 	chainMonitors []*source.ChainMonitor
-	logDBs        []LogStore
+	db            *db.ChainsDB
 }
 
 var _ frontend.Backend = (*SupervisorBackend)(nil)
@@ -40,9 +36,17 @@ var _ frontend.Backend = (*SupervisorBackend)(nil)
 var _ io.Closer = (*SupervisorBackend)(nil)
 
 func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg *config.Config) (*SupervisorBackend, error) {
-	chainMonitors := make([]*source.ChainMonitor, len(cfg.L2RPCs))
-	logDBs := make([]LogStore, len(cfg.L2RPCs))
-	for i, rpc := range cfg.L2RPCs {
+	if err := prepDataDir(cfg.Datadir); err != nil {
+		return nil, err
+	}
+	headTracker, err := heads.NewHeadTracker(filepath.Join(cfg.Datadir, "heads.json"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to load existing heads: %w", err)
+	}
+	logDBs := make(map[types.ChainID]db.LogStorage)
+	chainRPCs := make(map[types.ChainID]string)
+	chainClients := make(map[types.ChainID]client.RPC)
+	for _, rpc := range cfg.L2RPCs {
 		rpcClient, chainID, err := createRpcClient(ctx, logger, rpc)
 		if err != nil {
 			return nil, err
@@ -56,22 +60,29 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		if err != nil {
 			return nil, fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 		}
-		logDBs[i] = logDB
-
-		block, err := Resume(logDB)
+		err = Resume(logDB)
 		if err != nil {
 			return nil, err
 		}
-		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, logDB, block)
+		logDBs[chainID] = logDB
+		chainRPCs[chainID] = rpc
+		chainClients[chainID] = rpcClient
+	}
+	chainsDB := db.NewChainsDB(logDBs, headTracker)
+
+	chainMonitors := make([]*source.ChainMonitor, 0, len(cfg.L2RPCs))
+	for chainID, rpc := range chainRPCs {
+		cm := newChainMetrics(chainID, m)
+		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, chainClients[chainID], chainsDB)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create monitor for rpc %v: %w", rpc, err)
 		}
-		chainMonitors[i] = monitor
+		chainMonitors = append(chainMonitors, monitor)
 	}
 	return &SupervisorBackend{
 		logger:        logger,
 		chainMonitors: chainMonitors,
-		logDBs:        logDBs,
+		db:            chainsDB,
 	}, nil
 }
 
@@ -109,10 +120,8 @@ func (su *SupervisorBackend) Stop(ctx context.Context) error {
 			errs = errors.Join(errs, fmt.Errorf("failed to stop chain monitor: %w", err))
 		}
 	}
-	for _, logDB := range su.logDBs {
-		if err := logDB.Close(); err != nil {
-			errs = errors.Join(errs, fmt.Errorf("failed to close logdb: %w", err))
-		}
+	if err := su.db.Close(); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("failed to close database: %w", err))
 	}
 	return errs
 }
