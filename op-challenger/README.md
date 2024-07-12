@@ -165,7 +165,7 @@ Prints the games created by the game factory along with their current status.
 ### list-claims
 
 ```shell
-./bin/op-challenger list-games \
+./bin/op-challenger list-claims \
   --l1-eth-rpc <L1_ETH_RPC> \
   --game-address <GAME_ADDRESS>
 ```
