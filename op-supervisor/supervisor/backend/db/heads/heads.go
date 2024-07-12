@@ -2,6 +2,7 @@ package heads
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -20,7 +21,7 @@ type HeadTracker struct {
 
 func NewHeadTracker(path string) (*HeadTracker, error) {
 	current := NewHeads()
-	if data, err := os.ReadFile(path); os.IsNotExist(err) {
+	if data, err := os.ReadFile(path); errors.Is(err, os.ErrNotExist) {
 		// No existing file, just use empty heads
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to read existing heads from %v: %w", path, err)

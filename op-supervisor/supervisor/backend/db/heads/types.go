@@ -50,7 +50,7 @@ func (h *Heads) Copy() *Heads {
 	return c
 }
 
-func (h *Heads) MarshalJSON() ([]byte, error) {
+func (h Heads) MarshalJSON() ([]byte, error) {
 	data := make(map[hexutil.U256]ChainHeads)
 	for id, heads := range h.Chains {
 		data[hexutil.U256(id)] = heads
