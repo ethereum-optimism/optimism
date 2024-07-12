@@ -101,7 +101,7 @@ func processFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, fr
 			invalidFrame = true
 			break
 		}
-		if err := ch.AddFrame(frame.Frame, eth.L1BlockRef{Number: frame.InclusionBlock}); err != nil {
+		if err := ch.AddFrame(frame.Frame, eth.L1BlockRef{Number: frame.InclusionBlock, Time: frame.Timestamp}); err != nil {
 			fmt.Printf("Error adding to channel %v. Err: %v\n", id.String(), err)
 			invalidFrame = true
 		}
