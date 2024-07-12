@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
@@ -52,7 +52,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		if err != nil {
 			return nil, fmt.Errorf("failed to create datadir for chain %v: %w", chainID, err)
 		}
-		logDB, err := db.NewFromFile(logger, cm, path)
+		logDB, err := logs.NewFromFile(logger, cm, path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 		}
