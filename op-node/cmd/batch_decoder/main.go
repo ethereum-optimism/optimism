@@ -21,10 +21,12 @@ import (
 
 func main() {
 	app := cli.NewApp()
+	// batch-decoder
 	app.Name = "batch-decoder"
 	app.Usage = "Optimism Batch Decoding Utility"
 	app.Commands = []*cli.Command{
 		{
+			// batch inbox로부터 fetch
 			Name:  "fetch",
 			Usage: "Fetches batches in the specified range",
 			Flags: []cli.Flag{
@@ -114,6 +116,7 @@ func main() {
 			},
 		},
 		{
+			// resemble
 			Name:  "reassemble",
 			Usage: "Reassembles channels from fetched batch transactions and decode batches",
 			Flags: []cli.Flag{

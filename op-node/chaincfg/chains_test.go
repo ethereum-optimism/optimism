@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGetRollupConfig는 superchain-registry와 op-node에 내장된 config가 일치하는지 확인
 // TestGetRollupConfig tests that the configs sourced from the superchain-registry match
 // the configs that were embedded in the op-node manually before the superchain-registry was utilized.
 //

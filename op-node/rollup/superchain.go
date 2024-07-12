@@ -18,6 +18,8 @@ const (
 	pgnSepolia = 58008
 )
 
+// LoadOPStackRollupConfig는 superchain-registry에서 requested chain ID rollup configuration을 load
+// 일부 체인은 registry에 등록되지 않은 vaule를 검색하기 위해 SystemConfigProvider가 요구될 수 있음
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
 func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
