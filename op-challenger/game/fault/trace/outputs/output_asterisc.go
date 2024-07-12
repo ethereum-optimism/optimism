@@ -21,7 +21,7 @@ import (
 func NewOutputAsteriscTraceAccessor(
 	logger log.Logger,
 	m metrics.Metricer,
-	cfg vm.Config,
+	cfg vm.VmConfig,
 	l2Client utils.L2HeaderSource,
 	prestateProvider types.PrestateProvider,
 	asteriscPrestate string,

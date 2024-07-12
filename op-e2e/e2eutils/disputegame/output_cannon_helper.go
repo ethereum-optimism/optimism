@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -62,7 +63,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 	l1Head := g.GetL1Head(ctx)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		logger, metrics.NoopMetrics, cfg.Cannon, l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+		logger, metrics.NoopMetrics, vm.NewOpProgramVmConfig(cfg.Cannon), l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 	g.Require.NoError(err, "Failed to create output cannon trace accessor")
 	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, g.Game, accessor)
 }
