@@ -25,7 +25,7 @@ type ChannelWithMetadata struct {
 	Frames         []FrameWithMetadata      `json:"frames"`
 	Batches        []derive.Batch           `json:"batches"`
 	BatchTypes     []int                    `json:"batch_types"`
-	ComprAlgos     []derive.CompressionAlgo `json:"compr_alogs"`
+	ComprAlgos     []derive.CompressionAlgo `json:"compr_algos"`
 }
 
 type FrameWithMetadata struct {
