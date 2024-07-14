@@ -287,21 +287,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Compute the local preimage context for the step.
         Hash uuid = _findLocalContext(_claimIndex);
 
-        // INVARIANT: If a step is an attack, the poststate is valid if the step produces
-        //            the same poststate hash as the parent claim's value.
-        //            If a step is a defense:
-        //              1. If the parent claim and the found post state agree with each other
-        //                 (depth diff % 2 == 0), the step is valid if it produces the same
-        //                 state hash as the post state's claim.
-        //              2. If the parent claim and the found post state disagree with each other
-        //                 (depth diff % 2 != 0), the parent cannot be countered unless the step
-        //                 produces the same state hash as `postState.claim`.
-        // SAFETY:    While the `attack` path does not need an extra check for the post
-        //            state's depth in relation to the parent, we don't need another
-        //            branch because (n - n) % 2 == 0.
+        // INVARIANT: No matter the step is an attack or defend. If the step claim equal postStateClaim
+        // The parentClaim can not be countered.
         bool validStep = VM.step(_stateData, _proof, uuid.raw()) == postState.claim.raw();
-        bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
-        if (parentPostAgree == validStep) revert ValidStep();
+        if (validStep) revert ValidStep();
 
         // INVARIANT: A step cannot be made against a claim for a second time.
         if (parent.counteredBy != address(0)) revert DuplicateStep();
