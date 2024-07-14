@@ -17,6 +17,7 @@ func TestKonaFillHostCommand(t *testing.T) {
 		L1Beacon: "http://localhost:9000",
 		L2:       "http://localhost:9999",
 		Server:   "./bin/mockserver",
+		Network:  "op-mainnet",
 	}
 	inputs := utils.LocalGameInputs{
 		L1Head:        common.Hash{0x11},
@@ -36,6 +37,7 @@ func TestKonaFillHostCommand(t *testing.T) {
 	require.True(t, slices.Contains(args, "--l1-beacon-address"))
 	require.True(t, slices.Contains(args, "--l2-node-address"))
 	require.True(t, slices.Contains(args, "--data-dir"))
+	require.True(t, slices.Contains(args, "--l2-chain-id"))
 	require.True(t, slices.Contains(args, "--l1-head"))
 	require.True(t, slices.Contains(args, "--l2-head"))
 	require.True(t, slices.Contains(args, "--l2-output-root"))

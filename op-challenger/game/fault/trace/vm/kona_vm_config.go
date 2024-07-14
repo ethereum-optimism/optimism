@@ -2,8 +2,10 @@ package vm
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 )
 
 type KonaVmConfig struct {
@@ -26,7 +28,11 @@ func (s *KonaVmConfig) FillHostCommand(args []string, dataDir string, inputs uti
 	if args == nil {
 		return nil, errors.New("args is nil")
 	}
+	if s.Network == "" {
+		return nil, errors.New("Network is not defined")
+	}
 
+	chainCfg := chaincfg.ChainByName(s.Network)
 	args = append(args,
 		"--",
 		s.Cfg().Server, "--server",
@@ -34,6 +40,7 @@ func (s *KonaVmConfig) FillHostCommand(args []string, dataDir string, inputs uti
 		"--l1-beacon-address", s.Cfg().L1Beacon,
 		"--l2-node-address", s.Cfg().L2,
 		"--data-dir", dataDir,
+		"--l2-chain-id", strconv.FormatUint(chainCfg.ChainID, 10),
 		"--l1-head", inputs.L1Head.Hex(),
 		"--l2-head", inputs.L2Head.Hex(),
 		"--l2-output-root", inputs.L2OutputRoot.Hex(),
