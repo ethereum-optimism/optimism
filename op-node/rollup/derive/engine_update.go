@@ -157,6 +157,8 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 		return envelope, nil, nil, err
 	case result := <-ch:
 		log.Info("received payload from builder", "hash", result.envelope.ExecutionPayload.BlockHash.String(), "number", uint64(result.envelope.ExecutionPayload.BlockNumber))
+		// HACK: Dirty hack to get the parent beacon block root from the engine payload. this should be filled from the payload attributes.
+		result.envelope.ParentBeaconBlockRoot = envelope.ParentBeaconBlockRoot
 		return envelope, result.envelope, result.profit, err
 	}
 }

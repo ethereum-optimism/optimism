@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/holiman/uint256"
 	"github.com/pkg/errors"
 )
 
@@ -104,14 +103,14 @@ func reverse(src []byte) []byte {
 }
 
 func versionedExecutionPayloadToExecutionPayloadEnvelope(request *builderApi.VersionedExecutionPayload) *eth.ExecutionPayloadEnvelope {
-	txs := make([]eth.Data, len(request.Capella.Transactions))
+	txs := make([]eth.Data, len(request.Deneb.Transactions))
 
-	for i, tx := range request.Capella.Transactions {
+	for i, tx := range request.Deneb.Transactions {
 		txs[i] = eth.Data(tx)
 	}
 
-	withdrawals := make([]*types.Withdrawal, len(request.Capella.Withdrawals))
-	for i, withdrawal := range request.Capella.Withdrawals {
+	withdrawals := make([]*types.Withdrawal, len(request.Deneb.Withdrawals))
+	for i, withdrawal := range request.Deneb.Withdrawals {
 		withdrawals[i] = &types.Withdrawal{
 			Index:     uint64(withdrawal.Index),
 			Validator: uint64(withdrawal.ValidatorIndex),
@@ -122,29 +121,28 @@ func versionedExecutionPayloadToExecutionPayloadEnvelope(request *builderApi.Ver
 
 	ws := types.Withdrawals(withdrawals)
 
-	baseFeePerGas := new(big.Int).SetBytes(reverse(request.Capella.BaseFeePerGas[:]))
-	baseFeePerGasUint := uint256.NewInt(0)
-	baseFeePerGasUint.SetFromBig(baseFeePerGas)
+	blobGasUsed := eth.Uint64Quantity(request.Deneb.BlobGasUsed)
+	excessBlobGas := eth.Uint64Quantity(request.Deneb.ExcessBlobGas)
 
 	payload := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
-			ParentHash:    common.Hash(request.Capella.ParentHash),
-			FeeRecipient:  common.Address(request.Capella.FeeRecipient),
-			StateRoot:     eth.Bytes32(request.Capella.StateRoot),
-			ReceiptsRoot:  eth.Bytes32(request.Capella.ReceiptsRoot),
-			LogsBloom:     eth.Bytes256(request.Capella.LogsBloom),
-			PrevRandao:    eth.Bytes32(request.Capella.PrevRandao),
-			BlockNumber:   eth.Uint64Quantity(request.Capella.BlockNumber),
-			GasLimit:      eth.Uint64Quantity(request.Capella.GasLimit),
-			GasUsed:       eth.Uint64Quantity(request.Capella.GasUsed),
-			Timestamp:     eth.Uint64Quantity(request.Capella.Timestamp),
-			ExtraData:     eth.BytesMax32(request.Capella.ExtraData),
-			BaseFeePerGas: hexutil.U256(*baseFeePerGasUint),
-			BlockHash:     common.BytesToHash(request.Capella.BlockHash[:]),
+			ParentHash:    common.Hash(request.Deneb.ParentHash),
+			FeeRecipient:  common.Address(request.Deneb.FeeRecipient),
+			StateRoot:     eth.Bytes32(request.Deneb.StateRoot),
+			ReceiptsRoot:  eth.Bytes32(request.Deneb.ReceiptsRoot),
+			LogsBloom:     eth.Bytes256(request.Deneb.LogsBloom),
+			PrevRandao:    eth.Bytes32(request.Deneb.PrevRandao),
+			BlockNumber:   eth.Uint64Quantity(request.Deneb.BlockNumber),
+			GasLimit:      eth.Uint64Quantity(request.Deneb.GasLimit),
+			GasUsed:       eth.Uint64Quantity(request.Deneb.GasUsed),
+			Timestamp:     eth.Uint64Quantity(request.Deneb.Timestamp),
+			ExtraData:     eth.BytesMax32(request.Deneb.ExtraData),
+			BaseFeePerGas: hexutil.U256(*request.Deneb.BaseFeePerGas),
+			BlockHash:     common.BytesToHash(request.Deneb.BlockHash[:]),
 			Transactions:  txs,
 			Withdrawals:   &ws,
-			BlobGasUsed:   nil,
-			ExcessBlobGas: nil,
+			BlobGasUsed:   &blobGasUsed,
+			ExcessBlobGas: &excessBlobGas,
 		},
 		ParentBeaconBlockRoot: nil, // OP-Stack ecotone upgrade related field. Not needed for PoC.
 	}
