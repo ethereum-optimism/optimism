@@ -135,14 +135,29 @@ func (e *EntryDB) Append(entries ...Entry) error {
 }
 
 // Truncate the database so that the last retained entry is idx. Any entries after idx are deleted.
+// If any complete entries are removed, it ensures that the next entry written uses a different ID to the one
+// removed from that index.
 func (e *EntryDB) Truncate(idx EntryIdx) error {
+	_, prevID, err := e.Read(idx + 1)
+	if errors.Is(err, io.EOF) {
+		// There is no complete entry after idx so we don't need to avoid using its entry ID,
+		// but we still truncate to remove any partially written entries.
+	} else if err != nil {
+		return fmt.Errorf("failed to read entry %v prior to truncating: %w", idx, err)
+	} else {
+		// Note that we don't wind back the nextEntryID when truncating.
+		// Just make sure that the next entry we write does not have an ID equal to the entry that was present.
+		if e.nextEntryID == prevID {
+			e.nextEntryID++
+		}
+	}
 	if err := e.data.Truncate((int64(idx) + 1) * RecordSize); err != nil {
 		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
 	}
 	// Update the lastEntryIdx cache
 	e.lastEntryIdx = idx
 	e.cleanupFailedWrite = false
-	// Note that we don't wind back the nextEntryID when truncating.
+
 	return nil
 }
 

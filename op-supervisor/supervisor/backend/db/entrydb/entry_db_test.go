@@ -105,6 +105,25 @@ func TestTruncate(t *testing.T) {
 		require.Equal(t, newEntry, entry)
 		require.NotEqual(t, id, prevEntryID, "Should not rewind entry ID when truncating")
 	})
+
+	t.Run("AppendAfterTruncateEnsuresIDIsDifferent", func(t *testing.T) {
+		db := createEntryDB(t)
+		// Setup the database so that the entry ID has overflowed.
+		for i := 0; i < 258; i++ {
+			require.NoError(t, db.Append(createEntry(byte(i))))
+		}
+		// Remove 256 entries so if the entry ID simply incremented, it would be the same as the entry we first removed
+		truncateTo := EntryIdx(270 - 257)
+		_, origID, err := db.Read(truncateTo + 1)
+		require.NoError(t, err)
+		require.NoError(t, db.Truncate(truncateTo))
+		require.NoError(t, db.Append(createEntry(2)))
+		_, newID, err := db.Read(db.LastEntryIdx())
+		require.NoError(t, err)
+		// But even though Truncate doesn't normally change the next entry ID, it did in this case to avoid reusing
+		// the same IDs for the same entry indices.
+		require.NotEqual(t, origID, newID, "Should ensure the new entries have different IDs")
+	})
 }
 
 func TestTruncateTrailingPartialEntries(t *testing.T) {

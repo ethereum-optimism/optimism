@@ -14,12 +14,17 @@ import (
 // So we probably need to store actual block IDs here... but then we don't have the block hash for every block in the log db.
 // Only jumping the head forward on checkpoint blocks doesn't work though...
 type ChainHeads struct {
-	Unsafe         entrydb.EntryIdx `json:"localUnsafe"`
-	CrossUnsafe    entrydb.EntryIdx `json:"crossUnsafe"`
-	LocalSafe      entrydb.EntryIdx `json:"localSafe"`
-	CrossSafe      entrydb.EntryIdx `json:"crossSafe"`
-	LocalFinalized entrydb.EntryIdx `json:"localFinalized"`
-	CrossFinalized entrydb.EntryIdx `json:"crossFinalized"`
+	Unsafe         ChainHead `json:"localUnsafe"`
+	CrossUnsafe    ChainHead `json:"crossUnsafe"`
+	LocalSafe      ChainHead `json:"localSafe"`
+	CrossSafe      ChainHead `json:"crossSafe"`
+	LocalFinalized ChainHead `json:"localFinalized"`
+	CrossFinalized ChainHead `json:"crossFinalized"`
+}
+
+type ChainHead struct {
+	Index entrydb.EntryIdx `json:"index"`
+	ID    entrydb.EntryID  `json:"id"`
 }
 
 type Heads struct {

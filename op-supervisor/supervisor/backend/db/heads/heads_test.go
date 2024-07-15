@@ -15,21 +15,21 @@ func TestHeads_SaveAndReload(t *testing.T) {
 	path := filepath.Join(dir, "heads.json")
 	chainA := types.ChainIDFromUInt64(3)
 	chainAHeads := ChainHeads{
-		Unsafe:         1,
-		CrossUnsafe:    2,
-		LocalSafe:      3,
-		CrossSafe:      4,
-		LocalFinalized: 5,
-		CrossFinalized: 6,
+		Unsafe:         ChainHead{Index: 10, ID: 100},
+		CrossUnsafe:    ChainHead{Index: 9, ID: 99},
+		LocalSafe:      ChainHead{Index: 8, ID: 98},
+		CrossSafe:      ChainHead{Index: 7, ID: 97},
+		LocalFinalized: ChainHead{Index: 6, ID: 96},
+		CrossFinalized: ChainHead{Index: 5, ID: 95},
 	}
 	chainB := types.ChainIDFromUInt64(5)
 	chainBHeads := ChainHeads{
-		Unsafe:         11,
-		CrossUnsafe:    12,
-		LocalSafe:      13,
-		CrossSafe:      14,
-		LocalFinalized: 15,
-		CrossFinalized: 16,
+		Unsafe:         ChainHead{Index: 90, ID: 9},
+		CrossUnsafe:    ChainHead{Index: 80, ID: 8},
+		LocalSafe:      ChainHead{Index: 70, ID: 7},
+		CrossSafe:      ChainHead{Index: 60, ID: 6},
+		LocalFinalized: ChainHead{Index: 50, ID: 5},
+		CrossFinalized: ChainHead{Index: 40, ID: 4},
 	}
 
 	orig, err := NewHeadTracker(path)
@@ -53,12 +53,12 @@ func TestHeads_NoChangesMadeIfOperationFails(t *testing.T) {
 	path := filepath.Join(dir, "heads.json")
 	chainA := types.ChainIDFromUInt64(3)
 	chainAHeads := ChainHeads{
-		Unsafe:         1,
-		CrossUnsafe:    2,
-		LocalSafe:      3,
-		CrossSafe:      4,
-		LocalFinalized: 5,
-		CrossFinalized: 6,
+		Unsafe:         ChainHead{Index: 10, ID: 100},
+		CrossUnsafe:    ChainHead{Index: 9, ID: 99},
+		LocalSafe:      ChainHead{Index: 8, ID: 98},
+		CrossSafe:      ChainHead{Index: 7, ID: 97},
+		LocalFinalized: ChainHead{Index: 6, ID: 96},
+		CrossFinalized: ChainHead{Index: 5, ID: 95},
 	}
 
 	orig, err := NewHeadTracker(path)
@@ -79,15 +79,16 @@ func TestHeads_NoChangesMadeIfOperationFails(t *testing.T) {
 
 func TestHeads_NoChangesMadeIfWriteFails(t *testing.T) {
 	dir := t.TempDir()
+	// Write will fail because directory doesn't exist.
 	path := filepath.Join(dir, "invalid/heads.json")
 	chainA := types.ChainIDFromUInt64(3)
 	chainAHeads := ChainHeads{
-		Unsafe:         1,
-		CrossUnsafe:    2,
-		LocalSafe:      3,
-		CrossSafe:      4,
-		LocalFinalized: 5,
-		CrossFinalized: 6,
+		Unsafe:         ChainHead{Index: 10, ID: 100},
+		CrossUnsafe:    ChainHead{Index: 9, ID: 99},
+		LocalSafe:      ChainHead{Index: 8, ID: 98},
+		CrossSafe:      ChainHead{Index: 7, ID: 97},
+		LocalFinalized: ChainHead{Index: 6, ID: 96},
+		CrossFinalized: ChainHead{Index: 5, ID: 95},
 	}
 
 	orig, err := NewHeadTracker(path)
