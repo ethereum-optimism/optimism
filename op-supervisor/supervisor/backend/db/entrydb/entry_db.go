@@ -16,6 +16,10 @@ const (
 
 type EntryIdx int64
 
+// EntryID is a single byte identifier automatically added to each entry in the database.
+// It is designed to detect when the entry at a given index has been changed by truncating and then rewriting new entries.
+// It typically increments monotonically except if doing so would cause new entries written after a Truncate to be
+// assigned the same IDs as previously.
 type EntryID byte
 
 type Entry [EntrySize]byte
@@ -40,8 +44,7 @@ type EntryDB struct {
 // NewEntryDB creates an EntryDB. A new file will be created if the specified path does not exist,
 // but parent directories will not be created.
 // If the file exists it will be used as the existing data.
-// Returns ErrRecoveryRequired if the existing file is not a valid entry db. A EntryDB is still returned but all
-// operations will return ErrRecoveryRequired until the Recover method is called.
+// Will automatically attempt to recover an invalid database by truncating any partially written entries.
 func NewEntryDB(logger log.Logger, path string) (*EntryDB, error) {
 	logger.Info("Opening entry database", "path", path)
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
