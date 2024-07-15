@@ -37,7 +37,7 @@ func TestReadWrite(t *testing.T) {
 
 	t.Run("ReadPastEndOfFileReturnsEOF", func(t *testing.T) {
 		db := createEntryDB(t)
-		_, err := db.Read(0)
+		_, _, err := db.Read(0)
 		require.ErrorIs(t, err, io.EOF)
 	})
 
@@ -68,9 +68,9 @@ func TestTruncate(t *testing.T) {
 		requireRead(t, db, 2, createEntry(3))
 
 		// 4 and 5 have been removed
-		_, err := db.Read(4)
+		_, _, err := db.Read(4)
 		require.ErrorIs(t, err, io.EOF)
-		_, err = db.Read(5)
+		_, _, err = db.Read(5)
 		require.ErrorIs(t, err, io.EOF)
 	})
 
@@ -83,7 +83,7 @@ func TestTruncate(t *testing.T) {
 
 		require.NoError(t, db.Truncate(-1))
 		require.EqualValues(t, 0, db.Size()) // All items are removed
-		_, err := db.Read(0)
+		_, _, err := db.Read(0)
 		require.ErrorIs(t, err, io.EOF)
 	})
 
@@ -93,14 +93,17 @@ func TestTruncate(t *testing.T) {
 		require.NoError(t, db.Append(createEntry(2)))
 		require.NoError(t, db.Append(createEntry(3)))
 		require.EqualValues(t, 3, db.Size())
+		_, prevEntryID, err := db.Read(2)
+		require.NoError(t, err)
 
 		require.NoError(t, db.Truncate(1))
 		require.EqualValues(t, 2, db.Size())
 		newEntry := createEntry(4)
 		require.NoError(t, db.Append(newEntry))
-		entry, err := db.Read(2)
+		entry, id, err := db.Read(2)
 		require.NoError(t, err)
 		require.Equal(t, newEntry, entry)
+		require.NotEqual(t, id, prevEntryID, "Should not rewind entry ID when truncating")
 	})
 }
 
@@ -111,7 +114,7 @@ func TestTruncateTrailingPartialEntries(t *testing.T) {
 	entry2 := createEntry(2)
 	invalidData := make([]byte, len(entry1)+len(entry2)+4)
 	copy(invalidData, entry1[:])
-	copy(invalidData[EntrySize:], entry2[:])
+	copy(invalidData[RecordSize:], entry2[:])
 	invalidData[len(invalidData)-1] = 3 // Some invalid trailing data
 	require.NoError(t, os.WriteFile(file, invalidData, 0o644))
 	db, err := NewEntryDB(logger, file)
@@ -122,7 +125,7 @@ func TestTruncateTrailingPartialEntries(t *testing.T) {
 	require.EqualValues(t, 2, db.Size())
 	stat, err := os.Stat(file)
 	require.NoError(t, err)
-	require.EqualValues(t, 2*EntrySize, stat.Size())
+	require.EqualValues(t, 2*RecordSize, stat.Size())
 }
 
 func TestWriteErrors(t *testing.T) {
@@ -153,7 +156,7 @@ func TestWriteErrors(t *testing.T) {
 	t.Run("PartialWriteAndTruncateFails", func(t *testing.T) {
 		db, stubData := createEntryDBWithStubData()
 		stubData.writeErr = expectedErr
-		stubData.writeErrAfterBytes = EntrySize + 2
+		stubData.writeErrAfterBytes = RecordSize + 2
 		stubData.truncateErr = errors.New("boom")
 		err := db.Append(createEntry(1), createEntry(2))
 		require.ErrorIs(t, err, expectedErr)
@@ -161,9 +164,9 @@ func TestWriteErrors(t *testing.T) {
 		require.EqualValues(t, 0, db.Size(), "should not consider entries written")
 		require.Len(t, stubData.data, stubData.writeErrAfterBytes, "rollback failed")
 
-		_, err = db.Read(0)
+		_, _, err = db.Read(0)
 		require.ErrorIs(t, err, io.EOF, "should not have first entry")
-		_, err = db.Read(1)
+		_, _, err = db.Read(1)
 		require.ErrorIs(t, err, io.EOF, "should not have second entry")
 
 		// Should retry truncate on next write
@@ -171,20 +174,20 @@ func TestWriteErrors(t *testing.T) {
 		stubData.truncateErr = nil
 		err = db.Append(createEntry(3))
 		require.NoError(t, err)
-		actual, err := db.Read(0)
+		actual, _, err := db.Read(0)
 		require.NoError(t, err)
 		require.Equal(t, createEntry(3), actual)
 	})
 }
 
 func requireRead(t *testing.T, db *EntryDB, idx EntryIdx, expected Entry) {
-	actual, err := db.Read(idx)
+	actual, _, err := db.Read(idx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func createEntry(i byte) Entry {
-	return Entry(bytes.Repeat([]byte{i}, EntrySize))
+	return Entry(bytes.Repeat([]byte{i}, RecordSize))
 }
 
 func createEntryDB(t *testing.T) *EntryDB {

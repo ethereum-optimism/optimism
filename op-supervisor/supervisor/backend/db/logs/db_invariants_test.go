@@ -30,11 +30,15 @@ func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
 	// Read all entries as binary blobs
 	file, err := os.OpenFile(dbPath, os.O_RDONLY, 0o644)
 	require.NoError(t, err)
-	entries := make([]entrydb.Entry, stat.Size()/entrydb.EntrySize)
+	entries := make([]entrydb.Entry, stat.Size()/entrydb.RecordSize)
+	ids := make([][1]byte, stat.Size()/entrydb.RecordSize)
 	for i := range entries {
 		n, err := io.ReadFull(file, entries[i][:])
 		require.NoErrorf(t, err, "failed to read entry %v", i)
-		require.EqualValuesf(t, entrydb.EntrySize, n, "read wrong length for entry %v", i)
+		require.EqualValuesf(t, entrydb.RecordSize-1, n, "read wrong length for entry %v", i)
+		n, err = io.ReadFull(file, ids[i][:])
+		require.NoErrorf(t, err, "failed to read entry ID %v", i)
+		require.EqualValuesf(t, 1, n, "read wrong length for entry ID %v", i)
 	}
 
 	entryInvariants := []entryInvariant{
@@ -69,16 +73,16 @@ func fmtEntries(entries []entrydb.Entry) string {
 
 func invariantFileSizeMultipleOfEntrySize(stat os.FileInfo, _ *stubMetrics) error {
 	size := stat.Size()
-	if size%entrydb.EntrySize != 0 {
-		return fmt.Errorf("expected file size to be a multiple of entry size (%v) but was %v", entrydb.EntrySize, size)
+	if size%entrydb.RecordSize != 0 {
+		return fmt.Errorf("expected file size to be a multiple of entry size (%v) but was %v", entrydb.RecordSize, size)
 	}
 	return nil
 }
 
 func invariantFileSizeMatchesEntryCountMetric(stat os.FileInfo, m *stubMetrics) error {
 	size := stat.Size()
-	if m.entryCount*entrydb.EntrySize != size {
-		return fmt.Errorf("expected file size to be entryCount (%v) * entrySize (%v) = %v but was %v", m.entryCount, entrydb.EntrySize, m.entryCount*entrydb.EntrySize, size)
+	if m.entryCount*entrydb.RecordSize != size {
+		return fmt.Errorf("expected file size to be entryCount (%v) * entrySize (%v) = %v but was %v", m.entryCount, entrydb.RecordSize, m.entryCount*entrydb.RecordSize, size)
 	}
 	return nil
 }

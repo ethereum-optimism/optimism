@@ -904,11 +904,11 @@ func (s *stubEntryStore) LastEntryIdx() entrydb.EntryIdx {
 	return entrydb.EntryIdx(s.Size() - 1)
 }
 
-func (s *stubEntryStore) Read(idx entrydb.EntryIdx) (entrydb.Entry, error) {
+func (s *stubEntryStore) Read(idx entrydb.EntryIdx) (entrydb.Entry, entrydb.EntryID, error) {
 	if idx < entrydb.EntryIdx(len(s.entries)) {
-		return s.entries[idx], nil
+		return s.entries[idx], entrydb.EntryID(len(s.entries)), nil
 	}
-	return entrydb.Entry{}, io.EOF
+	return entrydb.Entry{}, 0, io.EOF
 }
 
 func (s *stubEntryStore) Append(entries ...entrydb.Entry) error {

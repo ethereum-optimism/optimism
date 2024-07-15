@@ -22,7 +22,7 @@ type iterator struct {
 func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error) {
 	for i.nextEntryIdx <= i.db.lastEntryIdx() {
 		entryIdx := i.nextEntryIdx
-		entry, err := i.db.store.Read(entryIdx)
+		entry, _, err := i.db.store.Read(entryIdx)
 		if err != nil {
 			outErr = fmt.Errorf("failed to read entry %v: %w", i, err)
 			return
@@ -81,7 +81,7 @@ func (i *iterator) readExecMessage(initEntryIdx entrydb.EntryIdx) (types.Executi
 	if linkIdx%searchCheckpointFrequency == 0 {
 		linkIdx += 2 // skip the search checkpoint and canonical hash entries
 	}
-	linkEntry, err := i.db.store.Read(linkIdx)
+	linkEntry, _, err := i.db.store.Read(linkIdx)
 	if errors.Is(err, io.EOF) {
 		return types.ExecutingMessage{}, fmt.Errorf("%w: missing expected executing link event at idx %v", ErrDataCorruption, linkIdx)
 	} else if err != nil {
@@ -92,7 +92,7 @@ func (i *iterator) readExecMessage(initEntryIdx entrydb.EntryIdx) (types.Executi
 	if checkIdx%searchCheckpointFrequency == 0 {
 		checkIdx += 2 // skip the search checkpoint and canonical hash entries
 	}
-	checkEntry, err := i.db.store.Read(checkIdx)
+	checkEntry, _, err := i.db.store.Read(checkIdx)
 	if errors.Is(err, io.EOF) {
 		return types.ExecutingMessage{}, fmt.Errorf("%w: missing expected executing check event at idx %v", ErrDataCorruption, checkIdx)
 	} else if err != nil {

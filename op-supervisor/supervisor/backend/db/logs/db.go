@@ -47,7 +47,7 @@ type logContext struct {
 type EntryStore interface {
 	Size() int64
 	LastEntryIdx() entrydb.EntryIdx
-	Read(idx entrydb.EntryIdx) (entrydb.Entry, error)
+	Read(idx entrydb.EntryIdx) (entrydb.Entry, entrydb.EntryID, error)
 	Append(entries ...entrydb.Entry) error
 	Truncate(idx entrydb.EntryIdx) error
 	Close() error
@@ -146,7 +146,7 @@ func (db *DB) init() error {
 func (db *DB) trimInvalidTrailingEntries() error {
 	i := db.lastEntryIdx()
 	for ; i >= 0; i-- {
-		entry, err := db.store.Read(i)
+		entry, _, err := db.store.Read(i)
 		if err != nil {
 			return fmt.Errorf("failed to read %v to check for trailing entries: %w", i, err)
 		}
@@ -283,7 +283,7 @@ func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*iterator, err
 		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
 	}
 	startIdx := startCheckpointEntry + 2
-	firstEntry, err := db.store.Read(startIdx)
+	firstEntry, _, err := db.store.Read(startIdx)
 	if errors.Is(err, io.EOF) {
 		// There should always be an entry after a checkpoint and canonical hash so an EOF here is data corruption
 		return nil, fmt.Errorf("%w: no entry after checkpoint and canonical hash at %v", ErrDataCorruption, startCheckpointEntry)
@@ -305,7 +305,7 @@ func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*iterator, err
 			// Step back to read the initiating event. The checkpoint block data will be for the initiating event
 			startIdx = startCheckpointEntry - 2
 		}
-		initEntry, err := db.store.Read(startIdx)
+		initEntry, _, err := db.store.Read(startIdx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read prior initiating event: %w", err)
 		}
@@ -478,7 +478,7 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 }
 
 func (db *DB) readSearchCheckpoint(entryIdx entrydb.EntryIdx) (searchCheckpoint, error) {
-	data, err := db.store.Read(entryIdx)
+	data, _, err := db.store.Read(entryIdx)
 	if err != nil {
 		return searchCheckpoint{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
@@ -486,7 +486,7 @@ func (db *DB) readSearchCheckpoint(entryIdx entrydb.EntryIdx) (searchCheckpoint,
 }
 
 func (db *DB) readCanonicalHash(entryIdx entrydb.EntryIdx) (canonicalHash, error) {
-	data, err := db.store.Read(entryIdx)
+	data, _, err := db.store.Read(entryIdx)
 	if err != nil {
 		return canonicalHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}

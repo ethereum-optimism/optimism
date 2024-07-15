@@ -10,10 +10,13 @@ import (
 )
 
 const (
-	EntrySize = 24
+	RecordSize = 25 // 24 bytes of user data plus a 1 byte entry ID
+	EntrySize  = RecordSize - 1
 )
 
 type EntryIdx int64
+
+type EntryID byte
 
 type Entry [EntrySize]byte
 
@@ -29,6 +32,7 @@ type dataAccess interface {
 type EntryDB struct {
 	data         dataAccess
 	lastEntryIdx EntryIdx
+	nextEntryID  EntryID
 
 	cleanupFailedWrite bool
 }
@@ -48,13 +52,17 @@ func NewEntryDB(logger log.Logger, path string) (*EntryDB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat database at %v: %w", path, err)
 	}
-	size := info.Size() / EntrySize
+	size := info.Size() / RecordSize
 	db := &EntryDB{
 		data:         file,
 		lastEntryIdx: EntryIdx(size - 1),
+		// Arbitrary starting point for this session.
+		// Any recovery from a prior crash will be handled before writing new entries uses this anyway so it doesn't
+		// matter what starting value we use.
+		nextEntryID: 0,
 	}
-	if size*EntrySize != info.Size() {
-		logger.Warn("File size is nut a multiple of entry size. Truncating to last complete entry", "fileSize", size, "entrySize", EntrySize)
+	if size*RecordSize != info.Size() {
+		logger.Warn("File size is nut a multiple of entry size. Truncating to last complete entry", "fileSize", size, "entrySize", RecordSize)
 		if err := db.recover(); err != nil {
 			return nil, fmt.Errorf("failed to recover database at %v: %w", path, err)
 		}
@@ -71,17 +79,22 @@ func (e *EntryDB) LastEntryIdx() EntryIdx {
 }
 
 // Read an entry from the database by index. Returns io.EOF iff idx is after the last entry.
-func (e *EntryDB) Read(idx EntryIdx) (Entry, error) {
+func (e *EntryDB) Read(idx EntryIdx) (Entry, EntryID, error) {
 	if idx > e.lastEntryIdx {
-		return Entry{}, io.EOF
+		return Entry{}, 0, io.EOF
 	}
 	var out Entry
-	read, err := e.data.ReadAt(out[:], int64(idx)*EntrySize)
+	read, err := e.data.ReadAt(out[:], int64(idx)*RecordSize)
 	// Ignore io.EOF if we read the entire last entry as ReadAt may return io.EOF or nil when it reads the last byte
-	if err != nil && !(errors.Is(err, io.EOF) && read == EntrySize) {
-		return Entry{}, fmt.Errorf("failed to read entry %v: %w", idx, err)
+	if err != nil && !(errors.Is(err, io.EOF) && read == RecordSize) {
+		return Entry{}, 0, fmt.Errorf("failed to read entry %v: %w", idx, err)
 	}
-	return out, nil
+	var id [1]byte
+	read, err = e.data.ReadAt(id[:], int64(idx)*RecordSize+EntrySize)
+	if err != nil && !(errors.Is(err, io.EOF) && read == 1) {
+		return Entry{}, 0, fmt.Errorf("failed to read entry id %v: %w", idx, err)
+	}
+	return out, EntryID(id[0]), nil
 }
 
 // Append entries to the database.
@@ -95,9 +108,12 @@ func (e *EntryDB) Append(entries ...Entry) error {
 			return fmt.Errorf("failed to recover from previous write error: %w", truncateErr)
 		}
 	}
-	data := make([]byte, 0, len(entries)*EntrySize)
+	id := e.nextEntryID
+	data := make([]byte, 0, len(entries)*RecordSize)
 	for _, entry := range entries {
 		data = append(data, entry[:]...)
+		data = append(data, byte(id))
+		id++
 	}
 	if n, err := e.data.Write(data); err != nil {
 		if n == 0 {
@@ -114,23 +130,25 @@ func (e *EntryDB) Append(entries ...Entry) error {
 		return err
 	}
 	e.lastEntryIdx += EntryIdx(len(entries))
+	e.nextEntryID += EntryID(len(entries))
 	return nil
 }
 
 // Truncate the database so that the last retained entry is idx. Any entries after idx are deleted.
 func (e *EntryDB) Truncate(idx EntryIdx) error {
-	if err := e.data.Truncate((int64(idx) + 1) * EntrySize); err != nil {
+	if err := e.data.Truncate((int64(idx) + 1) * RecordSize); err != nil {
 		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
 	}
 	// Update the lastEntryIdx cache
 	e.lastEntryIdx = idx
 	e.cleanupFailedWrite = false
+	// Note that we don't wind back the nextEntryID when truncating.
 	return nil
 }
 
 // recover an invalid database by truncating back to the last complete event.
 func (e *EntryDB) recover() error {
-	if err := e.data.Truncate((e.Size()) * EntrySize); err != nil {
+	if err := e.data.Truncate((e.Size()) * RecordSize); err != nil {
 		return fmt.Errorf("failed to truncate trailing partial entries: %w", err)
 	}
 	return nil
