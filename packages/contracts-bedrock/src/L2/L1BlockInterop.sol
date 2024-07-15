@@ -22,6 +22,9 @@ enum ConfigType {
 /// @title L1BlockInterop
 /// @notice Interop extenstions of L1Block.
 contract L1BlockInterop is L1Block {
+    /// @notice Indicates whether this is a deposit context.
+    bool private isDepositContext;
+
     using EnumerableSet for EnumerableSet.UintSet;
 
     /// @notice Event emitted when a new dependency is added to the interop dependency set.
@@ -100,5 +103,40 @@ contract L1BlockInterop is L1Block {
         if (!dependencySet.remove(chainId)) revert NotDependency();
 
         emit DependencyRemoved(chainId);
+    }
+
+    /// @notice Updates the L1 block values for an Interop upgraded chain.
+    ///         This function also creates a deposit context.
+    /// TODO: Params are identical to `setL1BlockValuesEcotone` for now. Update when the dependency set is added.
+    function setL1BlockValuesInterop() external {
+        isDepositContext = true;
+        address depositor = DEPOSITOR_ACCOUNT();
+        assembly {
+            // Revert if the caller is not the depositor account.
+            if xor(caller(), depositor) {
+                mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"
+                revert(0x1C, 0x04) // returns the stored 4-byte selector from above
+            }
+            // sequencenum (uint64), blobBaseFeeScalar (uint32), baseFeeScalar (uint32)
+            sstore(sequenceNumber.slot, shr(128, calldataload(4)))
+            // number (uint64) and timestamp (uint64)
+            sstore(number.slot, shr(128, calldataload(20)))
+            sstore(basefee.slot, calldataload(36)) // uint256
+            sstore(blobBaseFee.slot, calldataload(68)) // uint256
+            sstore(hash.slot, calldataload(100)) // bytes32
+            sstore(batcherHash.slot, calldataload(132)) // bytes32
+        }
+    }
+
+    /// @notice Returns true iff the current context is a deposit context.
+    function isDeposit() external view returns (bool) {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        return isDepositContext;
+    }
+
+    /// @notice Ends the deposit context.
+    function resetIsDeposit() external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        isDepositContext = false;
     }
 }

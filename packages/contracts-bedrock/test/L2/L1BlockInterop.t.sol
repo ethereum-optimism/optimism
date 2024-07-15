@@ -6,12 +6,15 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 
 // Target contract dependencies
 import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 contract L1BlockInteropTest is CommonTest {
+    address depositor;
+
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
     event DependencyAdded(uint256 indexed chainId);
     event DependencyRemoved(uint256 indexed chainId);
@@ -27,6 +30,7 @@ contract L1BlockInteropTest is CommonTest {
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
+        depositor = l1Block.DEPOSITOR_ACCOUNT();
     }
 
     /// @dev Tests that an arbitrary chain ID can be added to the dependency set.
@@ -195,6 +199,95 @@ contract L1BlockInteropTest is CommonTest {
 
         vm.expectRevert(NotDependency.selector);
         _l1BlockInterop().setConfig(ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId));
+    }
+
+    /// @dev Tests that setL1BlockValuesInterop updates the values appropriately.
+    // TODO: fuzz dependency sets
+    function testFuzz_setL1BlockValuesInterop_succeeds(
+        uint32 baseFeeScalar,
+        uint32 blobBaseFeeScalar,
+        uint64 sequenceNumber,
+        uint64 timestamp,
+        uint64 number,
+        uint256 baseFee,
+        uint256 blobBaseFee,
+        bytes32 hash,
+        bytes32 batcherHash
+    )
+        external
+    {
+        batcherHash = bytes32(uint256(batcherHash) & uint256(0x00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
+            baseFeeScalar,
+            blobBaseFeeScalar,
+            sequenceNumber,
+            timestamp,
+            number,
+            baseFee,
+            blobBaseFee,
+            hash,
+            batcherHash,
+            new uint256[](0)
+        );
+
+        vm.prank(depositor);
+        (bool success,) = address(_l1BlockInterop()).call(functionCallDataPacked);
+        assertTrue(success, "Function call failed");
+
+        assertEq(_l1BlockInterop().baseFeeScalar(), baseFeeScalar);
+        assertEq(_l1BlockInterop().blobBaseFeeScalar(), blobBaseFeeScalar);
+        assertEq(_l1BlockInterop().sequenceNumber(), sequenceNumber);
+        assertEq(_l1BlockInterop().timestamp(), timestamp);
+        assertEq(_l1BlockInterop().number(), number);
+        assertEq(_l1BlockInterop().basefee(), baseFee);
+        assertEq(_l1BlockInterop().blobBaseFee(), blobBaseFee);
+        assertEq(_l1BlockInterop().hash(), hash);
+        assertEq(_l1BlockInterop().batcherHash(), batcherHash);
+
+        // ensure we didn't accidentally pollute the 128 bits of the sequencenum+scalars slot that
+        // should be empty
+        bytes32 scalarsSlot = vm.load(address(_l1BlockInterop()), bytes32(uint256(3)));
+        bytes32 mask128 = hex"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000";
+
+        assertEq(0, scalarsSlot & mask128);
+
+        // ensure we didn't accidentally pollute the 128 bits of the number & timestamp slot that
+        // should be empty
+        bytes32 numberTimestampSlot = vm.load(address(_l1BlockInterop()), bytes32(uint256(0)));
+        assertEq(0, numberTimestampSlot & mask128);
+
+        // TODO: check dependency set once implemented
+
+        vm.prank(depositor);
+        assertEq(_l1BlockInterop().isDeposit(), true);
+    }
+
+    function test_isDepositContext_notDepositor_reverts() external {
+        vm.expectRevert(NotDepositor.selector);
+        _l1BlockInterop().isDeposit();
+    }
+
+    /// @dev Tests that `setL1BlockValuesInterop` reverts if sender address is not the depositor
+    function test_setL1BlockValuesInterop_notDepositor_reverts() external {
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesInterop(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            bytes32(type(uint256).max),
+            0x0,
+            new uint256[](0)
+        );
+
+        (bool success, bytes memory data) = address(_l1BlockInterop()).call(functionCallDataPacked);
+        assertTrue(!success, "function call should have failed");
+        // make sure return value is the expected function selector for "NotDepositor()"
+        bytes memory expReturn = hex"3cc50b45";
+        assertEq(data, expReturn);
     }
 
     /// @dev Returns the L1BlockInterop instance.

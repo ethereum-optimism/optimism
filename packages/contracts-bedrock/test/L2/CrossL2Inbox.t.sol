@@ -57,6 +57,7 @@ contract CrossL2InboxWithModifiableTransientStorage is CrossL2Inbox {
 contract CrossL2InboxTest is Test {
     /// @dev Selector for the `isInDependencySet` method of the L1Block contract.
     bytes4 constant L1BlockIsInDependencySetSelector = bytes4(keccak256("isInDependencySet(uint256)"));
+    bytes4 constant L1BlockIsDepositSelector = bytes4(keccak256("isDeposit()"));
 
     /// @dev CrossL2Inbox contract instance.
     CrossL2Inbox crossL2Inbox;
@@ -92,6 +93,12 @@ contract CrossL2InboxTest is Test {
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
             data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
             returnData: abi.encode(true)
+        });
+
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1BlockIsDepositSelector),
+            returnData: abi.encode(false)
         });
 
         // Ensure that the contract has enough balance to send with value
@@ -149,6 +156,12 @@ contract CrossL2InboxTest is Test {
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
             data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id2.chainId),
             returnData: abi.encode(true)
+        });
+
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1BlockIsDepositSelector),
+            returnData: abi.encode(false)
         });
 
         // Set the target and message for the reentrant call
@@ -223,6 +236,12 @@ contract CrossL2InboxTest is Test {
             returnData: abi.encode(false)
         });
 
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1BlockIsDepositSelector),
+            returnData: abi.encode(false)
+        });
+
         // Ensure that the contract has enough balance to send with value
         vm.deal(address(this), _value);
 
@@ -256,6 +275,12 @@ contract CrossL2InboxTest is Test {
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
             data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
             returnData: abi.encode(true)
+        });
+
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1BlockIsDepositSelector),
+            returnData: abi.encode(false)
         });
 
         // Ensure that the contract has enough balance to send with value

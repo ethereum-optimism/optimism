@@ -6,6 +6,7 @@ import { TransientContext, TransientReentrancyAware } from "src/libraries/Transi
 import { ISemver } from "src/universal/ISemver.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title IDependencySet
 /// @notice Interface for L1Block with only `isInDependencySet(uint256)` method.
@@ -15,6 +16,11 @@ interface IDependencySet {
     /// @param _chainId Input chain ID.
     /// @return True if the input chain ID corresponds to a chain in the interop dependency set, and false otherwise.
     function isInDependencySet(uint256 _chainId) external view returns (bool);
+}
+
+interface IL1Block {
+    /// @notice Returns true if we are in a deposit context.
+    function isDeposit() external view returns (bool);
 }
 
 /// @notice Thrown when a non-written transient storage slot is attempted to be read from.
@@ -28,6 +34,9 @@ error InvalidChainId();
 
 /// @notice Thrown when trying to execute a cross chain message and the target call fails.
 error TargetCallFailed();
+
+/// @notice Thwon when trying to execute a cross chain message in a deposit context.
+error DepositContext();
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
@@ -56,8 +65,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     bytes32 internal constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     /// @notice Emitted when a cross chain message is being executed.
     /// @param encodedId Encoded Identifier of the message.
@@ -117,6 +126,9 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
             revert InvalidChainId();
+        }
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isDeposit()) {
+            revert DepositContext();
         }
 
         // Store the Identifier in transient storage.
