@@ -96,6 +96,33 @@ func FuzzL1InfoEcotoneRoundTrip(f *testing.F) {
 	})
 }
 
+func FuzzL1InfoInteropRoundTrip(f *testing.F) {
+	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, blobBaseFee, hash []byte, seqNumber uint64, baseFeeScalar, blobBaseFeeScalar uint32) {
+		in := L1BlockInfo{
+			Number:            number,
+			Time:              time,
+			BaseFee:           BytesToBigInt(baseFee),
+			BlockHash:         common.BytesToHash(hash),
+			SequenceNumber:    seqNumber,
+			BlobBaseFee:       BytesToBigInt(blobBaseFee),
+			BaseFeeScalar:     baseFeeScalar,
+			BlobBaseFeeScalar: blobBaseFeeScalar,
+		}
+		enc, err := in.marshalBinaryInterop()
+		if err != nil {
+			t.Fatalf("Failed to marshal binary: %v", err)
+		}
+		var out L1BlockInfo
+		err = out.unmarshalBinaryInterop(enc)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal binary: %v", err)
+		}
+		if !cmp.Equal(in, out, cmp.Comparer(testutils.BigEqual)) {
+			t.Fatalf("The data did not round trip correctly. in: %v. out: %v", in, out)
+		}
+	})
+}
+
 // FuzzL1InfoAgainstContract checks the custom Bedrock L1 Info marshalling functions against the
 // setL1BlockValues contract bindings to ensure that our functions are up to date and match the
 // bindings. Note that we don't test setL1BlockValuesEcotone since it accepts only custom packed
