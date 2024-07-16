@@ -1,48 +1,143 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
-
 contract Alligator {
-    mapping(address => bool) public migrated;
+    // =============================================================
+    //                             ERRORS
+    // =============================================================
 
-    /// @notice Callback called after a token transfer.
-    /// @param from   The account sending tokens.
-    /// @param to     The account receiving tokens.
-    /// @param amount The amount of tokens being transfered.
-    function afterTokenTransfer(address from, address to, uint256 amount) public { }
+    error LengthMismatch();
+    // error InvalidSignature(ECDSA.RecoverError recoverError);
+    error NotDelegated(address from, address to);
+    error TooManyRedelegations(address from, address to);
+    error NotValidYet(address from, address to, uint256 willBeValidFrom);
+    error NotValidAnymore(address from, address to, uint256 wasValidUntil);
+    error TooEarly(address from, address to, uint256 blocksBeforeVoteCloses);
+    error InvalidCustomRule(address from, address to, address customRule);
 
-    function checkpoints(address _account, uint32 _pos) public view returns (ERC20Votes.Checkpoint memory) { }
+    // =============================================================
+    //                             EVENTS
+    // =============================================================
 
-    /// @notice Returns the number of checkpoints for a given account.
-    /// @param _account Account to get the number of checkpoints for.
-    /// @return Number of checkpoints for the given account.
-    function numCheckpoints(address _account) public view returns (uint32) { }
+    event Subdelegation(
+        address indexed token, address indexed from, address indexed to, SubdelegationRules subdelegationRules
+    );
+    event Subdelegations(
+        address indexed token, address indexed from, address[] to, SubdelegationRules subdelegationRules
+    );
+    event Subdelegations(
+        address indexed token, address indexed from, address[] to, SubdelegationRules[] subdelegationRules
+    );
 
-    /// @notice Returns the delegatee of an account.
-    /// @param _account Account to get the delegatee of.
-    /// @return Delegatee of the given account.
-    function delegates(address _account) public view returns (address) { }
+    // =============================================================
+    //                       IMMUTABLE STORAGE
+    // =============================================================
 
-    /// @notice Delegates votes from the sender to `delegatee`.
-    /// @param _delegatee Account to delegate votes to.
-    function delegate(address _delegatee) public { }
+    enum AllowanceType {
+        Absolute,
+        Relative
+    }
 
-    /// @notice Delegates votes from the sender to `delegatee`.
-    /// @param _delegatee Account to delegate votes to.
-    /// @param _nonce     Nonce of the transaction.
-    /// @param _expiry    Expiry of the signature.
-    /// @param _v         v of the signature.
-    /// @param _r         r of the signature.
-    /// @param _s         s of the signature.
-    function delegateBySig(
-        address _delegatee,
-        uint256 _nonce,
-        uint256 _expiry,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
+    /**
+     * @param maxRedelegations The maximum number of times the delegated votes can be redelegated.
+     * @param blocksBeforeVoteCloses The number of blocks before the vote closes that the delegation is valid.
+     * @param notValidBefore The timestamp after which the delegation is valid.
+     * @param notValidAfter The timestamp before which the delegation is valid.
+     * @param baseRules The base subdelegation rules.
+     * @param allowanceType The type of allowance. If Absolute, the amount of votes delegated is fixed.
+     * If Relative, the amount of votes delegated is relative to the total amount of votes the delegator has.
+     * @param allowance The amount of votes delegated. If `allowanceType` is Relative 100% of allowance corresponds
+     * to 1e5, otherwise this is the exact amount of votes delegated.
+     */
+    struct SubdelegationRules {
+        uint8 maxRedelegations;
+        uint16 blocksBeforeVoteCloses;
+        uint32 notValidBefore;
+        uint32 notValidAfter;
+        AllowanceType allowanceType;
+        uint256 allowance;
+    }
+
+    // =============================================================
+    //                        MUTABLE STORAGE
+    // =============================================================
+
+    // token => from => to => subdelegationRules
+    mapping(address => mapping(address => mapping(address => SubdelegationRules))) public subdelegations;
+
+    // =============================================================
+    //                         CONSTRUCTOR
+    // =============================================================
+
+    constructor() { }
+
+    // =============================================================
+    //                        SUBDELEGATIONS
+    // =============================================================
+
+    /**
+     * Subdelegate `to` with `subdelegationRules`.
+     *
+     * @param token The address of the token.
+     * @param to The address to subdelegate to.
+     * @param subdelegationRules The rules to apply to the subdelegation.
+     */
+    function subdelegate(address token, address to, SubdelegationRules calldata subdelegationRules) external {
+        subdelegations[token][msg.sender][to] = subdelegationRules;
+        emit Subdelegation(token, msg.sender, to, subdelegationRules);
+    }
+
+    /**
+     * Subdelegate `targets` with `subdelegationRules`.
+     *
+     * @param token The address of the token.
+     * @param targets The addresses to subdelegate to.
+     * @param subdelegationRules The rules to apply to the subdelegations.
+     */
+    function subdelegateBatched(
+        address token,
+        address[] calldata targets,
+        SubdelegationRules calldata subdelegationRules
     )
-        public
-    { }
+        external
+    {
+        uint256 targetsLength = targets.length;
+        for (uint256 i; i < targetsLength;) {
+            subdelegations[token][msg.sender][targets[i]] = subdelegationRules;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit Subdelegations(token, msg.sender, targets, subdelegationRules);
+    }
+
+    /**
+     * Subdelegate `targets` with different `subdelegationRules` for each target.
+     *
+     * @param token The address of the token.
+     * @param targets The addresses to subdelegate to.
+     * @param subdelegationRules The rules to apply to the subdelegations.
+     */
+    function subdelegateBatched(
+        address token,
+        address[] calldata targets,
+        SubdelegationRules[] calldata subdelegationRules
+    )
+        external
+    {
+        uint256 targetsLength = targets.length;
+        if (targetsLength != subdelegationRules.length) revert LengthMismatch();
+
+        for (uint256 i; i < targetsLength;) {
+            subdelegations[token][msg.sender][targets[i]] = subdelegationRules[i];
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit Subdelegations(token, msg.sender, targets, subdelegationRules);
+    }
 }
