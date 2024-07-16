@@ -27,4 +27,22 @@ contract Alligator {
     /// @notice Delegates votes from the sender to `delegatee`.
     /// @param _delegatee Account to delegate votes to.
     function delegate(address _delegatee) public { }
+
+    /// @notice Delegates votes from the sender to `delegatee`.
+    /// @param _delegatee Account to delegate votes to.
+    /// @param _nonce     Nonce of the transaction.
+    /// @param _expiry    Expiry of the signature.
+    /// @param _v         v of the signature.
+    /// @param _r         r of the signature.
+    /// @param _s         s of the signature.
+    function delegateBySig(
+        address _delegatee,
+        uint256 _nonce,
+        uint256 _expiry,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    )
+        public
+    { }
 }
