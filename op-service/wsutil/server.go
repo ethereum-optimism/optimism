@@ -70,9 +70,7 @@ func (h *WSServer) Stop(ctx context.Context) error {
 }
 
 func (h *WSServer) Broadcast(ctx context.Context, msg []byte) error {
-	for client := range h.clients {
-		client.send <- msg
-	}
+	h.broadcast <- msg
 	return nil
 }
 
