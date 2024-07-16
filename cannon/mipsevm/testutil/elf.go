@@ -1,4 +1,4 @@
-package test_util
+package testutil
 
 import (
 	"debug/elf"

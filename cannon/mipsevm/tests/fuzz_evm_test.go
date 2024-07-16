@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
@@ -66,7 +66,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, preimageOffset, state.PreimageOffset)
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -117,7 +117,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, preimageOffset, state.PreimageOffset)
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -179,7 +179,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			require.Equal(t, uint32(heap), state.Heap)
 		}
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -229,7 +229,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, uint32(0), state.PreimageOffset)
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -295,7 +295,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 			require.Equal(t, expectedRegisters, state.Registers)
 		}
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -330,7 +330,7 @@ func FuzzStateHintRead(f *testing.F) {
 		expectedRegisters := state.Registers
 		expectedRegisters[2] = count
 
-		oracle := test_util.StaticOracle(t, preimageData) // only used for hinting
+		oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
 		goState := mipsevm.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
@@ -348,7 +348,7 @@ func FuzzStateHintRead(f *testing.F) {
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -390,7 +390,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 		if preimageOffset+writeLen > uint32(8+len(preimageData)) {
 			writeLen = uint32(8+len(preimageData)) - preimageOffset
 		}
-		oracle := test_util.StaticOracle(t, preimageData)
+		oracle := testutil.StaticOracle(t, preimageData)
 
 		goState := mipsevm.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 		stepWitness, err := goState.Step(true)
@@ -415,7 +415,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -458,7 +458,7 @@ func FuzzStateHintWrite(f *testing.F) {
 		expectedRegisters := state.Registers
 		expectedRegisters[2] = count
 
-		oracle := test_util.StaticOracle(t, preimageData) // only used for hinting
+		oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
 		goState := mipsevm.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
@@ -476,7 +476,7 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -514,7 +514,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		}
 		expectedRegisters[2] = count
 
-		oracle := test_util.StaticOracle(t, preimageData)
+		oracle := testutil.StaticOracle(t, preimageData)
 		goState := mipsevm.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
@@ -532,7 +532,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, uint32(0), state.PreimageOffset)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := test_util.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),

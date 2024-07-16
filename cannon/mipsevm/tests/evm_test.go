@@ -20,14 +20,14 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-func testContractsSetup(t require.TestingT) (*test_util.Artifacts, *test_util.Addresses) {
-	artifacts, err := test_util.LoadArtifacts()
+func testContractsSetup(t require.TestingT) (*testutil.Artifacts, *testutil.Addresses) {
+	artifacts, err := testutil.LoadArtifacts()
 	require.NoError(t, err)
 
-	addrs := &test_util.Addresses{
+	addrs := &testutil.Addresses{
 		MIPS:         common.Address{0: 0xff, 19: 1},
 		Oracle:       common.Address{0: 0xff, 19: 2},
 		Sender:       common.Address{0x13, 0x37},
@@ -46,14 +46,14 @@ func TestEVM(t *testing.T) {
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
-			oracle := test_util.SelectOracleFixture(t, f.Name())
+			oracle := testutil.SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
 
-			evm := test_util.NewMIPSEVM(contracts, addrs)
+			evm := testutil.NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
 			evm.SetLocalOracle(oracle)
-			test_util.LogStepFailureAtCleanup(t, evm)
+			testutil.LogStepFailureAtCleanup(t, evm)
 
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
@@ -63,13 +63,13 @@ func TestEVM(t *testing.T) {
 			require.NoError(t, err, "load program into state")
 
 			// set the return address ($ra) to jump into when test completes
-			state.Registers[31] = test_util.EndAddr
+			state.Registers[31] = testutil.EndAddr
 
 			goState := mipsevm.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
 				curStep := goState.GetState().GetStep()
-				if goState.GetState().GetPC() == test_util.EndAddr {
+				if goState.GetState().GetPC() == testutil.EndAddr {
 					break
 				}
 				if exitGroup && goState.GetState().GetExited() {
@@ -88,13 +88,13 @@ func TestEVM(t *testing.T) {
 					"mipsevm produced different state than EVM at step %d", state.Step)
 			}
 			if exitGroup {
-				require.NotEqual(t, uint32(test_util.EndAddr), goState.GetState().GetPC(), "must not reach end")
+				require.NotEqual(t, uint32(testutil.EndAddr), goState.GetState().GetPC(), "must not reach end")
 				require.True(t, goState.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), goState.GetState().GetExitCode(), "must exit with 1")
 			} else {
-				require.Equal(t, uint32(test_util.EndAddr), state.Cpu.PC, "must reach end")
+				require.Equal(t, uint32(testutil.EndAddr), state.Cpu.PC, "must reach end")
 				// inspect test result
-				done, result := state.Memory.GetMemory(test_util.BaseAddrEnd+4), state.Memory.GetMemory(test_util.BaseAddrEnd+8)
+				done, result := state.Memory.GetMemory(testutil.BaseAddrEnd+4), state.Memory.GetMemory(testutil.BaseAddrEnd+8)
 				require.Equal(t, done, uint32(1), "must be done")
 				require.Equal(t, result, uint32(1), "must have success result")
 			}
@@ -128,9 +128,9 @@ func TestEVMSingleStep(t *testing.T) {
 			stepWitness, err := us.Step(true)
 			require.NoError(t, err)
 
-			evm := test_util.NewMIPSEVM(contracts, addrs)
+			evm := testutil.NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
-			test_util.LogStepFailureAtCleanup(t, evm)
+			testutil.LogStepFailureAtCleanup(t, evm)
 
 			evmPost := evm.Step(t, stepWitness, curStep, singlethreaded.GetStateHashFn())
 			goPost, _ := us.GetState().EncodeWitness()
@@ -309,9 +309,9 @@ func TestEVMSysWriteHint(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedHints, oracle.hints)
 
-			evm := test_util.NewMIPSEVM(contracts, addrs)
+			evm := testutil.NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
-			test_util.LogStepFailureAtCleanup(t, evm)
+			testutil.LogStepFailureAtCleanup(t, evm)
 
 			evmPost := evm.Step(t, stepWitness, curStep, singlethreaded.GetStateHashFn())
 			goPost, _ := us.GetState().EncodeWitness()
@@ -326,7 +326,7 @@ func TestEVMFault(t *testing.T) {
 	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
 	sender := common.Address{0x13, 0x37}
 
-	env, evmState := test_util.NewEVMEnv(contracts, addrs)
+	env, evmState := testutil.NewEVMEnv(contracts, addrs)
 	env.Config.Tracer = tracer
 
 	cases := []struct {
@@ -346,7 +346,7 @@ func TestEVMFault(t *testing.T) {
 			state.Memory.SetMemory(0, tt.insn)
 
 			// set the return address ($ra) to jump into when test completes
-			state.Registers[31] = test_util.EndAddr
+			state.Registers[31] = testutil.EndAddr
 
 			us := mipsevm.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
 			require.Panics(t, func() { _, _ = us.Step(true) })
@@ -357,7 +357,7 @@ func TestEVMFault(t *testing.T) {
 				State:     encodedWitness,
 				ProofData: insnProof[:],
 			}
-			input := test_util.EncodeStepInput(t, stepWitness, vmstate.LocalContext{}, contracts.MIPS)
+			input := testutil.EncodeStepInput(t, stepWitness, vmstate.LocalContext{}, contracts.MIPS)
 			startingGas := uint64(30_000_000)
 
 			_, _, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, common.U2560)
@@ -371,9 +371,9 @@ func TestEVMFault(t *testing.T) {
 func TestHelloEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
-	evm := test_util.NewMIPSEVM(contracts, addrs)
+	evm := testutil.NewMIPSEVM(contracts, addrs)
 	evm.SetTracer(tracer)
-	test_util.LogStepFailureAtCleanup(t, evm)
+	testutil.LogStepFailureAtCleanup(t, evm)
 
 	elfProgram, err := elf.Open("../../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
@@ -422,9 +422,9 @@ func TestHelloEVM(t *testing.T) {
 func TestClaimEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
-	evm := test_util.NewMIPSEVM(contracts, addrs)
+	evm := testutil.NewMIPSEVM(contracts, addrs)
 	evm.SetTracer(tracer)
-	test_util.LogStepFailureAtCleanup(t, evm)
+	testutil.LogStepFailureAtCleanup(t, evm)
 
 	elfProgram, err := elf.Open("../../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")
@@ -436,7 +436,7 @@ func TestClaimEVM(t *testing.T) {
 	require.NoError(t, err, "apply Go runtime patches")
 	require.NoError(t, program.PatchStack(state), "add initial stack")
 
-	oracle, expectedStdOut, expectedStdErr := test_util.ClaimTestOracle(t)
+	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	goState := mipsevm.NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))

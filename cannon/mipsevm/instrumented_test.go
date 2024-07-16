@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 func TestState(t *testing.T) {
@@ -21,7 +21,7 @@ func TestState(t *testing.T) {
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
-			oracle := test_util.SelectOracleFixture(t, f.Name())
+			oracle := testutil.SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
 
@@ -39,12 +39,12 @@ func TestState(t *testing.T) {
 			require.NoError(t, err, "load program into state")
 
 			// set the return address ($ra) to jump into when test completes
-			state.Registers[31] = test_util.EndAddr
+			state.Registers[31] = testutil.EndAddr
 
 			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
-				if us.state.Cpu.PC == test_util.EndAddr {
+				if us.state.Cpu.PC == testutil.EndAddr {
 					break
 				}
 				if exitGroup && us.state.Exited {
@@ -55,12 +55,12 @@ func TestState(t *testing.T) {
 			}
 
 			if exitGroup {
-				require.NotEqual(t, uint32(test_util.EndAddr), us.state.Cpu.PC, "must not reach end")
+				require.NotEqual(t, uint32(testutil.EndAddr), us.state.Cpu.PC, "must not reach end")
 				require.True(t, us.state.Exited, "must set exited state")
 				require.Equal(t, uint8(1), us.state.ExitCode, "must exit with 1")
 			} else {
-				require.Equal(t, uint32(test_util.EndAddr), us.state.Cpu.PC, "must reach end")
-				done, result := state.Memory.GetMemory(test_util.BaseAddrEnd+4), state.Memory.GetMemory(test_util.BaseAddrEnd+8)
+				require.Equal(t, uint32(testutil.EndAddr), us.state.Cpu.PC, "must reach end")
+				done, result := state.Memory.GetMemory(testutil.BaseAddrEnd+4), state.Memory.GetMemory(testutil.BaseAddrEnd+8)
 				// inspect test result
 				require.Equal(t, done, uint32(1), "must be done")
 				require.Equal(t, result, uint32(1), "must have success result")
@@ -70,7 +70,7 @@ func TestState(t *testing.T) {
 }
 
 func TestHello(t *testing.T) {
-	state := test_util.LoadELFProgram(t, "../example/bin/hello.elf", singlethreaded.CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../example/bin/hello.elf", singlethreaded.CreateInitialState)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
@@ -91,9 +91,9 @@ func TestHello(t *testing.T) {
 }
 
 func TestClaim(t *testing.T) {
-	state := test_util.LoadELFProgram(t, "../example/bin/claim.elf", singlethreaded.CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../example/bin/claim.elf", singlethreaded.CreateInitialState)
 
-	oracle, expectedStdOut, expectedStdErr := test_util.ClaimTestOracle(t)
+	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
@@ -116,9 +116,9 @@ func TestClaim(t *testing.T) {
 func TestAlloc(t *testing.T) {
 	t.Skip("TODO(client-pod#906): Currently fails on Single threaded Cannon. Re-enable for the MT FPVM")
 
-	state := test_util.LoadELFProgram(t, "../example/bin/alloc.elf", singlethreaded.CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../example/bin/alloc.elf", singlethreaded.CreateInitialState)
 	const numAllocs = 100 // where each alloc is a 32 MiB chunk
-	oracle := test_util.AllocOracle(t, numAllocs)
+	oracle := testutil.AllocOracle(t, numAllocs)
 
 	// completes in ~870 M steps
 	us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
