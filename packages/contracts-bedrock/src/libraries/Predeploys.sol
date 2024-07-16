@@ -77,6 +77,9 @@ library Predeploys {
     /// @notice Address of the GovernanceToken predeploy.
     address internal constant GOVERNANCE_TOKEN = 0x4200000000000000000000000000000000000042;
 
+    /// @notice Address of the Alligator predeploy.
+    address internal constant ALLIGATOR = 0x4200000000000000000000000000000000000043;
+
     /// @custom:legacy
     /// @notice Address of the LegacyERC20ETH predeploy. Deprecated. Balances are migrated to the
     ///         state trie as of the Bedrock upgrade. Contract has been locked and write functions
