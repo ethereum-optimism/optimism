@@ -1,4 +1,4 @@
-package core
+package mipsevm
 
 type DebugInfo struct {
 	Pages               int `json:"pages"`

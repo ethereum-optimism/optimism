@@ -4,7 +4,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -38,7 +38,7 @@ type InstrumentedState struct {
 	debugEnabled bool
 }
 
-func NewInstrumentedState(state *State, po core.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
 		stdOut:         stdOut,
@@ -47,7 +47,7 @@ func NewInstrumentedState(state *State, po core.PreimageOracle, stdOut, stdErr i
 	}
 }
 
-func NewInstrumentedStateFromFile(stateFile string, po core.PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
+func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
 	state, err := jsonutil.LoadJSON[State](stateFile)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 	return nil
 }
 
-func (m *InstrumentedState) Step(proof bool) (wit *core.StepWitness, err error) {
+func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {
 	m.memProofEnabled = proof
 	m.lastMemAccess = ^uint32(0)
 	m.lastPreimageOffset = ^uint32(0)
@@ -77,7 +77,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *core.StepWitness, err error) 
 	if proof {
 		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
 		encodedWitness, stateHash := m.state.EncodeWitness()
-		wit = &core.StepWitness{
+		wit = &mipsevm.StepWitness{
 			State:     encodedWitness,
 			StateHash: stateHash,
 			ProofData: insnProof[:],
@@ -103,12 +103,12 @@ func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
 	return m.lastPreimageKey, m.lastPreimage, m.lastPreimageOffset
 }
 
-func (m *InstrumentedState) GetState() core.FPVMState {
+func (m *InstrumentedState) GetState() mipsevm.FPVMState {
 	return m.state
 }
 
-func (m *InstrumentedState) GetDebugInfo() *core.DebugInfo {
-	return &core.DebugInfo{
+func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
+	return &mipsevm.DebugInfo{
 		Pages:               m.state.Memory.PageCount(),
 		NumPreimageRequests: m.preimageOracle.numPreimageRequests,
 		TotalPreimageSize:   m.preimageOracle.totalPreimageSize,
@@ -116,7 +116,7 @@ func (m *InstrumentedState) GetDebugInfo() *core.DebugInfo {
 }
 
 type trackingOracle struct {
-	po                  core.PreimageOracle
+	po                  mipsevm.PreimageOracle
 	totalPreimageSize   int
 	numPreimageRequests int
 }

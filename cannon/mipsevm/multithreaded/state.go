@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
 // SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
@@ -25,14 +25,14 @@ const THREAD_WITNESS_SIZE = SERIALIZED_THREAD_SIZE + 32
 var EmptyThreadsRoot common.Hash = common.HexToHash("0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5")
 
 type ThreadState struct {
-	ThreadId         uint32           `json:"threadId"`
-	ExitCode         uint8            `json:"exit"`
-	Exited           bool             `json:"exited"`
-	FutexAddr        uint32           `json:"futexAddr"`
-	FutexVal         uint32           `json:"futexVal"`
-	FutexTimeoutStep uint64           `json:"futexTimeoutStep"`
-	Cpu              core.CpuScalars `json:"cpu"`
-	Registers        [32]uint32       `json:"registers"`
+	ThreadId         uint32             `json:"threadId"`
+	ExitCode         uint8              `json:"exit"`
+	Exited           bool               `json:"exited"`
+	FutexAddr        uint32             `json:"futexAddr"`
+	FutexVal         uint32             `json:"futexVal"`
+	FutexTimeoutStep uint64             `json:"futexTimeoutStep"`
+	Cpu              mipsevm.CpuScalars `json:"cpu"`
+	Registers        [32]uint32         `json:"registers"`
 }
 
 func (t *ThreadState) serializeThread() []byte {
@@ -40,7 +40,7 @@ func (t *ThreadState) serializeThread() []byte {
 
 	out = binary.BigEndian.AppendUint32(out, t.ThreadId)
 	out = append(out, t.ExitCode)
-	out = witness.AppendBoolToWitness(out, t.Exited)
+	out = mipsevm.AppendBoolToWitness(out, t.Exited)
 	out = binary.BigEndian.AppendUint32(out, t.FutexAddr)
 	out = binary.BigEndian.AppendUint32(out, t.FutexVal)
 	out = binary.BigEndian.AppendUint64(out, t.FutexTimeoutStep)
@@ -122,7 +122,7 @@ func CreateEmptyState() *State {
 		ThreadId: initThreadId,
 		ExitCode: 0,
 		Exited:   false,
-		Cpu: core.CpuScalars{
+		Cpu: mipsevm.CpuScalars{
 			PC:     0,
 			NextPC: 0,
 			LO:     0,
@@ -224,7 +224,7 @@ func (s *State) GetExited() bool { return s.Exited }
 func (s *State) GetStep() uint64 { return s.Step }
 
 func (s *State) VMStatus() uint8 {
-	return core.VmStatus(s.Exited, s.ExitCode)
+	return mipsevm.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *State) GetMemory() *memory.Memory {
@@ -239,7 +239,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	out = core.AppendBoolToWitness(out, s.Exited)
+	out = mipsevm.AppendBoolToWitness(out, s.Exited)
 
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	out = binary.BigEndian.AppendUint64(out, s.StepsSinceLastContextSwitch)
@@ -247,7 +247,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 
 	leftStackRoot := s.getLeftThreadStackRoot()
 	rightStackRoot := s.getRightThreadStackRoot()
-	out = core.AppendBoolToWitness(out, s.TraverseRight)
+	out = mipsevm.AppendBoolToWitness(out, s.TraverseRight)
 	out = append(out, (leftStackRoot)[:]...)
 	out = append(out, (rightStackRoot)[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.NextThreadId)
@@ -271,7 +271,7 @@ func StateHashFromWitness(sw []byte) common.Hash {
 	hash := crypto.Keccak256Hash(sw)
 	exitCode := sw[EXITCODE_WITNESS_OFFSET]
 	exited := sw[EXITED_WITNESS_OFFSET]
-	status := core.VmStatus(exited == 1, exitCode)
+	status := mipsevm.VmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash
 }

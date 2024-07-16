@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
 const HEAP_START = 0x05000000
 
-type CreateFPVMState[T core.FPVMState] func(pc, heapStart uint32) T
+type CreateFPVMState[T mipsevm.FPVMState] func(pc, heapStart uint32) T
 
-func LoadELF[T core.FPVMState](f *elf.File, initState CreateFPVMState[T]) (T, error) {
+func LoadELF[T mipsevm.FPVMState](f *elf.File, initState CreateFPVMState[T]) (T, error) {
 	var empty T
 	s := initState(uint32(f.Entry), HEAP_START)
 

@@ -6,11 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
-func LoadELFProgram[T core.FPVMState](t *testing.T, name string, initState program.CreateFPVMState[T]) T {
+func LoadELFProgram[T mipsevm.FPVMState](t *testing.T, name string, initState program.CreateFPVMState[T]) T {
 	elfProgram, err := elf.Open(name)
 	require.NoError(t, err, "open ELF file")
 

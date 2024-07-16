@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 )
@@ -23,7 +23,7 @@ var (
 func TestValidate(t *testing.T) {
 	t.Run("ValidPrestates", func(t *testing.T) {
 		prestateHash := crypto.Keccak256(prestate)
-		prestateHash[0] = core.VMStatusUnfinished
+		prestateHash[0] = mipsevm.VMStatusUnfinished
 		player := &PrestateValidator{
 			load:     newMockPrestateLoader(false, common.BytesToHash(prestateHash)),
 			provider: newMockPrestateProvider(false, prestate),
@@ -79,7 +79,7 @@ func (m *mockPrestateProvider) AbsolutePreStateCommitment(_ context.Context) (co
 		return common.Hash{}, mockProviderError
 	}
 	hash := common.BytesToHash(crypto.Keccak256(m.prestate))
-	hash[0] = core.VMStatusUnfinished
+	hash[0] = mipsevm.VMStatusUnfinished
 	return hash, nil
 }
 

@@ -14,9 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 
-	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
@@ -57,7 +57,7 @@ func TestEVM(t *testing.T) {
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &singlethreaded.State{Cpu: vmstate.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
+			state := &singlethreaded.State{Cpu: mipsevm.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -119,7 +119,7 @@ func TestEVMSingleStep(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &singlethreaded.State{Cpu: vmstate.CpuScalars{PC: tt.pc, NextPC: tt.nextPC}, Memory: memory.NewMemory()}
+			state := &singlethreaded.State{Cpu: mipsevm.CpuScalars{PC: tt.pc, NextPC: tt.nextPC}, Memory: memory.NewMemory()}
 			state.Memory.SetMemory(tt.pc, tt.insn)
 			curStep := state.Step
 
@@ -290,7 +290,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			oracle := hintTrackingOracle{}
-			state := &singlethreaded.State{Cpu: vmstate.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
+			state := &singlethreaded.State{Cpu: mipsevm.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
 
 			state.LastHint = tt.lastHint
 			state.Registers[2] = exec.SysWrite
@@ -340,8 +340,8 @@ func TestEVMFault(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			state := &singlethreaded.State{Cpu: vmstate.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: memory.NewMemory()}
-			initialState := &singlethreaded.State{Cpu: vmstate.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: state.Memory}
+			state := &singlethreaded.State{Cpu: mipsevm.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: memory.NewMemory()}
+			initialState := &singlethreaded.State{Cpu: mipsevm.CpuScalars{PC: 0, NextPC: tt.nextPC}, Memory: state.Memory}
 			state.Memory.SetMemory(0, tt.insn)
 
 			// set the return address ($ra) to jump into when test completes
@@ -352,11 +352,11 @@ func TestEVMFault(t *testing.T) {
 
 			insnProof := initialState.Memory.MerkleProof(0)
 			encodedWitness, _ := initialState.EncodeWitness()
-			stepWitness := &vmstate.StepWitness{
+			stepWitness := &mipsevm.StepWitness{
 				State:     encodedWitness,
 				ProofData: insnProof[:],
 			}
-			input := testutil.EncodeStepInput(t, stepWitness, vmstate.LocalContext{}, contracts.MIPS)
+			input := testutil.EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, contracts.MIPS)
 			startingGas := uint64(30_000_000)
 
 			_, _, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, common.U2560)

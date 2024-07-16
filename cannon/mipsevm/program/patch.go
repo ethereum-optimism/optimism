@@ -6,11 +6,11 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
-func PatchGo(f *elf.File, st core.FPVMState) error {
+func PatchGo(f *elf.File, st mipsevm.FPVMState) error {
 	symbols, err := f.Symbols()
 	if err != nil {
 		return fmt.Errorf("failed to read symbols data, cannot patch program: %w", err)
@@ -54,7 +54,7 @@ func PatchGo(f *elf.File, st core.FPVMState) error {
 	return nil
 }
 
-func PatchStack(st core.FPVMState) error {
+func PatchStack(st mipsevm.FPVMState) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow

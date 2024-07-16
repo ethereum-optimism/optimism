@@ -16,7 +16,7 @@ import (
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/util"
@@ -241,10 +241,10 @@ func (p *ProcessPreimageOracle) wait() {
 	close(p.waitErr)
 }
 
-type StepFn func(proof bool) (*core.StepWitness, error)
+type StepFn func(proof bool) (*mipsevm.StepWitness, error)
 
 func Guard(proc *os.ProcessState, fn StepFn) StepFn {
-	return func(proof bool) (*core.StepWitness, error) {
+	return func(proof bool) (*mipsevm.StepWitness, error) {
 		wit, err := fn(proof)
 		if err != nil {
 			if proc.Exited() {
@@ -257,7 +257,7 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 	}
 }
 
-var _ core.PreimageOracle = (*ProcessPreimageOracle)(nil)
+var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
 type VMType string
 
@@ -364,7 +364,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	var vm core.FPVM
+	var vm mipsevm.FPVM
 	var debugProgram bool
 	if vmType == cannonVMType {
 		cannon, err := singlethreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog)

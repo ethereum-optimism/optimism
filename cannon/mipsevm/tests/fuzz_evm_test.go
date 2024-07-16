@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -27,7 +27,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     pc,
 				NextPC: nextPC,
 				LO:     0,
@@ -79,7 +79,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     pc,
 				NextPC: nextPC,
 				LO:     0,
@@ -129,7 +129,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, siz uint32, heap uint32) {
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     0,
 				NextPC: 4,
 				LO:     0,
@@ -192,7 +192,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     pc,
 				NextPC: nextPC,
 				LO:     0,
@@ -241,7 +241,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32) {
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     0,
 				NextPC: 4,
 				LO:     0,
@@ -308,7 +308,7 @@ func FuzzStateHintRead(f *testing.F) {
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     0,
 				NextPC: 4,
 				LO:     0,
@@ -364,7 +364,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 			t.SkipNow()
 		}
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     0,
 				NextPC: 4,
 				LO:     0,
@@ -428,7 +428,7 @@ func FuzzStateHintWrite(f *testing.F) {
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
 		preimageData := []byte("hello world")
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     0,
 				NextPC: 4,
 				LO:     0,
@@ -489,7 +489,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
 		state := &singlethreaded.State{
-			Cpu: core.CpuScalars{
+			Cpu: mipsevm.CpuScalars{
 				PC:     0,
 				NextPC: 4,
 				LO:     0,

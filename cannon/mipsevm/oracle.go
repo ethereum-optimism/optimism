@@ -1,4 +1,4 @@
-package core
+package mipsevm
 
 type PreimageOracle interface {
 	Hint(v []byte)

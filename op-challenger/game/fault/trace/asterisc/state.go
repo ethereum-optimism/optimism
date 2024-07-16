@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 

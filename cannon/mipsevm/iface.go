@@ -1,9 +1,9 @@
-package core
+package mipsevm
 
 import (
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
 type FPVMState interface {
