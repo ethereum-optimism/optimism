@@ -146,13 +146,13 @@ importers:
         version: 5.7.0
       '@nomiclabs/hardhat-ethers':
         specifier: ^2.2.3
-        version: 2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
+        version: 2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
       '@nomiclabs/hardhat-waffle':
         specifier: ^2.0.6
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)))(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(typescript@5.5.3))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)))(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(typescript@5.5.3))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
       hardhat:
-        specifier: ^2.20.1
-        version: 2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)
+        specifier: ^2.22.6
+        version: 2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3)
@@ -186,10 +186,10 @@ importers:
     devDependencies:
       '@nomiclabs/hardhat-ethers':
         specifier: ^2.2.3
-        version: 2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
+        version: 2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
       '@nomiclabs/hardhat-waffle':
         specifier: ^2.0.1
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)))(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(typescript@5.5.3))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)))(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(typescript@5.5.3))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
       '@types/node':
         specifier: ^20.11.17
         version: 20.11.17
@@ -200,8 +200,8 @@ importers:
         specifier: ^5.7.2
         version: 5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
       hardhat:
-        specifier: ^2.20.1
-        version: 2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)
+        specifier: ^2.22.6
+        version: 2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)
       hardhat-deploy:
         specifier: ^0.12.4
         version: 0.12.4(bufferutil@4.0.8)(utf-8-validate@5.0.7)
@@ -862,41 +862,45 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@nomicfoundation/ethereumjs-block@5.0.4':
-    resolution: {integrity: sha512-AcyacJ9eX/uPEvqsPiB+WO1ymE+kyH48qGGiGV+YTojdtas8itUTW5dehDSOXEEItWGbbzEJ4PRqnQZlWaPvDw==}
-    engines: {node: '>=18'}
+  '@nomicfoundation/edr-darwin-arm64@0.4.2':
+    resolution: {integrity: sha512-S+hhepupfqpBvMa9M1PVS08sVjGXsLnjyAsjhrrsjsNuTHVLhKzhkguvBD5g4If5skrwgOaVqpag4wnQbd15kQ==}
+    engines: {node: '>= 18'}
 
-  '@nomicfoundation/ethereumjs-blockchain@7.0.4':
-    resolution: {integrity: sha512-jYsd/kwzbmpnxx86tXsYV8wZ5xGvFL+7/P0c6OlzpClHsbFzeF41KrYA9scON8Rg6bZu3ZTv6JOAgj3t7USUfg==}
-    engines: {node: '>=18'}
+  '@nomicfoundation/edr-darwin-x64@0.4.2':
+    resolution: {integrity: sha512-/zM94AUrXz6CmcsecRNHJ50jABDUFafmGc4iBmkfX/mTp4tVZj7XTyIogrQIt0FnTaeb4CgZoLap2+8tW/Uldg==}
+    engines: {node: '>= 18'}
+
+  '@nomicfoundation/edr-linux-arm64-gnu@0.4.2':
+    resolution: {integrity: sha512-TV3Pr2tFvvmCfPCi9PaCGLtqn+oLaPKfL2NWpnoCeFFdzDQXi2L930yP1oUPY5RXd78NLdVHMkEkbhb2b6Wuvg==}
+    engines: {node: '>= 18'}
+
+  '@nomicfoundation/edr-linux-arm64-musl@0.4.2':
+    resolution: {integrity: sha512-PALwrLBk1M9rolXyhSX8xdhe5jL0qf/PgiCIF7W7lUyVKrI/I0oiU0EHDk/Xw7yi2UJg4WRyhhZoHYa0g4g8Qg==}
+    engines: {node: '>= 18'}
+
+  '@nomicfoundation/edr-linux-x64-gnu@0.4.2':
+    resolution: {integrity: sha512-5svkftypDjAZ1LxV1onojlaqPRxrTEjJLkrUwLL+Fao5ZMe7aTnk5QQ1Jv76gW6WYZnMXNgjPhRcnw3oSNrqFA==}
+    engines: {node: '>= 18'}
+
+  '@nomicfoundation/edr-linux-x64-musl@0.4.2':
+    resolution: {integrity: sha512-qiMlXQTggdH9zfOB4Eil4rQ95z8s7QdLJcOfz5Aym12qJNkCyF9hi4cc4dDCWA0CdI3x3oLbuf8qb81SF8R45w==}
+    engines: {node: '>= 18'}
+
+  '@nomicfoundation/edr-win32-x64-msvc@0.4.2':
+    resolution: {integrity: sha512-hDkAb0iaMmGYwBY/rA1oCX8VpsezfQcHPEPIEGXEcWC3WbnOgIZo0Qkpu/g0OMtFOJSQlWLXvKZuV7blhnrQag==}
+    engines: {node: '>= 18'}
+
+  '@nomicfoundation/edr@0.4.2':
+    resolution: {integrity: sha512-U7v0HuZHfrsl/5FpUzuB2FYA0+FUglHHwiO6NhvLtNYKMZcPzdS6iUriMp/7GWs0SVxW3bAht9GinZPxdhVwWg==}
+    engines: {node: '>= 18'}
 
   '@nomicfoundation/ethereumjs-common@4.0.4':
     resolution: {integrity: sha512-9Rgb658lcWsjiicr5GzNCjI1llow/7r0k50dLL95OJ+6iZJcVbi15r3Y0xh2cIO+zgX0WIHcbzIu6FeQf9KPrg==}
-
-  '@nomicfoundation/ethereumjs-ethash@3.0.4':
-    resolution: {integrity: sha512-xvIrwIMl9sSaiYKRem68+O7vYdj7Q2XWv5P7JXiIkn83918QzWHvqbswTRsH7+r6X1UEvdsURRnZbvZszEjAaQ==}
-    engines: {node: '>=18'}
-
-  '@nomicfoundation/ethereumjs-evm@2.0.4':
-    resolution: {integrity: sha512-lTyZZi1KpeMHzaO6cSVisR2tjiTTedjo7PcmhI/+GNFo9BmyY6QYzGeSti0sFttmjbEMioHgXxl5yrLNRg6+1w==}
-    engines: {node: '>=18'}
 
   '@nomicfoundation/ethereumjs-rlp@5.0.4':
     resolution: {integrity: sha512-8H1S3s8F6QueOc/X92SdrA4RDenpiAEqMg5vJH99kcQaCy/a3Q6fgseo75mgWlbanGJXSlAPtnCeG9jvfTYXlw==}
     engines: {node: '>=18'}
     hasBin: true
-
-  '@nomicfoundation/ethereumjs-statemanager@2.0.4':
-    resolution: {integrity: sha512-HPDjeFrxw6llEi+BzqXkZ+KkvFnTOPczuHBtk21hRlDiuKuZz32dPzlhpRsDBGV1b5JTmRDUVqCS1lp3Gghw4Q==}
-    peerDependencies:
-      '@nomicfoundation/ethereumjs-verkle': 0.0.2
-    peerDependenciesMeta:
-      '@nomicfoundation/ethereumjs-verkle':
-        optional: true
-
-  '@nomicfoundation/ethereumjs-trie@6.0.4':
-    resolution: {integrity: sha512-3nSwQiFMvr2VFe/aZUyinuohYvtytUqZCUCvIWcPJ/BwJH6oQdZRB42aNFBJ/8nAh2s3OcroWpBLskzW01mFKA==}
-    engines: {node: '>=18'}
 
   '@nomicfoundation/ethereumjs-tx@5.0.4':
     resolution: {integrity: sha512-Xjv8wAKJGMrP1f0n2PeyfFCCojHd7iS3s/Ab7qzF1S64kxZ8Z22LCMynArYsVqiFx6rzYy548HNVEyI+AYN/kw==}
@@ -915,14 +919,6 @@ packages:
     peerDependenciesMeta:
       c-kzg:
         optional: true
-
-  '@nomicfoundation/ethereumjs-verkle@0.0.2':
-    resolution: {integrity: sha512-bjnfZElpYGK/XuuVRmLS3yDvr+cDs85D9oonZ0YUa5A3lgFgokWMp76zXrxX2jVQ0BfHaw12y860n1+iOi6yFQ==}
-    engines: {node: '>=18'}
-
-  '@nomicfoundation/ethereumjs-vm@7.0.4':
-    resolution: {integrity: sha512-gsA4IhmtWHI4BofKy3kio9W+dqZQs5Ji5mLjLYxHCkat+JQBUt5szjRKra2F9nGDJ2XcI/wWb0YWUFNgln4zRQ==}
-    engines: {node: '>=18'}
 
   '@nomicfoundation/solidity-analyzer-darwin-arm64@0.1.1':
     resolution: {integrity: sha512-KcTodaQw8ivDZyF+D76FokN/HdpgGpfjc/gFCImdLUyqB6eSWVaZPazMbeAjmfhx3R0zm/NYVzxwAokFKgrc0w==}
@@ -1297,9 +1293,6 @@ packages:
   '@types/dateformat@5.0.0':
     resolution: {integrity: sha512-SZg4JdHIWHQGEokbYGZSDvo5wA4TLYPXaqhigs/wH+REDOejcJzgH+qyY+HtEUtWOZxEUkbhbdYPqQDiEgrXeA==}
 
-  '@types/debug@4.1.12':
-    resolution: {integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==}
-
   '@types/express-serve-static-core@4.17.35':
     resolution: {integrity: sha512-wALWQwrgiB2AWTT91CB62b6Yt0sNHpznUXeZEcnPU3DRdlDIz74x8Qg1UUYKSVFi+va5vKOLYRBI1bRKiLLKIg==}
 
@@ -1336,9 +1329,6 @@ packages:
   '@types/mocha@10.0.7':
     resolution: {integrity: sha512-GN8yJ1mNTcFcah/wKEFIJckJx9iJLoMSzWcfRRuxz/Jk+U6KQNnml+etbtxFK8lPjzOw3zp4Ha/kjSst9fsHYw==}
 
-  '@types/ms@0.7.31':
-    resolution: {integrity: sha512-iiUgKzV9AuaEkZqkOLDIvlQiL6ltuZd9tGcW3gwpnX8JbuiuhFlEGmmFXEXkN50Cvq7Os88IY2v0dkDqXYWVgA==}
-
   '@types/node-fetch@2.6.4':
     resolution: {integrity: sha512-1ZX9fcN4Rvkvgv4E6PAY5WXUFWFcRWxZa3EW83UjycOB9ljJCedb2CupIP4RZMEwF/M3eTcCihbBRgwtGbg5Rg==}
 
@@ -1368,9 +1358,6 @@ packages:
 
   '@types/range-parser@1.2.4':
     resolution: {integrity: sha512-EEhsLsD6UsDM1yFhAvy0Cjr6VwmpMWqFBCb9w07wVugF7w9nfajxLuVmngTIpgS6svCnm6Vaw+MZhoDCKnOfsw==}
-
-  '@types/readable-stream@2.3.15':
-    resolution: {integrity: sha512-oM5JSKQCcICF1wvGgmecmHldZ48OZamtMxcGGVICOJA8o8cahXC1zEVAif8iwoc5j8etxFaRFnf095+CDsuoFQ==}
 
   '@types/secp256k1@4.0.6':
     resolution: {integrity: sha512-hHxJU6PAEUn0TP4S/ZOzuTUvJWuZ6eIKeNKb5RBpODvSl6hp1Wrw4s7ATY50rklRCScUDpHzVA/DQdSjJ3UoYQ==}
@@ -1536,10 +1523,6 @@ packages:
 
   ansi-align@3.0.1:
     resolution: {integrity: sha512-IOfwwBF5iczOjp/WeY4YxyjqAFMQoZufdQWDd19SEExbVLNXqvpzSJ/M7Za4/sCPmQ0+GRquoA7bGcINcxew6w==}
-
-  ansi-colors@4.1.1:
-    resolution: {integrity: sha512-JoX0apGbHaUJBNl6yF+p6JAFYZ666/hhCGKN5t9QFjbJQKUU/g8MNbFDbvfrgKXvI1QpZplPOnwIo99lX/AAmA==}
-    engines: {node: '>=6'}
 
   ansi-colors@4.1.3:
     resolution: {integrity: sha512-/6w/C21Pm1A7aZitlI5Ni/2J6FFQN8i1Cvz3kHABAAbw93v/NlvKdVOqz7CCWz/3iv/JplRSEEZ83XION15ovw==}
@@ -1736,10 +1719,6 @@ packages:
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
-
-  bigint-crypto-utils@3.3.0:
-    resolution: {integrity: sha512-jOTSb+drvEDxEq6OuUybOAv/xxoh3cuYRUIPyu8sSHQNKM303UQ2R1DAo45o1AkcIXw6fzbaFI1+xGGdaXs2lg==}
-    engines: {node: '>=14.0.0'}
 
   bignumber.js@9.0.1:
     resolution: {integrity: sha512-IdZR9mh6ahOBv/hYGiXyVuyCetmGJhtYkqLBpTStdhEGjegpPlUawydyaF3pbIOFynJTpllEs+NP+CS9jKFLjA==}
@@ -2028,9 +2007,6 @@ packages:
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
 
-  commander@3.0.2:
-    resolution: {integrity: sha512-Gar0ASD4BDyKC4hl4DwHqDrmvjoxWKZigVnAbn5H1owvm4CxCPdb0HQDehwNYMJpla5+M2tPmPARzhtYuwpHow==}
-
   commander@8.3.0:
     resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
     engines: {node: '>= 12'}
@@ -2225,10 +2201,6 @@ packages:
 
   diff@4.0.2:
     resolution: {integrity: sha512-58lmxKSA4BNyLz+HHMUzlOEpg09FV+ev6ZMe3vJihgdxzgcwZ8VoEEPmALCZG9LmqfVoNMMKpttIYTVG6uDY7A==}
-    engines: {node: '>=0.3.1'}
-
-  diff@5.0.0:
-    resolution: {integrity: sha512-/VTCrvm5Z0JGty/BWHljh+BAiw3IK+2j87NGMu8Nwc/f48WoDAC395uomO9ZD117ZOBaHmkX1oyLvkVM/aIT3w==}
     engines: {node: '>=0.3.1'}
 
   diff@5.2.0:
@@ -2963,8 +2935,8 @@ packages:
   hardhat-deploy@0.12.4:
     resolution: {integrity: sha512-bYO8DIyeGxZWlhnMoCBon9HNZb6ji0jQn7ngP1t5UmGhC8rQYhji7B73qETMOFhzt5ECZPr+U52duj3nubsqdQ==}
 
-  hardhat@2.20.1:
-    resolution: {integrity: sha512-q75xDQiQtCZcTMBwjTovrXEU5ECr49baxr4/OBkIu/ULTPzlB20yk1dRWNmD2IFbAeAeXggaWvQAdpiScaHtPw==}
+  hardhat@2.22.6:
+    resolution: {integrity: sha512-abFEnd9QACwEtSvZZGSmzvw7N3zhQN1cDKz5SLHAupfG24qTHofCjqvD5kT5Wwsq5XOL0ON1Mq5rr4v0XX5ciw==}
     hasBin: true
     peerDependencies:
       ts-node: '*'
@@ -3348,9 +3320,6 @@ packages:
 
   joi@17.11.0:
     resolution: {integrity: sha512-NgB+lZLNoqISVy1rZocE9PZI36bL/77ie924Ri43yEvi9GUUMPeyVIr8KdFTMUlby1p0PBYMk9spIxEUQYqrJQ==}
-
-  js-sdsl@4.4.2:
-    resolution: {integrity: sha512-dwXFwByc/ajSV6m5bcKAPwe4yDDF6D614pxmIi5odytzxRlwqF6nwoiCek80Ixc7Cvma5awClxrzFtxCQvcM8w==}
 
   js-sha3@0.5.7:
     resolution: {integrity: sha512-GII20kjaPX0zJ8wzkTbNDYMY7msuZcTWk8S5UOh6806Jq/wz1J8/bnr8uGU0DAUmYDjj2Mr4X1cW8v/GLYnR+g==}
@@ -3738,10 +3707,6 @@ packages:
   minimatch@3.1.2:
     resolution: {integrity: sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==}
 
-  minimatch@5.0.1:
-    resolution: {integrity: sha512-nLDxIFRyhDblz3qMuq+SoRZED4+miJ/G+tdDrjkkkRnjAsBexeGpgjLEQ0blJy7rHhR2b93rhQY4SvyWu9v03g==}
-    engines: {node: '>=10'}
-
   minimatch@5.1.6:
     resolution: {integrity: sha512-lKwV/1brpG6mBUFHtb7NUmtABCb2WZZmm2wNiOA5hAb8VdCS4B3dtMWyvcoViccwAW/COERjXLt0zP1zXUN26g==}
     engines: {node: '>=10'}
@@ -3785,11 +3750,6 @@ packages:
   mnemonist@0.38.3:
     resolution: {integrity: sha512-2K9QYubXx/NAjv4VLq1d1Ly8pWNC5L3BrixtdkyTegXWJIqY+zLNDhhX/A+ZwWt70tB1S8H4BE8FLYEFyNoOBw==}
 
-  mocha@10.2.0:
-    resolution: {integrity: sha512-IDY7fl/BecMwFHzoqF2sg/SHHANeBoMMXFlS9r0OXKDssYE1M5O43wUY/9BVPeIvfH2zmEbBfseqN9gBQZzXkg==}
-    engines: {node: '>= 14.0.0'}
-    hasBin: true
-
   mocha@10.6.0:
     resolution: {integrity: sha512-hxjt4+EEB0SA0ZDygSS015t65lJw/I2yRCS3Ae+SJ5FrbzrXgfYwJr96f0OvIXdj7h4lv/vLCrH3rkiuizFSvw==}
     engines: {node: '>= 14.0.0'}
@@ -3818,11 +3778,6 @@ packages:
 
   murmur-128@0.2.1:
     resolution: {integrity: sha512-WseEgiRkI6aMFBbj8Cg9yBj/y+OdipwVC7zUo3W2W1JAJITwouUOtpqsmGSg67EQmwwSyod7hsVsWY5LsrfQVg==}
-
-  nanoid@3.3.3:
-    resolution: {integrity: sha512-p1sjXuopFs0xg+fPASzQ28agW1oHD7xDsd9Xkf3T15H3c/cifrFHVwrh74PdoklAPi+i7MdRsE47vm2r6JoB+w==}
-    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
-    hasBin: true
 
   nanoid@3.3.7:
     resolution: {integrity: sha512-eSRppjcPIatRIMC1U6UngP8XFcz8MQWGQdt1MTBQ7NaAmvXDfvNxbvWV3x2y6CdEUciCSsDHDQZbhYaB8QEo2g==}
@@ -4404,10 +4359,6 @@ packages:
     resolution: {integrity: sha512-H7AkJWMobeskkttHyhTVtS0fxpFLjxhbfMa6Bk3wimP7sdPRGL3EyCg3sAQenFfAe+xQ+oAc85Nmtvq0ROM83Q==}
     engines: {node: '>=0.10.0'}
 
-  require-from-string@2.0.2:
-    resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
-    engines: {node: '>=0.10.0'}
-
   require-main-filename@1.0.1:
     resolution: {integrity: sha512-IqSUtOVP4ksd1C/ej5zeEh/BIP2ajqpn8c5x+q99gvcIG/Qf0cud5raVnE/Dwd0ua9TXYDoDc0RE5hBSdz22Ug==}
 
@@ -4484,12 +4435,6 @@ packages:
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
 
-  rust-verkle-wasm@0.0.1:
-    resolution: {integrity: sha512-BN6fiTsxcd2dCECz/cHtGTt9cdLJR925nh7iAuRcj8ymKw7OOaPmCneQZ7JePOJ/ia27TjEL91VdOi88Yf+mcA==}
-
-  rustbn-wasm@0.2.0:
-    resolution: {integrity: sha512-FThvYFNTqrEKGqXuseeg0zR7yROh/6U1617mCHF68OVqrN1tNKRN7Tdwy4WayPVsCmmK+eMxtIZX1qL6JxTkMg==}
-
   rustbn.js@0.2.0:
     resolution: {integrity: sha512-4VlvkRUuCJvr2J6Y0ImW7NvTCriMi7ErOAqWk1y69vAdoNIzCF3yPmgeNzx+RQTLEDFq5sHfscn1MwHxP9hNfA==}
 
@@ -4550,9 +4495,6 @@ packages:
     resolution: {integrity: sha512-qqWzuOjSFOuqPjFe4NOsMLafToQQwBSOEpS+FwEt3A2V3vKubTquT3vmLTQpFgMXp8AlFWFuP1qKaJZOtPpVXg==}
     engines: {node: '>= 0.8.0'}
 
-  serialize-javascript@6.0.0:
-    resolution: {integrity: sha512-Qr3TosvguFt8ePWqsvRfrKyQXIiW+nGbYpy8XK24NQHE83caxWt+mIymTT19DGFbNWNLfEwsrkSmN64lVWB9ag==}
-
   serialize-javascript@6.0.2:
     resolution: {integrity: sha512-Saa1xPByTTq2gdeFZYLLo+RFE35NHZkAbqZeWNd3BpzppeVisAqpDjcp8dyf6uIvEqJRd46jemmyA4iFIeVk8g==}
 
@@ -4610,13 +4552,13 @@ packages:
     resolution: {integrity: sha512-o+c6FpkiHd+HPjmjEVpQgH7fqZ14tJpXhho+/bQXlXbliLIS/xjXb42Vxh+qQY1WCSTMQ0+a5vR9vi0MfhU6mA==}
     hasBin: true
 
-  solc@0.7.3:
-    resolution: {integrity: sha512-GAsWNAjGzIDg7VxzP6mPjdurby3IkGCjQcM8GFYZT6RyaoUZKmMU6Y7YwG+tFGhv7dwZ8rmR4iwFDrrD99JwqA==}
-    engines: {node: '>=8.0.0'}
-    hasBin: true
-
   solc@0.8.15:
     resolution: {integrity: sha512-Riv0GNHNk/SddN/JyEuFKwbcWcEeho15iyupTSHw5Np6WuXA5D8kEHbyzDHi6sqmvLzu2l+8b1YmL8Ytple+8w==}
+    engines: {node: '>=10.0.0'}
+    hasBin: true
+
+  solc@0.8.26:
+    resolution: {integrity: sha512-yiPQNVf5rBFHwN6SIf3TUUvVAFKcQqmSUFeq+fb6pNRCo0ZCgpYOZDi3BVoezCPIAcKrVYd/qXlBLUP9wVrZ9g==}
     engines: {node: '>=10.0.0'}
     hasBin: true
 
@@ -5180,9 +5122,6 @@ packages:
     resolution: {integrity: sha512-kKlNACbvHrkpIw6oPeYDSmdCTu2hdMHoyXLTcUKala++lx5Y+wjJ/e474Jqv5abnVmwxw08DiTuHmw69lJGksA==}
     engines: {node: '>=8.0.0'}
 
-  workerpool@6.2.1:
-    resolution: {integrity: sha512-ILEIE97kDZvF9Wb9f6h5aXK4swSlKGUcOEGiIYb2OOu/IrDU9iwj0fD//SsA6E5ibwJxpEvhullJY4Sl4GcpAw==}
-
   workerpool@6.5.1:
     resolution: {integrity: sha512-Fs4dNYcsdpYSAfVxhnl1L5zTksjvOJxtC5hzMNl+1t9B8hTJTdKDyZ5ju7ztgPy+ft9tBFXoOlDNiOT9WUXZlA==}
 
@@ -5266,10 +5205,6 @@ packages:
   yargs-parser@2.4.1:
     resolution: {integrity: sha512-9pIKIJhnI5tonzG6OnCFlz/yln8xHYcGl+pn3xR0Vzff0vzN1PbNRaelgfgRUwZ3s4i3jvxT9WhmUGL4whnasA==}
 
-  yargs-parser@20.2.4:
-    resolution: {integrity: sha512-WOkpgNhPTlE73h4VFAFsOnomJVaovO8VqLDzy5saChRBFQFBoMYirowyW+Q9HB4HFF4Z7VZTiG3iSzJJA29yRA==}
-    engines: {node: '>=10'}
-
   yargs-parser@20.2.9:
     resolution: {integrity: sha512-y11nGElTIV+CT3Zv9t7VKl+Q3hTQoT9a1Qzezhhl6Rp21gJ/IVTW7Z3y9EWXhuUBC2Shnf+DX0antecpAwSP8w==}
     engines: {node: '>=10'}
@@ -5347,7 +5282,7 @@ snapshots:
       '@babel/traverse': 7.23.3
       '@babel/types': 7.23.6
       convert-source-map: 1.9.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -5457,7 +5392,7 @@ snapshots:
       '@babel/helper-split-export-declaration': 7.22.6
       '@babel/parser': 7.23.6
       '@babel/types': 7.23.6
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       globals: 11.12.0
     transitivePeerDependencies:
       - supports-color
@@ -5740,7 +5675,7 @@ snapshots:
   '@eslint/eslintrc@2.1.4':
     dependencies:
       ajv: 6.12.6
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       espree: 9.6.1
       globals: 13.21.0
       ignore: 5.2.4
@@ -5849,7 +5784,7 @@ snapshots:
   '@ethereum-waffle/chai@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))':
     dependencies:
       '@ethereum-waffle/provider': 4.0.5(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       ethers: 5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
       json-bigint: 1.0.0
     transitivePeerDependencies:
@@ -5890,7 +5825,7 @@ snapshots:
     dependencies:
       '@ethereum-waffle/ens': 4.0.3(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))
       '@ganache/ethereum-options': 0.1.4
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       ethers: 5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
       ganache: 7.4.3
     transitivePeerDependencies:
@@ -5910,7 +5845,7 @@ snapshots:
       '@ethereumjs/block': 3.6.2
       '@ethereumjs/common': 2.6.4
       '@ethereumjs/ethash': 1.1.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       ethereumjs-util: 7.1.5
       level-mem: 5.0.1
       lru-cache: 5.1.1
@@ -6283,7 +6218,7 @@ snapshots:
   '@humanwhocodes/config-array@0.11.13':
     dependencies:
       '@humanwhocodes/object-schema': 2.0.1
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       minimatch: 3.1.2
     transitivePeerDependencies:
       - supports-color
@@ -6389,32 +6324,29 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.15.0
 
-  '@nomicfoundation/ethereumjs-block@5.0.4':
-    dependencies:
-      '@nomicfoundation/ethereumjs-common': 4.0.4
-      '@nomicfoundation/ethereumjs-rlp': 5.0.4
-      '@nomicfoundation/ethereumjs-trie': 6.0.4
-      '@nomicfoundation/ethereumjs-tx': 5.0.4
-      '@nomicfoundation/ethereumjs-util': 9.0.4
-      ethereum-cryptography: 0.1.3
-    transitivePeerDependencies:
-      - c-kzg
+  '@nomicfoundation/edr-darwin-arm64@0.4.2': {}
 
-  '@nomicfoundation/ethereumjs-blockchain@7.0.4':
+  '@nomicfoundation/edr-darwin-x64@0.4.2': {}
+
+  '@nomicfoundation/edr-linux-arm64-gnu@0.4.2': {}
+
+  '@nomicfoundation/edr-linux-arm64-musl@0.4.2': {}
+
+  '@nomicfoundation/edr-linux-x64-gnu@0.4.2': {}
+
+  '@nomicfoundation/edr-linux-x64-musl@0.4.2': {}
+
+  '@nomicfoundation/edr-win32-x64-msvc@0.4.2': {}
+
+  '@nomicfoundation/edr@0.4.2':
     dependencies:
-      '@nomicfoundation/ethereumjs-block': 5.0.4
-      '@nomicfoundation/ethereumjs-common': 4.0.4
-      '@nomicfoundation/ethereumjs-ethash': 3.0.4
-      '@nomicfoundation/ethereumjs-rlp': 5.0.4
-      '@nomicfoundation/ethereumjs-trie': 6.0.4
-      '@nomicfoundation/ethereumjs-tx': 5.0.4
-      '@nomicfoundation/ethereumjs-util': 9.0.4
-      debug: 4.3.4(supports-color@8.1.1)
-      ethereum-cryptography: 0.1.3
-      lru-cache: 10.1.0
-    transitivePeerDependencies:
-      - c-kzg
-      - supports-color
+      '@nomicfoundation/edr-darwin-arm64': 0.4.2
+      '@nomicfoundation/edr-darwin-x64': 0.4.2
+      '@nomicfoundation/edr-linux-arm64-gnu': 0.4.2
+      '@nomicfoundation/edr-linux-arm64-musl': 0.4.2
+      '@nomicfoundation/edr-linux-x64-gnu': 0.4.2
+      '@nomicfoundation/edr-linux-x64-musl': 0.4.2
+      '@nomicfoundation/edr-win32-x64-msvc': 0.4.2
 
   '@nomicfoundation/ethereumjs-common@4.0.4':
     dependencies:
@@ -6422,59 +6354,7 @@ snapshots:
     transitivePeerDependencies:
       - c-kzg
 
-  '@nomicfoundation/ethereumjs-ethash@3.0.4':
-    dependencies:
-      '@nomicfoundation/ethereumjs-block': 5.0.4
-      '@nomicfoundation/ethereumjs-rlp': 5.0.4
-      '@nomicfoundation/ethereumjs-util': 9.0.4
-      bigint-crypto-utils: 3.3.0
-      ethereum-cryptography: 0.1.3
-    transitivePeerDependencies:
-      - c-kzg
-
-  '@nomicfoundation/ethereumjs-evm@2.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)':
-    dependencies:
-      '@nomicfoundation/ethereumjs-common': 4.0.4
-      '@nomicfoundation/ethereumjs-statemanager': 2.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)
-      '@nomicfoundation/ethereumjs-tx': 5.0.4
-      '@nomicfoundation/ethereumjs-util': 9.0.4
-      '@types/debug': 4.1.12
-      debug: 4.3.4(supports-color@8.1.1)
-      ethereum-cryptography: 0.1.3
-      rustbn-wasm: 0.2.0
-    transitivePeerDependencies:
-      - '@nomicfoundation/ethereumjs-verkle'
-      - c-kzg
-      - supports-color
-
   '@nomicfoundation/ethereumjs-rlp@5.0.4': {}
-
-  '@nomicfoundation/ethereumjs-statemanager@2.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)':
-    dependencies:
-      '@nomicfoundation/ethereumjs-common': 4.0.4
-      '@nomicfoundation/ethereumjs-rlp': 5.0.4
-      '@nomicfoundation/ethereumjs-trie': 6.0.4
-      '@nomicfoundation/ethereumjs-util': 9.0.4
-      debug: 4.3.4(supports-color@8.1.1)
-      ethereum-cryptography: 0.1.3
-      js-sdsl: 4.4.2
-      lru-cache: 10.1.0
-    optionalDependencies:
-      '@nomicfoundation/ethereumjs-verkle': 0.0.2
-    transitivePeerDependencies:
-      - c-kzg
-      - supports-color
-
-  '@nomicfoundation/ethereumjs-trie@6.0.4':
-    dependencies:
-      '@nomicfoundation/ethereumjs-rlp': 5.0.4
-      '@nomicfoundation/ethereumjs-util': 9.0.4
-      '@types/readable-stream': 2.3.15
-      ethereum-cryptography: 0.1.3
-      lru-cache: 10.1.0
-      readable-stream: 3.6.2
-    transitivePeerDependencies:
-      - c-kzg
 
   '@nomicfoundation/ethereumjs-tx@5.0.4':
     dependencies:
@@ -6487,33 +6367,6 @@ snapshots:
     dependencies:
       '@nomicfoundation/ethereumjs-rlp': 5.0.4
       ethereum-cryptography: 0.1.3
-
-  '@nomicfoundation/ethereumjs-verkle@0.0.2':
-    dependencies:
-      '@nomicfoundation/ethereumjs-rlp': 5.0.4
-      '@nomicfoundation/ethereumjs-util': 9.0.4
-      lru-cache: 10.1.0
-      rust-verkle-wasm: 0.0.1
-    transitivePeerDependencies:
-      - c-kzg
-
-  '@nomicfoundation/ethereumjs-vm@7.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)':
-    dependencies:
-      '@nomicfoundation/ethereumjs-block': 5.0.4
-      '@nomicfoundation/ethereumjs-blockchain': 7.0.4
-      '@nomicfoundation/ethereumjs-common': 4.0.4
-      '@nomicfoundation/ethereumjs-evm': 2.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)
-      '@nomicfoundation/ethereumjs-rlp': 5.0.4
-      '@nomicfoundation/ethereumjs-statemanager': 2.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)
-      '@nomicfoundation/ethereumjs-trie': 6.0.4
-      '@nomicfoundation/ethereumjs-tx': 5.0.4
-      '@nomicfoundation/ethereumjs-util': 9.0.4
-      debug: 4.3.4(supports-color@8.1.1)
-      ethereum-cryptography: 0.1.3
-    transitivePeerDependencies:
-      - '@nomicfoundation/ethereumjs-verkle'
-      - c-kzg
-      - supports-color
 
   '@nomicfoundation/solidity-analyzer-darwin-arm64@0.1.1':
     optional: true
@@ -6558,18 +6411,18 @@ snapshots:
       '@nomicfoundation/solidity-analyzer-win32-ia32-msvc': 0.1.1
       '@nomicfoundation/solidity-analyzer-win32-x64-msvc': 0.1.1
 
-  '@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))':
+  '@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))':
     dependencies:
       ethers: 5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
-      hardhat: 2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)
+      hardhat: 2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)
 
-  '@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)))(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(typescript@5.5.3))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))':
+  '@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)))(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(typescript@5.5.3))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))':
     dependencies:
-      '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
+      '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7))
       '@types/sinon-chai': 3.2.5
       ethereum-waffle: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(typescript@5.5.3)
       ethers: 5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
-      hardhat: 2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)
+      hardhat: 2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7)
 
   '@nrwl/nx-cloud@19.0.0':
     dependencies:
@@ -6825,7 +6678,7 @@ snapshots:
   '@textlint/markdown-to-ast@12.2.1':
     dependencies:
       '@textlint/ast-node-types': 12.2.1
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       remark-footnotes: 3.0.0
       remark-frontmatter: 3.0.0
       remark-gfm: 1.0.0
@@ -6885,10 +6738,6 @@ snapshots:
 
   '@types/dateformat@5.0.0': {}
 
-  '@types/debug@4.1.12':
-    dependencies:
-      '@types/ms': 0.7.31
-
   '@types/express-serve-static-core@4.17.35':
     dependencies:
       '@types/node': 20.11.17
@@ -6931,8 +6780,6 @@ snapshots:
 
   '@types/mocha@10.0.7': {}
 
-  '@types/ms@0.7.31': {}
-
   '@types/node-fetch@2.6.4':
     dependencies:
       '@types/node': 20.11.17
@@ -6959,11 +6806,6 @@ snapshots:
   '@types/qs@6.9.7': {}
 
   '@types/range-parser@1.2.4': {}
-
-  '@types/readable-stream@2.3.15':
-    dependencies:
-      '@types/node': 20.11.17
-      safe-buffer: 5.1.2
 
   '@types/secp256k1@4.0.6':
     dependencies:
@@ -7000,7 +6842,7 @@ snapshots:
       '@typescript-eslint/type-utils': 6.21.0(eslint@8.56.0)(typescript@5.5.3)
       '@typescript-eslint/utils': 6.21.0(eslint@8.56.0)(typescript@5.5.3)
       '@typescript-eslint/visitor-keys': 6.21.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       eslint: 8.56.0
       graphemer: 1.4.0
       ignore: 5.2.4
@@ -7018,7 +6860,7 @@ snapshots:
       '@typescript-eslint/types': 6.21.0
       '@typescript-eslint/typescript-estree': 6.21.0(typescript@5.5.3)
       '@typescript-eslint/visitor-keys': 6.21.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       eslint: 8.56.0
     optionalDependencies:
       typescript: 5.5.3
@@ -7034,7 +6876,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/typescript-estree': 6.21.0(typescript@5.5.3)
       '@typescript-eslint/utils': 6.21.0(eslint@8.56.0)(typescript@5.5.3)
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       eslint: 8.56.0
       ts-api-utils: 1.0.1(typescript@5.5.3)
     optionalDependencies:
@@ -7048,7 +6890,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 6.21.0
       '@typescript-eslint/visitor-keys': 6.21.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       globby: 11.1.0
       is-glob: 4.0.3
       minimatch: 9.0.3
@@ -7170,7 +7012,7 @@ snapshots:
 
   agent-base@6.0.2:
     dependencies:
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -7193,8 +7035,6 @@ snapshots:
   ansi-align@3.0.1:
     dependencies:
       string-width: 4.2.3
-
-  ansi-colors@4.1.1: {}
 
   ansi-colors@4.1.3: {}
 
@@ -7395,8 +7235,6 @@ snapshots:
   better-path-resolve@1.0.0:
     dependencies:
       is-windows: 1.0.2
-
-  bigint-crypto-utils@3.3.0: {}
 
   bignumber.js@9.0.1: {}
 
@@ -7713,8 +7551,6 @@ snapshots:
 
   commander@2.20.3: {}
 
-  commander@3.0.2: {}
-
   commander@8.3.0: {}
 
   comment-parser@1.4.1: {}
@@ -7804,11 +7640,9 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
-  debug@4.3.4(supports-color@8.1.1):
+  debug@4.3.4:
     dependencies:
       ms: 2.1.2
-    optionalDependencies:
-      supports-color: 8.1.1
 
   debug@4.3.5(supports-color@8.1.1):
     dependencies:
@@ -7858,7 +7692,7 @@ snapshots:
       callsite: 1.0.0
       camelcase: 6.3.0
       cosmiconfig: 7.1.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       deps-regex: 0.2.0
       findup-sync: 5.0.0
       ignore: 5.2.4
@@ -7893,8 +7727,6 @@ snapshots:
   diff@3.5.0: {}
 
   diff@4.0.2: {}
-
-  diff@5.0.0: {}
 
   diff@5.2.0: {}
 
@@ -8202,7 +8034,7 @@ snapshots:
       '@es-joy/jsdoccomment': 0.42.0
       are-docs-informative: 0.0.2
       comment-parser: 1.4.1
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       escape-string-regexp: 4.0.0
       eslint: 8.56.0
       esquery: 1.5.0
@@ -8313,7 +8145,7 @@ snapshots:
       ajv: 6.12.6
       chalk: 4.1.2
       cross-spawn: 7.0.3
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       doctrine: 3.0.0
       escape-string-regexp: 4.0.0
       eslint-scope: 7.2.2
@@ -8685,7 +8517,11 @@ snapshots:
 
   follow-redirects@1.15.5(debug@4.3.4):
     optionalDependencies:
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
+
+  follow-redirects@1.15.5(debug@4.3.5):
+    optionalDependencies:
+      debug: 4.3.5(supports-color@8.1.1)
 
   for-each@0.3.3:
     dependencies:
@@ -8940,7 +8776,7 @@ snapshots:
       axios: 0.21.4(debug@4.3.4)
       chalk: 4.1.2
       chokidar: 3.5.3
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       enquirer: 2.3.6
       ethers: 5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7)
       form-data: 4.0.0
@@ -8954,21 +8790,14 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  hardhat@2.20.1(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7):
+  hardhat@2.22.6(bufferutil@4.0.8)(ts-node@10.9.2(@swc/core@1.4.13)(@types/node@20.11.17)(typescript@5.5.3))(typescript@5.5.3)(utf-8-validate@5.0.7):
     dependencies:
       '@ethersproject/abi': 5.7.0
       '@metamask/eth-sig-util': 4.0.0
-      '@nomicfoundation/ethereumjs-block': 5.0.4
-      '@nomicfoundation/ethereumjs-blockchain': 7.0.4
+      '@nomicfoundation/edr': 0.4.2
       '@nomicfoundation/ethereumjs-common': 4.0.4
-      '@nomicfoundation/ethereumjs-evm': 2.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)
-      '@nomicfoundation/ethereumjs-rlp': 5.0.4
-      '@nomicfoundation/ethereumjs-statemanager': 2.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)
-      '@nomicfoundation/ethereumjs-trie': 6.0.4
       '@nomicfoundation/ethereumjs-tx': 5.0.4
       '@nomicfoundation/ethereumjs-util': 9.0.4
-      '@nomicfoundation/ethereumjs-verkle': 0.0.2
-      '@nomicfoundation/ethereumjs-vm': 7.0.4(@nomicfoundation/ethereumjs-verkle@0.0.2)
       '@nomicfoundation/solidity-analyzer': 0.1.1
       '@sentry/node': 5.30.0
       '@types/bn.js': 5.1.0
@@ -8980,7 +8809,7 @@ snapshots:
       chalk: 2.4.2
       chokidar: 3.5.3
       ci-info: 2.0.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       enquirer: 2.3.6
       env-paths: 2.2.1
       ethereum-cryptography: 1.2.0
@@ -8994,12 +8823,12 @@ snapshots:
       keccak: 3.0.3
       lodash: 4.17.21
       mnemonist: 0.38.3
-      mocha: 10.2.0
+      mocha: 10.6.0
       p-map: 4.0.0
       raw-body: 2.5.2
       resolve: 1.17.0
       semver: 6.3.1
-      solc: 0.7.3(debug@4.3.4)
+      solc: 0.8.26(debug@4.3.5)
       source-map-support: 0.5.21
       stacktrace-parser: 0.1.10
       tsort: 0.0.1
@@ -9097,7 +8926,7 @@ snapshots:
   https-proxy-agent@5.0.1:
     dependencies:
       agent-base: 6.0.2
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -9344,7 +9173,7 @@ snapshots:
 
   istanbul-lib-source-maps@4.0.0:
     dependencies:
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       istanbul-lib-coverage: 3.2.2
       source-map: 0.6.1
     transitivePeerDependencies:
@@ -9385,8 +9214,6 @@ snapshots:
       '@sideway/address': 4.1.4
       '@sideway/formula': 3.0.1
       '@sideway/pinpoint': 2.0.0
-
-  js-sdsl@4.4.2: {}
 
   js-sha3@0.5.7: {}
 
@@ -9797,7 +9624,7 @@ snapshots:
 
   micromark@2.11.4:
     dependencies:
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       parse-entities: 2.0.0
     transitivePeerDependencies:
       - supports-color
@@ -9831,10 +9658,6 @@ snapshots:
   minimatch@3.1.2:
     dependencies:
       brace-expansion: 1.1.11
-
-  minimatch@5.0.1:
-    dependencies:
-      brace-expansion: 2.0.1
 
   minimatch@5.1.6:
     dependencies:
@@ -9872,30 +9695,6 @@ snapshots:
   mnemonist@0.38.3:
     dependencies:
       obliterator: 1.6.1
-
-  mocha@10.2.0:
-    dependencies:
-      ansi-colors: 4.1.1
-      browser-stdout: 1.3.1
-      chokidar: 3.5.3
-      debug: 4.3.4(supports-color@8.1.1)
-      diff: 5.0.0
-      escape-string-regexp: 4.0.0
-      find-up: 5.0.0
-      glob: 7.2.0
-      he: 1.2.0
-      js-yaml: 4.1.0
-      log-symbols: 4.1.0
-      minimatch: 5.0.1
-      ms: 2.1.3
-      nanoid: 3.3.3
-      serialize-javascript: 6.0.0
-      strip-json-comments: 3.1.1
-      supports-color: 8.1.1
-      workerpool: 6.2.1
-      yargs: 16.2.0
-      yargs-parser: 20.2.4
-      yargs-unparser: 2.0.0
 
   mocha@10.6.0:
     dependencies:
@@ -9951,8 +9750,6 @@ snapshots:
       encode-utf8: 1.0.3
       fmix: 0.1.0
       imul: 1.0.1
-
-  nanoid@3.3.3: {}
 
   nanoid@3.3.7: {}
 
@@ -10656,8 +10453,6 @@ snapshots:
 
   require-from-string@1.2.1: {}
 
-  require-from-string@2.0.2: {}
-
   require-main-filename@1.0.1: {}
 
   require-main-filename@2.0.0: {}
@@ -10733,12 +10528,6 @@ snapshots:
     dependencies:
       queue-microtask: 1.2.3
 
-  rust-verkle-wasm@0.0.1: {}
-
-  rustbn-wasm@0.2.0:
-    dependencies:
-      '@scure/base': 1.1.3
-
   rustbn.js@0.2.0: {}
 
   rxjs@7.8.1:
@@ -10806,10 +10595,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  serialize-javascript@6.0.0:
-    dependencies:
-      randombytes: 2.1.0
-
   serialize-javascript@6.0.2:
     dependencies:
       randombytes: 2.1.0
@@ -10873,25 +10658,23 @@ snapshots:
       semver: 5.7.2
       yargs: 4.8.1
 
-  solc@0.7.3(debug@4.3.4):
-    dependencies:
-      command-exists: 1.2.9
-      commander: 3.0.2
-      follow-redirects: 1.15.5(debug@4.3.4)
-      fs-extra: 0.30.0
-      js-sha3: 0.8.0
-      memorystream: 0.3.1
-      require-from-string: 2.0.2
-      semver: 5.7.2
-      tmp: 0.0.33
-    transitivePeerDependencies:
-      - debug
-
   solc@0.8.15:
     dependencies:
       command-exists: 1.2.9
       commander: 8.3.0
       follow-redirects: 1.15.5(debug@4.3.4)
+      js-sha3: 0.8.0
+      memorystream: 0.3.1
+      semver: 5.7.2
+      tmp: 0.0.33
+    transitivePeerDependencies:
+      - debug
+
+  solc@0.8.26(debug@4.3.5):
+    dependencies:
+      command-exists: 1.2.9
+      commander: 8.3.0
+      follow-redirects: 1.15.5(debug@4.3.5)
       js-sha3: 0.8.0
       memorystream: 0.3.1
       semver: 5.7.2
@@ -11279,7 +11062,7 @@ snapshots:
   typechain@8.3.1(typescript@5.5.3):
     dependencies:
       '@types/prettier': 2.3.2
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.5(supports-color@8.1.1)
       fs-extra: 7.0.1
       glob: 7.1.7
       js-sha3: 0.8.0
@@ -11544,8 +11327,6 @@ snapshots:
       reduce-flatten: 2.0.0
       typical: 5.2.0
 
-  workerpool@6.2.1: {}
-
   workerpool@6.5.1: {}
 
   wrap-ansi@2.1.0:
@@ -11615,8 +11396,6 @@ snapshots:
     dependencies:
       camelcase: 3.0.0
       lodash.assign: 4.2.0
-
-  yargs-parser@20.2.4: {}
 
   yargs-parser@20.2.9: {}
 
