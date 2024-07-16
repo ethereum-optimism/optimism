@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
+
 contract Alligator {
     mapping(address => bool) public migrated;
 
@@ -10,7 +12,7 @@ contract Alligator {
     /// @param amount The amount of tokens being transfered.
     function afterTokenTransfer(address from, address to, uint256 amount) internal { }
 
-    function checkpoints(address _account, uint32 _pos) public view returns (Checkpoint memory) { }
+    function checkpoints(address _account, uint32 _pos) public view returns (ERC20Votes.Checkpoint memory) { }
 
     /// @notice Returns the number of checkpoints for a given account.
     /// @param _account Account to get the number of checkpoints for.
