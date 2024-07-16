@@ -109,6 +109,7 @@ func (v *VersionedExecutionPayload) UnmarshalJSON(input []byte) error {
 		if err := json.Unmarshal(input, &data); err != nil {
 			return errors.Wrap(err, "invalid JSON")
 		}
+		v.Deneb = data.Data
 	default:
 		return fmt.Errorf("unsupported data version %v", metadata.Version)
 	}
