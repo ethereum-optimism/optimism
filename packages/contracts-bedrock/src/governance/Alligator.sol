@@ -2,6 +2,8 @@
 pragma solidity 0.8.15;
 
 contract Alligator {
+    mapping(address => bool) public migrated;
+
     /// @notice Callback called after a token transfer.
     /// @param from   The account sending tokens.
     /// @param to     The account receiving tokens.
