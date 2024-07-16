@@ -8,7 +8,10 @@ import (
 	"math/big"
 	"net/http"
 
-	builderApi "github.com/attestantio/go-builder-client/api"
+	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -59,8 +62,62 @@ type httpErrorResp struct {
 	Message string `json:"message"`
 }
 
+type VersionedExecutionPayload struct {
+	Version   spec.DataVersion
+	Bellatrix *bellatrix.ExecutionPayload
+	Capella   *capella.ExecutionPayload
+	Deneb     *deneb.ExecutionPayload
+}
+
+type versionJSON struct {
+	Version spec.DataVersion `json:"version"`
+}
+
+type bellatrixVersionedExecutionPayloadJSON struct {
+	Data *bellatrix.ExecutionPayload `json:"data"`
+}
+
+type capellaVersionedExecutionPayloadJSON struct {
+	Data *capella.ExecutionPayload `json:"data"`
+}
+
+type denebVersionedExecutionPayloadJSON struct {
+	Data *deneb.ExecutionPayload `json:"data"`
+}
+
+func (v *VersionedExecutionPayload) UnmarshalJSON(input []byte) error {
+	var metadata versionJSON
+	if err := json.Unmarshal(input, &metadata); err != nil {
+		return errors.Wrap(err, "invalid JSON")
+	}
+	v.Version = metadata.Version
+	switch v.Version {
+	case spec.DataVersionBellatrix:
+		var data bellatrixVersionedExecutionPayloadJSON
+		if err := json.Unmarshal(input, &data); err != nil {
+			return errors.Wrap(err, "invalid JSON")
+		}
+		v.Bellatrix = data.Data
+	case spec.DataVersionCapella:
+		var data capellaVersionedExecutionPayloadJSON
+		if err := json.Unmarshal(input, &data); err != nil {
+			return errors.Wrap(err, "invalid JSON")
+		}
+		v.Capella = data.Data
+	case spec.DataVersionDeneb:
+		var data denebVersionedExecutionPayloadJSON
+		if err := json.Unmarshal(input, &data); err != nil {
+			return errors.Wrap(err, "invalid JSON")
+		}
+	default:
+		return fmt.Errorf("unsupported data version %v", metadata.Version)
+	}
+
+	return nil
+}
+
 func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
-	responsePayload := new(builderApi.VersionedExecutionPayload)
+	responsePayload := new(VersionedExecutionPayload)
 	slot := ref.Number + 1
 	parentHash := ref.Hash
 	url := fmt.Sprintf("%s/%d/%s", PathGetPayload, slot, parentHash.String())
@@ -102,7 +159,7 @@ func reverse(src []byte) []byte {
 	return dst
 }
 
-func versionedExecutionPayloadToExecutionPayloadEnvelope(request *builderApi.VersionedExecutionPayload) *eth.ExecutionPayloadEnvelope {
+func versionedExecutionPayloadToExecutionPayloadEnvelope(request *VersionedExecutionPayload) *eth.ExecutionPayloadEnvelope {
 	txs := make([]eth.Data, len(request.Deneb.Transactions))
 
 	for i, tx := range request.Deneb.Transactions {
