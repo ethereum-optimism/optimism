@@ -10,7 +10,7 @@ contract Alligator {
     /// @param from   The account sending tokens.
     /// @param to     The account receiving tokens.
     /// @param amount The amount of tokens being transfered.
-    function afterTokenTransfer(address from, address to, uint256 amount) internal { }
+    function afterTokenTransfer(address from, address to, uint256 amount) public { }
 
     function checkpoints(address _account, uint32 _pos) public view returns (ERC20Votes.Checkpoint memory) { }
 
