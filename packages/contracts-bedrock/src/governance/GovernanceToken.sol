@@ -93,7 +93,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _account Account to check if it has been migrated.
     /// @return True if the given account has been migrated, false otherwise.
     function _migrated(address _account) internal view returns (bool) {
-        return _migrated(_account);
+        return Alligator(Predeploys.ALLIGATOR).migrated(_account);
     }
 
     /// @notice Callback called after a token transfer. Forwards to the Alligator contract,
