@@ -8,8 +8,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -21,11 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPrecompiles(t *testing.T) {
@@ -161,13 +161,13 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	t.Logf("Completed in %d steps", state.Step)
 }
 
-func parseState(path string) (*single_threaded.State, error) {
+func parseState(path string) (*singlethreaded.State, error) {
 	file, err := ioutil.OpenDecompressed(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open state file (%v): %w", path, err)
 	}
 	defer file.Close()
-	var state single_threaded.State
+	var state singlethreaded.State
 	err = json.NewDecoder(file).Decode(&state)
 	if err != nil {
 		return nil, fmt.Errorf("invalid mipsevm state (%v): %w", path, err)

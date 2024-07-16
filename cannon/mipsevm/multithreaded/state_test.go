@@ -1,4 +1,4 @@
-package multi_threaded
+package multithreaded
 
 import (
 	"debug/elf"

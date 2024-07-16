@@ -11,7 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 )
 
 func newCannonPrestateProvider(dataDir string, prestate string) *CannonPrestateProvider {
@@ -43,7 +43,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 		provider := newCannonPrestateProvider(dataDir, prestate)
 		actual, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
-		state := single_threaded.State{
+		state := singlethreaded.State{
 			Memory:         memory.NewMemory(),
 			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 			PreimageOffset: 0,

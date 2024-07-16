@@ -11,7 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
 )
 
@@ -34,7 +34,7 @@ func TestState(t *testing.T) {
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &single_threaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
+			state := &singlethreaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -70,7 +70,7 @@ func TestState(t *testing.T) {
 }
 
 func TestHello(t *testing.T) {
-	state := test_util.LoadELFProgram(t, "../example/bin/hello.elf", single_threaded.CreateInitialState)
+	state := test_util.LoadELFProgram(t, "../example/bin/hello.elf", singlethreaded.CreateInitialState)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
@@ -91,7 +91,7 @@ func TestHello(t *testing.T) {
 }
 
 func TestClaim(t *testing.T) {
-	state := test_util.LoadELFProgram(t, "../example/bin/claim.elf", single_threaded.CreateInitialState)
+	state := test_util.LoadELFProgram(t, "../example/bin/claim.elf", singlethreaded.CreateInitialState)
 
 	oracle, expectedStdOut, expectedStdErr := test_util.ClaimTestOracle(t)
 
@@ -116,7 +116,7 @@ func TestClaim(t *testing.T) {
 func TestAlloc(t *testing.T) {
 	t.Skip("TODO(client-pod#906): Currently fails on Single threaded Cannon. Re-enable for the MT FPVM")
 
-	state := test_util.LoadELFProgram(t, "../example/bin/alloc.elf", single_threaded.CreateInitialState)
+	state := test_util.LoadELFProgram(t, "../example/bin/alloc.elf", singlethreaded.CreateInitialState)
 	const numAllocs = 100 // where each alloc is a 32 MiB chunk
 	oracle := test_util.AllocOracle(t, numAllocs)
 

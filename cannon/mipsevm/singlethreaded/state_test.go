@@ -1,4 +1,4 @@
-package single_threaded
+package singlethreaded
 
 import (
 	"debug/elf"
