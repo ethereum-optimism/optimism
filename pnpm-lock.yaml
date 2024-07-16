@@ -15,8 +15,8 @@ importers:
         version: 2.27.7
     devDependencies:
       '@babel/eslint-parser':
-        specifier: ^7.23.10
-        version: 7.23.10(@babel/core@7.22.10)(eslint@8.56.0)
+        specifier: ^7.24.8
+        version: 7.24.8(@babel/core@7.22.10)(eslint@8.56.0)
       '@changesets/changelog-github':
         specifier: ^0.4.8
         version: 0.4.8
@@ -240,12 +240,12 @@ packages:
     resolution: {integrity: sha512-fTmqbbUBAwCcre6zPzNngvsI0aNrPZe77AeqvDxWM9Nm+04RrJ3CAmGHA9f7lJQY6ZMhRztNemy4uslDxTX4Qw==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/eslint-parser@7.23.10':
-    resolution: {integrity: sha512-3wSYDPZVnhseRnxRJH6ZVTNknBz76AEnyC+AYYhasjP3Yy23qz0ERR7Fcd2SHmYuSFJ2kY9gaaDd3vyqU09eSw==}
+  '@babel/eslint-parser@7.24.8':
+    resolution: {integrity: sha512-nYAikI4XTGokU2QX7Jx+v4rxZKhKivaQaREZjuW3mrJrbdWJ5yUfohnoUULge+zEEaKjPYNxhoRgUKktjXtbwA==}
     engines: {node: ^10.13.0 || ^12.13.0 || >=14.0.0}
     peerDependencies:
       '@babel/core': ^7.11.0
-      eslint: ^7.5.0 || ^8.0.0
+      eslint: ^7.5.0 || ^8.0.0 || ^9.0.0
 
   '@babel/generator@7.23.3':
     resolution: {integrity: sha512-keeZWAV4LU3tW0qRi19HRpabC/ilM0HRBBzf9/k8FFiG4KVpiv0FIy4hHfLfFQZNhziCTPTmd59zoyv6DNISzg==}
@@ -5354,7 +5354,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/eslint-parser@7.23.10(@babel/core@7.22.10)(eslint@8.56.0)':
+  '@babel/eslint-parser@7.24.8(@babel/core@7.22.10)(eslint@8.56.0)':
     dependencies:
       '@babel/core': 7.22.10
       '@nicolo-ribaudo/eslint-scope-5-internals': 5.1.1-v1
