@@ -4,13 +4,12 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
 )
 
 // SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
@@ -32,7 +31,7 @@ type ThreadState struct {
 	FutexAddr        uint32           `json:"futexAddr"`
 	FutexVal         uint32           `json:"futexVal"`
 	FutexTimeoutStep uint64           `json:"futexTimeoutStep"`
-	Cpu              state.CpuScalars `json:"cpu"`
+	Cpu              core.CpuScalars `json:"cpu"`
 	Registers        [32]uint32       `json:"registers"`
 }
 
@@ -123,7 +122,7 @@ func CreateEmptyState() *State {
 		ThreadId: initThreadId,
 		ExitCode: 0,
 		Exited:   false,
-		Cpu: state.CpuScalars{
+		Cpu: core.CpuScalars{
 			PC:     0,
 			NextPC: 0,
 			LO:     0,
@@ -225,7 +224,7 @@ func (s *State) GetExited() bool { return s.Exited }
 func (s *State) GetStep() uint64 { return s.Step }
 
 func (s *State) VMStatus() uint8 {
-	return state.VmStatus(s.Exited, s.ExitCode)
+	return core.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *State) GetMemory() *memory.Memory {
@@ -240,7 +239,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	out = witness.AppendBoolToWitness(out, s.Exited)
+	out = core.AppendBoolToWitness(out, s.Exited)
 
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	out = binary.BigEndian.AppendUint64(out, s.StepsSinceLastContextSwitch)
@@ -248,7 +247,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 
 	leftStackRoot := s.getLeftThreadStackRoot()
 	rightStackRoot := s.getRightThreadStackRoot()
-	out = witness.AppendBoolToWitness(out, s.TraverseRight)
+	out = core.AppendBoolToWitness(out, s.TraverseRight)
 	out = append(out, (leftStackRoot)[:]...)
 	out = append(out, (rightStackRoot)[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.NextThreadId)
@@ -272,7 +271,7 @@ func StateHashFromWitness(sw []byte) common.Hash {
 	hash := crypto.Keccak256Hash(sw)
 	exitCode := sw[EXITCODE_WITNESS_OFFSET]
 	exited := sw[EXITED_WITNESS_OFFSET]
-	status := state.VmStatus(exited == 1, exitCode)
+	status := core.VmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash
 }

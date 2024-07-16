@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
-	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
+	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 

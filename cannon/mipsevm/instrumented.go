@@ -5,9 +5,6 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/debug"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/oracle"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -42,7 +39,7 @@ type InstrumentedState struct {
 	debugEnabled bool
 }
 
-func NewInstrumentedState(state *single_threaded.State, po oracle.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
+func NewInstrumentedState(state *single_threaded.State, po core.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
 		stdOut:         stdOut,
@@ -51,7 +48,7 @@ func NewInstrumentedState(state *single_threaded.State, po oracle.PreimageOracle
 	}
 }
 
-func NewInstrumentedStateFromFile(stateFile string, po oracle.PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
+func NewInstrumentedStateFromFile(stateFile string, po core.PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
 	state, err := jsonutil.LoadJSON[single_threaded.State](stateFile)
 	if err != nil {
 		return nil, err
@@ -73,7 +70,7 @@ func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 	return nil
 }
 
-func (m *InstrumentedState) Step(proof bool) (wit *witness.StepWitness, err error) {
+func (m *InstrumentedState) Step(proof bool) (wit *core.StepWitness, err error) {
 	m.memProofEnabled = proof
 	m.lastMemAccess = ^uint32(0)
 	m.lastPreimageOffset = ^uint32(0)
@@ -81,7 +78,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *witness.StepWitness, err erro
 	if proof {
 		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
 		encodedWitness, stateHash := m.state.EncodeWitness()
-		wit = &witness.StepWitness{
+		wit = &core.StepWitness{
 			State:     encodedWitness,
 			StateHash: stateHash,
 			ProofData: insnProof[:],
@@ -111,8 +108,8 @@ func (m *InstrumentedState) GetState() core.FPVMState {
 	return m.state
 }
 
-func (m *InstrumentedState) GetDebugInfo() *debug.DebugInfo {
-	return &debug.DebugInfo{
+func (m *InstrumentedState) GetDebugInfo() *core.DebugInfo {
+	return &core.DebugInfo{
 		Pages:               m.state.Memory.PageCount(),
 		NumPreimageRequests: m.preimageOracle.numPreimageRequests,
 		TotalPreimageSize:   m.preimageOracle.totalPreimageSize,
@@ -120,7 +117,7 @@ func (m *InstrumentedState) GetDebugInfo() *debug.DebugInfo {
 }
 
 type trackingOracle struct {
-	po                  oracle.PreimageOracle
+	po                  core.PreimageOracle
 	totalPreimageSize   int
 	numPreimageRequests int
 }

@@ -18,8 +18,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/oracle"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/util"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -243,10 +241,10 @@ func (p *ProcessPreimageOracle) wait() {
 	close(p.waitErr)
 }
 
-type StepFn func(proof bool) (*witness.StepWitness, error)
+type StepFn func(proof bool) (*core.StepWitness, error)
 
 func Guard(proc *os.ProcessState, fn StepFn) StepFn {
-	return func(proof bool) (*witness.StepWitness, error) {
+	return func(proof bool) (*core.StepWitness, error) {
 		wit, err := fn(proof)
 		if err != nil {
 			if proc.Exited() {
@@ -259,7 +257,7 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 	}
 }
 
-var _ oracle.PreimageOracle = (*ProcessPreimageOracle)(nil)
+var _ core.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
 type VMType string
 

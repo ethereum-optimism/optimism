@@ -1,4 +1,4 @@
-package oracle
+package core
 
 type PreimageOracle interface {
 	Hint(v []byte)

@@ -15,10 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
-	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/test_util"
@@ -354,11 +353,11 @@ func TestEVMFault(t *testing.T) {
 
 			insnProof := initialState.Memory.MerkleProof(0)
 			encodedWitness, _ := initialState.EncodeWitness()
-			stepWitness := &witness.StepWitness{
+			stepWitness := &vmstate.StepWitness{
 				State:     encodedWitness,
 				ProofData: insnProof[:],
 			}
-			input := test_util.EncodeStepInput(t, stepWitness, witness.LocalContext{}, contracts.MIPS)
+			input := test_util.EncodeStepInput(t, stepWitness, vmstate.LocalContext{}, contracts.MIPS)
 			startingGas := uint64(30_000_000)
 
 			_, _, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, common.U2560)

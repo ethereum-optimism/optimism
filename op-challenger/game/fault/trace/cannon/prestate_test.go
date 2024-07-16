@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/state"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/impls/single_threaded"
 )
 
@@ -47,7 +47,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 			Memory:         memory.NewMemory(),
 			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 			PreimageOffset: 0,
-			Cpu: state.CpuScalars{
+			Cpu: core.CpuScalars{
 				PC:     0,
 				NextPC: 1,
 				LO:     0,

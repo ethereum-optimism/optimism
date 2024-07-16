@@ -3,9 +3,7 @@ package core
 import (
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/debug"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/witness"
 )
 
 type FPVMState interface {
@@ -34,7 +32,7 @@ type FPVM interface {
 	GetState() FPVMState
 
 	// Step executes a single instruction and returns the witness for the step
-	Step(includeProof bool) (*witness.StepWitness, error)
+	Step(includeProof bool) (*StepWitness, error)
 
 	// LastPreimage returns the last preimage accessed by the VM
 	LastPreimage() (preimageKey [32]byte, preimage []byte, preimageOffset uint32)
@@ -43,5 +41,5 @@ type FPVM interface {
 	Traceback()
 
 	// GetDebugInfo returns debug information about the VM
-	GetDebugInfo() *debug.DebugInfo
+	GetDebugInfo() *DebugInfo
 }

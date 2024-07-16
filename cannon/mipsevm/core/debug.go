@@ -1,4 +1,4 @@
-package debug
+package core
 
 type DebugInfo struct {
 	Pages               int `json:"pages"`
