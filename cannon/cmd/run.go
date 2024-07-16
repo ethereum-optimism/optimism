@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/util"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -173,8 +172,8 @@ func NewProcessPreimageOracle(name string, args []string, stdout log.Logger, std
 	}
 
 	cmd := exec.Command(name, args...) // nosemgrep
-	cmd.Stdout = &util.LoggingWriter{Log: stdout}
-	cmd.Stderr = &util.LoggingWriter{Log: stderr}
+	cmd.Stdout = &mipsevm.LoggingWriter{Log: stdout}
+	cmd.Stderr = &mipsevm.LoggingWriter{Log: stderr}
 	cmd.ExtraFiles = []*os.File{
 		hOracleRW.Reader(),
 		hOracleRW.Writer(),
@@ -276,8 +275,8 @@ func Run(ctx *cli.Context) error {
 	}
 
 	guestLogger := Logger(os.Stderr, log.LevelInfo)
-	outLog := &util.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
-	errLog := &util.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
+	outLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
+	errLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
 
 	l := Logger(os.Stderr, log.LevelInfo).With("module", "vm")
 
@@ -413,8 +412,8 @@ func Run(ctx *cli.Context) error {
 			delta := time.Since(start)
 			l.Info("processing",
 				"step", step,
-				"pc", util.HexU32(state.GetPC()),
-				"insn", util.HexU32(state.GetMemory().GetMemory(state.GetPC())),
+				"pc", mipsevm.HexU32(state.GetPC()),
+				"insn", mipsevm.HexU32(state.GetMemory().GetMemory(state.GetPC())),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
 				"pages", state.GetMemory().PageCount(),
 				"mem", state.GetMemory().Usage(),
