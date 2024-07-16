@@ -58,7 +58,7 @@ func TestStateHash(t *testing.T) {
 }
 
 func TestStateJSONCodec(t *testing.T) {
-	elfProgram, err := elf.Open("../../../example/bin/hello.elf")
+	elfProgram, err := elf.Open("../../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 	state, err := program.LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")

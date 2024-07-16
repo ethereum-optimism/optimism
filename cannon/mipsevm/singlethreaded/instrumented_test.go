@@ -15,7 +15,7 @@ import (
 )
 
 func TestState(t *testing.T) {
-	testFiles, err := os.ReadDir("tests/open_mips_tests/test/bin")
+	testFiles, err := os.ReadDir("../tests/open_mips_tests/test/bin")
 	require.NoError(t, err)
 
 	for _, f := range testFiles {
@@ -26,7 +26,7 @@ func TestState(t *testing.T) {
 
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
-			fn := path.Join("tests/open_mips_tests/test/bin", f.Name())
+			fn := path.Join("../tests/open_mips_tests/test/bin", f.Name())
 			//elfProgram, err := elf.Open()
 			//require.NoError(t, err, "must load test ELF binary")
 			//state, err := LoadELF(elfProgram)
@@ -69,7 +69,7 @@ func TestState(t *testing.T) {
 }
 
 func TestHello(t *testing.T) {
-	state := testutil.LoadELFProgram(t, "../example/bin/hello.elf", CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../../example/bin/hello.elf", CreateInitialState)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
@@ -90,7 +90,7 @@ func TestHello(t *testing.T) {
 }
 
 func TestClaim(t *testing.T) {
-	state := testutil.LoadELFProgram(t, "../example/bin/claim.elf", CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../../example/bin/claim.elf", CreateInitialState)
 
 	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
