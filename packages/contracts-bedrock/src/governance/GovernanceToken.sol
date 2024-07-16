@@ -23,12 +23,12 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         _mint(_account, _amount);
     }
 
-    /// @notice Callback called after a token transfer.
+    /// @notice Callback called after a token transfer. Forwards to the Alligator contract.
     /// @param from   The account sending tokens.
     /// @param to     The account receiving tokens.
     /// @param amount The amount of tokens being transfered.
     function _afterTokenTransfer(address from, address to, uint256 amount) internal override(ERC20, ERC20Votes) {
-        super._afterTokenTransfer(from, to, amount);
+        Alligator(ALLIGATOR).afterTokenTransfer(from, to, amount);
     }
 
     /// @notice Internal mint function.
