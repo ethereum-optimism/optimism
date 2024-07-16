@@ -53,6 +53,8 @@ type Metricer interface {
 	RecordGameUpdateScheduled()
 	RecordGameUpdateCompleted()
 
+	RecordLargePreimageCount(count int)
+
 	IncActiveExecutors()
 	DecActiveExecutors()
 	IncIdleExecutors()
@@ -81,6 +83,7 @@ type Metrics struct {
 
 	preimageChallenged      prometheus.Counter
 	preimageChallengeFailed prometheus.Counter
+	preimageCount           prometheus.Gauge
 
 	highestActedL1Block prometheus.Gauge
 
@@ -193,6 +196,11 @@ func NewMetrics() *Metrics {
 			Name:      "preimage_challenge_failed",
 			Help:      "Number of preimage challenges that failed",
 		}),
+		preimageCount: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "preimage_count",
+			Help:      "Number of large preimage proposals being tracked by the challenger",
+		}),
 		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "tracked_games",
@@ -259,6 +267,10 @@ func (m *Metrics) RecordPreimageChallenged() {
 
 func (m *Metrics) RecordPreimageChallengeFailed() {
 	m.preimageChallengeFailed.Add(1)
+}
+
+func (m *Metrics) RecordLargePreimageCount(count int) {
+	m.preimageCount.Set(float64(count))
 }
 
 func (m *Metrics) RecordBondClaimFailed() {
