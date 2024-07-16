@@ -1,4 +1,4 @@
-package mipsevm
+package singlethreaded
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
@@ -34,7 +33,7 @@ func TestState(t *testing.T) {
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &singlethreaded.State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
+			state := &State{Cpu: core.CpuScalars{PC: 0, NextPC: 4}, Memory: memory.NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -70,7 +69,7 @@ func TestState(t *testing.T) {
 }
 
 func TestHello(t *testing.T) {
-	state := testutil.LoadELFProgram(t, "../example/bin/hello.elf", singlethreaded.CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../example/bin/hello.elf", CreateInitialState)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
@@ -91,7 +90,7 @@ func TestHello(t *testing.T) {
 }
 
 func TestClaim(t *testing.T) {
-	state := testutil.LoadELFProgram(t, "../example/bin/claim.elf", singlethreaded.CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../example/bin/claim.elf", CreateInitialState)
 
 	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
@@ -116,7 +115,7 @@ func TestClaim(t *testing.T) {
 func TestAlloc(t *testing.T) {
 	t.Skip("TODO(client-pod#906): Currently fails on Single threaded Cannon. Re-enable for the MT FPVM")
 
-	state := testutil.LoadELFProgram(t, "../example/bin/alloc.elf", singlethreaded.CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../example/bin/alloc.elf", CreateInitialState)
 	const numAllocs = 100 // where each alloc is a 32 MiB chunk
 	oracle := testutil.AllocOracle(t, numAllocs)
 

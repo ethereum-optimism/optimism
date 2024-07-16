@@ -1,4 +1,4 @@
-package mipsevm
+package singlethreaded
 
 import (
 	"errors"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -17,7 +16,7 @@ type Debug struct {
 }
 
 type InstrumentedState struct {
-	state *singlethreaded.State
+	state *State
 
 	stdOut io.Writer
 	stdErr io.Writer
@@ -39,7 +38,7 @@ type InstrumentedState struct {
 	debugEnabled bool
 }
 
-func NewInstrumentedState(state *singlethreaded.State, po core.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
+func NewInstrumentedState(state *State, po core.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
 		stdOut:         stdOut,
@@ -49,7 +48,7 @@ func NewInstrumentedState(state *singlethreaded.State, po core.PreimageOracle, s
 }
 
 func NewInstrumentedStateFromFile(stateFile string, po core.PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
-	state, err := jsonutil.LoadJSON[singlethreaded.State](stateFile)
+	state, err := jsonutil.LoadJSON[State](stateFile)
 	if err != nil {
 		return nil, err
 	}

@@ -16,9 +16,9 @@ import (
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/util"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -367,7 +367,7 @@ func Run(ctx *cli.Context) error {
 	var vm core.FPVM
 	var debugProgram bool
 	if vmType == cannonVMType {
-		cannon, err := mipsevm.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog)
+		cannon, err := singlethreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog)
 		if err != nil {
 			return err
 		}

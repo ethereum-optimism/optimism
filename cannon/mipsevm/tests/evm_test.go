@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm/core"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/core/memory"
@@ -65,7 +64,7 @@ func TestEVM(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = testutil.EndAddr
 
-			goState := mipsevm.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+			goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
 				curStep := goState.GetState().GetStep()
@@ -124,7 +123,7 @@ func TestEVMSingleStep(t *testing.T) {
 			state.Memory.SetMemory(tt.pc, tt.insn)
 			curStep := state.Step
 
-			us := mipsevm.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
 			stepWitness, err := us.Step(true)
 			require.NoError(t, err)
 
@@ -304,7 +303,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			state.Memory.SetMemory(0, insn)
 			curStep := state.Step
 
-			us := mipsevm.NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr)
 			stepWitness, err := us.Step(true)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedHints, oracle.hints)
@@ -348,7 +347,7 @@ func TestEVMFault(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = testutil.EndAddr
 
-			us := mipsevm.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
 			require.Panics(t, func() { _, _ = us.Step(true) })
 
 			insnProof := initialState.Memory.MerkleProof(0)
@@ -386,7 +385,7 @@ func TestHelloEVM(t *testing.T) {
 	require.NoError(t, program.PatchStack(state), "add initial stack")
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	goState := mipsevm.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	goState := singlethreaded.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	start := time.Now()
 	for i := 0; i < 400_000; i++ {
@@ -439,7 +438,7 @@ func TestClaimEVM(t *testing.T) {
 	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	goState := mipsevm.NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	goState := singlethreaded.NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	for i := 0; i < 2000_000; i++ {
 		curStep := goState.GetState().GetStep()
