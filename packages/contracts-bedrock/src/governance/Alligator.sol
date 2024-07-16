@@ -87,20 +87,20 @@ contract Alligator {
     // =============================================================
 
     /// @notice Subdelegate `to` with `subdelegationRules`.
-    /// @param token The address of the token.
+    /// @param from The address subdelegating.
     /// @param to The address to subdelegate to.
     /// @param subdelegationRules The rules to apply to the subdelegation.
-    function subdelegate(address token, address to, SubdelegationRules calldata subdelegationRules) external {
-        subdelegations[token][msg.sender][to] = subdelegationRules;
-        emit Subdelegation(token, msg.sender, to, subdelegationRules);
+    function subdelegate(address from, address to, SubdelegationRules calldata subdelegationRules) external {
+        subdelegations[msg.sender][from][to] = subdelegationRules;
+        emit Subdelegation(msg.sender, from, to, subdelegationRules);
     }
 
     /// @notice Subdelegate `targets` with `subdelegationRules`.
-    /// @param token The address of the token.
+    /// @param from The address subdelegating.
     /// @param targets The addresses to subdelegate to.
     /// @param subdelegationRules The rules to apply to the subdelegations.
     function subdelegateBatched(
-        address token,
+        address from,
         address[] calldata targets,
         SubdelegationRules calldata subdelegationRules
     )
@@ -108,22 +108,22 @@ contract Alligator {
     {
         uint256 targetsLength = targets.length;
         for (uint256 i; i < targetsLength;) {
-            subdelegations[token][msg.sender][targets[i]] = subdelegationRules;
+            subdelegations[msg.sender][from][targets[i]] = subdelegationRules;
 
             unchecked {
                 ++i;
             }
         }
 
-        emit Subdelegations(token, msg.sender, targets, subdelegationRules);
+        emit Subdelegations(msg.sender, from, targets, subdelegationRules);
     }
 
     /// @notice Subdelegate `targets` with different `subdelegationRules` for each target.
-    /// @param token The address of the token.
+    /// @param from The address subdelegating.
     /// @param targets The addresses to subdelegate to.
     /// @param subdelegationRules The rules to apply to the subdelegations.
     function subdelegateBatched(
-        address token,
+        address from,
         address[] calldata targets,
         SubdelegationRules[] calldata subdelegationRules
     )
@@ -133,14 +133,14 @@ contract Alligator {
         if (targetsLength != subdelegationRules.length) revert LengthMismatch();
 
         for (uint256 i; i < targetsLength;) {
-            subdelegations[token][msg.sender][targets[i]] = subdelegationRules[i];
+            subdelegations[msg.sender][from][targets[i]] = subdelegationRules[i];
 
             unchecked {
                 ++i;
             }
         }
 
-        emit Subdelegations(token, msg.sender, targets, subdelegationRules);
+        emit Subdelegations(msg.sender, from, targets, subdelegationRules);
     }
 
     // =============================================================
