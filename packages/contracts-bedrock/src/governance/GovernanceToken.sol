@@ -13,7 +13,9 @@ import "src/governance/Alligator.sol";
 /// @notice The Optimism token used in governance and supporting voting and delegation. Implements
 ///         EIP 2612 allowing signed approvals. Contract is "owned" by a `MintManager` instance with
 ///         permission to the `mint` function only, for the purposes of enforcing the token
-///         inflation schedule.
+///         inflation schedule. If an account is migrated to the Alligator contract, the GovernanceToken
+///         contract uses the state from the Alligator. Ohterwise, the GovernanceToken contract uses
+///         its own state.
 contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @notice Constructs the GovernanceToken contract.
     constructor() ERC20("Optimism", "OP") ERC20Permit("Optimism") { }
