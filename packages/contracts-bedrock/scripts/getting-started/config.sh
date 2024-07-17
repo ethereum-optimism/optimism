@@ -76,7 +76,6 @@ config=$(cat << EOL
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
   "governanceTokenOwner": "$GS_ADMIN_ADDRESS",
-  "alligatorOwner": "$GS_ADMIN_ADDRESS",
 
   "l2GenesisBlockGasLimit": "0x1c9c380",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
