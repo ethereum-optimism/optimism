@@ -75,9 +75,9 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		// but since none of the superchain chains differ, it's not represented in the superchain-registry yet.
 		// This restriction on superchain-chains may change in the future.
 		// Test/Alt configurations can still load custom rollup-configs when necessary.
-		BlockTime:              2,
+		BlockTime:              chConfig.BlockTime,
 		MaxSequencerDrift:      600,
-		SeqWindowSize:          3600,
+		SeqWindowSize:          chConfig.SequencerWindowSize,
 		ChannelTimeout:         300,
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
