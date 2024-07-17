@@ -2,9 +2,9 @@
 pragma solidity 0.8.15;
 
 import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @notice Allowance type.
 /// @param Absolute The amount of votes delegated is fixed.
@@ -36,7 +36,10 @@ struct SubdelegationRules {
 /// @notice A contract that allows delegation of votes to other accounts. It is used to implement subdelegation
 ///         functionality in the Optimism Governance system. It provides a way to migrate accounts from the Governance
 ///         token to the Alligator contract, and then delegate votes to other accounts under subdelegation rules.
-contract Alligator is ERC20Votes {
+contract Alligator {
+    /// @notice Thrown when the account has not been migrated to the Alligator contract.
+    error NotMigrated(address token, address account);
+
     /// @notice Thrown when there's a mismatch between the length of the `targets` and `subdelegationRules` arrays.
     error LengthMismatch();
 
@@ -55,148 +58,255 @@ contract Alligator is ERC20Votes {
     /// @notice Thrown when the delegation is valid too early.
     error TooEarly(address from, address to, uint256 blocksBeforeVoteCloses);
 
-    /// @notice Slot number of the `delegates` mapping in ERC20Votes.
-    uint256 internal constant DELEGATES_SLOT = 7;
+    /// @notice Thrown when a block number is not yet mined.
+    error BlockNotYetMined(uint256 blockNumber);
 
-    /// @notice Slot number of the `checkpoints` mapping in ERC20Votes.
-    uint256 internal constant CHECKPOINTS_SLOT = 8;
-
-    /// @notice Subdelegations structured as token => from => to => subdelegationRules
-    mapping(address => mapping(address => mapping(address => SubdelegationRules))) public subdelegations;
-
-    /// @notice Flags to indicate if an account has been migrated to the Alligator contract.
+    /// @notice Flags to indicate if a token, account has been migrated to the Alligator contract.
     mapping(address => mapping(address => bool)) public migrated;
+
+    ///  @notice Checkpoints of votes for each token, account
+    mapping(address => mapping(address => ERC20Votes.Checkpoint[])) internal _checkpoints;
+
+    /// @notice Subdelegation rules for each token, account, delegatee.
+    mapping(address => mapping(address => mapping(address => SubdelegationRules))) internal _subdelegations;
 
     /// @notice Emitted when a subdelegation is created.
     event Subdelegation(
-        address indexed token, address indexed from, address indexed to, SubdelegationRules subdelegationRules
+        address indexed token, address indexed account, address indexed delegatee, SubdelegationRules subdelegationRules
     );
 
     /// @notice Emitted when multiple subdelegations are created under a single SubdelegationRules.
     event Subdelegations(
-        address indexed token, address indexed from, address[] to, SubdelegationRules subdelegationRules
+        address indexed token, address indexed account, address[] delegatee, SubdelegationRules subdelegationRules
     );
 
     /// @notice Emitted when multiple subdelegations are created under multiple SubdelegationRules.
     event Subdelegations(
-        address indexed token, address indexed from, address[] to, SubdelegationRules[] subdelegationRules
+        address indexed token, address indexed account, address[] delegatee, SubdelegationRules[] subdelegationRules
     );
 
-    // TODO: is the line below correct?
-    constructor() ERC20("Optimism", "OP") ERC20Permit("Optimism") { }
+    /// @notice Emitted when a delegator's voting power changes.
+    event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
-    /// @notice Callback called after a token transfer.
-    /// @param from   The account sending tokens.
-    /// @param to     The account receiving tokens.
-    /// @param amount The amount of tokens being transfered.
-    function afterTokenTransfer(address from, address to, uint256 amount) external {
-        _afterTokenTransfer(from, to, amount);
-
-        if (!migrated[msg.sender][from]) _migrate(msg.sender, from);
-        if (!migrated[msg.sender][to]) _migrate(msg.sender, to);
+    modifier onlyMigrated(address _token, address _account) {
+        if (!migrated[_token][_account]) revert NotMigrated(_token, _account);
+        _;
     }
 
-    /// @notice Subdelegate `to` with `subdelegationRules`.
-    /// @param from The address subdelegating.
-    /// @param to The address to subdelegate to.
-    /// @param subdelegationRules The rules to apply to the subdelegation.
-    function subdelegate(address from, address to, SubdelegationRules calldata subdelegationRules) external {
-        subdelegations[msg.sender][from][to] = subdelegationRules;
-        emit Subdelegation(msg.sender, from, to, subdelegationRules);
-    }
-
-    /// @notice Subdelegate `targets` with `subdelegationRules`.
-    /// @param from The address subdelegating.
-    /// @param targets The addresses to subdelegate to.
-    /// @param subdelegationRules The rules to apply to the subdelegations.
-    function subdelegateBatched(
-        address from,
-        address[] calldata targets,
-        SubdelegationRules calldata subdelegationRules
+    /// @notice Returns the checkpoints for a given token and account.
+    /// @param _token   The token to get the checkpoints for.
+    /// @param _account The account to get the checkpoints for.
+    /// @return         The checkpoints.
+    function checkpoints(
+        address _token,
+        address _account
     )
         external
+        view
+        onlyMigrated(_token, _account)
+        returns (ERC20Votes.Checkpoint[] memory)
     {
-        uint256 targetsLength = targets.length;
-        if (targetsLength != subdelegationRules.length) revert LengthMismatch();
+        return _checkpoints[_token][_account];
+    }
 
-        for (uint256 i; i < targetsLength;) {
-            subdelegations[msg.sender][from][targets[i]] = subdelegationRules;
+    /// @notice Returns the number of checkpoints for a given token and account.
+    /// @param _token   The token to get the total supply checkpoints for.
+    /// @param _account The account to get the total supply checkpoints for.
+    /// @return         The total supply checkpoints.
+    function numCheckpoints(
+        address _token,
+        address _account
+    )
+        external
+        view
+        onlyMigrated(_token, _account)
+        returns (uint256)
+    {
+        return SafeCast.toUint32(_checkpoints[_token][_account].length);
+    }
+
+    /// @notice Returns the number of votes for a given account at a given block number.
+    /// @param _token       The token to get the number of votes for.
+    /// @param _account     The account to get the number of votes for.
+    /// @param _blockNumber The block number to get the number of votes for.
+    /// @return             The number of votes.
+    function getVotes(
+        address _token,
+        address _account,
+        uint256 _blockNumber
+    )
+        external
+        view
+        onlyMigrated(_token, _account)
+        returns (uint256)
+    {
+        uint256 pos = _checkpoints[_token][_account].length;
+        return pos == 0 ? 0 : _checkpoints[_token][_account][pos - 1].votes;
+    }
+
+    /// @notice Returns the number of votes for `_account` at the end of `_blockNumber`.
+    /// @param _token       The token to get the number of votes for.
+    /// @param _account     The address of the account to get the number of votes for.
+    /// @param _blockNumber The block number to get the number of votes for.
+    /// @return             The number of votes.
+    function getPastVotes(
+        address _token,
+        address _account,
+        uint256 _blockNumber
+    )
+        external
+        view
+        onlyMigrated(_token, _account)
+        returns (uint256)
+    {
+        if (_blockNumber >= block.number) revert BlockNotYetMined(_blockNumber);
+        return _checkpointsLookup(_checkpoints[_token][_account], _blockNumber);
+    }
+
+    /// @notice Returns the subdelegation rules for a given token, account, delegatee.
+    /// @param _token     The token to get the subdelegation rules for.
+    /// @param _account   The account subdelegating.
+    /// @param _delegatee The delegatee to get the subdelegation rules for.
+    /// @return           The subdelegation rules.
+    function subdelegations(
+        address _token,
+        address _account,
+        address _delegatee
+    )
+        external
+        view
+        onlyMigrated(_token, _account)
+        returns (SubdelegationRules memory)
+    {
+        return _subdelegations[_token][_account][_delegatee];
+    }
+
+    /// @notice Subdelegate `to` with `subdelegationRules`. This function should only be called by the token.
+    /// @param _account            The address subdelegating.
+    /// @param _delegatee          The address to subdelegate to.
+    /// @param _subdelegationRules The rules to apply to the subdelegation.
+    function subdelegate(
+        address _account,
+        address _delegatee,
+        SubdelegationRules calldata _subdelegationRules
+    )
+        external
+        onlyMigrated(msg.sender, _account)
+    {
+        _subdelegations[msg.sender][_account][_delegatee] = _subdelegationRules;
+        emit Subdelegation(msg.sender, _account, _delegatee, _subdelegationRules);
+
+        // TODO: fix line below -> how to get some account's delegates? should we subtract the amount from the account?
+        // what if we have several delegates?
+        //_moveVotingPower({ _token: msg.sender, _src: delegates(_from), _dst: delegates(_to), _amount: _amount });
+    }
+
+    /// @notice Subdelegate `targets` with `subdelegationRules`. This function should only be called by the token.
+    /// @param _account            The address subdelegating.
+    /// @param _delegatees         The addresses to subdelegate to.
+    /// @param _subdelegationRules The rules to apply to the subdelegations.
+    function subdelegateBatched(
+        address _account,
+        address[] calldata _delegatees,
+        SubdelegationRules calldata _subdelegationRules
+    )
+        external
+        onlyMigrated(msg.sender, _account)
+    {
+        for (uint256 i; i < _delegatees.length;) {
+            _subdelegations[msg.sender][_account][_delegatees[i]] = _subdelegationRules;
 
             unchecked {
                 ++i;
             }
         }
 
-        emit Subdelegations(msg.sender, from, targets, subdelegationRules);
+        emit Subdelegations(msg.sender, _account, _delegatees, _subdelegationRules);
     }
 
-    /// @notice Subdelegate `targets` with different `subdelegationRules` for each target.
-    /// @param from The address subdelegating.
-    /// @param targets The addresses to subdelegate to.
-    /// @param subdelegationRules The rules to apply to the subdelegations.
+    /// @notice Subdelegate `targets` with different `subdelegationRules` for each target. This function should only be
+    ///         called by the token.
+    /// @param _account            The address subdelegating.
+    /// @param _delegatees         The addresses to subdelegate to.
+    /// @param _subdelegationRules The rules to apply to the subdelegations.
     function subdelegateBatched(
-        address from,
-        address[] calldata targets,
-        SubdelegationRules[] calldata subdelegationRules
+        address _account,
+        address[] calldata _delegatees,
+        SubdelegationRules[] calldata _subdelegationRules
     )
         external
+        onlyMigrated(msg.sender, _account)
     {
-        uint256 targetsLength = targets.length;
-        if (targetsLength != subdelegationRules.length) revert LengthMismatch();
+        uint256 targetsLength = _delegatees.length;
+        if (targetsLength != _subdelegationRules.length) revert LengthMismatch();
 
         for (uint256 i; i < targetsLength;) {
-            subdelegations[msg.sender][from][targets[i]] = subdelegationRules[i];
+            _subdelegations[msg.sender][_account][_delegatees[i]] = _subdelegationRules[i];
 
             unchecked {
                 ++i;
             }
         }
 
-        emit Subdelegations(msg.sender, from, targets, subdelegationRules);
+        emit Subdelegations(msg.sender, _account, _delegatees, _subdelegationRules);
+    }
+
+    /// @notice Callback called after a token transfer in the Governance token.
+    /// @param _from   The account sending tokens.
+    /// @param _to     The account receiving tokens.
+    /// @param _amount The amount of tokens being transfered.
+    function afterTokenTransfer(address _from, address _to, uint256 _amount) external {
+        if (!migrated[msg.sender][_from]) _migrate(msg.sender, _from);
+        if (!migrated[msg.sender][_to]) _migrate(msg.sender, _to);
+
+        // TODO: fix line below -> how to get some account's delegates? should we subtract the amount from the account?
+        // what if we have several delegates?
+        //_moveVotingPower({ _token: msg.sender, _src: delegates(_from), _dst: delegates(_to), _amount: _amount });
     }
 
     /// @notice Validate subdelegation rules and partial delegation allowances.
-    /// @param proxy The address of the proxy.
-    /// @param sender The sender address to validate.
-    /// @param authority The authority chain to validate against.
-    /// @param proposalId The id of the proposal for which validation is being performed.
-    /// @param support The support value for the vote. 0=against, 1=for, 2=abstain, 0xFF=proposal
-    /// @param voterAllowance The allowance of the voter.
-    /// @return votesToCast The number of votes to cast by `sender`.
-    function validate(
-        address token,
-        address proxy,
-        address sender,
-        address[] calldata authority,
-        uint256 proposalId,
-        uint256 support,
-        uint256 voterAllowance
+    /// @param _token          The token to validate.
+    /// @param _proxy          The address of the proxy.
+    /// @param _sender         The sender address to validate.
+    /// @param _authority      The authority chain to validate against.
+    /// @param _proposalId     The id of the proposal for which validation is being performed.
+    /// @param _support        The support value for the vote. 0=against, 1=for, 2=abstain, 0xFF=proposal
+    /// @param _voterAllowance The allowance of the voter.
+    /// @return _votesToCast   The number of votes to cast by `sender`.
+    function _validate(
+        address _token,
+        address _proxy,
+        address _sender,
+        address[] calldata _authority,
+        uint256 _proposalId,
+        uint256 _support,
+        uint256 _voterAllowance
     )
         internal
         view
-        returns (uint256 votesToCast)
+        returns (uint256 _votesToCast)
     {
-        address from = authority[0];
+        address from = _authority[0];
 
         /// @dev Cannot underflow as `weightCast` is always less than or equal to total votes.
         unchecked {
             // TODO: update governor address below.
-            // uint256 weightCast = IGovernor(address(0)).weightCast(proposalId, proxy);
-            // votesToCast = weightCast == 0 ? voterAllowance : voterAllowance - weightCast;
+            // uint256 weightCast = IGovernor(address(0)).weightCast(_proposalId, _proxy);
+            // _votesToCast = weightCast == 0 ? _voterAllowance : _voterAllowance - weightCast;
         }
 
-        // If `sender` is the proxy owner, only the proxy rules are validated.
-        if (from == sender) {
-            return (votesToCast);
+        // If `_sender` is the proxy owner, only the proxy rules are validated.
+        if (from == _sender) {
+            return (_votesToCast);
         }
 
         address to;
         SubdelegationRules memory subdelegationRules;
         uint256 votesCastFactor;
-        for (uint256 i = 1; i < authority.length;) {
-            to = authority[i];
+        for (uint256 i = 1; i < _authority.length;) {
+            to = _authority[i];
 
-            subdelegationRules = subdelegations[token][from][to];
+            subdelegationRules = _subdelegations[_token][from][to];
 
             if (subdelegationRules.allowance == 0) {
                 revert NotDelegated(from, to);
@@ -211,37 +321,37 @@ contract Alligator is ERC20Votes {
                 // the allowance.
 
                 // TODO: below
-                // votesCastFactor = subdelegationRules.allowance * voterAllowance / 1e5
-                //     - votesCastByAuthorityChain[proxy][proposalId][keccak256(abi.encode(authority[0:i]))][to];
+                // votesCastFactor = subdelegationRules.allowance * _voterAllowance / 1e5
+                //     - votesCastByAuthorityChain[_proxy][_proposalId][keccak256(abi.encode(_authority[0:i]))][to];
 
-                // Adjust `votesToCast` to the minimum between `votesCastFactor` and `votesToCast`
-                if (votesCastFactor < votesToCast) {
-                    votesToCast = votesCastFactor;
+                // Adjust `_votesToCast` to the minimum between `votesCastFactor` and `_votesToCast`
+                if (votesCastFactor < _votesToCast) {
+                    _votesToCast = votesCastFactor;
                 }
             } else {
                 // `votesCastFactor`: total votes cast by the delegate
                 // Retrieve votes cast by `to` via `from` regardless of the used authority chain
 
                 // TODO: below
-                // votesCastFactor = votesCast[proxy][proposalId][from][to];
+                // votesCastFactor = votesCast[_proxy][_proposalId][from][to];
 
                 // Adjust allowance by subtracting eventual votes already cast by the delegate
-                // Reverts for underflow when `votesCastFactor > voterAllowance`, when delegate has exceeded the
+                // Reverts for underflow when `votesCastFactor > _voterAllowance`, when delegate has exceeded the
                 // allowance.
                 if (votesCastFactor != 0) {
                     subdelegationRules.allowance = subdelegationRules.allowance - votesCastFactor;
                 }
             }
 
-            // Calculate `voterAllowance` based on allowance given by `from`
-            voterAllowance =
-                _getVoterAllowance(subdelegationRules.allowanceType, subdelegationRules.allowance, voterAllowance);
+            // Calculate `_voterAllowance` based on allowance given by `from`
+            _voterAllowance =
+                _getVoterAllowance(subdelegationRules.allowanceType, subdelegationRules.allowance, _voterAllowance);
 
             unchecked {
                 _validateRules(
                     subdelegationRules,
-                    authority.length,
-                    proposalId,
+                    _authority.length,
+                    _proposalId,
                     from,
                     to,
                     ++i // pass `i + 1` and increment at the same time
@@ -251,89 +361,196 @@ contract Alligator is ERC20Votes {
             from = to;
         }
 
-        if (from != sender) revert NotDelegated(from, sender);
+        if (from != _sender) revert NotDelegated(from, _sender);
 
-        votesToCast = voterAllowance > votesToCast ? votesToCast : voterAllowance;
+        _votesToCast = _voterAllowance > _votesToCast ? _votesToCast : _voterAllowance;
     }
 
+    /// @notice Validate subdelegation rules and partial delegation allowances.
+    /// @param _subdelegationRules The rules to validate.
+    /// @param _authorityLength    The length of the authority chain.
+    /// @param _proposalId         The id of the proposal for which validation is being performed.
+    /// @param _account            The address subdelegating.
+    /// @param _delegatee          The address to subdelegate to.
+    /// @param _redelegationIndex  The index of the redelegation in the authority chain.
     function _validateRules(
-        SubdelegationRules memory rules,
-        uint256 authorityLength,
-        uint256 proposalId,
-        address from,
-        address to,
-        uint256 redelegationIndex
+        SubdelegationRules memory _subdelegationRules,
+        uint256 _authorityLength,
+        uint256 _proposalId,
+        address _account,
+        address _delegatee,
+        uint256 _redelegationIndex
     )
         internal
         view
     {
         /// @dev `maxRedelegation` cannot overflow as it increases by 1 each iteration
-        /// @dev block.number + rules.blocksBeforeVoteCloses cannot overflow uint256
+        /// @dev block.number + _subdelegationRules.blocksBeforeVoteCloses cannot overflow uint256
         unchecked {
-            if (uint256(rules.maxRedelegations) + redelegationIndex < authorityLength) {
-                revert TooManyRedelegations(from, to);
+            if (uint256(_subdelegationRules.maxRedelegations) + _redelegationIndex < _authorityLength) {
+                revert TooManyRedelegations(_account, _delegatee);
             }
-            if (block.timestamp < rules.notValidBefore) {
-                revert NotValidYet(from, to, rules.notValidBefore);
+            if (block.timestamp < _subdelegationRules.notValidBefore) {
+                revert NotValidYet(_account, _delegatee, _subdelegationRules.notValidBefore);
             }
-            if (rules.notValidAfter != 0) {
-                if (block.timestamp > rules.notValidAfter) revert NotValidAnymore(from, to, rules.notValidAfter);
+            if (_subdelegationRules.notValidAfter != 0) {
+                if (block.timestamp > _subdelegationRules.notValidAfter) {
+                    revert NotValidAnymore(_account, _delegatee, _subdelegationRules.notValidAfter);
+                }
             }
-            if (rules.blocksBeforeVoteCloses != 0) {
+            if (_subdelegationRules.blocksBeforeVoteCloses != 0) {
                 // TODO: update governor below?
                 if (
-                    IGovernor(address(0)).proposalDeadline(proposalId)
-                        > uint256(block.number) + uint256(rules.blocksBeforeVoteCloses)
+                    IGovernor(address(0)).proposalDeadline(_proposalId)
+                        > uint256(block.number) + uint256(_subdelegationRules.blocksBeforeVoteCloses)
                 ) {
-                    revert TooEarly(from, to, rules.blocksBeforeVoteCloses);
+                    revert TooEarly(_account, _delegatee, _subdelegationRules.blocksBeforeVoteCloses);
                 }
             }
         }
     }
 
     /// @notice Migrate an account to the Alligator contract.
-    /// @param _token  The token to migrate.
+    /// @param _token   The token to migrate.
     /// @param _account The account to migrate.
     function _migrate(address _token, address _account) internal {
         // set migrated flag
         migrated[_token][_account] = true;
 
-        // copy delegates from governance token
-        address delegates = ERC20Votes(_token).delegates(_account);
-
-        assembly {
-            sstore(DELEGATES_SLOT, delegates)
-        }
-
-        // copy checkpoints from governance token
-        uint32 numCheckpoints = ERC20Votes(_token).numCheckpoints(_account);
-
-        Checkpoint[] memory checkpoints = new Checkpoint[](numCheckpoints);
-
-        for (uint32 i = 0; i < numCheckpoints; i++) {
-            checkpoints[i] = ERC20Votes(_token).checkpoints(_account, i);
-        }
-
-        assembly {
-            sstore(CHECKPOINTS_SLOT, checkpoints)
-        }
+        // TODO: what should be the default value for the subdelegation rules?
+        _subdelegations[_token][_account][ERC20Votes(_token).delegates(_account)] = SubdelegationRules({
+            maxRedelegations: 0,
+            blocksBeforeVoteCloses: 0,
+            notValidBefore: 0,
+            notValidAfter: 0,
+            allowanceType: AllowanceType.Absolute,
+            allowance: 0
+        });
     }
 
     /// @notice Return the allowance of a voter, used in `validate`.
+    /// @param _allowanceType          The type of allowance.
+    /// @param _subdelegationAllowance The allowance of the subdelegation.
+    /// @param _delegatorAllowance     The allowance of the delegator.
+    /// @return                        The allowance of the voter.
     function _getVoterAllowance(
-        AllowanceType allowanceType,
-        uint256 subdelegationAllowance,
-        uint256 delegatorAllowance
+        AllowanceType _allowanceType,
+        uint256 _subdelegationAllowance,
+        uint256 _delegatorAllowance
     )
-        private
+        internal
         pure
         returns (uint256)
     {
-        if (allowanceType == AllowanceType.Relative) {
-            return
-                subdelegationAllowance >= 1e5 ? delegatorAllowance : delegatorAllowance * subdelegationAllowance / 1e5;
+        if (_allowanceType == AllowanceType.Relative) {
+            return _subdelegationAllowance >= 1e5
+                ? _delegatorAllowance
+                : _delegatorAllowance * _subdelegationAllowance / 1e5;
         }
 
-        return delegatorAllowance > subdelegationAllowance ? subdelegationAllowance : delegatorAllowance;
+        return _delegatorAllowance > _subdelegationAllowance ? _subdelegationAllowance : _delegatorAllowance;
+    }
+
+    /// @notice Returns the checkpoints for a given token and account.
+    /// @param _ckpts The checkpoints to get the checkpoints for.
+    /// @param _blockNumber The block number to get the checkpoints for.
+    function _checkpointsLookup(
+        ERC20Votes.Checkpoint[] storage _ckpts,
+        uint256 _blockNumber
+    )
+        private
+        view
+        returns (uint256)
+    {
+        // We run a binary search to look for the earliest checkpoint taken after `_blockNumber`.
+        //
+        // During the loop, the index of the wanted checkpoint remains in the range [low-1, high).
+        // With each iteration, either `low` or `high` is moved towards the middle of the range to maintain the
+        // invariant.
+        // - If the middle checkpoint is after `_blockNumber`, we look in [low, mid)
+        // - If the middle checkpoint is before or equal to `_blockNumber`, we look in [mid+1, high)
+        // Once we reach a single value (when low == high), we've found the right checkpoint at the index high-1, if not
+        // out of bounds (in which case we're looking too far in the past and the result is 0).
+        // Note that if the latest checkpoint available is exactly for `_blockNumber`, we end up with an index that is
+        // past the end of the array, so we technically don't find a checkpoint after `_blockNumber`, but it works out
+        // the same.
+        uint256 high = _ckpts.length;
+        uint256 low = 0;
+        while (low < high) {
+            uint256 mid = Math.average(low, high);
+            if (_ckpts[mid].fromBlock > _blockNumber) {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        return high == 0 ? 0 : _ckpts[high - 1].votes;
+    }
+
+    /// @notice Moves voting power from `_src` to `_dst` by `_amount`.
+    /// @param _token  The token to move voting power for.
+    /// @param _src    The address of the source account.
+    /// @param _dst    The address of the destination account.
+    /// @param _amount The amount of voting power to move.
+    function _moveVotingPower(address _token, address _src, address _dst, uint256 _amount) internal {
+        if (_src != _dst && _amount > 0) {
+            if (_src != address(0)) {
+                (uint256 oldWeight, uint256 newWeight) =
+                    _writeCheckpoint(_checkpoints[_token][_src], _subtract, _amount);
+                emit DelegateVotesChanged(_src, oldWeight, newWeight);
+            }
+
+            if (_dst != address(0)) {
+                (uint256 oldWeight, uint256 newWeight) = _writeCheckpoint(_checkpoints[_token][_dst], _add, _amount);
+                emit DelegateVotesChanged(_dst, oldWeight, newWeight);
+            }
+        }
+    }
+
+    /// @notice Writes a checkpoint with `_delta` and `op` to `_ckpts`.
+    /// @param _ckpts      The checkpoints to write to.
+    /// @param _op         The operation to perform.
+    /// @param _delta      The amount to add or subtract.
+    /// @return _oldWeight The old weight.
+    /// @return _newWeight The new weight.
+    function _writeCheckpoint(
+        ERC20Votes.Checkpoint[] storage _ckpts,
+        function(uint256, uint256) view returns (uint256) _op,
+        uint256 _delta
+    )
+        private
+        returns (uint256 _oldWeight, uint256 _newWeight)
+    {
+        uint256 pos = _ckpts.length;
+        _oldWeight = pos == 0 ? 0 : _ckpts[pos - 1].votes;
+        _newWeight = _op(_oldWeight, _delta);
+
+        if (pos > 0 && _ckpts[pos - 1].fromBlock == block.number) {
+            _ckpts[pos - 1].votes = SafeCast.toUint224(_newWeight);
+        } else {
+            _ckpts.push(
+                ERC20Votes.Checkpoint({
+                    fromBlock: SafeCast.toUint32(block.number),
+                    votes: SafeCast.toUint224(_newWeight)
+                })
+            );
+        }
+    }
+
+    /// @notice Adds two numbers.
+    /// @param a The first number.
+    /// @param b The second number.
+    /// @return  The sum of the two numbers.
+    function _add(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a + b;
+    }
+
+    /// @notice Subtracts two numbers.
+    /// @param a The first number.
+    /// @param b The second number.
+    /// @return  The difference of the two numbers.
+    function _subtract(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a - b;
     }
 }
