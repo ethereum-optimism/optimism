@@ -22,9 +22,7 @@ type InstrumentedState struct {
 	stdOut io.Writer
 	stdErr io.Writer
 
-	lastMemAccess   uint32
-	memProofEnabled bool
-	memProof        [28 * 32]byte
+	memoryTracker *exec.MemoryTrackerImpl
 
 	preimageOracle *exec.TrackingPreimageOracleReader
 
@@ -37,6 +35,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		state:          state,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
+		memoryTracker:  exec.NewMemoryTracker(state.Memory),
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
 	}
 }
@@ -60,8 +59,7 @@ func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 
 func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {
 	m.preimageOracle.Reset()
-	m.memProofEnabled = proof
-	m.lastMemAccess = ^uint32(0)
+	m.memoryTracker.Reset(proof)
 
 	if proof {
 		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
@@ -78,7 +76,8 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 	}
 
 	if proof {
-		wit.ProofData = append(wit.ProofData, m.memProof[:]...)
+		memProof := m.memoryTracker.MemProof()
+		wit.ProofData = append(wit.ProofData, memProof[:]...)
 		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
 		if lastPreimageOffset != ^uint32(0) {
 			wit.PreimageOffset = lastPreimageOffset

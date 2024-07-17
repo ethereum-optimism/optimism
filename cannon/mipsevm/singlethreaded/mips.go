@@ -9,16 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 )
 
-func (m *InstrumentedState) trackMemAccess(effAddr uint32) {
-	if m.memProofEnabled && m.lastMemAccess != effAddr {
-		if m.lastMemAccess != ^uint32(0) {
-			panic(fmt.Errorf("unexpected different mem access at %08x, already have access at %08x buffered", effAddr, m.lastMemAccess))
-		}
-		m.lastMemAccess = effAddr
-		m.memProof = m.state.Memory.MerkleProof(effAddr)
-	}
-}
-
 func (m *InstrumentedState) handleSyscall() error {
 	syscallNum, a0, a1, a2 := exec.GetSyscallArgs(&m.state.Registers)
 
@@ -41,13 +31,13 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysRead:
 		var newPreimageOffset uint32
-		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.trackMemAccess)
+		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
 		var newPreimageOffset uint32
-		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = exec.HandleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.trackMemAccess, m.stdOut, m.stdErr)
+		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = exec.HandleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker, m.stdOut, m.stdErr)
 		m.state.LastHint = newLastHint
 		m.state.PreimageKey = newPreimageKey
 		m.state.PreimageOffset = newPreimageOffset
@@ -117,5 +107,5 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// Exec the rest of the step logic
-	return exec.ExecMipsCoreStepLogic(&m.state.Cpu, &m.state.Registers, m.state.Memory, insn, opcode, fun, m.trackMemAccess, m)
+	return exec.ExecMipsCoreStepLogic(&m.state.Cpu, &m.state.Registers, m.state.Memory, insn, opcode, fun, m.memoryTracker, m)
 }

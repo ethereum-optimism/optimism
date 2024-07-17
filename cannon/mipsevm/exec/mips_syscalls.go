@@ -66,7 +66,7 @@ func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	return v0, v1, newHeap
 }
 
-func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *memory.Memory, memTracker memory.MemTracker) (v0, v1, newPreimageOffset uint32) {
+func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *memory.Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = read, v1 = err code
 	v0 = uint32(0)
@@ -78,7 +78,7 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 		// leave v0 and v1 zero: read nothing, no error
 	case FdPreimageRead: // pre-image oracle
 		effAddr := a1 & 0xFFffFFfc
-		memTracker(effAddr)
+		memTracker.TrackMemAccess(effAddr)
 		mem := memory.GetMemory(effAddr)
 		dat, datLen := preimageReader.readPreimage(preimageKey, preimageOffset)
 		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
@@ -108,7 +108,7 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 	return v0, v1, newPreimageOffset
 }
 
-func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle mipsevm.PreimageOracle, memory *memory.Memory, memTracker memory.MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
+func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle mipsevm.PreimageOracle, memory *memory.Memory, memTracker MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = written, v1 = err code
 	v1 = uint32(0)
@@ -140,7 +140,7 @@ func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]b
 		v0 = a2
 	case FdPreimageWrite:
 		effAddr := a1 & 0xFFffFFfc
-		memTracker(effAddr)
+		memTracker.TrackMemAccess(effAddr)
 		mem := memory.GetMemory(effAddr)
 		key := preimageKey
 		alignment := a1 & 3

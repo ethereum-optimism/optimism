@@ -18,7 +18,7 @@ func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun 
 	return insn, opcode, fun
 }
 
-func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker memory.MemTracker, stackTracker StackTracker) error {
+func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) error {
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
 		linkReg := uint32(0)
@@ -73,7 +73,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 		// M[R[rs]+SignExtImm]
 		rs += SignExtend(insn&0xFFFF, 16)
 		addr := rs & 0xFFFFFFFC
-		memTracker(addr)
+		memTracker.TrackMemAccess(addr)
 		mem = memory.GetMemory(addr)
 		if opcode >= 0x28 && opcode != 0x30 {
 			// store
@@ -117,7 +117,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 
 	// write memory
 	if storeAddr != 0xFF_FF_FF_FF {
-		memTracker(storeAddr)
+		memTracker.TrackMemAccess(storeAddr)
 		memory.SetMemory(storeAddr, val)
 	}
 
