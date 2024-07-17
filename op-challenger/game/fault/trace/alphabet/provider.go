@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
-	vmstate "github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 
@@ -85,6 +85,6 @@ func BuildAlphabetPreimage(traceIndex *big.Int, claim *big.Int) []byte {
 
 func alphabetStateHash(state []byte) common.Hash {
 	h := crypto.Keccak256Hash(state)
-	h[0] = vmstate.VMStatusInvalid
+	h[0] = mipsevm.VMStatusInvalid
 	return h
 }
