@@ -48,8 +48,8 @@ func TestMTState_EncodeWitness(t *testing.T) {
 		state.StepsSinceLastContextSwitch = stepsSinceContextSwitch
 
 		memRoot := state.Memory.MerkleRoot()
-		rightStackRoot := state.calculateThreadStackRoot(state.RightThreadStack)
-		leftStackRoot := EmptyThreadsRoot
+		leftStackRoot := state.calculateThreadStackRoot(state.LeftThreadStack)
+		rightStackRoot := EmptyThreadsRoot
 
 		// Set up expected witness
 		expectedWitness := make(MTStateWitness, MT_STATE_WITNESS_SIZE)
@@ -64,7 +64,7 @@ func TestMTState_EncodeWitness(t *testing.T) {
 		setWitnessField(expectedWitness, STEP_MT_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
 		setWitnessField(expectedWitness, STEPS_SINCE_CONTEXT_SWITCH_MT_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(stepsSinceContextSwitch)})
 		setWitnessField(expectedWitness, WAKEUP_MT_WITNESS_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
-		setWitnessField(expectedWitness, TRAVERSE_RIGHT_MT_WITNESS_OFFSET, []byte{1})
+		setWitnessField(expectedWitness, TRAVERSE_RIGHT_MT_WITNESS_OFFSET, []byte{0})
 		setWitnessField(expectedWitness, LEFT_THREADS_ROOT_MT_WITNESS_OFFSET, leftStackRoot[:])
 		setWitnessField(expectedWitness, RIGHT_THREADS_ROOT_MT_WITNESS_OFFSET, rightStackRoot[:])
 		setWitnessField(expectedWitness, THREAD_ID_MT_WITNESS_OFFSET, []byte{0, 0, 0, 1})

@@ -138,9 +138,9 @@ func CreateEmptyMTState() *MTState {
 		Exited:           false,
 		Step:             0,
 		Wakeup:           ^uint32(0),
-		TraverseRight:    true,
-		LeftThreadStack:  []ThreadState{},
-		RightThreadStack: []ThreadState{initThread},
+		TraverseRight:    false,
+		LeftThreadStack:  []ThreadState{initThread},
+		RightThreadStack: []ThreadState{},
 		NextThreadId:     initThreadId + 1,
 	}
 }
