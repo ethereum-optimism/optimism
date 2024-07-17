@@ -28,6 +28,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         _mint(_account, _amount);
     }
 
+    /*
     /// @notice Returns the checkpoint for a given account at a given position.
     /// @param _account Account to get the checkpoints for.
     /// @param _pos     Position to get the checkpoints at.
@@ -51,6 +52,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         }
     }
 
+    // TODO: this function may not pass
     /// @notice Returns the delegatee of an account.
     /// @param _account Account to get the delegatee of.
     /// @return Delegatee of the given account.
@@ -60,12 +62,26 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         } else {
             return super.delegates(_account);
         }
-    }
+    }*/
 
+    // TODO: call subdelegate -> standard rule
     /// @notice Delegates votes from the sender to `delegatee`.
     /// @param _delegatee Account to delegate votes to.
     function delegate(address _delegatee) public override {
-        Alligator(Predeploys.ALLIGATOR).delegate(_delegatee);
+        Alligator(Predeploys.ALLIGATOR).subdelegate(
+            address(this),
+            msg.sender,
+            _delegatee,
+            // Create rule equivalent to basic delegation.
+            Alligator.SubdelegationRules({
+                maxRedelegations: 0,
+                blocksBeforeVoteCloses: 0,
+                notValidBefore: 0,
+                notValidAfter: 0,
+                allowanceType: Alligator.AllowanceType.Relative,
+                allowance: 10e4 // 100%
+             })
+        );
     }
 
     /// @notice Delegates votes from the sender to `delegatee`.
@@ -86,7 +102,29 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         public
         override
     {
-        Alligator(Predeploys.ALLIGATOR).delegateBySig(_delegatee, _nonce, _expiry, _v, _r, _s);
+        // TODO: custom errors. use revert instead of require
+        require(block.timestamp <= _expiry, "GovernanceToken: signature expired");
+        address signer = ECDSA.recover(
+            _hashTypedDataV4(keccak256(abi.encode(ERC20Votes._DELEGATION_TYPEHASH, _delegatee, _nonce, _expiry))),
+            _v,
+            _r,
+            _s
+        );
+        require(_nonce == _useNonce(signer), "GovernanceToken: invalid nonce");
+        Alligator(Predeploys.ALLIGATOR).subdelegate(
+            address(this),
+            msg.sender,
+            _delegatee,
+            // Create rule equivalent to basic delegation.
+            Alligator.SubdelegationRules({
+                maxRedelegations: 0,
+                blocksBeforeVoteCloses: 0,
+                notValidBefore: 0,
+                notValidAfter: 0,
+                allowanceType: Alligator.AllowanceType.Relative,
+                allowance: 10e4 // 100%
+             })
+        );
     }
 
     /// @notice Determines whether an account has been migrated.
