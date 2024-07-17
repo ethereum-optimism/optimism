@@ -18,6 +18,10 @@ import "src/governance/Alligator.sol";
 ///         functions in the Alligator contract. If the account has not been migrated, the
 ///         GovernanceToken contract uses its own state.
 contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
+    /// @notice The typehash for the delegation struct used by the contract.
+    bytes32 private constant _DELEGATION_TYPEHASH =
+        keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
+
     /// @notice Constructs the GovernanceToken contract.
     constructor() ERC20("Optimism", "OP") ERC20Permit("Optimism") { }
 
@@ -34,7 +38,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @return Checkpoint at the given position.
     function checkpoints(address _account, uint32 _pos) public view override(ERC20Votes) returns (Checkpoint memory) {
         if (_migrated(_account)) {
-            return Alligator(Predeploys.ALLIGATOR).checkpoints(_account, _pos);
+            return Alligator(Predeploys.ALLIGATOR).checkpoints(address(this), _account)[_pos];
         } else {
             return super.checkpoints(_account, _pos);
         }
@@ -45,7 +49,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @return Number of checkpoints for the given account.
     function numCheckpoints(address _account) public view override(ERC20Votes) returns (uint32) {
         if (_migrated(_account)) {
-            return Alligator(Predeploys.ALLIGATOR).numCheckpoints(_account);
+            return Alligator(Predeploys.ALLIGATOR).numCheckpoints(msg.sender, _account);
         } else {
             return super.numCheckpoints(_account);
         }
@@ -57,7 +61,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @return Delegatee of the given account.
     function delegates(address _account) public view override(ERC20Votes) returns (address) {
         if (_migrated(_account)) {
-            return Alligator(Predeploys.ALLIGATOR).delegates(_account);
+            //return Alligator(Predeploys.ALLIGATOR).delegates(_account);
         } else {
             return super.delegates(_account);
         }
@@ -68,16 +72,15 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _delegatee Account to delegate votes to.
     function delegate(address _delegatee) public override {
         Alligator(Predeploys.ALLIGATOR).subdelegate(
-            address(this),
             msg.sender,
             _delegatee,
             // Create rule equivalent to basic delegation.
-            Alligator.SubdelegationRules({
+            SubdelegationRules({
                 maxRedelegations: 0,
                 blocksBeforeVoteCloses: 0,
                 notValidBefore: 0,
                 notValidAfter: 0,
-                allowanceType: Alligator.AllowanceType.Relative,
+                allowanceType: AllowanceType.Relative,
                 allowance: 10e4 // 100%
              })
         );
@@ -104,23 +107,19 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         // TODO: custom errors. use revert instead of require
         require(block.timestamp <= _expiry, "GovernanceToken: signature expired");
         address signer = ECDSA.recover(
-            _hashTypedDataV4(keccak256(abi.encode(ERC20Votes._DELEGATION_TYPEHASH, _delegatee, _nonce, _expiry))),
-            _v,
-            _r,
-            _s
+            _hashTypedDataV4(keccak256(abi.encode(_DELEGATION_TYPEHASH, _delegatee, _nonce, _expiry))), _v, _r, _s
         );
         require(_nonce == _useNonce(signer), "GovernanceToken: invalid nonce");
         Alligator(Predeploys.ALLIGATOR).subdelegate(
-            address(this),
             msg.sender,
             _delegatee,
             // Create rule equivalent to basic delegation.
-            Alligator.SubdelegationRules({
+            SubdelegationRules({
                 maxRedelegations: 0,
                 blocksBeforeVoteCloses: 0,
                 notValidBefore: 0,
                 notValidAfter: 0,
-                allowanceType: Alligator.AllowanceType.Relative,
+                allowanceType: AllowanceType.Relative,
                 allowance: 10e4 // 100%
              })
         );
@@ -130,7 +129,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _account Account to check if it has been migrated.
     /// @return True if the given account has been migrated, false otherwise.
     function _migrated(address _account) internal view returns (bool) {
-        return Alligator(Predeploys.ALLIGATOR).migrated(_account);
+        return Alligator(Predeploys.ALLIGATOR).migrated(address(this), _account);
     }
 
     /// @notice Callback called after a token transfer. Forwards to the Alligator contract,
