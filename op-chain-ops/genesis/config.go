@@ -437,14 +437,17 @@ func (d *DeployConfig) Check() error {
 		log.Warn("DisputeGameFinalityDelaySeconds is 0")
 	}
 	if d.UsePlasma {
-		if d.DAChallengeWindow == 0 {
-			return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using alt-da mode", ErrInvalidDeployConfig)
-		}
-		if d.DAResolveWindow == 0 {
-			return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using alt-da mode", ErrInvalidDeployConfig)
-		}
 		if !(d.DACommitmentType == plasma.KeccakCommitmentString || d.DACommitmentType == plasma.GenericCommitmentString) {
 			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommitment or GenericCommitment", ErrInvalidDeployConfig)
+		}
+		// only enforce challenge and resolve window if using alt-da mode with Keccak Commitments
+		if d.DACommitmentType != plasma.GenericCommitmentString {
+			if d.DAChallengeWindow == 0 {
+				return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using alt-da mode with Keccak Commitments", ErrInvalidDeployConfig)
+			}
+			if d.DAResolveWindow == 0 {
+				return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using alt-da mode with Keccak Commitments", ErrInvalidDeployConfig)
+			}
 		}
 	}
 	if d.UseCustomGasToken {
