@@ -16,7 +16,7 @@ type InstrumentedState struct {
 	stdErr io.Writer
 
 	memoryTracker *exec.MemoryTrackerImpl
-	stackTracker  *exec.StackTrackerImpl
+	stackTracker  exec.TraceableStackTracker
 
 	preimageOracle *exec.TrackingPreimageOracleReader
 }
@@ -27,7 +27,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		stdOut:         stdOut,
 		stdErr:         stdErr,
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
-		stackTracker:   exec.NewStackTracker(state),
+		stackTracker:   &exec.NoopStackTracker{},
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
 	}
 }
@@ -41,7 +41,12 @@ func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, s
 }
 
 func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
-	return m.stackTracker.InitDebug(meta)
+	stackTracker, err := exec.NewStackTracker(m.state, meta)
+	if err != nil {
+		return err
+	}
+	m.stackTracker = stackTracker
+	return nil
 }
 
 func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {

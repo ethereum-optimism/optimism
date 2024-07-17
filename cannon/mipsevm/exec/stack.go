@@ -13,40 +13,40 @@ type StackTracker interface {
 	PopStack()
 }
 
+type TraceableStackTracker interface {
+	StackTracker
+	Traceback()
+}
+
+type NoopStackTracker struct{}
+
+func (n *NoopStackTracker) PushStack(target uint32) {}
+
+func (n *NoopStackTracker) PopStack() {}
+
+func (n *NoopStackTracker) Traceback() {}
+
 type StackTrackerImpl struct {
 	state mipsevm.FPVMState
 
-	stack        []uint32
-	caller       []uint32
-	meta         *program.Metadata
-	debugEnabled bool
+	stack  []uint32
+	caller []uint32
+	meta   *program.Metadata
 }
 
-func NewStackTracker(state mipsevm.FPVMState) *StackTrackerImpl {
-	return &StackTrackerImpl{state: state}
-}
-
-func (s *StackTrackerImpl) InitDebug(meta *program.Metadata) error {
+func NewStackTracker(state mipsevm.FPVMState, meta *program.Metadata) (*StackTrackerImpl, error) {
 	if meta == nil {
-		return errors.New("metadata is nil")
+		return nil, errors.New("metadata is nil")
 	}
-	s.debugEnabled = true
-	s.meta = meta
-	return nil
+	return &StackTrackerImpl{state: state}, nil
 }
 
 func (s *StackTrackerImpl) PushStack(target uint32) {
-	if !s.debugEnabled {
-		return
-	}
 	s.stack = append(s.stack, target)
 	s.caller = append(s.caller, s.state.GetPC())
 }
 
 func (s *StackTrackerImpl) PopStack() {
-	if !s.debugEnabled {
-		return
-	}
 	if len(s.stack) != 0 {
 		fn := s.meta.LookupSymbol(s.state.GetPC())
 		topFn := s.meta.LookupSymbol(s.stack[len(s.stack)-1])
