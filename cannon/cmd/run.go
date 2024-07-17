@@ -446,7 +446,7 @@ func Run(ctx *cli.Context) error {
 				Pre:       witness.StateHash,
 				Post:      postStateHash,
 				StateData: witness.State,
-				ProofData: witness.MemProof,
+				ProofData: witness.ProofData,
 			}
 			if witness.HasPreimage() {
 				proof.OracleKey = witness.PreimageKey[:]

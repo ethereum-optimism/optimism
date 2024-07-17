@@ -83,7 +83,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 		wit = &StepWitness{
 			State:     encodedWitness,
 			StateHash: stateHash,
-			MemProof:  insnProof[:],
+			ProofData: insnProof[:],
 		}
 	}
 	err = m.mipsStep()
@@ -92,7 +92,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 	}
 
 	if proof {
-		wit.MemProof = append(wit.MemProof, m.memProof[:]...)
+		wit.ProofData = append(wit.ProofData, m.memProof[:]...)
 		if m.lastPreimageOffset != ^uint32(0) {
 			wit.PreimageOffset = m.lastPreimageOffset
 			wit.PreimageKey = m.lastPreimageKey

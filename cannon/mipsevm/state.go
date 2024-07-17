@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// StateWitnessSize is the size of the state witness encoding in bytes.
-var StateWitnessSize = 226
+// STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
+const STATE_WITNESS_SIZE = 226
 
 type CpuScalars struct {
 	PC     uint32 `json:"pc"`
@@ -46,6 +46,32 @@ type State struct {
 	// Warning: the hint MAY NOT BE COMPLETE. I.e. this is buffered,
 	// and should only be read when len(LastHint) > 4 && uint32(LastHint[:4]) <= len(LastHint[4:])
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
+}
+
+func CreateEmptyState() *State {
+	return &State{
+		Cpu: CpuScalars{
+			PC:     0,
+			NextPC: 0,
+			LO:     0,
+			HI:     0,
+		},
+		Heap:      0,
+		Registers: [32]uint32{},
+		Memory:    NewMemory(),
+		ExitCode:  0,
+		Exited:    false,
+		Step:      0,
+	}
+}
+
+func CreateInitialState(pc, heapStart uint32) *State {
+	state := CreateEmptyState()
+	state.Cpu.PC = pc
+	state.Cpu.NextPC = pc + 4
+	state.Heap = heapStart
+
+	return state
 }
 
 type stateMarshaling struct {
@@ -121,7 +147,7 @@ func (s *State) GetMemory() *Memory {
 }
 
 func (s *State) EncodeWitness() ([]byte, common.Hash) {
-	out := make([]byte, 0)
+	out := make([]byte, 0, STATE_WITNESS_SIZE)
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
 	out = append(out, s.PreimageKey[:]...)
@@ -132,11 +158,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.Cpu.HI)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	if s.Exited {
-		out = append(out, 1)
-	} else {
-		out = append(out, 0)
-	}
+	out = AppendBoolToWitness(out, s.Exited)
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	for _, r := range s.Registers {
 		out = binary.BigEndian.AppendUint32(out, r)
@@ -154,14 +176,14 @@ const (
 )
 
 func (sw StateWitness) StateHash() (common.Hash, error) {
-	if len(sw) != 226 {
-		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected 226", len(sw))
+	if len(sw) != STATE_WITNESS_SIZE {
+		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), STATE_WITNESS_SIZE)
 	}
 	return stateHashFromWitness(sw), nil
 }
 
 func stateHashFromWitness(sw []byte) common.Hash {
-	if len(sw) != 226 {
+	if len(sw) != STATE_WITNESS_SIZE {
 		panic("Invalid witness length")
 	}
 	hash := crypto.Keccak256Hash(sw)

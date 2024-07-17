@@ -10,21 +10,11 @@ import (
 
 const HEAP_START = 0x05000000
 
-func LoadELF(f *elf.File) (*State, error) {
-	s := &State{
-		Cpu: CpuScalars{
-			PC:     uint32(f.Entry),
-			NextPC: uint32(f.Entry + 4),
-			LO:     0,
-			HI:     0,
-		},
-		Heap:      HEAP_START,
-		Registers: [32]uint32{},
-		Memory:    NewMemory(),
-		ExitCode:  0,
-		Exited:    false,
-		Step:      0,
-	}
+type CreateFPVMState[T FPVMState] func(pc, heapStart uint32) T
+
+func LoadELF[T FPVMState](f *elf.File, initState CreateFPVMState[T]) (T, error) {
+	var empty T
+	s := initState(uint32(f.Entry), HEAP_START)
 
 	for i, prog := range f.Progs {
 		if prog.Type == 0x70000003 { // MIPS_ABIFLAGS
@@ -37,21 +27,21 @@ func LoadELF(f *elf.File) (*State, error) {
 				if prog.Filesz < prog.Memsz {
 					r = io.MultiReader(r, bytes.NewReader(make([]byte, prog.Memsz-prog.Filesz)))
 				} else {
-					return nil, fmt.Errorf("invalid PT_LOAD program segment %d, file size (%d) > mem size (%d)", i, prog.Filesz, prog.Memsz)
+					return empty, fmt.Errorf("invalid PT_LOAD program segment %d, file size (%d) > mem size (%d)", i, prog.Filesz, prog.Memsz)
 				}
 			} else {
-				return nil, fmt.Errorf("program segment %d has different file size (%d) than mem size (%d): filling for non PT_LOAD segments is not supported", i, prog.Filesz, prog.Memsz)
+				return empty, fmt.Errorf("program segment %d has different file size (%d) than mem size (%d): filling for non PT_LOAD segments is not supported", i, prog.Filesz, prog.Memsz)
 			}
 		}
 
 		if prog.Vaddr+prog.Memsz >= uint64(1<<32) {
-			return nil, fmt.Errorf("program %d out of 32-bit mem range: %x - %x (size: %x)", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
+			return empty, fmt.Errorf("program %d out of 32-bit mem range: %x - %x (size: %x)", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
 		if prog.Vaddr+prog.Memsz >= HEAP_START {
-			return nil, fmt.Errorf("program %d overlaps with heap: %x - %x (size: %x). The heap start offset must be reconfigured", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
+			return empty, fmt.Errorf("program %d overlaps with heap: %x - %x (size: %x). The heap start offset must be reconfigured", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
-		if err := s.Memory.SetMemoryRange(uint32(prog.Vaddr), r); err != nil {
-			return nil, fmt.Errorf("failed to read program segment %d: %w", i, err)
+		if err := s.GetMemory().SetMemoryRange(uint32(prog.Vaddr), r); err != nil {
+			return empty, fmt.Errorf("failed to read program segment %d: %w", i, err)
 		}
 	}
 

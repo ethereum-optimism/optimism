@@ -113,7 +113,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness, step uint64) []by
 }
 
 func encodeStepInput(t *testing.T, wit *StepWitness, localContext LocalContext, mips *foundry.Artifact) []byte {
-	input, err := mips.ABI.Pack("step", wit.State, wit.MemProof, localContext)
+	input, err := mips.ABI.Pack("step", wit.State, wit.ProofData, localContext)
 	require.NoError(t, err)
 	return input
 }
@@ -485,8 +485,8 @@ func TestEVMFault(t *testing.T) {
 			insnProof := initialState.Memory.MerkleProof(0)
 			encodedWitness, _ := initialState.EncodeWitness()
 			stepWitness := &StepWitness{
-				State:    encodedWitness,
-				MemProof: insnProof[:],
+				State:     encodedWitness,
+				ProofData: insnProof[:],
 			}
 			input := encodeStepInput(t, stepWitness, LocalContext{}, contracts.MIPS)
 			startingGas := uint64(30_000_000)
@@ -509,7 +509,7 @@ func TestHelloEVM(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 
-	state, err := LoadELF(elfProgram)
+	state, err := LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	err = PatchGo(elfProgram, state)
@@ -560,7 +560,7 @@ func TestClaimEVM(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")
 
-	state, err := LoadELF(elfProgram)
+	state, err := LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	err = PatchGo(elfProgram, state)

@@ -105,7 +105,7 @@ func TestStateHash(t *testing.T) {
 		}
 
 		actualWitness, actualStateHash := state.EncodeWitness()
-		require.Equal(t, len(actualWitness), StateWitnessSize, "Incorrect witness size")
+		require.Equal(t, len(actualWitness), STATE_WITNESS_SIZE, "Incorrect witness size")
 
 		expectedWitness := make(StateWitness, 226)
 		memRoot := state.Memory.MerkleRoot()
@@ -266,7 +266,7 @@ func loadELFProgram(t *testing.T, name string) *State {
 	elfProgram, err := elf.Open(name)
 	require.NoError(t, err, "open ELF file")
 
-	state, err := LoadELF(elfProgram)
+	state, err := LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	err = PatchGo(elfProgram, state)
@@ -337,7 +337,7 @@ func selectOracleFixture(t *testing.T, programName string) PreimageOracle {
 func TestStateJSONCodec(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
-	state, err := LoadELF(elfProgram)
+	state, err := LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
 
 	stateJSON, err := state.MarshalJSON()
