@@ -91,8 +91,8 @@ func (m *InstrumentedState) GetState() mipsevm.FPVMState {
 func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 	return &mipsevm.DebugInfo{
 		Pages:               m.state.Memory.PageCount(),
-		NumPreimageRequests: m.preimageOracle.NumPreimageRequests,
-		TotalPreimageSize:   m.preimageOracle.TotalPreimageSize,
+		NumPreimageRequests: m.preimageOracle.NumPreimageRequests(),
+		TotalPreimageSize:   m.preimageOracle.TotalPreimageSize(),
 	}
 }
 

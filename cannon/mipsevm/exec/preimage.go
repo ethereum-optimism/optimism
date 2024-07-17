@@ -7,7 +7,7 @@ import (
 )
 
 type PreimageReader interface {
-	readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32)
+	ReadPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32)
 }
 
 // TrackingPreimageOracleReader wraps around a PreimageOracle, implements the PreimageOracle interface, and adds tracking functionality.
@@ -15,8 +15,8 @@ type PreimageReader interface {
 type TrackingPreimageOracleReader struct {
 	po mipsevm.PreimageOracle
 
-	TotalPreimageSize   int
-	NumPreimageRequests int
+	totalPreimageSize   int
+	numPreimageRequests int
 
 	// cached pre-image data, including 8 byte length prefix
 	lastPreimage []byte
@@ -39,13 +39,13 @@ func (p *TrackingPreimageOracleReader) Hint(v []byte) {
 }
 
 func (p *TrackingPreimageOracleReader) GetPreimage(k [32]byte) []byte {
-	p.NumPreimageRequests++
+	p.numPreimageRequests++
 	preimage := p.po.GetPreimage(k)
-	p.TotalPreimageSize += len(preimage)
+	p.totalPreimageSize += len(preimage)
 	return preimage
 }
 
-func (p *TrackingPreimageOracleReader) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
+func (p *TrackingPreimageOracleReader) ReadPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 	preimage := p.lastPreimage
 	if key != p.lastPreimageKey {
 		p.lastPreimageKey = key
@@ -63,4 +63,12 @@ func (p *TrackingPreimageOracleReader) readPreimage(key [32]byte, offset uint32)
 
 func (p *TrackingPreimageOracleReader) LastPreimage() ([32]byte, []byte, uint32) {
 	return p.lastPreimageKey, p.lastPreimage, p.lastPreimageOffset
+}
+
+func (p *TrackingPreimageOracleReader) TotalPreimageSize() int {
+	return p.totalPreimageSize
+}
+
+func (p *TrackingPreimageOracleReader) NumPreimageRequests() int {
+	return p.numPreimageRequests
 }
