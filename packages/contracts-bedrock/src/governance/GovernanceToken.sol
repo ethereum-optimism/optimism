@@ -28,7 +28,6 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         _mint(_account, _amount);
     }
 
-    /*
     /// @notice Returns the checkpoint for a given account at a given position.
     /// @param _account Account to get the checkpoints for.
     /// @param _pos     Position to get the checkpoints at.
@@ -62,7 +61,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         } else {
             return super.delegates(_account);
         }
-    }*/
+    }
 
     // TODO: call subdelegate -> standard rule
     /// @notice Delegates votes from the sender to `delegatee`.
