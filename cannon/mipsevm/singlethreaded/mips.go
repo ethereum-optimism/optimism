@@ -41,7 +41,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysRead:
 		var newPreimageOffset uint32
-		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageReader, m.state.Memory, m.trackMemAccess)
+		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.trackMemAccess)
 		m.state.PreimageOffset = newPreimageOffset
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes

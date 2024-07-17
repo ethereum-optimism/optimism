@@ -6,30 +6,17 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
-// TrackingOracle wraps around a PreimageOracle, implements the PreimageOracle interface, and adds tracking functionality
-type TrackingOracle struct {
-	po                  mipsevm.PreimageOracle
+type PreimageReader interface {
+	readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32)
+}
+
+// TrackingPreimageOracleReader wraps around a PreimageOracle, implements the PreimageOracle interface, and adds tracking functionality.
+// It also implements the PreimageReader interface
+type TrackingPreimageOracleReader struct {
+	po mipsevm.PreimageOracle
+
 	TotalPreimageSize   int
 	NumPreimageRequests int
-}
-
-func NewTrackingOracle(po mipsevm.PreimageOracle) *TrackingOracle {
-	return &TrackingOracle{po: po}
-}
-
-func (d *TrackingOracle) Hint(v []byte) {
-	d.po.Hint(v)
-}
-
-func (d *TrackingOracle) GetPreimage(k [32]byte) []byte {
-	d.NumPreimageRequests++
-	preimage := d.po.GetPreimage(k)
-	d.TotalPreimageSize += len(preimage)
-	return preimage
-}
-
-type PreimageReader struct {
-	po mipsevm.PreimageOracle
 
 	// cached pre-image data, including 8 byte length prefix
 	lastPreimage []byte
@@ -39,15 +26,26 @@ type PreimageReader struct {
 	lastPreimageOffset uint32
 }
 
-func NewPreimageReader(po mipsevm.PreimageOracle) *PreimageReader {
-	return &PreimageReader{po: po}
+func NewTrackingPreimageOracleReader(po mipsevm.PreimageOracle) *TrackingPreimageOracleReader {
+	return &TrackingPreimageOracleReader{po: po}
 }
 
-func (p *PreimageReader) Reset() {
+func (p *TrackingPreimageOracleReader) Reset() {
 	p.lastPreimageOffset = ^uint32(0)
 }
 
-func (p *PreimageReader) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
+func (p *TrackingPreimageOracleReader) Hint(v []byte) {
+	p.po.Hint(v)
+}
+
+func (p *TrackingPreimageOracleReader) GetPreimage(k [32]byte) []byte {
+	p.NumPreimageRequests++
+	preimage := p.po.GetPreimage(k)
+	p.TotalPreimageSize += len(preimage)
+	return preimage
+}
+
+func (p *TrackingPreimageOracleReader) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 	preimage := p.lastPreimage
 	if key != p.lastPreimageKey {
 		p.lastPreimageKey = key
@@ -63,6 +61,6 @@ func (p *PreimageReader) readPreimage(key [32]byte, offset uint32) (dat [32]byte
 	return
 }
 
-func (p *PreimageReader) LastPreimage() ([32]byte, []byte, uint32) {
+func (p *TrackingPreimageOracleReader) LastPreimage() ([32]byte, []byte, uint32) {
 	return p.lastPreimageKey, p.lastPreimage, p.lastPreimageOffset
 }

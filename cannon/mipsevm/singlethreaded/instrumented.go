@@ -26,21 +26,18 @@ type InstrumentedState struct {
 	memProofEnabled bool
 	memProof        [28 * 32]byte
 
-	preimageOracle *exec.TrackingOracle
-	preimageReader *exec.PreimageReader
+	preimageOracle *exec.TrackingPreimageOracleReader
 
 	debug        Debug
 	debugEnabled bool
 }
 
 func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
-	trackingOracle := exec.NewTrackingOracle(po)
 	return &InstrumentedState{
 		state:          state,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
-		preimageOracle: trackingOracle,
-		preimageReader: exec.NewPreimageReader(trackingOracle),
+		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
 	}
 }
 
@@ -62,7 +59,7 @@ func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 }
 
 func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {
-	m.preimageReader.Reset()
+	m.preimageOracle.Reset()
 	m.memProofEnabled = proof
 	m.lastMemAccess = ^uint32(0)
 
@@ -82,7 +79,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 
 	if proof {
 		wit.ProofData = append(wit.ProofData, m.memProof[:]...)
-		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageReader.LastPreimage()
+		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
 		if lastPreimageOffset != ^uint32(0) {
 			wit.PreimageOffset = lastPreimageOffset
 			wit.PreimageKey = lastPreimageKey
@@ -93,7 +90,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 }
 
 func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
-	return m.preimageReader.LastPreimage()
+	return m.preimageOracle.LastPreimage()
 }
 
 func (m *InstrumentedState) GetState() mipsevm.FPVMState {

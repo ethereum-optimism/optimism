@@ -66,7 +66,7 @@ func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	return v0, v1, newHeap
 }
 
-func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader *PreimageReader, memory *memory.Memory, memTracker memory.MemTracker) (v0, v1, newPreimageOffset uint32) {
+func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *memory.Memory, memTracker memory.MemTracker) (v0, v1, newPreimageOffset uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = read, v1 = err code
 	v0 = uint32(0)
