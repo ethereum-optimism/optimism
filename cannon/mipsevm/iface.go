@@ -12,6 +12,7 @@ type FPVMState interface {
 	// GetPC returns the currently executing program counter
 	GetPC() uint32
 
+	// GetRegisters returns the currently active registers
 	GetRegisters() *[32]uint32
 
 	// GetStep returns the current VM step
