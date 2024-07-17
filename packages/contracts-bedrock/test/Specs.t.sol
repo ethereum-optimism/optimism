@@ -30,6 +30,7 @@ contract Specification_Test is CommonTest {
         MESSENGER,
         L1PROXYADMINOWNER,
         GOVERNANCETOKENOWNER,
+        ALLIGATOROWNER,
         MINTMANAGEROWNER,
         DATAAVAILABILITYCHALLENGEOWNER,
         DISPUTEGAMEFACTORYOWNER,
@@ -609,6 +610,10 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "GovernanceToken", _sel: _getSel("transfer(address,uint256)") });
         _addSpec({ _name: "GovernanceToken", _sel: _getSel("transferFrom(address,address,uint256)") });
         _addSpec({ _name: "GovernanceToken", _sel: _getSel("transferOwnership(address)") });
+
+        // Alligator
+        _addSpec({ _name: "Alligator", _sel: _getSel("mint(address,uint256)"), _auth: Role.ALLIGATOROWNER });
+        // TODO: add remaining functions
 
         // MintManager
         _addSpec({ _name: "MintManager", _sel: _getSel("DENOMINATOR()") });
