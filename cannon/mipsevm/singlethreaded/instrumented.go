@@ -1,7 +1,6 @@
 package singlethreaded
 
 import (
-	"errors"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -10,12 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
-type Debug struct {
-	stack  []uint32
-	caller []uint32
-	meta   *program.Metadata
-}
-
 type InstrumentedState struct {
 	state *State
 
@@ -23,11 +16,9 @@ type InstrumentedState struct {
 	stdErr io.Writer
 
 	memoryTracker *exec.MemoryTrackerImpl
+	stackTracker  *exec.StackTrackerImpl
 
 	preimageOracle *exec.TrackingPreimageOracleReader
-
-	debug        Debug
-	debugEnabled bool
 }
 
 func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
@@ -36,6 +27,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		stdOut:         stdOut,
 		stdErr:         stdErr,
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
+		stackTracker:   exec.NewStackTracker(state),
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
 	}
 }
@@ -49,12 +41,7 @@ func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, s
 }
 
 func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
-	if meta == nil {
-		return errors.New("metadata is nil")
-	}
-	m.debugEnabled = true
-	m.debug.meta = meta
-	return nil
+	return m.stackTracker.InitDebug(meta)
 }
 
 func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {
@@ -102,4 +89,8 @@ func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 		NumPreimageRequests: m.preimageOracle.NumPreimageRequests,
 		TotalPreimageSize:   m.preimageOracle.TotalPreimageSize,
 	}
+}
+
+func (m *InstrumentedState) Traceback() {
+	m.stackTracker.Traceback()
 }

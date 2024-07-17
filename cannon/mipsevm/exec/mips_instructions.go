@@ -5,11 +5,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
-type StackTracker interface {
-	PushStack(target uint32)
-	PopStack()
-}
-
 func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun uint32) {
 	insn = memory.GetMemory(pc)
 	opcode = insn >> 26 // First 6-bits
