@@ -31,6 +31,7 @@ Interactions within this repository are subject to a [Code of Conduct](https://g
 | [foundry](https://github.com/foundry-rs/foundry#installation) | `^0.2.0` | `forge --version`        |
 | [make](https://linux.die.net/man/1/make)                      | `^3`     | `make --version`         |
 | [jq](https://github.com/jqlang/jq)                            | `^1.6`   | `jq --version`           |
+| [yq](https://github.com/kislyuk/yq)                           | `^3.4`   | `yq --version`           |
 | [direnv](https://direnv.net)                                  | `^2`     | `direnv --version`       |
 | [docker](https://docs.docker.com/get-docker/)                 | `^24`    | `docker --version`       |
 | [docker compose](https://docs.docker.com/compose/install/)    | `^2.23`  | `docker compose version` |

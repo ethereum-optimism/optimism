@@ -71,7 +71,11 @@ abstract contract Artifacts {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
-        commands[2] = string.concat("jq -cr < ", _path);
+        if (hasSuffix(_path, ".toml")) {
+            commands[2] = string.concat("tomlq -cr '.addresses' < ", _path);
+        } else {
+            commands[2] = string.concat("jq -cr < ", _path);
+        }
         string memory json = string(Process.run(commands));
         string[] memory keys = vm.parseJsonKeys(json, "");
         for (uint256 i; i < keys.length; i++) {
@@ -79,6 +83,28 @@ abstract contract Artifacts {
             address addr = stdJson.readAddress(json, string.concat("$.", key));
             save(key, addr);
         }
+    }
+
+    function hasSuffix(string memory fullString, string memory suffix) public pure returns (bool) {
+        bytes memory fullStringBytes = bytes(fullString);
+        bytes memory suffixBytes = bytes(suffix);
+
+        // Check if the suffix's length is greater than the full string's length
+        if (suffixBytes.length > fullStringBytes.length) {
+            return false;
+        }
+
+        // Calculate the starting index for comparison
+        uint256 startIndex = fullStringBytes.length - suffixBytes.length;
+
+        // Compare each character of the suffix with the end of the full string
+        for (uint256 i = 0; i < suffixBytes.length; i++) {
+            if (fullStringBytes[startIndex + i] != suffixBytes[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// @notice Returns all of the deployments done in the current context.
