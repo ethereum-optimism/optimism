@@ -95,6 +95,7 @@ contract Setup {
     L1Block l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
     LegacyMessagePasser legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
+    Alligator alligator = Alligator(Predeploys.ALLIGATOR);
     WETH weth = WETH(payable(Predeploys.WETH));
     SuperchainWETH superchainWeth = SuperchainWETH(payable(Predeploys.SUPERCHAIN_WETH));
     ETHLiquidity ethLiquidity = ETHLiquidity(Predeploys.ETH_LIQUIDITY);
