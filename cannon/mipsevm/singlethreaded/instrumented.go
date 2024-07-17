@@ -27,24 +27,20 @@ type InstrumentedState struct {
 	memProof        [28 * 32]byte
 
 	preimageOracle *exec.TrackingOracle
-
-	// cached pre-image data, including 8 byte length prefix
-	lastPreimage []byte
-	// key for above preimage
-	lastPreimageKey [32]byte
-	// offset we last read from, or max uint32 if nothing is read this step
-	lastPreimageOffset uint32
+	preimageReader *exec.PreimageReader
 
 	debug        Debug
 	debugEnabled bool
 }
 
 func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
+	trackingOracle := exec.NewTrackingOracle(po)
 	return &InstrumentedState{
 		state:          state,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
-		preimageOracle: exec.NewTrackingOracle(po),
+		preimageOracle: trackingOracle,
+		preimageReader: exec.NewPreimageReader(trackingOracle),
 	}
 }
 
@@ -53,12 +49,7 @@ func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, s
 	if err != nil {
 		return nil, err
 	}
-	return &InstrumentedState{
-		state:          state,
-		stdOut:         stdOut,
-		stdErr:         stdErr,
-		preimageOracle: exec.NewTrackingOracle(po),
-	}, nil
+	return NewInstrumentedState(state, po, stdOut, stdErr), nil
 }
 
 func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
@@ -71,9 +62,9 @@ func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 }
 
 func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {
+	m.preimageReader.Reset()
 	m.memProofEnabled = proof
 	m.lastMemAccess = ^uint32(0)
-	m.lastPreimageOffset = ^uint32(0)
 
 	if proof {
 		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
@@ -91,17 +82,18 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 
 	if proof {
 		wit.ProofData = append(wit.ProofData, m.memProof[:]...)
-		if m.lastPreimageOffset != ^uint32(0) {
-			wit.PreimageOffset = m.lastPreimageOffset
-			wit.PreimageKey = m.lastPreimageKey
-			wit.PreimageValue = m.lastPreimage
+		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageReader.LastPreimage()
+		if lastPreimageOffset != ^uint32(0) {
+			wit.PreimageOffset = lastPreimageOffset
+			wit.PreimageKey = lastPreimageKey
+			wit.PreimageValue = lastPreimage
 		}
 	}
 	return
 }
 
 func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
-	return m.lastPreimageKey, m.lastPreimage, m.lastPreimageOffset
+	return m.preimageReader.LastPreimage()
 }
 
 func (m *InstrumentedState) GetState() mipsevm.FPVMState {

@@ -1,7 +1,6 @@
 package singlethreaded
 
 import (
-	"encoding/binary"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -9,22 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 )
-
-func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
-	preimage := m.lastPreimage
-	if key != m.lastPreimageKey {
-		m.lastPreimageKey = key
-		data := m.preimageOracle.GetPreimage(key)
-		// add the length prefix
-		preimage = make([]byte, 0, 8+len(data))
-		preimage = binary.BigEndian.AppendUint64(preimage, uint64(len(data)))
-		preimage = append(preimage, data...)
-		m.lastPreimage = preimage
-	}
-	m.lastPreimageOffset = offset
-	datLen = uint32(copy(dat[:], preimage[offset:]))
-	return
-}
 
 func (m *InstrumentedState) trackMemAccess(effAddr uint32) {
 	if m.memProofEnabled && m.lastMemAccess != effAddr {
@@ -58,7 +41,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysRead:
 		var newPreimageOffset uint32
-		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.readPreimage, m.state.Memory, m.trackMemAccess)
+		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageReader, m.state.Memory, m.trackMemAccess)
 		m.state.PreimageOffset = newPreimageOffset
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes
