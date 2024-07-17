@@ -3,6 +3,9 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
+import "src/libraries/Predeploys.sol";
+import "src/governance/Alligator.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 
 contract GovernanceToken_Test is CommonTest {
     address owner;
@@ -165,5 +168,83 @@ contract GovernanceToken_Test is CommonTest {
 
         // Allowances have updated.
         assertEq(governanceToken.allowance(rando, owner), 50);
+    }
+
+    /// @dev Test that `checkpoints` returns the correct value when the account is migrated.
+    function testFuzz_checkpoints_migrated_succeeds(
+        address _account,
+        uint32 _pos,
+        ERC20Votes.Checkpoint calldata _checkpoint
+    )
+        public
+    {
+        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(true));
+        vm.mockCall(
+            Predeploys.ALLIGATOR,
+            abi.encodeWithSelector(Alligator.checkpoints.selector, _account, _pos),
+            abi.encode(_checkpoint)
+        );
+
+        ERC20Votes.Checkpoint memory actualCheckpoint = governanceToken.checkpoints(_account, _pos);
+        assertEq(actualCheckpoint.fromBlock, _checkpoint.fromBlock);
+        assertEq(actualCheckpoint.votes, _checkpoint.votes);
+    }
+
+    /// @dev Test that `checkpoints` returns the correct value when the account is not migrated.
+    function testFuzz_checkpoints_notMigrated_succeeds(
+        address _account,
+        uint32 _pos,
+        ERC20Votes.Checkpoint memory _checkpoint
+    )
+        public
+    {
+        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(false));
+
+        // Store _pos + 1 (because _pos starts as zero) as length for _checkpoints in slot 8, which stores _checkpoints
+        vm.store(Predeploys.GOVERNANCE_TOKEN, keccak256(abi.encode(_account, uint256(8))), bytes32(uint256(_pos) + 1));
+        vm.store(
+            Predeploys.GOVERNANCE_TOKEN,
+            bytes32(uint256(keccak256(abi.encode(keccak256(abi.encode(_account, uint256(8)))))) + _pos),
+            bytes32(abi.encodePacked(_checkpoint.votes, _checkpoint.fromBlock))
+        );
+
+        ERC20Votes.Checkpoint memory actualCheckpoint = governanceToken.checkpoints(_account, _pos);
+        assertEq(actualCheckpoint.fromBlock, _checkpoint.fromBlock);
+        assertEq(actualCheckpoint.votes, _checkpoint.votes);
+    }
+
+    function testFuzz_numCheckpoints_migrated_succeeds(address _account, uint32 _numCheckpoints) public {
+        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(true));
+        vm.mockCall(
+            Predeploys.ALLIGATOR,
+            abi.encodeWithSelector(Alligator.numCheckpoints.selector, _account),
+            abi.encode(_numCheckpoints)
+        );
+
+        uint32 actualNumCheckpoints = governanceToken.numCheckpoints(_account);
+        assertEq(actualNumCheckpoints, _numCheckpoints);
+    }
+
+    function testFuzz_numCheckpoints_notMigrated_succeeds(address _account, uint32 _numCheckpoints) public {
+        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(false));
+
+        // Store _numCheckpoints as length for _checkpoints in slot 8, which stores _checkpoints
+        vm.store(
+            Predeploys.GOVERNANCE_TOKEN, keccak256(abi.encode(_account, uint256(8))), bytes32(uint256(_numCheckpoints))
+        );
+
+        uint32 actualNumCheckpoints = governanceToken.numCheckpoints(_account);
+        assertEq(actualNumCheckpoints, _numCheckpoints);
+    }
+
+    function testFuzz_delegates_migrated_succeeds(address _account, address _delegatee) public {
+        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(true));
+        vm.mockCall(
+            Predeploys.ALLIGATOR,
+            abi.encodeWithSelector(Alligator.numCheckpoints.selector, _account),
+            abi.encode(_delegatee)
+        );
+
+        assertEq(_delegatee, governanceToken.delegates(_account));
     }
 }
