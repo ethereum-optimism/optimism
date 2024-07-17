@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -25,7 +26,7 @@ type InstrumentedState struct {
 	memProofEnabled bool
 	memProof        [28 * 32]byte
 
-	preimageOracle *trackingOracle
+	preimageOracle *exec.TrackingOracle
 
 	// cached pre-image data, including 8 byte length prefix
 	lastPreimage []byte
@@ -43,7 +44,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		state:          state,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
-		preimageOracle: &trackingOracle{po: po},
+		preimageOracle: exec.NewTrackingOracle(po),
 	}
 }
 
@@ -56,7 +57,7 @@ func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, s
 		state:          state,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
-		preimageOracle: &trackingOracle{po: po},
+		preimageOracle: exec.NewTrackingOracle(po),
 	}, nil
 }
 
@@ -110,24 +111,7 @@ func (m *InstrumentedState) GetState() mipsevm.FPVMState {
 func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 	return &mipsevm.DebugInfo{
 		Pages:               m.state.Memory.PageCount(),
-		NumPreimageRequests: m.preimageOracle.numPreimageRequests,
-		TotalPreimageSize:   m.preimageOracle.totalPreimageSize,
+		NumPreimageRequests: m.preimageOracle.NumPreimageRequests,
+		TotalPreimageSize:   m.preimageOracle.TotalPreimageSize,
 	}
-}
-
-type trackingOracle struct {
-	po                  mipsevm.PreimageOracle
-	totalPreimageSize   int
-	numPreimageRequests int
-}
-
-func (d *trackingOracle) Hint(v []byte) {
-	d.po.Hint(v)
-}
-
-func (d *trackingOracle) GetPreimage(k [32]byte) []byte {
-	d.numPreimageRequests++
-	preimage := d.po.GetPreimage(k)
-	d.totalPreimageSize += len(preimage)
-	return preimage
 }
