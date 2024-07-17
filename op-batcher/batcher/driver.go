@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/big"
 	_ "net/http/pprof"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,21 +27,19 @@ import (
 
 var (
 	ErrBatcherNotRunning = errors.New("batcher is not running")
-
-	// cancelID is the channel ID used to indicate this transaction is a cancellation transaction only
-	cancelID     = derive.ChannelID([derive.ChannelIDLength]byte{0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF})
-	cancelTxData = txData{
+	emptyTxData          = txData{
 		frames: []frameData{
 			frameData{
 				data: []byte{},
-				id: frameID{
-					chID:        cancelID,
-					frameNumber: 0,
-				},
 			},
 		},
 	}
 )
+
+type txRef struct {
+	id       txID
+	isCancel bool
+}
 
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
@@ -299,8 +296,8 @@ func (l *BatchSubmitter) loop() {
 		}
 	}
 
-	receiptsCh := make(chan txmgr.TxReceipt[txID])
-	queue := txmgr.NewQueue[txID](l.killCtx, l.Txmgr, l.Config.MaxPendingTransactions)
+	receiptsCh := make(chan txmgr.TxReceipt[txRef])
+	queue := txmgr.NewQueue[txRef](l.killCtx, l.Txmgr, l.Config.MaxPendingTransactions)
 
 	// start the receipt/result processing loop
 	receiptLoopDone := make(chan struct{})
@@ -314,8 +311,7 @@ func (l *BatchSubmitter) loop() {
 			case r := <-receiptsCh:
 				if errors.Is(r.Err, txpool.ErrAlreadyReserved) && txpoolState.CompareAndSwap(TxpoolGood, TxpoolBlocked) {
 					l.Log.Info("incompatible tx in txpool")
-				} else if r.ID[0].chID == cancelID &&
-					txpoolState.CompareAndSwap(TxpoolCancelPending, TxpoolGood) {
+				} else if r.ID.isCancel && txpoolState.CompareAndSwap(TxpoolCancelPending, TxpoolGood) {
 					// Set state to TxpoolGood even if the cancellation transaction ended in error
 					// since the stuck transaction could have cleared while we were waiting.
 					l.Log.Info("txpool may no longer be blocked", "err", r.Err)
@@ -425,7 +421,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 
 // publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is
 // no more data to queue for publishing or if there was an error queing the data.
-func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txID], receiptsCh chan txmgr.TxReceipt[txID]) {
+func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
 	for {
 		// if the txmgr is closed, we stop the transaction sending
 		if l.Txmgr.IsClosed() {
@@ -482,7 +478,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 }
 
 // publishTxToL1 submits a single state tx to the L1
-func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txID], receiptsCh chan txmgr.TxReceipt[txID]) error {
+func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) error {
 	// send all available transactions
 	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
@@ -535,21 +531,21 @@ func (l *BatchSubmitter) safeL1Origin(ctx context.Context) (eth.BlockID, error) 
 // cancelBlockingTx creates an empty transaction of appropriate type to cancel out the incompatible
 // transaction stuck in the txpool. In the future we might send an actual batch transaction instead
 // of an empty one to avoid wasting the tx fee.
-func (l *BatchSubmitter) cancelBlockingTx(queue *txmgr.Queue[txID], receiptsCh chan txmgr.TxReceipt[txID]) {
+func (l *BatchSubmitter) cancelBlockingTx(queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
 	var candidate *txmgr.TxCandidate
 	var err error
 	if l.Config.UseBlobs {
-		candidate = l.calldataTxCandidate(cancelTxData.CallData())
-	} else if candidate, err = l.blobTxCandidate(cancelTxData); err != nil {
+		candidate = l.calldataTxCandidate([]byte{})
+	} else if candidate, err = l.blobTxCandidate(emptyTxData); err != nil {
 		panic(err) // this error should not happen
 	}
 	l.Log.Warn("sending a cancellation transaction to unblock txpool")
-	l.queueTx(cancelTxData, candidate, queue, receiptsCh)
+	l.queueTx(txData{}, true, candidate, queue, receiptsCh)
 }
 
 // sendTransaction creates & queues for sending a transaction to the batch inbox address with the given `txData`.
 // The method will block if the queue's MaxPendingTransactions is exceeded.
-func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, queue *txmgr.Queue[txID], receiptsCh chan txmgr.TxReceipt[txID]) error {
+func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) error {
 	var err error
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 
@@ -584,11 +580,11 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 		candidate = l.calldataTxCandidate(data)
 	}
 
-	l.queueTx(txdata, candidate, queue, receiptsCh)
+	l.queueTx(txdata, false, candidate, queue, receiptsCh)
 	return nil
 }
 
-func (l *BatchSubmitter) queueTx(txdata txData, candidate *txmgr.TxCandidate, queue *txmgr.Queue[txID], receiptsCh chan txmgr.TxReceipt[txID]) {
+func (l *BatchSubmitter) queueTx(txdata txData, isCancel bool, candidate *txmgr.TxCandidate, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
 	intrinsicGas, err := core.IntrinsicGas(candidate.TxData, nil, false, true, true, false)
 	if err != nil {
 		// we log instead of return an error here because txmgr can do its own gas estimation
@@ -597,7 +593,7 @@ func (l *BatchSubmitter) queueTx(txdata txData, candidate *txmgr.TxCandidate, qu
 		candidate.GasLimit = intrinsicGas
 	}
 
-	queue.Send(txdata.ID(), *candidate, receiptsCh)
+	queue.Send(txRef{txdata.ID(), isCancel}, *candidate, receiptsCh)
 }
 
 func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {
@@ -624,12 +620,12 @@ func (l *BatchSubmitter) calldataTxCandidate(data []byte) *txmgr.TxCandidate {
 	}
 }
 
-func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txID]) {
+func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txRef]) {
 	// Record TX Status
 	if r.Err != nil {
-		l.recordFailedTx(r.ID, r.Err)
+		l.recordFailedTx(r.ID.id, r.Err)
 	} else {
-		l.recordConfirmedTx(r.ID, r.Receipt)
+		l.recordConfirmedTx(r.ID.id, r.Receipt)
 	}
 }
 
@@ -678,53 +674,4 @@ func logFields(xs ...any) (fs []any) {
 		}
 	}
 	return fs
-}
-
-type TestBatchSubmitter struct {
-	BatchSubmitter
-	ttm *txmgr.TestTxManager
-}
-
-// JamTxPool is for testing ONLY. It sends a txpool-blocking transaction. This function must be
-// called *before* the batcher starts submitting batches to ensure successful jamming, and will
-// error out otherwise.
-func (l *TestBatchSubmitter) JamTxPool(ctx context.Context) error {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-	if l.running {
-		return errors.New("tried to jam tx pool but batcher is already running")
-	}
-	var candidate *txmgr.TxCandidate
-	var err error
-	if l.Config.UseBlobs {
-		candidate = l.calldataTxCandidate(cancelTxData.CallData())
-	} else if candidate, err = l.blobTxCandidate(cancelTxData); err != nil {
-		return err
-	}
-	if candidate.GasLimit, err = core.IntrinsicGas(candidate.TxData, nil, false, true, true, false); err != nil {
-		return err
-	}
-
-	l.ttm = &txmgr.TestTxManager{
-		SimpleTxManager: *l.Txmgr, //nolint:all
-	}
-	l.Log.Info("sending txpool blocking test tx")
-	if err := l.ttm.JamTxPool(ctx, *candidate); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Wait on the jamming transaction, and return error if it completes successfully. (Tests should
-// expect the blocking transaction to result in error from the context being cancelled.)
-func (l *TestBatchSubmitter) WaitOnJammingTx(ctx context.Context) error {
-	err := l.ttm.WaitOnJammingTx(ctx)
-	if err == nil {
-		return errors.New("txpool blocking tx didn't block!")
-	}
-	if strings.Contains(err.Error(), txpool.ErrAlreadyReserved.Error()) {
-		return errors.New("txpool blocking tx failed because other tx in mempool is blocking it")
-	}
-	l.Log.Info("done waiting on jamming tx", "err", err)
-	return nil
 }

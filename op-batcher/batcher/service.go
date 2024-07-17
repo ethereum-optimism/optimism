@@ -426,16 +426,10 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 
 var _ cliapp.Lifecycle = (*BatcherService)(nil)
 
-// Driver returns the handler on the batch-submitter driver element,
-// to start/stop/restart the batch-submission work, for use in testing.
-func (bs *BatcherService) Driver() *BatchSubmitter {
-	return bs.driver
-}
-
-// Driver returns the handler on the batch-submitter driver element,
-// to start/stop/restart the batch-submission work, for use in testing.
+// TestDriver returns a handler for the batch-submitter driver element, to start/stop/restart the
+// batch-submission work, for use only in testing.
 func (bs *BatcherService) TestDriver() *TestBatchSubmitter {
 	return &TestBatchSubmitter{
-		BatchSubmitter: *bs.driver, //nolint:all
+		BatchSubmitter: bs.driver,
 	}
 }

@@ -68,17 +68,17 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	action := SystemConfigOption{
 		key: "beforeBatcherStart",
 		action: func(cfg *SystemConfig, s *System) {
-			ttm := s.BatchSubmitter.TestDriver()
-			err := ttm.JamTxPool(jamCtx)
-			require.Nil(t, err)
+			driver := s.BatchSubmitter.TestDriver()
+			err := driver.JamTxPool(jamCtx)
+			require.NoError(t, err)
 			go func() {
-				jamChan <- ttm.WaitOnJammingTx(jamCtx)
+				jamChan <- driver.WaitOnJammingTx(jamCtx)
 			}()
 		},
 	}
 	defer func() {
 		jamCancel()
-		require.Nil(t, <-jamChan)
+		require.NoError(t, <-jamChan, "jam tx error")
 	}()
 
 	sys, err := cfg.Start(t, action)
