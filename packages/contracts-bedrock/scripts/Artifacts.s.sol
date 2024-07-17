@@ -190,27 +190,6 @@ abstract contract Artifacts {
         _appendDeployment(_name, _deployed);
     }
 
-    /// @notice Reads the deployment artifact from disk that were generated
-    ///         by the deploy script.
-    /// @return An array of deployments.
-    function _getDeployments() internal returns (Deployment[] memory) {
-        string memory json = vm.readFile(deploymentOutfile);
-        string[] memory cmd = new string[](3);
-        cmd[0] = Executables.bash;
-        cmd[1] = "-c";
-        cmd[2] = string.concat(Executables.jq, " 'keys' <<< '", json, "'");
-        bytes memory res = Process.run(cmd);
-        string[] memory names = stdJson.readStringArray(string(res), "");
-
-        Deployment[] memory deployments = new Deployment[](names.length);
-        for (uint256 i; i < names.length; i++) {
-            string memory contractName = names[i];
-            address addr = stdJson.readAddress(json, string.concat("$.", contractName));
-            deployments[i] = Deployment({ name: contractName, addr: payable(addr) });
-        }
-        return deployments;
-    }
-
     /// @notice Adds a deployment to the temp deployments file
     function _appendDeployment(string memory _name, address _deployed) internal {
         vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: deploymentOutfile });
