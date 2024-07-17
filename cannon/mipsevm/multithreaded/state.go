@@ -252,7 +252,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = append(out, (rightStackRoot)[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.NextThreadId)
 
-	return out, StateHashFromWitness(out)
+	return out, stateHashFromWitness(out)
 }
 
 type StateWitness []byte
@@ -261,10 +261,10 @@ func (sw StateWitness) StateHash() (common.Hash, error) {
 	if len(sw) != STATE_WITNESS_SIZE {
 		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), STATE_WITNESS_SIZE)
 	}
-	return StateHashFromWitness(sw), nil
+	return stateHashFromWitness(sw), nil
 }
 
-func StateHashFromWitness(sw []byte) common.Hash {
+func stateHashFromWitness(sw []byte) common.Hash {
 	if len(sw) != STATE_WITNESS_SIZE {
 		panic("Invalid witness length")
 	}
