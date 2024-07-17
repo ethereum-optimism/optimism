@@ -264,6 +264,12 @@ contract Alligator {
         //_moveVotingPower({ _token: msg.sender, _src: delegates(_from), _dst: delegates(_to), _amount: _amount });
     }
 
+    /// @notice Migrate an account to the Alligator contract.
+    /// @param _account The account to migrate.
+    function migrate(address _account) external {
+        _migrate(msg.sender, _account);
+    }
+
     /// @notice Validate subdelegation rules and partial delegation allowances.
     /// @param _token          The token to validate.
     /// @param _proxy          The address of the proxy.
