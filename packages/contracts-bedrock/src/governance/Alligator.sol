@@ -2,7 +2,9 @@
 pragma solidity 0.8.15;
 
 import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
+import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 
 contract Alligator is ERC20Votes {
     // =============================================================
@@ -29,6 +31,13 @@ contract Alligator is ERC20Votes {
     event Subdelegations(
         address indexed token, address indexed from, address[] to, SubdelegationRules[] subdelegationRules
     );
+
+    // =============================================================
+    //                          CONSTANTS
+    // =============================================================
+    uint256 internal constant DELEGATES_SLOT = 7;
+
+    uint256 internal constant CHECKPOINTS_SLOT = 8;
 
     // =============================================================
     //                       IMMUTABLE STORAGE
@@ -71,7 +80,7 @@ contract Alligator is ERC20Votes {
     //                         CONSTRUCTOR
     // =============================================================
 
-    constructor() { }
+    constructor() ERC20("Optimism", "OP") ERC20Permit("Optimism") { }
 
     // =============================================================
     //                          TOKEN HOOK
@@ -81,7 +90,12 @@ contract Alligator is ERC20Votes {
     /// @param from   The account sending tokens.
     /// @param to     The account receiving tokens.
     /// @param amount The amount of tokens being transfered.
-    function afterTokenTransfer(address from, address to, uint256 amount) external { }
+    function afterTokenTransfer(address from, address to, uint256 amount) external {
+        _afterTokenTransfer(from, to, amount);
+
+        if (!migrated[msg.sender][from]) _migrate(msg.sender, from);
+        if (!migrated[msg.sender][to]) _migrate(msg.sender, to);
+    }
 
     // =============================================================
     //                        SUBDELEGATIONS
@@ -285,6 +299,34 @@ contract Alligator is ERC20Votes {
                     revert TooEarly(from, to, rules.blocksBeforeVoteCloses);
                 }
             }
+        }
+    }
+
+    /// @notice Migrate an account to the Alligator contract.
+    /// @param _token  The token to migrate.
+    /// @param _account The account to migrate.
+    function _migrate(address _token, address _account) internal {
+        // set migrated flag
+        migrated[_token][_account] = true;
+
+        // copy delegates from governance token
+        address delegates = ERC20Votes(_token).delegates(_account);
+
+        assembly {
+            sstore(DELEGATES_SLOT, delegates)
+        }
+
+        // copy checkpoints from governance token
+        uint32 numCheckpoints = ERC20Votes(_token).numCheckpoints(_account);
+
+        Checkpoint[] memory checkpoints = new Checkpoint[](numCheckpoints);
+
+        for (uint32 i = 0; i < numCheckpoints; i++) {
+            checkpoints[i] = ERC20Votes(_token).checkpoints(_account, i);
+        }
+
+        assembly {
+            sstore(CHECKPOINTS_SLOT, checkpoints)
         }
     }
 
