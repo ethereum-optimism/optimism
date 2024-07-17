@@ -72,7 +72,7 @@ abstract contract Artifacts {
         commands[0] = "bash";
         commands[1] = "-c";
         if (hasSuffix(_path, ".toml")) {
-            commands[2] = string.concat("tomlq -cr '.addresses' < ", _path);
+            commands[2] = string.concat("yq -oj '.addresses' ", _path);
         } else {
             commands[2] = string.concat("jq -cr < ", _path);
         }
