@@ -54,21 +54,19 @@ contract Deploy is Deployer {
     /// @notice read proxyd address from the hardhat deployment files
     function readProxyAddress(string memory _contractName) internal returns (address _proxyAddress) {
         string memory _hardhatDeploymentPath = vm.envOr("HARDHAT_DEPLOYMENT_PATH", string(""));
-         require(bytes(_hardhatDeploymentPath).length > 0, "Deploy: must set HARDHAT_DEPLOYMENT_PATH to filesystem path of hardhat deployment files");
+        require(
+            bytes(_hardhatDeploymentPath).length > 0,
+            "Deploy: must set HARDHAT_DEPLOYMENT_PATH to filesystem path of hardhat deployment files"
+        );
 
         string memory _contractPath = string.concat(_hardhatDeploymentPath, "/", _contractName, ".json");
         string memory _contractJson = vm.readFile(_contractPath);
-        bytes memory _contractAddress = stdJson.parseRaw(
-            _contractJson,
-            ".address"
-        );
+        bytes memory _contractAddress = stdJson.parseRaw(_contractJson, ".address");
         _proxyAddress = bytesToAddress(_contractAddress);
     }
 
     /// @notice Convert bytes to address
-    function bytesToAddress(
-        bytes memory bys
-    ) private pure returns (address addr) {
+    function bytesToAddress(bytes memory bys) private pure returns (address addr) {
         assembly {
             addr := mload(add(bys, 32))
         }
@@ -372,12 +370,7 @@ contract Deploy is Deployer {
         string memory version = DelayedWETH(payable(delayedWETHProxy)).version();
         console.log("DelayedWETH version: %s", version);
 
-        ChainAssertions.checkDelayedWETH({
-            _contracts: contracts,
-            _cfg: cfg,
-            _isProxy: true,
-            _expectedOwner: msg.sender
-        });
+        ChainAssertions.checkDelayedWETH({ _contracts: contracts, _cfg: cfg, _isProxy: true, _expectedOwner: msg.sender });
     }
 
     function initializeAnchorStateRegistry() public broadcast {
@@ -560,7 +553,7 @@ contract Deploy is Deployer {
         );
     }
 
-        /// @notice Loads the mips absolute prestate from the prestate-proof for devnets otherwise
+    /// @notice Loads the mips absolute prestate from the prestate-proof for devnets otherwise
     ///         from the config.
     function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
         if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
