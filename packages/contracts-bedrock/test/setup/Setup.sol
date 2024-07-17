@@ -41,6 +41,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { WETH } from "src/L2/WETH.sol";
+import { Alligator } from "src/governance/Alligator.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -93,6 +94,7 @@ contract Setup {
     L1Block l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
     LegacyMessagePasser legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
+    Alligator alligator = Alligator(Predeploys.ALLIGATOR);
     WETH weth = WETH(payable(Predeploys.WETH));
 
     /// @dev Deploys the Deploy contract without including its bytecode in the bytecode
