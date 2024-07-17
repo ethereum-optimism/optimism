@@ -85,9 +85,9 @@ abstract contract Artifacts {
         }
     }
 
-    function hasSuffix(string memory fullString, string memory suffix) public pure returns (bool) {
-        bytes memory fullStringBytes = bytes(fullString);
-        bytes memory suffixBytes = bytes(suffix);
+    function hasSuffix(string memory _fullString, string memory _suffix) public pure returns (bool) {
+        bytes memory fullStringBytes = bytes(_fullString);
+        bytes memory suffixBytes = bytes(_suffix);
 
         // Check if the suffix's length is greater than the full string's length
         if (suffixBytes.length > fullStringBytes.length) {
