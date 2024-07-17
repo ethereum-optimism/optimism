@@ -417,15 +417,15 @@ contract Alligator {
         // set migrated flag
         migrated[_token][_account] = true;
 
-        // TODO: what should be the default value for the subdelegation rules?
+        // Create rule equivalent to basic delegation.
         _subdelegations[_token][_account][ERC20Votes(_token).delegates(_account)] = SubdelegationRules({
             maxRedelegations: 0,
             blocksBeforeVoteCloses: 0,
             notValidBefore: 0,
             notValidAfter: 0,
-            allowanceType: AllowanceType.Absolute,
-            allowance: 0
-        });
+            allowanceType: AllowanceType.Relative,
+            allowance: 10e4 // 100%
+         });
     }
 
     /// @notice Return the allowance of a voter, used in `validate`.
