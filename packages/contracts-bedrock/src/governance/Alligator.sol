@@ -6,85 +6,84 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 
-contract Alligator is ERC20Votes {
-    // =============================================================
-    //                             ERRORS
-    // =============================================================
+/// @notice Allowance type.
+/// @param Absolute The amount of votes delegated is fixed.
+/// @param Relative The amount of votes delegated is relative to the total amount of votes the delegator has.
+enum AllowanceType {
+    Absolute,
+    Relative
+}
 
+/// @notice Subdelegation rules.
+/// @param maxRedelegations       Maximum number of times the delegated votes can be redelegated.
+/// @param blocksBeforeVoteCloses Number of blocks before the vote closes that the delegation is valid.
+/// @param notValidBefore         Timestamp after which the delegation is valid.
+/// @param notValidAfter          Timestamp before which the delegation is valid.
+/// @param baseRules              Base subdelegation rules.
+/// @param allowanceType          Type of allowance.
+/// @param allowance              Amount of votes delegated. If `allowanceType` is Relative, 100% of allowance
+///                               corresponds to 1e5. Otherwise, this is the exact amount of votes delegated.
+struct SubdelegationRules {
+    uint8 maxRedelegations;
+    uint16 blocksBeforeVoteCloses;
+    uint32 notValidBefore;
+    uint32 notValidAfter;
+    AllowanceType allowanceType;
+    uint256 allowance;
+}
+
+/// @title Alligator
+/// @notice A contract that allows delegation of votes to other accounts. It is used to implement subdelegation
+///         functionality in the Optimism Governance system. It provides a way to migrate accounts from the Governance
+///         token to the Alligator contract, and then delegate votes to other accounts under subdelegation rules.
+contract Alligator is ERC20Votes {
+    /// @notice Thrown when there's a mismatch between the length of the `targets` and `subdelegationRules` arrays.
     error LengthMismatch();
+
+    /// @notice Thrown when the delegation is not delegated.
     error NotDelegated(address from, address to);
+
+    /// @notice Thrown when the delegation is delegated too many times.
     error TooManyRedelegations(address from, address to);
+
+    /// @notice Thrown when the delegation is not valid yet.
     error NotValidYet(address from, address to, uint256 willBeValidFrom);
+
+    /// @notice Thrown when the delegation is not valid anymore.
     error NotValidAnymore(address from, address to, uint256 wasValidUntil);
+
+    /// @notice Thrown when the delegation is valid too early.
     error TooEarly(address from, address to, uint256 blocksBeforeVoteCloses);
 
-    // =============================================================
-    //                             EVENTS
-    // =============================================================
+    /// @notice Slot number of the `delegates` mapping in ERC20Votes.
+    uint256 internal constant DELEGATES_SLOT = 7;
 
+    /// @notice Slot number of the `checkpoints` mapping in ERC20Votes.
+    uint256 internal constant CHECKPOINTS_SLOT = 8;
+
+    /// @notice Subdelegations structured as token => from => to => subdelegationRules
+    mapping(address => mapping(address => mapping(address => SubdelegationRules))) public subdelegations;
+
+    /// @notice Flags to indicate if an account has been migrated to the Alligator contract.
+    mapping(address => mapping(address => bool)) public migrated;
+
+    /// @notice Emitted when a subdelegation is created.
     event Subdelegation(
         address indexed token, address indexed from, address indexed to, SubdelegationRules subdelegationRules
     );
+
+    /// @notice Emitted when multiple subdelegations are created under a single SubdelegationRules.
     event Subdelegations(
         address indexed token, address indexed from, address[] to, SubdelegationRules subdelegationRules
     );
+
+    /// @notice Emitted when multiple subdelegations are created under multiple SubdelegationRules.
     event Subdelegations(
         address indexed token, address indexed from, address[] to, SubdelegationRules[] subdelegationRules
     );
 
-    // =============================================================
-    //                          CONSTANTS
-    // =============================================================
-    uint256 internal constant DELEGATES_SLOT = 7;
-
-    uint256 internal constant CHECKPOINTS_SLOT = 8;
-
-    // =============================================================
-    //                       IMMUTABLE STORAGE
-    // =============================================================
-
-    enum AllowanceType {
-        Absolute,
-        Relative
-    }
-
-    /// @param maxRedelegations The maximum number of times the delegated votes can be redelegated.
-    /// @param blocksBeforeVoteCloses The number of blocks before the vote closes that the delegation is valid.
-    /// @param notValidBefore The timestamp after which the delegation is valid.
-    /// @param notValidAfter The timestamp before which the delegation is valid.
-    /// @param baseRules The base subdelegation rules.
-    /// @param allowanceType The type of allowance. If Absolute, the amount of votes delegated is fixed.
-    /// If Relative, the amount of votes delegated is relative to the total amount of votes the delegator has.
-    /// @param allowance The amount of votes delegated. If `allowanceType` is Relative 100% of allowance corresponds
-    /// to 1e5, otherwise this is the exact amount of votes delegated.
-    struct SubdelegationRules {
-        uint8 maxRedelegations;
-        uint16 blocksBeforeVoteCloses;
-        uint32 notValidBefore;
-        uint32 notValidAfter;
-        AllowanceType allowanceType;
-        uint256 allowance;
-    }
-
-    // =============================================================
-    //                        MUTABLE STORAGE
-    // =============================================================
-
-    // token => from => to => subdelegationRules
-    mapping(address => mapping(address => mapping(address => SubdelegationRules))) public subdelegations;
-
-    // token => user => bool
-    mapping(address => mapping(address => bool)) public migrated;
-
-    // =============================================================
-    //                         CONSTRUCTOR
-    // =============================================================
-
+    // TODO: is the line below correct?
     constructor() ERC20("Optimism", "OP") ERC20Permit("Optimism") { }
-
-    // =============================================================
-    //                          TOKEN HOOK
-    // =============================================================
 
     /// @notice Callback called after a token transfer.
     /// @param from   The account sending tokens.
@@ -96,10 +95,6 @@ contract Alligator is ERC20Votes {
         if (!migrated[msg.sender][from]) _migrate(msg.sender, from);
         if (!migrated[msg.sender][to]) _migrate(msg.sender, to);
     }
-
-    // =============================================================
-    //                        SUBDELEGATIONS
-    // =============================================================
 
     /// @notice Subdelegate `to` with `subdelegationRules`.
     /// @param from The address subdelegating.
@@ -122,6 +117,8 @@ contract Alligator is ERC20Votes {
         external
     {
         uint256 targetsLength = targets.length;
+        if (targetsLength != subdelegationRules.length) revert LengthMismatch();
+
         for (uint256 i; i < targetsLength;) {
             subdelegations[msg.sender][from][targets[i]] = subdelegationRules;
 
@@ -157,10 +154,6 @@ contract Alligator is ERC20Votes {
 
         emit Subdelegations(msg.sender, from, targets, subdelegationRules);
     }
-
-    // =============================================================
-    //                         VIEW FUNCTIONS
-    // =============================================================
 
     /// @notice Validate subdelegation rules and partial delegation allowances.
     /// @param proxy The address of the proxy.
@@ -262,10 +255,6 @@ contract Alligator is ERC20Votes {
 
         votesToCast = voterAllowance > votesToCast ? votesToCast : voterAllowance;
     }
-
-    // =============================================================
-    //                     RESTRICTED, INTERNAL
-    // =============================================================
 
     function _validateRules(
         SubdelegationRules memory rules,
