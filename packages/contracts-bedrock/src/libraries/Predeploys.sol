@@ -115,6 +115,7 @@ library Predeploys {
         if (_addr == SCHEMA_REGISTRY) return "SchemaRegistry";
         if (_addr == EAS) return "EAS";
         if (_addr == GOVERNANCE_TOKEN) return "GovernanceToken";
+        if (_addr == ALLIGATOR) return "Alligator";
         if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
         if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
         if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
