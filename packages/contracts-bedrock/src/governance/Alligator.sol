@@ -32,6 +32,7 @@ struct SubdelegationRules {
     uint256 allowance;
 }
 
+/// @custom:predeploy 0x4200000000000000000000000000000000000043
 /// @title Alligator
 /// @notice A contract that allows delegation of votes to other accounts. It is used to implement subdelegation
 ///         functionality in the Optimism Governance system. It provides a way to migrate accounts from the Governance
