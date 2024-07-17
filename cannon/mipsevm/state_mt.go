@@ -22,11 +22,9 @@ const THREAD_WITNESS_SIZE = SERIALIZED_THREAD_SIZE + 32
 var EmptyThreadsRoot common.Hash = common.HexToHash("0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5")
 
 type ThreadState struct {
-	// Metadata
-	ThreadId uint32 `json:"threadId"`
-	ExitCode uint8  `json:"exit"`
-	Exited   bool   `json:"exited"`
-	// State
+	ThreadId         uint32     `json:"threadId"`
+	ExitCode         uint8      `json:"exit"`
+	Exited           bool       `json:"exited"`
 	FutexAddr        uint32     `json:"futexAddr"`
 	FutexVal         uint32     `json:"futexVal"`
 	FutexTimeoutStep uint64     `json:"futexTimeoutStep"`
@@ -35,20 +33,25 @@ type ThreadState struct {
 }
 
 func (t *ThreadState) serializeThread() []byte {
-	// TODO(CP-903)
-	panic("Not Implemented")
-	//out := make([]byte, 0, SERIALIZED_THREAD_SIZE)
+	out := make([]byte, 0, SERIALIZED_THREAD_SIZE)
 
-	//out = binary.BigEndian.AppendUint32(out, t.Cpu.PC)
-	//out = binary.BigEndian.AppendUint32(out, t.Cpu.NextPC)
-	//out = binary.BigEndian.AppendUint32(out, t.Cpu.LO)
-	//out = binary.BigEndian.AppendUint32(out, t.Cpu.HI)
-	//
-	//for _, r := range t.Registers {
-	//	out = binary.BigEndian.AppendUint32(out, r)
-	//}
-	//
-	//return out
+	out = binary.BigEndian.AppendUint32(out, t.ThreadId)
+	out = append(out, t.ExitCode)
+	out = AppendBoolToWitness(out, t.Exited)
+	out = binary.BigEndian.AppendUint32(out, t.FutexAddr)
+	out = binary.BigEndian.AppendUint32(out, t.FutexVal)
+	out = binary.BigEndian.AppendUint64(out, t.FutexTimeoutStep)
+
+	out = binary.BigEndian.AppendUint32(out, t.Cpu.PC)
+	out = binary.BigEndian.AppendUint32(out, t.Cpu.NextPC)
+	out = binary.BigEndian.AppendUint32(out, t.Cpu.LO)
+	out = binary.BigEndian.AppendUint32(out, t.Cpu.HI)
+
+	for _, r := range t.Registers {
+		out = binary.BigEndian.AppendUint32(out, r)
+	}
+
+	return out
 }
 
 func computeThreadRoot(prevStackRoot common.Hash, threadToPush *ThreadState) common.Hash {
@@ -94,12 +97,10 @@ type MTState struct {
 	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
 	Wakeup                      uint32 `json:"wakeup"`
 
-	TraverseRight         bool          `json:"traverseRight"`
-	LeftThreadStack       []ThreadState `json:"leftThreadStack"`
-	RightThreadStack      []ThreadState `json:"rightThreadStack"`
-	LeftThreadStackRoots  []common.Hash `json:"leftThreadStackRoots"`
-	RightThreadStackRoots []common.Hash `json:"rightThreadStackRoots"`
-	NextThreadId          uint32        `json:"nextThreadId"`
+	TraverseRight    bool          `json:"traverseRight"`
+	LeftThreadStack  []ThreadState `json:"leftThreadStack"`
+	RightThreadStack []ThreadState `json:"rightThreadStack"`
+	NextThreadId     uint32        `json:"nextThreadId"`
 
 	// LastHint is optional metadata, and not part of the VM state itself.
 	// It is used to remember the last pre-image hint,
@@ -129,37 +130,33 @@ func CreateEmptyMTState() *MTState {
 		FutexTimeoutStep: 0,
 		Registers:        [32]uint32{},
 	}
-	initThreadRoot := computeThreadRoot(EmptyThreadsRoot, &initThread)
 
 	return &MTState{
-		Memory:                NewMemory(),
-		Heap:                  0,
-		ExitCode:              0,
-		Exited:                false,
-		Step:                  0,
-		Wakeup:                ^uint32(0),
-		TraverseRight:         true,
-		LeftThreadStack:       []ThreadState{},
-		RightThreadStack:      []ThreadState{initThread},
-		LeftThreadStackRoots:  []common.Hash{},
-		RightThreadStackRoots: []common.Hash{initThreadRoot},
-		NextThreadId:          initThreadId + 1,
+		Memory:           NewMemory(),
+		Heap:             0,
+		ExitCode:         0,
+		Exited:           false,
+		Step:             0,
+		Wakeup:           ^uint32(0),
+		TraverseRight:    true,
+		LeftThreadStack:  []ThreadState{},
+		RightThreadStack: []ThreadState{initThread},
+		NextThreadId:     initThreadId + 1,
 	}
 }
 
 func CreateInitialMTState(pc, heapStart uint32) *MTState {
 	state := CreateEmptyMTState()
-	state.UpdateCurrentThread(func(t *ThreadState) {
-		t.Cpu.PC = pc
-		t.Cpu.NextPC = pc + 4
-	})
+	currentThread := state.getCurrentThread()
+	currentThread.Cpu.PC = pc
+	currentThread.Cpu.NextPC = pc + 4
 	state.Heap = heapStart
 
 	return state
 }
 
 func (s *MTState) getCurrentThread() *ThreadState {
-	activeStack, _ := s.getActiveThreadStack()
+	activeStack := s.getActiveThreadStack()
 
 	activeStackSize := len(activeStack)
 	if activeStackSize == 0 {
@@ -169,56 +166,34 @@ func (s *MTState) getCurrentThread() *ThreadState {
 	return &activeStack[activeStackSize-1]
 }
 
-func (s *MTState) updateCurrentThreadRoot() {
-	activeStack, activeRoots := s.getActiveThreadStack()
-	activeStackSize := len(activeStack)
-
-	prevStackRoot := EmptyThreadsRoot
-	if activeStackSize > 1 {
-		prevStackRoot = activeRoots[activeStackSize-2]
-	}
-
-	newRoot := computeThreadRoot(prevStackRoot, s.getCurrentThread())
-	activeRoots[activeStackSize-1] = newRoot
-}
-
 type ThreadMutator func(thread *ThreadState)
 
-func (s *MTState) UpdateCurrentThread(mutator ThreadMutator) {
-	activeThread := s.getCurrentThread()
-	mutator(activeThread)
-	s.updateCurrentThreadRoot()
-}
-
-func (s *MTState) getActiveThreadStack() ([]ThreadState, []common.Hash) {
+func (s *MTState) getActiveThreadStack() []ThreadState {
 	var activeStack []ThreadState
-	var activeStackRoots []common.Hash
 	if s.TraverseRight {
 		activeStack = s.RightThreadStack
-		activeStackRoots = s.RightThreadStackRoots
 	} else {
 		activeStack = s.LeftThreadStack
-		activeStackRoots = s.LeftThreadStackRoots
 	}
 
-	return activeStack, activeStackRoots
+	return activeStack
 }
 
 func (s *MTState) getRightThreadStackRoot() common.Hash {
-	return s.getThreadStackRoot(s.RightThreadStackRoots)
+	return s.calculateThreadStackRoot(s.RightThreadStack)
 }
 
 func (s *MTState) getLeftThreadStackRoot() common.Hash {
-	return s.getThreadStackRoot(s.LeftThreadStackRoots)
+	return s.calculateThreadStackRoot(s.LeftThreadStack)
 }
 
-func (s *MTState) getThreadStackRoot(stackRoots []common.Hash) common.Hash {
-	stackLen := len(stackRoots)
-	if stackLen == 0 {
-		return EmptyThreadsRoot
+func (s *MTState) calculateThreadStackRoot(stack []ThreadState) common.Hash {
+	curRoot := EmptyThreadsRoot
+	for _, thread := range stack {
+		curRoot = computeThreadRoot(curRoot, &thread)
 	}
 
-	return stackRoots[stackLen-1]
+	return curRoot
 }
 
 func (s *MTState) PreemptThread() {

@@ -48,7 +48,7 @@ func TestMTState_EncodeWitness(t *testing.T) {
 		state.StepsSinceLastContextSwitch = stepsSinceContextSwitch
 
 		memRoot := state.Memory.MerkleRoot()
-		rightStackRoot := state.RightThreadStackRoots[0]
+		rightStackRoot := state.calculateThreadStackRoot(state.RightThreadStack)
 		leftStackRoot := EmptyThreadsRoot
 
 		// Set up expected witness
@@ -114,8 +114,6 @@ func TestMTState_JSONCodec(t *testing.T) {
 	require.Equal(t, state.TraverseRight, newState.TraverseRight)
 	require.Equal(t, state.LeftThreadStack, newState.LeftThreadStack)
 	require.Equal(t, state.RightThreadStack, newState.RightThreadStack)
-	require.Equal(t, state.LeftThreadStackRoots, newState.LeftThreadStackRoots)
-	require.Equal(t, state.RightThreadStackRoots, newState.RightThreadStackRoots)
 	require.Equal(t, state.NextThreadId, newState.NextThreadId)
 	require.Equal(t, state.LastHint, newState.LastHint)
 }
@@ -125,20 +123,4 @@ func TestMTState_EmptyThreadsRoot(t *testing.T) {
 	expectedEmptyRoot := crypto.Keccak256Hash(data[:])
 
 	require.Equal(t, expectedEmptyRoot, EmptyThreadsRoot)
-}
-
-func TestMTState_UpdateCurrentThread(t *testing.T) {
-	t.Skip("TODO - enable this once thread serialization logic is implemented")
-	state := CreateEmptyMTState()
-
-	initialThreadRoot := state.RightThreadStackRoots[0]
-
-	state.UpdateCurrentThread(func(t *ThreadState) {
-		t.Cpu.PC += 4
-		t.Cpu.NextPC += 4
-	})
-
-	// Verify the thread root has been updated
-	postUpdateThreadRoot := state.RightThreadStackRoots[0]
-	require.NotEqual(t, initialThreadRoot, postUpdateThreadRoot)
 }
