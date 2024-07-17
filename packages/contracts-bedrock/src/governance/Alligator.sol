@@ -120,7 +120,7 @@ contract Alligator {
         external
         view
         onlyMigrated(_token, _account)
-        returns (uint256)
+        returns (uint32)
     {
         return SafeCast.toUint32(_checkpoints[_token][_account].length);
     }
