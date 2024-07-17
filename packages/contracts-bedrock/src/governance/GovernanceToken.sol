@@ -151,7 +151,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @notice Internal migrate function.
     /// @param _account The account to migrate.
     function _migrate(address _account) public onlyOwner {
-        Alligator(Predeploys.ALLIGATOR).migrate(address(this), _account);
+        Alligator(Predeploys.ALLIGATOR).migrate(_account);
     }
 
     /// @notice Internal mint function.
