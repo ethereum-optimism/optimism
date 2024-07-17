@@ -35,8 +35,9 @@ type ThreadState struct {
 }
 
 func (t *ThreadState) serializeThread() []byte {
-	// TODO
-	out := make([]byte, 0, SERIALIZED_THREAD_SIZE)
+	// TODO(CP-903)
+	panic("Not Implemented")
+	//out := make([]byte, 0, SERIALIZED_THREAD_SIZE)
 
 	//out = binary.BigEndian.AppendUint32(out, t.Cpu.PC)
 	//out = binary.BigEndian.AppendUint32(out, t.Cpu.NextPC)
@@ -46,8 +47,8 @@ func (t *ThreadState) serializeThread() []byte {
 	//for _, r := range t.Registers {
 	//	out = binary.BigEndian.AppendUint32(out, r)
 	//}
-
-	return out
+	//
+	//return out
 }
 
 func computeThreadRoot(prevStackRoot common.Hash, threadToPush *ThreadState) common.Hash {
@@ -221,11 +222,13 @@ func (s *MTState) getThreadStackRoot(stackRoots []common.Hash) common.Hash {
 }
 
 func (s *MTState) PreemptThread() {
-	// TODO
+	// TODO(CP-903)
+	panic("Not Implemented")
 }
 
 func (s *MTState) PushThread(thread *ThreadState) {
-	// TODO
+	// TODO(CP-903)
+	panic("Not Implemented")
 }
 
 func (s *MTState) GetPC() uint32 {
