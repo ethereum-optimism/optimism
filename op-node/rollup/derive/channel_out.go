@@ -74,18 +74,21 @@ type SingularChannelOut struct {
 	compress Compressor
 
 	closed bool
+
+	chainSpec *rollup.ChainSpec
 }
 
 func (co *SingularChannelOut) ID() ChannelID {
 	return co.id
 }
 
-func NewSingularChannelOut(compress Compressor) (*SingularChannelOut, error) {
+func NewSingularChannelOut(compress Compressor, chainSpec *rollup.ChainSpec) (*SingularChannelOut, error) {
 	c := &SingularChannelOut{
 		id:        ChannelID{},
 		frame:     0,
 		rlpLength: 0,
 		compress:  compress,
+		chainSpec: chainSpec,
 	}
 	_, err := rand.Read(c.id[:])
 	if err != nil {
@@ -139,9 +142,14 @@ func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) e
 	if err := rlp.Encode(&buf, NewBatchData(batch)); err != nil {
 		return err
 	}
-	if co.rlpLength+buf.Len() > rollup.SafeMaxRLPBytesPerChannel {
+
+	// it's ok to use the batch timestamp
+	// on derivation we check that l1 timestamp were this channel will be included is after the fork
+	// eventually on the boundary of the fork we might use still the old value, which is lower so its ok (minor optimization)
+	var maxRLPBytesPerChannel = co.chainSpec.MaxRLPBytesPerChannel(batch.Timestamp)
+	if co.rlpLength+buf.Len() > int(maxRLPBytesPerChannel) {
 		return fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
-			buf.Len(), co.rlpLength, rollup.SafeMaxRLPBytesPerChannel, ErrTooManyRLPBytes)
+			buf.Len(), co.rlpLength, maxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 	co.rlpLength += buf.Len()
 

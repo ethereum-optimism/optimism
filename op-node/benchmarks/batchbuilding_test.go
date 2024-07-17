@@ -8,9 +8,16 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
+
+var defaultTestRollupConfig = rollup.Config{
+	Genesis:   rollup.Genesis{L2: eth.BlockID{Number: 0}},
+	L2ChainID: big.NewInt(1234),
+}
 
 const (
 	// a really large target output size to ensure that the compressors are never full
@@ -90,10 +97,10 @@ func channelOutByType(b *testing.B, batchType uint, cd compressorDetails) (deriv
 	if batchType == derive.SingularBatchType {
 		compressor, err := cd.Compressor()
 		require.NoError(b, err)
-		return derive.NewSingularChannelOut(compressor)
+		return derive.NewSingularChannelOut(compressor, rollup.NewChainSpec(&defaultTestRollupConfig))
 	}
 	if batchType == derive.SpanBatchType {
-		return derive.NewSpanChannelOut(0, chainID, cd.config.TargetOutputSize, cd.config.CompressionAlgo)
+		return derive.NewSpanChannelOut(0, chainID, cd.config.TargetOutputSize, cd.config.CompressionAlgo, rollup.NewChainSpec(&defaultTestRollupConfig))
 	}
 	return nil, fmt.Errorf("unsupported batch type: %d", batchType)
 }

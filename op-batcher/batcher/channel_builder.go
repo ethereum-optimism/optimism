@@ -90,11 +90,13 @@ func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1Origi
 	if err != nil {
 		return nil, err
 	}
+
+	var chainSpec = rollup.NewChainSpec(&rollupCfg)
 	var co derive.ChannelOut
 	if cfg.BatchType == derive.SpanBatchType {
-		co, err = derive.NewSpanChannelOut(rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID, cfg.CompressorConfig.TargetOutputSize, cfg.CompressorConfig.CompressionAlgo)
+		co, err = derive.NewSpanChannelOut(rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID, cfg.CompressorConfig.TargetOutputSize, cfg.CompressorConfig.CompressionAlgo, chainSpec)
 	} else {
-		co, err = derive.NewSingularChannelOut(c)
+		co, err = derive.NewSingularChannelOut(c, chainSpec)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("creating channel out: %w", err)
