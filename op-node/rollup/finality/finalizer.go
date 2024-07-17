@@ -94,7 +94,7 @@ type Finalizer struct {
 	l1Fetcher FinalizerL1Interface
 }
 
-func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fetcher FinalizerL1Interface, emitter event.Emitter) *Finalizer {
+func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fetcher FinalizerL1Interface) *Finalizer {
 	lookback := calcFinalityLookback(cfg)
 	return &Finalizer{
 		ctx:              ctx,
@@ -104,8 +104,11 @@ func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fet
 		finalityData:     make([]FinalityData, 0, lookback),
 		finalityLookback: lookback,
 		l1Fetcher:        l1Fetcher,
-		emitter:          emitter,
 	}
+}
+
+func (fi *Finalizer) AttachEmitter(em event.Emitter) {
+	fi.emitter = em
 }
 
 // FinalizedL1 identifies the L1 chain (incl.) that included and/or produced all the finalized L2 blocks.
@@ -131,7 +134,7 @@ func (ev TryFinalizeEvent) String() string {
 	return "try-finalize"
 }
 
-func (fi *Finalizer) OnEvent(ev event.Event) {
+func (fi *Finalizer) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.onL1Finalized(x.FinalizedL1)
@@ -145,7 +148,10 @@ func (fi *Finalizer) OnEvent(ev event.Event) {
 		fi.tryFinalize()
 	case engine.ForkchoiceUpdateEvent:
 		fi.lastFinalizedL2 = x.FinalizedL2Head
+	default:
+		return false
 	}
+	return true
 }
 
 // onL1Finalized applies a L1 finality signal

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/holiman/uint256"
 
@@ -87,3 +88,17 @@ const (
 	CrossUnsafe SafetyLevel = "cross-unsafe"
 	Unsafe      SafetyLevel = "unsafe"
 )
+
+type ChainID uint256.Int
+
+func ChainIDFromBig(chainID *big.Int) ChainID {
+	return ChainID(*uint256.MustFromBig(chainID))
+}
+
+func ChainIDFromUInt64(i uint64) ChainID {
+	return ChainID(*uint256.NewInt(i))
+}
+
+func (id ChainID) String() string {
+	return ((*uint256.Int)(&id)).Dec()
+}

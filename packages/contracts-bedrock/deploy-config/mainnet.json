@@ -42,7 +42,7 @@
   "systemConfigStartBlock": 17422444,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000000",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000000",
-  "faultGameAbsolutePrestate": "0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55",
+  "faultGameAbsolutePrestate": "0x03617abec0b255dc7fc7a0513a2c2220140a1dcd7a1c8eca567659bd67e05cea",
   "faultGameMaxDepth": 73,
   "faultGameClockExtension": 10800,
   "faultGameMaxClockDuration": 302400,

@@ -10,7 +10,7 @@ type Event interface {
 }
 
 type Deriver interface {
-	OnEvent(ev Event)
+	OnEvent(ev Event) bool
 }
 
 type Emitter interface {
@@ -41,10 +41,12 @@ func (fn EmitterFunc) Emit(ev Event) {
 // Technically this is a DeMux: single input to multi output.
 type DeriverMux []Deriver
 
-func (s *DeriverMux) OnEvent(ev Event) {
+func (s *DeriverMux) OnEvent(ev Event) bool {
+	out := false
 	for _, d := range *s {
-		d.OnEvent(ev)
+		out = d.OnEvent(ev) || out
 	}
+	return out
 }
 
 var _ Deriver = (*DeriverMux)(nil)
@@ -64,10 +66,10 @@ func (d NoopDeriver) OnEvent(ev Event) {}
 // DeriverFunc implements the Deriver interface as a function,
 // similar to how the std-lib http HandlerFunc implements a Handler.
 // This can be used for small in-place derivers, test helpers, etc.
-type DeriverFunc func(ev Event)
+type DeriverFunc func(ev Event) bool
 
-func (fn DeriverFunc) OnEvent(ev Event) {
-	fn(ev)
+func (fn DeriverFunc) OnEvent(ev Event) bool {
+	return fn(ev)
 }
 
 type NoopEmitter struct{}

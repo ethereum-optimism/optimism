@@ -1,6 +1,8 @@
 package testutils
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -12,6 +14,15 @@ type TestDerivationMetrics struct {
 	FnRecordL2Ref             func(name string, ref eth.L2BlockRef)
 	FnRecordUnsafePayloads    func(length uint64, memSize uint64, next eth.BlockID)
 	FnRecordChannelInputBytes func(inputCompressedBytes int)
+}
+
+func (t *TestDerivationMetrics) CountSequencedTxs(count int) {
+}
+
+func (t *TestDerivationMetrics) RecordSequencerBuildingDiffTime(duration time.Duration) {
+}
+
+func (t *TestDerivationMetrics) RecordSequencerSealingTime(duration time.Duration) {
 }
 
 func (t *TestDerivationMetrics) RecordL1ReorgDepth(d uint64) {

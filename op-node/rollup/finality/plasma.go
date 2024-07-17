@@ -28,10 +28,10 @@ type PlasmaFinalizer struct {
 }
 
 func NewPlasmaFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
-	l1Fetcher FinalizerL1Interface, emitter event.Emitter,
+	l1Fetcher FinalizerL1Interface,
 	backend PlasmaBackend) *PlasmaFinalizer {
 
-	inner := NewFinalizer(ctx, log, cfg, l1Fetcher, emitter)
+	inner := NewFinalizer(ctx, log, cfg, l1Fetcher)
 
 	// In alt-da mode, the finalization signal is proxied through the plasma manager.
 	// Finality signal will come from the DA contract or L1 finality whichever is last.
@@ -46,11 +46,12 @@ func NewPlasmaFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
 	}
 }
 
-func (fi *PlasmaFinalizer) OnEvent(ev event.Event) {
+func (fi *PlasmaFinalizer) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.backend.Finalize(x.FinalizedL1)
+		return true
 	default:
-		fi.Finalizer.OnEvent(ev)
+		return fi.Finalizer.OnEvent(ev)
 	}
 }

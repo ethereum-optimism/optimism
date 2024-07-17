@@ -72,15 +72,18 @@ type StepSchedulingDeriver struct {
 	emitter event.Emitter
 }
 
-func NewStepSchedulingDeriver(log log.Logger, emitter event.Emitter) *StepSchedulingDeriver {
+func NewStepSchedulingDeriver(log log.Logger) *StepSchedulingDeriver {
 	return &StepSchedulingDeriver{
 		stepAttempts:   0,
 		bOffStrategy:   retry.Exponential(),
 		stepReqCh:      make(chan struct{}, 1),
 		delayedStepReq: nil,
 		log:            log,
-		emitter:        emitter,
 	}
+}
+
+func (s *StepSchedulingDeriver) AttachEmitter(em event.Emitter) {
+	s.emitter = em
 }
 
 // NextStep is a channel to await, and if triggered,
@@ -96,7 +99,7 @@ func (s *StepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
 	return s.delayedStepReq
 }
 
-func (s *StepSchedulingDeriver) OnEvent(ev event.Event) {
+func (s *StepSchedulingDeriver) OnEvent(ev event.Event) bool {
 	step := func() {
 		s.delayedStepReq = nil
 		select {
@@ -138,5 +141,8 @@ func (s *StepSchedulingDeriver) OnEvent(ev event.Event) {
 		s.emitter.Emit(StepEvent{})
 	case ResetStepBackoffEvent:
 		s.stepAttempts = 0
+	default:
+		return false
 	}
+	return true
 }

@@ -21,7 +21,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hashicorp/raft v1.7.0
 	github.com/hashicorp/raft-boltdb v0.0.0-20231211162105-6c830fa4535e
-	github.com/holiman/uint256 v1.2.4
+	github.com/holiman/uint256 v1.3.0
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/klauspost/compress v1.17.9
@@ -30,7 +30,7 @@ require (
 	github.com/libp2p/go-libp2p-pubsub v0.11.0
 	github.com/libp2p/go-libp2p-testing v0.12.0
 	github.com/mattn/go-isatty v0.0.20
-	github.com/minio/minio-go/v7 v7.0.73
+	github.com/minio/minio-go/v7 v7.0.74
 	github.com/multiformats/go-base32 v0.1.0
 	github.com/multiformats/go-multiaddr v0.13.0
 	github.com/multiformats/go-multiaddr-dns v0.3.1
@@ -39,6 +39,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.7.0
 	github.com/prometheus/client_golang v1.19.1
+	github.com/protolambda/ctxlock v0.1.0
 	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli/v2 v2.27.1
 	golang.org/x/crypto v0.25.0

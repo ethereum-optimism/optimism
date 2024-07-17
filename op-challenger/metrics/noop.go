@@ -34,6 +34,7 @@ func (*NoopMetricsImpl) RecordActedL1Block(_ uint64) {}
 
 func (*NoopMetricsImpl) RecordPreimageChallenged()      {}
 func (*NoopMetricsImpl) RecordPreimageChallengeFailed() {}
+func (*NoopMetricsImpl) RecordLargePreimageCount(_ int) {}
 
 func (*NoopMetricsImpl) RecordBondClaimFailed()   {}
 func (*NoopMetricsImpl) RecordBondClaimed(uint64) {}

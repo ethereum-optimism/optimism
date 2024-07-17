@@ -16,6 +16,10 @@ lint-go:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
 .PHONY: lint-go
 
+lint-go-fix:
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./... --fix
+.PHONY: lint-go-fix
+
 build-ts: submodules
 	if [ -f "$$NVM_DIR/nvm.sh" ]; then \
 		. $$NVM_DIR/nvm.sh && nvm use; \
@@ -101,9 +105,6 @@ submodules:
 	git submodule update --init --recursive
 .PHONY: submodules
 
-op-bindings:
-	make -C ./op-bindings
-.PHONY: op-bindings
 
 op-node:
 	make -C ./op-node op-node

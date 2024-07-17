@@ -9,7 +9,6 @@ comment:
 
 ignore:
   - "op-e2e"
-  - "op-bindings/bindings/*.go"
   - "**/*.t.sol"
   - "packages/contracts-bedrock/test/**/*.sol"
   - "packages/contracts-bedrock/scripts/**/*.sol"
