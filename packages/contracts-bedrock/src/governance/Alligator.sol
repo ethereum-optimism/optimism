@@ -2,8 +2,9 @@
 pragma solidity 0.8.15;
 
 import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
+import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 
-contract Alligator {
+contract Alligator is ERC20Votes {
     // =============================================================
     //                             ERRORS
     // =============================================================
