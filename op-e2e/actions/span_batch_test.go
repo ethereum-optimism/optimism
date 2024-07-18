@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
+
 	"math/big"
 	"math/rand"
 	"testing"
@@ -515,7 +516,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	totalTxCount := 0
 	// Make 600 L2 blocks (L1BlockTime / L2BlockTime * 50) including 1~3 txs
 	for i := 0; i < 50; i++ {
-		for sequencer.engine.UnsafeL2Head().L1Origin.Number < sequencer.l1State.L1Head().Number {
+		for sequencer.engine.UnsafeL2Head().L1Origin.Number < sequencer.syncStatus.L1Head().Number {
 			sequencer.ActL2StartBlock(t)
 			// fill the block with random number of L2 txs
 			for j := 0; j < rand.Intn(3); j++ {
@@ -654,7 +655,7 @@ func TestBatchEquivalence(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	totalTxCount := 0
 	// Build random blocks
-	for sequencer.engine.UnsafeL2Head().L1Origin.Number < sequencer.l1State.L1Head().Number {
+	for sequencer.engine.UnsafeL2Head().L1Origin.Number < sequencer.syncStatus.L1Head().Number {
 		sequencer.ActL2StartBlock(t)
 		// fill the block with random number of L2 txs
 		for j := 0; j < rand.Intn(3); j++ {

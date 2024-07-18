@@ -246,12 +246,12 @@ func (s *Service) initLargePreimages() error {
 	fetcher := fetcher.NewPreimageFetcher(s.logger, s.l1Client)
 	verifier := keccak.NewPreimageVerifier(s.logger, fetcher)
 	challenger := keccak.NewPreimageChallenger(s.logger, s.metrics, verifier, s.txSender)
-	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.l1Clock, s.oracles, challenger)
+	s.preimages = keccak.NewLargePreimageScheduler(s.logger, s.metrics, s.l1Clock, s.oracles, challenger)
 	return nil
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, s.l1Client.BlockNumber, cfg.GameAllowlist, s.pollClient)
+	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameAllowlist, s.pollClient)
 }
 
 func (s *Service) Start(ctx context.Context) error {

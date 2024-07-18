@@ -50,7 +50,7 @@
     "@eth-optimism/contracts-bedrock": "workspace:*",
     "@eth-optimism/contracts-periphery": "1.0.8",
     "@eth-optimism/core-utils": "^0.13.2",
-    "@eth-optimism/sdk": "^3.3.1",
+    "@eth-optimism/sdk": "^3.3.2",
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",
     "dateformat": "^4.5.1",
@@ -63,6 +63,6 @@
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "hardhat": "^2.20.1",
     "ts-node": "^10.9.2",
-    "tsx": "^4.7.0"
+    "tsx": "^4.16.2"
   }
 }

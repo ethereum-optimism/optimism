@@ -4,7 +4,6 @@
 
 !/cannon
 !/op-batcher
-!/op-bindings
 !/op-bootnode
 !/op-chain-ops
 !/op-challenger
@@ -17,6 +16,7 @@
 !/op-program
 !/op-proposer
 !/op-service
+!/op-supervisor
 !/op-wheel
 !/op-plasma
 !/go.mod

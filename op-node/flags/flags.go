@@ -6,6 +6,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
@@ -191,6 +192,17 @@ var (
 		Value:    time.Second * 12,
 		Category: L1RPCCategory,
 	}
+	L2EngineKind = &cli.GenericFlag{
+		Name: "l2.enginekind",
+		Usage: "The kind of engine client, used to control the behavior of optimism in respect to different types of engine clients. Valid options: " +
+			openum.EnumString(engine.Kinds),
+		EnvVars: prefixEnvVars("L2_ENGINE_KIND"),
+		Value: func() *engine.Kind {
+			out := engine.Geth
+			return &out
+		}(),
+		Category: RollupCategory,
+	}
 	VerifierL1Confs = &cli.Uint64Flag{
 		Name:     "verifier.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.",
@@ -260,9 +272,10 @@ var (
 	}
 	SnapshotLog = &cli.StringFlag{
 		Name:     "snapshotlog.file",
-		Usage:    "Path to the snapshot log file",
+		Usage:    "Deprecated. This flag is ignored, but here for compatibility.",
 		EnvVars:  prefixEnvVars("SNAPSHOT_LOG"),
 		Category: OperationsCategory,
+		Hidden:   true, // non-critical function, removed, flag is no-op to avoid breaking setups.
 	}
 	HeartbeatEnabledFlag = &cli.BoolFlag{
 		Name:     "heartbeat.enabled",
@@ -403,6 +416,7 @@ var optionalFlags = []cli.Flag{
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
 	SafeDBPath,
+	L2EngineKind,
 }
 
 var DeprecatedFlags = []cli.Flag{

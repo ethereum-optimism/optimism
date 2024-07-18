@@ -39,15 +39,15 @@
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
     "hardhat": "^2.20.1",
-    "hardhat-deploy": "^0.12.2",
+    "hardhat-deploy": "^0.12.4",
     "nyc": "^15.1.0",
     "ts-node": "^10.9.2",
     "typedoc": "^0.25.7",
-    "typescript": "^5.4.5"
+    "typescript": "^5.5.3"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",
-    "@eth-optimism/sdk": "^3.3.1"
+    "@eth-optimism/sdk": "^3.3.2"
   },
   "peerDependencies": {
     "ethers": "^5"

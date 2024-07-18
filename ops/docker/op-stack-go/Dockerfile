@@ -108,6 +108,11 @@ FROM --platform=$BUILDPLATFORM builder as da-server-builder
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-plasma && make da-server  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE
 
+FROM --platform=$BUILDPLATFORM builder as op-supervisor-builder
+ARG OP_SUPERVISOR_VERSION=v0.0.0
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-supervisor && make op-supervisor  \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERVISOR_VERSION"
+
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as cannon-target
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 CMD ["cannon"]
@@ -157,3 +162,7 @@ CMD ["op-conductor"]
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as da-server-target
 COPY --from=da-server-builder /app/op-plasma/bin/da-server /usr/local/bin/
 CMD ["da-server"]
+
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-supervisor-target
+COPY --from=op-supervisor-builder /app/op-supervisor/bin/op-supervisor /usr/local/bin/
+ENTRYPOINT ["op-supervisor"]

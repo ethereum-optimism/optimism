@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,4 +38,24 @@ func FuzzRoundtripIdentifierJSONMarshal(f *testing.F) {
 		require.Equal(t, id.Timestamp, dec.Timestamp)
 		require.Equal(t, id.ChainID, dec.ChainID)
 	})
+}
+
+func TestChainID_String(t *testing.T) {
+	tests := []struct {
+		input    ChainID
+		expected string
+	}{
+		{ChainIDFromUInt64(0), "0"},
+		{ChainIDFromUInt64(1), "1"},
+		{ChainIDFromUInt64(871975192374), "871975192374"},
+		{ChainIDFromUInt64(math.MaxInt64), "9223372036854775807"},
+		{ChainID(*uint256.NewInt(math.MaxUint64)), "18446744073709551615"},
+		{ChainID(*uint256.MustFromDecimal("1844674407370955161618446744073709551616")), "1844674407370955161618446744073709551616"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.expected, func(t *testing.T) {
+			require.Equal(t, test.expected, test.input.String())
+		})
+	}
 }

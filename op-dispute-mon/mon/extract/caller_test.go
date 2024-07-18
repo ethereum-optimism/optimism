@@ -7,11 +7,11 @@ import (
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/stretchr/testify/require"
@@ -29,15 +29,15 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 	}{
 		{
 			name: "validCannonGameType",
-			game: types.GameMetadata{GameType: faultTypes.CannonGameType, Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(faultTypes.CannonGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validAsteriscGameType",
-			game: types.GameMetadata{GameType: faultTypes.AsteriscGameType, Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(faultTypes.AsteriscGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validAlphabetGameType",
-			game: types.GameMetadata{GameType: faultTypes.AlphabetGameType, Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(faultTypes.AlphabetGameType), Proxy: fdgAddr},
 		},
 		{
 			name:        "InvalidGameType",
@@ -68,8 +68,7 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 }
 
 func setupMetadataLoaderTest(t *testing.T) (*batching.MultiCaller, *mockCacheMetrics) {
-	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-	require.NoError(t, err)
+	fdgAbi := snapshots.LoadFaultDisputeGameABI()
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
 	stubRpc.SetResponse(fdgAddr, "version", rpcblock.Latest, nil, []interface{}{"0.18.0"})

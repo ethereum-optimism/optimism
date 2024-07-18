@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -33,6 +33,7 @@ type driverClient interface {
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
 	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	OverrideLeader(ctx context.Context) error
 }
 
 type SafeDBReader interface {
@@ -77,7 +78,6 @@ func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 
 // PostUnsafePayload is a special API that allows posting an unsafe payload to the L2 derivation pipeline.
 // It should only be used by op-conductor for sequencer failover scenarios.
-// TODO(ethereum-optimism/optimism#9064): op-conductor Dencun changes.
 func (n *adminAPI) PostUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
 	recordDur := n.M.RecordRPCServerRequest("admin_postUnsafePayload")
 	defer recordDur()
@@ -89,6 +89,13 @@ func (n *adminAPI) PostUnsafePayload(ctx context.Context, envelope *eth.Executio
 	}
 
 	return n.dr.OnUnsafeL2Payload(ctx, envelope)
+}
+
+// OverrideLeader disables sequencer conductor interactions and allow sequencer to run in non-HA mode during disaster recovery scenarios.
+func (n *adminAPI) OverrideLeader(ctx context.Context) error {
+	recordDur := n.M.RecordRPCServerRequest("admin_overrideLeader")
+	defer recordDur()
+	return n.dr.OverrideLeader(ctx)
 }
 
 type nodeAPI struct {

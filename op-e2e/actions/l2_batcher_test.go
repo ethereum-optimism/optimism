@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -241,15 +240,6 @@ func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	engBlock, err := engCl.L2BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
 	require.Equal(t, heightToSubmit, engBlock.Number, "engine finalizes what rollup node finalizes")
-
-	// Now try to finalize block 4, but with a bad/malicious alternative hash.
-	// If we get this false signal, we shouldn't finalize the L2 chain.
-	altBlock4 := sequencer.SyncStatus().SafeL1
-	altBlock4.Hash = common.HexToHash("0xdead")
-	sequencer.finalizer.Finalize(t.Ctx(), altBlock4)
-	sequencer.ActL2PipelineFull(t)
-	require.Equal(t, uint64(3), sequencer.SyncStatus().FinalizedL1.Number)
-	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")
 }
 
 // L2FinalizationWithSparseL1 tests that safe L2 blocks can be finalized even if we do not regularly get a L1 finalization signal

@@ -6,9 +6,10 @@ type LocalContext common.Hash
 
 type StepWitness struct {
 	// encoded state witness
-	State []byte
+	State     []byte
+	StateHash common.Hash
 
-	MemProof []byte
+	ProofData []byte
 
 	PreimageKey    [32]byte // zeroed when no pre-image is accessed
 	PreimageValue  []byte   // including the 8-byte length prefix
@@ -17,4 +18,12 @@ type StepWitness struct {
 
 func (wit *StepWitness) HasPreimage() bool {
 	return wit.PreimageKey != ([32]byte{})
+}
+
+func AppendBoolToWitness(witnessData []byte, boolVal bool) []byte {
+	if boolVal {
+		return append(witnessData, 1)
+	} else {
+		return append(witnessData, 0)
+	}
 }

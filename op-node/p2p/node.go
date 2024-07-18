@@ -106,7 +106,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		}
 		// Activate the P2P req-resp sync if enabled by feature-flag.
 		if setup.ReqRespSyncEnabled() && !elSyncEnabled {
-			n.syncCl = NewSyncClient(log, rollupCfg, n.host.NewStream, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
+			n.syncCl = NewSyncClient(log, rollupCfg, n.host, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
 			n.host.Network().Notify(&network.NotifyBundle{
 				ConnectedF: func(nw network.Network, conn network.Conn) {
 					n.syncCl.AddPeer(conn.RemotePeer())

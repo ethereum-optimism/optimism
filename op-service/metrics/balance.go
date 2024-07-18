@@ -19,7 +19,7 @@ import (
 // to the "balance" metric of the namespace. The balance of the account is recorded in Ether (not Wei).
 // Cancel the supplied context to shut down the go routine
 func LaunchBalanceMetrics(log log.Logger, r *prometheus.Registry, ns string, client *ethclient.Client, account common.Address) *clock.LoopFn {
-	balanceGuage := promauto.With(r).NewGauge(prometheus.GaugeOpts{
+	balanceGauge := promauto.With(r).NewGauge(prometheus.GaugeOpts{
 		Namespace: ns,
 		Name:      "balance",
 		Help:      "balance (in ether) of account " + account.String(),
@@ -33,7 +33,7 @@ func LaunchBalanceMetrics(log log.Logger, r *prometheus.Registry, ns string, cli
 			return
 		}
 		bal := eth.WeiToEther(bigBal)
-		balanceGuage.Set(bal)
+		balanceGauge.Set(bal)
 	}, func() error {
 		log.Info("balance metrics shutting down")
 		return nil

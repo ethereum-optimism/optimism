@@ -27,6 +27,11 @@ func prefixRPC(method string) string {
 	return RPCNamespace + "_" + method
 }
 
+// OverrideLeader implements API.
+func (c *APIClient) OverrideLeader(ctx context.Context) error {
+	return c.c.CallContext(ctx, nil, prefixRPC("overrideLeader"))
+}
+
 // Paused implements API.
 func (c *APIClient) Paused(ctx context.Context) (bool, error) {
 	var paused bool

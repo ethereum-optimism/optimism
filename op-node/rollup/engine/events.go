@@ -4,20 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-type InvalidPayloadEvent struct {
-	Envelope *eth.ExecutionPayloadEnvelope
-}
+type Metrics interface {
+	CountSequencedTxs(count int)
 
-func (ev InvalidPayloadEvent) String() string {
-	return "invalid-payload"
+	RecordSequencerBuildingDiffTime(duration time.Duration)
+	RecordSequencerSealingTime(duration time.Duration)
 }
 
 // ForkchoiceRequestEvent signals to the engine that it should emit an artificial
@@ -37,6 +38,52 @@ type ForkchoiceUpdateEvent struct {
 
 func (ev ForkchoiceUpdateEvent) String() string {
 	return "forkchoice-update"
+}
+
+type PendingSafeUpdateEvent struct {
+	PendingSafe eth.L2BlockRef
+	Unsafe      eth.L2BlockRef // tip, added to the signal, to determine if there are existing blocks to consolidate
+}
+
+func (ev PendingSafeUpdateEvent) String() string {
+	return "pending-safe-update"
+}
+
+// PromotePendingSafeEvent signals that a block can be marked as pending-safe, and/or safe.
+type PromotePendingSafeEvent struct {
+	Ref         eth.L2BlockRef
+	Safe        bool
+	DerivedFrom eth.L1BlockRef
+}
+
+func (ev PromotePendingSafeEvent) String() string {
+	return "promote-pending-safe"
+}
+
+// SafeDerivedEvent signals that a block was determined to be safe, and derived from the given L1 block
+type SafeDerivedEvent struct {
+	Safe        eth.L2BlockRef
+	DerivedFrom eth.L1BlockRef
+}
+
+func (ev SafeDerivedEvent) String() string {
+	return "safe-derived"
+}
+
+// ProcessAttributesEvent signals to immediately process the attributes.
+type ProcessAttributesEvent struct {
+	Attributes *derive.AttributesWithParent
+}
+
+func (ev ProcessAttributesEvent) String() string {
+	return "process-attributes"
+}
+
+type PendingSafeRequestEvent struct {
+}
+
+func (ev PendingSafeRequestEvent) String() string {
+	return "pending-safe-request"
 }
 
 type ProcessUnsafePayloadEvent struct {
@@ -77,28 +124,43 @@ func (ev EngineResetConfirmedEvent) String() string {
 	return "engine-reset-confirmed"
 }
 
+// PromoteFinalizedEvent signals that a block can be marked as finalized.
+type PromoteFinalizedEvent struct {
+	Ref eth.L2BlockRef
+}
+
+func (ev PromoteFinalizedEvent) String() string {
+	return "promote-finalized"
+}
+
 type EngDeriver struct {
+	metrics Metrics
+
 	log     log.Logger
 	cfg     *rollup.Config
 	ec      *EngineController
 	ctx     context.Context
-	emitter rollup.EventEmitter
+	emitter event.Emitter
 }
 
-var _ rollup.Deriver = (*EngDeriver)(nil)
+var _ event.Deriver = (*EngDeriver)(nil)
 
 func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
-	ec *EngineController, emitter rollup.EventEmitter) *EngDeriver {
+	metrics Metrics, ec *EngineController) *EngDeriver {
 	return &EngDeriver{
 		log:     log,
 		cfg:     cfg,
 		ec:      ec,
 		ctx:     ctx,
-		emitter: emitter,
+		metrics: metrics,
 	}
 }
 
-func (d *EngDeriver) OnEvent(ev rollup.Event) {
+func (d *EngDeriver) AttachEmitter(em event.Emitter) {
+	d.emitter = em
+}
+
+func (d *EngDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case TryBackupUnsafeReorgEvent:
 		// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
@@ -137,7 +199,7 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 		ref, err := derive.PayloadToBlockRef(d.cfg, x.Envelope.ExecutionPayload)
 		if err != nil {
 			d.log.Error("failed to decode L2 block ref from payload", "err", err)
-			return
+			return true
 		}
 		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref); err != nil {
 			d.log.Info("failed to insert payload", "ref", ref,
@@ -171,8 +233,62 @@ func (d *EngDeriver) OnEvent(ev rollup.Event) {
 		log.Debug("Reset of Engine is completed",
 			"safeHead", x.Safe, "unsafe", x.Unsafe, "safe_timestamp", x.Safe.Time,
 			"unsafe_timestamp", x.Unsafe.Time)
-		d.emitter.Emit(EngineResetConfirmedEvent{})
+		d.emitter.Emit(EngineResetConfirmedEvent(x))
+	case PendingSafeRequestEvent:
+		d.emitter.Emit(PendingSafeUpdateEvent{
+			PendingSafe: d.ec.PendingSafeL2Head(),
+			Unsafe:      d.ec.UnsafeL2Head(),
+		})
+	case PromotePendingSafeEvent:
+		// Only promote if not already stale.
+		// Resets/overwrites happen through engine-resets, not through promotion.
+		if x.Ref.Number > d.ec.PendingSafeL2Head().Number {
+			d.ec.SetPendingSafeL2Head(x.Ref)
+			d.emitter.Emit(PendingSafeUpdateEvent{
+				PendingSafe: d.ec.PendingSafeL2Head(),
+				Unsafe:      d.ec.UnsafeL2Head(),
+			})
+		}
+		if x.Safe && x.Ref.Number > d.ec.SafeL2Head().Number {
+			d.ec.SetSafeHead(x.Ref)
+			d.emitter.Emit(SafeDerivedEvent{Safe: x.Ref, DerivedFrom: x.DerivedFrom})
+			// Try to apply the forkchoice changes
+			d.emitter.Emit(TryUpdateEngineEvent{})
+		}
+	case PromoteFinalizedEvent:
+		if x.Ref.Number < d.ec.Finalized().Number {
+			d.log.Error("Cannot rewind finality,", "ref", x.Ref, "finalized", d.ec.Finalized())
+			return true
+		}
+		if x.Ref.Number > d.ec.SafeL2Head().Number {
+			d.log.Error("Block must be safe before it can be finalized", "ref", x.Ref, "safe", d.ec.SafeL2Head())
+			return true
+		}
+		d.ec.SetFinalizedHead(x.Ref)
+		// Try to apply the forkchoice changes
+		d.emitter.Emit(TryUpdateEngineEvent{})
+	case BuildStartEvent:
+		d.onBuildStart(x)
+	case BuildStartedEvent:
+		d.onBuildStarted(x)
+	case BuildSealedEvent:
+		d.onBuildSealed(x)
+	case BuildSealEvent:
+		d.onBuildSeal(x)
+	case BuildInvalidEvent:
+		d.onBuildInvalid(x)
+	case BuildCancelEvent:
+		d.onBuildCancel(x)
+	case PayloadProcessEvent:
+		d.onPayloadProcess(x)
+	case PayloadSuccessEvent:
+		d.onPayloadSuccess(x)
+	case PayloadInvalidEvent:
+		d.onPayloadInvalid(x)
+	default:
+		return false
 	}
+	return true
 }
 
 type ResetEngineControl interface {
@@ -181,7 +297,6 @@ type ResetEngineControl interface {
 	SetFinalizedHead(eth.L2BlockRef)
 	SetBackupUnsafeL2Head(block eth.L2BlockRef, triggerReorg bool)
 	SetPendingSafeL2Head(eth.L2BlockRef)
-	ResetBuildingState()
 }
 
 // ForceEngineReset is not to be used. The op-program needs it for now, until event processing is adopted there.
@@ -191,5 +306,4 @@ func ForceEngineReset(ec ResetEngineControl, x ForceEngineResetEvent) {
 	ec.SetPendingSafeL2Head(x.Safe)
 	ec.SetFinalizedHead(x.Finalized)
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
-	ec.ResetBuildingState()
 }

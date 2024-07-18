@@ -21,8 +21,13 @@ type OracleSource interface {
 	Oracles() []keccakTypes.LargePreimageOracle
 }
 
+type Metrics interface {
+	RecordLargePreimageCount(count int)
+}
+
 type LargePreimageScheduler struct {
 	log        log.Logger
+	m          Metrics
 	cl         faultTypes.ClockReader
 	ch         chan common.Hash
 	oracles    OracleSource
@@ -33,11 +38,13 @@ type LargePreimageScheduler struct {
 
 func NewLargePreimageScheduler(
 	logger log.Logger,
+	m Metrics,
 	cl faultTypes.ClockReader,
 	oracleSource OracleSource,
 	challenger Challenger) *LargePreimageScheduler {
 	return &LargePreimageScheduler{
 		log:        logger,
+		m:          m,
 		cl:         cl,
 		ch:         make(chan common.Hash, 1),
 		oracles:    oracleSource,
@@ -94,6 +101,7 @@ func (s *LargePreimageScheduler) verifyOraclePreimages(ctx context.Context, orac
 	if err != nil {
 		return err
 	}
+	s.m.RecordLargePreimageCount(len(preimages))
 	period, err := oracle.ChallengePeriod(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load challenge period: %w", err)

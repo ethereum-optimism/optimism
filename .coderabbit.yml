@@ -7,7 +7,6 @@ reviews:
   collapse_walkthrough: true
   path_filters:
     - "!**/*.json"
-    - "!op-bindings/bindings/**"
   path_instructions:
     - path: "**.sol"
       instructions: "Focus on the following areas:
