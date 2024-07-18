@@ -183,6 +183,9 @@ importers:
       '@eth-optimism/sdk':
         specifier: ^3.3.2
         version: 3.3.2(bufferutil@4.0.8)(ethers@5.7.2(bufferutil@4.0.8)(utf-8-validate@5.0.7))(utf-8-validate@5.0.7)
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
     devDependencies:
       '@nomiclabs/hardhat-ethers':
         specifier: ^2.2.3
