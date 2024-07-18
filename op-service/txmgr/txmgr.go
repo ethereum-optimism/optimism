@@ -292,7 +292,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	var txMessage types.TxData
 	if sidecar != nil {
 		if blobBaseFee == nil {
-			return nil, fmt.Errorf("expected non-nil blobBaseFee")
+			return nil, errors.New("expected non-nil blobBaseFee")
 		}
 		blobFeeCap := calcBlobFeeCap(blobBaseFee)
 		message := &types.BlobTx{
@@ -889,19 +889,19 @@ func errStringMatch(err, target error) bool {
 func finishBlobTx(message *types.BlobTx, chainID, tip, fee, blobFee, value *big.Int) error {
 	var o bool
 	if message.ChainID, o = uint256.FromBig(chainID); o {
-		return fmt.Errorf("ChainID overflow")
+		return errors.New("ChainID overflow")
 	}
 	if message.GasTipCap, o = uint256.FromBig(tip); o {
-		return fmt.Errorf("GasTipCap overflow")
+		return errors.New("GasTipCap overflow")
 	}
 	if message.GasFeeCap, o = uint256.FromBig(fee); o {
-		return fmt.Errorf("GasFeeCap overflow")
+		return errors.New("GasFeeCap overflow")
 	}
 	if message.BlobFeeCap, o = uint256.FromBig(blobFee); o {
-		return fmt.Errorf("BlobFeeCap overflow")
+		return errors.New("BlobFeeCap overflow")
 	}
 	if message.Value, o = uint256.FromBig(value); o {
-		return fmt.Errorf("Value overflow")
+		return errors.New("Value overflow")
 	}
 	return nil
 }

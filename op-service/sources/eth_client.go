@@ -11,6 +11,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -88,7 +89,7 @@ func (c *EthClientConfig) Check() error {
 			// an RCP receipts fetcher, so below rpc config parameters don't need to be checked.
 			return nil
 		} else {
-			return fmt.Errorf("rethdb path specified, but built without rethdb support")
+			return errors.New("rethdb path specified, but built without rethdb support")
 		}
 	}
 	if c.MaxConcurrentRequests < 1 {
@@ -138,7 +139,7 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 	recProvider := newRecProviderFromConfig(client, log, metrics, config)
 	if recProvider.isInnerNil() {
-		return nil, fmt.Errorf("failed to open RethDB")
+		return nil, errors.New("failed to open RethDB")
 	}
 	return &EthClient{
 		client:            client,

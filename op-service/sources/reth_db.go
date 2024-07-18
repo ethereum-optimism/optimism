@@ -5,7 +5,7 @@ package sources
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"unsafe"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -44,7 +44,7 @@ import "C"
 // and populates the given results slice pointer with the receipts that were found.
 func FetchRethReceipts(db unsafe.Pointer, blockHash *common.Hash) (types.Receipts, error) {
 	if blockHash == nil {
-		return nil, fmt.Errorf("Must provide a block hash to fetch receipts for.")
+		return nil, errors.New("Must provide a block hash to fetch receipts for.")
 	}
 
 	// Convert the block hash to a C byte array and defer its deallocation
@@ -55,7 +55,7 @@ func FetchRethReceipts(db unsafe.Pointer, blockHash *common.Hash) (types.Receipt
 	receiptsResult := C.rdb_read_receipts((*C.uint8_t)(cBlockHash), C.size_t(len(blockHash)), db)
 
 	if receiptsResult.error {
-		return nil, fmt.Errorf("Error fetching receipts from Reth Database.")
+		return nil, errors.New("Error fetching receipts from Reth Database.")
 	}
 
 	// Free the memory allocated by the C code
@@ -80,7 +80,7 @@ func OpenDBReadOnly(dbPath string) (db unsafe.Pointer, err error) {
 	openDBResult := C.open_db_read_only(cDbPath)
 
 	if openDBResult.error {
-		return nil, fmt.Errorf("failed to open RethDB")
+		return nil, errors.New("failed to open RethDB")
 	}
 
 	return openDBResult.data, nil
@@ -105,7 +105,7 @@ func NewRethDBReceiptsFetcher(dbPath string) *RethDBReceiptsFetcher {
 
 func (f *RethDBReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
 	if f.dbInstance == nil {
-		return nil, fmt.Errorf("Reth dbInstance is nil")
+		return nil, errors.New("Reth dbInstance is nil")
 	}
 	hash := block.Hash()
 	return FetchRethReceipts(f.dbInstance, &hash)

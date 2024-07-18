@@ -35,7 +35,7 @@ func (c *expectedCall) Matches(rpcMethod string, args ...interface{}) error {
 	}
 	callOpts, ok := args[0].(map[string]any)
 	if !ok {
-		return fmt.Errorf("arg 0 is not a map[string]any")
+		return errors.New("arg 0 is not a map[string]any")
 	}
 	actualBlockRef := args[1]
 	to, ok := callOpts["to"].(*common.Address)
