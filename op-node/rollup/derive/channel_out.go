@@ -143,10 +143,11 @@ func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) e
 		return err
 	}
 
-	// it's ok to use the batch timestamp
-	// on derivation we check that l1 timestamp were this channel will be included is after the fork
-	// eventually on the boundary of the fork we might use still the old value, which is lower so its ok (minor optimization)
-	var maxRLPBytesPerChannel = co.chainSpec.MaxRLPBytesPerChannel(batch.Timestamp)
+	// Fjord increases the max RLP bytes per channel. Activation of this change in the derivation pipeline
+	// is dependent on the timestamp of the L1 block that this channel got included in. So using the timestamp
+	// of the current batch guarantees that this channel will be included in an L1 block with a timestamp well after
+	// the Fjord activation.
+	maxRLPBytesPerChannel := co.chainSpec.MaxRLPBytesPerChannel(batch.Timestamp)
 	if co.rlpLength+buf.Len() > int(maxRLPBytesPerChannel) {
 		return fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
 			buf.Len(), co.rlpLength, maxRLPBytesPerChannel, ErrTooManyRLPBytes)

@@ -505,7 +505,7 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.Compression
 func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 	t.Parallel()
 	channelConfig := defaultTestChannelConfig()
-	var chainSpec = rollup.NewChainSpec(&defaultTestRollupConfig)
+	chainSpec := rollup.NewChainSpec(&defaultTestRollupConfig)
 	channelConfig.MaxFrameSize = chainSpec.MaxRLPBytesPerChannel(latestL1BlockOrigin) * 2
 	channelConfig.InitNoneCompressor()
 	channelConfig.BatchType = batchType
