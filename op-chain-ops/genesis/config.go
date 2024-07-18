@@ -660,6 +660,21 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	}, nil
 }
 
+func CheckFileNotChanged(beforePath, afterPath string) (err error) {
+	beforeBytes, err := os.ReadFile(beforePath)
+	if err != nil {
+		return
+	}
+	afterBytes, err := os.ReadFile(afterPath)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(beforeBytes, afterBytes) {
+		return fmt.Errorf("file has changed, %s vs %s", beforePath, afterPath)
+	}
+	return nil
+}
+
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
 	file, err := os.ReadFile(path)

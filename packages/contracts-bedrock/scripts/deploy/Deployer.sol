@@ -25,5 +25,13 @@ abstract contract Deployer is Script, Artifacts {
         vm.label(address(cfg), "DeployConfig");
         vm.allowCheatcodes(address(cfg));
         cfg.read(Config.deployConfigPath());
+        string memory snapPath = vm.envOr("DEPLOY_CONFIG_SNAP", string(""));
+        if (bytes(snapPath).length > 0) {
+            string[] memory commands = new string[](3);
+            commands[0] = Executables.bash;
+            commands[1] = "-c";
+            commands[2] = string.concat("cp ", Config.deployConfigPath(), " ", snapPath);
+            Process.run(cmd);
+        }
     }
 }

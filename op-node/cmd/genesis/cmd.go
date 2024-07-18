@@ -141,6 +141,14 @@ var Subcommands = cli.Commands{
 		Action: func(ctx *cli.Context) error {
 			deployConfig := ctx.Path("deploy-config")
 			log.Info("Deploy config", "path", deployConfig)
+			// if DEPLOY_CONFIG_SNAP is specified, we want to check that deployConfig is not changed.
+			snapPath := os.Getenv("DEPLOY_CONFIG_SNAP")
+			if len(snapPath) > 0 {
+				err := genesis.CheckFileNotChanged(snapPath, deployConfig)
+				if err != nil {
+					return err
+				}
+			}
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
