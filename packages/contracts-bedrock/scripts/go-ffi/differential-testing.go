@@ -365,17 +365,17 @@ func DiffTestUtils() {
 			panic("Error: cannonMemoryProofWithProof requires 2 or 4 arguments")
 		}
 		pc, err := strconv.ParseUint(args[1], 10, 32)
-		checkErr(err, "Error decocding addr")
+		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
-		checkErr(err, "Error decocding insn")
+		checkErr(err, "Error decoding insn")
 		mem.SetMemory(uint32(pc), uint32(insn))
 
 		var insnProof, memProof [896]byte
 		if len(args) == 5 {
 			memAddr, err := strconv.ParseUint(args[3], 10, 32)
-			checkErr(err, "Error decocding memAddr")
+			checkErr(err, "Error decoding memAddr")
 			memValue, err := strconv.ParseUint(args[4], 10, 32)
-			checkErr(err, "Error decocding memValue")
+			checkErr(err, "Error decoding memValue")
 			mem.SetMemory(uint32(memAddr), uint32(memValue))
 			memProof = mem.MerkleProof(uint32(memAddr))
 		}
@@ -398,16 +398,16 @@ func DiffTestUtils() {
 			panic("Error: cannonMemoryProofWrongLeaf requires 4 arguments")
 		}
 		pc, err := strconv.ParseUint(args[1], 10, 32)
-		checkErr(err, "Error decocding addr")
+		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
-		checkErr(err, "Error decocding insn")
+		checkErr(err, "Error decoding insn")
 		mem.SetMemory(uint32(pc), uint32(insn))
 
 		var insnProof, memProof [896]byte
 		memAddr, err := strconv.ParseUint(args[3], 10, 32)
-		checkErr(err, "Error decocding memAddr")
+		checkErr(err, "Error decoding memAddr")
 		memValue, err := strconv.ParseUint(args[4], 10, 32)
-		checkErr(err, "Error decocding memValue")
+		checkErr(err, "Error decoding memValue")
 		mem.SetMemory(uint32(memAddr), uint32(memValue))
 
 		// Compute a valid proof for the root, but for the wrong leaves.
@@ -426,9 +426,9 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "encodeScalarEcotone":
 		basefeeScalar, err := strconv.ParseUint(args[1], 10, 32)
-		checkErr(err, "Error decocding basefeeScalar")
+		checkErr(err, "Error decoding basefeeScalar")
 		blobbasefeeScalar, err := strconv.ParseUint(args[2], 10, 32)
-		checkErr(err, "Error decocding blobbasefeeScalar")
+		checkErr(err, "Error decoding blobbasefeeScalar")
 
 		encoded := eth.EncodeScalar(eth.EcotoneScalars{
 			BaseFeeScalar:     uint32(basefeeScalar),
