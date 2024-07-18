@@ -217,6 +217,10 @@ func (s *State) GetRegisters() *[32]uint32 {
 	return &activeThread.Registers
 }
 
+func (s *State) getCpu() *mipsevm.CpuScalars {
+	return &s.getCurrentThread().Cpu
+}
+
 func (s *State) GetExitCode() uint8 { return s.ExitCode }
 
 func (s *State) GetExited() bool { return s.Exited }

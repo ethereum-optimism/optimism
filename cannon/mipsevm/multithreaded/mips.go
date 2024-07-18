@@ -8,7 +8,7 @@ import (
 )
 
 func (m *InstrumentedState) handleSyscall() error {
-	syscallNum, a0, a1, a2 := exec.GetSyscallArgs(&m.state.Registers)
+	syscallNum, a0, a1, a2 := exec.GetSyscallArgs(m.state.GetRegisters())
 
 	v0 := uint32(0)
 	v1 := uint32(0)
@@ -43,7 +43,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0, v1 = exec.HandleSysFcntl(a0, a1)
 	}
 
-	exec.HandleSyscallUpdates(&m.state.Cpu, &m.state.Registers, v0, v1)
+	exec.HandleSyscallUpdates(m.state.getCpu(), m.state.GetRegisters(), v0, v1)
 	return nil
 }
 
@@ -53,7 +53,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 	m.state.Step += 1
 	// instruction fetch
-	insn, opcode, fun := exec.GetInstructionDetails(m.state.Cpu.PC, m.state.Memory)
+	insn, opcode, fun := exec.GetInstructionDetails(m.state.GetPC(), m.state.Memory)
 
 	// Handle syscall separately
 	// syscall (can read and write)
@@ -62,5 +62,5 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// Exec the rest of the step logic
-	return exec.ExecMipsCoreStepLogic(&m.state.Cpu, &m.state.Registers, m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	return exec.ExecMipsCoreStepLogic(m.state.getCpu(), m.state.GetRegisters(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
 }

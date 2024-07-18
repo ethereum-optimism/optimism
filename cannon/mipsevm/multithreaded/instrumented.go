@@ -54,7 +54,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 	m.memoryTracker.Reset(proof)
 
 	if proof {
-		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
+		insnProof := m.state.Memory.MerkleProof(m.state.GetPC())
 		encodedWitness, stateHash := m.state.EncodeWitness()
 		wit = &mipsevm.StepWitness{
 			State:     encodedWitness,
