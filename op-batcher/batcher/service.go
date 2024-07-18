@@ -53,7 +53,7 @@ type BatcherService struct {
 	Metrics          metrics.Metricer
 	L1Client         *ethclient.Client
 	EndpointProvider dial.L2EndpointProvider
-	TxManager        txmgr.TxManager
+	TxManager        *txmgr.SimpleTxManager
 	PlasmaDA         *plasma.DAClient
 
 	BatcherConfig
@@ -426,8 +426,10 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 
 var _ cliapp.Lifecycle = (*BatcherService)(nil)
 
-// Driver returns the handler on the batch-submitter driver element,
-// to start/stop/restart the batch-submission work, for use in testing.
-func (bs *BatcherService) Driver() rpc.BatcherDriver {
-	return bs.driver
+// TestDriver returns a handler for the batch-submitter driver element, to start/stop/restart the
+// batch-submission work, for use only in testing.
+func (bs *BatcherService) TestDriver() *TestBatchSubmitter {
+	return &TestBatchSubmitter{
+		BatchSubmitter: bs.driver,
+	}
 }
