@@ -11,16 +11,26 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
+// Syscall codes
 const (
-	SysMmap      = 4090
-	SysBrk       = 4045
-	SysClone     = 4120
-	SysExitGroup = 4246
-	SysRead      = 4003
-	SysWrite     = 4004
-	SysFcntl     = 4055
+	SysMmap         = 4090
+	SysBrk          = 4045
+	SysClone        = 4120
+	SysExitGroup    = 4246
+	SysRead         = 4003
+	SysWrite        = 4004
+	SysFcntl        = 4055
+	SysExit         = 4001
+	SysSchedYield   = 4162
+	SysGetTID       = 4222
+	SysGetAffinity  = 4240
+	SysClockGetTime = 4263
+	SysFutex        = 4238
+	SysOpen         = 4005
+	SysNanosleep    = 4166
 )
 
+// File descriptors
 const (
 	FdStdin         = 0
 	FdStdout        = 1
@@ -31,9 +41,26 @@ const (
 	FdPreimageWrite = 6
 )
 
+// Errors
 const (
-	MipsEBADF  = 0x9
-	MipsEINVAL = 0x16
+	MipsEBADF     = 0x9
+	MipsEINVAL    = 0x16
+	MipsEAGAIN    = 0xb
+	MipsETIMEDOUT = 0x91
+)
+
+// Futex ops and other constants
+const (
+	FutexWaitPrivate  = 128
+	FutexWakePrivate  = 129
+	FutexTimeoutSteps = 10_000
+	FutexNoTimeout    = ^uint64(0)
+)
+
+// Other constants
+const (
+	SchedQuantum = 100_000
+	BrkStart     = 0x40000000
 )
 
 func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
