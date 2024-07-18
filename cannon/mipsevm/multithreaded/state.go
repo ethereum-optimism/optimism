@@ -1,4 +1,4 @@
-package mipsevm
+package multithreaded
 
 import (
 	"encoding/binary"
@@ -7,6 +7,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
 // SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
@@ -22,14 +25,14 @@ const THREAD_WITNESS_SIZE = SERIALIZED_THREAD_SIZE + 32
 var EmptyThreadsRoot common.Hash = common.HexToHash("0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5")
 
 type ThreadState struct {
-	ThreadId         uint32     `json:"threadId"`
-	ExitCode         uint8      `json:"exit"`
-	Exited           bool       `json:"exited"`
-	FutexAddr        uint32     `json:"futexAddr"`
-	FutexVal         uint32     `json:"futexVal"`
-	FutexTimeoutStep uint64     `json:"futexTimeoutStep"`
-	Cpu              CpuScalars `json:"cpu"`
-	Registers        [32]uint32 `json:"registers"`
+	ThreadId         uint32             `json:"threadId"`
+	ExitCode         uint8              `json:"exit"`
+	Exited           bool               `json:"exited"`
+	FutexAddr        uint32             `json:"futexAddr"`
+	FutexVal         uint32             `json:"futexVal"`
+	FutexTimeoutStep uint64             `json:"futexTimeoutStep"`
+	Cpu              mipsevm.CpuScalars `json:"cpu"`
+	Registers        [32]uint32         `json:"registers"`
 }
 
 func (t *ThreadState) serializeThread() []byte {
@@ -37,7 +40,7 @@ func (t *ThreadState) serializeThread() []byte {
 
 	out = binary.BigEndian.AppendUint32(out, t.ThreadId)
 	out = append(out, t.ExitCode)
-	out = AppendBoolToWitness(out, t.Exited)
+	out = mipsevm.AppendBoolToWitness(out, t.Exited)
 	out = binary.BigEndian.AppendUint32(out, t.FutexAddr)
 	out = binary.BigEndian.AppendUint32(out, t.FutexVal)
 	out = binary.BigEndian.AppendUint64(out, t.FutexTimeoutStep)
@@ -64,26 +67,26 @@ func computeThreadRoot(prevStackRoot common.Hash, threadToPush *ThreadState) com
 	return crypto.Keccak256Hash(hashData)
 }
 
-// MT_STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
-const MT_STATE_WITNESS_SIZE = 163
+// STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
+const STATE_WITNESS_SIZE = 163
 const (
-	MEMROOT_MT_WITNESS_OFFSET                    = 0
-	PREIMAGE_KEY_MT_WITNESS_OFFSET               = MEMROOT_MT_WITNESS_OFFSET + 32
-	PREIMAGE_OFFSET_MT_WITNESS_OFFSET            = PREIMAGE_KEY_MT_WITNESS_OFFSET + 32
-	HEAP_MT_WITNESS_OFFSET                       = PREIMAGE_OFFSET_MT_WITNESS_OFFSET + 4
-	EXITCODE_MT_WITNESS_OFFSET                   = HEAP_MT_WITNESS_OFFSET + 4
-	EXITED_MT_WITNESS_OFFSET                     = EXITCODE_MT_WITNESS_OFFSET + 1
-	STEP_MT_WITNESS_OFFSET                       = EXITED_MT_WITNESS_OFFSET + 1
-	STEPS_SINCE_CONTEXT_SWITCH_MT_WITNESS_OFFSET = STEP_MT_WITNESS_OFFSET + 8
-	WAKEUP_MT_WITNESS_OFFSET                     = STEPS_SINCE_CONTEXT_SWITCH_MT_WITNESS_OFFSET + 8
-	TRAVERSE_RIGHT_MT_WITNESS_OFFSET             = WAKEUP_MT_WITNESS_OFFSET + 4
-	LEFT_THREADS_ROOT_MT_WITNESS_OFFSET          = TRAVERSE_RIGHT_MT_WITNESS_OFFSET + 1
-	RIGHT_THREADS_ROOT_MT_WITNESS_OFFSET         = LEFT_THREADS_ROOT_MT_WITNESS_OFFSET + 32
-	THREAD_ID_MT_WITNESS_OFFSET                  = RIGHT_THREADS_ROOT_MT_WITNESS_OFFSET + 32
+	MEMROOT_WITNESS_OFFSET                    = 0
+	PREIMAGE_KEY_WITNESS_OFFSET               = MEMROOT_WITNESS_OFFSET + 32
+	PREIMAGE_OFFSET_WITNESS_OFFSET            = PREIMAGE_KEY_WITNESS_OFFSET + 32
+	HEAP_WITNESS_OFFSET                       = PREIMAGE_OFFSET_WITNESS_OFFSET + 4
+	EXITCODE_WITNESS_OFFSET                   = HEAP_WITNESS_OFFSET + 4
+	EXITED_WITNESS_OFFSET                     = EXITCODE_WITNESS_OFFSET + 1
+	STEP_WITNESS_OFFSET                       = EXITED_WITNESS_OFFSET + 1
+	STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET = STEP_WITNESS_OFFSET + 8
+	WAKEUP_WITNESS_OFFSET                     = STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET + 8
+	TRAVERSE_RIGHT_WITNESS_OFFSET             = WAKEUP_WITNESS_OFFSET + 4
+	LEFT_THREADS_ROOT_WITNESS_OFFSET          = TRAVERSE_RIGHT_WITNESS_OFFSET + 1
+	RIGHT_THREADS_ROOT_WITNESS_OFFSET         = LEFT_THREADS_ROOT_WITNESS_OFFSET + 32
+	THREAD_ID_WITNESS_OFFSET                  = RIGHT_THREADS_ROOT_WITNESS_OFFSET + 32
 )
 
-type MTState struct {
-	Memory *Memory `json:"memory"`
+type State struct {
+	Memory *memory.Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
 	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
@@ -113,13 +116,13 @@ type MTState struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
-func CreateEmptyMTState() *MTState {
+func CreateEmptyState() *State {
 	initThreadId := uint32(0)
 	initThread := ThreadState{
 		ThreadId: initThreadId,
 		ExitCode: 0,
 		Exited:   false,
-		Cpu: CpuScalars{
+		Cpu: mipsevm.CpuScalars{
 			PC:     0,
 			NextPC: 0,
 			LO:     0,
@@ -131,8 +134,8 @@ func CreateEmptyMTState() *MTState {
 		Registers:        [32]uint32{},
 	}
 
-	return &MTState{
-		Memory:           NewMemory(),
+	return &State{
+		Memory:           memory.NewMemory(),
 		Heap:             0,
 		ExitCode:         0,
 		Exited:           false,
@@ -145,8 +148,8 @@ func CreateEmptyMTState() *MTState {
 	}
 }
 
-func CreateInitialMTState(pc, heapStart uint32) *MTState {
-	state := CreateEmptyMTState()
+func CreateInitialState(pc, heapStart uint32) *State {
+	state := CreateEmptyState()
 	currentThread := state.getCurrentThread()
 	currentThread.Cpu.PC = pc
 	currentThread.Cpu.NextPC = pc + 4
@@ -155,7 +158,7 @@ func CreateInitialMTState(pc, heapStart uint32) *MTState {
 	return state
 }
 
-func (s *MTState) getCurrentThread() *ThreadState {
+func (s *State) getCurrentThread() *ThreadState {
 	activeStack := s.getActiveThreadStack()
 
 	activeStackSize := len(activeStack)
@@ -166,9 +169,7 @@ func (s *MTState) getCurrentThread() *ThreadState {
 	return &activeStack[activeStackSize-1]
 }
 
-type ThreadMutator func(thread *ThreadState)
-
-func (s *MTState) getActiveThreadStack() []ThreadState {
+func (s *State) getActiveThreadStack() []ThreadState {
 	var activeStack []ThreadState
 	if s.TraverseRight {
 		activeStack = s.RightThreadStack
@@ -179,15 +180,15 @@ func (s *MTState) getActiveThreadStack() []ThreadState {
 	return activeStack
 }
 
-func (s *MTState) getRightThreadStackRoot() common.Hash {
+func (s *State) getRightThreadStackRoot() common.Hash {
 	return s.calculateThreadStackRoot(s.RightThreadStack)
 }
 
-func (s *MTState) getLeftThreadStackRoot() common.Hash {
+func (s *State) getLeftThreadStackRoot() common.Hash {
 	return s.calculateThreadStackRoot(s.LeftThreadStack)
 }
 
-func (s *MTState) calculateThreadStackRoot(stack []ThreadState) common.Hash {
+func (s *State) calculateThreadStackRoot(stack []ThreadState) common.Hash {
 	curRoot := EmptyThreadsRoot
 	for _, thread := range stack {
 		curRoot = computeThreadRoot(curRoot, &thread)
@@ -196,44 +197,49 @@ func (s *MTState) calculateThreadStackRoot(stack []ThreadState) common.Hash {
 	return curRoot
 }
 
-func (s *MTState) PreemptThread() {
+func (s *State) PreemptThread() {
 	// TODO(CP-903)
 	panic("Not Implemented")
 }
 
-func (s *MTState) PushThread(thread *ThreadState) {
+func (s *State) PushThread(thread *ThreadState) {
 	// TODO(CP-903)
 	panic("Not Implemented")
 }
 
-func (s *MTState) GetPC() uint32 {
+func (s *State) GetPC() uint32 {
 	activeThread := s.getCurrentThread()
 	return activeThread.Cpu.PC
 }
 
-func (s *MTState) GetExitCode() uint8 { return s.ExitCode }
-
-func (s *MTState) GetExited() bool { return s.Exited }
-
-func (s *MTState) GetStep() uint64 { return s.Step }
-
-func (s *MTState) VMStatus() uint8 {
-	return vmStatus(s.Exited, s.ExitCode)
+func (s *State) GetRegisters() *[32]uint32 {
+	activeThread := s.getCurrentThread()
+	return &activeThread.Registers
 }
 
-func (s *MTState) GetMemory() *Memory {
+func (s *State) GetExitCode() uint8 { return s.ExitCode }
+
+func (s *State) GetExited() bool { return s.Exited }
+
+func (s *State) GetStep() uint64 { return s.Step }
+
+func (s *State) VMStatus() uint8 {
+	return mipsevm.VmStatus(s.Exited, s.ExitCode)
+}
+
+func (s *State) GetMemory() *memory.Memory {
 	return s.Memory
 }
 
-func (s *MTState) EncodeWitness() ([]byte, common.Hash) {
-	out := make([]byte, 0, MT_STATE_WITNESS_SIZE)
+func (s *State) EncodeWitness() ([]byte, common.Hash) {
+	out := make([]byte, 0, STATE_WITNESS_SIZE)
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
 	out = append(out, s.PreimageKey[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
 	out = append(out, s.ExitCode)
-	out = AppendBoolToWitness(out, s.Exited)
+	out = mipsevm.AppendBoolToWitness(out, s.Exited)
 
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	out = binary.BigEndian.AppendUint64(out, s.StepsSinceLastContextSwitch)
@@ -241,31 +247,31 @@ func (s *MTState) EncodeWitness() ([]byte, common.Hash) {
 
 	leftStackRoot := s.getLeftThreadStackRoot()
 	rightStackRoot := s.getRightThreadStackRoot()
-	out = AppendBoolToWitness(out, s.TraverseRight)
+	out = mipsevm.AppendBoolToWitness(out, s.TraverseRight)
 	out = append(out, (leftStackRoot)[:]...)
 	out = append(out, (rightStackRoot)[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.NextThreadId)
 
-	return out, mtStateHashFromWitness(out)
+	return out, stateHashFromWitness(out)
 }
 
-type MTStateWitness []byte
+type StateWitness []byte
 
-func (sw MTStateWitness) StateHash() (common.Hash, error) {
-	if len(sw) != MT_STATE_WITNESS_SIZE {
-		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), MT_STATE_WITNESS_SIZE)
+func (sw StateWitness) StateHash() (common.Hash, error) {
+	if len(sw) != STATE_WITNESS_SIZE {
+		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), STATE_WITNESS_SIZE)
 	}
-	return mtStateHashFromWitness(sw), nil
+	return stateHashFromWitness(sw), nil
 }
 
-func mtStateHashFromWitness(sw []byte) common.Hash {
-	if len(sw) != MT_STATE_WITNESS_SIZE {
+func stateHashFromWitness(sw []byte) common.Hash {
+	if len(sw) != STATE_WITNESS_SIZE {
 		panic("Invalid witness length")
 	}
 	hash := crypto.Keccak256Hash(sw)
-	exitCode := sw[EXITCODE_MT_WITNESS_OFFSET]
-	exited := sw[EXITED_MT_WITNESS_OFFSET]
-	status := vmStatus(exited == 1, exitCode)
+	exitCode := sw[EXITCODE_WITNESS_OFFSET]
+	exited := sw[EXITED_WITNESS_OFFSET]
+	status := mipsevm.VmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash
 }

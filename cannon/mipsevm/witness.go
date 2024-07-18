@@ -20,6 +20,8 @@ func (wit *StepWitness) HasPreimage() bool {
 	return wit.PreimageKey != ([32]byte{})
 }
 
+type HashFn func(sw []byte) (common.Hash, error)
+
 func AppendBoolToWitness(witnessData []byte, boolVal bool) []byte {
 	if boolVal {
 		return append(witnessData, 1)

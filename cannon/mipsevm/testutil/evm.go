@@ -1,9 +1,12 @@
-package mipsevm
+package testutil
 
 import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"os"
+
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
@@ -21,12 +24,12 @@ import (
 
 // LoadArtifacts loads the Cannon contracts, from the contracts package.
 func LoadArtifacts() (*Artifacts, error) {
-	mips, err := foundry.ReadArtifact("../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
+	mips, err := foundry.ReadArtifact("../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
 	}
 
-	oracle, err := foundry.ReadArtifact("../../packages/contracts-bedrock/forge-artifacts/PreimageOracle.sol/PreimageOracle.json")
+	oracle, err := foundry.ReadArtifact("../../../packages/contracts-bedrock/forge-artifacts/PreimageOracle.sol/PreimageOracle.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Oracle contract: %w", err)
 	}
@@ -117,4 +120,8 @@ func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
 		BaseFee:         big.NewInt(7),
 		WithdrawalsHash: &types.EmptyWithdrawalsHash,
 	}
+}
+
+func MarkdownTracer() vm.EVMLogger {
+	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 }

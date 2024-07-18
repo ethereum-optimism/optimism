@@ -1,12 +1,19 @@
 package mipsevm
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+)
 
 type FPVMState interface {
-	GetMemory() *Memory
+	GetMemory() *memory.Memory
 
 	// GetPC returns the currently executing program counter
 	GetPC() uint32
+
+	// GetRegisters returns the currently active registers
+	GetRegisters() *[32]uint32
 
 	// GetStep returns the current VM step
 	GetStep() uint64

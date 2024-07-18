@@ -1,4 +1,4 @@
-package mipsevm
+package memory
 
 import (
 	"testing"

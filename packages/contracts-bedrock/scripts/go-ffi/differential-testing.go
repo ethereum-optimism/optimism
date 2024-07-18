@@ -7,10 +7,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -20,6 +16,11 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 // ABI types
@@ -359,7 +360,7 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProof":
 		// <pc, insn, [memAddr, memValue]>
-		mem := mipsevm.NewMemory()
+		mem := memory.NewMemory()
 		if len(args) != 3 && len(args) != 5 {
 			panic("Error: cannonMemoryProofWithProof requires 2 or 4 arguments")
 		}
@@ -392,7 +393,7 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProofWrongLeaf":
 		// <pc, insn, memAddr, memValue>
-		mem := mipsevm.NewMemory()
+		mem := memory.NewMemory()
 		if len(args) != 5 {
 			panic("Error: cannonMemoryProofWrongLeaf requires 4 arguments")
 		}

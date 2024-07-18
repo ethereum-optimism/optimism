@@ -1,21 +1,18 @@
-package mipsevm
+package singlethreaded
 
 import (
 	"errors"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
-
-type PreimageOracle interface {
-	Hint(v []byte)
-	GetPreimage(k [32]byte) []byte
-}
 
 type Debug struct {
 	stack  []uint32
 	caller []uint32
-	meta   *Metadata
+	meta   *program.Metadata
 }
 
 type InstrumentedState struct {
@@ -41,7 +38,7 @@ type InstrumentedState struct {
 	debugEnabled bool
 }
 
-func NewInstrumentedState(state *State, po PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
 		stdOut:         stdOut,
@@ -50,7 +47,7 @@ func NewInstrumentedState(state *State, po PreimageOracle, stdOut, stdErr io.Wri
 	}
 }
 
-func NewInstrumentedStateFromFile(stateFile string, po PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
+func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
 	state, err := jsonutil.LoadJSON[State](stateFile)
 	if err != nil {
 		return nil, err
@@ -63,7 +60,7 @@ func NewInstrumentedStateFromFile(stateFile string, po PreimageOracle, stdOut, s
 	}, nil
 }
 
-func (m *InstrumentedState) InitDebug(meta *Metadata) error {
+func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 	if meta == nil {
 		return errors.New("metadata is nil")
 	}
@@ -72,7 +69,7 @@ func (m *InstrumentedState) InitDebug(meta *Metadata) error {
 	return nil
 }
 
-func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
+func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {
 	m.memProofEnabled = proof
 	m.lastMemAccess = ^uint32(0)
 	m.lastPreimageOffset = ^uint32(0)
@@ -80,7 +77,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 	if proof {
 		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
 		encodedWitness, stateHash := m.state.EncodeWitness()
-		wit = &StepWitness{
+		wit = &mipsevm.StepWitness{
 			State:     encodedWitness,
 			StateHash: stateHash,
 			ProofData: insnProof[:],
@@ -106,26 +103,20 @@ func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
 	return m.lastPreimageKey, m.lastPreimage, m.lastPreimageOffset
 }
 
-func (m *InstrumentedState) GetState() FPVMState {
+func (m *InstrumentedState) GetState() mipsevm.FPVMState {
 	return m.state
 }
 
-func (m *InstrumentedState) GetDebugInfo() *DebugInfo {
-	return &DebugInfo{
+func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
+	return &mipsevm.DebugInfo{
 		Pages:               m.state.Memory.PageCount(),
 		NumPreimageRequests: m.preimageOracle.numPreimageRequests,
 		TotalPreimageSize:   m.preimageOracle.totalPreimageSize,
 	}
 }
 
-type DebugInfo struct {
-	Pages               int `json:"pages"`
-	NumPreimageRequests int `json:"num_preimage_requests"`
-	TotalPreimageSize   int `json:"total_preimage_size"`
-}
-
 type trackingOracle struct {
-	po                  PreimageOracle
+	po                  mipsevm.PreimageOracle
 	totalPreimageSize   int
 	numPreimageRequests int
 }

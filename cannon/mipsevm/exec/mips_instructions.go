@@ -1,11 +1,16 @@
-package mipsevm
+package exec
+
+import (
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+)
 
 type StackTracker interface {
-	pushStack(target uint32)
-	popStack()
+	PushStack(target uint32)
+	PopStack()
 }
 
-func getInstructionDetails(pc uint32, memory *Memory) (insn, opcode, fun uint32) {
+func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun uint32) {
 	insn = memory.GetMemory(pc)
 	opcode = insn >> 26 // First 6-bits
 	fun = insn & 0x3f   // Last 6-bits
@@ -13,7 +18,7 @@ func getInstructionDetails(pc uint32, memory *Memory) (insn, opcode, fun uint32)
 	return insn, opcode, fun
 }
 
-func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) error {
+func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker memory.MemTracker, stackTracker StackTracker) error {
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
 		linkReg := uint32(0)
@@ -22,8 +27,8 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 		}
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (cpu.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
-		stackTracker.pushStack(target)
-		return handleJump(cpu, registers, linkReg, target)
+		stackTracker.PushStack(target)
+		return HandleJump(cpu, registers, linkReg, target)
 	}
 
 	// register fetch
@@ -46,7 +51,7 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 			rt = insn & 0xFFFF
 		} else {
 			// SignExtImm
-			rt = signExtend(insn&0xFFFF, 16)
+			rt = SignExtend(insn&0xFFFF, 16)
 		}
 	} else if opcode >= 0x28 || opcode == 0x22 || opcode == 0x26 {
 		// store rt value with store
@@ -57,7 +62,7 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 	}
 
 	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		return handleBranch(cpu, registers, opcode, insn, rtReg, rs)
+		return HandleBranch(cpu, registers, opcode, insn, rtReg, rs)
 	}
 
 	storeAddr := uint32(0xFF_FF_FF_FF)
@@ -66,7 +71,7 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 	mem := uint32(0)
 	if opcode >= 0x20 {
 		// M[R[rs]+SignExtImm]
-		rs += signExtend(insn&0xFFFF, 16)
+		rs += SignExtend(insn&0xFFFF, 16)
 		addr := rs & 0xFFFFFFFC
 		memTracker(addr)
 		mem = memory.GetMemory(addr)
@@ -79,7 +84,7 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 	}
 
 	// ALU
-	val := executeMipsInstruction(insn, opcode, fun, rs, rt, mem)
+	val := ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem)
 
 	if opcode == 0 && fun >= 8 && fun < 0x1c {
 		if fun == 8 || fun == 9 { // jr/jalr
@@ -87,21 +92,21 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 			if fun == 9 {
 				linkReg = rdReg
 			}
-			stackTracker.popStack()
-			return handleJump(cpu, registers, linkReg, rs)
+			stackTracker.PopStack()
+			return HandleJump(cpu, registers, linkReg, rs)
 		}
 
 		if fun == 0xa { // movz
-			return handleRd(cpu, registers, rdReg, rs, rt == 0)
+			return HandleRd(cpu, registers, rdReg, rs, rt == 0)
 		}
 		if fun == 0xb { // movn
-			return handleRd(cpu, registers, rdReg, rs, rt != 0)
+			return HandleRd(cpu, registers, rdReg, rs, rt != 0)
 		}
 
 		// lo and hi registers
 		// can write back
 		if fun >= 0x10 && fun < 0x1c {
-			return handleHiLo(cpu, registers, fun, rs, rt, rdReg)
+			return HandleHiLo(cpu, registers, fun, rs, rt, rdReg)
 		}
 	}
 
@@ -117,10 +122,10 @@ func execMipsCoreStepLogic(cpu *CpuScalars, registers *[32]uint32, memory *Memor
 	}
 
 	// write back the value to destination register
-	return handleRd(cpu, registers, rdReg, val, true)
+	return HandleRd(cpu, registers, rdReg, val, true)
 }
 
-func executeMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
+func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 	if opcode == 0 || (opcode >= 8 && opcode < 0xF) {
 		// transform ArithLogI to SPECIAL
 		switch opcode {
@@ -147,13 +152,13 @@ func executeMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 			return rt >> ((insn >> 6) & 0x1F)
 		case 0x03: // sra
 			shamt := (insn >> 6) & 0x1F
-			return signExtend(rt>>shamt, 32-shamt)
+			return SignExtend(rt>>shamt, 32-shamt)
 		case 0x04: // sllv
 			return rt << (rs & 0x1F)
 		case 0x06: // srlv
 			return rt >> (rs & 0x1F)
 		case 0x07: // srav
-			return signExtend(rt>>rs, 32-rs)
+			return SignExtend(rt>>rs, 32-rs)
 		// functs in range [0x8, 0x1b] are handled specially by other functions
 		case 0x08: // jr
 			return rs
@@ -234,9 +239,9 @@ func executeMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 		case 0x0F: // lui
 			return rt << 16
 		case 0x20: // lb
-			return signExtend((mem>>(24-(rs&3)*8))&0xFF, 8)
+			return SignExtend((mem>>(24-(rs&3)*8))&0xFF, 8)
 		case 0x21: // lh
-			return signExtend((mem>>(16-(rs&2)*8))&0xFFFF, 16)
+			return SignExtend((mem>>(16-(rs&2)*8))&0xFFFF, 16)
 		case 0x22: // lwl
 			val := mem << ((rs & 3) * 8)
 			mask := uint32(0xFFFFFFFF) << ((rs & 3) * 8)
@@ -280,7 +285,7 @@ func executeMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 	panic("invalid instruction")
 }
 
-func signExtend(dat uint32, idx uint32) uint32 {
+func SignExtend(dat uint32, idx uint32) uint32 {
 	isSigned := (dat >> (idx - 1)) != 0
 	signed := ((uint32(1) << (32 - idx)) - 1) << idx
 	mask := (uint32(1) << idx) - 1
@@ -291,7 +296,7 @@ func signExtend(dat uint32, idx uint32) uint32 {
 	}
 }
 
-func handleBranch(cpu *CpuScalars, registers *[32]uint32, opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
+func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]uint32, opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
 	if cpu.NextPC != cpu.PC+4 {
 		panic("branch in delay slot")
 	}
@@ -318,14 +323,14 @@ func handleBranch(cpu *CpuScalars, registers *[32]uint32, opcode uint32, insn ui
 	prevPC := cpu.PC
 	cpu.PC = cpu.NextPC // execute the delay slot first
 	if shouldBranch {
-		cpu.NextPC = prevPC + 4 + (signExtend(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
+		cpu.NextPC = prevPC + 4 + (SignExtend(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
 	} else {
 		cpu.NextPC = cpu.NextPC + 4 // branch not taken
 	}
 	return nil
 }
 
-func handleHiLo(cpu *CpuScalars, registers *[32]uint32, fun uint32, rs uint32, rt uint32, storeReg uint32) error {
+func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]uint32, fun uint32, rs uint32, rt uint32, storeReg uint32) error {
 	val := uint32(0)
 	switch fun {
 	case 0x10: // mfhi
@@ -361,7 +366,7 @@ func handleHiLo(cpu *CpuScalars, registers *[32]uint32, fun uint32, rs uint32, r
 	return nil
 }
 
-func handleJump(cpu *CpuScalars, registers *[32]uint32, linkReg uint32, dest uint32) error {
+func HandleJump(cpu *mipsevm.CpuScalars, registers *[32]uint32, linkReg uint32, dest uint32) error {
 	if cpu.NextPC != cpu.PC+4 {
 		panic("jump in delay slot")
 	}
@@ -374,7 +379,7 @@ func handleJump(cpu *CpuScalars, registers *[32]uint32, linkReg uint32, dest uin
 	return nil
 }
 
-func handleRd(cpu *CpuScalars, registers *[32]uint32, storeReg uint32, val uint32, conditional bool) error {
+func HandleRd(cpu *mipsevm.CpuScalars, registers *[32]uint32, storeReg uint32, val uint32, conditional bool) error {
 	if storeReg >= 32 {
 		panic("invalid register")
 	}
