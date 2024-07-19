@@ -197,54 +197,6 @@ func (s *State) calculateThreadStackRoot(stack []*ThreadState) common.Hash {
 	return curRoot
 }
 
-func (s *State) PreemptThread(thread *ThreadState) {
-	// Pop thread from the current stack and push to the other stack
-	if s.TraverseRight {
-		rtThreadCnt := len(s.RightThreadStack)
-		if rtThreadCnt == 0 {
-			panic("empty right thread stack")
-		}
-		s.RightThreadStack = s.RightThreadStack[:rtThreadCnt-1]
-		s.LeftThreadStack = append(s.LeftThreadStack, thread)
-	} else {
-		lftThreadCnt := len(s.LeftThreadStack)
-		if lftThreadCnt == 0 {
-			panic("empty left thread stack")
-		}
-		s.LeftThreadStack = s.LeftThreadStack[:lftThreadCnt-1]
-		s.RightThreadStack = append(s.RightThreadStack, thread)
-	}
-
-	current := s.getActiveThreadStack()
-	if len(current) == 0 {
-		s.TraverseRight = !s.TraverseRight
-	}
-	s.StepsSinceLastContextSwitch = 0
-}
-
-func (s *State) PushThread(thread *ThreadState) {
-	if s.TraverseRight {
-		s.RightThreadStack = append(s.RightThreadStack, thread)
-	} else {
-		s.LeftThreadStack = append(s.LeftThreadStack, thread)
-	}
-	s.StepsSinceLastContextSwitch = 0
-}
-
-func (s *State) PopThread() {
-	if s.TraverseRight {
-		s.RightThreadStack = s.RightThreadStack[:len(s.RightThreadStack)-1]
-	} else {
-		s.LeftThreadStack = s.LeftThreadStack[:len(s.LeftThreadStack)-1]
-	}
-
-	current := s.getActiveThreadStack()
-	if len(current) == 0 {
-		s.TraverseRight = !s.TraverseRight
-	}
-	s.StepsSinceLastContextSwitch = 0
-}
-
 func (s *State) GetPC() uint32 {
 	activeThread := s.getCurrentThread()
 	return activeThread.Cpu.PC
