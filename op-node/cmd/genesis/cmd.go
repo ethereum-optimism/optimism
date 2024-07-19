@@ -10,6 +10,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -187,10 +189,23 @@ var Subcommands = cli.Commands{
 				}
 
 				if config.L1StartingBlockTag == nil {
-					l1StartBlock, err = client.BlockByNumber(context.Background(), nil)
+					// Retrieve SystemConfig.startBlock()
+					callOpts := &bind.CallOpts{Context: context.Background()}
+					systemConfig, err := bindings.NewSystemConfig(config.SystemConfigProxy, client)
 					if err != nil {
-						return fmt.Errorf("cannot fetch latest block: %w", err)
+						return fmt.Errorf("cannot create instance of SystemConfig contract: %w", err)
 					}
+
+					l1StartBlockNum, err := systemConfig.StartBlock(callOpts)
+					if err != nil {
+						return fmt.Errorf("cannot fetch startBlock from SystemConfig: %w", err)
+					}
+
+					l1StartBlock, err = client.BlockByNumber(context.Background(), l1StartBlockNum)
+					if err != nil {
+						return fmt.Errorf("cannot fetch block by number: %w", err)
+					}
+
 					tag := rpc.BlockNumberOrHashWithHash(l1StartBlock.Hash(), true)
 					config.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&tag)
 				} else if config.L1StartingBlockTag.BlockHash != nil {
