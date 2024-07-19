@@ -206,6 +206,20 @@ func (m *InstrumentedState) mipsStep() error {
 }
 
 func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {
-	// TODO(CP-903)
-	panic("Not Implemented")
+	// Clear the futex state
+	thread.FutexAddr = EMPTY_SIGNAL
+	thread.FutexVal = 0
+	thread.FutexTimeoutStep = 0
+
+	// Complete the FUTEX_WAIT syscall
+	v0 := uint32(0)
+	v1 := uint32(1)
+	if isTimedOut {
+		v0 = exec.SysErrorSignal
+		v1 = exec.MipsETIMEDOUT
+	}
+	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
+
+	// Clear wakeup signal
+	m.state.Wakeup = EMPTY_SIGNAL
 }
