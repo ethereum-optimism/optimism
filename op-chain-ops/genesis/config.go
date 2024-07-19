@@ -248,7 +248,7 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are required to adopt, to stay in sync with the network.
 	RequiredProtocolVersion params.ProtocolVersion `json:"requiredProtocolVersion"`
-	// RequiredProtocolVersion indicates the protocol version that
+	// RecommendedProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
 	// ProofMaturityDelaySeconds is the number of seconds that a proof must be
