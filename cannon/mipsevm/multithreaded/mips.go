@@ -111,7 +111,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = 0
 			v1 = 0
 			exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-			m.preemptThread(thread)
+			m.preemptThread(thread, true)
 			m.state.TraverseRight = false
 			return nil
 		default:
@@ -122,7 +122,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0 = 0
 		v1 = 0
 		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-		m.preemptThread(thread)
+		m.preemptThread(thread, true)
 		return nil
 	case exec.SysOpen:
 		v0 = exec.SysErrorSignal
@@ -156,7 +156,7 @@ func (m *InstrumentedState) mipsStep() error {
 	// Search for the first thread blocked by the wakeup call, if wakeup is set
 	// Don't allow regular execution until we resolved if we have woken up any thread.
 	if m.state.Wakeup != EMPTY_SIGNAL && m.state.Wakeup != thread.FutexAddr {
-		m.preemptThread(thread)
+		m.preemptThread(thread, !m.state.TraverseRight)
 		return nil
 	}
 
@@ -173,7 +173,7 @@ func (m *InstrumentedState) mipsStep() error {
 			mem := m.state.Memory.GetMemory(thread.FutexAddr)
 			if thread.FutexVal == mem {
 				// still got expected value, continue sleeping, try next thread.
-				m.preemptThread(thread)
+				m.preemptThread(thread, true)
 				return nil
 			} else {
 				// wake thread up, the value at its address changed!
@@ -187,7 +187,7 @@ func (m *InstrumentedState) mipsStep() error {
 		// Force a context switch as this thread has been active too long
 		msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
 		m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount())
-		m.preemptThread(thread)
+		m.preemptThread(thread, true)
 		return nil
 	}
 	m.state.StepsSinceLastContextSwitch += 1
@@ -224,7 +224,7 @@ func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool)
 	m.state.Wakeup = EMPTY_SIGNAL
 }
 
-func (m *InstrumentedState) preemptThread(thread *ThreadState) {
+func (m *InstrumentedState) preemptThread(thread *ThreadState, doUpdateDirection bool) {
 	// Pop thread from the current stack and push to the other stack
 	if m.state.TraverseRight {
 		rtThreadCnt := len(m.state.RightThreadStack)
@@ -243,7 +243,7 @@ func (m *InstrumentedState) preemptThread(thread *ThreadState) {
 	}
 
 	current := m.state.getActiveThreadStack()
-	if len(current) == 0 {
+	if doUpdateDirection && len(current) == 0 {
 		m.state.TraverseRight = !m.state.TraverseRight
 	}
 	m.state.StepsSinceLastContextSwitch = 0
