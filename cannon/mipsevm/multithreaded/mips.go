@@ -112,7 +112,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			v1 = 0
 			exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 			m.preemptThread(thread, true)
-			m.state.TraverseRight = false
+			m.state.TraverseRight = len(m.state.LeftThreadStack) == 0
 			return nil
 		default:
 			v0 = exec.SysErrorSignal
