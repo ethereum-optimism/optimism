@@ -8,7 +8,7 @@ import (
 )
 
 func (m *InstrumentedState) handleSyscall() error {
-	syscallNum, a0, a1, a2 := exec.GetSyscallArgs(&m.state.Registers)
+	syscallNum, a0, a1, a2, _ := exec.GetSyscallArgs(&m.state.Registers)
 
 	v0 := uint32(0)
 	v1 := uint32(0)

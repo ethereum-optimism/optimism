@@ -13,7 +13,7 @@ const EMPTY_SIGNAL = ^uint32(0)
 func (m *InstrumentedState) handleSyscall() error {
 	thread := m.state.getCurrentThread()
 
-	syscallNum, a0, a1, a2 := exec.GetSyscallArgs(m.state.GetRegisters())
+	syscallNum, a0, a1, a2, a3 := exec.GetSyscallArgs(m.state.GetRegisters())
 	v0 := uint32(0)
 	v1 := uint32(0)
 
@@ -52,9 +52,9 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.NextThreadId++
 
 		// Preempt this thread for the new one. But not before updating PCs
-		thread.Cpu.PC = thread.Cpu.NextPC
-		thread.Cpu.NextPC = thread.Cpu.NextPC + 4
+		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 		m.state.PushThread(newThread)
+		return nil
 	case exec.SysExitGroup:
 		m.state.Exited = true
 		m.state.ExitCode = uint8(a0)
@@ -73,9 +73,62 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.PreimageOffset = newPreimageOffset
 	case exec.SysFcntl:
 		v0, v1 = exec.HandleSysFcntl(a0, a1)
+	case exec.SysGetTID:
+		v0 = thread.ThreadId
+		v1 = 0
+	case exec.SysExit:
+		thread.Exited = true
+		thread.ExitCode = uint8(a0)
+		return nil
+	case exec.SysFutex:
+		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
+		switch a1 {
+		case exec.FutexWaitPrivate:
+			thread.FutexAddr = a0
+			m.memoryTracker.TrackMemAccess(a0)
+			mem := m.state.Memory.GetMemory(a0)
+			if mem != a2 {
+				v0 = EMPTY_SIGNAL
+				v1 = exec.MipsEAGAIN
+			} else {
+				thread.FutexVal = a2
+				if a3 == 0 {
+					thread.FutexTimeoutStep = exec.FutexNoTimeout
+				} else {
+					thread.FutexTimeoutStep = m.state.Step + exec.FutexTimeoutSteps
+				}
+				// Leave cpu scalars as-is. This instruction will be completed by `onWaitComplete`
+				return nil
+			}
+		case exec.FutexWakePrivate:
+			// Trigger thread traversal starting from the left stack until we find one waiting on the wakeup
+			// address
+			m.state.Wakeup = a0
+			// Don't indicate to the program that we've woken up a waiting thread, as there are no guarantees.
+			// The woken up thread should indicate this in userspace.
+			v0 = 0
+			v1 = 0
+			exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
+			m.state.PreemptThread()
+			m.state.TraverseRight = false
+			return nil
+		default:
+			v0 = exec.SysErrorSignal
+			v1 = exec.MipsEINVAL
+		}
+	case exec.SysSchedYield, exec.SysNanosleep:
+		v0 = 0
+		v1 = 0
+		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
+		m.state.PreemptThread()
+		return nil
+	case exec.SysOpen:
+		v0 = exec.SysErrorSignal
+		v1 = exec.MipsEBADF
+
 	}
 
-	exec.HandleSyscallUpdates(m.state.getCpu(), m.state.GetRegisters(), v0, v1)
+	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 	return nil
 }
 

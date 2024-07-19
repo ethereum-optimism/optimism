@@ -43,10 +43,11 @@ const (
 
 // Errors
 const (
-	MipsEBADF     = 0x9
-	MipsEINVAL    = 0x16
-	MipsEAGAIN    = 0xb
-	MipsETIMEDOUT = 0x91
+	SysErrorSignal = ^uint32(0)
+	MipsEBADF      = 0x9
+	MipsEINVAL     = 0x16
+	MipsEAGAIN     = 0xb
+	MipsETIMEDOUT  = 0x91
 )
 
 // Futex ops and other constants
@@ -63,14 +64,15 @@ const (
 	BrkStart     = 0x40000000
 )
 
-func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
+func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2, a3 uint32) {
 	syscallNum = registers[2] // v0
 
 	a0 = registers[4]
 	a1 = registers[5]
 	a2 = registers[6]
+	a3 = registers[7]
 
-	return syscallNum, a0, a1, a2
+	return syscallNum, a0, a1, a2, a3
 }
 
 func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
