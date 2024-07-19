@@ -48,7 +48,7 @@ Governance discussion can also be found on the [Optimism Governance Forum](https
 
 ## Contributing
 
-The OP Stack is a collaborative project. By collaborating on free, open software and shared standards, the Optimism Collective aims to prevent siloed software development and rapidly accelerate the development of the Ethereum ecosystem. Come contribute, build the future, and redefine power, together.
+The OP Stack is a common development stack for building L2 blockchain ecosystems, built by the Optimism Collective to power Optimism.
 
 [CONTRIBUTING.md](./CONTRIBUTING.md) contains a detailed explanation of the contributing process for this repository. Make sure to use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to properly set up your development environment.
 
