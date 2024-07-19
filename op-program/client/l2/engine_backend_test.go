@@ -273,14 +273,22 @@ func setupOracleBackedChainWithLowerHead(t *testing.T, blockCount int, headBlock
 
 func setupOracle(t *testing.T, blockCount int, headBlockNumber int, enableEcotone bool) (*params.ChainConfig, []*types.Block, *l2test.StubBlockOracle) {
 	deployConfig := &genesis.DeployConfig{
-		L1ChainID:              900,
-		L2ChainID:              901,
-		L2BlockTime:            2,
-		FundDevAccounts:        true,
-		L2GenesisBlockGasLimit: 30_000_000,
-		// Arbitrary non-zero difficulty in genesis.
-		// This is slightly weird for a chain starting post-merge but it happens so need to make sure it works
-		L2GenesisBlockDifficulty: (*hexutil.Big)(big.NewInt(100)),
+		L2InitializationConfig: genesis.L2InitializationConfig{
+			DevDeployConfig: genesis.DevDeployConfig{
+				FundDevAccounts: true,
+			},
+			L2GenesisBlockDeployConfig: genesis.L2GenesisBlockDeployConfig{
+				L2GenesisBlockGasLimit: 30_000_000,
+				// Arbitrary non-zero difficulty in genesis.
+				// This is slightly weird for a chain starting post-merge but it happens so need to make sure it works
+				L2GenesisBlockDifficulty: (*hexutil.Big)(big.NewInt(100)),
+			},
+			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
+				L1ChainID:   900,
+				L2ChainID:   901,
+				L2BlockTime: 2,
+			},
+		},
 	}
 	if enableEcotone {
 		ts := hexutil.Uint64(0)

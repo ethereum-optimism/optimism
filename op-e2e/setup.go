@@ -92,7 +92,8 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
 	e2eutils.ApplyDeployConfigForks(deployConfig)
-	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
+	require.NoError(t, deployConfig.Check(testlog.Logger(t, log.LevelInfo)),
+		"Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
 	require.NoError(t, l1Deployments.Check(deployConfig))
 
@@ -454,7 +455,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		c = sys.TimeTravelClock
 	}
 
-	if err := cfg.DeployConfig.Check(); err != nil {
+	if err := cfg.DeployConfig.Check(testlog.Logger(t, log.LevelInfo)); err != nil {
 		return nil, err
 	}
 

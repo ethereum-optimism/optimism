@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var (
@@ -104,7 +105,9 @@ var Subcommands = cli.Commands{
 				config.SetDeployments(deployments)
 			}
 
-			if err := config.Check(); err != nil {
+			cfg := oplog.DefaultCLIConfig()
+			logger := oplog.NewLogger(ctx.App.Writer, cfg)
+			if err := config.Check(logger); err != nil {
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 
@@ -211,9 +214,11 @@ var Subcommands = cli.Commands{
 				return errors.New("no starting L1 block")
 			}
 
+			cfg := oplog.DefaultCLIConfig()
+			logger := oplog.NewLogger(ctx.App.Writer, cfg)
 			// Sanity check the config. Do this after filling in the L1StartingBlockTag
 			// if it is not defined.
-			if err := config.Check(); err != nil {
+			if err := config.Check(logger); err != nil {
 				return err
 			}
 

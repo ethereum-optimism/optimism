@@ -9,9 +9,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestConfigDataMarshalUnmarshal(t *testing.T) {
@@ -22,6 +25,8 @@ func TestConfigDataMarshalUnmarshal(t *testing.T) {
 	decoded := new(DeployConfig)
 	require.NoError(t, dec.Decode(decoded))
 	require.EqualValues(t, "non-default value", string(decoded.L2GenesisBlockExtraData))
+
+	require.NoError(t, decoded.Check(testlog.Logger(t, log.LevelDebug)))
 
 	encoded, err := json.MarshalIndent(decoded, "", "  ")
 	require.NoError(t, err)
@@ -39,25 +44,37 @@ func TestUnmarshalL1StartingBlockTag(t *testing.T) {
 
 func TestRegolithTimeZero(t *testing.T) {
 	regolithOffset := hexutil.Uint64(0)
-	config := &DeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset}
+	config := &DeployConfig{
+		L2InitializationConfig: L2InitializationConfig{
+			UpgradeScheduleDeployConfig: UpgradeScheduleDeployConfig{
+				L2GenesisRegolithTimeOffset: &regolithOffset}}}
 	require.Equal(t, uint64(0), *config.RegolithTime(1234))
 }
 
 func TestRegolithTimeAsOffset(t *testing.T) {
 	regolithOffset := hexutil.Uint64(1500)
-	config := &DeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset}
+	config := &DeployConfig{
+		L2InitializationConfig: L2InitializationConfig{
+			UpgradeScheduleDeployConfig: UpgradeScheduleDeployConfig{
+				L2GenesisRegolithTimeOffset: &regolithOffset}}}
 	require.Equal(t, uint64(1500+5000), *config.RegolithTime(5000))
 }
 
 func TestCanyonTimeZero(t *testing.T) {
 	canyonOffset := hexutil.Uint64(0)
-	config := &DeployConfig{L2GenesisCanyonTimeOffset: &canyonOffset}
+	config := &DeployConfig{
+		L2InitializationConfig: L2InitializationConfig{
+			UpgradeScheduleDeployConfig: UpgradeScheduleDeployConfig{
+				L2GenesisCanyonTimeOffset: &canyonOffset}}}
 	require.Equal(t, uint64(0), *config.CanyonTime(1234))
 }
 
 func TestCanyonTimeOffset(t *testing.T) {
 	canyonOffset := hexutil.Uint64(1500)
-	config := &DeployConfig{L2GenesisCanyonTimeOffset: &canyonOffset}
+	config := &DeployConfig{
+		L2InitializationConfig: L2InitializationConfig{
+			UpgradeScheduleDeployConfig: UpgradeScheduleDeployConfig{
+				L2GenesisCanyonTimeOffset: &canyonOffset}}}
 	require.Equal(t, uint64(1234+1500), *config.CanyonTime(1234))
 }
 
