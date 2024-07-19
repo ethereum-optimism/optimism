@@ -207,6 +207,11 @@ func (s *State) PushThread(thread *ThreadState) {
 	panic("Not Implemented")
 }
 
+func (s *State) PopThread() {
+	// TODO(CP-903)
+	panic("Not Implemented")
+}
+
 func (s *State) GetPC() uint32 {
 	activeThread := s.getCurrentThread()
 	return activeThread.Cpu.PC

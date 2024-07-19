@@ -137,7 +137,59 @@ func (m *InstrumentedState) mipsStep() error {
 		return nil
 	}
 	m.state.Step += 1
-	// instruction fetch
+
+	// If we've completed traversing both stacks for the wakeup check
+	if m.state.Wakeup != EMPTY_SIGNAL && m.state.TraverseRight && len(m.state.RightThreadStack) == 0 {
+		m.state.TraverseRight = false
+		m.state.Wakeup = EMPTY_SIGNAL
+		return nil
+	}
+
+	thread := m.state.getCurrentThread()
+	if thread.Exited {
+		m.state.PopThread()
+		return nil
+	}
+
+	// Search for the first thread blocked by the wakeup call, if wakeup is set
+	// Don't allow regular execution until we resolved if we have woken up any thread.
+	if m.state.Wakeup != EMPTY_SIGNAL && m.state.Wakeup != thread.FutexAddr {
+		m.state.PreemptThread()
+		return nil
+	}
+
+	// check if thread is blocked on a futex
+	if thread.FutexAddr != EMPTY_SIGNAL {
+		// if set, then check futex
+		// check timeout first
+		if m.state.Step > thread.FutexTimeoutStep {
+			// timeout! Allow execution
+			m.onWaitComplete(thread, true)
+			return nil
+		} else {
+			m.memoryTracker.TrackMemAccess(thread.FutexAddr)
+			mem := m.state.Memory.GetMemory(thread.FutexAddr)
+			if thread.FutexVal == mem {
+				// still got expected value, continue sleeping, try next thread.
+				m.state.PreemptThread()
+				return nil
+			} else {
+				// wake thread up, the value at its address changed!
+				// Userspace can turn thread back to sleep if it was too sporadic.
+				m.onWaitComplete(thread, false)
+			}
+		}
+	}
+
+	if m.state.StepsSinceLastContextSwitch == exec.SchedQuantum {
+		// Force a context switch as this thread has been active too long
+		// TODO(CP-903) Add logging here
+		m.state.PreemptThread()
+		return nil
+	}
+	m.state.StepsSinceLastContextSwitch += 1
+
+	//instruction fetch
 	insn, opcode, fun := exec.GetInstructionDetails(m.state.GetPC(), m.state.Memory)
 
 	// Handle syscall separately
@@ -148,4 +200,9 @@ func (m *InstrumentedState) mipsStep() error {
 
 	// Exec the rest of the step logic
 	return exec.ExecMipsCoreStepLogic(m.state.getCpu(), m.state.GetRegisters(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+}
+
+func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {
+	// TODO(CP-903)
+	panic("Not Implemented")
 }
