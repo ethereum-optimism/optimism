@@ -1,6 +1,8 @@
 package multithreaded
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -183,7 +185,8 @@ func (m *InstrumentedState) mipsStep() error {
 
 	if m.state.StepsSinceLastContextSwitch == exec.SchedQuantum {
 		// Force a context switch as this thread has been active too long
-		// TODO(CP-903) Add logging here
+		msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
+		m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount())
 		m.state.PreemptThread()
 		return nil
 	}

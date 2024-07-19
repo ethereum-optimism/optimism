@@ -3,6 +3,8 @@ package multithreaded
 import (
 	"io"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
@@ -12,6 +14,7 @@ import (
 type InstrumentedState struct {
 	state *State
 
+	log    log.Logger
 	stdOut io.Writer
 	stdErr io.Writer
 
@@ -21,9 +24,10 @@ type InstrumentedState struct {
 	preimageOracle *exec.TrackingPreimageOracleReader
 }
 
-func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
+		log:            log,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
@@ -32,12 +36,12 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 	}
 }
 
-func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) (*InstrumentedState, error) {
+func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) (*InstrumentedState, error) {
 	state, err := jsonutil.LoadJSON[State](stateFile)
 	if err != nil {
 		return nil, err
 	}
-	return NewInstrumentedState(state, po, stdOut, stdErr), nil
+	return NewInstrumentedState(state, po, stdOut, stdErr, log), nil
 }
 
 func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {

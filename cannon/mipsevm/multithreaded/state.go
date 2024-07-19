@@ -264,6 +264,10 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	return out, stateHashFromWitness(out)
 }
 
+func (s *State) threadCount() int {
+	return len(s.LeftThreadStack) + len(s.RightThreadStack)
+}
+
 type StateWitness []byte
 
 func (sw StateWitness) StateHash() (common.Hash, error) {
