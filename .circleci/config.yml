@@ -32,6 +32,9 @@ parameters:
   sdk_dispatch:
     type: boolean
     default: false
+  docker_publish_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -316,7 +319,10 @@ jobs:
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
-          condition: "<<parameters.release>>"
+          condition:
+            or:
+              - "<<parameters.publish>>"
+              - "<<parameters.release>>"
           steps:
             - gcp-cli/install
       - when:
@@ -2093,7 +2099,10 @@ workflows:
 
   scheduled-docker-publish:
     when:
-      equal: [ build_hourly, <<pipeline.schedule.name>> ]
+      or:
+        - equal: [ build_hourly, <<pipeline.schedule.name>> ]
+        # Trigger on manual triggers if explicitly requested
+        - equal: [ true, << pipeline.parameters.docker_publish_dispatch >> ]
     jobs:
       - docker-build:
           name: op-node-docker-publish
@@ -2104,6 +2113,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-node-cross-platform
+          op_component: op-node
+          requires:
+            - op-node-docker-publish
       - docker-build:
           name: op-batcher-docker-publish
           docker_name: op-batcher
@@ -2113,6 +2127,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-batcher-cross-platform
+          op_component: op-batcher
+          requires:
+            - op-batcher-docker-publish
       - docker-build:
           name: op-program-docker-publish
           docker_name: op-program
@@ -2122,6 +2141,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-program-cross-platform
+          op_component: op-program
+          requires:
+            - op-program-docker-publish
       - docker-build:
           name: op-proposer-docker-publish
           docker_name: op-proposer
@@ -2131,6 +2155,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-proposer-cross-platform
+          op_component: op-proposer
+          requires:
+            - op-proposer-docker-publish
       - docker-build:
           name: op-challenger-docker-publish
           docker_name: op-challenger
@@ -2140,6 +2169,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-challenger-cross-platform
+          op_component: op-challenger
+          requires:
+            - op-challenger-docker-publish
       - docker-build:
           name: op-dispute-mon-docker-publish
           docker_name: op-dispute-mon
@@ -2149,6 +2183,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-dispute-mon-cross-platform
+          op_component: op-dispute-mon
+          requires:
+            - op-dispute-mon-docker-publish
       - docker-build:
           name: op-conductor-docker-publish
           docker_name: op-conductor
@@ -2158,6 +2197,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-conductor-cross-platform
+          op_component: op-conductor
+          requires:
+            - op-conductor-docker-publish
       - docker-build:
           name: op-heartbeat-docker-publish
           docker_name: op-heartbeat
@@ -2167,6 +2211,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-heartbeat-cross-platform
+          op_component: op-heartbeat
+          requires:
+            - op-heartbeat-docker-publish
       - docker-build:
           name: op-supervisor-docker-publish
           docker_name: op-supervisor
@@ -2176,6 +2225,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-supervisor-cross-platform
+          op_component: op-supervisor
+          requires:
+            - op-supervisor-docker-publish
       - docker-build:
           name: chain-mon-docker-publish
           docker_name: chain-mon
