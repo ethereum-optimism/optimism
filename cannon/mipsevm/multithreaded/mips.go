@@ -111,7 +111,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = 0
 			v1 = 0
 			exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-			m.state.PreemptThread()
+			m.state.PreemptThread(thread)
 			m.state.TraverseRight = false
 			return nil
 		default:
@@ -122,7 +122,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0 = 0
 		v1 = 0
 		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-		m.state.PreemptThread()
+		m.state.PreemptThread(thread)
 		return nil
 	case exec.SysOpen:
 		v0 = exec.SysErrorSignal
@@ -156,7 +156,7 @@ func (m *InstrumentedState) mipsStep() error {
 	// Search for the first thread blocked by the wakeup call, if wakeup is set
 	// Don't allow regular execution until we resolved if we have woken up any thread.
 	if m.state.Wakeup != EMPTY_SIGNAL && m.state.Wakeup != thread.FutexAddr {
-		m.state.PreemptThread()
+		m.state.PreemptThread(thread)
 		return nil
 	}
 
@@ -173,7 +173,7 @@ func (m *InstrumentedState) mipsStep() error {
 			mem := m.state.Memory.GetMemory(thread.FutexAddr)
 			if thread.FutexVal == mem {
 				// still got expected value, continue sleeping, try next thread.
-				m.state.PreemptThread()
+				m.state.PreemptThread(thread)
 				return nil
 			} else {
 				// wake thread up, the value at its address changed!
@@ -187,7 +187,7 @@ func (m *InstrumentedState) mipsStep() error {
 		// Force a context switch as this thread has been active too long
 		msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
 		m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount())
-		m.state.PreemptThread()
+		m.state.PreemptThread(thread)
 		return nil
 	}
 	m.state.StepsSinceLastContextSwitch += 1

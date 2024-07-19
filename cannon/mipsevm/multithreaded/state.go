@@ -100,10 +100,10 @@ type State struct {
 	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
 	Wakeup                      uint32 `json:"wakeup"`
 
-	TraverseRight    bool          `json:"traverseRight"`
-	LeftThreadStack  []ThreadState `json:"leftThreadStack"`
-	RightThreadStack []ThreadState `json:"rightThreadStack"`
-	NextThreadId     uint32        `json:"nextThreadId"`
+	TraverseRight    bool           `json:"traverseRight"`
+	LeftThreadStack  []*ThreadState `json:"leftThreadStack"`
+	RightThreadStack []*ThreadState `json:"rightThreadStack"`
+	NextThreadId     uint32         `json:"nextThreadId"`
 
 	// LastHint is optional metadata, and not part of the VM state itself.
 	// It is used to remember the last pre-image hint,
@@ -118,7 +118,7 @@ type State struct {
 
 func CreateEmptyState() *State {
 	initThreadId := uint32(0)
-	initThread := ThreadState{
+	initThread := &ThreadState{
 		ThreadId: initThreadId,
 		ExitCode: 0,
 		Exited:   false,
@@ -142,8 +142,8 @@ func CreateEmptyState() *State {
 		Step:             0,
 		Wakeup:           ^uint32(0),
 		TraverseRight:    false,
-		LeftThreadStack:  []ThreadState{initThread},
-		RightThreadStack: []ThreadState{},
+		LeftThreadStack:  []*ThreadState{initThread},
+		RightThreadStack: []*ThreadState{},
 		NextThreadId:     initThreadId + 1,
 	}
 }
@@ -166,11 +166,11 @@ func (s *State) getCurrentThread() *ThreadState {
 		panic("Active thread stack is empty")
 	}
 
-	return &activeStack[activeStackSize-1]
+	return activeStack[activeStackSize-1]
 }
 
-func (s *State) getActiveThreadStack() []ThreadState {
-	var activeStack []ThreadState
+func (s *State) getActiveThreadStack() []*ThreadState {
+	var activeStack []*ThreadState
 	if s.TraverseRight {
 		activeStack = s.RightThreadStack
 	} else {
@@ -188,28 +188,61 @@ func (s *State) getLeftThreadStackRoot() common.Hash {
 	return s.calculateThreadStackRoot(s.LeftThreadStack)
 }
 
-func (s *State) calculateThreadStackRoot(stack []ThreadState) common.Hash {
+func (s *State) calculateThreadStackRoot(stack []*ThreadState) common.Hash {
 	curRoot := EmptyThreadsRoot
 	for _, thread := range stack {
-		curRoot = computeThreadRoot(curRoot, &thread)
+		curRoot = computeThreadRoot(curRoot, thread)
 	}
 
 	return curRoot
 }
 
-func (s *State) PreemptThread() {
-	// TODO(CP-903)
-	panic("Not Implemented")
+func (s *State) PreemptThread(thread *ThreadState) {
+	// Pop thread from the current stack and push to the other stack
+	if s.TraverseRight {
+		rtThreadCnt := len(s.RightThreadStack)
+		if rtThreadCnt == 0 {
+			panic("empty right thread stack")
+		}
+		s.RightThreadStack = s.RightThreadStack[:rtThreadCnt-1]
+		s.LeftThreadStack = append(s.LeftThreadStack, thread)
+	} else {
+		lftThreadCnt := len(s.LeftThreadStack)
+		if lftThreadCnt == 0 {
+			panic("empty left thread stack")
+		}
+		s.LeftThreadStack = s.LeftThreadStack[:lftThreadCnt-1]
+		s.RightThreadStack = append(s.RightThreadStack, thread)
+	}
+
+	current := s.getActiveThreadStack()
+	if len(current) == 0 {
+		s.TraverseRight = !s.TraverseRight
+	}
+	s.StepsSinceLastContextSwitch = 0
 }
 
 func (s *State) PushThread(thread *ThreadState) {
-	// TODO(CP-903)
-	panic("Not Implemented")
+	if s.TraverseRight {
+		s.RightThreadStack = append(s.RightThreadStack, thread)
+	} else {
+		s.LeftThreadStack = append(s.LeftThreadStack, thread)
+	}
+	s.StepsSinceLastContextSwitch = 0
 }
 
 func (s *State) PopThread() {
-	// TODO(CP-903)
-	panic("Not Implemented")
+	if s.TraverseRight {
+		s.RightThreadStack = s.RightThreadStack[:len(s.RightThreadStack)-1]
+	} else {
+		s.LeftThreadStack = s.LeftThreadStack[:len(s.LeftThreadStack)-1]
+	}
+
+	current := s.getActiveThreadStack()
+	if len(current) == 0 {
+		s.TraverseRight = !s.TraverseRight
+	}
+	s.StepsSinceLastContextSwitch = 0
 }
 
 func (s *State) GetPC() uint32 {
