@@ -36,21 +36,21 @@ func (s *nonCompressor) FullErr() error {
 
 // channelTypes allows tests to run against different channel types
 var channelTypes = []struct {
-	ChannelOut func(t *testing.T) ChannelOut
+	ChannelOut func(t *testing.T, rcfg *rollup.Config) ChannelOut
 	Name       string
 }{
 	{
 		Name: "Singular",
-		ChannelOut: func(t *testing.T) ChannelOut {
-			cout, err := NewSingularChannelOut(&nonCompressor{})
+		ChannelOut: func(t *testing.T, rcfg *rollup.Config) ChannelOut {
+			cout, err := NewSingularChannelOut(&nonCompressor{}, rollup.NewChainSpec(rcfg))
 			require.NoError(t, err)
 			return cout
 		},
 	},
 	{
 		Name: "Span",
-		ChannelOut: func(t *testing.T) ChannelOut {
-			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000, Zlib)
+		ChannelOut: func(t *testing.T, rcfg *rollup.Config) ChannelOut {
+			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000, Zlib, rollup.NewChainSpec(rcfg))
 			require.NoError(t, err)
 			return cout
 		},
@@ -60,7 +60,7 @@ var channelTypes = []struct {
 func TestChannelOutAddBlock(t *testing.T) {
 	for _, tcase := range channelTypes {
 		t.Run(tcase.Name, func(t *testing.T) {
-			cout := tcase.ChannelOut(t)
+			cout := tcase.ChannelOut(t, &rollupCfg)
 			header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
 			block := types.NewBlockWithHeader(header).WithBody(
 				[]*types.Transaction{
@@ -81,7 +81,7 @@ func TestChannelOutAddBlock(t *testing.T) {
 func TestOutputFrameSmallMaxSize(t *testing.T) {
 	for _, tcase := range channelTypes {
 		t.Run(tcase.Name, func(t *testing.T) {
-			cout := tcase.ChannelOut(t)
+			cout := tcase.ChannelOut(t, &rollupCfg)
 			// Call OutputFrame with the range of small max size values that err
 			var w bytes.Buffer
 			for i := 0; i < FrameV0OverHeadSize; i++ {
@@ -96,7 +96,7 @@ func TestOutputFrameSmallMaxSize(t *testing.T) {
 func TestOutputFrameNoEmptyLastFrame(t *testing.T) {
 	for _, tcase := range channelTypes {
 		t.Run(tcase.Name, func(t *testing.T) {
-			cout := tcase.ChannelOut(t)
+			cout := tcase.ChannelOut(t, &rollupCfg)
 
 			rng := rand.New(rand.NewSource(0x543331))
 			chainID := big.NewInt(0)
@@ -223,7 +223,7 @@ func SpanChannelAndBatches(t *testing.T, target uint64, len int, algo Compressio
 	rng := rand.New(rand.NewSource(0x543331))
 	chainID := big.NewInt(rng.Int63n(1000))
 	txCount := 1
-	cout, err := NewSpanChannelOut(0, chainID, target, algo)
+	cout, err := NewSpanChannelOut(0, chainID, target, algo, rollup.NewChainSpec(&rollupCfg))
 	require.NoError(t, err)
 	batches := make([]*SingularBatch, len)
 	// adding the first batch should not cause an error
