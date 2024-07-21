@@ -52,7 +52,7 @@ an OP Stack based Execution Client that supports the [Ethereum JSON-RPC spec][et
 - L1: use any L1 client, RPC, websocket, or IPC (connection config may differ)
 - L2: use any OP Stack Execution Client like [`op-geth`](https://github.com/ethereum-optimism/op-geth)
 
-Note that websockets or IPC preferred for event notifications to improve sync, http RPC works with adaptive polling.
+Note that websockets or IPC is preferred for event notifications to improve sync, http RPC works with adaptive polling.
 
 ```shell
 ./bin/op-node \
