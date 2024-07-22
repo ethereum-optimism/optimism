@@ -196,6 +196,28 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	return out, stateHashFromWitness(out)
 }
 
+func (s *State) EncodeThreadProof() []byte {
+	activeStack := s.getActiveThreadStack()
+	threadCount := len(activeStack)
+	if threadCount == 0 {
+		// There is currently one case where we will have an empty active stack with no current thread
+		// This happens at the end of wakeup thread traversal when no threads are found that are ready to wake
+		// Just return an empty byte slice of the correct size in this case
+		return make([]byte, THREAD_WITNESS_SIZE)
+	}
+
+	activeThread := activeStack[threadCount-1]
+	otherThreads := activeStack[:threadCount-1]
+	threadBytes := activeThread.serializeThread()
+	otherThreadsWitness := s.calculateThreadStackRoot(otherThreads)
+
+	out := make([]byte, 0, THREAD_WITNESS_SIZE)
+	out = append(out, threadBytes[:]...)
+	out = append(out, otherThreadsWitness[:]...)
+
+	return out
+}
+
 func (s *State) threadCount() int {
 	return len(s.LeftThreadStack) + len(s.RightThreadStack)
 }

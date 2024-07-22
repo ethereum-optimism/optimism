@@ -60,12 +60,17 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 	m.memoryTracker.Reset(proof)
 
 	if proof {
+		proofData := make([]byte, 0)
+		threadProof := m.state.EncodeThreadProof()
 		insnProof := m.state.Memory.MerkleProof(m.state.GetPC())
+		proofData = append(proofData, threadProof[:]...)
+		proofData = append(proofData, insnProof[:]...)
+
 		encodedWitness, stateHash := m.state.EncodeWitness()
 		wit = &mipsevm.StepWitness{
 			State:     encodedWitness,
 			StateHash: stateHash,
-			ProofData: insnProof[:],
+			ProofData: proofData,
 		}
 	}
 	err = m.mipsStep()
