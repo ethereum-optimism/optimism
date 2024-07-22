@@ -179,7 +179,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param amount The amount of tokens to mint.
     function _mint(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
         ERC20._mint(account, amount);
-        require(totalSupply() <= _maxSupply(), "ERC20Votes: total supply risks overflowing votes");
+        require(totalSupply() <= _maxSupply(), "GovernanceToken: total supply risks overflowing votes");
         // Total supply checkpoint is written by Alligator via the hook.
     }
 

@@ -5,7 +5,7 @@ import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import "src/libraries/Predeploys.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @notice Allowance type.
 /// @param Absolute The amount of votes delegated is fixed.
@@ -158,7 +158,6 @@ contract Alligator {
         migrate(msg.sender)
         migrate(_delegatee)
     {
-        // TODO: this function needs to do migration.
         _subdelegations[msg.sender][_delegatee] = _subdelegationRules;
         emit Subdelegation(msg.sender, _delegatee, _subdelegationRules);
 
@@ -182,7 +181,6 @@ contract Alligator {
         migrate(_account)
         migrate(_delegatee)
     {
-        // TODO: this function needs to do migration.
         _subdelegations[_account][_delegatee] = _subdelegationRules;
         emit Subdelegation(_account, _delegatee, _subdelegationRules);
 
@@ -201,7 +199,6 @@ contract Alligator {
         external
         migrate(msg.sender)
     {
-        // TODO: this function needs to do migration.
         for (uint256 i; i < _delegatees.length;) {
             address delegatee = _delegatees[i];
 
@@ -228,7 +225,6 @@ contract Alligator {
         external
         migrate(msg.sender)
     {
-        // TODO: this function needs to do migration.
         uint256 targetsLength = _delegatees.length;
         if (targetsLength != _subdelegationRules.length) revert LengthMismatch();
 
@@ -422,21 +418,20 @@ contract Alligator {
     /// @notice Migrate an account to the Alligator contract.
     /// @param _account The account to migrate.
     function _migrate(address _account) internal {
+        // Get the number of checkpoints.
+        uint32 numCheckpoints = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).numCheckpoints(_account);
+
+        // Itereate over the checkpoints and store them.
+        for (uint32 i; i < numCheckpoints;) {
+            ERC20Votes.Checkpoint memory checkpoint = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).checkpoints(_account, i);
+            _checkpoints[_account].push(checkpoint);
+            unchecked {
+                ++i;
+            }
+        }
+
         // Set migrated flag
         migrated[_account] = true;
-
-        // TODO: copy state from token.
-
-        // Create rule equivalent to basic delegation.
-        // TODO: double check this.
-        // _subdelegations[_token][_account][ERC20Votes(_token).delegates(_account)] = SubdelegationRules({
-        //     maxRedelegations: 0,
-        //     blocksBeforeVoteCloses: 0,
-        //     notValidBefore: 0,
-        //     notValidAfter: 0,
-        //     allowanceType: AllowanceType.Relative,
-        //     allowance: 10e4 // 100%
-        //  });
     }
 
     /// @notice Return the allowance of a voter, used in `validate`.
