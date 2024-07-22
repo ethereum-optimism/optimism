@@ -30,8 +30,6 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _amount  The amount of tokens to mint.
     function mint(address _account, uint256 _amount) public onlyOwner {
         _mint(_account, _amount);
-        // TODO: updates the Alligator's checkpoints because of token transfer, but also does it internally
-        // should override? burn too.
     }
 
     /// @notice Returns the checkpoint for a given account at a given position.
@@ -177,16 +175,19 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     }
 
     /// @notice Internal mint function.
-    /// @param to     The account receiving minted tokens.
+    /// @param account     The account receiving minted tokens.
     /// @param amount The amount of tokens to mint.
-    function _mint(address to, uint256 amount) internal override(ERC20, ERC20Votes) {
-        super._mint(to, amount);
+    function _mint(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
+        ERC20._mint(account, amount);
+        require(totalSupply() <= _maxSupply(), "ERC20Votes: total supply risks overflowing votes");
+        // Total supply checkpoint is written by Alligator via the hook.
     }
 
     /// @notice Internal burn function.
     /// @param account The account that tokens will be burned from.
     /// @param amount  The amount of tokens that will be burned.
     function _burn(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
-        super._burn(account, amount);
+        ERC20._burn(account, amount);
+        // Total supply checkpoint is written by Alligator via the hook.
     }
 }

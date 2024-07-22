@@ -504,16 +504,19 @@ contract Alligator {
     /// @param _dst    The address of the destination account.
     /// @param _amount The amount of voting power to move.
     function _moveVotingPower(address _src, address _dst, uint256 _amount) internal {
-        // TODO: for both mint and burn, need to write to _totalSupplyCheckpoints as well.
         if (_src != _dst && _amount > 0) {
             if (_src != address(0)) {
                 (uint256 oldWeight, uint256 newWeight) = _writeCheckpoint(_checkpoints[_src], _subtract, _amount);
                 emit DelegateVotesChanged(_src, oldWeight, newWeight);
+                // Check if burn to update total supply checkpoint.
+                if (_dst == address(0)) _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _amount);
             }
 
             if (_dst != address(0)) {
                 (uint256 oldWeight, uint256 newWeight) = _writeCheckpoint(_checkpoints[_dst], _add, _amount);
                 emit DelegateVotesChanged(_dst, oldWeight, newWeight);
+                // Check if mint to update total supply checkpoint.
+                if (_src == address(0)) _writeCheckpoint(_totalSupplyCheckpoints, _add, _amount);
             }
         }
     }
