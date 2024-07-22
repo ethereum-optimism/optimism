@@ -4,7 +4,7 @@ The fault proof alpha is a pre-release version of the OP Stack fault proof syste
 This documentation provides an overview of the system and instructions on how to help
 test the fault proof system.
 
-The overall design of this system along with the APIs and interfaces it exposes are not
+The overall design of this system along with the APIs and interfaces it exposes is not
 finalized and may change without notice.
 
 ### Getting Started
