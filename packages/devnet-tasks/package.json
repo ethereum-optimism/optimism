@@ -16,8 +16,6 @@
     "lint": "pnpm lint:fix && pnpm lint:check",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "pnpm lint:check --fix",
-    "test": "hardhat test",
-    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "autogen:docs": "typedoc --out docs src/index.ts"
   },
   "keywords": [
@@ -40,7 +38,6 @@
     "ethers": "^5.7.2",
     "hardhat": "^2.20.1",
     "hardhat-deploy": "^0.12.4",
-    "nyc": "^15.1.0",
     "ts-node": "^10.9.2",
     "typedoc": "^0.25.7",
     "typescript": "^5.5.3"
