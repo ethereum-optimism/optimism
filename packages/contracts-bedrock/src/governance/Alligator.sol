@@ -87,8 +87,8 @@ contract Alligator {
     /// @notice Emitted when a delegator's voting power changes.
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
-    modifier onlyMigrated(address _account) {
-        if (!migrated[_account]) revert NotMigrated(_account);
+    modifier migrate(address _account) {
+        if (!migrated[_account]) _migrate(_account);
         _;
     }
 
@@ -140,7 +140,14 @@ contract Alligator {
     /// @notice Subdelegate `to` with `subdelegationRules`.
     /// @param _delegatee          The address to subdelegate to.
     /// @param _subdelegationRules The rules to apply to the subdelegation.
-    function subdelegate(address _delegatee, SubdelegationRules calldata _subdelegationRules) external {
+    function subdelegate(
+        address _delegatee,
+        SubdelegationRules calldata _subdelegationRules
+    )
+        external
+        migrate(msg.sender)
+        migrate(_delegatee)
+    {
         // TODO: this function needs to do migration.
         _subdelegations[msg.sender][_delegatee] = _subdelegationRules;
         emit Subdelegation(msg.sender, _delegatee, _subdelegationRules);
@@ -162,6 +169,8 @@ contract Alligator {
     )
         external
         onlyToken
+        migrate(_account)
+        migrate(_delegatee)
     {
         // TODO: this function needs to do migration.
         _subdelegations[_account][_delegatee] = _subdelegationRules;
@@ -180,10 +189,16 @@ contract Alligator {
         SubdelegationRules calldata _subdelegationRules
     )
         external
+        migrate(msg.sender)
     {
         // TODO: this function needs to do migration.
         for (uint256 i; i < _delegatees.length;) {
-            _subdelegations[msg.sender][_delegatees[i]] = _subdelegationRules;
+            address delegatee = _delegatees[i];
+
+            // Migreate delegatee if it hasn't been migrated.
+            if (!migrated[delegatee]) _migrate(delegatee);
+
+            _subdelegations[msg.sender][delegatee] = _subdelegationRules;
 
             unchecked {
                 ++i;
@@ -201,13 +216,19 @@ contract Alligator {
         SubdelegationRules[] calldata _subdelegationRules
     )
         external
+        migrate(msg.sender)
     {
         // TODO: this function needs to do migration.
         uint256 targetsLength = _delegatees.length;
         if (targetsLength != _subdelegationRules.length) revert LengthMismatch();
 
         for (uint256 i; i < targetsLength;) {
-            _subdelegations[msg.sender][_delegatees[i]] = _subdelegationRules[i];
+            address delegatee = _delegatees[i];
+
+            // Migreate delegatee if it hasn't been migrated.
+            if (!migrated[delegatee]) _migrate(delegatee);
+
+            _subdelegations[msg.sender][delegatee] = _subdelegationRules[i];
 
             unchecked {
                 ++i;
@@ -221,10 +242,16 @@ contract Alligator {
     /// @param _from   The account sending tokens.
     /// @param _to     The account receiving tokens.
     /// @param _amount The amount of tokens being transfered.
-    function afterTokenTransfer(address _from, address _to, uint256 _amount) external onlyToken {
-        if (!migrated[_from]) _migrate(_from);
-        if (!migrated[_to]) _migrate(_to);
-
+    function afterTokenTransfer(
+        address _from,
+        address _to,
+        uint256 _amount
+    )
+        external
+        onlyToken
+        migrate(_from)
+        migrate(_to)
+    {
         // TODO: fix line below -> how to get some account's delegates? should we subtract the amount from the account?
         // what if we have several delegates?
         //_moveVotingPower({ _token: msg.sender, _src: delegates(_from), _dst: delegates(_to), _amount: _amount });
@@ -232,8 +259,8 @@ contract Alligator {
 
     /// @notice Migrate an account's delegation state from the GovernanceToken contract to the Alligator contract.
     /// @param _account The account to migrate.
-    function migrate(address _account) external {
-        _migrate(_account);
+    function migrateAccount(address _account) external {
+        if (!migrated[_account]) _migrate(_account);
     }
 
     /// @notice Validate subdelegation rules and partial delegation allowances.
@@ -387,6 +414,8 @@ contract Alligator {
     function _migrate(address _account) internal {
         // Set migrated flag
         migrated[_account] = true;
+
+        // TODO: copy state from token.
 
         // Create rule equivalent to basic delegation.
         // TODO: double check this.

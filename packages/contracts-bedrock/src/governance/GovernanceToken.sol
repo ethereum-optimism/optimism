@@ -18,9 +18,6 @@ import "src/governance/Alligator.sol";
 ///         functions in the Alligator contract. If the account has not been migrated, the
 ///         GovernanceToken contract uses its own state.
 contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
-    /// @notice Thrown when a function undefined post migration is called.
-    error UndefinedPostMigration();
-
     /// @notice The typehash for the delegation struct used by the contract.
     bytes32 private constant _DELEGATION_TYPEHASH =
         keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
@@ -41,7 +38,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @return         The checkpoint at the given position.
     function checkpoints(address _account, uint32 _pos) public view override(ERC20Votes) returns (Checkpoint memory) {
         if (_migrated(_account)) {
-            return Alligator(Predeploys.ALLIGATOR).checkpoints(address(this), _account)[_pos];
+            return Alligator(Predeploys.ALLIGATOR).checkpoints(_account)[_pos];
         } else {
             return super.checkpoints(_account, _pos);
         }
@@ -52,7 +49,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @return         The number of checkpoints for the given account.
     function numCheckpoints(address _account) public view override(ERC20Votes) returns (uint32) {
         if (_migrated(_account)) {
-            return Alligator(Predeploys.ALLIGATOR).numCheckpoints(msg.sender, _account);
+            return Alligator(Predeploys.ALLIGATOR).numCheckpoints(_account);
         } else {
             return super.numCheckpoints(_account);
         }
@@ -65,7 +62,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @return         The delegatee of the given account.
     function delegates(address _account) public view override(ERC20Votes) returns (address) {
         if (_migrated(_account)) {
-            revert UndefinedPostMigration();
+            // TODO: return which delegatee??
         } else {
             return super.delegates(_account);
         }
@@ -74,9 +71,8 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @notice Delegates votes from the sender to `delegatee`.
     /// @param _delegatee The account to delegate votes to.
     function delegate(address _delegatee) public override {
-        if (!_migrated(msg.sender)) _migrate(msg.sender);
-
-        Alligator(Predeploys.ALLIGATOR).subdelegate(
+        // Alligator will migrate account if necessary.
+        Alligator(Predeploys.ALLIGATOR).subdelegateFromToken(
             msg.sender,
             _delegatee,
             // Create rule equivalent to basic delegation.
@@ -109,7 +105,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         public
         override
     {
-        if (!_migrated(msg.sender)) _migrate(msg.sender);
+        // Alligator will migrate account if necessary.
 
         // TODO: custom errors. use revert instead of require
         require(block.timestamp <= _expiry, "GovernanceToken: signature expired");
@@ -117,7 +113,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
             _hashTypedDataV4(keccak256(abi.encode(_DELEGATION_TYPEHASH, _delegatee, _nonce, _expiry))), _v, _r, _s
         );
         require(_nonce == _useNonce(signer), "GovernanceToken: invalid nonce");
-        Alligator(Predeploys.ALLIGATOR).subdelegate(
+        Alligator(Predeploys.ALLIGATOR).subdelegateFromToken(
             msg.sender,
             _delegatee,
             // Create rule equivalent to basic delegation.
@@ -145,13 +141,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _account The account to check if it has been migrated.
     /// @return         True if the given account has been migrated, and false otherwise.
     function _migrated(address _account) internal view returns (bool) {
-        return Alligator(Predeploys.ALLIGATOR).migrated(address(this), _account);
-    }
-
-    /// @notice Internal migrate function.
-    /// @param _account The account to migrate.
-    function _migrate(address _account) public onlyOwner {
-        Alligator(Predeploys.ALLIGATOR).migrate(_account);
+        return Alligator(Predeploys.ALLIGATOR).migrated(_account);
     }
 
     /// @notice Internal mint function.
