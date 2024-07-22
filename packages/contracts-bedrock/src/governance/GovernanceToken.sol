@@ -30,6 +30,8 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _amount  The amount of tokens to mint.
     function mint(address _account, uint256 _amount) public onlyOwner {
         _mint(_account, _amount);
+        // TODO: updates the Alligator's checkpoints because of token transfer, but also does it internally
+        // should override? burn too.
     }
 
     /// @notice Returns the checkpoint for a given account at a given position.
@@ -66,6 +68,36 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
         } else {
             return super.delegates(_account);
         }
+    }
+
+    /// @notice Returns the number of votes for a given account.
+    /// @param _account The account to get the number of votess for.
+    /// @return         The number of votes for the given account.
+    function getVotes(address _account) public view override(ERC20Votes) returns (uint256) {
+        if (_migrated(_account)) {
+            return Alligator(Predeploys.ALLIGATOR).getVotes(_account);
+        } else {
+            return super.getVotes(_account);
+        }
+    }
+
+    /// @notice Returns the number of votes for a given account at a block.
+    /// @param _account The account to get the number of checkpoints for.
+    /// @param _blockNumber The block number to get the number of votes for.
+    /// @return         The number of votes for the given account and block number.
+    function getPastVotes(address _account, uint256 _blockNumber) public view override(ERC20Votes) returns (uint256) {
+        if (_migrated(_account)) {
+            return Alligator(Predeploys.ALLIGATOR).getPastVotes(_account, _blockNumber);
+        } else {
+            return super.getPastVotes(_account, _blockNumber);
+        }
+    }
+
+    /// @notice Returns the total supply at a block.
+    /// @param _blockNumber The block number to get the total supply.
+    /// @return         The total supply of the token for the given block.
+    function getPastTotalSupply(uint256 _blockNumber) public view override(ERC20Votes) returns (uint256) {
+        Alligator(Predeploys.ALLIGATOR).getPastTotalSupply(_blockNumber);
     }
 
     /// @notice Delegates votes from the sender to `delegatee`.

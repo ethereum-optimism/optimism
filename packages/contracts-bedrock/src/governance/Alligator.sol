@@ -69,11 +69,14 @@ contract Alligator {
     /// @notice Flags to indicate if a account has been migrated to the Alligator contract.
     mapping(address => bool) public migrated;
 
-    ///  @notice Checkpoints of votes for an account.
-    mapping(address => ERC20Votes.Checkpoint[]) internal _checkpoints;
-
     /// @notice Subdelegation rules for an account and delegatee.
     mapping(address => mapping(address => SubdelegationRules)) internal _subdelegations;
+
+    /// @notice Checkpoints of votes for an account.
+    mapping(address => ERC20Votes.Checkpoint[]) internal _checkpoints;
+
+    /// @notice Checkpoints of total supply.
+    ERC20Votes.Checkpoint[] internal _totalSupplyCheckpoints;
 
     /// @notice Emitted when a subdelegation is created.
     event Subdelegation(address indexed account, address indexed delegatee, SubdelegationRules subdelegationRules);
@@ -111,11 +114,10 @@ contract Alligator {
         return SafeCast.toUint32(_checkpoints[_account].length);
     }
 
-    /// @notice Returns the number of votes for a given account at a given block number.
+    /// @notice Returns the number of votes for a given account.
     /// @param _account     The account to get the number of votes for.
-    /// @param _blockNumber The block number to get the number of votes for.
     /// @return             The number of votes.
-    function getVotes(address _account, uint256 _blockNumber) external view returns (uint256) {
+    function getVotes(address _account) external view returns (uint256) {
         uint256 pos = _checkpoints[_account].length;
         return pos == 0 ? 0 : _checkpoints[_account][pos - 1].votes;
     }
@@ -127,6 +129,14 @@ contract Alligator {
     function getPastVotes(address _account, uint256 _blockNumber) external view returns (uint256) {
         if (_blockNumber >= block.number) revert BlockNotYetMined(_blockNumber);
         return _checkpointsLookup(_checkpoints[_account], _blockNumber);
+    }
+
+    /// @notice Returns the total supply at a block.
+    /// @param _blockNumber The block number to get the total supply.
+    /// @return         The total supply of the token for the given block.
+    function getPastTotalSupply(uint256 _blockNumber) external view returns (uint256) {
+        if (_blockNumber >= block.number) revert BlockNotYetMined(_blockNumber);
+        return _checkpointsLookup(_totalSupplyCheckpoints, _blockNumber);
     }
 
     /// @notice Returns the subdelegation rules for a given account and delegatee.
@@ -494,6 +504,7 @@ contract Alligator {
     /// @param _dst    The address of the destination account.
     /// @param _amount The amount of voting power to move.
     function _moveVotingPower(address _src, address _dst, uint256 _amount) internal {
+        // TODO: for both mint and burn, need to write to _totalSupplyCheckpoints as well.
         if (_src != _dst && _amount > 0) {
             if (_src != address(0)) {
                 (uint256 oldWeight, uint256 newWeight) = _writeCheckpoint(_checkpoints[_src], _subtract, _amount);
