@@ -21,6 +21,8 @@ type InstrumentedState struct {
 	preimageOracle *exec.TrackingPreimageOracleReader
 }
 
+var _ mipsevm.FPVM = (*InstrumentedState)(nil)
+
 func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,

@@ -36,6 +36,8 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 	}
 }
 
+var _ mipsevm.FPVM = (*InstrumentedState)(nil)
+
 func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) (*InstrumentedState, error) {
 	state, err := jsonutil.LoadJSON[State](stateFile)
 	if err != nil {

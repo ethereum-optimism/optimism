@@ -61,6 +61,8 @@ type State struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
+var _ mipsevm.FPVMState = (*State)(nil)
+
 func CreateEmptyState() *State {
 	initThreadId := uint32(0)
 	initThread := &ThreadState{

@@ -44,6 +44,8 @@ type State struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
+var _ mipsevm.FPVMState = (*State)(nil)
+
 func CreateEmptyState() *State {
 	return &State{
 		Cpu: mipsevm.CpuScalars{
