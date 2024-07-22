@@ -24,6 +24,8 @@ type InstrumentedState struct {
 	preimageOracle *exec.TrackingPreimageOracleReader
 }
 
+var _ mipsevm.FPVM = (*InstrumentedState)(nil)
+
 func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
@@ -35,8 +37,6 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
 	}
 }
-
-var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 
 func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) (*InstrumentedState, error) {
 	state, err := jsonutil.LoadJSON[State](stateFile)
