@@ -20,7 +20,7 @@
 
 ### Local Devnet
 
-The local devnet includes a deployment of the fault proof alpha. To start the devnet, in the top level of this repo,
+The local devnet includes a deployment of the fault proof alpha. To start the devnet, at the top level of this repo,
 run:
 
 ```bash
