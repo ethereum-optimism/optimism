@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
-func LoadELFProgram[T mipsevm.FPVMState](t *testing.T, name string, initState program.CreateFPVMState[T]) T {
+func LoadELFProgram[T mipsevm.FPVMState](t *testing.T, name string, initState program.CreateInitialFPVMState[T]) T {
 	elfProgram, err := elf.Open(name)
 	require.NoError(t, err, "open ELF file")
 

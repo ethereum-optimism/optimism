@@ -71,7 +71,7 @@ func CreateEmptyState() *State {
 		Exited:   false,
 		Cpu: mipsevm.CpuScalars{
 			PC:     0,
-			NextPC: 0,
+			NextPC: 4,
 			LO:     0,
 			HI:     0,
 		},
