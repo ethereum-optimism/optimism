@@ -254,7 +254,7 @@ func (c *ChannelBuilder) updateSwTimeout(batch *derive.SingularBatch) {
 }
 
 // updateTimeout updates the timeout block to the given block number if it is
-// earlier than the current block timeout, or if it still unset.
+// earlier than the current block timeout, or if it is still unset.
 //
 // If the timeout is updated, the provided reason will be set as the channel
 // full error reason in case the timeout is hit in the future.
