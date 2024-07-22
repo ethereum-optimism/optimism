@@ -26,7 +26,7 @@ When executing `op-challenger`, there are a few placeholders that need to be set
 - `<PRESTATE>` the prestate.json downloaded above. Note that this needs to precisely match the prestate used on-chain so
   must be the downloaded version and not a version built locally (see the [Goerli deployment details](./deployments.md#goerli))
 - `<L2_URL>` the OP-Goerli L2 archive node JSON RPC endpoint
-- `<PRIVATE_KEY>` the private key for a funded Goerli account. For other ways to specify the account to use
+- `<PRIVATE_KEY>` is the private key for a funded Goerli account. For other ways to specify the account to use
   see `./op-challenger/bin/op-challenger --help`
 
 From inside the monorepo directory, run the challenger after setting these placeholders.
