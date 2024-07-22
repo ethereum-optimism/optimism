@@ -95,7 +95,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _blockNumber The block number to get the total supply.
     /// @return         The total supply of the token for the given block.
     function getPastTotalSupply(uint256 _blockNumber) public view override(ERC20Votes) returns (uint256) {
-        Alligator(Predeploys.ALLIGATOR).getPastTotalSupply(_blockNumber);
+        return Alligator(Predeploys.ALLIGATOR).getPastTotalSupply(_blockNumber);
     }
 
     /// @notice Delegates votes from the sender to `delegatee`.
@@ -175,19 +175,19 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     }
 
     /// @notice Internal mint function.
-    /// @param account     The account receiving minted tokens.
-    /// @param amount The amount of tokens to mint.
-    function _mint(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
-        ERC20._mint(account, amount);
+    /// @param _account     The account receiving minted tokens.
+    /// @param _amount      The amount of tokens to mint.
+    function _mint(address _account, uint256 _amount) internal override(ERC20, ERC20Votes) {
+        ERC20._mint(_account, _amount);
         require(totalSupply() <= _maxSupply(), "GovernanceToken: total supply risks overflowing votes");
         // Total supply checkpoint is written by Alligator via the hook.
     }
 
     /// @notice Internal burn function.
-    /// @param account The account that tokens will be burned from.
-    /// @param amount  The amount of tokens that will be burned.
-    function _burn(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
-        ERC20._burn(account, amount);
+    /// @param _account The account that tokens will be burned from.
+    /// @param _amount  The amount of tokens that will be burned.
+    function _burn(address _account, uint256 _amount) internal override(ERC20, ERC20Votes) {
+        ERC20._burn(_account, _amount);
         // Total supply checkpoint is written by Alligator via the hook.
     }
 }

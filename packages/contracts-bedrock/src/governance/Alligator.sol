@@ -189,32 +189,6 @@ contract Alligator {
         //_moveVotingPower({ _token: msg.sender, _src: delegates(_from), _dst: delegates(_to), _amount: _amount });
     }
 
-    /// @notice Subdelegate `targets` with same `subdelegationRules` rule.
-    /// @param _delegatees         The addresses to subdelegate to.
-    /// @param _subdelegationRules The rule to apply to the subdelegations.
-    function subdelegateBatched(
-        address[] calldata _delegatees,
-        SubdelegationRules calldata _subdelegationRules
-    )
-        external
-        migrate(msg.sender)
-    {
-        for (uint256 i; i < _delegatees.length;) {
-            address delegatee = _delegatees[i];
-
-            // Migreate delegatee if it hasn't been migrated.
-            if (!migrated[delegatee]) _migrate(delegatee);
-
-            _subdelegations[msg.sender][delegatee] = _subdelegationRules;
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        emit Subdelegations(msg.sender, _delegatees, _subdelegationRules);
-    }
-
     /// @notice Subdelegate `targets` with different `subdelegationRules` for each target.
     /// @param _delegatees         The addresses to subdelegate to.
     /// @param _subdelegationRules The rules to apply to the subdelegations.
