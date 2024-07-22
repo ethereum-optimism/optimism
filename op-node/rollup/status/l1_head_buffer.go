@@ -1,13 +1,16 @@
-package confdepth
+package status
 
 import (
+	"sync"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// l1HeadBuffer is a cache for L1 block references, which contains a series blocks with a valid chain of parent hashes.
+// l1HeadBuffer is a thread-safe cache for L1 block references, which contains a series blocks with a valid chain of parent hashes.
 type l1HeadBuffer struct {
 	rb             *ringbuffer[eth.L1BlockRef]
 	minBlockNumber uint64
+	mu             sync.RWMutex
 }
 
 func newL1HeadBuffer(size int) *l1HeadBuffer {
@@ -16,6 +19,9 @@ func newL1HeadBuffer(size int) *l1HeadBuffer {
 
 // Get returns the L1 block reference for the given block number, if it exists in the cache.
 func (lhb *l1HeadBuffer) Get(num uint64) (eth.L1BlockRef, bool) {
+	lhb.mu.RLock()
+	defer lhb.mu.RUnlock()
+
 	return lhb.rb.Get(int(num - lhb.minBlockNumber))
 }
 
@@ -23,6 +29,9 @@ func (lhb *l1HeadBuffer) Get(num uint64) (eth.L1BlockRef, bool) {
 // If the parent hash of the new head doesn't match the hash of the previous head, all entries after the new head are removed
 // as the chain cannot be validated.
 func (lhb *l1HeadBuffer) Insert(l1Head eth.L1BlockRef) {
+	lhb.mu.Lock()
+	defer lhb.mu.Unlock()
+
 	// First, check if the L1 head is in the cache.
 	// If the hash doesn't match the one in the cache, we have a reorg and need to remove all entries after the new head.
 	if ref, ok := lhb.Get(l1Head.Number); ok {
@@ -34,7 +43,7 @@ func (lhb *l1HeadBuffer) Insert(l1Head eth.L1BlockRef) {
 					break
 				}
 			}
-			lhb.rb.Push(ref)
+			lhb.rb.Push(l1Head)
 		}
 	} else if ref, ok := lhb.Get(l1Head.Number - 1); ok && ref.Hash == l1Head.ParentHash {
 		// Parent hash matches, so we can safely add the new head to the cache.

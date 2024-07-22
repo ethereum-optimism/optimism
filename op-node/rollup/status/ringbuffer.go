@@ -1,4 +1,4 @@
-package confdepth
+package status
 
 // ringBuffer is a circular buffer that can be used to store a fixed number of
 // elements. When the buffer is full, the oldest element is overwritten.

@@ -302,6 +302,7 @@ func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
 	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
 	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
 	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
+	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 
 	l1Head := b
 	confDepthL1 := confdepth.NewConfDepth(2, func() eth.L1BlockRef { return l1Head }, l1)

@@ -13,19 +13,15 @@ import (
 // and hides the part of the L1 chain with insufficient confirmations.
 //
 // At 0 depth the l1 head is completely ignored.
-//
-// confDepth also caches the L1 head block references to avoid unnecessary fetches,
-// by storing a sequence of up to 1000 blocks with a valid chain of parent hashes.
 type confDepth struct {
 	// everything fetched by hash is trusted already, so we implement those by embedding the fetcher
 	derive.L1Fetcher
-	l1Head  func() eth.L1BlockRef
-	depth   uint64
-	l1Cache *l1HeadBuffer
+	l1Head func() eth.L1BlockRef
+	depth  uint64
 }
 
 func NewConfDepth(depth uint64, l1Head func() eth.L1BlockRef, fetcher derive.L1Fetcher) *confDepth {
-	return &confDepth{L1Fetcher: fetcher, l1Head: l1Head, depth: depth, l1Cache: newL1HeadBuffer(1000)}
+	return &confDepth{L1Fetcher: fetcher, l1Head: l1Head, depth: depth}
 }
 
 // L1BlockRefByNumber is used for L1 traversal and for finding a safe common point between the L2 engine and L1 chain.
@@ -37,15 +33,7 @@ func (c *confDepth) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1B
 	if l1Head == (eth.L1BlockRef{}) {
 		return c.L1Fetcher.L1BlockRefByNumber(ctx, num)
 	}
-
-	c.l1Cache.Insert(l1Head)
-
 	if num == 0 || c.depth == 0 || num+c.depth <= l1Head.Number {
-		// Attempt to retrieve from the cache first, falling back to a live fetch
-		if ref, ok := c.l1Cache.Get(num); ok {
-			return ref, nil
-		}
-
 		return c.L1Fetcher.L1BlockRefByNumber(ctx, num)
 	}
 	return eth.L1BlockRef{}, ethereum.NotFound
