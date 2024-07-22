@@ -64,7 +64,6 @@
     "mocha": "^10.6.0",
     "nx": "18.2.2",
     "nx-cloud": "latest",
-    "nyc": "^15.1.0",
     "prettier": "^2.8.0",
     "rimraf": "^5.0.5",
     "ts-mocha": "^10.0.0",
