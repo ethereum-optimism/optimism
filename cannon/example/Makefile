@@ -1,10 +1,16 @@
-all: elf dump
+all: check-tools elf dump
 
 .PHONY: elf
 elf: $(patsubst %/go.mod,bin/%.elf,$(wildcard */go.mod))
 
 .PHONY: dump
 dump: $(patsubst %/go.mod,bin/%.dump,$(wildcard */go.mod))
+
+# Check and install necessary tools
+.PHONY: check-tools
+check-tools:
+	@echo "Checking for mipsel-linux-gnu-objdump..."
+	@command -v mipsel-linux-gnu-objdump >/dev/null || (echo "Installing binutils-mips-linux-gnu..." && sudo apt-get install binutils-mips-linux-gnu)
 
 bin:
 	mkdir bin
