@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/urfave/cli/v2"
 
@@ -13,8 +14,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 )
 
 var (
@@ -166,15 +167,19 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("cannot dial %s: %w", l1RPC, err)
 			}
 
+			systemConfigAbi := snapshots.LoadSystemConfigABI()
+			contract := bind.NewBoundContract(config.SystemConfigProxy, *systemConfigAbi, client, client, client)
 			callOpts := &bind.CallOpts{Context: context.Background()}
-			systemConfig, err := bindings.NewSystemConfig(config.SystemConfigProxy, client)
+			var result []interface{}
+			result = append(result, new(big.Int))
+			err = contract.Call(callOpts, &result, "startBlock")
 			if err != nil {
-				return fmt.Errorf("cannot create instance of SystemConfig contract: %w", err)
+				return fmt.Errorf("failed to fetch startBlock from SystemConfig contract: %w", err)
 			}
 
-			l1StartBlockNum, err := systemConfig.StartBlock(callOpts)
-			if err != nil {
-				return fmt.Errorf("cannot fetch startBlock from SystemConfig: %w", err)
+			l1StartBlockNum, ok := result[0].(*big.Int)
+			if !ok {
+				return fmt.Errorf("failed type assertion on startBlock value")
 			}
 
 			l1StartBlock, err := client.BlockByNumber(context.Background(), l1StartBlockNum)
