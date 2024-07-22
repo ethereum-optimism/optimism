@@ -38,7 +38,12 @@ func NewStackTracker(state mipsevm.FPVMState, meta *program.Metadata) (*StackTra
 	if meta == nil {
 		return nil, errors.New("metadata is nil")
 	}
-	return &StackTrackerImpl{state: state}, nil
+	return NewStackTrackerUnsafe(state, meta), nil
+}
+
+// NewStackTrackerUnsafe creates a new TraceableStackTracker without verifying meta is not nil
+func NewStackTrackerUnsafe(state mipsevm.FPVMState, meta *program.Metadata) *StackTrackerImpl {
+	return &StackTrackerImpl{state: state, meta: meta}
 }
 
 func (s *StackTrackerImpl) PushStack(target uint32) {

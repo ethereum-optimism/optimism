@@ -47,7 +47,7 @@ func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, s
 }
 
 func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
-	stackTracker, err := exec.NewStackTracker(m.state, meta)
+	stackTracker, err := NewThreadedStackTracker(m.state, meta)
 	if err != nil {
 		return err
 	}
