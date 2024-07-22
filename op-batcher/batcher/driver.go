@@ -113,6 +113,13 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.clearState(l.shutdownCtx)
 	l.lastStoredBlock = eth.BlockID{}
 
+	if l.Config.WaitNodeSync {
+		err := l.waitNodeSync()
+		if err != nil {
+			return fmt.Errorf("error waiting for node sync: %w", err)
+		}
+	}
+
 	l.wg.Add(1)
 	go l.loop()
 
@@ -288,13 +295,6 @@ const (
 
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
-	if l.Config.WaitNodeSync {
-		err := l.waitNodeSync()
-		if err != nil {
-			l.Log.Error("Error waiting for node sync", "err", err)
-			return
-		}
-	}
 
 	receiptsCh := make(chan txmgr.TxReceipt[txRef])
 	queue := txmgr.NewQueue[txRef](l.killCtx, l.Txmgr, l.Config.MaxPendingTransactions)
