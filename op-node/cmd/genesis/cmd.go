@@ -21,7 +21,7 @@ import (
 var (
 	l1RPCFlag = &cli.StringFlag{
 		Name:  "l1-rpc",
-		Usage: "RPC URL for an Ethereum L1 node. Cannot be used with --l1-starting-block",
+		Usage: "RPC URL for an Ethereum L1 node",
 	}
 	deployConfigFlag = &cli.PathFlag{
 		Name:     "deploy-config",
@@ -140,7 +140,6 @@ var Subcommands = cli.Commands{
 
 			l1Deployments := ctx.Path("l1-deployments")
 			l1RPC := ctx.String("l1-rpc")
-
 			if l1RPC == "" {
 				return errors.New("must specify --l1-rpc")
 			}
@@ -171,7 +170,6 @@ var Subcommands = cli.Commands{
 			contract := bind.NewBoundContract(config.SystemConfigProxy, *systemConfigAbi, client, client, client)
 			callOpts := &bind.CallOpts{Context: context.Background()}
 			var result []interface{}
-			result = append(result, new(big.Int))
 			err = contract.Call(callOpts, &result, "startBlock")
 			if err != nil {
 				return fmt.Errorf("failed to fetch startBlock from SystemConfig contract: %w", err)
@@ -179,7 +177,7 @@ var Subcommands = cli.Commands{
 
 			l1StartBlockNum, ok := result[0].(*big.Int)
 			if !ok {
-				return fmt.Errorf("failed type assertion on startBlock value")
+				return errors.New("failed type assertion on startBlock value")
 			}
 
 			l1StartBlock, err := client.BlockByNumber(context.Background(), l1StartBlockNum)
