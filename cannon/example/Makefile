@@ -1,16 +1,7 @@
-all: check-tools elf dump
+all: elf
 
 .PHONY: elf
 elf: $(patsubst %/go.mod,bin/%.elf,$(wildcard */go.mod))
-
-.PHONY: dump
-dump: $(patsubst %/go.mod,bin/%.dump,$(wildcard */go.mod))
-
-# Check and install necessary tools
-.PHONY: check-tools
-check-tools:
-	@echo "Checking for mipsel-linux-gnu-objdump..."
-	@command -v mipsel-linux-gnu-objdump >/dev/null || (echo "Installing binutils-mips-linux-gnu..." && sudo apt-get install binutils-mips-linux-gnu)
 
 bin:
 	mkdir bin
@@ -20,8 +11,3 @@ bin:
 # result is mips32, big endian, R3000
 bin/%.elf: bin
 	cd $(@:bin/%.elf=%) && GOOS=linux GOARCH=mips GOMIPS=softfloat go build -o ../$@ .
-
-# take any ELF and dump it
-# TODO: currently have the little-endian toolchain, but should use the big-endian one. The -EB compat flag works though.
-bin/%.dump: bin/%.elf
-	mipsel-linux-gnu-objdump -D --disassembler-options=no-aliases --wide --source -m mips:3000 -EB $(@:%.dump=%.elf) > $@
