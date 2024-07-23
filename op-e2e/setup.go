@@ -139,6 +139,11 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 					SequencerConfDepth: 0,
 					SequencerEnabled:   false,
 				},
+				RPC: rollupNode.RPCConfig{
+					ListenAddr:  "127.0.0.1",
+					ListenPort:  0,
+					EnableAdmin: true,
+				},
 				L1EpochPollInterval:         time.Second * 4,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
