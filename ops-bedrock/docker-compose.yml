@@ -242,22 +242,15 @@ services:
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
 
   da-server:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      target: da-server-target
-    command: >
-      da-server
-      --file.path=/data
-      --addr=0.0.0.0
-      --port=3100
-      --log.level=debug
-      --generic-commitment="${PLASMA_GENERIC_DA}"
+    platform: linux/amd64
+    image: ghcr.io/layr-labs/eigenda-proxy@sha256:10a4762f5c43e9037835617e6ec0b03da34012df87048a363f43b969ab93679b
+    environment:
+      - EIGENDA_PROXY_ADDR=0.0.0.0
+      - EIGENDA_PROXY_PORT=3100
+      - MEMSTORE_ENABLED=true
+      - MEMSTORE_EXPIRATION=45m
     ports:
-      - "3100:3100"
-    volumes:
-      - "da_data:/data"
+      - 3100:3100
 
   sentinel:
     image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
