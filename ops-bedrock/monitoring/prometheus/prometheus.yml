@@ -3,6 +3,12 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
+  - job_name: 'l1-geth'
+    static_configs:
+    - targets: ['l1:6060']
+  - job_name: 'l2-geth'
+    static_configs:
+    - targets: ['l2:6060']
   - job_name: 'op-node'
     static_configs:
     - targets: ['op-node:7300']
@@ -13,11 +19,11 @@ scrape_configs:
 
   - job_name: 'op-proposer'
     static_configs:
-    - targets: ['op-proposer:7302']
+    - targets: ['op-proposer:7300']
 
   - job_name: 'op-geth'
     static_configs:
-    - targets: ['op-geth:7303']
+    - targets: ['op-geth:7300']
 
   - job_name: 'eigenda-proxy'
     static_configs:
