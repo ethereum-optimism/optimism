@@ -121,7 +121,8 @@ RUN npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN svm install 0.5.17 && \
   svm install 0.8.15 && \
-  svm install 0.8.19
+  svm install 0.8.19 && \
+  svm install 0.8.25
 
 RUN echo "downloading and verifying Codecov uploader" && \
   curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import && \

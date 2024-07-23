@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 library MIPSMemory {
     /// @notice Reads a 32-bit value from memory.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";

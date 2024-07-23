@@ -1,4 +1,4 @@
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { Test } from "forge-std/Test.sol";
 import { WETH98 } from "src/dispute/weth/WETH98.sol";

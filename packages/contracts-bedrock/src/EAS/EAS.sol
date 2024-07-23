@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.25;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ISemver } from "src/universal/ISemver.sol";

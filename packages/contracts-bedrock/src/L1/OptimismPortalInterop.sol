@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";

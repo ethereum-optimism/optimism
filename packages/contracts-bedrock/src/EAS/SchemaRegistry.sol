@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.25;
 
 import { ISemver } from "src/universal/ISemver.sol";
 import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";
