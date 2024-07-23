@@ -37,6 +37,9 @@ error BadProposal();
 /// @notice Thrown when attempting to add leaves to a preimage proposal that has not been initialized.
 error NotInitialized();
 
+/// @notice Thrown when attempting to re-initialize an existing large preimage proposal.
+error AlreadyInitialized();
+
 /// @notice Thrown when the caller of a function is not an EOA.
 error NotEOA();
 

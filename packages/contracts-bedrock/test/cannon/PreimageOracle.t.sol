@@ -312,6 +312,17 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         oracle.initLPP{ value: bondSize }(TEST_UUID, 0, uint32(data.length));
     }
 
+    /// @notice Tests that the `initLPP` function reverts if the proposal has already been initialized.
+    function test_initLPP_alreadyInitialized_reverts() public {
+        // Initialize the proposal.
+        uint256 bondSize = oracle.MIN_BOND_SIZE();
+        oracle.initLPP{ value: bondSize }(TEST_UUID, 0, uint32(500));
+
+        // Re-initialize the proposal.
+        vm.expectRevert(AlreadyInitialized.selector);
+        oracle.initLPP{ value: bondSize }(TEST_UUID, 0, uint32(500));
+    }
+
     /// @notice Gas snapshot for `addLeaves`
     function test_addLeaves_gasSnapshot() public {
         // Allocate the preimage data.

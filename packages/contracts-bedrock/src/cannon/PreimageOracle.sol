@@ -29,8 +29,8 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -429,6 +429,10 @@ contract PreimageOracle is IPreimageOracle, ISemver {
 
         // Initialize the proposal metadata.
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
+
+        // Revert if the proposal has already been initialized. 0-size preimages are *not* allowed.
+        if (metaData.claimedSize() != 0) revert AlreadyInitialized();
+
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
         proposals.push(LargePreimageProposalKeys(msg.sender, _uuid));
 
