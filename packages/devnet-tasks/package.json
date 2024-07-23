@@ -40,7 +40,7 @@
     "hardhat-deploy": "^0.12.4",
     "ts-node": "^10.9.2",
     "typedoc": "^0.26.5",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.4"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",
