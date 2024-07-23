@@ -2,7 +2,6 @@ package tests
 
 import (
 	"bytes"
-	"debug/elf"
 	"io"
 	"os"
 	"path"
@@ -17,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
@@ -374,16 +372,7 @@ func TestHelloEVM(t *testing.T) {
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
-	elfProgram, err := elf.Open("../../example/bin/hello.elf")
-	require.NoError(t, err, "open ELF file")
-
-	state, err := program.LoadELF(elfProgram, singlethreaded.CreateInitialState)
-	require.NoError(t, err, "load ELF into state")
-
-	err = program.PatchGo(elfProgram, state)
-	require.NoError(t, err, "apply Go runtime patches")
-	require.NoError(t, program.PatchStack(state), "add initial stack")
-
+	state := testutil.LoadELFProgram(t, "../../example/bin/hello.elf", singlethreaded.CreateInitialState)
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	goState := singlethreaded.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
@@ -425,16 +414,7 @@ func TestClaimEVM(t *testing.T) {
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
-	elfProgram, err := elf.Open("../../example/bin/claim.elf")
-	require.NoError(t, err, "open ELF file")
-
-	state, err := program.LoadELF(elfProgram, singlethreaded.CreateInitialState)
-	require.NoError(t, err, "load ELF into state")
-
-	err = program.PatchGo(elfProgram, state)
-	require.NoError(t, err, "apply Go runtime patches")
-	require.NoError(t, program.PatchStack(state), "add initial stack")
-
+	state := testutil.LoadELFProgram(t, "../../example/bin/claim.elf", singlethreaded.CreateInitialState)
 	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
