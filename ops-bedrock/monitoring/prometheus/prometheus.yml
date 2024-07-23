@@ -1,0 +1,24 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'op-node'
+    static_configs:
+    - targets: ['op-node:7300']
+
+  - job_name: 'op-batcher'
+    static_configs:
+    - targets: ['op-batcher:7300']
+
+  - job_name: 'op-proposer'
+    static_configs:
+    - targets: ['op-proposer:7302']
+
+  - job_name: 'op-geth'
+    static_configs:
+    - targets: ['op-geth:7303']
+
+  - job_name: 'eigenda-proxy'
+    static_configs:
+    - targets: ['da-server:6969']

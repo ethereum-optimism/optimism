@@ -251,6 +251,30 @@ services:
       - MEMSTORE_EXPIRATION=45m
     ports:
       - 3100:3100
+      - 6969:7300
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    restart: unless-stopped
+    env_file:
+      -  grafana.env
+    volumes:
+      - ./monitoring/grafana/provisioning/:/etc/grafana/provisioning/:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      # - grafana_data:/var/lib/grafana
+    ports:
+      - 3000:3000
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      # - prometheus_data:/prometheus
+    ports:
+      - 9090:9090
 
   sentinel:
     image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
