@@ -54,7 +54,7 @@ func TestCachingReorgs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, l1Head, ret)
 
-	// trigger a reorg of block 101, invalidating the following cache elements
+	// trigger a reorg of block 101, invalidating the following cache elements (102)
 	l1Head = mockL1BlockRef(101)
 	l1Head.Hash = common.Hash{0xde, 0xad, 0xbe, 0xef}
 	newL1HeadEvent(l1Tracker, l1Head)
@@ -62,19 +62,49 @@ func TestCachingReorgs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, l1Head, ret)
 
+	// confirm that 102 has been removed
 	l1Fetcher.ExpectL1BlockRefByNumber(102, mockL1BlockRef(102), nil)
 	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 102)
 	require.NoError(t, err)
 	require.Equal(t, mockL1BlockRef(102), ret)
 	l1Fetcher.AssertExpectations(t)
 
-	// head jumps ahead, invalidating the entire cache
-	l1Head = mockL1BlockRef(103)
+	// append a new block 102 based on the new 101
+	parentHash := l1Head.Hash
+	l1Head = mockL1BlockRef(102)
+	l1Head.ParentHash = parentHash
 	newL1HeadEvent(l1Tracker, l1Head)
-	l1Fetcher.ExpectL1BlockRefByNumber(100, mockL1BlockRef(100), nil)
-	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 100)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 102)
 	require.NoError(t, err)
-	require.Equal(t, mockL1BlockRef(100), ret)
+	require.Equal(t, l1Head, ret)
+
+	// receive a new 102 block built on the original 101, invalidating the entire cache
+	l1Head = mockL1BlockRef(102)
+	newL1HeadEvent(l1Tracker, l1Head)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 102)
+	require.NoError(t, err)
+	require.Equal(t, l1Head, ret)
+
+	// confirm that the cache contains no 101
+	l1Fetcher.ExpectL1BlockRefByNumber(101, mockL1BlockRef(101), nil)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 101)
+	require.NoError(t, err)
+	require.Equal(t, mockL1BlockRef(101), ret)
+	l1Fetcher.AssertExpectations(t)
+
+	// head jumps ahead from 102->104, invalidating the entire cache
+	l1Head = mockL1BlockRef(104)
+	newL1HeadEvent(l1Tracker, l1Head)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 104)
+	require.NoError(t, err)
+	require.Equal(t, mockL1BlockRef(104), ret)
+	l1Fetcher.AssertExpectations(t)
+
+	// confirm that the cache contains no 102
+	l1Fetcher.ExpectL1BlockRefByNumber(102, mockL1BlockRef(102), nil)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 102)
+	require.NoError(t, err)
+	require.Equal(t, mockL1BlockRef(102), ret)
 	l1Fetcher.AssertExpectations(t)
 }
 

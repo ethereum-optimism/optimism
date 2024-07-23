@@ -36,22 +36,26 @@ func (lhb *l1HeadBuffer) Insert(l1Head eth.L1BlockRef) {
 	lhb.mu.Lock()
 	defer lhb.mu.Unlock()
 
-	// First, check if the L1 head is in the cache.
-	// If the hash doesn't match the one in the cache, we have a reorg and need to remove all entries after the new head.
-	if ref, ok := lhb.get(l1Head.Number); ok {
-		if ref.Hash != l1Head.Hash {
-			// Reorg detected, invalidate all entries after the new head.
-			for {
-				ref, ok := lhb.rb.Pop()
-				if !ok || ref.Number == l1Head.Number {
-					break
+	if ref, ok := lhb.get(l1Head.Number - 1); ok && ref.Hash == l1Head.ParentHash {
+		// Parent hash is found, so we can safely add the new head to the cache.
+
+		// Check to see if the new L1 head is already in the cache.
+		// If the hash doesn't match the one in the cache, we have a reorg and need to remove all entries after the new head.
+		if ref, ok := lhb.get(l1Head.Number); ok {
+			if ref.Hash != l1Head.Hash {
+				// Reorg detected, invalidate all entries after the new head.
+				for {
+					ref, ok := lhb.rb.Pop()
+					if !ok || ref.Number == l1Head.Number {
+						break
+					}
 				}
+				lhb.rb.Push(l1Head)
 			}
+		} else {
+			// New block height not contained in the cache, so this can be safely added as a simple extension.
 			lhb.rb.Push(l1Head)
 		}
-	} else if ref, ok := lhb.get(l1Head.Number - 1); ok && ref.Hash == l1Head.ParentHash {
-		// Parent hash matches, so we can safely add the new head to the cache.
-		lhb.rb.Push(l1Head)
 	} else {
 		// Parent not found or doesn't match, so invalidate the entire cache.
 		lhb.rb.Reset()
