@@ -22,6 +22,10 @@ func (lhb *l1HeadBuffer) Get(num uint64) (eth.L1BlockRef, bool) {
 	lhb.mu.RLock()
 	defer lhb.mu.RUnlock()
 
+	return lhb.get(num)
+}
+
+func (lhb *l1HeadBuffer) get(num uint64) (eth.L1BlockRef, bool) {
 	return lhb.rb.Get(int(num - lhb.minBlockNumber))
 }
 
@@ -34,7 +38,7 @@ func (lhb *l1HeadBuffer) Insert(l1Head eth.L1BlockRef) {
 
 	// First, check if the L1 head is in the cache.
 	// If the hash doesn't match the one in the cache, we have a reorg and need to remove all entries after the new head.
-	if ref, ok := lhb.Get(l1Head.Number); ok {
+	if ref, ok := lhb.get(l1Head.Number); ok {
 		if ref.Hash != l1Head.Hash {
 			// Reorg detected, invalidate all entries after the new head.
 			for {
@@ -45,7 +49,7 @@ func (lhb *l1HeadBuffer) Insert(l1Head eth.L1BlockRef) {
 			}
 			lhb.rb.Push(l1Head)
 		}
-	} else if ref, ok := lhb.Get(l1Head.Number - 1); ok && ref.Hash == l1Head.ParentHash {
+	} else if ref, ok := lhb.get(l1Head.Number - 1); ok && ref.Hash == l1Head.ParentHash {
 		// Parent hash matches, so we can safely add the new head to the cache.
 		lhb.rb.Push(l1Head)
 	} else {
