@@ -2,12 +2,18 @@ package main
 
 import (
 	"os"
+	"runtime"
 
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-program/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
+
+func init() {
+	// Disable mem profiling, to avoid a lot of unnecessary floating point ops
+	runtime.MemProfileRate = 0
+}
 
 func main() {
 	// Default to a machine parsable but relatively human friendly log format.
