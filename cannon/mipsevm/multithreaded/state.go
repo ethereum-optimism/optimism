@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
@@ -75,7 +76,7 @@ func CreateEmptyState() *State {
 			LO:     0,
 			HI:     0,
 		},
-		FutexAddr:        ^uint32(0),
+		FutexAddr:        exec.FutexEmptyAddr,
 		FutexVal:         0,
 		FutexTimeoutStep: 0,
 		Registers:        [32]uint32{},
@@ -87,7 +88,7 @@ func CreateEmptyState() *State {
 		ExitCode:         0,
 		Exited:           false,
 		Step:             0,
-		Wakeup:           ^uint32(0),
+		Wakeup:           exec.FutexEmptyAddr,
 		TraverseRight:    false,
 		LeftThreadStack:  []*ThreadState{initThread},
 		RightThreadStack: []*ThreadState{},
@@ -202,6 +203,9 @@ func (s *State) EncodeThreadProof() []byte {
 	if threadCount == 0 {
 		// There is currently one case where we will have an empty active stack with no current thread
 		// This happens at the end of wakeup thread traversal when no threads are found that are ready to wake
+		if s.Wakeup == exec.FutexEmptyAddr || !s.TraverseRight {
+			panic("Invalid empty thread stack")
+		}
 		// Just return an empty byte slice of the correct size in this case
 		return make([]byte, THREAD_WITNESS_SIZE)
 	}

@@ -56,6 +56,7 @@ const (
 	FutexWakePrivate  = 129
 	FutexTimeoutSteps = 10_000
 	FutexNoTimeout    = ^uint64(0)
+	FutexEmptyAddr    = ^uint32(0)
 )
 
 // Other constants

@@ -10,8 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 )
 
-const EMPTY_SIGNAL = ^uint32(0)
-
 func (m *InstrumentedState) handleSyscall() error {
 	thread := m.state.getCurrentThread()
 
@@ -34,7 +32,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			ThreadId:         m.state.NextThreadId,
 			ExitCode:         0,
 			Exited:           false,
-			FutexAddr:        EMPTY_SIGNAL,
+			FutexAddr:        exec.FutexEmptyAddr,
 			FutexVal:         0,
 			FutexTimeoutStep: 0,
 			Cpu: mipsevm.CpuScalars{
@@ -90,7 +88,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.memoryTracker.TrackMemAccess(a0)
 			mem := m.state.Memory.GetMemory(a0)
 			if mem != a2 {
-				v0 = EMPTY_SIGNAL
+				v0 = exec.SysErrorSignal
 				v1 = exec.MipsEAGAIN
 			} else {
 				thread.FutexVal = a2
@@ -141,9 +139,9 @@ func (m *InstrumentedState) mipsStep() error {
 	m.state.Step += 1
 
 	// If we've completed traversing both stacks for the wakeup check
-	if m.state.Wakeup != EMPTY_SIGNAL && m.state.TraverseRight && len(m.state.RightThreadStack) == 0 {
+	if m.state.Wakeup != exec.FutexEmptyAddr && m.state.TraverseRight && len(m.state.RightThreadStack) == 0 {
 		m.state.TraverseRight = false
-		m.state.Wakeup = EMPTY_SIGNAL
+		m.state.Wakeup = exec.FutexEmptyAddr
 		return nil
 	}
 
@@ -155,13 +153,13 @@ func (m *InstrumentedState) mipsStep() error {
 
 	// Search for the first thread blocked by the wakeup call, if wakeup is set
 	// Don't allow regular execution until we resolved if we have woken up any thread.
-	if m.state.Wakeup != EMPTY_SIGNAL && m.state.Wakeup != thread.FutexAddr {
+	if m.state.Wakeup != exec.FutexEmptyAddr && m.state.Wakeup != thread.FutexAddr {
 		m.preemptThread(thread, !m.state.TraverseRight)
 		return nil
 	}
 
 	// check if thread is blocked on a futex
-	if thread.FutexAddr != EMPTY_SIGNAL {
+	if thread.FutexAddr != exec.FutexEmptyAddr {
 		// if set, then check futex
 		// check timeout first
 		if m.state.Step > thread.FutexTimeoutStep {
@@ -179,11 +177,12 @@ func (m *InstrumentedState) mipsStep() error {
 				// wake thread up, the value at its address changed!
 				// Userspace can turn thread back to sleep if it was too sporadic.
 				m.onWaitComplete(thread, false)
+				return nil
 			}
 		}
 	}
 
-	if m.state.StepsSinceLastContextSwitch == exec.SchedQuantum {
+	if m.state.StepsSinceLastContextSwitch >= exec.SchedQuantum {
 		// Force a context switch as this thread has been active too long
 		msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
 		m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount())
@@ -207,13 +206,13 @@ func (m *InstrumentedState) mipsStep() error {
 
 func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {
 	// Clear the futex state
-	thread.FutexAddr = EMPTY_SIGNAL
+	thread.FutexAddr = exec.FutexEmptyAddr
 	thread.FutexVal = 0
 	thread.FutexTimeoutStep = 0
 
 	// Complete the FUTEX_WAIT syscall
 	v0 := uint32(0)
-	v1 := uint32(1)
+	v1 := uint32(0)
 	if isTimedOut {
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsETIMEDOUT
@@ -221,7 +220,7 @@ func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool)
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 
 	// Clear wakeup signal
-	m.state.Wakeup = EMPTY_SIGNAL
+	m.state.Wakeup = exec.FutexEmptyAddr
 }
 
 func (m *InstrumentedState) preemptThread(thread *ThreadState, doUpdateDirection bool) {
