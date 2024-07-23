@@ -171,6 +171,12 @@ def devnet_l2_allocs(paths):
 
 # Bring up the devnet where the contracts are deployed to L1
 def devnet_deploy(paths):
+
+    log.info('Starting peripheral telemetry services.')
+    run_command(['docker', 'compose', 'up', '-d', 'prometheus', 'grafana', 'loki', 'promtail'], cwd=paths.ops_bedrock_dir, env={
+        'PWD': paths.ops_bedrock_dir
+    })
+
     if os.path.exists(paths.genesis_l1_path):
         log.info('L1 genesis already generated.')
     else:

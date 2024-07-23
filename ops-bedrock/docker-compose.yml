@@ -12,9 +12,7 @@ volumes:
   da_data:
   op_log:
 
-
 services:
-
   l1:
     build:
       context: .
@@ -34,8 +32,8 @@ services:
     depends_on:
       - l1
     build:
-        context: .
-        dockerfile: l1-lighthouse.Dockerfile
+      context: .
+      dockerfile: l1-lighthouse.Dockerfile
     ports:
       - "9000:9000"
       - "5052:5052"
@@ -56,8 +54,8 @@ services:
       - l1
       - l1-bn
     build:
-        context: .
-        dockerfile: l1-lighthouse.Dockerfile
+      context: .
+      dockerfile: l1-lighthouse.Dockerfile
     volumes:
       - "l1_vc_data:/db"
       - "${PWD}/beacon-data/data/keys:/validator_setup/validators"
@@ -82,7 +80,7 @@ services:
       - "l2_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/jwt-secret.txt"
-    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
     environment:
@@ -190,16 +188,17 @@ services:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
       OP_BATCHER_ROLLUP_RPC: http://op-node:8545
-      OP_BATCHER_MAX_CHANNEL_DURATION: 2
+      OP_BATCHER_MAX_CHANNEL_DURATION: 10 # 10 L1 blocks = 60 seconds
       OP_BATCHER_SUB_SAFETY_MARGIN: 4 # SWS is 15, ChannelTimeout is 40
-      OP_BATCHER_POLL_INTERVAL: 1s
+      OP_BATCHER_POLL_INTERVAL: 2s
       OP_BATCHER_NUM_CONFIRMATIONS: 1
+      OP_BATCHER_MAX_PENDING_TX: 0 # no limit
       OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
       OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
-      OP_BATCHER_BATCH_TYPE: 1
+      OP_BATCHER_BATCH_TYPE: 0
       OP_BATCHER_ALTDA_ENABLED: "${ALTDA_ENABLED}"
       OP_BATCHER_ALTDA_DA_SERVICE: "${ALTDA_SERVICE}"
       OP_BATCHER_ALTDA_DA_SERVER: "http://da-server:3100"
@@ -240,22 +239,63 @@ services:
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
 
   da-server:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      target: da-server-target
-    command: >
-      da-server
-      --file.path=/data
-      --addr=0.0.0.0
-      --port=3100
-      --log.level=debug
-      --generic-commitment="${ALTDA_GENERIC_DA}"
+    platform: linux/amd64
+    image: ghcr.io/layr-labs/eigenda-proxy@sha256:c7aae98c0ed65763e0bfe9b2f41147123d6d576f435dcc2d0d8dbcbb03cdc205
+    environment:
+      - EIGENDA_PROXY_ADDR=0.0.0.0
+      - EIGENDA_PROXY_PORT=3100
+      - MEMSTORE_ENABLED=true
+      - MEMSTORE_EXPIRATION=45m
+      - EIGENDA_PROXY_SIGNER_PRIVATE_KEY_HEX=0000000000000000000100000000000000000000000000000000000000000000
+      - EIGENDA_PROXY_EIGENDA_DISPERSER_RPC=disperser-holesky.eigenda.xyz:443
+      - EIGENDA_PROXY_METRICS_ENABLED=true
+      - EIGENDA_PROXY_METRICS_PORT=7300
     ports:
-      - "3100:3100"
+      - 3100:3100
+      - 6969:7300
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    restart: unless-stopped
+    env_file:
+      - grafana.env
     volumes:
-      - "da_data:/data"
+      - ./monitoring/grafana/provisioning/:/etc/grafana/provisioning/:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      # - grafana_data:/var/lib/grafana
+    ports:
+      - 3000:3000
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    # env_file:
+    # - .env
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      # - prometheus_data:/prometheus
+    ports:
+      - 9090:9090
+    command: --config.file=/etc/prometheus/prometheus.yml --log.level=debug
+
+  loki:
+    image: grafana/loki:3.1.1
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/loki:/etc/loki
+    ports:
+      - 3200:3200
+    command: -config.file=/etc/loki/config.yaml
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    restart: unless-stopped
+    volumes:
+      # uncomment to scrape system logs
+      # - /var/log:/var/log
+      - ./monitoring/promtail:/etc/promtail
+      - /var/run/docker.sock:/var/run/docker.sock # Mount Docker socket to read container logs
+    command: -config.file=/etc/promtail/config.yaml
 
   sentinel:
     image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
