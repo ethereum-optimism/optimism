@@ -70,6 +70,14 @@ var (
 		Value:   0,
 		EnvVars: prefixEnvVars("MAX_CHANNEL_DURATION"),
 	}
+	MaxL1BlobBaseFeeFlag = &cli.Uint64Flag{
+		Name: "max-l1-blob-base-fee",
+		Usage: "If L1 blob base fee exceeds this value, batch tx will not be sent. " +
+			"The unit is Wei, and if 0 is specified, there is no fee cap. " +
+			"The base fee may not be accurate as it is obtained from the GasPriceOracle on L2.",
+		Value:   0,
+		EnvVars: prefixEnvVars("MAX_L1_BLOB_BASE_FEE"),
+	}
 	MaxL1TxSizeBytesFlag = &cli.Uint64Flag{
 		Name:    "max-l1-tx-size-bytes",
 		Usage:   "The maximum size of a batch tx submitted to L1. Ignored for blobs, where max blob size will be used.",
@@ -168,6 +176,7 @@ var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	MaxPendingTransactionsFlag,
 	MaxChannelDurationFlag,
+	MaxL1BlobBaseFeeFlag,
 	MaxL1TxSizeBytesFlag,
 	TargetNumFramesFlag,
 	ApproxComprRatioFlag,

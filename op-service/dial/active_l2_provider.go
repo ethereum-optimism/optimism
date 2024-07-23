@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -113,6 +115,16 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 		p.currentEthClient = ethClient
 	}
 	return p.currentEthClient, nil
+}
+
+func (p *ActiveL2EndpointProvider) GasPriceOracle(ctx context.Context) (GasPriceOracleInterface, error) {
+	if ec, err := p.EthClient(ctx); err != nil {
+		return nil, err
+	} else if t, ok := ec.(*ethclient.Client); !ok {
+		return nil, errors.New("not ethclient.Client")
+	} else {
+		return bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, t)
+	}
 }
 
 func (p *ActiveL2EndpointProvider) Close() {

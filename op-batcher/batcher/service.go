@@ -44,6 +44,7 @@ type BatcherConfig struct {
 
 	WaitNodeSync        bool
 	CheckRecentTxsDepth int
+	MaxL1BlobBaseFee    uint64
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -100,6 +101,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
+	bs.MaxL1BlobBaseFee = cfg.MaxL1BlobBaseFee
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}

@@ -3,6 +3,8 @@ package dial
 import (
 	"context"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -16,6 +18,8 @@ type L2EndpointProvider interface {
 	// Note: ctx should be a lifecycle context without an attached timeout as client selection may involve
 	// multiple network operations, specifically in the case of failover.
 	EthClient(ctx context.Context) (EthClientInterface, error)
+	// GasPriceOracle(ctx) returns the callable GasPriceOracle contract on the L2
+	GasPriceOracle(ctx context.Context) (GasPriceOracleInterface, error)
 }
 
 // StaticL2EndpointProvider is a L2EndpointProvider that always returns the same static RollupClient and eth client
@@ -42,6 +46,10 @@ func NewStaticL2EndpointProvider(ctx context.Context, log log.Logger, ethClientU
 
 func (p *StaticL2EndpointProvider) EthClient(context.Context) (EthClientInterface, error) {
 	return p.ethClient, nil
+}
+
+func (p *StaticL2EndpointProvider) GasPriceOracle(context.Context) (GasPriceOracleInterface, error) {
+	return bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, p.ethClient)
 }
 
 func (p *StaticL2EndpointProvider) Close() {

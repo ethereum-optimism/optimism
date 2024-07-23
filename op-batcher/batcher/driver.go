@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -487,6 +488,12 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	}
 	l.recordL1Tip(l1tip)
 
+	if l.Config.UseBlobs {
+		if err := l.checkL1BlobBaseFee(ctx); err != nil {
+			return err
+		}
+	}
+
 	// Collect next transaction data
 	txdata, err := l.state.TxData(l1tip.ID())
 
@@ -618,6 +625,23 @@ func (l *BatchSubmitter) calldataTxCandidate(data []byte) *txmgr.TxCandidate {
 		To:     &l.RollupConfig.BatchInboxAddress,
 		TxData: data,
 	}
+}
+
+func (l *BatchSubmitter) checkL1BlobBaseFee(ctx context.Context) error {
+	if l.Config.MaxL1BlobBaseFee > 0 {
+		gpo, err := l.EndpointProvider.GasPriceOracle(ctx)
+		if err != nil {
+			return fmt.Errorf("could not get GasPriceOracle: %w", err)
+		}
+		blobBaseFee, err := gpo.BlobBaseFee(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			return fmt.Errorf("could not get L1 Blob base fee from GasPriceOracle: %w", err)
+		}
+		if blobBaseFee.Cmp(new(big.Int).SetUint64(l.Config.MaxL1BlobBaseFee)) == 1 {
+			return fmt.Errorf("L1 Blob base fee exceeds threshold, blob_base_fee = %s", blobBaseFee)
+		}
+	}
+	return nil
 }
 
 func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txRef]) {

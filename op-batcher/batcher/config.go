@@ -52,6 +52,11 @@ type CLIConfig struct {
 	// transactions sent to the transaction manager (0 == no limit).
 	MaxPendingTransactions uint64
 
+	// If L1 blob base fee exceeds this value, batch tx will not be sent.
+	// The unit is Wei, and if 0 is specified, there is no fee cap.
+	// The base fee may not be accurate as it is obtained from the GasPriceOracle on L2.
+	MaxL1BlobBaseFee uint64
+
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	// If using blobs, this setting is ignored and the max blob size is used.
 	MaxL1TxSize uint64
@@ -171,6 +176,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		/* Optional Flags */
 		MaxPendingTransactions:       ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
 		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
+		MaxL1BlobBaseFee:             ctx.Uint64(flags.MaxL1BlobBaseFeeFlag.Name),
 		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
 		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),

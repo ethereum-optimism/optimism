@@ -3,6 +3,7 @@ package batcher
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -15,16 +16,19 @@ import (
 )
 
 type mockL2EndpointProvider struct {
-	ethClient       *testutils.MockL2Client
-	ethClientErr    error
-	rollupClient    *testutils.MockRollupClient
-	rollupClientErr error
+	ethClient         *testutils.MockL2Client
+	ethClientErr      error
+	rollupClient      *testutils.MockRollupClient
+	rollupClientErr   error
+	gasPriceOracle    *testutils.MockGasPriceOracle
+	gasPriceOracleErr error
 }
 
 func newEndpointProvider() *mockL2EndpointProvider {
 	return &mockL2EndpointProvider{
-		ethClient:    new(testutils.MockL2Client),
-		rollupClient: new(testutils.MockRollupClient),
+		ethClient:      new(testutils.MockL2Client),
+		rollupClient:   new(testutils.MockRollupClient),
+		gasPriceOracle: new(testutils.MockGasPriceOracle),
 	}
 }
 
@@ -34,6 +38,10 @@ func (p *mockL2EndpointProvider) EthClient(context.Context) (dial.EthClientInter
 
 func (p *mockL2EndpointProvider) RollupClient(context.Context) (dial.RollupClientInterface, error) {
 	return p.rollupClient, p.rollupClientErr
+}
+
+func (p *mockL2EndpointProvider) GasPriceOracle(context.Context) (dial.GasPriceOracleInterface, error) {
+	return p.gasPriceOracle, p.gasPriceOracleErr
 }
 
 func (p *mockL2EndpointProvider) Close() {}
@@ -116,4 +124,33 @@ func TestBatchSubmitter_SafeL1Origin_FailsToResolveRollupClient(t *testing.T) {
 
 	_, err := bs.safeL1Origin(context.Background())
 	require.Error(t, err)
+}
+
+func TestBatchSubmitter_CheckL1BlobBaseFee_NotSet(t *testing.T) {
+	bs, ep := setup(t)
+
+	ep.gasPriceOracle.ExpectBlobBaseFee(big.NewInt(1), nil)
+
+	err := bs.checkL1BlobBaseFee(context.Background())
+	require.NoError(t, err)
+}
+
+func TestBatchSubmitter_CheckL1BlobBaseFee_Succeeds(t *testing.T) {
+	bs, ep := setup(t)
+
+	bs.Config.MaxL1BlobBaseFee = 1
+	ep.gasPriceOracle.ExpectBlobBaseFee(big.NewInt(1), nil)
+
+	err := bs.checkL1BlobBaseFee(context.Background())
+	require.NoError(t, err)
+}
+
+func TestBatchSubmitter_CheckL1BlobBaseFee_Fails(t *testing.T) {
+	bs, ep := setup(t)
+
+	bs.Config.MaxL1BlobBaseFee = 1
+	ep.gasPriceOracle.ExpectBlobBaseFee(big.NewInt(2), nil)
+
+	err := bs.checkL1BlobBaseFee(context.Background())
+	require.ErrorContains(t, err, "L1 Blob base fee exceeds threshold")
 }
