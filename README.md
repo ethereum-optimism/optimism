@@ -11,6 +11,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
+- [devnet with eigenda alt-da](#devnet-with-eigenda-alt-da)
 - [What is Optimism?](#what-is-optimism)
 - [Documentation](#documentation)
 - [Specification](#specification)
@@ -25,6 +26,12 @@
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## devnet with eigenda alt-da
+
+Run `make altda-devnet-up` to start the devnet with the eigenda proxy as alt-da, which sends batches to `disperser-holesky.eigenda.xyz` (I think this is preprod?).
+
+This will also start a grafana instance, which you can access at `http://localhost:3000` with user:pw `admin:admin`.
 
 ## What is Optimism?
 
