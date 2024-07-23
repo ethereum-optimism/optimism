@@ -68,6 +68,61 @@ func TestCachingHeadReorg(t *testing.T) {
 	require.Equal(t, mockL1BlockRef(101), ret)
 }
 
+func TestCachingHeadRewind(t *testing.T) {
+	ctx := context.Background()
+	l1Fetcher := &testutils.MockL1Source{}
+	l1Tracker := NewL1Tracker(l1Fetcher)
+
+	// no blocks added to cache yet
+	l1Head := mockL1BlockRef(99)
+	l1Fetcher.ExpectL1BlockRefByNumber(99, l1Head, nil)
+	ret, err := l1Tracker.L1BlockRefByNumber(ctx, 99)
+	require.NoError(t, err)
+	require.Equal(t, l1Head, ret)
+	l1Fetcher.AssertExpectations(t)
+
+	// from cache
+	l1Head = mockL1BlockRef(100)
+	newL1HeadEvent(l1Tracker, l1Head)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 100)
+	require.NoError(t, err)
+	require.Equal(t, l1Head, ret)
+
+	// from cache
+	l1Head = mockL1BlockRef(101)
+	newL1HeadEvent(l1Tracker, l1Head)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 101)
+	require.NoError(t, err)
+	require.Equal(t, l1Head, ret)
+
+	// from cache
+	l1Head = mockL1BlockRef(102)
+	newL1HeadEvent(l1Tracker, l1Head)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 102)
+	require.NoError(t, err)
+	require.Equal(t, l1Head, ret)
+
+	// 101 is the new head, invalidating 102
+	l1Head = mockL1BlockRef(101)
+	newL1HeadEvent(l1Tracker, l1Head)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 101)
+	require.NoError(t, err)
+	require.Equal(t, l1Head, ret)
+
+	// confirm that 102 is no longer in the cache
+	l1Head = mockL1BlockRef(102)
+	l1Fetcher.ExpectL1BlockRefByNumber(102, l1Head, nil)
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 102)
+	require.NoError(t, err)
+	require.Equal(t, l1Head, ret)
+	l1Fetcher.AssertExpectations(t)
+
+	// confirm that 101 is still in the cache
+	ret, err = l1Tracker.L1BlockRefByNumber(ctx, 101)
+	require.NoError(t, err)
+	require.Equal(t, mockL1BlockRef(101), ret)
+}
+
 func TestCachingChainShorteningReorg(t *testing.T) {
 	ctx := context.Background()
 	l1Fetcher := &testutils.MockL1Source{}
