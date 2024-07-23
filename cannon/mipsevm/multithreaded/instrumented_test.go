@@ -22,17 +22,17 @@ func TestInstrumentedState_OpenMips(t *testing.T) {
 }
 
 func TestInstrumentedState_Hello(t *testing.T) {
-	testutil.RunVMTest_Hello(t, CreateInitialState, vmFactory)
+	testutil.RunVMTest_Hello(t, CreateInitialState, vmFactory, false)
 }
 
 func TestInstrumentedState_Claim(t *testing.T) {
-	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory)
+	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory, false)
 }
 
 func TestInstrumentedState_Alloc(t *testing.T) {
 	t.Skip("TODO(client-pod#906): Currently fails on Single threaded Cannon. Re-enable for the MT FPVM")
 
-	state := testutil.LoadELFProgram(t, "../../example/bin/alloc.elf", CreateInitialState)
+	state := testutil.LoadELFProgram(t, "../../example/bin/alloc.elf", CreateInitialState, false)
 	const numAllocs = 100 // where each alloc is a 32 MiB chunk
 	oracle := testutil.AllocOracle(t, numAllocs)
 

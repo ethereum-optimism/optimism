@@ -19,9 +19,9 @@ func TestInstrumentedState_OpenMips(t *testing.T) {
 }
 
 func TestInstrumentedState_Hello(t *testing.T) {
-	testutil.RunVMTest_Hello(t, CreateInitialState, vmFactory)
+	testutil.RunVMTest_Hello(t, CreateInitialState, vmFactory, true)
 }
 
 func TestInstrumentedState_Claim(t *testing.T) {
-	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory)
+	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory, true)
 }
