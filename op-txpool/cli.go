@@ -40,7 +40,6 @@ func CLIFlags(envPrefix string) []cli.Flag {
 	}
 }
 
-// TODO: Entrypoint addresses? somewhere to read preinstalls
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		SendRawTransactionConditionalEnabled:   ctx.Bool(SendRawTransactionConditionalEnabledFlagName),
