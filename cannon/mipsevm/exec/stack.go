@@ -9,7 +9,7 @@ import (
 )
 
 type StackTracker interface {
-	PushStack(target uint32)
+	PushStack(caller uint32, target uint32)
 	PopStack()
 }
 
@@ -20,7 +20,7 @@ type TraceableStackTracker interface {
 
 type NoopStackTracker struct{}
 
-func (n *NoopStackTracker) PushStack(target uint32) {}
+func (n *NoopStackTracker) PushStack(caller uint32, target uint32) {}
 
 func (n *NoopStackTracker) PopStack() {}
 
@@ -46,9 +46,9 @@ func NewStackTrackerUnsafe(state mipsevm.FPVMState, meta *program.Metadata) *Sta
 	return &StackTrackerImpl{state: state, meta: meta}
 }
 
-func (s *StackTrackerImpl) PushStack(target uint32) {
+func (s *StackTrackerImpl) PushStack(caller uint32, target uint32) {
+	s.caller = append(s.caller, caller)
 	s.stack = append(s.stack, target)
-	s.caller = append(s.caller, s.state.GetPC())
 }
 
 func (s *StackTrackerImpl) PopStack() {

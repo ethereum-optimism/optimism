@@ -7,39 +7,52 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
-type ThreadedStackTracker struct {
+type ThreadedStackTracker interface {
+	exec.TraceableStackTracker
+	DropThread(threadId uint32)
+}
+
+type NoopThreadedStackTracker struct {
+	exec.NoopStackTracker
+}
+
+var _ ThreadedStackTracker = (*ThreadedStackTrackerImpl)(nil)
+
+func (n *NoopThreadedStackTracker) DropThread(threadId uint32) {}
+
+type ThreadedStackTrackerImpl struct {
 	meta               *program.Metadata
 	state              *State
 	trackersByThreadId map[uint32]exec.TraceableStackTracker
 }
 
-var _ exec.TraceableStackTracker = (*ThreadedStackTracker)(nil)
+var _ ThreadedStackTracker = (*ThreadedStackTrackerImpl)(nil)
 
-func NewThreadedStackTracker(state *State, meta *program.Metadata) (*ThreadedStackTracker, error) {
+func NewThreadedStackTracker(state *State, meta *program.Metadata) (*ThreadedStackTrackerImpl, error) {
 	if meta == nil {
 		return nil, errors.New("metadata is nil")
 	}
 
-	return &ThreadedStackTracker{
+	return &ThreadedStackTrackerImpl{
 		state:              state,
 		meta:               meta,
 		trackersByThreadId: make(map[uint32]exec.TraceableStackTracker),
 	}, nil
 }
 
-func (t *ThreadedStackTracker) PushStack(target uint32) {
-	t.getCurrentTracker().PushStack(target)
+func (t *ThreadedStackTrackerImpl) PushStack(caller uint32, target uint32) {
+	t.getCurrentTracker().PushStack(caller, target)
 }
 
-func (t *ThreadedStackTracker) PopStack() {
+func (t *ThreadedStackTrackerImpl) PopStack() {
 	t.getCurrentTracker().PopStack()
 }
 
-func (t *ThreadedStackTracker) Traceback() {
+func (t *ThreadedStackTrackerImpl) Traceback() {
 	t.getCurrentTracker().Traceback()
 }
 
-func (t *ThreadedStackTracker) getCurrentTracker() exec.TraceableStackTracker {
+func (t *ThreadedStackTrackerImpl) getCurrentTracker() exec.TraceableStackTracker {
 	thread := t.state.getCurrentThread()
 	tracker, exists := t.trackersByThreadId[thread.ThreadId]
 	if !exists {
@@ -49,6 +62,6 @@ func (t *ThreadedStackTracker) getCurrentTracker() exec.TraceableStackTracker {
 	return tracker
 }
 
-func (t *ThreadedStackTracker) DropThread(threadId uint32) {
+func (t *ThreadedStackTrackerImpl) DropThread(threadId uint32) {
 	delete(t.trackersByThreadId, threadId)
 }

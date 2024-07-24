@@ -19,7 +19,7 @@ type InstrumentedState struct {
 	stdErr io.Writer
 
 	memoryTracker *exec.MemoryTrackerImpl
-	stackTracker  exec.TraceableStackTracker
+	stackTracker  ThreadedStackTracker
 
 	preimageOracle *exec.TrackingPreimageOracleReader
 }
@@ -33,7 +33,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		stdOut:         stdOut,
 		stdErr:         stdErr,
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
-		stackTracker:   &exec.NoopStackTracker{},
+		stackTracker:   &NoopThreadedStackTracker{},
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
 	}
 }

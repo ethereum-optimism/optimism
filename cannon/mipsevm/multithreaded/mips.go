@@ -52,8 +52,13 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.NextThreadId++
 
 		// Preempt this thread for the new one. But not before updating PCs
+		stackCaller := thread.Cpu.PC
+		stackTarget := thread.Cpu.NextPC
 		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 		m.pushThread(newThread)
+		// Note: We need to call stackTracker after pushThread,
+		// to ensure we are tracking in the context of the new thread
+		m.stackTracker.PushStack(stackCaller, stackTarget)
 		return nil
 	case exec.SysExitGroup:
 		m.state.Exited = true
@@ -148,6 +153,7 @@ func (m *InstrumentedState) mipsStep() error {
 	thread := m.state.getCurrentThread()
 	if thread.Exited {
 		m.popThread()
+		m.stackTracker.DropThread(thread.ThreadId)
 		return nil
 	}
 
