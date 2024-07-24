@@ -62,7 +62,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @return         The delegatee of the given account.
     function delegates(address _account) public view override(ERC20Votes) returns (address) {
         if (_migrated(_account)) {
-            // TODO: return which delegatee??
+            return Alligator(Predeploys.ALLIGATOR).delegates(_account)[0].delegatee;
         } else {
             return super.delegates(_account);
         }
@@ -102,19 +102,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _delegatee The account to delegate votes to.
     function delegate(address _delegatee) public override {
         // Alligator will migrate account if necessary.
-        Alligator(Predeploys.ALLIGATOR).subdelegateFromToken(
-            msg.sender,
-            _delegatee,
-            // Create rule equivalent to basic delegation.
-            SubdelegationRules({
-                maxRedelegations: 0,
-                blocksBeforeVoteCloses: 0,
-                notValidBefore: 0,
-                notValidAfter: 0,
-                allowanceType: AllowanceType.Relative,
-                allowance: 10e4 // 100%
-             })
-        );
+        Alligator(Predeploys.ALLIGATOR).subdelegateFromToken(msg.sender, _delegatee);
     }
 
     /// @notice Delegates votes from the sender to `delegatee`.
@@ -143,19 +131,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
             _hashTypedDataV4(keccak256(abi.encode(_DELEGATION_TYPEHASH, _delegatee, _nonce, _expiry))), _v, _r, _s
         );
         require(_nonce == _useNonce(signer), "GovernanceToken: invalid nonce");
-        Alligator(Predeploys.ALLIGATOR).subdelegateFromToken(
-            msg.sender,
-            _delegatee,
-            // Create rule equivalent to basic delegation.
-            SubdelegationRules({
-                maxRedelegations: 0,
-                blocksBeforeVoteCloses: 0,
-                notValidBefore: 0,
-                notValidAfter: 0,
-                allowanceType: AllowanceType.Relative,
-                allowance: 10e4 // 100%
-             })
-        );
+        Alligator(Predeploys.ALLIGATOR).subdelegateFromToken(msg.sender, _delegatee);
     }
 
     /// @notice Callback called after a token transfer. Forwards to the Alligator contract,

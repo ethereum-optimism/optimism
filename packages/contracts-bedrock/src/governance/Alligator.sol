@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-/// @notice Allowance type.
+/// @notice Allowance type of a delegation.
 /// @param Absolute The amount of votes delegated is fixed.
 /// @param Relative The amount of votes delegated is relative to the total amount of votes the delegator has.
 enum AllowanceType {
@@ -15,22 +14,32 @@ enum AllowanceType {
     Relative
 }
 
-/// @notice Subdelegation rules.
-/// @param maxRedelegations       Maximum number of times the delegated votes can be redelegated.
-/// @param blocksBeforeVoteCloses Number of blocks before the vote closes that the delegation is valid.
-/// @param notValidBefore         Timestamp after which the delegation is valid.
-/// @param notValidAfter          Timestamp before which the delegation is valid.
-/// @param baseRules              Base subdelegation rules.
+/// @notice Delegation of voting power.
+/// @param delegatee              The address to subdelegate to.
 /// @param allowanceType          Type of allowance.
-/// @param allowance              Amount of votes delegated. If `allowanceType` is Relative, 100% of allowance
-///                               corresponds to 1e5. Otherwise, this is the exact amount of votes delegated.
-struct SubdelegationRules {
-    uint8 maxRedelegations;
-    uint16 blocksBeforeVoteCloses;
-    uint32 notValidBefore;
-    uint32 notValidAfter;
+/// @param amount                 Amount of votes delegated. If `allowanceType` is Relative, `amount` acts
+///                               as a numerator and `DENOMINATOR` as a denominator. For example, 100% of allowance
+///                               corresponds to 1e4. Otherwise, this is the exact amount of votes delegated.
+struct Delegation {
     AllowanceType allowanceType;
-    uint256 allowance;
+    address delegatee;
+    uint256 amount;
+}
+
+/// @notice Adjustment of delegation.
+/// @param delegatee              The address to subdelegate to.
+/// @param amount                 Amount of votes delegated.
+struct DelegationAdjustment {
+    address delegatee;
+    uint208 amount;
+}
+
+/// @notice Operations for delegation adjustments.
+/// @param ADD      Add votes to the delegatee.
+/// @param SUBTRACT Subtract votes from the delegatee.
+enum Op {
+    ADD,
+    SUBTRACT
 }
 
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
@@ -46,31 +55,31 @@ contract Alligator {
     error NotGovernanceToken();
 
     /// @notice Thrown when there's a mismatch between the length of the `targets` and `subdelegationRules` arrays.
-    error LengthMismatch();
+    error LimitExceeded(uint256 length, uint256 maxLength);
 
-    /// @notice Thrown when the delegation is not delegated.
-    error NotDelegated(address from, address to);
+    /// @notice Thrown when the provided numerator is zero.
+    error InvalidNumeratorZero();
 
-    /// @notice Thrown when the delegation is delegated too many times.
-    error TooManyRedelegations(address from, address to);
+    /// @notice Thrown when the sum of the numerators exceeds the denominator.
+    error NumeratorSumExceedsDenominator(uint256 numerator, uint96 denominator);
 
-    /// @notice Thrown when the delegation is not valid yet.
-    error NotValidYet(address from, address to, uint256 willBeValidFrom);
-
-    /// @notice Thrown when the delegation is not valid anymore.
-    error NotValidAnymore(address from, address to, uint256 wasValidUntil);
-
-    /// @notice Thrown when the delegation is valid too early.
-    error TooEarly(address from, address to, uint256 blocksBeforeVoteCloses);
+    /// @notice The provided delegatee list is not sorted or contains duplicates.
+    error DuplicateOrUnsortedDelegatees(address delegatee);
 
     /// @notice Thrown when a block number is not yet mined.
     error BlockNotYetMined(uint256 blockNumber);
+
+    /// @notice The maximum number of delegations allowed.
+    uint256 public constant MAX_SUBDELEGATIONS = 100;
+
+    /// @notice The denominator used for relative delegations.
+    uint96 public constant DENOMINATOR = 10_000;
 
     /// @notice Flags to indicate if a account has been migrated to the Alligator contract.
     mapping(address => bool) public migrated;
 
     /// @notice Subdelegation rules for an account and delegatee.
-    mapping(address => mapping(address => SubdelegationRules)) internal _subdelegations;
+    mapping(address => Delegation[]) internal _delegations;
 
     /// @notice Checkpoints of votes for an account.
     mapping(address => ERC20Votes.Checkpoint[]) internal _checkpoints;
@@ -78,16 +87,13 @@ contract Alligator {
     /// @notice Checkpoints of total supply.
     ERC20Votes.Checkpoint[] internal _totalSupplyCheckpoints;
 
-    /// @notice Emitted when a subdelegation is created.
-    event Subdelegation(address indexed account, address indexed delegatee, SubdelegationRules subdelegationRules);
+    /// @notice Emitted when a delegation is created.
+    event DelegationCreated(address indexed account, Delegation delegation);
 
-    /// @notice Emitted when multiple subdelegations are created under a single SubdelegationRules.
-    event Subdelegations(address indexed account, address[] delegatee, SubdelegationRules subdelegationRules);
+    /// @notice Emitted when multiple delegations are created.
+    event DelegationsCreated(address indexed account, Delegation[] delegations);
 
-    /// @notice Emitted when multiple subdelegations are created under multiple SubdelegationRules.
-    event Subdelegations(address indexed account, address[] delegatee, SubdelegationRules[] subdelegationRules);
-
-    /// @notice Emitted when a delegator's voting power changes.
+    /// @notice Emitted when a user's voting power changes.
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
     modifier migrate(address _account) {
@@ -112,6 +118,12 @@ contract Alligator {
     /// @return         The total supply checkpoints.
     function numCheckpoints(address _account) external view returns (uint32) {
         return SafeCast.toUint32(_checkpoints[_account].length);
+    }
+
+    /// @notice Returns the delegatee with the most voting power for a given account.
+    /// @param account The account to get the delegatee for.
+    function delegates(address account) public view returns (Delegation[] memory) {
+        return _delegations[account];
     }
 
     /// @notice Returns the number of votes for a given account.
@@ -139,83 +151,54 @@ contract Alligator {
         return _checkpointsLookup(_totalSupplyCheckpoints, _blockNumber);
     }
 
-    /// @notice Returns the subdelegation rules for a given account and delegatee.
-    /// @param _account   The account subdelegating.
-    /// @param _delegatee The delegatee to get the subdelegation rules for.
-    /// @return           The subdelegation rules.
-    function subdelegations(address _account, address _delegatee) external view returns (SubdelegationRules memory) {
-        return _subdelegations[_account][_delegatee];
-    }
-
     /// @notice Subdelegate `to` with `subdelegationRules`.
     /// @param _delegatee          The address to subdelegate to.
-    /// @param _subdelegationRules The rules to apply to the subdelegation.
+    /// @param _delegation         The delegeation to apply.
     function subdelegate(
         address _delegatee,
-        SubdelegationRules calldata _subdelegationRules
+        Delegation calldata _delegation
     )
         external
         migrate(msg.sender)
         migrate(_delegatee)
     {
-        _subdelegations[msg.sender][_delegatee] = _subdelegationRules;
-        emit Subdelegation(msg.sender, _delegatee, _subdelegationRules);
-
-        // TODO: fix line below -> how to get some account's delegates? should we subtract the amount from the account?
-        // what if we have several delegates?
-        //_moveVotingPower({ _token: msg.sender, _src: delegates(_from), _dst: delegates(_to), _amount: _amount });
+        Delegation[] memory delegation = new Delegation[](1);
+        delegation[0] = _delegation;
+        _delegate(msg.sender, delegation);
+        emit DelegationCreated(msg.sender, _delegation);
     }
 
-    /// @notice Subdelegate `to` with `subdelegationRules`. This function can only be called from the GovernanceToken
+    /// @notice Subdelegate `to` with basic delegation rule. This function can only be called from the GovernanceToken
     /// contract.
     /// @param _account            The address subdelegating.
     /// @param _delegatee          The address to subdelegate to.
-    /// @param _subdelegationRules The rules to apply to the subdelegation.
     function subdelegateFromToken(
         address _account,
-        address _delegatee,
-        SubdelegationRules calldata _subdelegationRules
+        address _delegatee
     )
         external
         onlyToken
         migrate(_account)
         migrate(_delegatee)
     {
-        _subdelegations[_account][_delegatee] = _subdelegationRules;
-        emit Subdelegation(_account, _delegatee, _subdelegationRules);
+        Delegation[] memory delegation = new Delegation[](1);
+        delegation[0] = Delegation({
+            delegatee: _delegatee,
+            allowanceType: AllowanceType.Relative,
+            amount: 1e4 // 100%
+         });
 
-        // TODO: fix line below -> how to get some account's delegates? should we subtract the amount from the account?
-        // what if we have several delegates?
-        //_moveVotingPower({ _token: msg.sender, _src: delegates(_from), _dst: delegates(_to), _amount: _amount });
+        _delegate(_account, delegation);
+
+        emit DelegationCreated(_account, delegation[0]);
     }
 
     /// @notice Subdelegate `targets` with different `subdelegationRules` for each target.
-    /// @param _delegatees         The addresses to subdelegate to.
-    /// @param _subdelegationRules The rules to apply to the subdelegations.
-    function subdelegateBatched(
-        address[] calldata _delegatees,
-        SubdelegationRules[] calldata _subdelegationRules
-    )
-        external
-        migrate(msg.sender)
-    {
-        uint256 targetsLength = _delegatees.length;
-        if (targetsLength != _subdelegationRules.length) revert LengthMismatch();
-
-        for (uint256 i; i < targetsLength;) {
-            address delegatee = _delegatees[i];
-
-            // Migreate delegatee if it hasn't been migrated.
-            if (!migrated[delegatee]) _migrate(delegatee);
-
-            _subdelegations[msg.sender][delegatee] = _subdelegationRules[i];
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        emit Subdelegations(msg.sender, _delegatees, _subdelegationRules);
+    /// @param _delegations The delegations to apply.
+    function subdelegateBatched(Delegation[] calldata _delegations) external migrate(msg.sender) {
+        // TODO: migration inside the _delegate??
+        _delegate(msg.sender, _delegations);
+        emit DelegationsCreated(msg.sender, _delegations);
     }
 
     /// @notice Callback called after token transfer in the GovernanceToken contract.
@@ -232,9 +215,7 @@ contract Alligator {
         migrate(_from)
         migrate(_to)
     {
-        // TODO: fix line below -> how to get some account's delegates? should we subtract the amount from the account?
-        // what if we have several delegates?
-        //_moveVotingPower({ _token: msg.sender, _src: delegates(_from), _dst: delegates(_to), _amount: _amount });
+        _moveVotingPower(_from, _to, _amount);
     }
 
     /// @notice Migrate an account's delegation state from the GovernanceToken contract to the Alligator contract.
@@ -243,150 +224,175 @@ contract Alligator {
         if (!migrated[_account]) _migrate(_account);
     }
 
-    /// @notice Validate subdelegation rules and partial delegation allowances.
-    /// @param _token          The token to validate.
-    /// @param _proxy          The address of the proxy.
-    /// @param _sender         The sender address to validate.
-    /// @param _authority      The authority chain to validate against.
-    /// @param _proposalId     The id of the proposal for which validation is being performed.
-    /// @param _support        The support value for the vote. 0=against, 1=for, 2=abstain, 0xFF=proposal
-    /// @param _voterAllowance The allowance of the voter.
-    /// @return _votesToCast   The number of votes to cast by `sender`.
-    function _validate(
-        address _token,
-        address _proxy,
-        address _sender,
-        address[] calldata _authority,
-        uint256 _proposalId,
-        uint256 _support,
-        uint256 _voterAllowance
-    )
-        internal
-        view
-        returns (uint256 _votesToCast)
-    {
-        address from = _authority[0];
-
-        /// @dev Cannot underflow as `weightCast` is always less than or equal to total votes.
-        unchecked {
-            // TODO: update governor address below.
-            // uint256 weightCast = IGovernor(address(0)).weightCast(_proposalId, _proxy);
-            // _votesToCast = weightCast == 0 ? _voterAllowance : _voterAllowance - weightCast;
+    /**
+     * @dev Delegate `_delegator`'s voting units to delegates specified in `_newDelegations`.
+     * Emits events {IVotes-DelegateChanged} and {IVotes-DelegateVotesChanged}.
+     */
+    function _delegate(address _delegator, Delegation[] memory _newDelegations) internal virtual {
+        uint256 _newDelegationsLength = _newDelegations.length;
+        if (_newDelegationsLength > MAX_SUBDELEGATIONS) {
+            revert LimitExceeded(_newDelegationsLength, MAX_SUBDELEGATIONS);
         }
 
-        // If `_sender` is the proxy owner, only the proxy rules are validated.
-        if (from == _sender) {
-            return (_votesToCast);
+        // Calculate adjustments for old delegatee set, if it exists.
+        Delegation[] memory _oldDelegations = delegates(_delegator);
+        uint256 _oldDelegateLength = _oldDelegations.length;
+
+        DelegationAdjustment[] memory _old = new DelegationAdjustment[](_oldDelegateLength);
+        uint256 _delegatorVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_delegator);
+        if (_oldDelegateLength > 0) {
+            _old = _calculateWeightDistribution(_oldDelegations, _delegatorVotes);
         }
 
-        address to;
-        SubdelegationRules memory subdelegationRules;
-        uint256 votesCastFactor;
-        for (uint256 i = 1; i < _authority.length;) {
-            to = _authority[i];
+        // Calculate adjustments for new delegatee set.
+        DelegationAdjustment[] memory _new = _calculateWeightDistribution(_newDelegations, _delegatorVotes);
 
-            subdelegationRules = _subdelegations[from][to];
+        // Now we want a collated list of all delegatee changes, combining the old subtractions with the new additions.
+        // Ideally we'd like to process this only once.
+        _aggregateDelegationAdjustmentsAndCreateCheckpoints(_old, _new);
 
-            if (subdelegationRules.allowance == 0) {
-                revert NotDelegated(from, to);
+        // The rest of this method body replaces in storage the old delegatees with the new ones.
+        // keep track of last delegatee to ensure ordering / uniqueness:
+        address _lastDelegatee;
+
+        for (uint256 i; i < _newDelegationsLength; i++) {
+            // check sorting and uniqueness
+            if (i == 0 && _newDelegations[i].delegatee == address(0)) {
+                // zero delegation is allowed if in 0th position
+            } else if (_newDelegations[i].delegatee <= _lastDelegatee) {
+                revert DuplicateOrUnsortedDelegatees(_newDelegations[i].delegatee);
             }
 
-            // Prevent double spending of votes already cast by previous delegators by adjusting
-            // `subdelegationRules.allowance`.
-            if (subdelegationRules.allowanceType == AllowanceType.Relative) {
-                // `votesCastFactor`: remaining votes to cast by the delegate
-                // Get `votesCastFactor` by subtracting `votesCastByAuthorityChain` to given allowance amount
-                // Reverts for underflow when `votesCastByAuthorityChain > votesCastFactor`, when delegate has exceeded
-                // the allowance.
-
-                // TODO: below
-                // votesCastFactor = subdelegationRules.allowance * _voterAllowance / 1e5
-                //     - votesCastByAuthorityChain[_proxy][_proposalId][keccak256(abi.encode(_authority[0:i]))][to];
-
-                // Adjust `_votesToCast` to the minimum between `votesCastFactor` and `_votesToCast`
-                if (votesCastFactor < _votesToCast) {
-                    _votesToCast = votesCastFactor;
-                }
-            } else {
-                // `votesCastFactor`: total votes cast by the delegate
-                // Retrieve votes cast by `to` via `from` regardless of the used authority chain
-
-                // TODO: below
-                // votesCastFactor = votesCast[_proxy][_proposalId][from][to];
-
-                // Adjust allowance by subtracting eventual votes already cast by the delegate
-                // Reverts for underflow when `votesCastFactor > _voterAllowance`, when delegate has exceeded the
-                // allowance.
-                if (votesCastFactor != 0) {
-                    subdelegationRules.allowance = subdelegationRules.allowance - votesCastFactor;
-                }
+            // replace existing delegatees in storage
+            if (i < _oldDelegateLength) {
+                _delegations[_delegator][i] = _newDelegations[i];
             }
-
-            // Calculate `_voterAllowance` based on allowance given by `from`
-            _voterAllowance =
-                _getVoterAllowance(subdelegationRules.allowanceType, subdelegationRules.allowance, _voterAllowance);
-
-            unchecked {
-                _validateRules(
-                    subdelegationRules,
-                    _authority.length,
-                    _proposalId,
-                    from,
-                    to,
-                    ++i // pass `i + 1` and increment at the same time
-                );
+            // or add new delegatees
+            else {
+                _delegations[_delegator].push(_newDelegations[i]);
             }
-
-            from = to;
+            _lastDelegatee = _newDelegations[i].delegatee;
         }
-
-        if (from != _sender) revert NotDelegated(from, _sender);
-
-        _votesToCast = _voterAllowance > _votesToCast ? _votesToCast : _voterAllowance;
+        // remove any remaining old delegatees
+        if (_oldDelegateLength > _newDelegationsLength) {
+            for (uint256 i = _newDelegationsLength; i < _oldDelegateLength; i++) {
+                _delegations[_delegator].pop();
+            }
+        }
+        // emit DelegateChanged(_delegator, _oldDelegations, _newDelegations);
     }
 
-    /// @notice Validate subdelegation rules and partial delegation allowances.
-    /// @param _subdelegationRules The rules to validate.
-    /// @param _authorityLength    The length of the authority chain.
-    /// @param _proposalId         The id of the proposal for which validation is being performed.
-    /// @param _account            The address subdelegating.
-    /// @param _delegatee          The address to subdelegate to.
-    /// @param _redelegationIndex  The index of the redelegation in the authority chain.
-    function _validateRules(
-        SubdelegationRules memory _subdelegationRules,
-        uint256 _authorityLength,
-        uint256 _proposalId,
-        address _account,
-        address _delegatee,
-        uint256 _redelegationIndex
+    /**
+     * @dev Given an old delegation array and a new delegation array, determine which delegations have changed, create
+     * new
+     * voting checkpoints, and emit a {DelegateVotesChanged} event. Takes care to avoid duplicates and no-ops.
+     * Assumes both _old and _new are sorted by `DelegationAdjustment._delegatee`.
+     */
+    function _aggregateDelegationAdjustmentsAndCreateCheckpoints(
+        DelegationAdjustment[] memory _old,
+        DelegationAdjustment[] memory _new
     )
         internal
-        view
     {
-        /// @dev `maxRedelegation` cannot overflow as it increases by 1 each iteration
-        /// @dev block.number + _subdelegationRules.blocksBeforeVoteCloses cannot overflow uint256
-        unchecked {
-            if (uint256(_subdelegationRules.maxRedelegations) + _redelegationIndex < _authorityLength) {
-                revert TooManyRedelegations(_account, _delegatee);
-            }
-            if (block.timestamp < _subdelegationRules.notValidBefore) {
-                revert NotValidYet(_account, _delegatee, _subdelegationRules.notValidBefore);
-            }
-            if (_subdelegationRules.notValidAfter != 0) {
-                if (block.timestamp > _subdelegationRules.notValidAfter) {
-                    revert NotValidAnymore(_account, _delegatee, _subdelegationRules.notValidAfter);
+        // start with ith member of _old and jth member of _new.
+        // If they are the same delegatee, combine them, check if result is 0, and iterate i and j.
+        // If _old[i] > _new[j], add _new[j] to the final array and iterate j. If _new[j] > _old[i], add _old[i] and
+        // iterate
+        // i.
+        uint256 i;
+        uint256 j;
+        uint256 _oldLength = _old.length;
+        uint256 _newLength = _new.length;
+        while (i < _oldLength || j < _newLength) {
+            DelegationAdjustment memory _delegationAdjustment;
+            Op _op;
+
+            // same address is present in both arrays
+            if (i < _oldLength && j < _newLength && _old[i].delegatee == _new[j].delegatee) {
+                // combine, checkpoint, and iterate
+                _delegationAdjustment.delegatee = _old[i].delegatee;
+                if (_old[i].amount != _new[j].amount) {
+                    if (_old[i].amount > _new[j].amount) {
+                        _op = Op.SUBTRACT;
+                        _delegationAdjustment.amount = _old[i].amount - _new[j].amount;
+                    } else {
+                        _op = Op.ADD;
+                        _delegationAdjustment.amount = _new[j].amount - _old[i].amount;
+                    }
                 }
-            }
-            if (_subdelegationRules.blocksBeforeVoteCloses != 0) {
-                // TODO: update governor below?
-                if (
-                    IGovernor(address(0)).proposalDeadline(_proposalId)
-                        > uint256(block.number) + uint256(_subdelegationRules.blocksBeforeVoteCloses)
-                ) {
-                    revert TooEarly(_account, _delegatee, _subdelegationRules.blocksBeforeVoteCloses);
+                i++;
+                j++;
+            } else if (
+                j == _newLength // if we've exhausted the new array, we can just checkpoint the old values
+                    || (i != _oldLength && _old[i].delegatee < _new[j].delegatee) // or, if the ith old delegatee is next in
+                    // line
+            ) {
+                // skip if 0...
+                _delegationAdjustment.delegatee = _old[i].delegatee;
+                if (_old[i].amount != 0) {
+                    _op = Op.SUBTRACT;
+                    _delegationAdjustment.amount = _old[i].amount;
                 }
+                i++;
+            } else {
+                // skip if 0...
+                _delegationAdjustment.delegatee = _new[j].delegatee;
+                if (_new[j].amount != 0) {
+                    _op = Op.ADD;
+                    _delegationAdjustment.amount = _new[j].amount;
+                }
+                j++;
+            }
+
+            if (_delegationAdjustment.amount != 0 && _delegationAdjustment.delegatee != address(0)) {
+                _writeCheckpoint(
+                    _checkpoints[_delegationAdjustment.delegatee],
+                    _op == Op.ADD ? _add : _subtract,
+                    _delegationAdjustment.amount
+                );
+
+                // TODO: get old and new values for this event
+                // emit DelegateVotesChanged(_delegationAdjustment.delegatee, oldValue, newValue);
             }
         }
+    }
+
+    /**
+     * @dev Internal helper to calculate vote weights from a list of delegations. It reverts if the sum of the
+     * numerators
+     * is greater than DENOMINATOR.
+     */
+    function _calculateWeightDistribution(
+        Delegation[] memory _delegations,
+        uint256 _amount
+    )
+        internal
+        pure
+        returns (DelegationAdjustment[] memory)
+    {
+        uint256 _delegationsLength = _delegations.length;
+        DelegationAdjustment[] memory _delegationAdjustments = new DelegationAdjustment[](_delegationsLength);
+
+        // Keep track of total numerator to ensure it doesn't exceed DENOMINATOR
+        uint256 _totalNumerator;
+
+        // Iterate through partial delegations to calculate vote weight
+        for (uint256 i; i < _delegationsLength; i++) {
+            if (_delegations[i].allowanceType == AllowanceType.Relative) {
+                if (_delegations[i].amount == 0) {
+                    revert InvalidNumeratorZero();
+                }
+                _delegationAdjustments[i] = DelegationAdjustment(
+                    _delegations[i].delegatee, uint208(_amount * _delegations[i].amount / DENOMINATOR)
+                );
+                _totalNumerator += _delegations[i].amount;
+            }
+            // TODO: add case for absolute delegation
+        }
+        if (_totalNumerator > DENOMINATOR) {
+            revert NumeratorSumExceedsDenominator(_totalNumerator, DENOMINATOR);
+        }
+        return _delegationAdjustments;
     }
 
     /// @notice Migrate an account to the Alligator contract.
@@ -406,29 +412,6 @@ contract Alligator {
 
         // Set migrated flag
         migrated[_account] = true;
-    }
-
-    /// @notice Return the allowance of a voter, used in `validate`.
-    /// @param _allowanceType          The type of allowance.
-    /// @param _subdelegationAllowance The allowance of the subdelegation.
-    /// @param _delegatorAllowance     The allowance of the delegator.
-    /// @return                        The allowance of the voter.
-    function _getVoterAllowance(
-        AllowanceType _allowanceType,
-        uint256 _subdelegationAllowance,
-        uint256 _delegatorAllowance
-    )
-        internal
-        pure
-        returns (uint256)
-    {
-        if (_allowanceType == AllowanceType.Relative) {
-            return _subdelegationAllowance >= 1e5
-                ? _delegatorAllowance
-                : _delegatorAllowance * _subdelegationAllowance / 1e5;
-        }
-
-        return _delegatorAllowance > _subdelegationAllowance ? _subdelegationAllowance : _delegatorAllowance;
     }
 
     /// @notice Returns the checkpoints for a given token and account.
@@ -469,25 +452,56 @@ contract Alligator {
     }
 
     /// @notice Moves voting power from `_src` to `_dst` by `_amount`.
-    /// @param _src    The address of the source account.
-    /// @param _dst    The address of the destination account.
+    /// @param _from    The address of the source account.
+    /// @param _to    The address of the destination account.
     /// @param _amount The amount of voting power to move.
-    function _moveVotingPower(address _src, address _dst, uint256 _amount) internal {
-        if (_src != _dst && _amount > 0) {
-            if (_src != address(0)) {
-                (uint256 oldWeight, uint256 newWeight) = _writeCheckpoint(_checkpoints[_src], _subtract, _amount);
-                emit DelegateVotesChanged(_src, oldWeight, newWeight);
-                // Check if burn to update total supply checkpoint.
-                if (_dst == address(0)) _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _amount);
-            }
+    function _moveVotingPower(address _from, address _to, uint256 _amount) internal {
+        // skip from==to no-op, as the math would require special handling
+        if (_from == _to) {
+            return;
+        }
 
-            if (_dst != address(0)) {
-                (uint256 oldWeight, uint256 newWeight) = _writeCheckpoint(_checkpoints[_dst], _add, _amount);
-                emit DelegateVotesChanged(_dst, oldWeight, newWeight);
-                // Check if mint to update total supply checkpoint.
-                if (_src == address(0)) _writeCheckpoint(_totalSupplyCheckpoints, _add, _amount);
+        // update total supply checkpoints if mint/burn
+        if (_from == address(0)) {
+            _writeCheckpoint(_totalSupplyCheckpoints, _add, _amount);
+        }
+        if (_to == address(0)) {
+            _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _amount);
+        }
+
+        // finally, calculate delegatee vote changes and create checkpoints accordingly
+        uint256 _fromLength = _delegations[_from].length;
+        DelegationAdjustment[] memory delegationAdjustmentsFrom = new DelegationAdjustment[](_fromLength);
+        // We'll need to adjust the delegatee votes for both "_from" and "_to" delegatee sets.
+        if (_fromLength > 0) {
+            uint256 _fromVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_from);
+            DelegationAdjustment[] memory from = _calculateWeightDistribution(_delegations[_from], _fromVotes + _amount);
+            DelegationAdjustment[] memory fromNew = _calculateWeightDistribution(_delegations[_from], _fromVotes);
+            for (uint256 i; i < _fromLength; i++) {
+                delegationAdjustmentsFrom[i] = DelegationAdjustment({
+                    delegatee: _delegations[_from][i].delegatee,
+                    amount: from[i].amount - fromNew[i].amount
+                });
             }
         }
+
+        uint256 _toLength = _delegations[_to].length;
+        DelegationAdjustment[] memory delegationAdjustmentsTo = new DelegationAdjustment[](_toLength);
+        if (_toLength > 0) {
+            uint256 _toVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_to);
+            DelegationAdjustment[] memory to = _calculateWeightDistribution(_delegations[_to], _toVotes - _amount);
+            DelegationAdjustment[] memory toNew = _calculateWeightDistribution(_delegations[_to], _toVotes);
+
+            for (uint256 i; i < _toLength; i++) {
+                delegationAdjustmentsTo[i] = (
+                    DelegationAdjustment({
+                        delegatee: _delegations[_to][i].delegatee,
+                        amount: toNew[i].amount - to[i].amount
+                    })
+                );
+            }
+        }
+        _aggregateDelegationAdjustmentsAndCreateCheckpoints(delegationAdjustmentsFrom, delegationAdjustmentsTo);
     }
 
     /// @notice Writes a checkpoint with `_delta` and `op` to `_ckpts`.
