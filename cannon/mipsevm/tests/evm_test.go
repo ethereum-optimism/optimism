@@ -62,7 +62,7 @@ func TestEVM(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = testutil.EndAddr
 
-			goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+			goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, nil)
 
 			for i := 0; i < 1000; i++ {
 				curStep := goState.GetState().GetStep()
@@ -121,7 +121,7 @@ func TestEVMSingleStep(t *testing.T) {
 			state.Memory.SetMemory(tt.pc, tt.insn)
 			curStep := state.Step
 
-			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 			stepWitness, err := us.Step(true)
 			require.NoError(t, err)
 
@@ -301,7 +301,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			state.Memory.SetMemory(0, insn)
 			curStep := state.Step
 
-			us := singlethreaded.NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr, nil)
 			stepWitness, err := us.Step(true)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedHints, oracle.hints)
@@ -345,7 +345,7 @@ func TestEVMFault(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = testutil.EndAddr
 
-			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 			require.Panics(t, func() { _, _ = us.Step(true) })
 
 			insnProof := initialState.Memory.MerkleProof(0)
@@ -374,7 +374,7 @@ func TestHelloEVM(t *testing.T) {
 
 	state := testutil.LoadELFProgram(t, "../../example/bin/hello.elf", singlethreaded.CreateInitialState, true)
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	goState := singlethreaded.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	goState := singlethreaded.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), nil)
 
 	start := time.Now()
 	for i := 0; i < 400_000; i++ {
@@ -418,7 +418,7 @@ func TestClaimEVM(t *testing.T) {
 	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	goState := singlethreaded.NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	goState := singlethreaded.NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), nil)
 
 	for i := 0; i < 2000_000; i++ {
 		curStep := goState.GetState().GetStep()

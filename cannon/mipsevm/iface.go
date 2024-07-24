@@ -35,6 +35,9 @@ type FPVM interface {
 	// Step executes a single instruction and returns the witness for the step
 	Step(includeProof bool) (*StepWitness, error)
 
+	// CheckInfiniteLoop returns true if the vm is stuck in an infinite loop
+	CheckInfiniteLoop() bool
+
 	// LastPreimage returns the last preimage accessed by the VM
 	LastPreimage() (preimageKey [32]byte, preimage []byte, preimageOffset uint32)
 
