@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -11,11 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
@@ -95,6 +98,58 @@ func TestEVM(t *testing.T) {
 				require.Equal(t, done, uint32(1), "must be done")
 				require.Equal(t, result, uint32(1), "must have success result")
 			}
+		})
+	}
+}
+
+func TestEVM_CloneFlags(t *testing.T) {
+	//contracts, addrs := testContractsSetup(t)
+	//var tracer vm.EVMLogger
+
+	cases := []struct {
+		name  string
+		flags uint32
+		valid bool
+	}{
+		{"no flags", 0, true},
+		{"all flags", ^uint32(0), false},
+		{"all valid flags", exec.ValidCloneFlagsBitmask, true},
+		{"all invalid flags", ^uint32(exec.ValidCloneFlagsBitmask), false},
+		{"a few valid flags", exec.CloneFs | exec.CloneSysvsem, true},
+		{"one valid flag", exec.CloneFs, true},
+		{"mixed valid and invalid flags", exec.CloneFs | exec.CloneParentSettid, false},
+		{"a single invalid flag", exec.CloneUntraced, false},
+		{"multiple invalid flags", exec.CloneUntraced | exec.CloneParentSettid, false},
+	}
+
+	const insn = uint32(0x00_00_00_0C) // syscall instruction
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			state := multithreaded.CreateEmptyState()
+			state.Memory.SetMemory(state.GetPC(), insn)
+			state.GetRegisters()[2] = exec.SysClone // Set syscall number
+			state.GetRegisters()[4] = tt.flags      // Set first argument
+			//curStep := state.Step
+
+			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
+			if !tt.valid {
+				// Expect a panic
+				expectedError := fmt.Sprintf("Unrecognized clone flags %b (supported flags: %b)", tt.flags, exec.ValidCloneFlagsBitmask)
+				assert.PanicsWithValue(t, expectedError, func() { us.Step(false) }, "invalid flags should cause a panic") //nolint:errcheck
+			} else {
+				/*stepWitness*/ _, err := us.Step(true)
+				require.NoError(t, err)
+			}
+
+			// TODO: Validate EVM execution once onchain implementation is ready
+			//evm := testutil.NewMIPSEVM(contracts, addrs)
+			//evm.SetTracer(tracer)
+			//testutil.LogStepFailureAtCleanup(t, evm)
+			//
+			//evmPost := evm.Step(t, stepWitness, curStep, singlethreaded.GetStateHashFn())
+			//goPost, _ := us.GetState().EncodeWitness()
+			//require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+			//	"mipsevm produced different state than EVM")
 		})
 	}
 }

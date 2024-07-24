@@ -26,6 +26,11 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysBrk:
 		v0 = exec.BrkStart
 	case exec.SysClone: // clone
+		// a0 = flag bitmask, a1 = stack pointer
+		if (a0 & exec.ValidCloneFlagsBitmask) != a0 {
+			panic(fmt.Sprintf("Unrecognized clone flags %b (supported flags: %b)", a0, exec.ValidCloneFlagsBitmask))
+		}
+
 		v0 = m.state.NextThreadId
 		v1 = 0
 		newThread := &ThreadState{

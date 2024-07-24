@@ -88,13 +88,44 @@ const (
 	MipsETIMEDOUT  = 0x91
 )
 
-// Futex ops and other constants
+// SysFutex-related constants
 const (
 	FutexWaitPrivate  = 128
 	FutexWakePrivate  = 129
 	FutexTimeoutSteps = 10_000
 	FutexNoTimeout    = ^uint64(0)
 	FutexEmptyAddr    = ^uint32(0)
+)
+
+// SysClone flags
+// Handling is meant to support go runtime use cases
+// Pulled from: https://github.com/golang/go/blob/d8392e69973a64d96534d544d1f8ac2defc1bc64/src/runtime/os_linux.go#L124-L158
+const (
+	CloneVm            = 0x100
+	CloneFs            = 0x200
+	CloneFiles         = 0x400
+	CloneSighand       = 0x800
+	ClonePtrace        = 0x2000
+	CloneVfork         = 0x4000
+	CloneParent        = 0x8000
+	CloneThread        = 0x10000
+	CloneNewns         = 0x20000
+	CloneSysvsem       = 0x40000
+	CloneSettls        = 0x80000
+	CloneParentSettid  = 0x100000
+	CloneChildCleartid = 0x200000
+	CloneUntraced      = 0x800000
+	CloneChildSettid   = 0x1000000
+	CloneStopped       = 0x2000000
+	CloneNewuts        = 0x4000000
+	CloneNewipc        = 0x8000000
+
+	ValidCloneFlagsBitmask = CloneVm |
+		CloneFs |
+		CloneFiles |
+		CloneSighand |
+		CloneSysvsem |
+		CloneThread
 )
 
 // Other constants
