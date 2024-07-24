@@ -19,7 +19,7 @@ type TxPool struct {
 }
 
 func NewTxPool(ctx context.Context, log log.Logger, m metrics.Factory, cfg *CLIConfig) (*TxPool, error) {
-	conditionalTxService, err := NewConditionalService(ctx, log, m, cfg)
+	conditionalTxService, err := NewConditionalTxService(ctx, log, m, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create conditional tx service: %w", err)
 	}
