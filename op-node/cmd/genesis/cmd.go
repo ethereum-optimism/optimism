@@ -20,8 +20,9 @@ import (
 
 var (
 	l1RPCFlag = &cli.StringFlag{
-		Name:  "l1-rpc",
-		Usage: "RPC URL for an Ethereum L1 node",
+		Name:     "l1-rpc",
+		Usage:    "RPC URL for an Ethereum L1 node",
+		Required: true,
 	}
 	deployConfigFlag = &cli.PathFlag{
 		Name:     "deploy-config",
@@ -78,14 +79,15 @@ var Subcommands = cli.Commands{
 		Usage: "Generates a L1 genesis state file",
 		Flags: l1Flags,
 		Action: func(ctx *cli.Context) error {
-			deployConfig := ctx.String("deploy-config")
+
+			deployConfig := ctx.String(deployConfigFlag.Name)
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
 			}
 
 			var deployments *genesis.L1Deployments
-			if l1Deployments := ctx.String("l1-deployments"); l1Deployments != "" {
+			if l1Deployments := ctx.String(l1DeploymentsFlag.Name); l1Deployments != "" {
 				deployments, err = genesis.NewL1Deployments(l1Deployments)
 				if err != nil {
 					return err
@@ -106,7 +108,7 @@ var Subcommands = cli.Commands{
 			}
 
 			var dump *foundry.ForgeAllocs
-			if l1Allocs := ctx.String("l1-allocs"); l1Allocs != "" {
+			if l1Allocs := ctx.String(l1AllocsFlag.Name); l1Allocs != "" {
 				dump, err = foundry.LoadForgeAllocs(l1Allocs)
 				if err != nil {
 					return err
@@ -118,7 +120,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis, 0o666)
+			return jsonutil.WriteJSON(ctx.String(outfileL1Flag.Name), l1Genesis, 0o666)
 		},
 	},
 	{
@@ -131,18 +133,15 @@ var Subcommands = cli.Commands{
 			"or it can be provided as a JSON file.",
 		Flags: l2Flags,
 		Action: func(ctx *cli.Context) error {
-			deployConfig := ctx.Path("deploy-config")
+			deployConfig := ctx.Path(deployConfigFlag.Name)
 			log.Info("Deploy config", "path", deployConfig)
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
 			}
 
-			l1Deployments := ctx.Path("l1-deployments")
-			l1RPC := ctx.String("l1-rpc")
-			if l1RPC == "" {
-				return errors.New("must specify --l1-rpc")
-			}
+			l1Deployments := ctx.Path(l1DeploymentsFlag.Name)
+			l1RPC := ctx.String(l1RPCFlag.Name)
 
 			deployments, err := genesis.NewL1Deployments(l1Deployments)
 			if err != nil {
@@ -151,7 +150,7 @@ var Subcommands = cli.Commands{
 			config.SetDeployments(deployments)
 
 			var l2Allocs *foundry.ForgeAllocs
-			if l2AllocsPath := ctx.String("l2-allocs"); l2AllocsPath != "" {
+			if l2AllocsPath := ctx.String(l2AllocsFlag.Name); l2AllocsPath != "" {
 				l2Allocs, err = foundry.LoadForgeAllocs(l2AllocsPath)
 				if err != nil {
 					return err
@@ -205,10 +204,10 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
 
-			if err := jsonutil.WriteJSON(ctx.String("outfile.l2"), l2Genesis, 0o666); err != nil {
+			if err := jsonutil.WriteJSON(ctx.String(outfileL2Flag.Name), l2Genesis, 0o666); err != nil {
 				return err
 			}
-			return jsonutil.WriteJSON(ctx.String("outfile.rollup"), rollupConfig, 0o666)
+			return jsonutil.WriteJSON(ctx.String(outfileRollupFlag.Name), rollupConfig, 0o666)
 		},
 	},
 }
