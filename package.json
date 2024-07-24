@@ -61,7 +61,7 @@
     "eslint-plugin-prefer-arrow": "^1.2.3",
     "eslint-plugin-prettier": "^4.0.0",
     "mocha": "^10.7.0",
-    "nx": "18.2.2",
+    "nx": "19.5.2",
     "nx-cloud": "latest",
     "prettier": "^2.8.0",
     "rimraf": "^5.0.5",
