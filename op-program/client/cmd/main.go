@@ -10,10 +10,11 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
-func init() {
+var _ = func() bool {
 	// Disable mem profiling, to avoid a lot of unnecessary floating point ops
 	runtime.MemProfileRate = 0
-}
+	return true
+}()
 
 func main() {
 	// Default to a machine parsable but relatively human friendly log format.
