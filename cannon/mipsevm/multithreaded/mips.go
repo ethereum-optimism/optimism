@@ -130,7 +130,39 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysOpen:
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsEBADF
-
+	case exec.SysGetAffinity:
+	case exec.SysMadvise:
+	case exec.SysRtSigprocmask:
+	case exec.SysSigaltstack:
+	case exec.SysRtSigaction:
+	case exec.SysPrlimit64:
+	case exec.SysClose:
+	case exec.SysPread64:
+	case exec.SysFstat64:
+	case exec.SysOpenAt:
+	case exec.SysReadlink:
+	case exec.SysReadlinkAt:
+	case exec.SysIoctl:
+	case exec.SysEpollCreate1:
+	case exec.SysPipe2:
+	case exec.SysEpollCtl:
+	case exec.SysEpollPwait:
+	case exec.SysGetRandom:
+	case exec.SysUname:
+	case exec.SysStat64:
+	case exec.SysGetuid:
+	case exec.SysGetgid:
+	case exec.SysLlseek:
+	case exec.SysMinCore:
+	case exec.SysTgkill:
+	case exec.SysSetITimer:
+	case exec.SysTimerCreate:
+	case exec.SysTimerSetTime:
+	case exec.SysTimerDelete:
+	case exec.SysClockGetTime:
+	default:
+		m.Traceback()
+		panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
 	}
 
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)

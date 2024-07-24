@@ -13,21 +13,59 @@ import (
 
 // Syscall codes
 const (
-	SysMmap         = 4090
-	SysBrk          = 4045
-	SysClone        = 4120
-	SysExitGroup    = 4246
-	SysRead         = 4003
-	SysWrite        = 4004
-	SysFcntl        = 4055
-	SysExit         = 4001
-	SysSchedYield   = 4162
-	SysGetTID       = 4222
-	SysGetAffinity  = 4240
+	SysMmap       = 4090
+	SysBrk        = 4045
+	SysClone      = 4120
+	SysExitGroup  = 4246
+	SysRead       = 4003
+	SysWrite      = 4004
+	SysFcntl      = 4055
+	SysExit       = 4001
+	SysSchedYield = 4162
+	SysGetTID     = 4222
+	SysFutex      = 4238
+	SysOpen       = 4005
+	SysNanosleep  = 4166
+)
+
+// Noop Syscall codes
+const (
+	SysGetAffinity   = 4240
+	SysMadvise       = 4218
+	SysRtSigprocmask = 4195
+	SysSigaltstack   = 4206
+	SysRtSigaction   = 4194
+	SysPrlimit64     = 4338
+	SysClose         = 4006
+	SysPread64       = 4200
+	SysFstat64       = 4215
+	SysOpenAt        = 4288
+	SysReadlink      = 4085
+	SysReadlinkAt    = 4298
+	SysIoctl         = 4054
+	SysEpollCreate1  = 4326
+	SysPipe2         = 4328
+	SysEpollCtl      = 4249
+	SysEpollPwait    = 4313
+	SysGetRandom     = 4353
+	SysUname         = 4122
+	SysStat64        = 4213
+	SysGetuid        = 4024
+	SysGetgid        = 4047
+	SysLlseek        = 4140
+	SysMinCore       = 4217
+	SysTgkill        = 4266
+)
+
+// Profiling-related syscalls
+// Should be able to ignore if we patch out prometheus calls and disable memprofiling
+// TODO - patch out prometheus etc so these can be ignored
+const (
+	SysSetITimer    = 4104
+	SysTimerCreate  = 4257
+	SysTimerSetTime = 4258
+	SysTimerDelete  = 4261
 	SysClockGetTime = 4263
-	SysFutex        = 4238
-	SysOpen         = 4005
-	SysNanosleep    = 4166
 )
 
 // File descriptors
