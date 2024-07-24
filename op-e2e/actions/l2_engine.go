@@ -44,7 +44,7 @@ type L2Engine struct {
 
 	engineApi *engineapi.L2EngineAPI
 
-	failL2RPC error // mock error
+	failL2RPC func(call []rpc.BatchElem) error // mock error
 }
 
 type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
@@ -160,10 +160,11 @@ func (e *L2Engine) RPCClient() client.RPC {
 	cl := e.node.Attach()
 	return testutils.RPCErrFaker{
 		RPC: client.NewBaseRPCClient(cl),
-		ErrFn: func() error {
-			err := e.failL2RPC
-			e.failL2RPC = nil // reset back, only error once.
-			return err
+		ErrFn: func(call []rpc.BatchElem) error {
+			if e.failL2RPC == nil {
+				return nil
+			}
+			return e.failL2RPC(call)
 		},
 	}
 }
@@ -180,7 +181,10 @@ func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
 		t.InvalidAction("already set a mock L2 rpc error")
 		return
 	}
-	e.failL2RPC = err
+	e.failL2RPC = func(call []rpc.BatchElem) error {
+		e.failL2RPC = nil
+		return err
+	}
 }
 
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built

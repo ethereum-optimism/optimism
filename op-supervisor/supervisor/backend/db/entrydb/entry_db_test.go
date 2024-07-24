@@ -177,7 +177,7 @@ func TestWriteErrors(t *testing.T) {
 	})
 }
 
-func requireRead(t *testing.T, db *EntryDB, idx int64, expected Entry) {
+func requireRead(t *testing.T, db *EntryDB, idx EntryIdx, expected Entry) {
 	actual, err := db.Read(idx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -199,7 +199,7 @@ func createEntryDB(t *testing.T) *EntryDB {
 
 func createEntryDBWithStubData() (*EntryDB, *stubDataAccess) {
 	stubData := &stubDataAccess{}
-	db := &EntryDB{data: stubData, size: 0}
+	db := &EntryDB{data: stubData, lastEntryIdx: -1}
 	return db, stubData
 }
 

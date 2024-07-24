@@ -82,7 +82,7 @@ along the branch of the leaf value, starting from the bottom.
 
 To verify the proof, start with the leaf value as `node`, and combine it with respective sibling values:
 `node = keccak256(node ++ sibling)` or `node = keccak256(sibling ++ node)`,
-depending the position of `node` at that level of the tree.
+depending on the position of `node` at that level of the tree.
 
 During the onchain execution, each instruction only executes 1 or 2 memory reads, followed by 0 or 1 writes,
 where the write is over the same memory as was last read.
@@ -99,10 +99,10 @@ since all sibling data that is combined with the new leaf value was already auth
 ### Pre-image data
 
 Pre-image data is accessed through syscalls exclusively.
-The OP-stack fault-proof [Pre-image Oracle specs](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof.md#pre-image-oracle)
+The OP-stack fault-proof [Pre-image Oracle specs](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/index.md#pre-image-oracle)
 define the ABI for communicating pre-images.
 
-This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](https://github.com/ethereum-optimism/specs/blob/main/specs/cannon-fault-proof-vm.md#io) for more details.
+This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](https://github.com/ethereum-optimism/specs/blob/main/specs/fault-proof/cannon-fault-proof-vm.md#io) for more details.
 
 The data is loaded into `PreimageOracle.sol` using the respective loading function based on the pre-image type.
 And then retrieved during execution of the `read` syscall.

@@ -4,10 +4,11 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 )
 
 var absolutePrestate = common.FromHex("0000000000000000000000000000000000000000000000000000000000000060")

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -31,7 +33,7 @@ import (
 )
 
 func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
-	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib)
+	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib, rollup.NewChainSpec(e.RollupCfg))
 	require.NoError(t, err)
 	return channelOut
 }
@@ -448,7 +450,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// NextAttributes is called
-	sequencer.ActL2EventsUntil(t, event.Is[engine2.ProcessAttributesEvent], 100, true)
+	sequencer.ActL2EventsUntil(t, event.Is[engine2.BuildStartEvent], 100, true)
 	// mock forkChoiceUpdate error while restoring previous unsafe chain using backupUnsafe.
 	seqEng.ActL2RPCFail(t, eth.InputError{Inner: errors.New("mock L2 RPC error"), Code: eth.InvalidForkchoiceState})
 
@@ -581,17 +583,28 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// wait till attributes processing (excl.) before mocking errors
-	sequencer.ActL2EventsUntil(t, event.Is[engine2.ProcessAttributesEvent], 100, true)
+	sequencer.ActL2EventsUntil(t, event.Is[engine2.BuildStartEvent], 100, true)
 
 	serverErrCnt := 2
-	for i := 0; i < serverErrCnt; i++ {
-		// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
-		seqEng.ActL2RPCFail(t, gethengine.GenericServerError)
-		// TryBackupUnsafeReorg is called - forkChoiceUpdate returns GenericServerError so retry
-		sequencer.ActL2EventsUntil(t, event.Is[rollup.EngineTemporaryErrorEvent], 100, false)
-		// backupUnsafeHead not emptied yet
-		require.Equal(t, targetUnsafeHeadHash, sequencer.L2BackupUnsafe().Hash)
+	// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
+	seqEng.failL2RPC = func(call []rpc.BatchElem) error {
+		for _, e := range call {
+			// There may be other calls, like payload-processing-cancellation
+			// based on previous invalid block, and processing of block attributes.
+			if strings.HasPrefix(e.Method, "engine_forkchoiceUpdated") && e.Args[1].(*eth.PayloadAttributes) == nil {
+				if serverErrCnt > 0 {
+					serverErrCnt -= 1
+					return gethengine.GenericServerError
+				} else {
+					return nil
+				}
+			}
+		}
+		return nil
 	}
+	// cannot drain events until specific engine error, since SyncDeriver calls Drain internally still.
+	sequencer.ActL2PipelineFull(t)
+
 	// now forkchoice succeeds
 	// try to process invalid leftovers: B4, B5
 	sequencer.ActL2PipelineFull(t)

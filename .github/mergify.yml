@@ -96,13 +96,6 @@ pull_request_rules:
       label:
         add:
           - A-op-batcher
-  - name: Add A-op-bindings label
-    conditions:
-      - 'files~=^op-bindings/'
-    actions:
-      label:
-        add:
-          - A-op-bindings
   - name: Add A-op-bootnode label
     conditions:
       - 'files~=^op-bootnode/'

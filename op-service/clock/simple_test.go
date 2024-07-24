@@ -1,7 +1,6 @@
 package clock
 
 import (
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,10 +10,9 @@ import (
 func TestSimpleClock_Now(t *testing.T) {
 	c := NewSimpleClock()
 	require.Equal(t, time.Unix(0, 0), c.Now())
-	expectedTime := uint64(time.Now().Unix())
-	c.unix = atomic.Uint64{}
-	c.unix.Store(expectedTime)
-	require.Equal(t, time.Unix(int64(expectedTime), 0), c.Now())
+	expectedTime := time.Now()
+	c.v.Store(&expectedTime)
+	require.Equal(t, expectedTime, c.Now())
 }
 
 func TestSimpleClock_SetTime(t *testing.T) {

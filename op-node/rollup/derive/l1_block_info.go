@@ -45,7 +45,7 @@ type L1BlockInfo struct {
 	// Not strictly a piece of L1 information. Represents the number of L2 blocks since the start of the epoch,
 	// i.e. when the actual L1 info was first introduced.
 	SequenceNumber uint64
-	// BatcherHash version 0 is just the address with 0 padding to the left.
+	// BatcherAddr version 0 is just the address with 0 padding to the left.
 	BatcherAddr common.Address
 
 	L1FeeOverhead eth.Bytes32 // ignored after Ecotone upgrade

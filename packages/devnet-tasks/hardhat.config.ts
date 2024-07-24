@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { HardhatUserConfig } from 'hardhat/types'
 import { ethers } from 'ethers'
 
@@ -55,6 +56,10 @@ const config: HardhatUserConfig = {
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
+    sepolia: {
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+    },
   },
   external: {
     contracts: [
@@ -72,6 +77,10 @@ const config: HardhatUserConfig = {
       goerli: [
         '../contracts-bedrock/deployments/goerli',
         '../contracts/deployments/goerli',
+      ],
+      sepolia: [
+        '../contracts-bedrock/deployments/sepolia',
+        '../contracts/deployments/sepolia',
       ],
     },
   },

@@ -20,7 +20,7 @@ LDFLAGSSTRING +=-X main.Version=$(VERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 op-proposer:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-proposer ./cmd
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-proposer ./cmd
 
 clean:
 	rm bin/op-proposer
