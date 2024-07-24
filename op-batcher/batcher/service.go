@@ -35,9 +35,6 @@ type BatcherConfig struct {
 	PollInterval           time.Duration
 	MaxPendingTransactions uint64
 
-	// UseBlobs is true if the batcher should use blobs instead of calldata for posting blobs
-	UseBlobs bool
-
 	// UsePlasma is true if the rollup config has a DA challenge address so the batcher
 	// will post inputs to the Plasma DA server and post commitments to blobs or calldata.
 	UsePlasma bool
@@ -58,10 +55,8 @@ type BatcherService struct {
 
 	BatcherConfig
 
-	RollupConfig *rollup.Config
-
-	// Channel builder parameters
-	ChannelConfig ChannelConfig
+	ChannelConfig ChannelConfigProvider
+	RollupConfig  *rollup.Config
 
 	driver *BatchSubmitter
 
@@ -106,11 +101,11 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
-	if err := bs.initChannelConfig(cfg); err != nil {
-		return fmt.Errorf("failed to init channel config: %w", err)
-	}
 	if err := bs.initTxManager(cfg); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
+	}
+	if err := bs.initChannelConfig(cfg); err != nil {
+		return fmt.Errorf("failed to init channel config: %w", err)
 	}
 	bs.initBalanceMonitor(cfg)
 	if err := bs.initMetricsServer(cfg); err != nil {
@@ -207,9 +202,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 			cc.MaxFrameSize = eth.MaxBlobDataSize - 1
 		}
 		cc.MultiFrameTxs = true
-		bs.UseBlobs = true
-	case flags.CalldataType:
-		bs.UseBlobs = false
+	case flags.CalldataType: // do nothing
 	default:
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
@@ -220,24 +213,25 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 
 	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor, cfg.CompressionAlgo)
 
-	if bs.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
-		bs.Log.Error("Cannot use Blob data before Ecotone!") // log only, the batcher may not be actively running.
+	if cc.MultiFrameTxs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
+		return errors.New("cannot use Blobs before Ecotone")
 	}
-	if !bs.UseBlobs && bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
+	if !cc.MultiFrameTxs && bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
 		bs.Log.Warn("Ecotone upgrade is active, but batcher is not configured to use Blobs!")
 	}
 
 	// Checking for brotli compression only post Fjord
-	if bs.ChannelConfig.CompressorConfig.CompressionAlgo.IsBrotli() && !bs.RollupConfig.IsFjord(uint64(time.Now().Unix())) {
-		return fmt.Errorf("cannot use brotli compression before Fjord")
+	if cc.CompressorConfig.CompressionAlgo.IsBrotli() && !bs.RollupConfig.IsFjord(uint64(time.Now().Unix())) {
+		return errors.New("cannot use brotli compression before Fjord")
 	}
 
 	if err := cc.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)
 	}
 	bs.Log.Info("Initialized channel-config",
-		"use_blobs", bs.UseBlobs,
+		"use_blobs", cc.MultiFrameTxs,
 		"use_plasma", bs.UsePlasma,
+		"dynamic_eth_da", cfg.DynamicEthDA,
 		"max_frame_size", cc.MaxFrameSize,
 		"target_num_frames", cc.TargetNumFrames,
 		"compressor", cc.CompressorConfig.Kind,
@@ -249,7 +243,20 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	if bs.UsePlasma {
 		bs.Log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
 	}
-	bs.ChannelConfig = cc
+
+	if cfg.DynamicEthDA {
+		// copy blobs config and use hardcoded calldata fallback config for now
+		calldataCC := cc
+		calldataCC.TargetNumFrames = 1
+		calldataCC.MaxFrameSize = 120_000
+		calldataCC.MultiFrameTxs = false
+		calldataCC.ReinitCompressorConfig()
+
+		bs.ChannelConfig = NewDynamicEthChannelConfig(bs.Log, 10*time.Second, bs.TxManager, cc, calldataCC)
+	} else {
+		bs.ChannelConfig = cc
+	}
+
 	return nil
 }
 

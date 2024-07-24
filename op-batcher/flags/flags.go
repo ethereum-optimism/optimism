@@ -131,6 +131,12 @@ var (
 		}(),
 		EnvVars: prefixEnvVars("DATA_AVAILABILITY_TYPE"),
 	}
+	DynamicEthDAFlag = &cli.BoolFlag{
+		Name:    "dynamic-eth-da",
+		Usage:   "Whether to dynamically switch to calldata txs if blob txs are more expensive.",
+		Value:   false,
+		EnvVars: prefixEnvVars("DYNAMIC_ETH_DA"),
+	}
 	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
 		Name:    "active-sequencer-check-duration",
 		Usage:   "The duration between checks to determine the active sequencer endpoint. ",
@@ -176,6 +182,7 @@ var optionalFlags = []cli.Flag{
 	SequencerHDPathFlag,
 	BatchTypeFlag,
 	DataAvailabilityTypeFlag,
+	DynamicEthDAFlag,
 	ActiveSequencerCheckDurationFlag,
 	CompressionAlgoFlag,
 }

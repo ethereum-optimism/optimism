@@ -88,6 +88,10 @@ type CLIConfig struct {
 	// the data availability type to use for posting batches, e.g. blobs vs calldata.
 	DataAvailabilityType flags.DataAvailabilityType
 
+	// If DynamicEthDA is true, the batcher will switch dynamically to calldata
+	// transactions if blob transactions become more expensive.
+	DynamicEthDA bool
+
 	// TestUseMaxTxSizeForBlobs allows to set the blob size with MaxL1TxSize.
 	// Should only be used for testing purposes.
 	TestUseMaxTxSizeForBlobs bool
@@ -140,6 +144,9 @@ func (c *CLIConfig) Check() error {
 	if c.DataAvailabilityType == flags.BlobsType && c.TargetNumFrames > 6 {
 		return errors.New("too many frames for blob transactions, max 6")
 	}
+	if c.DynamicEthDA && c.DataAvailabilityType != flags.BlobsType {
+		return errors.New("dynamic eth DA is only available for blobs")
+	}
 	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {
 		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
 	}
@@ -181,6 +188,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
 		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
 		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
+		DynamicEthDA:                 ctx.Bool(flags.DynamicEthDAFlag.Name),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
 		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
 		LogConfig:                    oplog.ReadCLIConfig(ctx),

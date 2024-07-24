@@ -29,7 +29,7 @@ var (
 	ErrBatcherNotRunning = errors.New("batcher is not running")
 	emptyTxData          = txData{
 		frames: []frameData{
-			frameData{
+			{
 				data: []byte{},
 			},
 		},
@@ -39,6 +39,7 @@ var (
 type txRef struct {
 	id       txID
 	isCancel bool
+	isBlob   bool
 }
 
 type L1Client interface {
@@ -63,7 +64,7 @@ type DriverSetup struct {
 	Txmgr            *txmgr.SimpleTxManager
 	L1Client         L1Client
 	EndpointProvider dial.L2EndpointProvider
-	ChannelConfig    ChannelConfig
+	ChannelConfig    ChannelConfigProvider
 	PlasmaDA         *plasma.DAClient
 }
 
@@ -303,13 +304,17 @@ func (l *BatchSubmitter) loop() {
 	receiptLoopDone := make(chan struct{})
 	defer close(receiptLoopDone) // shut down receipt loop
 
-	var txpoolState atomic.Int32
+	var (
+		txpoolState       atomic.Int32
+		txpoolBlockedBlob bool
+	)
 	txpoolState.Store(TxpoolGood)
 	go func() {
 		for {
 			select {
 			case r := <-receiptsCh:
 				if errors.Is(r.Err, txpool.ErrAlreadyReserved) && txpoolState.CompareAndSwap(TxpoolGood, TxpoolBlocked) {
+					txpoolBlockedBlob = r.ID.isBlob
 					l.Log.Info("incompatible tx in txpool")
 				} else if r.ID.isCancel && txpoolState.CompareAndSwap(TxpoolCancelPending, TxpoolGood) {
 					// Set state to TxpoolGood even if the cancellation transaction ended in error
@@ -344,7 +349,7 @@ func (l *BatchSubmitter) loop() {
 				// txpoolState is set to Blocked only if Send() is returning
 				// ErrAlreadyReserved. In this case, the TxMgr nonce should be reset to nil,
 				// allowing us to send a cancellation transaction.
-				l.cancelBlockingTx(queue, receiptsCh)
+				l.cancelBlockingTx(queue, receiptsCh, txpoolBlockedBlob)
 			}
 			if txpoolState.Load() != TxpoolGood {
 				continue
@@ -531,15 +536,15 @@ func (l *BatchSubmitter) safeL1Origin(ctx context.Context) (eth.BlockID, error) 
 // cancelBlockingTx creates an empty transaction of appropriate type to cancel out the incompatible
 // transaction stuck in the txpool. In the future we might send an actual batch transaction instead
 // of an empty one to avoid wasting the tx fee.
-func (l *BatchSubmitter) cancelBlockingTx(queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
+func (l *BatchSubmitter) cancelBlockingTx(queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], isBlockedBlob bool) {
 	var candidate *txmgr.TxCandidate
 	var err error
-	if l.Config.UseBlobs {
+	if isBlockedBlob {
 		candidate = l.calldataTxCandidate([]byte{})
 	} else if candidate, err = l.blobTxCandidate(emptyTxData); err != nil {
 		panic(err) // this error should not happen
 	}
-	l.Log.Warn("sending a cancellation transaction to unblock txpool")
+	l.Log.Warn("sending a cancellation transaction to unblock txpool", "blocked_blob", isBlockedBlob)
 	l.queueTx(txData{}, true, candidate, queue, receiptsCh)
 }
 
@@ -550,7 +555,7 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 
 	var candidate *txmgr.TxCandidate
-	if l.Config.UseBlobs {
+	if txdata.asBlob {
 		if candidate, err = l.blobTxCandidate(txdata); err != nil {
 			// We could potentially fall through and try a calldata tx instead, but this would
 			// likely result in the chain spending more in gas fees than it is tuned for, so best
@@ -593,7 +598,7 @@ func (l *BatchSubmitter) queueTx(txdata txData, isCancel bool, candidate *txmgr.
 		candidate.GasLimit = intrinsicGas
 	}
 
-	queue.Send(txRef{txdata.ID(), isCancel}, *candidate, receiptsCh)
+	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)
 }
 
 func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {

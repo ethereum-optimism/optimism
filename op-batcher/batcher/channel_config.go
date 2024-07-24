@@ -48,6 +48,12 @@ type ChannelConfig struct {
 	MultiFrameTxs bool
 }
 
+// ChannelConfig returns a copy of itself. This makes a ChannelConfig a static
+// ChannelConfigProvider of itself.
+func (cc ChannelConfig) ChannelConfig() ChannelConfig {
+	return cc
+}
+
 // InitCompressorConfig (re)initializes the channel configuration's compressor
 // configuration using the given values. The TargetOutputSize will be set to a
 // value consistent with cc.TargetNumFrames and cc.MaxFrameSize.
@@ -73,6 +79,14 @@ func (cc *ChannelConfig) InitShadowCompressor(compressionAlgo derive.Compression
 
 func (cc *ChannelConfig) InitNoneCompressor() {
 	cc.InitCompressorConfig(0, compressor.NoneKind, derive.Zlib)
+}
+
+func (cc *ChannelConfig) ReinitCompressorConfig() {
+	cc.InitCompressorConfig(
+		cc.CompressorConfig.ApproxComprRatio,
+		cc.CompressorConfig.Kind,
+		cc.CompressorConfig.CompressionAlgo,
+	)
 }
 
 func (cc *ChannelConfig) MaxFramesPerTx() int {

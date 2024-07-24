@@ -1322,7 +1322,7 @@ func TestMinFees(t *testing.T) {
 			conf.MinTipCap = tt.minTipCap
 			h := newTestHarnessWithConfig(t, conf)
 
-			tip, baseFee, _, err := h.mgr.suggestGasPriceCaps(context.TODO())
+			tip, baseFee, _, err := h.mgr.SuggestGasPriceCaps(context.TODO())
 			require.NoError(err)
 
 			if tt.expectMinBaseFee {
