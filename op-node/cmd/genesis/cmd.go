@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -165,18 +163,12 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("cannot dial %s: %w", l1RPC, err)
 			}
 
-			funcDef := "startBlock()"
-			funcHash := crypto.Keccak256Hash([]byte(funcDef))
-			msg := ethereum.CallMsg{
-				To:   &config.SystemConfigProxy,
-				Data: funcHash[:4], // hardcode the 4byte sig
-			}
-			result, err := client.CallContract(context.Background(), msg, nil)
+			caller := batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize)
+			sysCfg := NewSystemConfigContract(caller, config.SystemConfigProxy)
+			l1StartBlockNum, err := sysCfg.StartBlock(context.Background())
 			if err != nil {
-				return fmt.Errorf("failed to fetch startBlock from SystemConfig contract: %w", err)
+				return fmt.Errorf("failed to fetch startBlock from SystemConfig: %w", err)
 			}
-
-			l1StartBlockNum := new(big.Int).SetBytes(result)
 			l1StartBlock, err := client.BlockByNumber(context.Background(), l1StartBlockNum)
 			if err != nil {
 				return fmt.Errorf("cannot fetch block by number: %w", err)
