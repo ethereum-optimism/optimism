@@ -43,12 +43,13 @@ enum Op {
 }
 
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
-/// @title Alligator
+/// @title GovernanceDelegation
 /// @notice A contract that allows delegation of votes to other accounts. It is used to implement subdelegation
 ///         functionality in the Optimism Governance system. It provides a way to migrate accounts from the Governance
-///         token to the Alligator contract, and then delegate votes to other accounts under subdelegation rules.
-contract Alligator {
-    /// @notice Thrown when the account has not been migrated to the Alligator contract.
+///         token to the GovernanceDelegation contract, and then delegate votes to other accounts under subdelegation
+/// rules.
+contract GovernanceDelegation {
+    /// @notice Thrown when the account has not been migrated to the GovernanceDelegation contract.
     error NotMigrated(address account);
 
     /// @notice Thrown when the caller is not the GovernanceToken contract.
@@ -75,7 +76,7 @@ contract Alligator {
     /// @notice The denominator used for relative delegations.
     uint96 public constant DENOMINATOR = 10_000;
 
-    /// @notice Flags to indicate if a account has been migrated to the Alligator contract.
+    /// @notice Flags to indicate if a account has been migrated to the GovernanceDelegation contract.
     mapping(address => bool) public migrated;
 
     /// @notice Subdelegation rules for an account and delegatee.
@@ -218,7 +219,8 @@ contract Alligator {
         _moveVotingPower(_from, _to, _amount);
     }
 
-    /// @notice Migrate an account's delegation state from the GovernanceToken contract to the Alligator contract.
+    /// @notice Migrate an account's delegation state from the GovernanceToken contract to the GovernanceDelegation
+    /// contract.
     /// @param _account The account to migrate.
     function migrateAccount(address _account) external {
         if (!migrated[_account]) _migrate(_account);
@@ -395,7 +397,7 @@ contract Alligator {
         return _delegationAdjustments;
     }
 
-    /// @notice Migrate an account to the Alligator contract.
+    /// @notice Migrate an account to the GovernanceDelegation contract.
     /// @param _account The account to migrate.
     function _migrate(address _account) internal {
         // Get the number of checkpoints.

@@ -610,7 +610,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "GovernanceToken", _sel: _getSel("transferFrom(address,address,uint256)") });
         _addSpec({ _name: "GovernanceToken", _sel: _getSel("transferOwnership(address)") });
 
-        // Alligator
+        // GovernanceDelegation
         // TODO: add remaining functions
 
         // MintManager

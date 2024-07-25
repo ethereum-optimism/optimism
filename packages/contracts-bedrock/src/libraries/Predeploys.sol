@@ -77,8 +77,8 @@ library Predeploys {
     /// @notice Address of the GovernanceToken predeploy.
     address internal constant GOVERNANCE_TOKEN = 0x4200000000000000000000000000000000000042;
 
-    /// @notice Address of the Alligator predeploy.
-    address internal constant ALLIGATOR = 0x4200000000000000000000000000000000000043;
+    /// @notice Address of the GovernanceDelegation predeploy.
+    address internal constant GOVERNANCE_DELEGATION = 0x4200000000000000000000000000000000000043;
 
     /// @custom:legacy
     /// @notice Address of the LegacyERC20ETH predeploy. Deprecated. Balances are migrated to the
@@ -125,7 +125,7 @@ library Predeploys {
         if (_addr == SCHEMA_REGISTRY) return "SchemaRegistry";
         if (_addr == EAS) return "EAS";
         if (_addr == GOVERNANCE_TOKEN) return "GovernanceToken";
-        if (_addr == ALLIGATOR) return "Alligator";
+        if (_addr == GOVERNANCE_DELEGATION) return "GovernanceDelegation";
         if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
         if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
         if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
