@@ -89,39 +89,6 @@ RUN pnpm build
 
 ENTRYPOINT ["pnpm", "run"]
 
-FROM base as chain-mon
-WORKDIR /opt/optimism/packages/chain-mon
-
-# TODO keeping the rest of these here for now because they are being used
-# but we should really delete them we only need one image
-FROM base as balance-mon
-WORKDIR /opt/optimism/packages/chain-mon/internal
-CMD ["start:balance-mon"]
-
-from base as fault-mon
-WORKDIR /opt/optimism/packages/chain-mon/
-CMD ["start:fault-mon"]
-
-from base as multisig-mon
-WORKDIR /opt/optimism/packages/internal/multisig-mon
-CMD ["start:multisig-mon"]
-
-FROM base as replica-mon
-WORKDIR /opt/optimism/packages/chain-mon/contrib
-CMD ["start:replica-mon"]
-
-FROM base as wallet-mon
-WORKDIR /opt/optimism/packages/chain-mon/contrib
-CMD ["start:wallet-mon"]
-
-FROM base as wd-mon
-WORKDIR /opt/optimism/packages/chain-mon/
-CMD ["start:wd-mon"]
-
-FROM base as faultproof-wd-mon
-WORKDIR /opt/optimism/packages/chain-mon/
-CMD ["start:faultproof-wd-mon"]
-
 FROM base as contracts-bedrock
 WORKDIR /opt/optimism/packages/contracts-bedrock
 CMD ["deploy"]
