@@ -65,22 +65,7 @@ type State struct {
 var _ mipsevm.FPVMState = (*State)(nil)
 
 func CreateEmptyState() *State {
-	initThreadId := uint32(0)
-	initThread := &ThreadState{
-		ThreadId: initThreadId,
-		ExitCode: 0,
-		Exited:   false,
-		Cpu: mipsevm.CpuScalars{
-			PC:     0,
-			NextPC: 4,
-			LO:     0,
-			HI:     0,
-		},
-		FutexAddr:        exec.FutexEmptyAddr,
-		FutexVal:         0,
-		FutexTimeoutStep: 0,
-		Registers:        [32]uint32{},
-	}
+	initThread := CreateEmptyThread()
 
 	return &State{
 		Memory:           memory.NewMemory(),
@@ -92,7 +77,7 @@ func CreateEmptyState() *State {
 		TraverseRight:    false,
 		LeftThreadStack:  []*ThreadState{initThread},
 		RightThreadStack: []*ThreadState{},
-		NextThreadId:     initThreadId + 1,
+		NextThreadId:     initThread.ThreadId + 1,
 	}
 }
 

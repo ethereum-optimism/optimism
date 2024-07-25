@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 )
 
 // SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
@@ -30,6 +31,25 @@ type ThreadState struct {
 	FutexTimeoutStep uint64             `json:"futexTimeoutStep"`
 	Cpu              mipsevm.CpuScalars `json:"cpu"`
 	Registers        [32]uint32         `json:"registers"`
+}
+
+func CreateEmptyThread() *ThreadState {
+	initThreadId := uint32(0)
+	return &ThreadState{
+		ThreadId: initThreadId,
+		ExitCode: 0,
+		Exited:   false,
+		Cpu: mipsevm.CpuScalars{
+			PC:     0,
+			NextPC: 4,
+			LO:     0,
+			HI:     0,
+		},
+		FutexAddr:        exec.FutexEmptyAddr,
+		FutexVal:         0,
+		FutexTimeoutStep: 0,
+		Registers:        [32]uint32{},
+	}
 }
 
 func (t *ThreadState) serializeThread() []byte {

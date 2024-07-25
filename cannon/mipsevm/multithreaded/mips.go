@@ -61,7 +61,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		stackTarget := thread.Cpu.NextPC
 		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 		m.pushThread(newThread)
-		// Note: We need to call stackTracker after pushThread,
+		// Note: We need to call stackTracker after pushThread
 		// to ensure we are tracking in the context of the new thread
 		m.stackTracker.PushStack(stackCaller, stackTarget)
 		return nil
