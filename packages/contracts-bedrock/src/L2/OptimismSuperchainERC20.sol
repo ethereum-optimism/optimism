@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IOptimismSuperchainERC20 } from "src/L2/IOptimismSuperchainERC20.sol";
 import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
@@ -10,14 +10,14 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
 /// L2ToL2CrossDomainMessenger.
-error RelayMessageCallerNotL2ToL2CrossDomainMessenger();
+error CallerNotL2ToL2CrossDomainMessenger();
 
 /// @notice Thrown when attempting to relay a message and the cross domain message sender is not this
 /// OptimismSuperchainERC20.
-error MessageSenderNotThisSuperchainERC20();
+error InvalidCrossDomainSender();
 
 /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the StandardBridge.
-error CallerNotBridge();
+error OnlyBridge();
 
 /// @notice Thrown when attempting to mint or burn tokens and the account is the zero address.
 error ZeroAddress();
@@ -27,7 +27,13 @@ error ZeroAddress();
 /// @notice OptimismSuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
 ///         bridging to make it fungible across the Superchain. This construction builds on top of the
 ///         L2ToL2CrossDomainMessenger for both replay protection and domain binding.
-contract OptimismSuperchainERC20 is ERC20, ISemver {
+contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
+    /// @notice Address of the L2ToL2CrossDomainMessenger Predeploy.
+    address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+
+    /// @notice Address of the StandardBridge Predeploy.
+    address internal constant BRIDGE = Predeploys.L2_STANDARD_BRIDGE;
+
     /// @notice Address of the corresponding version of this token on the remote chain.
     address public immutable REMOTE_TOKEN;
 
@@ -40,31 +46,9 @@ contract OptimismSuperchainERC20 is ERC20, ISemver {
     /// @notice Symbol of the token
     string private _symbol;
 
-    /// @notice Emitted whenever tokens are minted for an account.
-    /// @param account Address of the account tokens are being minted for.
-    /// @param amount  Amount of tokens minted.
-    event Mint(address indexed account, uint256 amount);
-
-    /// @notice Emitted whenever tokens are burned from an account.
-    /// @param account Address of the account tokens are being burned from.
-    /// @param amount  Amount of tokens burned.
-    event Burn(address indexed account, uint256 amount);
-
-    /// @notice Emitted whenever tokens are sent to another chain.
-    /// @param from    Address of the sender.
-    /// @param to      Address of the recipient.
-    /// @param amount  Amount of tokens sent.
-    /// @param chainId Chain ID of the destination chain.
-    event SentERC20(address indexed from, address indexed to, uint256 amount, uint256 chainId);
-
-    /// @notice Emitted whenever tokens are successfully relayed on this chain.
-    /// @param to     Address of the recipient.
-    /// @param amount Amount of tokens relayed.
-    event RelayedERC20(address indexed to, uint256 amount);
-
     /// @notice A modifier that only allows the bridge to call
     modifier onlyBridge() {
-        if (msg.sender != Predeploys.L2_STANDARD_BRIDGE) revert CallerNotBridge();
+        if (msg.sender != BRIDGE) revert OnlyBridge();
         _;
     }
 
@@ -115,9 +99,7 @@ contract OptimismSuperchainERC20 is ERC20, ISemver {
         _burn(msg.sender, _amount);
 
         bytes memory _message = abi.encodeCall(this.relayERC20, (_to, _amount));
-        IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).sendMessage(
-            _chainId, address(this), _message
-        );
+        IL2ToL2CrossDomainMessenger(MESSENGER).sendMessage(_chainId, address(this), _message);
 
         emit SentERC20(msg.sender, _to, _amount, _chainId);
     }
@@ -128,15 +110,10 @@ contract OptimismSuperchainERC20 is ERC20, ISemver {
     function relayERC20(address _to, uint256 _amount) external {
         if (_to == address(0)) revert ZeroAddress();
 
-        if (msg.sender != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
-            revert RelayMessageCallerNotL2ToL2CrossDomainMessenger();
-        }
+        if (msg.sender != MESSENGER) revert CallerNotL2ToL2CrossDomainMessenger();
 
-        if (
-            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).crossDomainMessageSender()
-                != address(this)
-        ) {
-            revert MessageSenderNotThisSuperchainERC20();
+        if (IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSender() != address(this)) {
+            revert InvalidCrossDomainSender();
         }
 
         _mint(_to, _amount);
@@ -162,5 +139,12 @@ contract OptimismSuperchainERC20 is ERC20, ISemver {
     /// @notice Returns the symbol of the token.
     function symbol() public view virtual override returns (string memory) {
         return _symbol;
+    }
+
+    /// @notice ERC165 interface check function.
+    /// @param _interfaceId Interface ID to check.
+    /// @return Whether or not the interface is supported by this contract.
+    function supportsInterface(bytes4 _interfaceId) external pure virtual returns (bool) {
+        return _interfaceId == type(IOptimismSuperchainERC20).interfaceId;
     }
 }

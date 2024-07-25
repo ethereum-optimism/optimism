@@ -14,10 +14,10 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.
 // Target contract
 import {
     OptimismSuperchainERC20,
-    CallerNotBridge,
-    RelayMessageCallerNotL2ToL2CrossDomainMessenger,
-    MessageSenderNotThisSuperchainERC20,
-    CallerNotBridge,
+    IOptimismSuperchainERC20,
+    CallerNotL2ToL2CrossDomainMessenger,
+    InvalidCrossDomainSender,
+    OnlyBridge,
     ZeroAddress
 } from "src/L2/OptimismSuperchainERC20.sol";
 
@@ -58,8 +58,8 @@ contract OptimismSuperchainERC20Test is Test {
         // Ensure the caller is not the bridge
         vm.assume(_caller != BRIDGE);
 
-        // Expect the revert with `CallerNotBridge` selector
-        vm.expectRevert(CallerNotBridge.selector);
+        // Expect the revert with `OnlyBridge` selector
+        vm.expectRevert(OnlyBridge.selector);
 
         // Call the `mint` function with the non-bridge caller
         vm.prank(_caller);
@@ -91,7 +91,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `Mint` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit OptimismSuperchainERC20.Mint(_to, _amount);
+        emit IOptimismSuperchainERC20.Mint(_to, _amount);
 
         // Call the `mint` function with the bridge caller
         vm.prank(BRIDGE);
@@ -107,8 +107,8 @@ contract OptimismSuperchainERC20Test is Test {
         // Ensure the caller is not the bridge
         vm.assume(_caller != BRIDGE);
 
-        // Expect the revert with `CallerNotBridge` selector
-        vm.expectRevert(CallerNotBridge.selector);
+        // Expect the revert with `OnlyBridge` selector
+        vm.expectRevert(OnlyBridge.selector);
 
         // Call the `burn` function with the non-bridge caller
         vm.prank(_caller);
@@ -144,7 +144,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `Burn` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit OptimismSuperchainERC20.Burn(_from, _amount);
+        emit IOptimismSuperchainERC20.Burn(_from, _amount);
 
         // Call the `burn` function with the bridge caller
         vm.prank(BRIDGE);
@@ -153,6 +153,16 @@ contract OptimismSuperchainERC20Test is Test {
         // Check the total supply and balance of `_from` after the burn were updated correctly
         assertEq(superchainERC20.totalSupply(), _totalSupplyBefore - _amount);
         assertEq(superchainERC20.balanceOf(_from), _fromBalanceBefore - _amount);
+    }
+
+    /// @notice Tests the `sendERC20` function reverts when the `_to` address is the zero address.
+    function testFuzz_sendERC20_zeroAddressTo_reverts(uint256 _amount, uint256 _chainId) public {
+        // Expect the revert with `ZeroAddress` selector
+        vm.expectRevert(ZeroAddress.selector);
+
+        // Call the `sendERC20` function with the zero address
+        vm.prank(BRIDGE);
+        superchainERC20.sendERC20({ _to: ZERO_ADDRESS, _amount: _amount, _chainId: _chainId });
     }
 
     /// @notice Tests the `sendERC20` function burns the sender tokens, sends the message, and emits the `SentERC20`
@@ -176,7 +186,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `SentERC20` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit OptimismSuperchainERC20.SentERC20(_sender, _to, _amount, _chainId);
+        emit IOptimismSuperchainERC20.SentERC20(_sender, _to, _amount, _chainId);
 
         // Mock the call over the `sendMessage` function and expect it to be called properly
         bytes memory _message = abi.encodeCall(superchainERC20.relayERC20, (_to, _amount));
@@ -197,24 +207,14 @@ contract OptimismSuperchainERC20Test is Test {
         assertEq(superchainERC20.balanceOf(_sender), _senderBalanceBefore - _amount);
     }
 
-    /// @notice Tests the `sendERC20` function reverts when the `_to` address is the zero address.
-    function testFuzz_sendERC20_zeroAddressTo_reverts(uint256 _amount, uint256 _chainId) public {
-        // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
-
-        // Call the `sendERC20` function with the zero address
-        vm.prank(BRIDGE);
-        superchainERC20.sendERC20({ _to: ZERO_ADDRESS, _amount: _amount, _chainId: _chainId });
-    }
-
     /// @notice Tests the `relayERC20` function reverts when the caller is not the L2ToL2CrossDomainMessenger.
     function testFuzz_relayERC20_notMessenger_reverts(address _caller, address _to, uint256 _amount) public {
         // Ensure the caller is not the messenger
         vm.assume(_caller != MESSENGER);
         vm.assume(_to != ZERO_ADDRESS);
 
-        // Expect the revert with `RelayMessageCallerNotL2ToL2CrossDomainMessenger` selector
-        vm.expectRevert(RelayMessageCallerNotL2ToL2CrossDomainMessenger.selector);
+        // Expect the revert with `CallerNotL2ToL2CrossDomainMessenger` selector
+        vm.expectRevert(CallerNotL2ToL2CrossDomainMessenger.selector);
 
         // Call the `relayERC20` function with the non-messenger caller
         vm.prank(_caller);
@@ -240,8 +240,8 @@ contract OptimismSuperchainERC20Test is Test {
             abi.encode(_crossDomainMessageSender)
         );
 
-        // Expect the revert with `MessageSenderNotThisSuperchainERC20` selector
-        vm.expectRevert(MessageSenderNotThisSuperchainERC20.selector);
+        // Expect the revert with `InvalidCrossDomainSender` selector
+        vm.expectRevert(InvalidCrossDomainSender.selector);
 
         // Call the `relayERC20` function with the sender caller
         vm.prank(MESSENGER);
@@ -286,7 +286,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `RelayedERC20` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit OptimismSuperchainERC20.RelayedERC20(_to, _amount);
+        emit IOptimismSuperchainERC20.RelayedERC20(_to, _amount);
 
         // Call the `relayERC20` function with the messenger caller
         vm.prank(MESSENGER);
