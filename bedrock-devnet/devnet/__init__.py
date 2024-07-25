@@ -334,10 +334,10 @@ def devnet_test(paths):
     # Run the two commands with different signers, so the ethereum nonce management does not conflict
     # And do not use devnet system addresses, to avoid breaking fee-estimation or nonce values.
     run_commands([
-        # CommandPreset('erc20-test',
-        #   ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1',
-        #    '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '14'],
-        #   cwd=paths.tasks_dir, timeout=8*60)
+        CommandPreset('erc20-test',
+          ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1',
+           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '14'],
+          cwd=paths.tasks_dir, timeout=8*60),
         CommandPreset('eth-test',
           ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
            '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
