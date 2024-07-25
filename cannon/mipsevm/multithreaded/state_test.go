@@ -6,9 +6,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
@@ -185,4 +187,49 @@ func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 	actualProof := state.EncodeThreadProof()
 	require.Equal(t, THREAD_WITNESS_SIZE, len(actualProof))
 	require.Equal(t, expectedProof, actualProof)
+}
+
+func TestState_EncodeThreadProof_Empty(t *testing.T) {
+	// Simulate case where we are at the end of a Wakeup traversal
+	state := CreateEmptyState()
+	state.Wakeup = 123
+	state.TraverseRight = true
+	require.Equal(t, 0, len(state.RightThreadStack), "sanity check right thead stack is empty")
+
+	actualProof := state.EncodeThreadProof()
+	expectedProof := make([]byte, THREAD_WITNESS_SIZE)
+	require.Equal(t, THREAD_WITNESS_SIZE, len(actualProof))
+	require.Equal(t, expectedProof, actualProof)
+}
+
+func TestState_EncodeThreadProof_InvalidState_TraverseRight(t *testing.T) {
+	// Set up invalid state where the active stack is empty
+	state := CreateEmptyState()
+	state.Wakeup = exec.FutexEmptyAddr
+	state.TraverseRight = true
+	require.Equal(t, 0, len(state.RightThreadStack), "sanity check right thead stack is empty")
+
+	assert.PanicsWithValue(t, "Invalid empty thread stack", func() { state.EncodeThreadProof() })
+}
+
+func TestState_EncodeThreadProof_InvalidState_TraverseLeft(t *testing.T) {
+	cases := []struct {
+		name       string
+		wakeupAddr uint32
+	}{
+		{"during wakeup traversal", uint32(99)},
+		{"during normal traversal", exec.FutexEmptyAddr},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Set up invalid state where the active stack is empty
+			state := CreateEmptyState()
+			state.Wakeup = c.wakeupAddr
+			state.TraverseRight = false
+			state.LeftThreadStack = []*ThreadState{}
+
+			assert.PanicsWithValue(t, "Invalid empty thread stack", func() { state.EncodeThreadProof() })
+		})
+	}
 }
