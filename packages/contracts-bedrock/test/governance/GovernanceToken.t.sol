@@ -4,12 +4,15 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
 import "src/libraries/Predeploys.sol";
-import "src/governance/Alligator.sol";
+import "src/governance/GovernanceDelegation.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 
 contract GovernanceToken_Test is CommonTest {
     address owner;
     address rando;
+
+    event DelegationCreated(address indexed account, Delegation delegation);
+    event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
@@ -170,81 +173,25 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(governanceToken.allowance(rando, owner), 50);
     }
 
-    /// @dev Test that `checkpoints` returns the correct value when the account is migrated.
-    function testFuzz_checkpoints_migrated_succeeds(
-        address _account,
-        uint32 _pos,
-        ERC20Votes.Checkpoint calldata _checkpoint
-    )
-        public
-    {
-        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(true));
-        vm.mockCall(
-            Predeploys.ALLIGATOR,
-            abi.encodeWithSelector(Alligator.checkpoints.selector, _account, _pos),
-            abi.encode(_checkpoint)
-        );
+    /// @dev Tests that `delegate` correctly delegates and emits event.
+    function test_delegate_succeeds() external {
+        // Mint 100 tokens to rando.
+        vm.prank(owner);
+        governanceToken.mint(rando, 100);
 
-        ERC20Votes.Checkpoint memory actualCheckpoint = governanceToken.checkpoints(_account, _pos);
-        assertEq(actualCheckpoint.fromBlock, _checkpoint.fromBlock);
-        assertEq(actualCheckpoint.votes, _checkpoint.votes);
+        // Rando approves owner to spend 100 tokens.
+        vm.prank(rando);
+        vm.expectEmit(true, true, true, true);
+        emit DelegateVotesChanged(owner, 0, 100);
+        vm.expectEmit(true, true, true, true);
+        emit DelegationCreated(
+            rando, Delegation({ allowanceType: AllowanceType.Relative, delegatee: owner, amount: 1e4 })
+        );
+        governanceToken.delegate(owner);
     }
 
-    /// @dev Test that `checkpoints` returns the correct value when the account is not migrated.
-    function testFuzz_checkpoints_notMigrated_succeeds(
-        address _account,
-        uint32 _pos,
-        ERC20Votes.Checkpoint memory _checkpoint
-    )
-        public
-    {
-        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(false));
-
-        // Store _pos + 1 (because _pos starts as zero) as length for _checkpoints in slot 8, which stores _checkpoints
-        vm.store(Predeploys.GOVERNANCE_TOKEN, keccak256(abi.encode(_account, uint256(8))), bytes32(uint256(_pos) + 1));
-        vm.store(
-            Predeploys.GOVERNANCE_TOKEN,
-            bytes32(uint256(keccak256(abi.encode(keccak256(abi.encode(_account, uint256(8)))))) + _pos),
-            bytes32(abi.encodePacked(_checkpoint.votes, _checkpoint.fromBlock))
-        );
-
-        ERC20Votes.Checkpoint memory actualCheckpoint = governanceToken.checkpoints(_account, _pos);
-        assertEq(actualCheckpoint.fromBlock, _checkpoint.fromBlock);
-        assertEq(actualCheckpoint.votes, _checkpoint.votes);
-    }
-
-    function testFuzz_numCheckpoints_migrated_succeeds(address _account, uint32 _numCheckpoints) public {
-        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(true));
-        vm.mockCall(
-            Predeploys.ALLIGATOR,
-            abi.encodeWithSelector(Alligator.numCheckpoints.selector, _account),
-            abi.encode(_numCheckpoints)
-        );
-
-        uint32 actualNumCheckpoints = governanceToken.numCheckpoints(_account);
-        assertEq(actualNumCheckpoints, _numCheckpoints);
-    }
-
-    function testFuzz_numCheckpoints_notMigrated_succeeds(address _account, uint32 _numCheckpoints) public {
-        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(false));
-
-        // Store _numCheckpoints as length for _checkpoints in slot 8, which stores _checkpoints
-        vm.store(
-            Predeploys.GOVERNANCE_TOKEN, keccak256(abi.encode(_account, uint256(8))), bytes32(uint256(_numCheckpoints))
-        );
-
-        uint32 actualNumCheckpoints = governanceToken.numCheckpoints(_account);
-        assertEq(actualNumCheckpoints, _numCheckpoints);
-    }
-
-    function testFuzz_delegates_migrated_succeeds(address _account, address _delegatee) public {
-        vm.mockCall(Predeploys.ALLIGATOR, abi.encodeWithSignature("migrated(address)", _account), abi.encode(true));
-        vm.mockCall(
-            Predeploys.ALLIGATOR,
-            abi.encodeWithSelector(Alligator.numCheckpoints.selector, _account),
-            abi.encode(_delegatee)
-        );
-
-        assertEq(_delegatee, governanceToken.delegates(_account));
+    /// @dev Tests that `delegateBySig` correctly delegates and emits event.
+    function test_delegateBySig_succeeds() external {
+        // TODO
     }
 }

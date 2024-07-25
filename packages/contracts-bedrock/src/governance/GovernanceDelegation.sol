@@ -236,11 +236,11 @@ contract GovernanceDelegation {
         DelegationAdjustment[] memory _old = new DelegationAdjustment[](_oldDelegateLength);
         uint256 _delegatorVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_delegator);
         if (_oldDelegateLength > 0) {
-            _old = _calculateWeightDistribution(_oldDelegations, _delegatorVotes);
+            _old = calculateWeightDistribution(_oldDelegations, _delegatorVotes);
         }
 
         // Calculate adjustments for new delegatee set.
-        DelegationAdjustment[] memory _new = _calculateWeightDistribution(_newDelegations, _delegatorVotes);
+        DelegationAdjustment[] memory _new = calculateWeightDistribution(_newDelegations, _delegatorVotes);
 
         // Now we want a collated list of all delegatee changes, combining the old subtractions with the new additions.
         // Ideally we'd like to process this only once.
@@ -352,11 +352,11 @@ contract GovernanceDelegation {
     /// @notice Calculate the weight distribution for a list of delegations.
     /// @param _delegations The delegations to calculate the weight distribution for.
     /// @param _amount      The sum of vote amounts to calculate the weight distribution for.
-    function _calculateWeightDistribution(
+    function calculateWeightDistribution(
         Delegation[] memory _delegations,
         uint256 _amount
     )
-        internal
+        public
         pure
         returns (DelegationAdjustment[] memory)
     {
@@ -469,8 +469,8 @@ contract GovernanceDelegation {
         // We'll need to adjust the delegatee votes for both "_from" and "_to" delegatee sets.
         if (_fromLength > 0) {
             uint256 _fromVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_from);
-            DelegationAdjustment[] memory from = _calculateWeightDistribution(_delegations[_from], _fromVotes + _amount);
-            DelegationAdjustment[] memory fromNew = _calculateWeightDistribution(_delegations[_from], _fromVotes);
+            DelegationAdjustment[] memory from = calculateWeightDistribution(_delegations[_from], _fromVotes + _amount);
+            DelegationAdjustment[] memory fromNew = calculateWeightDistribution(_delegations[_from], _fromVotes);
             for (uint256 i; i < _fromLength; i++) {
                 delegationAdjustmentsFrom[i] = DelegationAdjustment({
                     delegatee: _delegations[_from][i].delegatee,
@@ -483,8 +483,8 @@ contract GovernanceDelegation {
         DelegationAdjustment[] memory delegationAdjustmentsTo = new DelegationAdjustment[](_toLength);
         if (_toLength > 0) {
             uint256 _toVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_to);
-            DelegationAdjustment[] memory to = _calculateWeightDistribution(_delegations[_to], _toVotes - _amount);
-            DelegationAdjustment[] memory toNew = _calculateWeightDistribution(_delegations[_to], _toVotes);
+            DelegationAdjustment[] memory to = calculateWeightDistribution(_delegations[_to], _toVotes - _amount);
+            DelegationAdjustment[] memory toNew = calculateWeightDistribution(_delegations[_to], _toVotes);
 
             for (uint256 i; i < _toLength; i++) {
                 delegationAdjustmentsTo[i] = (
