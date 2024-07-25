@@ -15,7 +15,7 @@ enum AllowanceType {
 }
 
 /// @notice Delegation of voting power.
-/// @param delegatee              The address to subdelegate to.
+/// @param delegatee              The address to delegate to.
 /// @param allowanceType          Type of allowance.
 /// @param amount                 Amount of votes delegated. If `allowanceType` is Relative, `amount` acts
 ///                               as a numerator and `DENOMINATOR` as a denominator. For example, 100% of allowance
@@ -27,7 +27,7 @@ struct Delegation {
 }
 
 /// @notice Adjustment of delegation.
-/// @param delegatee              The address to subdelegate to.
+/// @param delegatee              The address to delegate to.
 /// @param amount                 Amount of votes delegated.
 struct DelegationAdjustment {
     address delegatee;
@@ -44,18 +44,14 @@ enum Op {
 
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
 /// @title GovernanceDelegation
-/// @notice A contract that allows delegation of votes to other accounts. It is used to implement subdelegation
+/// @notice A contract that allows delegation of votes to other accounts. It is used to implement advanced delegation
 ///         functionality in the Optimism Governance system. It provides a way to migrate accounts from the Governance
-///         token to the GovernanceDelegation contract, and then delegate votes to other accounts under subdelegation
-/// rules.
+///         token to the GovernanceDelegation contract, and delegate votes to other accounts using advanced delegations.
 contract GovernanceDelegation {
-    /// @notice Thrown when the account has not been migrated to the GovernanceDelegation contract.
-    error NotMigrated(address account);
-
     /// @notice Thrown when the caller is not the GovernanceToken contract.
     error NotGovernanceToken();
 
-    /// @notice Thrown when there's a mismatch between the length of the `targets` and `subdelegationRules` arrays.
+    /// @notice Thrown when the number of delegations exceeds the maximum allowed.
     error LimitExceeded(uint256 length, uint256 maxLength);
 
     /// @notice Thrown when the provided numerator is zero.
@@ -71,7 +67,7 @@ contract GovernanceDelegation {
     error BlockNotYetMined(uint256 blockNumber);
 
     /// @notice The maximum number of delegations allowed.
-    uint256 public constant MAX_SUBDELEGATIONS = 100;
+    uint256 public constant MAX_DELEGATIONS = 100;
 
     /// @notice The denominator used for relative delegations.
     uint96 public constant DENOMINATOR = 10_000;
@@ -79,7 +75,7 @@ contract GovernanceDelegation {
     /// @notice Flags to indicate if a account has been migrated to the GovernanceDelegation contract.
     mapping(address => bool) public migrated;
 
-    /// @notice Subdelegation rules for an account and delegatee.
+    /// @notice Delegations for an account.
     mapping(address => Delegation[]) internal _delegations;
 
     /// @notice Checkpoints of votes for an account.
@@ -122,9 +118,9 @@ contract GovernanceDelegation {
     }
 
     /// @notice Returns the delegatee with the most voting power for a given account.
-    /// @param account The account to get the delegatee for.
-    function delegates(address account) public view returns (Delegation[] memory) {
-        return _delegations[account];
+    /// @param _account The account to get the delegatee for.
+    function delegates(address _account) public view returns (Delegation[] memory) {
+        return _delegations[_account];
     }
 
     /// @notice Returns the number of votes for a given account.
@@ -152,34 +148,25 @@ contract GovernanceDelegation {
         return _checkpointsLookup(_totalSupplyCheckpoints, _blockNumber);
     }
 
-    /// @notice Subdelegate `to` with `subdelegationRules`.
-    /// @param _delegatee          The address to subdelegate to.
+    /// @notice Apply a delegation.
     /// @param _delegation         The delegeation to apply.
-    function subdelegate(
-        address _delegatee,
-        Delegation calldata _delegation
-    )
-        external
-        migrate(msg.sender)
-        migrate(_delegatee)
-    {
+    function delegate(Delegation calldata _delegation) external migrate(msg.sender) {
         Delegation[] memory delegation = new Delegation[](1);
         delegation[0] = _delegation;
         _delegate(msg.sender, delegation);
         emit DelegationCreated(msg.sender, _delegation);
     }
 
-    /// @notice Subdelegate `to` with basic delegation rule. This function can only be called from the GovernanceToken
-    /// contract.
-    /// @param _account            The address subdelegating.
-    /// @param _delegatee          The address to subdelegate to.
-    function subdelegateFromToken(
-        address _account,
+    /// @notice Apply a basic delegation from `_delegator` to `_delegatee`.
+    /// @param _delegator          The address delegating.
+    /// @param _delegatee          The address to delegate to.
+    function delegateFromToken(
+        address _delegator,
         address _delegatee
     )
         external
         onlyToken
-        migrate(_account)
+        migrate(_delegator)
         migrate(_delegatee)
     {
         Delegation[] memory delegation = new Delegation[](1);
@@ -189,14 +176,14 @@ contract GovernanceDelegation {
             amount: 1e4 // 100%
          });
 
-        _delegate(_account, delegation);
+        _delegate(_delegator, delegation);
 
-        emit DelegationCreated(_account, delegation[0]);
+        emit DelegationCreated(_delegator, delegation[0]);
     }
 
-    /// @notice Subdelegate `targets` with different `subdelegationRules` for each target.
+    /// @notice Apply multiple delegations.
     /// @param _delegations The delegations to apply.
-    function subdelegateBatched(Delegation[] calldata _delegations) external migrate(msg.sender) {
+    function delegateBatched(Delegation[] calldata _delegations) external migrate(msg.sender) {
         // TODO: migration inside the _delegate??
         _delegate(msg.sender, _delegations);
         emit DelegationsCreated(msg.sender, _delegations);
@@ -219,21 +206,27 @@ contract GovernanceDelegation {
         _moveVotingPower(_from, _to, _amount);
     }
 
-    /// @notice Migrate an account's delegation state from the GovernanceToken contract to the GovernanceDelegation
-    /// contract.
-    /// @param _account The account to migrate.
-    function migrateAccount(address _account) external {
-        if (!migrated[_account]) _migrate(_account);
+    /// @notice Migrate accounts' delegation state from the GovernanceToken contract to the
+    /// GovernanceDelegation contract.
+    /// @param _accounts The accounts to migrate.
+    function migrateAccounts(address[] calldata _accounts) external {
+        for (uint256 i; i < _accounts.length;) {
+            address _account = _accounts[i];
+            if (!migrated[_account]) _migrate(_account);
+
+            unchecked {
+                i++;
+            }
+        }
     }
 
-    /**
-     * @dev Delegate `_delegator`'s voting units to delegates specified in `_newDelegations`.
-     * Emits events {IVotes-DelegateChanged} and {IVotes-DelegateVotesChanged}.
-     */
+    /// @notice Delegate `_delegator`'s voting units to delegations specified in `_newDelegations`.
+    /// @param _delegator         The delegator to delegate votes from.
+    /// @param _newDelegations    The delegations to delegate votes to.
     function _delegate(address _delegator, Delegation[] memory _newDelegations) internal virtual {
         uint256 _newDelegationsLength = _newDelegations.length;
-        if (_newDelegationsLength > MAX_SUBDELEGATIONS) {
-            revert LimitExceeded(_newDelegationsLength, MAX_SUBDELEGATIONS);
+        if (_newDelegationsLength > MAX_DELEGATIONS) {
+            revert LimitExceeded(_newDelegationsLength, MAX_DELEGATIONS);
         }
 
         // Calculate adjustments for old delegatee set, if it exists.
@@ -281,15 +274,13 @@ contract GovernanceDelegation {
                 _delegations[_delegator].pop();
             }
         }
+        // TODO: event below.
         // emit DelegateChanged(_delegator, _oldDelegations, _newDelegations);
     }
 
-    /**
-     * @dev Given an old delegation array and a new delegation array, determine which delegations have changed, create
-     * new
-     * voting checkpoints, and emit a {DelegateVotesChanged} event. Takes care to avoid duplicates and no-ops.
-     * Assumes both _old and _new are sorted by `DelegationAdjustment._delegatee`.
-     */
+    /// @notice Calculate the delegation adjusments and checkpoints given an old and new delegation set.
+    /// @param _old The old delegation set.
+    /// @param _new The new delegation set.
     function _aggregateDelegationAdjustmentsAndCreateCheckpoints(
         DelegationAdjustment[] memory _old,
         DelegationAdjustment[] memory _new
@@ -347,23 +338,20 @@ contract GovernanceDelegation {
             }
 
             if (_delegationAdjustment.amount != 0 && _delegationAdjustment.delegatee != address(0)) {
-                _writeCheckpoint(
+                (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
                     _checkpoints[_delegationAdjustment.delegatee],
                     _op == Op.ADD ? _add : _subtract,
                     _delegationAdjustment.amount
                 );
 
-                // TODO: get old and new values for this event
-                // emit DelegateVotesChanged(_delegationAdjustment.delegatee, oldValue, newValue);
+                emit DelegateVotesChanged(_delegationAdjustment.delegatee, oldValue, newValue);
             }
         }
     }
 
-    /**
-     * @dev Internal helper to calculate vote weights from a list of delegations. It reverts if the sum of the
-     * numerators
-     * is greater than DENOMINATOR.
-     */
+    /// @notice Calculate the weight distribution for a list of delegations.
+    /// @param _delegations The delegations to calculate the weight distribution for.
+    /// @param _amount      The sum of vote amounts to calculate the weight distribution for.
     function _calculateWeightDistribution(
         Delegation[] memory _delegations,
         uint256 _amount
@@ -375,7 +363,7 @@ contract GovernanceDelegation {
         uint256 _delegationsLength = _delegations.length;
         DelegationAdjustment[] memory _delegationAdjustments = new DelegationAdjustment[](_delegationsLength);
 
-        // Keep track of total numerator to ensure it doesn't exceed DENOMINATOR
+        // For relative delegations, keep track of total numerator to ensure it doesn't exceed DENOMINATOR
         uint256 _totalNumerator;
 
         // Iterate through partial delegations to calculate vote weight
@@ -384,15 +372,19 @@ contract GovernanceDelegation {
                 if (_delegations[i].amount == 0) {
                     revert InvalidNumeratorZero();
                 }
+
                 _delegationAdjustments[i] = DelegationAdjustment(
                     _delegations[i].delegatee, uint208(_amount * _delegations[i].amount / DENOMINATOR)
                 );
                 _totalNumerator += _delegations[i].amount;
+
+                if (_totalNumerator > DENOMINATOR) {
+                    revert NumeratorSumExceedsDenominator(_totalNumerator, DENOMINATOR);
+                }
+            } else {
+                _delegationAdjustments[i] =
+                    DelegationAdjustment(_delegations[i].delegatee, uint208(_delegations[i].amount));
             }
-            // TODO: add case for absolute delegation
-        }
-        if (_totalNumerator > DENOMINATOR) {
-            revert NumeratorSumExceedsDenominator(_totalNumerator, DENOMINATOR);
         }
         return _delegationAdjustments;
     }

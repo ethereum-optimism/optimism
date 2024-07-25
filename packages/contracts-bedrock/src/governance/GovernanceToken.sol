@@ -102,7 +102,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param _delegatee The account to delegate votes to.
     function delegate(address _delegatee) public override {
         // GovernanceDelegation will migrate account if necessary.
-        GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).subdelegateFromToken(msg.sender, _delegatee);
+        GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegateFromToken(msg.sender, _delegatee);
     }
 
     /// @notice Delegates votes from the sender to `delegatee`.
@@ -131,7 +131,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
             _hashTypedDataV4(keccak256(abi.encode(_DELEGATION_TYPEHASH, _delegatee, _nonce, _expiry))), _v, _r, _s
         );
         require(_nonce == _useNonce(signer), "GovernanceToken: invalid nonce");
-        GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).subdelegateFromToken(msg.sender, _delegatee);
+        GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegateFromToken(signer, _delegatee);
     }
 
     /// @notice Callback called after a token transfer. Forwards to the GovernanceDelegation contract,
