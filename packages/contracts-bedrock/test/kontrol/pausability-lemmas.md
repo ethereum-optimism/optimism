@@ -22,7 +22,7 @@ module PAUSABILITY-LEMMAS
 
 ## Arithmetic
 
-Lemmas on arithmetic reasoning. Specifically, on: cancellativity, inequalites in which the two sides are of different signs; and the rounding-up mechanism of the Solidity compiler (expressed through `notMaxUInt5 &Int ( X +Int 31 )`, which rounds up `X` to the nearest multiple of 32).
+Lemmas on arithmetic reasoning. Specifically, on: cancellativity, inequalities in which the two sides are of different signs; and the rounding-up mechanism of the Solidity compiler (expressed through `notMaxUInt5 &Int ( X +Int 31 )`, which rounds up `X` to the nearest multiple of 32).
 
 ```k
     // Cancellativity #1
