@@ -77,7 +77,8 @@ func CheckRecentTxs(
 		return 0, false, fmt.Errorf("failed to retrieve previous nonce: %w", err)
 	}
 
-	if currentNonce <= previousNonce {
+	if currentNonce == previousNonce {
+		// Most recent tx is older than the given depth
 		return oldestBlock.Uint64(), false, nil
 	}
 
