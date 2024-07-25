@@ -599,12 +599,9 @@ jobs:
           name: forge version
           command: forge --version
       - run:
-          # The solc warnings check must be the first step to build the contracts, that way the
-          # warnings are output here. On subsequent runs, forge will read artifacts from the cache
-          # so warnings would not occur.
           name: solc warnings check
           command: |
-            forge build --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
+            forge build --force --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
