@@ -142,7 +142,7 @@ contract MIPS2_Test is CommonTest {
             threadID: 0,
             exitCode: 0,
             exited: false,
-            futexAddr: 0xFF_FF_FF_FF,
+            futexAddr: sys.FUTEX_EMPTY_ADDR,
             futexVal: 0,
             futexTimeoutStep: 0,
             pc: 4,
@@ -164,7 +164,7 @@ contract MIPS2_Test is CommonTest {
             exited: false,
             step: 1,
             stepsSinceLastContextSwitch: 1,
-            wakeup: 0xFF_FF_FF_FF,
+            wakeup: sys.FUTEX_EMPTY_ADDR,
             traverseRight: false,
             leftThreadStack: threadRoot,
             rightThreadStack: EMPTY_THREAD_ROOT,
@@ -276,7 +276,7 @@ contract MIPS2_Test is CommonTest {
 
         MIPS2.ThreadState memory newThread = copyThread(thread);
         newThread.threadID = 1;
-        newThread.futexAddr = 0xFF_FF_FF_FF;
+        newThread.futexAddr = sys.FUTEX_EMPTY_ADDR;
         newThread.futexVal = 0;
         newThread.futexTimeoutStep = 0;
         newThread.pc = thread.nextPC;
@@ -441,13 +441,13 @@ contract MIPS2_Test is CommonTest {
     function test_threadQuantumSchedule_succeeds() public {
         MIPS2.ThreadState memory threadA = threading.createThread();
         threadA.threadID = 0;
-        threadA.futexAddr = 0xFF_FF_FF_FF;
+        threadA.futexAddr = sys.FUTEX_EMPTY_ADDR;
         threading.replaceCurrent(threadA);
         MIPS2.ThreadState memory threadB = threading.createThread();
-        threadB.futexAddr = 0xFF_FF_FF_FF;
+        threadB.futexAddr = sys.FUTEX_EMPTY_ADDR;
         threading.replaceCurrent(threadB);
         MIPS2.State memory state;
-        state.wakeup = 0xFF_FF_FF_FF;
+        state.wakeup = sys.FUTEX_EMPTY_ADDR;
         state.stepsSinceLastContextSwitch = sys.SCHED_QUANTUM;
         finalizeThreadingState(threading, state);
         bytes memory threadWitness = threading.witness();
@@ -508,7 +508,7 @@ contract MIPS2_Test is CommonTest {
         // Note that this does not change. The next thread scheduled (on the left stack) was the last thread on the
         // right stack.
         expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch;
-        expect.wakeup = 0xFF_FF_FF_FF;
+        expect.wakeup = sys.FUTEX_EMPTY_ADDR;
         expect.traverseRight = false;
         finalizeThreadingState(threading, expect);
 
@@ -538,7 +538,7 @@ contract MIPS2_Test is CommonTest {
         MIPS2.ThreadState memory expectThread = copyThread(threadB);
         expectThread.pc = threadB.nextPC;
         expectThread.nextPC = threadB.nextPC + 4;
-        expectThread.futexAddr = 0xFF_FF_FF_FF;
+        expectThread.futexAddr = sys.FUTEX_EMPTY_ADDR;
         expectThread.futexVal = 0x0;
         expectThread.futexTimeoutStep = 0;
         expectThread.registers[2] = 0;
@@ -546,7 +546,7 @@ contract MIPS2_Test is CommonTest {
         threading.replaceCurrent(expectThread);
         MIPS2.State memory expect = copyState(state);
         expect.step = state.step + 1;
-        expect.wakeup = 0xFF_FF_FF_FF;
+        expect.wakeup = sys.FUTEX_EMPTY_ADDR;
         finalizeThreadingState(threading, expect);
 
         bytes memory memProof;
@@ -577,7 +577,7 @@ contract MIPS2_Test is CommonTest {
         MIPS2.ThreadState memory expectThread = copyThread(threadB);
         expectThread.pc = threadB.nextPC;
         expectThread.nextPC = threadB.nextPC + 4;
-        expectThread.futexAddr = 0xFF_FF_FF_FF;
+        expectThread.futexAddr = sys.FUTEX_EMPTY_ADDR;
         expectThread.futexVal = 0x0;
         expectThread.futexTimeoutStep = 0;
         expectThread.registers[2] = 0;
@@ -586,7 +586,7 @@ contract MIPS2_Test is CommonTest {
 
         MIPS2.State memory expect = copyState(state);
         expect.step = state.step + 1;
-        expect.wakeup = 0xFF_FF_FF_FF;
+        expect.wakeup = sys.FUTEX_EMPTY_ADDR;
         finalizeThreadingState(threading, expect);
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
@@ -1640,10 +1640,10 @@ contract MIPS2_Test is CommonTest {
     {
         (state_.memRoot, proof_) = ffi.getCannonMemoryProof(pc, insn, addr, val);
         state_.nextThreadID = 1;
-        state_.wakeup = 0xFF_FF_FF_FF;
+        state_.wakeup = sys.FUTEX_EMPTY_ADDR;
         thread_.pc = pc;
         thread_.nextPC = pc + 4;
-        thread_.futexAddr = 0xFF_FF_FF_FF;
+        thread_.futexAddr = sys.FUTEX_EMPTY_ADDR;
         state_.leftThreadStack = keccak256(abi.encodePacked(EMPTY_THREAD_ROOT, keccak256(encodeThread(thread_))));
         state_.rightThreadStack = EMPTY_THREAD_ROOT;
     }

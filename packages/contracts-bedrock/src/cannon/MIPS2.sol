@@ -148,9 +148,12 @@ contract MIPS2 is ISemver {
 
             // If we've completed traversing both stacks
             // Note that this state can only occur during wakeup traversal (assuming a valid absolute prestate)
-            if (state.traverseRight && state.rightThreadStack == EMPTY_THREAD_ROOT) {
+            if (
+                state.wakeup != sys.FUTEX_EMPTY_ADDR && state.traverseRight
+                    && state.rightThreadStack == EMPTY_THREAD_ROOT
+            ) {
                 state.traverseRight = false;
-                state.wakeup = 0xFF_FF_FF_FF;
+                state.wakeup = sys.FUTEX_EMPTY_ADDR;
                 return outputState();
             }
 
@@ -164,13 +167,13 @@ contract MIPS2 is ISemver {
 
             // Search for the first thread blocked by the wakeup call, if wakeup is set
             // Don't allow regular execution until we resolved if we have woken up any thread.
-            if (state.wakeup != 0xFF_FF_FF_FF && state.wakeup != thread.futexAddr) {
+            if (state.wakeup != sys.FUTEX_EMPTY_ADDR && state.wakeup != thread.futexAddr) {
                 preemptThread(state, thread);
                 return outputState();
             }
 
             // check if thread is blocked on a futex
-            if (thread.futexAddr != 0xFF_FF_FF_FF) {
+            if (thread.futexAddr != sys.FUTEX_EMPTY_ADDR) {
                 // if set, then check futex
                 // check timeout first
                 if (state.step > thread.futexTimeoutStep) {
@@ -253,7 +256,7 @@ contract MIPS2 is ISemver {
                 newThread.threadID = state.nextThreadID;
                 newThread.exitCode = 0;
                 newThread.exited = false;
-                newThread.futexAddr = 0xFF_FF_FF_FF;
+                newThread.futexAddr = sys.FUTEX_EMPTY_ADDR;
                 newThread.futexVal = 0;
                 newThread.futexTimeoutStep = 0;
                 newThread.pc = thread.nextPC;
@@ -466,7 +469,7 @@ contract MIPS2 is ISemver {
         returns (bytes32 out_)
     {
         // Clear the futex state
-        _thread.futexAddr = 0xFF_FF_FF_FF;
+        _thread.futexAddr = sys.FUTEX_EMPTY_ADDR;
         _thread.futexVal = 0;
         _thread.futexTimeoutStep = 0;
 
@@ -477,7 +480,7 @@ contract MIPS2 is ISemver {
         _thread.pc = _thread.nextPC;
         _thread.nextPC = _thread.nextPC + 4;
 
-        _state.wakeup = 0xFF_FF_FF_FF;
+        _state.wakeup = sys.FUTEX_EMPTY_ADDR;
         updateCurrentThreadRoot();
         out_ = outputState();
     }
