@@ -94,7 +94,7 @@ func CheckRecentTxs(
 
 		if midNonce > currentNonce {
 			// Catch a reorg that causes inconsistent nonce
-			return oldestBlock.Uint64(), false, nil
+			return CheckRecentTxs(ctx, l1, depth, addr)
 		} else if midNonce == currentNonce {
 			high = mid
 		} else {

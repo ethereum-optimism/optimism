@@ -31,25 +31,23 @@ func (m *MockL1Client) HeaderByNumber(ctx context.Context, number *big.Int) (*ty
 func TestTransactions_checkRecentTxs(t *testing.T) {
 	tests := []struct {
 		name             string
-		currentBlock     uint64
+		currentBlock     int64
 		blockConfirms    uint64
 		expectedBlockNum uint64
 		expectedFound    bool
-		nonces           map[uint64]uint64 // maps blockNum --> nonce
+		blocks           map[int64][]uint64 // maps blockNum --> nonceVal (one for each stubbed call)
 	}{
 		{
-			name:             "nonceDiff_LowerBound",
+			name:             "nonceDiff_lowerBound",
 			currentBlock:     500,
 			blockConfirms:    5,
 			expectedBlockNum: 496,
 			expectedFound:    true,
-			nonces: map[uint64]uint64{
-				495: 5,
-				496: 6,
-				497: 6,
-				498: 6,
-				499: 6,
-				500: 6,
+			blocks: map[int64][]uint64{
+				495: {5, 5},
+				496: {6, 6},
+				497: {6},
+				500: {6},
 			},
 		},
 		{
@@ -58,13 +56,11 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 			blockConfirms:    5,
 			expectedBlockNum: 497,
 			expectedFound:    true,
-			nonces: map[uint64]uint64{
-				495: 5,
-				496: 5,
-				497: 6,
-				498: 6,
-				499: 6,
-				500: 6,
+			blocks: map[int64][]uint64{
+				495: {5},
+				496: {5},
+				497: {6, 6},
+				500: {6},
 			},
 		},
 		{
@@ -73,13 +69,12 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 			blockConfirms:    5,
 			expectedBlockNum: 500,
 			expectedFound:    true,
-			nonces: map[uint64]uint64{
-				495: 5,
-				496: 5,
-				497: 5,
-				498: 5,
-				499: 5,
-				500: 6,
+			blocks: map[int64][]uint64{
+				495: {5},
+				497: {5},
+				498: {5},
+				499: {5},
+				500: {6, 6},
 			},
 		},
 		{
@@ -88,28 +83,22 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 			blockConfirms:    5,
 			expectedBlockNum: 495,
 			expectedFound:    false,
-			nonces: map[uint64]uint64{
-				495: 6,
-				496: 6,
-				497: 6,
-				498: 6,
-				499: 6,
-				500: 6,
+			blocks: map[int64][]uint64{
+				495: {6},
+				500: {6},
 			},
 		},
 		{
 			name:             "reorg",
 			currentBlock:     500,
 			blockConfirms:    5,
-			expectedBlockNum: 495,
-			expectedFound:    false,
-			nonces: map[uint64]uint64{
-				495: 5,
-				496: 7,
-				497: 6,
-				498: 6,
-				499: 6,
-				500: 6,
+			expectedBlockNum: 496,
+			expectedFound:    true,
+			blocks: map[int64][]uint64{
+				495: {5, 5, 5},
+				496: {7, 7, 7},
+				497: {6, 7},
+				500: {6, 7},
 			},
 		},
 	}
@@ -120,15 +109,19 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 			ctx := context.Background()
 
 			// Setup mock responses
-			l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(int64(tt.currentBlock))}, nil)
-			for blockNum, nonce := range tt.nonces {
-				l1Client.On("NonceAt", ctx, common.Address{}, new(big.Int).SetUint64(blockNum)).Return(nonce, nil)
+			l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(tt.currentBlock)}, nil)
+			for blockNum, block := range tt.blocks {
+				for _, nonce := range block {
+					l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(blockNum)).Return(nonce, nil).Once()
+				}
 			}
 
 			blockNum, found, err := CheckRecentTxs(ctx, l1Client, 5, common.Address{})
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedFound, found)
 			require.Equal(t, tt.expectedBlockNum, blockNum)
+
+			l1Client.AssertExpectations(t)
 		})
 	}
 }
