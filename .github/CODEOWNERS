@@ -1,6 +1,4 @@
 # Packages
-/packages/chain-mon             @ethereum-optimism/security-reviewers
-/packages/chain-mon/internal/balance-mon             @ethereum-optimism/infra-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
 

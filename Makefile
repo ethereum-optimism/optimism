@@ -80,18 +80,6 @@ cross-op-node:
 			op-node
 .PHONY: golang-docker
 
-chain-mon-docker:
-	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
-	GIT_COMMIT=$$(git rev-parse HEAD) \
-	GIT_DATE=$$(git show -s --format='%ct') \
-	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
-	docker buildx bake \
-			--progress plain \
-			--load \
-			-f docker-bake.hcl \
-			chain-mon
-.PHONY: chain-mon-docker
-
 contracts-bedrock-docker:
 	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
 	docker buildx bake \
