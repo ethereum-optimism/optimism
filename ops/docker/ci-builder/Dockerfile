@@ -109,7 +109,6 @@ RUN /bin/sh -c set -eux; \
   apt-get update; \
   apt-get install -y nodejs docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
-  npm i -g depcheck; \
   pip install capstone pyelftools; \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
