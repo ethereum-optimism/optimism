@@ -165,21 +165,22 @@ var Subcommands = cli.Commands{
 
 			caller := batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize)
 			sysCfg := NewSystemConfigContract(caller, config.SystemConfigProxy)
-			l1StartBlockNum, err := sysCfg.StartBlock(context.Background())
+			startBlock, err := sysCfg.StartBlock(context.Background())
 			if err != nil {
 				return fmt.Errorf("failed to fetch startBlock from SystemConfig: %w", err)
 			}
-			l1StartBlock, err := client.BlockByNumber(context.Background(), l1StartBlockNum)
+
+			log.Info("Using L1 Start Block", "number", startBlock)
+			l1StartBlock, err := client.BlockByNumber(context.Background(), startBlock)
 			if err != nil {
 				return fmt.Errorf("cannot fetch block by number: %w", err)
 			}
+			log.Info("Fetched L1 Start Block", "hash", l1StartBlock.Hash().Hex())
 
 			// Sanity check the config
 			if err := config.Check(); err != nil {
 				return err
 			}
-
-			log.Info("Using L1 Start Block", "number", l1StartBlock.Number(), "hash", l1StartBlock.Hash().Hex())
 
 			// Build the L2 genesis block
 			l2Genesis, err := genesis.BuildL2Genesis(config, l2Allocs, l1StartBlock)
