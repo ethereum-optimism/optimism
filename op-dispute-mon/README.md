@@ -20,7 +20,7 @@ shows the available config options and can be accessed by running `./bin/op-disp
 
 ```shell
 
-# Start the op-dispute-mon with specified game factory address and RPC endpoints
+# Start the op-dispute-mon with predefined network and RPC endpoints
 ./bin/op-dispute-mon \
   --network <Predefined-Network> \
   --l1-eth-rpc <L1-Ethereum-RPC-URL> \
