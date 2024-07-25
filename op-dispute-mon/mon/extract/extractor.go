@@ -95,7 +95,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 						e.logger.Error("Failed to fetch game data", "game", game.Proxy, "err", err)
 						continue
 					}
-					e.logger.Info("Fetching game", "address", game.Proxy)
+					fmt.Printf("\rFetching game: %s", game.Proxy)
 					enrichedCh <- enrichedGame
 				}
 			}
