@@ -49,9 +49,6 @@ contract MIPS2 is ISemver {
         uint32 nextThreadID;
     }
 
-    /// @notice Start of the data segment.
-    uint32 public constant BRK_START = 0x40000000;
-
     /// @notice The semantic version of the MIPS2 contract.
     /// @custom:semver 0.0.1
     string public constant version = "0.0.1-beta";
@@ -248,7 +245,7 @@ contract MIPS2 is ISemver {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
             } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
-                v0 = BRK_START;
+                v0 = sys.BRK_START;
             } else if (syscall_no == sys.SYS_CLONE) {
                 v0 = state.nextThreadID;
                 v1 = 0;

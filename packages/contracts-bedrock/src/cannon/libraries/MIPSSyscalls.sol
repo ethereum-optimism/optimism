@@ -63,6 +63,8 @@ library MIPSSyscalls {
     uint64 internal constant FUTEX_NO_TIMEOUT = type(uint64).max;
 
     uint32 internal constant SCHED_QUANTUM = 100_000;
+    /// @notice Start of the data segment.
+    uint32 public constant BRK_START = 0x40000000;
 
     /// @notice Extract syscall num and arguments from registers.
     /// @param _registers The cpu registers.

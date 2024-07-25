@@ -43,9 +43,6 @@ contract MIPS is ISemver {
         uint32[32] registers;
     }
 
-    /// @notice Start of the data segment.
-    uint32 public constant BRK_START = 0x40000000;
-
     /// @notice The semantic version of the MIPS contract.
     /// @custom:semver 1.0.1
     string public constant version = "1.1.0-beta.5";
@@ -152,7 +149,7 @@ contract MIPS is ISemver {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
             } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
-                v0 = BRK_START;
+                v0 = sys.BRK_START;
             } else if (syscall_no == sys.SYS_CLONE) {
                 // clone (not supported) returns 1
                 v0 = 1;
