@@ -16,5 +16,14 @@ This will build the `op-dispute-mon` binary which can be run with
 ## Usage
 
 `op-dispute-mon` is configurable via command line flags and environment variables. The help menu
-shows the available config options and can be accessed by running `./op-dispute-mon --help`.
+shows the available config options and can be accessed by running `./bin/op-dispute-mon --help`.
 
+```shell
+
+# Start the op-dispute-mon with predefined network and RPC endpoints
+./bin/op-dispute-mon \
+  --network <Predefined-Network> \
+  --l1-eth-rpc <L1-Ethereum-RPC-URL> \
+  --rollup-rpc <Optimism-Rollup-RPC-URL>
+
+```

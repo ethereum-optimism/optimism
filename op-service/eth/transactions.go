@@ -50,14 +50,16 @@ func TransactionsToHashes(elems []*types.Transaction) []common.Hash {
 	return out
 }
 
-// CheckRecentTxs checks the depth recent blocks for transactions from the account with address addr
-// and returns the most recent block and true, if any was found, or the oldest block checked and false, if not.
+// CheckRecentTxs checks the depth recent blocks for txs from the account with address addr
+// and returns either:
+//   - blockNum containing the last tx and true if any was found
+//   - the oldest block checked and false if no nonce change was found
 func CheckRecentTxs(
 	ctx context.Context,
 	l1 L1Client,
 	depth int,
 	addr common.Address,
-) (recentBlock uint64, found bool, err error) {
+) (blockNum uint64, found bool, err error) {
 	blockHeader, err := l1.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to retrieve current block header: %w", err)
@@ -69,25 +71,47 @@ func CheckRecentTxs(
 		return 0, false, fmt.Errorf("failed to retrieve current nonce: %w", err)
 	}
 
-	oldestBlock := new(big.Int)
-	oldestBlock.Sub(currentBlock, big.NewInt(int64(depth)))
+	oldestBlock := new(big.Int).Sub(currentBlock, big.NewInt(int64(depth)))
 	previousNonce, err := l1.NonceAt(ctx, addr, oldestBlock)
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to retrieve previous nonce: %w", err)
 	}
 
 	if currentNonce == previousNonce {
+		// Most recent tx is older than the given depth
 		return oldestBlock.Uint64(), false, nil
 	}
 
-	// Decrease block num until we find the block before the most recent batcher tx was sent
-	targetNonce := currentNonce - 1
-	for currentNonce > targetNonce && currentBlock.Cmp(oldestBlock) != -1 {
-		currentBlock.Sub(currentBlock, big.NewInt(1))
-		currentNonce, err = l1.NonceAt(ctx, addr, currentBlock)
+	// Use binary search to find the block where the nonce changed
+	low := oldestBlock.Uint64()
+	high := currentBlock.Uint64()
+
+	for low < high {
+		mid := (low + high) / 2
+		midNonce, err := l1.NonceAt(ctx, addr, new(big.Int).SetUint64(mid))
 		if err != nil {
-			return 0, false, fmt.Errorf("failed to retrieve nonce: %w", err)
+			return 0, false, fmt.Errorf("failed to retrieve nonce at block %d: %w", mid, err)
+		}
+
+		if midNonce > currentNonce {
+			// Catch a reorg that causes inconsistent nonce
+			return CheckRecentTxs(ctx, l1, depth, addr)
+		} else if midNonce == currentNonce {
+			high = mid
+		} else {
+			// midNonce < currentNonce: check the next block to see if we've found the
+			// spot where the nonce transitions to the currentNonce
+			nextBlockNum := mid + 1
+			nextBlockNonce, err := l1.NonceAt(ctx, addr, new(big.Int).SetUint64(nextBlockNum))
+			if err != nil {
+				return 0, false, fmt.Errorf("failed to retrieve nonce at block %d: %w", mid, err)
+			}
+
+			if nextBlockNonce == currentNonce {
+				return nextBlockNum, true, nil
+			}
+			low = mid + 1
 		}
 	}
-	return currentBlock.Uint64() + 1, true, nil
+	return oldestBlock.Uint64(), false, nil
 }

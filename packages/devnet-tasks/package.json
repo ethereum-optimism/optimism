@@ -16,8 +16,6 @@
     "lint": "pnpm lint:fix && pnpm lint:check",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "pnpm lint:check --fix",
-    "test": "hardhat test",
-    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "autogen:docs": "typedoc --out docs src/index.ts"
   },
   "keywords": [
@@ -35,19 +33,19 @@
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@types/node": "^20.11.17",
+    "@types/node": "^20.14.12",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
     "hardhat": "^2.20.1",
     "hardhat-deploy": "^0.12.4",
-    "nyc": "^15.1.0",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.25.7",
-    "typescript": "^5.5.3"
+    "typedoc": "^0.26.5",
+    "typescript": "^5.5.4"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",
-    "@eth-optimism/sdk": "^3.3.2"
+    "@eth-optimism/sdk": "^3.3.2",
+    "dotenv": "^16.4.5"
   },
   "peerDependencies": {
     "ethers": "^5"

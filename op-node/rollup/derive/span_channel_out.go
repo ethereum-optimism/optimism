@@ -36,6 +36,8 @@ type SpanChannelOut struct {
 	full error
 	// spanBatch is the batch being built, which immutably holds genesis timestamp and chain ID, but otherwise can be reset
 	spanBatch *SpanBatch
+
+	chainSpec *rollup.ChainSpec
 }
 
 func (co *SpanChannelOut) ID() ChannelID {
@@ -47,13 +49,14 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo) (*SpanChannelOut, error) {
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo, chainSpec *rollup.ChainSpec) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:        ChannelID{},
 		frame:     0,
 		spanBatch: NewSpanBatch(genesisTimestamp, chainID),
 		rlp:       [2]*bytes.Buffer{{}, {}},
 		target:    targetOutputSize,
+		chainSpec: chainSpec,
 	}
 	var err error
 	if err = c.setRandomID(); err != nil {
@@ -142,10 +145,14 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 		return fmt.Errorf("failed to encode RawSpanBatch into bytes: %w", err)
 	}
 
-	// check the RLP length against the max
-	if co.activeRLP().Len() > rollup.SafeMaxRLPBytesPerChannel {
+	// Fjord increases the max RLP bytes per channel. Activation of this change in the derivation pipeline
+	// is dependent on the timestamp of the L1 block that this channel got included in. So using the timestamp
+	// of the current batch guarantees that this channel will be included in an L1 block with a timestamp well after
+	// the Fjord activation.
+	maxRLPBytesPerChannel := co.chainSpec.MaxRLPBytesPerChannel(batch.Timestamp)
+	if co.activeRLP().Len() > int(maxRLPBytesPerChannel) {
 		return fmt.Errorf("could not take %d bytes as replacement of channel of %d bytes, max is %d. err: %w",
-			co.activeRLP().Len(), co.inactiveRLP().Len(), rollup.SafeMaxRLPBytesPerChannel, ErrTooManyRLPBytes)
+			co.activeRLP().Len(), co.inactiveRLP().Len(), maxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 
 	// if the compressed data *plus* the new rlp data is under the target size, return early

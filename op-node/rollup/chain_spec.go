@@ -20,11 +20,6 @@ const (
 	maxRLPBytesPerChannelFjord   = 100_000_000
 )
 
-// SafeMaxRLPBytesPerChannel is a limit of RLP Bytes per channel that is valid across every OP Stack chain.
-// The limit on certain chains at certain times may be higher
-// TODO(#10428) Remove this parameter
-const SafeMaxRLPBytesPerChannel = maxRLPBytesPerChannelBedrock
-
 // Fjord changes the max sequencer drift to a protocol constant. It was previously configurable via
 // the rollup config.
 // From Fjord, the max sequencer drift for a given block timestamp should be learned via the

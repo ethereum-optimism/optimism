@@ -154,7 +154,7 @@ If the game is resolved successfully, the result is printed.
 ```shell
 ./bin/op-challenger list-games \
   --l1-eth-rpc <L1_ETH_RPC> \
-  --game-factory-address <GAME_FACTORY_ADDRESS>
+  --network <Predefined_Network>
 ```
 
 Prints the games created by the game factory along with their current status.
@@ -165,7 +165,7 @@ Prints the games created by the game factory along with their current status.
 ### list-claims
 
 ```shell
-./bin/op-challenger list-games \
+./bin/op-challenger list-claims \
   --l1-eth-rpc <L1_ETH_RPC> \
   --game-address <GAME_ADDRESS>
 ```
