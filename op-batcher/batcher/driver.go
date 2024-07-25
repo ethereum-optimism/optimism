@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/big"
 	_ "net/http/pprof"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -104,9 +103,6 @@ type BatchSubmitter struct {
 	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
 	lastStoredBlock eth.BlockID
 	lastL1Tip       eth.L1BlockRef
-
-	// addressReservedError is received from L1 txpool, which may occur when switch DA type
-	addressReservedError atomic.Bool
 
 	state *channelManager
 }
@@ -369,6 +365,10 @@ func (l *BatchSubmitter) loop() {
 			for {
 				select {
 				case <-economicDATicker.C:
+					if txpoolState.Load() != TxpoolGood {
+						switchCount = 0
+						continue
+					}
 					newEconomicDAType, err := l.getEconomicDAType(l.shutdownCtx)
 					if err != nil {
 						l.Log.Error("getEconomicDAType failed: %w", err)
@@ -390,28 +390,6 @@ func (l *BatchSubmitter) loop() {
 						l.Metr.RecordAutoChoosedDAType(economicDAType)
 						l.Metr.RecordEconomicAutoSwitchCount()
 						l.Metr.RecordAutoSwitchTimeDuration(time.Since(start))
-					}
-				case <-addressReservedErrorTicker.C:
-					// switch to resolve addressReservedError first
-					if l.addressReservedError.Load() {
-						if economicDAType == flags.BlobsType {
-							economicDAType = flags.CalldataType
-							l.Log.Info("start resolve addressReservedError switch", "from type", flags.BlobsType.String(), "to type", flags.CalldataType.String())
-						} else if economicDAType == flags.CalldataType {
-							economicDAType = flags.BlobsType
-							l.Log.Info("start resolve addressReservedError switch", "from type", flags.CalldataType.String(), "to type", flags.BlobsType.String())
-						} else {
-							l.Log.Crit("invalid DA type in economic switch loop", "invalid type", economicDAType.String())
-						}
-						switchCount = 0
-						start := time.Now()
-						economicDATypeCh <- economicDAType
-						<-waitSwitchDACh
-						l.Log.Info("finish resolve addressReservedError switch", "duration", time.Since(start))
-						l.Metr.RecordAutoChoosedDAType(economicDAType)
-						l.Metr.RecordReservedErrorSwitchCount()
-						l.Metr.RecordAutoSwitchTimeDuration(time.Since(start))
-						l.addressReservedError.Store(false)
 					}
 				case <-economicDALoopDone:
 					l.Log.Info("auto DA processing loop done")
@@ -807,11 +785,6 @@ func (l *BatchSubmitter) recordL1Tip(l1tip eth.L1BlockRef) {
 func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
 	l.Log.Warn("Transaction failed to send", logFields(id, err)...)
 	l.state.TxFailed(id)
-	if errStringMatch(err, txpool.ErrAlreadyReserved) && l.AutoSwitchDA {
-		l.Log.Warn("Encounter ErrAlreadyReserved", "id", id.String())
-		// trigger DA switch to resolve ErrAlreadyReserved
-		l.addressReservedError.Store(true)
-	}
 }
 
 func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
@@ -846,13 +819,4 @@ func logFields(xs ...any) (fs []any) {
 		}
 	}
 	return fs
-}
-
-func errStringMatch(err, target error) bool {
-	if err == nil && target == nil {
-		return true
-	} else if err == nil || target == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), target.Error())
 }
