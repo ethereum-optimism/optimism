@@ -83,18 +83,6 @@ cross-op-node: ## Builds cross-platform Docker image for op-node
 			op-node
 .PHONY: golang-docker
 
-chain-mon-docker: ## Builds Docker image for chain monitoring
-	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
-	GIT_COMMIT=$$(git rev-parse HEAD) \
-	GIT_DATE=$$(git show -s --format='%ct') \
-	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
-	docker buildx bake \
-			--progress plain \
-			--load \
-			-f docker-bake.hcl \
-			chain-mon
-.PHONY: chain-mon-docker
-
 contracts-bedrock-docker: ## Builds Docker image for Bedrock contracts
 	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
 	docker buildx bake \

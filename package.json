@@ -47,11 +47,10 @@
     "@types/chai": "^4.3.11",
     "@types/chai-as-promised": "^7.1.8",
     "@types/mocha": "^10.0.7",
-    "@types/node": "^20.11.17",
+    "@types/node": "^20.14.12",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "chai": "^4.3.10",
-    "depcheck": "^1.4.7",
     "doctoc": "^2.2.0",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
@@ -65,9 +64,7 @@
     "nx-cloud": "latest",
     "prettier": "^2.8.0",
     "rimraf": "^5.0.5",
-    "ts-mocha": "^10.0.0",
-    "typescript": "^5.5.4",
-    "wait-on": "^7.2.0"
+    "typescript": "^5.5.4"
   },
   "dependencies": {
     "@changesets/cli": "^2.27.7"
