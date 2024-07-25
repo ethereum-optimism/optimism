@@ -227,8 +227,11 @@ func (m *InstrumentedState) mipsStep() error {
 
 	if m.state.StepsSinceLastContextSwitch >= exec.SchedQuantum {
 		// Force a context switch as this thread has been active too long
-		msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
-		m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount())
+		if m.state.threadCount() > 1 {
+			// Log if we're hitting our context switch limit - only matters if we have > 1 thread
+			msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
+			m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount())
+		}
 		m.preemptThread(thread, true)
 		return nil
 	}
