@@ -97,8 +97,9 @@ func CheckRecentTxs(
 			return oldestBlock.Uint64(), false, nil
 		} else if midNonce == currentNonce {
 			high = mid
-		} else if midNonce == currentNonce-1 {
-			// Check the next block to see if we've found the spot where the nonce increases
+		} else {
+			// midNonce < currentNonce: check the next block to see if we've found the
+			// spot where the nonce transitions to the currentNonce
 			nextBlockNum := mid + 1
 			nextBlockNonce, err := l1.NonceAt(ctx, addr, new(big.Int).SetUint64(nextBlockNum))
 			if err != nil {
@@ -108,8 +109,6 @@ func CheckRecentTxs(
 			if nextBlockNonce == currentNonce {
 				return nextBlockNum, true, nil
 			}
-			low = mid + 1
-		} else {
 			low = mid + 1
 		}
 	}
