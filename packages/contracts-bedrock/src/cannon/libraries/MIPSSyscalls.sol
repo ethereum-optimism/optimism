@@ -52,6 +52,7 @@ library MIPSSyscalls {
     uint32 internal constant FD_PREIMAGE_READ = 5;
     uint32 internal constant FD_PREIMAGE_WRITE = 6;
 
+    uint32 internal constant SYS_ERROR_SIGNAL = 0xFF_FF_FF_FF;
     uint32 internal constant EBADF = 0x9;
     uint32 internal constant EINVAL = 0x16;
     uint32 internal constant EAGAIN = 0xb;

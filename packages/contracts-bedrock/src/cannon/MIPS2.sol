@@ -325,7 +325,7 @@ contract MIPS2 is ISemver {
                         state.memRoot, a0 & 0xFFffFFfc, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
                     );
                     if (mem != a2) {
-                        v0 = 0xFF_FF_FF_FF;
+                        v0 = sys.SYS_ERROR_SIGNAL;
                         v1 = sys.EAGAIN;
                     } else {
                         thread.futexVal = a2;
@@ -347,7 +347,7 @@ contract MIPS2 is ISemver {
                     state.traverseRight = false;
                     return outputState();
                 } else {
-                    v0 = 0xFF_FF_FF_FF;
+                    v0 = sys.SYS_ERROR_SIGNAL;
                     v1 = sys.EINVAL;
                 }
             } else if (syscall_no == sys.SYS_SCHED_YIELD) {
@@ -357,7 +357,7 @@ contract MIPS2 is ISemver {
                 preemptThread(state, thread);
                 return outputState();
             } else if (syscall_no == sys.SYS_OPEN) {
-                v0 = 0xFF_FF_FF_FF;
+                v0 = sys.SYS_ERROR_SIGNAL;
                 v1 = sys.EBADF;
             } else if (syscall_no == sys.SYS_NANOSLEEP) {
                 st.CpuScalars memory cpu0 = getCpuScalars(thread);
@@ -474,7 +474,7 @@ contract MIPS2 is ISemver {
         _thread.futexTimeoutStep = 0;
 
         // Complete the FUTEX_WAIT syscall
-        _thread.registers[2] = 0;
+        _thread.registers[2] = _timeout ? sys.SYS_ERROR_SIGNAL : 0;
         // set errno
         _thread.registers[7] = _timeout ? sys.ETIMEDOUT : 0;
         _thread.pc = _thread.nextPC;
