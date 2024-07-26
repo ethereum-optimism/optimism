@@ -162,6 +162,7 @@ contract MIPS2 is ISemver {
 
             if (thread.exited) {
                 popThread(state);
+                // TODO: handle the case where the last thread exits before exit_group
                 return outputState();
             }
 
@@ -521,6 +522,10 @@ contract MIPS2 is ISemver {
             _state.rightThreadStack = loadCalldataInnerThreadRoot();
         } else {
             _state.leftThreadStack = loadCalldataInnerThreadRoot();
+        }
+        bytes32 current = _state.traverseRight ? _state.rightThreadStack : _state.leftThreadStack;
+        if (current == EMPTY_THREAD_ROOT) {
+            _state.traverseRight = !_state.traverseRight;
         }
         _state.stepsSinceLastContextSwitch = 0;
     }

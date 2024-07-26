@@ -649,6 +649,31 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_threadExit_swapStacks_succeeds() public {
+        threading.setTraverseRight(true);
+        threading.createThread();
+        threading.setTraverseRight(false);
+        threading.createThread();
+        MIPS2.ThreadState memory threadL = threading.current();
+        threadL.exited = true;
+        threading.replaceCurrent(threadL);
+        bytes memory threadWitness = threading.witness();
+
+        MIPS2.State memory state;
+        state.stepsSinceLastContextSwitch = 10;
+        finalizeThreadingState(threading, state);
+
+        threading.left().pop();
+        MIPS2.State memory expect = copyState(state);
+        expect.stepsSinceLastContextSwitch = 0;
+        expect.step = state.step + 1;
+        expect.traverseRight = true;
+        finalizeThreadingState(threading, expect);
+
+        bytes32 postState = mips.step(encodeState(state), threadWitness, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
     function test_add_succeeds() public {
         uint32 insn = encodespec(17, 18, 8, 0x20); // add t0, s1, s2
         (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
