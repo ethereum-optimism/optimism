@@ -347,7 +347,7 @@ contract MIPS2 is ISemver {
                     sys.handleSyscallUpdates(cpu0, thread.registers, v0, v1);
                     setStateCpuScalars(thread, cpu0);
                     preemptThread(state, thread);
-                    state.traverseRight = false;
+                    state.traverseRight = state.leftThreadStack == EMPTY_THREAD_ROOT;
                     return outputState();
                 } else {
                     v0 = sys.SYS_ERROR_SIGNAL;

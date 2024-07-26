@@ -433,6 +433,7 @@ contract MIPS2_Test is CommonTest {
         expect.wakeup = futexAddr;
         expect.step = state.step + 1;
         expect.stepsSinceLastContextSwitch = 0;
+        expect.traverseRight = true;
         finalizeThreadingState(threading, expect);
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
