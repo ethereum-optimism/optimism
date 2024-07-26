@@ -164,15 +164,28 @@ contract MIPS2 is ISemver {
             setThreadStateFromCalldata(thread);
             validateCalldataThreadWitness(state, thread);
 
-            if (thread.exited) {
-                popThread(state);
-                return outputState();
-            }
-
             // Search for the first thread blocked by the wakeup call, if wakeup is set
             // Don't allow regular execution until we resolved if we have woken up any thread.
-            if (state.wakeup != sys.FUTEX_EMPTY_ADDR && state.wakeup != thread.futexAddr) {
-                preemptThread(state, thread);
+            if (state.wakeup != sys.FUTEX_EMPTY_ADDR) {
+                if (state.wakeup != thread.futexAddr) {
+                    bool traversingRight = state.traverseRight;
+                    bool changedDirections = preemptThread(state, thread);
+                    if (traversingRight && changedDirections) {
+                        // then we've completed wake traversal
+                        // resume thread execution
+                        state.wakeup = sys.FUTEX_EMPTY_ADDR;
+                    }
+                    return outputState();
+                } else {
+                    // completed wake traverssal
+                    // resume execution on woken up thread
+                    state.wakeup = sys.FUTEX_EMPTY_ADDR;
+                    return outputState();
+                }
+            }
+
+            if (thread.exited) {
+                popThread(state);
                 return outputState();
             }
 
@@ -495,7 +508,14 @@ contract MIPS2 is ISemver {
 
     /// @notice Preempts the current thread for another and updates the VM state.
     ///         It reads the inner thread root from calldata to update the current thread stack root.
-    function preemptThread(State memory _state, ThreadState memory _thread) internal pure {
+    function preemptThread(
+        State memory _state,
+        ThreadState memory _thread
+    )
+        internal
+        pure
+        returns (bool _changedDirections)
+    {
         // pop thread from the current stack and push to the other stack
         if (_state.traverseRight) {
             require(_state.rightThreadStack != EMPTY_THREAD_ROOT, "empty right thread stack");
@@ -509,6 +529,7 @@ contract MIPS2 is ISemver {
         bytes32 current = _state.traverseRight ? _state.rightThreadStack : _state.leftThreadStack;
         if (current == EMPTY_THREAD_ROOT) {
             _state.traverseRight = !_state.traverseRight;
+            _changedDirections = true;
         }
         _state.stepsSinceLastContextSwitch = 0;
     }
