@@ -67,7 +67,7 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
         _symbol = _tokenSymbol;
     }
 
-    /// @notice Allows the StandardBridge to mint tokens.
+    /// @notice Allows the L2StandardBridge to mint tokens.
     /// @param _to     Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
     function mint(address _to, uint256 _amount) external virtual onlyBridge {
@@ -78,7 +78,7 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
         emit Mint(_to, _amount);
     }
 
-    /// @notice Allows the StandardBridge to burn tokens.
+    /// @notice Allows the L2StandardBridge to burn tokens.
     /// @param _from   Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
     function burn(address _from, uint256 _amount) external virtual onlyBridge {

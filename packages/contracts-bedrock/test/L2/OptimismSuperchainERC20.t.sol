@@ -320,4 +320,16 @@ contract OptimismSuperchainERC20Test is Test {
         OptimismSuperchainERC20 _newSuperchainERC20 = new OptimismSuperchainERC20(REMOTE_TOKEN, NAME, _symbol, DECIMALS);
         assertEq(_newSuperchainERC20.symbol(), _symbol);
     }
+
+    /// @notice Tests that the `supportsInterface` function returns true for the `IOptimismSuperchainERC20` interface.
+    function test_supportInterface_succeeds() public view {
+        assertTrue(superchainERC20.supportsInterface(type(IOptimismSuperchainERC20).interfaceId));
+    }
+
+    /// @notice Tests that the `supportsInterface` function returns false for any other interface than the
+    /// `IOptimismSuperchainERC20` one.
+    function testFuzz_supportInterface_returnFalse(bytes4 _interfaceId) public view {
+        vm.assume(_interfaceId != type(IOptimismSuperchainERC20).interfaceId);
+        assertFalse(superchainERC20.supportsInterface(_interfaceId));
+    }
 }
