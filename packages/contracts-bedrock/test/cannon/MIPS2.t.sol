@@ -638,7 +638,7 @@ contract MIPS2_Test is CommonTest {
         state.stepsSinceLastContextSwitch = 10;
         finalizeThreadingState(threading, state);
 
-        // Expect the thread to be moved from the left to right stack
+        // Expect the thread to be popped from the left stack
         threading.left().pop();
         MIPS2.State memory expect = copyState(state);
         expect.stepsSinceLastContextSwitch = 0;
