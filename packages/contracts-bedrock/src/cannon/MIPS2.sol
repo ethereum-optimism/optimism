@@ -350,7 +350,7 @@ contract MIPS2 is ISemver {
                     v0 = sys.SYS_ERROR_SIGNAL;
                     v1 = sys.EINVAL;
                 }
-            } else if (syscall_no == sys.SYS_SCHED_YIELD) {
+            } else if (syscall_no == sys.SYS_SCHED_YIELD || syscall_no == sys.SYS_NANOSLEEP) {
                 st.CpuScalars memory cpu0 = getCpuScalars(thread);
                 sys.handleSyscallUpdates(cpu0, thread.registers, 0, /* v0 */ 0 /* v1 */ );
                 setStateCpuScalars(thread, cpu0);
@@ -359,12 +359,6 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_OPEN) {
                 v0 = sys.SYS_ERROR_SIGNAL;
                 v1 = sys.EBADF;
-            } else if (syscall_no == sys.SYS_NANOSLEEP) {
-                st.CpuScalars memory cpu0 = getCpuScalars(thread);
-                sys.handleSyscallUpdates(cpu0, thread.registers, 0, /* v0 */ 0 /* v1 */ );
-                setStateCpuScalars(thread, cpu0);
-                preemptThread(state, thread);
-                return outputState();
             } else if (syscall_no == sys.SYS_CLOCK_GETTIME) {
                 // ignored
             } else if (syscall_no == sys.SYS_GET_AFFINITY) {
@@ -463,7 +457,7 @@ contract MIPS2 is ISemver {
     function onWaitComplete(
         State memory _state,
         ThreadState memory _thread,
-        bool _timeout
+        bool _isTimedOut
     )
         internal
         returns (bytes32 out_)
@@ -474,9 +468,9 @@ contract MIPS2 is ISemver {
         _thread.futexTimeoutStep = 0;
 
         // Complete the FUTEX_WAIT syscall
-        _thread.registers[2] = _timeout ? sys.SYS_ERROR_SIGNAL : 0;
+        _thread.registers[2] = _isTimedOut ? sys.SYS_ERROR_SIGNAL : 0;
         // set errno
-        _thread.registers[7] = _timeout ? sys.ETIMEDOUT : 0;
+        _thread.registers[7] = _isTimedOut ? sys.ETIMEDOUT : 0;
         _thread.pc = _thread.nextPC;
         _thread.nextPC = _thread.nextPC + 4;
 
