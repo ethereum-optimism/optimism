@@ -273,6 +273,8 @@ contract MIPS2_Test is CommonTest {
         MIPS2.ThreadState memory expectThread = copyThread(thread);
         expectThread.pc = thread.nextPC;
         expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = state.nextThreadID;
+        expectThread.registers[7] = 0;
 
         MIPS2.ThreadState memory newThread = copyThread(thread);
         newThread.threadID = 1;

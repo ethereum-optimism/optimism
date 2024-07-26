@@ -273,8 +273,9 @@ contract MIPS2 is ISemver {
                 state.nextThreadID++;
 
                 // Preempt this thread for the new one. But not before updating PCs
-                thread.pc = thread.nextPC;
-                thread.nextPC = thread.nextPC + 4;
+                st.CpuScalars memory cpu0 = getCpuScalars(thread);
+                sys.handleSyscallUpdates(cpu0, thread.registers, v0, v1);
+                setStateCpuScalars(thread, cpu0);
                 updateCurrentThreadRoot();
                 pushThread(state, newThread);
                 return outputState();
