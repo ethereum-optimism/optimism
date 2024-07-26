@@ -1,13 +1,15 @@
 package genesis
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -77,7 +79,6 @@ var Subcommands = cli.Commands{
 		Usage: "Generates a L1 genesis state file",
 		Flags: l1Flags,
 		Action: func(ctx *cli.Context) error {
-
 			deployConfig := ctx.String(deployConfigFlag.Name)
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
@@ -165,15 +166,16 @@ var Subcommands = cli.Commands{
 
 			caller := batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize)
 			sysCfg := NewSystemConfigContract(caller, config.SystemConfigProxy)
-			startBlock, err := sysCfg.StartBlock(context.Background())
+			startBlock, err := sysCfg.StartBlock(ctx.Context)
 			if err != nil {
 				return fmt.Errorf("failed to fetch startBlock from SystemConfig: %w", err)
 			}
 
 			log.Info("Using L1 Start Block", "number", startBlock)
-			l1StartBlock, err := client.BlockByNumber(context.Background(), startBlock)
+			// retry because local devnet can experience a race condition where L1 geth isn't ready yet
+			l1StartBlock, err := retry.Do(ctx.Context, 24, retry.Fixed(1*time.Second), func() (*types.Block, error) { return client.BlockByNumber(ctx.Context, startBlock) })
 			if err != nil {
-				return fmt.Errorf("cannot fetch block by number: %w", err)
+				return fmt.Errorf("fetching start block by number: %w", err)
 			}
 			log.Info("Fetched L1 Start Block", "hash", l1StartBlock.Hash().Hex())
 
