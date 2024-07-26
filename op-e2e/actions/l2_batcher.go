@@ -199,12 +199,13 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			if s.l2BatcherCfg.ForceSubmitSingularBatch && s.l2BatcherCfg.ForceSubmitSpanBatch {
 				t.Fatalf("ForceSubmitSingularBatch and ForceSubmitSpanBatch cannot be set to true at the same time")
 			} else {
+				chainSpec := rollup.NewChainSpec(s.rollupCfg)
 				// use span batch if we're forcing it or if we're at/beyond delta
 				if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
-					ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target, derive.Zlib)
+					ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target, derive.Zlib, chainSpec)
 					// use singular batches in all other cases
 				} else {
-					ch, err = derive.NewSingularChannelOut(c)
+					ch, err = derive.NewSingularChannelOut(c, chainSpec)
 				}
 			}
 		}

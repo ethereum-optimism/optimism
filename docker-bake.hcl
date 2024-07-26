@@ -216,21 +216,6 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
-target "chain-mon" {
-  dockerfile = "./ops/docker/Dockerfile.packages"
-  context = "."
-  args = {
-    // proxyd dockerfile has no _ in the args
-    GITCOMMIT = "${GIT_COMMIT}"
-    GITDATE = "${GIT_DATE}"
-    GITVERSION = "${GIT_VERSION}"
-  }
-  // this is a multi-stage build, where each stage is a possible output target, but wd-mon is all we publish
-  target = "wd-mon"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/chain-mon:${tag}"]
-}
-
 target "ci-builder" {
   dockerfile = "./ops/docker/ci-builder/Dockerfile"
   context = "."

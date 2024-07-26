@@ -5,7 +5,6 @@ import semver
 SERVICES  = [
     'ci-builder',
     'ci-builder-rust',
-    'chain-mon',
     'op-node',
     'op-batcher',
     'op-challenger',
@@ -88,4 +87,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
