@@ -195,14 +195,6 @@ pull_request_rules:
       label:
         add:
           - A-ops
-  - name: Add A-pkg-chain-mon label
-    conditions:
-      - 'files~=^packages/chain-mon/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-pkg-chain-mon
   - name: Add A-pkg-contracts-bedrock label
     conditions:
       - 'files~=^packages/contracts-bedrock/'

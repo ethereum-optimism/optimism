@@ -1548,12 +1548,6 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - js-lint-test:
-          name: chain-mon-tests
-          package_name: chain-mon
-          dependencies: "(contracts-bedrock|sdk)"
-          requires:
-            - pnpm-monorepo
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1780,7 +1774,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build:
@@ -1978,22 +1972,6 @@ workflows:
           op_component: op-supervisor
           requires:
             - op-supervisor-docker-release
-      - docker-build:
-          name: chain-mon-docker-release
-          filters:
-            tags:
-              only: /^chain-mon\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: chain-mon
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          resource_class: xlarge
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
       - docker-build:
           name: ci-builder-docker-release
           filters:
@@ -2222,20 +2200,10 @@ workflows:
           requires:
             - op-supervisor-docker-publish
       - docker-build:
-          name: chain-mon-docker-publish
-          docker_name: chain-mon
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          resource_class: xlarge
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - docker-build:
           name: contracts-bedrock-docker-publish
           docker_name: contracts-bedrock
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           resource_class: xlarge
-          requires: [ 'chain-mon-docker-publish' ] # use the cached base image
           publish: true
           context:
             - oplabs-gcr
