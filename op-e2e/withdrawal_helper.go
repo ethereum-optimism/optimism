@@ -220,7 +220,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		t.Log("FinalizeWithdrawal: resolveClaim...")
 		tx, err := gameContract.ResolveClaimTx(0)
 		require.NoError(t, err, "create resolveClaim tx")
-		_, resolveClaimReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey)
+		_, resolveClaimReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey, transactions.WithReceiptStatusIgnore())
 		if resolveClaimReceipt.Status == types.ReceiptStatusFailed {
 			t.Logf("resolveClaim failed (tx: %s)! But game may have resolved already. Checking now...", resolveClaimReceipt.TxHash)
 			// it may have failed because someone else front-ran this by calling `resolve()` first.
