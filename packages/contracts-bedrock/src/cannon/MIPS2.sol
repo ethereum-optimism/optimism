@@ -341,8 +341,10 @@ contract MIPS2 is ISemver {
                     state.wakeup = a0;
                     // Don't indicate to the program that we've woken up a waiting thread, as there are no guarantees.
                     // The woken up thread should indicate this in userspace.
+                    v0 = 0;
+                    v1 = 0;
                     st.CpuScalars memory cpu0 = getCpuScalars(thread);
-                    sys.handleSyscallUpdates(cpu0, thread.registers, 0, /* v0 */ 0 /* v1 */ );
+                    sys.handleSyscallUpdates(cpu0, thread.registers, v0, v1);
                     setStateCpuScalars(thread, cpu0);
                     preemptThread(state, thread);
                     state.traverseRight = false;
@@ -352,8 +354,10 @@ contract MIPS2 is ISemver {
                     v1 = sys.EINVAL;
                 }
             } else if (syscall_no == sys.SYS_SCHED_YIELD || syscall_no == sys.SYS_NANOSLEEP) {
+                v0 = 0;
+                v1 = 0;
                 st.CpuScalars memory cpu0 = getCpuScalars(thread);
-                sys.handleSyscallUpdates(cpu0, thread.registers, 0, /* v0 */ 0 /* v1 */ );
+                sys.handleSyscallUpdates(cpu0, thread.registers, v0, v1);
                 setStateCpuScalars(thread, cpu0);
                 preemptThread(state, thread);
                 return outputState();
