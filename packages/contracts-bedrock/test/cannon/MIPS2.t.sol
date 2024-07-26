@@ -649,25 +649,30 @@ contract MIPS2_Test is CommonTest {
 
     /// @dev static unit test asserting state transition of an empty right thread stack
     ///      This occurs during wakeup traversal
-    function test_threadTraversalEmptyRightStack_succeeds() public {
-        threading.createThread();
+    function test_wakeup_traversalEnds_succeeds() public {
+        threading.setTraverseRight(true);
+        MIPS2.ThreadState memory thread = threading.createThread();
         MIPS2.State memory state;
         state.traverseRight = true;
         state.wakeup = 0x1000;
         state.stepsSinceLastContextSwitch = 10;
         finalizeThreadingState(threading, state);
+        bytes memory threadWitness = threading.witness();
 
+        // state changes
+        threading.right().pop();
+        threading.left().push(thread);
         MIPS2.State memory expect = copyState(state);
         expect.step = state.step + 1;
         // Note that this does not change. The next thread scheduled (on the left stack) was the last thread on the
         // right stack.
-        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch;
+        expect.stepsSinceLastContextSwitch = 0;
         expect.wakeup = sys.FUTEX_EMPTY_ADDR;
         expect.traverseRight = false;
         finalizeThreadingState(threading, expect);
 
-        bytes memory proof; // unused
-        bytes32 postState = mips.step(encodeState(state), proof, 0);
+        bytes memory memProof; // unused
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
@@ -708,25 +713,24 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    // TODO: fuzz test no thread state transitions during wakeup
+    function testFuzz_wakeupWaiter_succeeds(uint32 _wakeup, uint32 _futexVal, uint32 _futexTimeoutStep) public {
+        vm.assume(_wakeup != sys.FUTEX_EMPTY_ADDR);
 
-    /// @dev static unit test asserting state transition of completion of a non-timed-out futex waiter during wakeup
-    function test_wakeup_futexNoTimeoutCompletion_succeeds() public {
         threading.createThread();
         threading.createThread();
         MIPS2.ThreadState memory threadB = threading.current();
-        threadB.futexAddr = 0x1000;
-        threadB.futexVal = 0xdead;
-        threadB.futexTimeoutStep = 100;
+
+        threadB.futexAddr = _wakeup;
+        threadB.futexVal = _futexVal;
+        threadB.futexTimeoutStep = _futexTimeoutStep;
         threading.replaceCurrent(threadB);
         bytes memory threadWitness = threading.witness();
 
         MIPS2.State memory state;
-        bytes memory memProof;
-        (state.memRoot, memProof) = ffi.getCannonMemoryProof(0, 0, threadB.futexAddr, threadB.futexVal + 1);
-        state.wakeup = 0x1000;
+        bytes memory memProof; // unused
+        state.wakeup = _wakeup;
         state.step = 10;
-        state.stepsSinceLastContextSwitch = 10; // must be unchanged
+        state.stepsSinceLastContextSwitch = 20; // must be unchanged
         finalizeThreadingState(threading, state);
 
         // Resume the current thread that is blocked
@@ -737,6 +741,49 @@ contract MIPS2_Test is CommonTest {
         MIPS2.State memory expect = copyState(state);
         expect.step = state.step + 1;
         expect.wakeup = sys.FUTEX_EMPTY_ADDR;
+        finalizeThreadingState(threading, expect);
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function testFuzz_wakeupNonWaiter_succeeds(
+        uint32 _wakeup,
+        uint32 _futexAddr,
+        uint32 _futexVal,
+        uint32 _futexTimeoutStep
+    )
+        public
+    {
+        vm.assume(_wakeup != sys.FUTEX_EMPTY_ADDR);
+        vm.assume(_wakeup != _futexAddr);
+
+        threading.createThread();
+        threading.createThread();
+        MIPS2.ThreadState memory threadB = threading.current();
+        threadB.futexAddr = _futexAddr;
+        threadB.futexVal = _futexVal;
+        threadB.futexTimeoutStep = _futexTimeoutStep;
+        threading.replaceCurrent(threadB);
+        bytes memory threadWitness = threading.witness();
+
+        MIPS2.State memory state;
+        bytes memory memProof; // unused
+        state.wakeup = _wakeup;
+        state.step = 10;
+        state.stepsSinceLastContextSwitch = 20;
+        finalizeThreadingState(threading, state);
+
+        // state changes
+        MIPS2.ThreadState memory expectThread = copyThread(threadB);
+        // thread internal state is unchanged since we're in wakeup traversal
+        threading.replaceCurrent(expectThread);
+        threading.left().pop();
+        threading.right().push(expectThread);
+
+        MIPS2.State memory expect = copyState(state);
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = 0;
         finalizeThreadingState(threading, expect);
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);

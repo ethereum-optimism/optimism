@@ -150,24 +150,18 @@ contract MIPS2 is ISemver {
 
             state.step += 1;
 
-            // If we've completed traversing both stacks
-            // Note that this state can only occur during wakeup traversal (assuming a valid absolute prestate)
-            if (
-                state.wakeup != sys.FUTEX_EMPTY_ADDR && state.traverseRight
-                    && state.rightThreadStack == EMPTY_THREAD_ROOT
-            ) {
-                state.traverseRight = false;
-                state.wakeup = sys.FUTEX_EMPTY_ADDR;
-                return outputState();
-            }
-
             setThreadStateFromCalldata(thread);
             validateCalldataThreadWitness(state, thread);
 
             // Search for the first thread blocked by the wakeup call, if wakeup is set
             // Don't allow regular execution until we resolved if we have woken up any thread.
             if (state.wakeup != sys.FUTEX_EMPTY_ADDR) {
-                if (state.wakeup != thread.futexAddr) {
+                if (state.wakeup == thread.futexAddr) {
+                    // completed wake traverssal
+                    // resume execution on woken up thread
+                    state.wakeup = sys.FUTEX_EMPTY_ADDR;
+                    return outputState();
+                } else {
                     bool traversingRight = state.traverseRight;
                     bool changedDirections = preemptThread(state, thread);
                     if (traversingRight && changedDirections) {
@@ -175,11 +169,6 @@ contract MIPS2 is ISemver {
                         // resume thread execution
                         state.wakeup = sys.FUTEX_EMPTY_ADDR;
                     }
-                    return outputState();
-                } else {
-                    // completed wake traverssal
-                    // resume execution on woken up thread
-                    state.wakeup = sys.FUTEX_EMPTY_ADDR;
                     return outputState();
                 }
             }
