@@ -1,4 +1,4 @@
-all: elf dump
+all: elf
 
 .PHONY: elf
 elf: $(patsubst %/go.mod,bin/%.elf,$(wildcard */go.mod))
