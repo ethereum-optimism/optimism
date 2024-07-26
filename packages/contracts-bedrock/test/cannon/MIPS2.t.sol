@@ -713,7 +713,15 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    function testFuzz_wakeupWaiter_succeeds(uint32 _wakeup, uint32 _futexVal, uint32 _futexTimeoutStep) public {
+    /// @dev Static unit test asserting wakeup where the current thread is ready to be woken up
+    function testFuzz_wakeupWaiter_succeeds(
+        uint32 _wakeup,
+        uint32 _futexVal,
+        uint32 _futexTimeoutStep,
+        bool _threadExited
+    )
+        public
+    {
         vm.assume(_wakeup != sys.FUTEX_EMPTY_ADDR);
 
         threading.createThread();
@@ -723,6 +731,11 @@ contract MIPS2_Test is CommonTest {
         threadB.futexAddr = _wakeup;
         threadB.futexVal = _futexVal;
         threadB.futexTimeoutStep = _futexTimeoutStep;
+        // A thread exit cannot interrupt wakeup traversal. thread.exited during wakeup is technically not a valid
+        // state.
+        // But we fuzz this anyways to ensure the VM only traverses threads during wakeup
+        threadB.exited = _threadExited;
+        threadB.exitCode = _threadExited ? 1 : 0;
         threading.replaceCurrent(threadB);
         bytes memory threadWitness = threading.witness();
 
@@ -747,11 +760,13 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    /// @dev Static unit test asserting wakeup where the current thread isn't ready
     function testFuzz_wakeupNonWaiter_succeeds(
         uint32 _wakeup,
         uint32 _futexAddr,
         uint32 _futexVal,
-        uint32 _futexTimeoutStep
+        uint32 _futexTimeoutStep,
+        bool _threadExited
     )
         public
     {
@@ -764,6 +779,8 @@ contract MIPS2_Test is CommonTest {
         threadB.futexAddr = _futexAddr;
         threadB.futexVal = _futexVal;
         threadB.futexTimeoutStep = _futexTimeoutStep;
+        threadB.exited = _threadExited;
+        threadB.exitCode = _threadExited ? 1 : 0;
         threading.replaceCurrent(threadB);
         bytes memory threadWitness = threading.witness();
 
@@ -858,8 +875,6 @@ contract MIPS2_Test is CommonTest {
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
-
-    // TODO: thread exit during futex wakeup
 
     /// @dev Static unit test asserting VM behavior when the current thread has exited
     function test_threadExit_succeeds() public {
