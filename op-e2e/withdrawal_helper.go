@@ -3,6 +3,7 @@ package op_e2e
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
@@ -29,6 +30,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/stretchr/testify/require"
 )
+
+const SolErrClaimAlreadyResolved = "0xf1a94581"
 
 type ClientProvider interface {
 	NodeClient(name string) *ethclient.Client
@@ -220,27 +223,25 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 		t.Log("FinalizeWithdrawal: resolveClaim...")
 		tx, err := gameContract.ResolveClaimTx(0)
 		require.NoError(t, err, "create resolveClaim tx")
-		_, resolveClaimReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey, transactions.WithReceiptStatusIgnore())
-		if resolveClaimReceipt.Status == types.ReceiptStatusFailed {
-			t.Logf("resolveClaim failed (tx: %s)! But game may have resolved already. Checking now...", resolveClaimReceipt.TxHash)
+		_, resolveClaimReceipt, err = transactions.SendTx(ctx, l1Client, tx, privKey)
+		var rsErr *wait.ReceiptStatusError
+		if errors.As(err, &rsErr) && rsErr.TxTrace.Output.String() == SolErrClaimAlreadyResolved {
+			t.Logf("resolveClaim failed (tx: %s) because claim got already resolved", resolveClaimReceipt.TxHash)
+		} else {
+			require.NoError(t, err)
+		}
+
+		t.Log("FinalizeWithdrawal: resolve...")
+		tx, err = gameContract.ResolveTx()
+		require.NoError(t, err, "create resolve tx")
+		_, resolveReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey, transactions.WithReceiptStatusIgnore())
+		if resolveReceipt.Status == types.ReceiptStatusFailed {
+			t.Logf("resolve failed (tx: %s)! But game may have resolved already. Checking now...", resolveReceipt.TxHash)
 			// it may have failed because someone else front-ran this by calling `resolve()` first.
 			status, err := gameContract.GetStatus(ctx)
 			require.NoError(t, err)
-			require.Equal(t, gameTypes.GameStatusDefenderWon, status, "game must have resolved")
-			t.Logf("resolveClaim was not needed, the game was already resolved")
-		} else {
-			t.Log("FinalizeWithdrawal: resolve...")
-			tx, err = gameContract.ResolveTx()
-			require.NoError(t, err, "create resolve tx")
-			_, resolveReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey, transactions.WithReceiptStatusIgnore())
-			if resolveReceipt.Status == types.ReceiptStatusFailed {
-				t.Logf("resolve failed (tx: %s)! But game may have resolved already. Checking now...", resolveReceipt.TxHash)
-				// it may have failed because someone else front-ran this by calling `resolve()` first.
-				status, err := gameContract.GetStatus(ctx)
-				require.NoError(t, err)
-				require.Equal(t, gameTypes.GameStatusDefenderWon, status, "game must have resolved")
-				t.Logf("resolve was not needed, the game was already resolved")
-			}
+			require.Equal(t, gameTypes.GameStatusDefenderWon, status, "game must have resolved with defender won")
+			t.Logf("resolve was not needed, the game was already resolved")
 		}
 	}
 

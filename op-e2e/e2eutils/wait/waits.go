@@ -67,35 +67,58 @@ func ForReceiptMaybe(ctx context.Context, client *ethclient.Client, hash common.
 			return nil, fmt.Errorf("failed to get receipt for tx %s: %w", hash, err)
 		}
 		if !statusIgnore && receipt.Status != status {
-			printDebugTrace(ctx, client, hash)
-			return receipt, fmt.Errorf("expected status %d, but got %d", status, receipt.Status)
+			trace, err := DebugTraceTx(ctx, client, hash)
+			if err != nil {
+				// still return receipt if trace couldn't be obtained
+				return receipt, fmt.Errorf("unexpected receipt status %d, error tracing tx: %w", receipt.Status, err)
+			}
+			return receipt, &ReceiptStatusError{Status: receipt.Status, TxTrace: trace}
 		}
 		return receipt, nil
 	}
 }
 
-type jsonRawString string
+type (
+	ReceiptStatusError struct {
+		Status  uint64
+		TxTrace *TxTrace
+	}
 
-func (s *jsonRawString) UnmarshalJSON(input []byte) error {
-	str := jsonRawString(input)
-	*s = str
-	return nil
+	CallTrace struct {
+		From    common.Address `json:"from"`
+		Gas     hexutil.Uint64 `json:"gas"`
+		GasUsed hexutil.Uint64 `json:"gasUsed"`
+		To      common.Address `json:"to"`
+		Input   hexutil.Bytes  `json:"input"`
+		Output  hexutil.Bytes  `json:"output"`
+		Error   string         `json:"error"`
+		Value   hexutil.U256   `json:"value"`
+		Type    string         `json:"type"`
+	}
+
+	TxTrace struct {
+		CallTrace
+		Calls []CallTrace `json:"calls"`
+	}
+)
+
+func (rse *ReceiptStatusError) Error() string {
+	return fmt.Sprintf("unexpected receipt status %d (tx trace: %+v)", rse.Status, rse.TxTrace)
 }
 
-// printDebugTrace logs debug_traceTransaction output to aid in debugging unexpected receipt statuses
-func printDebugTrace(ctx context.Context, client *ethclient.Client, txHash common.Hash) {
-	var trace jsonRawString
+// DebugTraceTx logs debug_traceTransaction output to aid in debugging unexpected receipt statuses
+func DebugTraceTx(ctx context.Context, client *ethclient.Client, txHash common.Hash) (*TxTrace, error) {
+	trace := new(TxTrace)
 	options := map[string]any{
 		"enableReturnData": true,
 		"tracer":           "callTracer",
 		"tracerConfig":     map[string]any{},
 	}
-	err := client.Client().CallContext(ctx, &trace, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
+	err := client.Client().CallContext(ctx, trace, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
 	if err != nil {
-		fmt.Printf("TxTrace unavailable: %v\n", err)
-		return
+		return nil, fmt.Errorf("calling debug_traceTransaction: %w", err)
 	}
-	fmt.Printf("TxTrace: %v\n", trace)
+	return trace, nil
 }
 
 func For(ctx context.Context, rate time.Duration, cb func() (bool, error)) error {
