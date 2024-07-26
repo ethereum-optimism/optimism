@@ -81,7 +81,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
-│   ├── <a href="./packages/devnet-tasks">devnet-tasks</a>: Legacy Hardhat tasks used within devnet CI tests
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
 </pre>
