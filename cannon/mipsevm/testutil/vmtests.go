@@ -17,12 +17,18 @@ import (
 type VMFactory[T mipsevm.FPVMState] func(state T, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM
 type StateFactory[T mipsevm.FPVMState] func() T
 
-func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFactory[T], vmFactory VMFactory[T]) {
+func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFactory[T], vmFactory VMFactory[T], excludedTests ...string) {
 	testFiles, err := os.ReadDir("../tests/open_mips_tests/test/bin")
 	require.NoError(t, err)
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
+			for _, skipped := range excludedTests {
+				if f.Name() == skipped {
+					t.Skipf("Skipping explicitly excluded open_mips testcase: %v", f.Name())
+				}
+			}
+
 			oracle := SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"

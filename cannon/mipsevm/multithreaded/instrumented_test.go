@@ -19,7 +19,8 @@ func vmFactory(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer
 }
 
 func TestInstrumentedState_OpenMips(t *testing.T) {
-	testutil.RunVMTests_OpenMips(t, CreateEmptyState, vmFactory)
+	// TODO(cp-903): Add mt-specific tests here
+	testutil.RunVMTests_OpenMips(t, CreateEmptyState, vmFactory, "clone.bin")
 }
 
 func TestInstrumentedState_Hello(t *testing.T) {
