@@ -58,7 +58,6 @@
     "nx": "18.2.2",
     "nx-cloud": "latest",
     "prettier": "^2.8.0",
-    "rimraf": "^5.0.5",
     "typescript": "^5.5.4"
   },
   "dependencies": {
