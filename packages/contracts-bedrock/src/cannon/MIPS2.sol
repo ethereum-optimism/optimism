@@ -144,6 +144,10 @@ contract MIPS2 is ISemver {
                 return outputState();
             }
 
+            if (state.leftThreadStack == EMPTY_THREAD_ROOT && state.rightThreadStack == EMPTY_THREAD_ROOT) {
+                revert("illegal vm state");
+            }
+
             state.step += 1;
 
             // If we've completed traversing both stacks
@@ -162,7 +166,6 @@ contract MIPS2 is ISemver {
 
             if (thread.exited) {
                 popThread(state);
-                // TODO: handle the case where the last thread exits before exit_group
                 return outputState();
             }
 
@@ -317,6 +320,10 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_EXIT) {
                 thread.exited = true;
                 thread.exitCode = uint8(a0);
+                if (lastThreadRemaining(state)) {
+                    state.exited = true;
+                    state.exitCode = uint8(a0);
+                }
                 updateCurrentThreadRoot();
                 return outputState();
             } else if (syscall_no == sys.SYS_FUTEX) {
@@ -528,6 +535,13 @@ contract MIPS2 is ISemver {
             _state.traverseRight = !_state.traverseRight;
         }
         _state.stepsSinceLastContextSwitch = 0;
+    }
+
+    /// @notice Returns true if the number of threads is 1
+    function lastThreadRemaining(State memory _state) internal pure returns (bool out_) {
+        bytes32 inactiveStack = _state.traverseRight ? _state.leftThreadStack : _state.rightThreadStack;
+        bool currentStackIsAlmostEmpty = loadCalldataInnerThreadRoot() == EMPTY_THREAD_ROOT;
+        return inactiveStack == EMPTY_THREAD_ROOT && currentStackIsAlmostEmpty;
     }
 
     function computeThreadRoot(bytes32 _currentRoot, ThreadState memory _thread) internal pure returns (bytes32 _out) {

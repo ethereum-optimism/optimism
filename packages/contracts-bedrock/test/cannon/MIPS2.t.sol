@@ -440,6 +440,86 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    /// @dev Static unit test asserting behavior of exit syscall when there are multiple threads present
+    function test_syscallExit_multipleThreads_succeeds() public {
+        uint32 insn = 0x0000000c; // syscall
+        uint8 exitCode = 4;
+
+        MIPS2.ThreadState memory threadA = threading.createThread();
+        threadA.futexAddr = sys.FUTEX_EMPTY_ADDR;
+        threadA.pc = 0x1000;
+        threadA.nextPC = 0x1004;
+        threading.replaceCurrent(threadA);
+
+        MIPS2.ThreadState memory threadB = threading.createThread();
+        threadB.futexAddr = sys.FUTEX_EMPTY_ADDR;
+        threadB.pc = 0x100;
+        threadB.nextPC = 0x104;
+        threadB.registers[2] = sys.SYS_EXIT;
+        threadB.registers[A0_REG] = exitCode;
+        threading.replaceCurrent(threadB);
+        bytes memory threadWitness = threading.witness();
+
+        MIPS2.State memory state;
+        bytes memory memProof;
+        (state.memRoot, memProof) = ffi.getCannonMemoryProof(threadB.pc, insn, 0, 0);
+        state.step = 20;
+        state.stepsSinceLastContextSwitch = 10;
+        state.wakeup = sys.FUTEX_EMPTY_ADDR;
+        finalizeThreadingState(threading, state);
+
+        // state updates
+        MIPS2.ThreadState memory expectThread = copyThread(threadB);
+        expectThread.exited = true;
+        expectThread.exitCode = exitCode;
+        threading.replaceCurrent(expectThread);
+        MIPS2.State memory expect = copyState(state);
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        finalizeThreadingState(threading, expect);
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @dev Static unit test asserting behavior of exit syscall when is a single thread left
+    function test_syscallExit_lastThread_succeeds() public {
+        uint32 insn = 0x0000000c; // syscall
+        uint8 exitCode = 4;
+
+        MIPS2.ThreadState memory thread = threading.createThread();
+        thread.futexAddr = sys.FUTEX_EMPTY_ADDR;
+        thread.pc = 0x1000;
+        thread.nextPC = 0x1004;
+        thread.registers[2] = sys.SYS_EXIT;
+        thread.registers[A0_REG] = exitCode;
+        threading.replaceCurrent(thread);
+        bytes memory threadWitness = threading.witness();
+
+        MIPS2.State memory state;
+        bytes memory memProof;
+        (state.memRoot, memProof) = ffi.getCannonMemoryProof(thread.pc, insn, 0, 0);
+        state.step = 20;
+        state.stepsSinceLastContextSwitch = 10;
+        state.wakeup = sys.FUTEX_EMPTY_ADDR;
+        finalizeThreadingState(threading, state);
+
+        // state updates
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expectThread.exited = true;
+        expectThread.exitCode = exitCode;
+        threading.replaceCurrent(expectThread);
+        MIPS2.State memory expect = copyState(state);
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        expect.exited = true;
+        expect.exitCode = exitCode;
+        finalizeThreadingState(threading, expect);
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
     /// @dev Static unit test asserting that VM preempts threads after a certain number of steps
     function test_threadQuantumSchedule_succeeds() public {
         MIPS2.ThreadState memory threadA = threading.createThread();
@@ -626,6 +706,7 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    /// @dev Static unit test asserting VM behavior when the current thread has exited
     function test_threadExit_succeeds() public {
         threading.createThread();
         threading.createThread();
@@ -649,6 +730,7 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    /// @dev Static unit test asserting VM behavior when the current thread has exited and the current thread stack is almost empty
     function test_threadExit_swapStacks_succeeds() public {
         threading.setTraverseRight(true);
         threading.createThread();
