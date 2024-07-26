@@ -48,10 +48,9 @@ func (m *InstrumentedState) handleSyscall() error {
 				HI:     thread.Cpu.HI,
 				LO:     thread.Cpu.LO,
 			},
+			Registers: thread.Registers,
 		}
-		for i := 0; i < 32; i++ {
-			newThread.Registers[i] = thread.Registers[i]
-		}
+
 		newThread.Registers[29] = a1
 		// the child will perceive a 0 value as returned value instead, and no error
 		newThread.Registers[2] = 0
@@ -238,7 +237,7 @@ func (m *InstrumentedState) mipsStep() error {
 		if m.state.threadCount() > 1 {
 			// Log if we're hitting our context switch limit - only matters if we have > 1 thread
 			msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
-			m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount())
+			m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount(), "pc", thread.Cpu.PC)
 		}
 		m.preemptThread(thread)
 		return nil
