@@ -1166,6 +1166,10 @@ jobs:
             tar -xzvf geth-alltools-linux-amd64-1.13.14-2bd6bd01.tar.gz
             sudo cp geth-alltools-linux-amd64-1.13.14-2bd6bd01/* /usr/local/bin
       - run:
+          name: Install eth2-testnet-genesis
+          command: |
+            go install -v github.com/protolambda/eth2-testnet-genesis@$(jq -r .eth2_testnet_genesis < versions.json)
+      - run:
           name: foundryup
           command: |
             curl -L https://foundry.paradigm.xyz | bash
@@ -1219,14 +1223,16 @@ jobs:
             docker tag "$IMAGE_BASE_PREFIX/op-challenger:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-challenger:devnet"
             docker tag "$IMAGE_BASE_PREFIX/da-server:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/da-server:devnet"
       - run:
-          name: pnpm i
+          name: pnpm install and build
           command: |
-            pnpm i && pnpm build
+            pnpm install && pnpm build
       - run:
           name: Bring up the stack
           command: |
             # Specify like this to avoid a forced rebuild of the contracts + devnet L1
             PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+            echo "Waiting for 10 seconds to give the devnet time to settle in..."
+            sleep 10
       - run:
           name: Test the stack
           command: make devnet-test
@@ -1244,6 +1250,16 @@ jobs:
           name: Dump l1 logs
           command: |
             docker logs ops-bedrock-l1-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1-bn logs
+          command: |
+            docker logs ops-bedrock-l1-bn-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1-vc logs
+          command: |
+            docker logs ops-bedrock-l1-vc-1 || echo "No logs."
           when: on_fail
       - run:
           name: Dump op-batcher logs

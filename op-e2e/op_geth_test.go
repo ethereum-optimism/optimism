@@ -71,7 +71,6 @@ func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 	l2Seq := sys.Clients["sequencer"]
 	err = l2Seq.SendTransaction(ctx, tx)
 	require.ErrorContains(t, err, txpool.ErrGasLimit.Error())
-
 }
 
 // TestInvalidDepositInFCU runs an invalid deposit through a FCU/GetPayload/NewPayload/FCU set of calls.
@@ -246,8 +245,7 @@ func TestPreregolith(t *testing.T) {
 			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
+			cfg := RegolithSystemConfig(t, test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -295,8 +293,7 @@ func TestPreregolith(t *testing.T) {
 			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
+			cfg := RegolithSystemConfig(t, test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -352,8 +349,7 @@ func TestPreregolith(t *testing.T) {
 
 		t.Run("UnusedGasConsumed_"+test.name, func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
+			cfg := RegolithSystemConfig(t, test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -394,8 +390,7 @@ func TestPreregolith(t *testing.T) {
 
 		t.Run("AllowSystemTx_"+test.name, func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
+			cfg := RegolithSystemConfig(t, test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -419,10 +414,10 @@ func TestRegolith(t *testing.T) {
 	tests := []struct {
 		name             string
 		regolithTime     hexutil.Uint64
-		activateRegolith func(ctx context.Context, opGeth *OpGeth)
+		activateRegolith func(ctx context.Context, t *testing.T, opGeth *OpGeth)
 	}{
-		{name: "ActivateAtGenesis", regolithTime: 0, activateRegolith: func(ctx context.Context, opGeth *OpGeth) {}},
-		{name: "ActivateAfterGenesis", regolithTime: 2, activateRegolith: func(ctx context.Context, opGeth *OpGeth) {
+		{name: "ActivateAtGenesis", regolithTime: 0, activateRegolith: func(ctx context.Context, t *testing.T, opGeth *OpGeth) {}},
+		{name: "ActivateAfterGenesis", regolithTime: 2, activateRegolith: func(ctx context.Context, t *testing.T, opGeth *OpGeth) {
 			_, err := opGeth.AddL2Block(ctx)
 			require.NoError(t, err)
 		}},
@@ -433,8 +428,7 @@ func TestRegolith(t *testing.T) {
 			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -443,7 +437,7 @@ func TestRegolith(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			test.activateRegolith(ctx, opGeth)
+			test.activateRegolith(ctx, t, opGeth)
 
 			fromAddr := cfg.Secrets.Addresses().Alice
 
@@ -485,8 +479,7 @@ func TestRegolith(t *testing.T) {
 			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -495,7 +488,7 @@ func TestRegolith(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			test.activateRegolith(ctx, opGeth)
+			test.activateRegolith(ctx, t, opGeth)
 
 			fromAddr := cfg.Secrets.Addresses().Alice
 			// Include a tx just to ensure Alice's nonce isn't 0
@@ -545,8 +538,7 @@ func TestRegolith(t *testing.T) {
 
 		t.Run("ReturnUnusedGasToPool_"+test.name, func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -555,7 +547,7 @@ func TestRegolith(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			test.activateRegolith(ctx, opGeth)
+			test.activateRegolith(ctx, t, opGeth)
 
 			fromAddr := cfg.Secrets.Addresses().Alice
 
@@ -588,8 +580,7 @@ func TestRegolith(t *testing.T) {
 
 		t.Run("RejectSystemTx_"+test.name, func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -598,7 +589,7 @@ func TestRegolith(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			test.activateRegolith(ctx, opGeth)
+			test.activateRegolith(ctx, t, opGeth)
 
 			rollupCfg := rollup.Config{}
 			systemTx, err := derive.L1InfoDeposit(&rollupCfg, opGeth.SystemConfig, 1, opGeth.L1Head, 0)
@@ -648,8 +639,7 @@ func TestRegolith(t *testing.T) {
 
 			deployData := append(deployPrefix, sstoreContract...)
 
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
+			cfg := RegolithSystemConfig(t, &test.regolithTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -658,7 +648,7 @@ func TestRegolith(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			test.activateRegolith(ctx, opGeth)
+			test.activateRegolith(ctx, t, opGeth)
 			fromAddr := cfg.Secrets.Addresses().Alice
 			storeContractAddr := crypto.CreateAddress(fromAddr, 0)
 
@@ -747,8 +737,7 @@ func TestPreCanyon(t *testing.T) {
 
 		t.Run(fmt.Sprintf("ReturnsNilWithdrawals_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.canyonTime
+			cfg := CanyonSystemConfig(t, test.canyonTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -768,8 +757,7 @@ func TestPreCanyon(t *testing.T) {
 
 		t.Run(fmt.Sprintf("RejectPushZeroTx_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.canyonTime
+			cfg := CanyonSystemConfig(t, test.canyonTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -802,10 +790,10 @@ func TestCanyon(t *testing.T) {
 	tests := []struct {
 		name           string
 		canyonTime     hexutil.Uint64
-		activateCanyon func(ctx context.Context, opGeth *OpGeth)
+		activateCanyon func(ctx context.Context, t *testing.T, opGeth *OpGeth)
 	}{
-		{name: "ActivateAtGenesis", canyonTime: 0, activateCanyon: func(ctx context.Context, opGeth *OpGeth) {}},
-		{name: "ActivateAfterGenesis", canyonTime: 2, activateCanyon: func(ctx context.Context, opGeth *OpGeth) {
+		{name: "ActivateAtGenesis", canyonTime: 0, activateCanyon: func(ctx context.Context, t *testing.T, opGeth *OpGeth) {}},
+		{name: "ActivateAfterGenesis", canyonTime: 2, activateCanyon: func(ctx context.Context, t *testing.T, opGeth *OpGeth) {
 			// Adding this block advances us to the fork time.
 			_, err := opGeth.AddL2Block(ctx)
 			require.NoError(t, err)
@@ -815,11 +803,7 @@ func TestCanyon(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("ReturnsEmptyWithdrawals_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			s := hexutil.Uint64(0)
-			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &s
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &test.canyonTime
-			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+			cfg := CanyonSystemConfig(t, &test.canyonTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -828,7 +812,7 @@ func TestCanyon(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			test.activateCanyon(ctx, opGeth)
+			test.activateCanyon(ctx, t, opGeth)
 
 			b, err := opGeth.AddL2Block(ctx)
 			require.NoError(t, err)
@@ -841,9 +825,7 @@ func TestCanyon(t *testing.T) {
 
 		t.Run(fmt.Sprintf("AcceptsPushZeroTxn_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &test.canyonTime
-			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+			cfg := CanyonSystemConfig(t, &test.canyonTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -851,6 +833,8 @@ func TestCanyon(t *testing.T) {
 			opGeth, err := NewOpGeth(t, ctx, &cfg)
 			require.NoError(t, err)
 			defer opGeth.Close()
+
+			test.activateCanyon(ctx, t, opGeth)
 
 			pushZeroContractCreateTxn := types.NewTx(&types.DepositTx{
 				From:  cfg.Secrets.Addresses().Alice,
@@ -887,8 +871,7 @@ func TestPreEcotone(t *testing.T) {
 
 		t.Run(fmt.Sprintf("NilParentBeaconRoot_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.ecotoneTime
+			cfg := EcotoneSystemConfig(t, test.ecotoneTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -906,10 +889,9 @@ func TestPreEcotone(t *testing.T) {
 			assert.Nil(t, l2Block.Header().ParentBeaconRoot)
 		})
 
-		t.Run(fmt.Sprintf("RejectTstoreTxn%s", test.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("RejectTstoreTxn_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = test.ecotoneTime
+			cfg := EcotoneSystemConfig(t, test.ecotoneTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -944,10 +926,10 @@ func TestEcotone(t *testing.T) {
 	tests := []struct {
 		name            string
 		ecotoneTime     hexutil.Uint64
-		activateEcotone func(ctx context.Context, opGeth *OpGeth)
+		activateEcotone func(ctx context.Context, t *testing.T, opGeth *OpGeth)
 	}{
-		{name: "ActivateAtGenesis", ecotoneTime: 0, activateEcotone: func(ctx context.Context, opGeth *OpGeth) {}},
-		{name: "ActivateAfterGenesis", ecotoneTime: 2, activateEcotone: func(ctx context.Context, opGeth *OpGeth) {
+		{name: "ActivateAtGenesis", ecotoneTime: 0, activateEcotone: func(ctx context.Context, t *testing.T, opGeth *OpGeth) {}},
+		{name: "ActivateAfterGenesis", ecotoneTime: 2, activateEcotone: func(ctx context.Context, t *testing.T, opGeth *OpGeth) {
 			//	Adding this block advances us to the fork time.
 			_, err := opGeth.AddL2Block(ctx)
 			require.NoError(t, err)
@@ -957,11 +939,7 @@ func TestEcotone(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("HashParentBeaconBlockRoot_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			s := hexutil.Uint64(0)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &s
-			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &s
-			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &test.ecotoneTime
+			cfg := EcotoneSystemConfig(t, &test.ecotoneTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -970,7 +948,7 @@ func TestEcotone(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			test.activateEcotone(ctx, opGeth)
+			test.activateEcotone(ctx, t, opGeth)
 
 			b, err := opGeth.AddL2Block(ctx)
 			require.NoError(t, err)
@@ -983,13 +961,9 @@ func TestEcotone(t *testing.T) {
 			assert.Equal(t, l2Block.Header().ParentBeaconRoot, opGeth.L1Head.ParentBeaconRoot())
 		})
 
-		t.Run(fmt.Sprintf("TstoreTxn%s", test.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TstoreTxn_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			s := hexutil.Uint64(0)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &s
-			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &s
-			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &test.ecotoneTime
+			cfg := EcotoneSystemConfig(t, &test.ecotoneTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -997,6 +971,8 @@ func TestEcotone(t *testing.T) {
 			opGeth, err := NewOpGeth(t, ctx, &cfg)
 			require.NoError(t, err)
 			defer opGeth.Close()
+
+			test.activateEcotone(ctx, t, opGeth)
 
 			tstoreTxn := types.NewTx(&types.DepositTx{
 				From:  cfg.Secrets.Addresses().Alice,
@@ -1039,12 +1015,7 @@ func TestPreFjord(t *testing.T) {
 
 		t.Run(fmt.Sprintf("RIP7212_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			s := hexutil.Uint64(0)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &s
-			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &s
-			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &s
-			cfg.DeployConfig.L2GenesisFjordTimeOffset = test.fjordTime
+			cfg := FjordSystemConfig(t, test.fjordTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -1078,10 +1049,10 @@ func TestFjord(t *testing.T) {
 	tests := []struct {
 		name          string
 		fjordTime     hexutil.Uint64
-		activateFjord func(ctx context.Context, opGeth *OpGeth)
+		activateFjord func(ctx context.Context, t *testing.T, opGeth *OpGeth)
 	}{
-		{name: "ActivateAtGenesis", fjordTime: 0, activateFjord: func(ctx context.Context, opGeth *OpGeth) {}},
-		{name: "ActivateAfterGenesis", fjordTime: 2, activateFjord: func(ctx context.Context, opGeth *OpGeth) {
+		{name: "ActivateAtGenesis", fjordTime: 0, activateFjord: func(ctx context.Context, t *testing.T, opGeth *OpGeth) {}},
+		{name: "ActivateAfterGenesis", fjordTime: 2, activateFjord: func(ctx context.Context, t *testing.T, opGeth *OpGeth) {
 			//	Adding this block advances us to the fork time.
 			_, err := opGeth.AddL2Block(ctx)
 			require.NoError(t, err)
@@ -1092,12 +1063,7 @@ func TestFjord(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("RIP7212_%s", test.name), func(t *testing.T) {
 			InitParallel(t)
-			cfg := DefaultSystemConfig(t)
-			s := hexutil.Uint64(0)
-			cfg.DeployConfig.L2GenesisCanyonTimeOffset = &s
-			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &s
-			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &s
-			cfg.DeployConfig.L2GenesisFjordTimeOffset = &test.fjordTime
+			cfg := FjordSystemConfig(t, &test.fjordTime)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -1106,7 +1072,7 @@ func TestFjord(t *testing.T) {
 			require.NoError(t, err)
 			defer opGeth.Close()
 
-			test.activateFjord(ctx, opGeth)
+			test.activateFjord(ctx, t, opGeth)
 
 			// valid request returns one
 			response, err := opGeth.L2Client.CallContract(ctx, ethereum.CallMsg{

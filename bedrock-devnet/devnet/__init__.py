@@ -206,8 +206,12 @@ def devnet_deploy(paths):
             '--outfile.l1', paths.genesis_l1_path,
         ], cwd=paths.op_node_dir)
 
+        run_command([
+          'sh', 'l1-generate-beacon-genesis.sh',
+        ], cwd=paths.ops_bedrock_dir)
+
     log.info('Starting L1.')
-    run_command(['docker', 'compose', 'up', '-d', 'l1'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker', 'compose', 'up', '-d', 'l1', 'l1-bn', 'l1-vc'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(8545)
@@ -269,7 +273,7 @@ def devnet_deploy(paths):
     else:
         docker_env['DGF_ADDRESS'] = dispute_game_factory
         docker_env['DG_TYPE'] = '254'
-        docker_env['PROPOSAL_INTERVAL'] = '10s'
+        docker_env['PROPOSAL_INTERVAL'] = '12s'
 
     if DEVNET_PLASMA:
         docker_env['PLASMA_ENABLED'] = 'true'

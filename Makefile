@@ -164,6 +164,9 @@ pre-devnet: submodules ## Prepares for running a local devnet
 	@if ! [ -x "$(command -v geth)" ]; then \
 		make install-geth; \
 	fi
+	@if ! [ -x "$(command -v eth2-testnet-genesis)" ]; then \
+		make install-eth2-testnet-genesis; \
+	fi
 	@if [ ! -e op-program/bin ]; then \
 		make cannon-prestate; \
 	fi
@@ -176,7 +179,7 @@ devnet-up: pre-devnet ## Starts the local devnet
 .PHONY: devnet-up
 
 devnet-test: pre-devnet ## Runs tests on the local devnet
-	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --test
+	make -C op-e2e test-devnet
 .PHONY: devnet-test
 
 devnet-down: ## Stops the local devnet
@@ -233,3 +236,7 @@ install-geth: ## Installs or updates Geth if versions do not match
  			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell jq -r .geth < versions.json); \
  			echo "Installed geth!"; true)
 .PHONY: install-geth
+
+install-eth2-testnet-genesis:
+	go install -v github.com/protolambda/eth2-testnet-genesis@$(shell jq -r .eth2_testnet_genesis < versions.json)
+.PHONY: install-eth2-testnet-genesis

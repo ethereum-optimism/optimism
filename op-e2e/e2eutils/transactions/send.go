@@ -21,7 +21,8 @@ import (
 type SendTxOpt func(cfg *sendTxCfg)
 
 type sendTxCfg struct {
-	receiptStatus uint64
+	receiptStatus       uint64
+	ignoreReceiptStatus bool
 }
 
 func makeSendTxCfg(opts ...SendTxOpt) *sendTxCfg {
@@ -37,6 +38,12 @@ func makeSendTxCfg(opts ...SendTxOpt) *sendTxCfg {
 func WithReceiptFail() SendTxOpt {
 	return func(cfg *sendTxCfg) {
 		cfg.receiptStatus = types.ReceiptStatusFailed
+	}
+}
+
+func WithReceiptStatusIgnore() SendTxOpt {
+	return func(cfg *sendTxCfg) {
+		cfg.ignoreReceiptStatus = true
 	}
 }
 
@@ -94,11 +101,11 @@ func SendTx(ctx context.Context, client *ethclient.Client, candidate txmgr.TxCan
 	})
 	err = client.SendTransaction(ctx, tx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to send transaction: %w", errutil.TryAddRevertReason(err))
+		return nil, nil, fmt.Errorf("failed to send transaction (tx: %s): %w", tx.Hash(), errutil.TryAddRevertReason(err))
 	}
-	receipt, err := wait.ForReceipt(ctx, client, tx.Hash(), cfg.receiptStatus)
+	receipt, err := wait.ForReceiptMaybe(ctx, client, tx.Hash(), cfg.receiptStatus, cfg.ignoreReceiptStatus)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find OK receipt: %w", err)
+		return tx, receipt, fmt.Errorf("failed to find OK receipt (tx: %s): %w", tx.Hash(), err)
 	}
 	return tx, receipt, nil
 }

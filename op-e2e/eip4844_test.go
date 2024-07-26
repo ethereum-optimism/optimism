@@ -40,7 +40,10 @@ func TestSystem4844E2E(t *testing.T) {
 func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAvailabilityType) {
 	InitParallel(t)
 
-	cfg := DefaultSystemConfig(t)
+	cfg := EcotoneSystemConfig(t, &genesisTime)
+	cfg.DataAvailabilityType = daType
+	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7000))
+
 	const maxBlobs = 6
 	var maxL1TxSize int
 	if multiBlob {
@@ -51,13 +54,6 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 		maxL1TxSize = derive.FrameV0OverHeadSize + 100
 		cfg.BatcherMaxL1TxSizeBytes = uint64(maxL1TxSize)
 	}
-	cfg.DataAvailabilityType = daType
-
-	genesisActivation := hexutil.Uint64(0)
-	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
-	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7000))
 
 	// For each test we intentionally block the batcher by submitting an incompatible tx type up
 	// front. This lets us test the ability for the batcher to clear out the incompatible
@@ -82,7 +78,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	}()
 
 	sys, err := cfg.Start(t, action)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
 	log := testlog.Logger(t, log.LevelInfo)
