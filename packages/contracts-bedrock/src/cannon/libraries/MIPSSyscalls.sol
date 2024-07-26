@@ -56,7 +56,7 @@ library MIPSSyscalls {
     uint32 internal constant EBADF = 0x9;
     uint32 internal constant EINVAL = 0x16;
     uint32 internal constant EAGAIN = 0xb;
-    uint32 internal constant ETIMEDOUT = 110;
+    uint32 internal constant ETIMEDOUT = 0x91;
 
     uint32 internal constant FUTEX_WAIT_PRIVATE = 128;
     uint32 internal constant FUTEX_WAKE_PRIVATE = 129;
