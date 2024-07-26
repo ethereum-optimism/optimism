@@ -469,11 +469,12 @@ contract MIPS2 is ISemver {
         _thread.futexTimeoutStep = 0;
 
         // Complete the FUTEX_WAIT syscall
-        _thread.registers[2] = _isTimedOut ? sys.SYS_ERROR_SIGNAL : 0;
+        uint32 v0 = _isTimedOut ? sys.SYS_ERROR_SIGNAL : 0;
         // set errno
-        _thread.registers[7] = _isTimedOut ? sys.ETIMEDOUT : 0;
-        _thread.pc = _thread.nextPC;
-        _thread.nextPC = _thread.nextPC + 4;
+        uint32 v1 = _isTimedOut ? sys.ETIMEDOUT : 0;
+        st.CpuScalars memory cpu = getCpuScalars(_thread);
+        sys.handleSyscallUpdates(cpu, _thread.registers, v0, v1);
+        setStateCpuScalars(_thread, cpu);
 
         _state.wakeup = sys.FUTEX_EMPTY_ADDR;
         updateCurrentThreadRoot();
