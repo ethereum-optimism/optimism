@@ -24,7 +24,7 @@ interface IOptimismSuperchainERC20 {
     event SentERC20(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     /// @notice Emitted whenever tokens are successfully relayed on this chain.
-    /// @param from     Address of the sender.
+    /// @param from     Address of the msg.sender of sendERC20 on the source chain.
     /// @param to       Address of the recipient.
     /// @param amount   Amount of tokens relayed.
     /// @param source   Chain ID of the source chain.
@@ -47,7 +47,7 @@ interface IOptimismSuperchainERC20 {
     function sendERC20(address _to, uint256 _amount, uint256 _chainId) external;
 
     /// @notice Relays tokens received from another chain.
-    /// @param _from    Address of the sender.
+    /// @param _from    Address of the msg.sender of sendERC20 on the source chain.
     /// @param _to      Address to relay tokens to.
     /// @param _amount  Amount of tokens to relay.
     function relayERC20(address _from, address _to, uint256 _amount) external;

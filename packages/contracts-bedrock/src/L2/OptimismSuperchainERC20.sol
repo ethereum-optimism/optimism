@@ -107,7 +107,7 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
     }
 
     /// @notice Relays tokens received from another chain.
-    /// @param _from   Address of the sender.
+    /// @param _from   Address of the msg.sender of sendERC20 on the source chain.
     /// @param _to     Address to relay tokens to.
     /// @param _amount Amount of tokens to relay.
     function relayERC20(address _from, address _to, uint256 _amount) external {
