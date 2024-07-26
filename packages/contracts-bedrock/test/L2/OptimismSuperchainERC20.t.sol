@@ -277,7 +277,7 @@ contract OptimismSuperchainERC20Test is Test {
             abi.encode(address(superchainERC20))
         );
 
-        // Mock the call over the `crossDomainMessageSource` function setting the same address as value
+        // Mock the call over the `crossDomainMessageSource` function setting the source chain ID as value
         _mockAndExpect(
             MESSENGER,
             abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSource.selector),
