@@ -2,7 +2,6 @@ package tests
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"path"
@@ -12,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -111,15 +109,15 @@ func TestEVM_CloneFlags(t *testing.T) {
 		flags uint32
 		valid bool
 	}{
-		{"no flags", 0, true},
+		{"the supported flags bitmask", exec.ValidCloneFlags, true},
+		{"no flags", 0, false},
 		{"all flags", ^uint32(0), false},
-		{"all valid flags", exec.ValidCloneFlagsBitmask, true},
-		{"all invalid flags", ^uint32(exec.ValidCloneFlagsBitmask), false},
-		{"a few valid flags", exec.CloneFs | exec.CloneSysvsem, true},
-		{"one valid flag", exec.CloneFs, true},
-		{"mixed valid and invalid flags", exec.CloneFs | exec.CloneParentSettid, false},
-		{"a single invalid flag", exec.CloneUntraced, false},
-		{"multiple invalid flags", exec.CloneUntraced | exec.CloneParentSettid, false},
+		{"all unsupported flags", ^uint32(exec.ValidCloneFlags), false},
+		{"a few supported flags", exec.CloneFs | exec.CloneSysvsem, false},
+		{"one supported flag", exec.CloneFs, false},
+		{"mixed supported and unsupported flags", exec.CloneFs | exec.CloneParentSettid, false},
+		{"a single unsupported flag", exec.CloneUntraced, false},
+		{"multiple unsupported flags", exec.CloneUntraced | exec.CloneParentSettid, false},
 	}
 
 	const insn = uint32(0x00_00_00_0C) // syscall instruction
@@ -133,9 +131,11 @@ func TestEVM_CloneFlags(t *testing.T) {
 
 			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 			if !tt.valid {
-				// Expect a panic
-				expectedError := fmt.Sprintf("Unrecognized clone flags %b (supported flags: %b)", tt.flags, exec.ValidCloneFlagsBitmask)
-				assert.PanicsWithValue(t, expectedError, func() { us.Step(false) }, "invalid flags should cause a panic") //nolint:errcheck
+				// The VM should exit
+				_, err := us.Step(true)
+				require.NoError(t, err)
+				require.Equal(t, true, us.GetState().GetExited())
+				require.Equal(t, uint8(mipsevm.VMStatusPanic), us.GetState().GetExitCode())
 			} else {
 				/*stepWitness*/ _, err := us.Step(true)
 				require.NoError(t, err)

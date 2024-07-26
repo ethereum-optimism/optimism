@@ -120,7 +120,7 @@ const (
 	CloneNewuts        = 0x4000000
 	CloneNewipc        = 0x8000000
 
-	ValidCloneFlagsBitmask = CloneVm |
+	ValidCloneFlags = CloneVm |
 		CloneFs |
 		CloneFiles |
 		CloneSighand |

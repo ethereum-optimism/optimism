@@ -27,8 +27,10 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0 = exec.BrkStart
 	case exec.SysClone: // clone
 		// a0 = flag bitmask, a1 = stack pointer
-		if (a0 & exec.ValidCloneFlagsBitmask) != a0 {
-			panic(fmt.Sprintf("Unrecognized clone flags %b (supported flags: %b)", a0, exec.ValidCloneFlagsBitmask))
+		if exec.ValidCloneFlags != a0 {
+			m.state.Exited = true
+			m.state.ExitCode = mipsevm.VMStatusPanic
+			return nil
 		}
 
 		v0 = m.state.NextThreadId
