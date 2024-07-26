@@ -17,16 +17,18 @@ interface IOptimismSuperchainERC20 {
     event Burn(address indexed account, uint256 amount);
 
     /// @notice Emitted whenever tokens are sent to another chain.
-    /// @param from    Address of the sender.
-    /// @param to      Address of the recipient.
-    /// @param amount  Amount of tokens sent.
-    /// @param chainId Chain ID of the destination chain.
-    event SentERC20(address indexed from, address indexed to, uint256 amount, uint256 chainId);
+    /// @param from         Address of the sender.
+    /// @param to           Address of the recipient.
+    /// @param amount       Amount of tokens sent.
+    /// @param destination  Chain ID of the destination chain.
+    event SentERC20(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     /// @notice Emitted whenever tokens are successfully relayed on this chain.
-    /// @param to     Address of the recipient.
-    /// @param amount Amount of tokens relayed.
-    event RelayedERC20(address indexed to, uint256 amount);
+    /// @param from     Address of the sender.
+    /// @param to       Address of the recipient.
+    /// @param amount   Amount of tokens relayed.
+    /// @param source   Chain ID of the source chain.
+    event RelayedERC20(address indexed from, address indexed to, uint256 amount, uint256 source);
 
     /// @notice Allows the L2StandardBridge to mint tokens.
     /// @param _to     Address to mint tokens to.
@@ -45,7 +47,8 @@ interface IOptimismSuperchainERC20 {
     function sendERC20(address _to, uint256 _amount, uint256 _chainId) external;
 
     /// @notice Relays tokens received from another chain.
-    /// @param _to     Address to relay tokens to.
-    /// @param _amount Amount of tokens to relay.
-    function relayERC20(address _to, uint256 _amount) external;
+    /// @param _from    Address of the sender.
+    /// @param _to      Address to relay tokens to.
+    /// @param _amount  Amount of tokens to relay.
+    function relayERC20(address _from, address _to, uint256 _amount) external;
 }

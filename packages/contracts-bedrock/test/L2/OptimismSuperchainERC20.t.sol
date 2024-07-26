@@ -189,7 +189,7 @@ contract OptimismSuperchainERC20Test is Test {
         emit IOptimismSuperchainERC20.SentERC20(_sender, _to, _amount, _chainId);
 
         // Mock the call over the `sendMessage` function and expect it to be called properly
-        bytes memory _message = abi.encodeCall(superchainERC20.relayERC20, (_to, _amount));
+        bytes memory _message = abi.encodeCall(superchainERC20.relayERC20, (_sender, _to, _amount));
         _mockAndExpect(
             MESSENGER,
             abi.encodeWithSelector(
@@ -218,7 +218,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Call the `relayERC20` function with the non-messenger caller
         vm.prank(_caller);
-        superchainERC20.relayERC20(_to, _amount);
+        superchainERC20.relayERC20(_caller, _to, _amount);
     }
 
     /// @notice Tests the `relayERC20` function reverts when the `crossDomainMessageSender` that sent the message is not
@@ -245,7 +245,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Call the `relayERC20` function with the sender caller
         vm.prank(MESSENGER);
-        superchainERC20.relayERC20(_to, _amount);
+        superchainERC20.relayERC20(_crossDomainMessageSender, _to, _amount);
     }
 
     /// @notice Tests the `relayERC20` function reverts when the `_to` address is the zero address.
@@ -262,11 +262,12 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Call the `relayERC20` function with the zero address
         vm.prank(MESSENGER);
-        superchainERC20.relayERC20({ _to: ZERO_ADDRESS, _amount: _amount });
+        superchainERC20.relayERC20({ _from: ZERO_ADDRESS, _to: ZERO_ADDRESS, _amount: _amount });
     }
 
     /// @notice Tests the `relayERC20` mints the proper amount and emits the `RelayedERC20` event.
-    function testFuzz_relayERC20_succeeds(address _to, uint256 _amount) public {
+    function testFuzz_relayERC20_succeeds(address _from, address _to, uint256 _amount, uint256 _source) public {
+        vm.assume(_from != ZERO_ADDRESS);
         vm.assume(_to != ZERO_ADDRESS);
 
         // Mock the call over the `crossDomainMessageSender` function setting the same address as value
@@ -274,6 +275,13 @@ contract OptimismSuperchainERC20Test is Test {
             MESSENGER,
             abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSender.selector),
             abi.encode(address(superchainERC20))
+        );
+
+        // Mock the call over the `crossDomainMessageSource` function setting the same address as value
+        _mockAndExpect(
+            MESSENGER,
+            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSource.selector),
+            abi.encode(_source)
         );
 
         // Get the total supply and balance of `_to` before the relay to compare later on the assertions
@@ -286,11 +294,11 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `RelayedERC20` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit IOptimismSuperchainERC20.RelayedERC20(_to, _amount);
+        emit IOptimismSuperchainERC20.RelayedERC20(_from, _to, _amount, _source);
 
         // Call the `relayERC20` function with the messenger caller
         vm.prank(MESSENGER);
-        superchainERC20.relayERC20(_to, _amount);
+        superchainERC20.relayERC20(_from, _to, _amount);
 
         // Check the total supply and balance of `_to` after the relay were updated correctly
         assertEq(superchainERC20.totalSupply(), _totalSupplyBefore + _amount);

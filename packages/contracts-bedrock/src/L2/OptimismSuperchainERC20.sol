@@ -100,16 +100,17 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
 
         _burn(msg.sender, _amount);
 
-        bytes memory _message = abi.encodeCall(this.relayERC20, (_to, _amount));
+        bytes memory _message = abi.encodeCall(this.relayERC20, (msg.sender, _to, _amount));
         IL2ToL2CrossDomainMessenger(MESSENGER).sendMessage(_chainId, address(this), _message);
 
         emit SentERC20(msg.sender, _to, _amount, _chainId);
     }
 
     /// @notice Relays tokens received from another chain.
+    /// @param _from   Address of the sender.
     /// @param _to     Address to relay tokens to.
     /// @param _amount Amount of tokens to relay.
-    function relayERC20(address _to, uint256 _amount) external {
+    function relayERC20(address _from, address _to, uint256 _amount) external {
         if (_to == address(0)) revert ZeroAddress();
 
         if (msg.sender != MESSENGER) revert CallerNotL2ToL2CrossDomainMessenger();
@@ -117,10 +118,11 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
         if (IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSender() != address(this)) {
             revert InvalidCrossDomainSender();
         }
+        uint256 _source = IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSource();
 
         _mint(_to, _amount);
 
-        emit RelayedERC20(_to, _amount);
+        emit RelayedERC20(_from, _to, _amount, _source);
     }
 
     /// @notice Returns the number of decimals used to get its user representation.
