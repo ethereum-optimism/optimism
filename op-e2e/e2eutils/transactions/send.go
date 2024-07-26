@@ -105,7 +105,7 @@ func SendTx(ctx context.Context, client *ethclient.Client, candidate txmgr.TxCan
 	}
 	receipt, err := wait.ForReceiptMaybe(ctx, client, tx.Hash(), cfg.receiptStatus, cfg.ignoreReceiptStatus)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find OK receipt (tx: %s): %w", tx.Hash(), err)
+		return tx, receipt, fmt.Errorf("failed to find OK receipt (tx: %s): %w", tx.Hash(), err)
 	}
 	return tx, receipt, nil
 }
