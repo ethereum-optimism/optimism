@@ -5,7 +5,6 @@ import { IOptimismSuperchainERC20 } from "src/L2/IOptimismSuperchainERC20.sol";
 import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
@@ -25,8 +24,11 @@ error ZeroAddress();
 /// @custom:proxied
 /// @title OptimismSuperchainERC20
 /// @notice OptimismSuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
-///         bridging to make it fungible across the Superchain. This construction builds on top of the
-///         L2ToL2CrossDomainMessenger for both replay protection and domain binding.
+///         bridging to make it fungible across the Superchain. This construction allows the L2StandardBridge to burn
+///         and mint tokens. This makes it possible to convert a valid OptimismMintableERC20 token to a SuperchainERC20
+///         token, turning it fungible and interoperable across the superchain. Likewise, it also enables the inverse
+///         conversion path.
+///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
 contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
     /// @notice Address of the L2ToL2CrossDomainMessenger Predeploy.
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
