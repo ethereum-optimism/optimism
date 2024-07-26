@@ -1,6 +1,8 @@
 # Table of contents
 
 * [Welcome to Boba](README.md)
+* [Notices](contents/notices/README.md)
+  * [Prepare for Fraud Proofs on Boba Sepolia and Boba BNB Testnet](contents/notices/fraud-proofs.md)
 * [FAQ](FAQ.md)
 * [User Docs](contents/user/README.md)
   * [How To use Boba's services](contents/user/001\_how-to-bridge.md)
