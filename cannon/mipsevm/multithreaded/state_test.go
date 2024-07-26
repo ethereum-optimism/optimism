@@ -153,10 +153,10 @@ func TestState_EncodeThreadProof_SingleThread(t *testing.T) {
 func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 	state := CreateEmptyState()
 	// Add some more threads
-	require.Equal(t, state.TraverseRight, false) // Sanity check
+	require.Equal(t, state.TraverseRight, false, "sanity check")
 	state.LeftThreadStack = append(state.LeftThreadStack, CreateEmptyThread())
 	state.LeftThreadStack = append(state.LeftThreadStack, CreateEmptyThread())
-	require.Equal(t, 3, len(state.LeftThreadStack)) // sanity check
+	require.Equal(t, 3, len(state.LeftThreadStack), "sanity check")
 
 	// Set some fields on our threads
 	for i := 0; i < 3; i++ {
@@ -189,36 +189,16 @@ func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 	require.Equal(t, expectedProof, actualProof)
 }
 
-func TestState_EncodeThreadProof_Empty(t *testing.T) {
-	// Simulate case where we are at the end of a Wakeup traversal
-	state := CreateEmptyState()
-	state.Wakeup = 123
-	state.TraverseRight = true
-	require.Equal(t, 0, len(state.RightThreadStack), "sanity check right thead stack is empty")
-
-	actualProof := state.EncodeThreadProof()
-	expectedProof := make([]byte, THREAD_WITNESS_SIZE)
-	require.Equal(t, THREAD_WITNESS_SIZE, len(actualProof))
-	require.Equal(t, expectedProof, actualProof)
-}
-
-func TestState_EncodeThreadProof_InvalidState_TraverseRight(t *testing.T) {
-	// Set up invalid state where the active stack is empty
-	state := CreateEmptyState()
-	state.Wakeup = exec.FutexEmptyAddr
-	state.TraverseRight = true
-	require.Equal(t, 0, len(state.RightThreadStack), "sanity check right thead stack is empty")
-
-	assert.PanicsWithValue(t, "Invalid empty thread stack", func() { state.EncodeThreadProof() })
-}
-
-func TestState_EncodeThreadProof_InvalidState_TraverseLeft(t *testing.T) {
+func TestState_EncodeThreadProof_EmptyThreadStackPanic(t *testing.T) {
 	cases := []struct {
-		name       string
-		wakeupAddr uint32
+		name          string
+		wakeupAddr    uint32
+		traverseRight bool
 	}{
-		{"during wakeup traversal", uint32(99)},
-		{"during normal traversal", exec.FutexEmptyAddr},
+		{"traverse left during wakeup traversal", uint32(99), false},
+		{"traverse left during normal traversal", exec.FutexEmptyAddr, false},
+		{"traverse right during wakeup traversal", uint32(99), true},
+		{"traverse right during normal traversal", exec.FutexEmptyAddr, true},
 	}
 
 	for _, c := range cases {
@@ -226,8 +206,14 @@ func TestState_EncodeThreadProof_InvalidState_TraverseLeft(t *testing.T) {
 			// Set up invalid state where the active stack is empty
 			state := CreateEmptyState()
 			state.Wakeup = c.wakeupAddr
-			state.TraverseRight = false
-			state.LeftThreadStack = []*ThreadState{}
+			state.TraverseRight = c.traverseRight
+			if c.traverseRight {
+				state.LeftThreadStack = []*ThreadState{CreateEmptyThread()}
+				state.RightThreadStack = []*ThreadState{}
+			} else {
+				state.LeftThreadStack = []*ThreadState{}
+				state.RightThreadStack = []*ThreadState{CreateEmptyThread()}
+			}
 
 			assert.PanicsWithValue(t, "Invalid empty thread stack", func() { state.EncodeThreadProof() })
 		})

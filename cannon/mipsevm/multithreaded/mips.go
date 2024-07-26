@@ -121,7 +121,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = 0
 			v1 = 0
 			exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-			m.preemptThread(thread, true)
+			m.preemptThread(thread)
 			m.state.TraverseRight = len(m.state.LeftThreadStack) == 0
 			return nil
 		default:
@@ -132,7 +132,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0 = 0
 		v1 = 0
 		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-		m.preemptThread(thread, true)
+		m.preemptThread(thread)
 		return nil
 	case exec.SysOpen:
 		v0 = exec.SysErrorSignal
@@ -181,25 +181,31 @@ func (m *InstrumentedState) mipsStep() error {
 		return nil
 	}
 	m.state.Step += 1
+	thread := m.state.getCurrentThread()
 
-	// If we've completed traversing both stacks for the wakeup check
-	if m.state.Wakeup != exec.FutexEmptyAddr && m.state.TraverseRight && len(m.state.RightThreadStack) == 0 {
-		m.state.TraverseRight = false
-		m.state.Wakeup = exec.FutexEmptyAddr
+	// During wakeup traversal, search for the first thread blocked on the wakeup address.
+	// Don't allow regular execution until we have found such a thread or else we have visited all threads.
+	if m.state.Wakeup != exec.FutexEmptyAddr {
+		// We are currently performing a wakeup traversal
+		if m.state.Wakeup == thread.FutexAddr {
+			// We found a target thread, resume normal execution and process this thread
+			m.state.Wakeup = exec.FutexEmptyAddr
+		} else {
+			// This is not the thread we're looking for, move on
+			traversingRight := m.state.TraverseRight
+			changedDirections := m.preemptThread(thread)
+			if traversingRight && changedDirections {
+				// We started the wakeup traversal walking left and we've now walked all the way right
+				// We have therefore visited all threads and can resume normal thread execution
+				m.state.Wakeup = exec.FutexEmptyAddr
+			}
+		}
 		return nil
 	}
 
-	thread := m.state.getCurrentThread()
 	if thread.Exited {
 		m.popThread()
 		m.stackTracker.DropThread(thread.ThreadId)
-		return nil
-	}
-
-	// Search for the first thread blocked by the wakeup call, if wakeup is set
-	// Don't allow regular execution until we resolved if we have woken up any thread.
-	if m.state.Wakeup != exec.FutexEmptyAddr && m.state.Wakeup != thread.FutexAddr {
-		m.preemptThread(thread, !m.state.TraverseRight)
 		return nil
 	}
 
@@ -216,7 +222,7 @@ func (m *InstrumentedState) mipsStep() error {
 			mem := m.state.Memory.GetMemory(thread.FutexAddr)
 			if thread.FutexVal == mem {
 				// still got expected value, continue sleeping, try next thread.
-				m.preemptThread(thread, true)
+				m.preemptThread(thread)
 				return nil
 			} else {
 				// wake thread up, the value at its address changed!
@@ -234,7 +240,7 @@ func (m *InstrumentedState) mipsStep() error {
 			msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
 			m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount())
 		}
-		m.preemptThread(thread, true)
+		m.preemptThread(thread)
 		return nil
 	}
 	m.state.StepsSinceLastContextSwitch += 1
@@ -271,7 +277,7 @@ func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool)
 	m.state.Wakeup = exec.FutexEmptyAddr
 }
 
-func (m *InstrumentedState) preemptThread(thread *ThreadState, doUpdateDirection bool) {
+func (m *InstrumentedState) preemptThread(thread *ThreadState) bool {
 	// Pop thread from the current stack and push to the other stack
 	if m.state.TraverseRight {
 		rtThreadCnt := len(m.state.RightThreadStack)
@@ -289,11 +295,15 @@ func (m *InstrumentedState) preemptThread(thread *ThreadState, doUpdateDirection
 		m.state.RightThreadStack = append(m.state.RightThreadStack, thread)
 	}
 
+	changeDirections := false
 	current := m.state.getActiveThreadStack()
-	if doUpdateDirection && len(current) == 0 {
+	if len(current) == 0 {
 		m.state.TraverseRight = !m.state.TraverseRight
+		changeDirections = true
 	}
+
 	m.state.StepsSinceLastContextSwitch = 0
+	return changeDirections
 }
 
 func (m *InstrumentedState) pushThread(thread *ThreadState) {

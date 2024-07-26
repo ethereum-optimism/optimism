@@ -186,13 +186,7 @@ func (s *State) EncodeThreadProof() []byte {
 	activeStack := s.getActiveThreadStack()
 	threadCount := len(activeStack)
 	if threadCount == 0 {
-		// There is currently one case where we will have an empty active stack with no current thread
-		// This happens at the end of wakeup thread traversal when no threads are found that are ready to wake
-		if s.Wakeup == exec.FutexEmptyAddr || !s.TraverseRight {
-			panic("Invalid empty thread stack")
-		}
-		// Just return an empty byte slice of the correct size in this case
-		return make([]byte, THREAD_WITNESS_SIZE)
+		panic("Invalid empty thread stack")
 	}
 
 	activeThread := activeStack[threadCount-1]
