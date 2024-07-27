@@ -149,6 +149,28 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         });
     }
 
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
+    ///      parameter is less than the minimum split depth (currently 2).
+    function testFuzz_constructor_lowSplitDepth_reverts(uint256 _splitDepth) public {
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+
+        uint256 minSplitDepth = 2;
+        _splitDepth = bound(_splitDepth, 0, minSplitDepth - 1);
+        vm.expectRevert(InvalidSplitDepth.selector);
+        new FaultDisputeGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: absolutePrestate,
+            _maxGameDepth: 2 ** 3,
+            _splitDepth: _splitDepth,
+            _clockExtension: Duration.wrap(3 hours),
+            _maxClockDuration: Duration.wrap(3.5 days),
+            _vm: alphabetVM,
+            _weth: DelayedWETH(payable(address(0))),
+            _anchorStateRegistry: IAnchorStateRegistry(address(0)),
+            _l2ChainId: 10
+        });
+    }
+
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when clock extension is greater than the
     ///      max clock duration.
     function testFuzz_constructor_clockExtensionTooLong_reverts(

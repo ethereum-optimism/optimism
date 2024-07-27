@@ -138,6 +138,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         if (_maxGameDepth > LibPosition.MAX_POSITION_BITLEN - 1) revert MaxDepthTooLarge();
         // The split depth cannot be greater than or equal to the max game depth.
         if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
+        // The split depth cannot be 0 or 1 to stay in bounds of clock extension arithmetic.
+        if (_splitDepth < 2) revert InvalidSplitDepth();
         // The clock extension may not be greater than the max clock duration.
         if (_clockExtension.raw() > _maxClockDuration.raw()) revert InvalidClockExtension();
 
