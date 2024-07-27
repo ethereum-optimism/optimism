@@ -1,28 +1,15 @@
 {
   "name": "optimism",
   "version": "1.0.0",
-  "author": "Optimism PBC",
+  "author": "OP Labs PBC",
   "license": "MIT",
-  "private": true,
-  "engines": {
-    "node": ">=16",
-    "pnpm": ">=9"
-  },
   "scripts": {
-    "clean": "pnpm recursive run clean; rm -rf node_modules packages/*/node_modules && echo 'Finished cleaning. Run `pnpm install && pnpm build` from root of repo to rebuild the repo.'",
-    "bindings": "nx bindings @eth-optimism/contracts-bedrock",
-    "build": "npx nx run-many --target=build",
-    "test": "npx nx run-many --target=test",
+    "clean": "rm -rf node_modules packages/**/node_modules",
+    "build": "cd packages/contracts-bedrock && pnpm build",
+    "test": "cd packages/contracts-bedrock && pnpm test",
+    "install": "cd packages/contracts-bedrock && pnpm install",
     "issues": "./ops/scripts/todo-checker.sh",
-    "install:ci": "pnpm install --ignore-scripts --frozen-lockfile && pnpm rebuild nx",
-    "install:ci:offline": "pnpm install --ignore-scripts --offline --frozen-lockfile && pnpm rebuild nx",
-    "lint": "npx nx run-many --target=lint",
-    "lint:ts:check": "npx nx run-many --target=lint:ts:check",
-    "lint:check": "npx nx run-many --target=lint:check",
-    "lint:fix": "npx nx run-many --target=lint:fix",
     "lint:shellcheck": "find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -exec sh -c 'echo \"Checking $1\"; shellcheck \"$1\"' _ {} \\;",
-    "preinstall": "npx only-allow pnpm",
-    "ready": "pnpm lint && pnpm test",
     "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
     "update:foundry": "bash ./ops/scripts/install-foundry.sh",
     "check:foundry": "bash ./packages/contracts-bedrock/scripts/checks/check-foundry-install.sh",
@@ -36,25 +23,5 @@
     "print:slither": "slither --version",
     "check:slither": "[[ $(pnpm -s print:slither) = $(jq -r .slither < versions.json) ]] && echo '✓ slither versions match' || (echo '✗ slither version mismatch. Run `pnpm upgrade:slither` to upgrade.' && exit 1)",
     "upgrade:slither": "jq '.slither = $v' --arg v $(pnpm -s print:slither) <<<$(cat versions.json) > versions.json"
-  },
-  "devDependencies": {
-    "@babel/eslint-parser": "^7.23.10",
-    "@types/node": "^20.14.12",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "doctoc": "^2.2.0",
-    "eslint": "^8.56.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-config-standard": "^16.0.3",
-    "eslint-plugin-import": "^2.29.1",
-    "eslint-plugin-jsdoc": "^48.8.3",
-    "eslint-plugin-prefer-arrow": "^1.2.3",
-    "eslint-plugin-prettier": "^4.0.0",
-    "nx": "18.2.2",
-    "nx-cloud": "latest",
-    "prettier": "^2.8.0",
-    "typescript": "^5.5.4"
-  },
-  "dependencies": {
   }
 }
