@@ -518,6 +518,11 @@ func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 // along with an L2 block reference by number consistent with that same status.
 // If the event loop is too busy and the context expires, a context error is returned.
 func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
+	resp := s.statusTracker.SyncStatus()
+	if resp.FinalizedL2.Number >= num { // If finalized, we are certain it does not reorg, and don't have to lock.
+		ref, err := s.L2.L2BlockRefByNumber(ctx, num)
+		return ref, resp, err
+	}
 	wait := make(chan struct{})
 	select {
 	case s.stateReq <- wait:
