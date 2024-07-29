@@ -133,12 +133,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function testFuzz_constructor_invalidSplitDepth_reverts(uint256 _splitDepth) public {
         AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
 
-        _splitDepth = bound(_splitDepth, 2 ** 3, type(uint256).max);
+        uint256 maxGameDepth = 2 ** 3;
+        _splitDepth = bound(_splitDepth, maxGameDepth - 1, type(uint256).max);
         vm.expectRevert(InvalidSplitDepth.selector);
         new FaultDisputeGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: absolutePrestate,
-            _maxGameDepth: 2 ** 3,
+            _maxGameDepth: maxGameDepth,
             _splitDepth: _splitDepth,
             _clockExtension: Duration.wrap(3 hours),
             _maxClockDuration: Duration.wrap(3.5 days),

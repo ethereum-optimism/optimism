@@ -136,13 +136,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ) {
         // The max game depth may not be greater than `LibPosition.MAX_POSITION_BITLEN - 1`.
         if (_maxGameDepth > LibPosition.MAX_POSITION_BITLEN - 1) revert MaxDepthTooLarge();
-        // The split depth cannot be greater than or equal to the max game depth.
-        if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
+
+        // The split depth plus one cannot be greater than or equal to the max game depth. We add
+        // an additional depth to the split depth to avoid a bug in trace ancestor lookup. We know
+        // that the case where the split depth is the max value for uint256 is equivalent to the
+        // second check though we do need to check it explicitly to avoid an overflow.
+        if (_splitDepth == type(uint256).max || _splitDepth + 1 >= _maxGameDepth) revert InvalidSplitDepth();
+
         // The split depth cannot be 0 or 1 to stay in bounds of clock extension arithmetic.
         if (_splitDepth < 2) revert InvalidSplitDepth();
+
         // The clock extension may not be greater than the max clock duration.
         if (_clockExtension.raw() > _maxClockDuration.raw()) revert InvalidClockExtension();
 
+        // Set up initial game state.
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
