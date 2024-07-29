@@ -85,15 +85,16 @@ type CLIConfig struct {
 	BatchType uint
 
 	// DataAvailabilityType is one of the values defined in op-batcher/flags/types.go and dictates
-	// the data availability type to use for posting batches, e.g. blobs vs calldata.
+	// the data availability type to use for posting batches, e.g. blobs vs calldata, or auto
+	// for choosing the most economic type dynamically at the start of each channel.
 	DataAvailabilityType flags.DataAvailabilityType
+
+	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
+	ActiveSequencerCheckDuration time.Duration
 
 	// TestUseMaxTxSizeForBlobs allows to set the blob size with MaxL1TxSize.
 	// Should only be used for testing purposes.
 	TestUseMaxTxSizeForBlobs bool
-
-	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
-	ActiveSequencerCheckDuration time.Duration
 
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig

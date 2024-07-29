@@ -160,14 +160,15 @@ func (s *channel) ID() derive.ChannelID {
 // NextTxData should only be called after HasTxData returned true.
 func (s *channel) NextTxData() txData {
 	nf := s.cfg.MaxFramesPerTx()
-	txdata := txData{frames: make([]frameData, 0, nf)}
+	// TODO: consider changing MultiFrameTxs to UseBlobs, as we use it synonymously now
+	txdata := txData{frames: make([]frameData, 0, nf), asBlob: s.cfg.MultiFrameTxs}
 	for i := 0; i < nf && s.channelBuilder.HasFrame(); i++ {
 		frame := s.channelBuilder.NextFrame()
 		txdata.frames = append(txdata.frames, frame)
 	}
 
 	id := txdata.ID().String()
-	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames))
+	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames), "as_blob", txdata.asBlob)
 	s.pendingTransactions[id] = txdata
 
 	return txdata

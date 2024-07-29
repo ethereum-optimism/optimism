@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -152,11 +153,11 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	require.NotEqual(t, "", seqVersion)
 
 	// quick check that the batch submitter works
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// wait for chain to be marked as "safe" (i.e. confirm batch-submission works)
 		stat, err := rollupClient.SyncStatus(context.Background())
-		require.NoError(t, err)
-		return stat.SafeL2.Number >= receipt.BlockNumber.Uint64()
+		require.NoError(ct, err)
+		require.GreaterOrEqual(ct, stat.SafeL2.Number, receipt.BlockNumber.Uint64())
 	}, time.Second*20, time.Second, "expected L2 to be batch-submitted and labeled as safe")
 
 	// check that the L2 tx is still canonical
