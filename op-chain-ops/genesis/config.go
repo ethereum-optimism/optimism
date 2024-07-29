@@ -338,6 +338,9 @@ type UpgradeScheduleDeployConfig struct {
 	// L2GenesisFjordTimeOffset is the number of seconds after genesis block that Fjord hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Fjord.
 	L2GenesisFjordTimeOffset *hexutil.Uint64 `json:"l2GenesisFjordTimeOffset,omitempty"`
+	// L2GenesisGraniteTimeOffset is the number of seconds after genesis block that Granite hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Granite.
+	L2GenesisGraniteTimeOffset *hexutil.Uint64 `json:"l2GenesisGraniteTimeOffset,omitempty"`
 	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Interop.
 	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
@@ -382,6 +385,10 @@ func (d *UpgradeScheduleDeployConfig) FjordTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisFjordTimeOffset, genesisTime)
 }
 
+func (d *UpgradeScheduleDeployConfig) GraniteTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisGraniteTimeOffset, genesisTime)
+}
+
 func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
 }
@@ -415,6 +422,9 @@ func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 	if err := checkFork(d.L2GenesisEcotoneTimeOffset, d.L2GenesisFjordTimeOffset, "ecotone", "fjord"); err != nil {
 		return err
 	}
+	if err := checkFork(d.L2GenesisFjordTimeOffset, d.L2GenesisGraniteTimeOffset, "fjord", "granite"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -438,8 +448,10 @@ type L2CoreDeployConfig struct {
 	MaxSequencerDrift uint64 `json:"maxSequencerDrift"`
 	// SequencerWindowSize is the number of L1 blocks per sequencing window.
 	SequencerWindowSize uint64 `json:"sequencerWindowSize"`
-	// ChannelTimeout is the number of L1 blocks that a frame stays valid when included in L1.
-	ChannelTimeout uint64 `json:"channelTimeout"`
+	// ChannelTimeoutBedrock is the number of L1 blocks that a frame stays valid when included in L1.
+	ChannelTimeoutBedrock uint64 `json:"channelTimeout"`
+	// ChannelTimeoutGranite is the number of L1 blocks that a frame stays valid when included in L1 after granite.
+	ChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
 	// BatchInboxAddress is the L1 account that batches are sent to.
 	BatchInboxAddress common.Address `json:"batchInboxAddress"`
 
@@ -464,7 +476,7 @@ func (d *L2CoreDeployConfig) Check(log log.Logger) error {
 	if d.SequencerWindowSize == 0 {
 		return fmt.Errorf("%w: SequencerWindowSize cannot be 0", ErrInvalidDeployConfig)
 	}
-	if d.ChannelTimeout == 0 {
+	if d.ChannelTimeoutBedrock == 0 {
 		return fmt.Errorf("%w: ChannelTimeout cannot be 0", ErrInvalidDeployConfig)
 	}
 	if d.BatchInboxAddress == (common.Address{}) {
@@ -534,7 +546,13 @@ type L2InitializationConfig struct {
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
-	return checkConfigBundle(d, log)
+	if err := checkConfigBundle(d, log); err != nil {
+		return err
+	}
+	if d.ChannelTimeoutGranite == 0 && d.L2GenesisGraniteTimeOffset != nil {
+		return fmt.Errorf("%w: ChannelTimeoutGranite cannot be 0", ErrInvalidDeployConfig)
+	}
+	return nil
 }
 
 // DevL1DeployConfig is used to configure a L1 chain for development/testing purposes.
@@ -804,7 +822,9 @@ func (d *DeployConfig) Check(log log.Logger) error {
 	if d.L1BlockTime < d.L2BlockTime {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
 	}
-
+	if d.ChannelTimeoutGranite == 0 && d.L2GenesisGraniteTimeOffset != nil {
+		return fmt.Errorf("%w: ChannelTimeoutGranite cannot be 0", ErrInvalidDeployConfig)
+	}
 	return checkConfigBundle(d, log)
 }
 
@@ -869,7 +889,8 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		BlockTime:              d.L2BlockTime,
 		MaxSequencerDrift:      d.MaxSequencerDrift,
 		SeqWindowSize:          d.SequencerWindowSize,
-		ChannelTimeout:         d.ChannelTimeout,
+		ChannelTimeoutBedrock:  d.ChannelTimeoutBedrock,
+		ChannelTimeoutGranite:  d.ChannelTimeoutGranite,
 		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
 		BatchInboxAddress:      d.BatchInboxAddress,
@@ -880,6 +901,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
 		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
+		GraniteTime:            d.GraniteTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
 		PlasmaConfig:           plasma,
 	}, nil

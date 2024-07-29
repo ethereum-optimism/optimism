@@ -22,7 +22,7 @@ parser.add_argument('--allocs', help='Only create the allocs and exit', type=boo
 log = logging.getLogger()
 
 # Global constants
-FORKS = ["delta", "ecotone", "fjord"]
+FORKS = ["delta", "ecotone", "fjord", "granite"]
 
 # Global environment variables
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"

@@ -23,6 +23,7 @@ const (
 	L2AllocsDelta   L2AllocsMode = "delta"
 	L2AllocsEcotone L2AllocsMode = "ecotone"
 	L2AllocsFjord   L2AllocsMode = "fjord"
+	L2AllocsGranite L2AllocsMode = "granite"
 )
 
 var (

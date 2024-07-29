@@ -891,6 +891,7 @@ jobs:
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-fjord.json .devnet/allocs-l2-fjord.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-granite.json .devnet/allocs-l2-granite.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
