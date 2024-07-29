@@ -206,7 +206,7 @@ jobs:
             - "node_modules"
       - run:
           name: Install dependencies
-          command: pnpm install:ci:offline
+          command: pnpm install
       - run:
           name: print forge version
           command: forge --version
@@ -579,7 +579,8 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install:ci
+          command: pnpm install
+          working_directory: packages/contracts-bedrock
       - run:
           name: forge version
           command: forge --version
@@ -687,47 +688,13 @@ jobs:
       - attach_workspace: { at: "." }
       - run:
           name: Install dependencies
-          command: pnpm install:ci
+          command: pnpm install
       - check-changed:
           patterns: contracts-bedrock
       - run:
           name: validate spacers
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
-
-  js-lint-test:
-    parameters:
-      package_name:
-        description: Package name
-        type: string
-      dependencies:
-        description: Regex matching dependent packages
-        type: string
-        default: this-package-does-not-exist
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: <<parameters.package_name>>,<<parameters.dependencies>>
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: Lint
-          command: pnpm lint && git diff --exit-code
-          working_directory: packages/<<parameters.package_name>>
-      - run:
-          name: Test
-          command: pnpm test
-          working_directory: packages/<<parameters.package_name>>
 
   todo-issues:
     machine:
