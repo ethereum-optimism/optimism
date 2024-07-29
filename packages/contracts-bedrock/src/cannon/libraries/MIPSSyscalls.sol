@@ -38,11 +38,43 @@ library MIPSSyscalls {
     uint32 internal constant SYS_EXIT = 4001;
     uint32 internal constant SYS_SCHED_YIELD = 4162;
     uint32 internal constant SYS_GETTID = 4222;
-    uint32 internal constant SYS_GET_AFFINITY = 4240;
-    uint32 internal constant SYS_CLOCK_GETTIME = 4263;
     uint32 internal constant SYS_FUTEX = 4238;
     uint32 internal constant SYS_OPEN = 4005;
     uint32 internal constant SYS_NANOSLEEP = 4166;
+    // unused syscalls
+    uint32 internal constant SYS_CLOCK_GETTIME = 4263;
+    uint32 internal constant SYS_GET_AFFINITY = 4240;
+    uint32 internal constant SYS_GETAFFINITY   = 4240;
+	uint32 internal constant SYS_MADVISE       = 4218;
+	uint32 internal constant SYS_RTSIGPROCMASK = 4195;
+	uint32 internal constant SYS_SIGALTSTACK   = 4206;
+	uint32 internal constant SYS_RTSIGACTION   = 4194;
+	uint32 internal constant SYS_PRLIMIT64     = 4338;
+	uint32 internal constant SYS_CLOSE         = 4006;
+	uint32 internal constant SYS_PREAD64       = 4200;
+	uint32 internal constant SYS_FSTAT64       = 4215;
+	uint32 internal constant SYS_OPENAT        = 4288;
+	uint32 internal constant SYS_READLINK      = 4085;
+	uint32 internal constant SYS_READLINKAT    = 4298;
+	uint32 internal constant SYS_IOCTL         = 4054;
+	uint32 internal constant SYS_EPOLLCREATE1  = 4326;
+	uint32 internal constant SYS_PIPE2         = 4328;
+	uint32 internal constant SYS_EPOLLCTL      = 4249;
+	uint32 internal constant SYS_EPOLLPWAIT    = 4313;
+	uint32 internal constant SYS_GETRANDOM     = 4353;
+	uint32 internal constant SYS_UNAME         = 4122;
+	uint32 internal constant SYS_STAT64        = 4213;
+	uint32 internal constant SYS_GETUID        = 4024;
+	uint32 internal constant SYS_GETGID        = 4047;
+	uint32 internal constant SYS_LLSEEK        = 4140;
+	uint32 internal constant SYS_MINCORE       = 4217;
+	uint32 internal constant SYS_TGKILL        = 4266;
+    // profiling-related syscalls - ignored
+    uint32 internal constant SYS_SETITIMER    = 4104;
+	uint32 internal constant SYS_TIMERCREATE  = 4257;
+	uint32 internal constant SYS_TIMERSETTIME = 4258;
+	uint32 internal constant SYS_TIMERDELETE  = 4261;
+	uint32 internal constant SYS_CLOCKGETTIME = 4263;
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
