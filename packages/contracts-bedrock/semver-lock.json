@@ -129,7 +129,7 @@
   },
   "src/cannon/MIPS2.sol": {
     "initCodeHash": "0xdcd3bd4bbf8c119ca2d8a435da322ecc5c55a9e2a308789064bf19105933aa6c",
-    "sourceCodeHash": "0x9a703f2f46258a806437a82b2eea2aa95280cd41fe987be3888515f0324d933f"
+    "sourceCodeHash": "0xa1406c94c785b094432aed8af2e1c5b42644e2a0878d48f89b488138e079ee66"
   },
   "src/cannon/PreimageOracle.sol": {
     "initCodeHash": "0xe5db668fe41436f53995e910488c7c140766ba8745e19743773ebab508efd090",

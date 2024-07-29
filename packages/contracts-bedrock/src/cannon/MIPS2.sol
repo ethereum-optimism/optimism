@@ -250,6 +250,7 @@ contract MIPS2 is ISemver {
 
             // Load the syscall numbers and args from the registers
             (uint32 syscall_no, uint32 a0, uint32 a1, uint32 a2, uint32 a3) = sys.getSyscallArgs(thread.registers);
+            // Syscalls that are unimplemented but known return with v0=0 and v1=0
             uint32 v0 = 0;
             uint32 v1 = 0;
 
