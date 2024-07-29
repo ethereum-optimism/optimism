@@ -579,6 +579,108 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    /// @dev Static unit test asserting thread left traversal without wakeups
+    function test_threadTraverseLeft_succeeds() public {
+        MIPS2.State memory state;
+        state.wakeup = sys.FUTEX_EMPTY_ADDR;
+        state.step = 10;
+        state.stepsSinceLastContextSwitch = 0;
+        finalizeThreadingState(threading, state);
+
+        uint32 pc = 0x4000;
+        uint32 insn = 0x0000000c; // syscall
+        bytes memory memProof;
+        (state.memRoot, memProof) = ffi.getCannonMemoryProof(pc, insn);
+
+        // Create a few threads
+        for (uint256 i = 0; i < 3; i++) {
+            MIPS2.ThreadState memory thread = threading.createThread();
+            thread.pc = pc;
+            thread.nextPC = pc + 4;
+            thread.futexAddr = sys.FUTEX_EMPTY_ADDR;
+            thread.registers[2] = sys.SYS_NANOSLEEP;
+            threading.replaceCurrent(thread);
+        }
+        finalizeThreadingState(threading, state);
+
+        // Traverse left
+        for (uint256 i = 0; i < 3; i++) {
+            MIPS2.ThreadState memory currentThread = threading.current();
+            bytes memory threadWitness = threading.witness();
+
+            // thread stack updates
+            currentThread.pc = currentThread.nextPC;
+            currentThread.nextPC = currentThread.nextPC + 4;
+            currentThread.registers[2] = 0x0;
+            currentThread.registers[7] = 0x0;
+            threading.left().pop();
+            threading.right().push(currentThread);
+
+            MIPS2.State memory expect = copyState(state);
+            expect.step = state.step + 1;
+            expect.stepsSinceLastContextSwitch = 0;
+            finalizeThreadingState(threading, expect);
+            expect.traverseRight = i == 2;
+
+            bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+            assertEq(postState, outputState(expect), "unexpected post state");
+
+            state = expect;
+        }
+    }
+
+    /// @dev Static unit test asserting thread right traversal without wakeups
+    function test_threadTraverseRight_succeeds() public {
+        threading.setTraverseRight(true);
+
+        MIPS2.State memory state;
+        state.wakeup = sys.FUTEX_EMPTY_ADDR;
+        state.step = 10;
+        state.stepsSinceLastContextSwitch = 0;
+        state.traverseRight = true;
+        finalizeThreadingState(threading, state);
+
+        uint32 pc = 0x4000;
+        uint32 insn = 0x0000000c; // syscall
+        bytes memory memProof;
+        (state.memRoot, memProof) = ffi.getCannonMemoryProof(pc, insn);
+
+        // Create a few threads
+        for (uint256 i = 0; i < 3; i++) {
+            MIPS2.ThreadState memory thread = threading.createThread();
+            thread.pc = pc;
+            thread.nextPC = pc + 4;
+            thread.futexAddr = sys.FUTEX_EMPTY_ADDR;
+            thread.registers[2] = sys.SYS_NANOSLEEP;
+            threading.replaceCurrent(thread);
+        }
+        finalizeThreadingState(threading, state);
+
+        for (uint256 i = 0; i < 3; i++) {
+            MIPS2.ThreadState memory currentThread = threading.current();
+            bytes memory threadWitness = threading.witness();
+
+            // thread stack updates
+            currentThread.pc = currentThread.nextPC;
+            currentThread.nextPC = currentThread.nextPC + 4;
+            currentThread.registers[2] = 0x0;
+            currentThread.registers[7] = 0x0;
+            threading.right().pop();
+            threading.left().push(currentThread);
+
+            MIPS2.State memory expect = copyState(state);
+            expect.step = state.step + 1;
+            expect.stepsSinceLastContextSwitch = 0;
+            finalizeThreadingState(threading, expect);
+            expect.traverseRight = i != 2;
+
+            bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+            assertEq(postState, outputState(expect), "unexpected post state");
+
+            state = expect;
+        }
+    }
+
     /// @dev static unit test asserting state transition of a spurious wakeup
     function test_wakeupPreemptsThread_succeeds() public {
         threading.createThread();
@@ -1933,6 +2035,7 @@ contract MIPS2_Test is CommonTest {
     }
 
     // TODO(client-pod#959): Port over the remaining single-threaded tests from MIPS.t.sol
+    // TODO(client-pod#959): Assert unimplemented syscalls
 
     /// @dev Modifies the MIPS2 State based on threading state
     function finalizeThreadingState(Threading _threading, MIPS2.State memory _state) internal view {

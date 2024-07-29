@@ -444,6 +444,8 @@ contract MIPS2 is ISemver {
                 // ignored
             } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
                 // ignored
+            } else if (syscall_no == sys.SYS_MUNMAP) {
+                // ignored
             } else {
                 revert("MIPS2: unimplemented syscall");
             }

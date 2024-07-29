@@ -75,6 +75,7 @@ library MIPSSyscalls {
     uint32 internal constant SYS_TIMERSETTIME = 4258;
     uint32 internal constant SYS_TIMERDELETE = 4261;
     uint32 internal constant SYS_CLOCKGETTIME = 4263;
+    uint32 internal constant SYS_MUNMAP = 4091;
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
