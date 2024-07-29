@@ -30,6 +30,7 @@ var (
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
 	L1InfoDepositerAddress  = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress          = predeploys.L1BlockAddr
+	ErrInvalidFormat	    = errors.New("invalid ecotone l1 block info format")
 )
 
 const (
@@ -209,21 +210,21 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	if _, err := solabi.ReadAndValidateSignature(r, L1InfoFuncEcotoneBytes4); err != nil {
 		return err
 	}
-	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
-		return errors.New("invalid ecotone l1 block info format")
-	}
-	if err := binary.Read(r, binary.BigEndian, &info.BlobBaseFeeScalar); err != nil {
-		return errors.New("invalid ecotone l1 block info format")
-	}
-	if err := binary.Read(r, binary.BigEndian, &info.SequenceNumber); err != nil {
-		return errors.New("invalid ecotone l1 block info format")
-	}
-	if err := binary.Read(r, binary.BigEndian, &info.Time); err != nil {
-		return errors.New("invalid ecotone l1 block info format")
-	}
-	if err := binary.Read(r, binary.BigEndian, &info.Number); err != nil {
-		return errors.New("invalid ecotone l1 block info format")
-	}
+    if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
+        return ErrInvalidFormat
+    }
+    if err := binary.Read(r, binary.BigEndian, &info.BlobBaseFeeScalar); err != nil {
+        return ErrInvalidFormat
+    }
+    if err := binary.Read(r, binary.BigEndian, &info.SequenceNumber); err != nil {
+        return ErrInvalidFormat
+    }
+    if err := binary.Read(r, binary.BigEndian, &info.Time); err != nil {
+        return ErrInvalidFormat
+    }
+    if err := binary.Read(r, binary.BigEndian, &info.Number); err != nil {
+        return ErrInvalidFormat
+    }
 	if info.BaseFee, err = solabi.ReadUint256(r); err != nil {
 		return err
 	}
