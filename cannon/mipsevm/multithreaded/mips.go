@@ -136,6 +136,7 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysOpen:
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsEBADF
+	case exec.SysMunmap:
 	case exec.SysGetAffinity:
 	case exec.SysMadvise:
 	case exec.SysRtSigprocmask:

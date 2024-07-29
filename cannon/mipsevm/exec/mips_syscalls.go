@@ -14,6 +14,7 @@ import (
 // Syscall codes
 const (
 	SysMmap       = 4090
+	SysMunmap     = 4091
 	SysBrk        = 4045
 	SysClone      = 4120
 	SysExitGroup  = 4246
