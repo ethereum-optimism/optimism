@@ -52,7 +52,7 @@ func (d *ProgramDeriver) OnEvent(ev event.Event) bool {
 		d.Emitter.Emit(derive.ConfirmReceivedAttributesEvent{})
 		// No need to queue the attributes, since there is no unsafe chain to consolidate against,
 		// and no temporary-error retry to perform on block processing.
-		d.Emitter.Emit(engine.ProcessAttributesEvent{Attributes: x.Attributes})
+		d.Emitter.Emit(engine.BuildStartEvent{Attributes: x.Attributes})
 	case engine.InvalidPayloadAttributesEvent:
 		// If a set of attributes was invalid, then we drop the attributes,
 		// and continue with the next.

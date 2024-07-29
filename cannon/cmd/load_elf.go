@@ -6,7 +6,8 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -46,16 +47,16 @@ func LoadELF(ctx *cli.Context) error {
 	if elfProgram.Machine != elf.EM_MIPS {
 		return fmt.Errorf("ELF is not big-endian MIPS R3000, but got %q", elfProgram.Machine.String())
 	}
-	state, err := mipsevm.LoadELF(elfProgram)
+	state, err := program.LoadELF(elfProgram, singlethreaded.CreateInitialState)
 	if err != nil {
 		return fmt.Errorf("failed to load ELF data into VM state: %w", err)
 	}
 	for _, typ := range ctx.StringSlice(LoadELFPatchFlag.Name) {
 		switch typ {
 		case "stack":
-			err = mipsevm.PatchStack(state)
+			err = program.PatchStack(state)
 		case "go":
-			err = mipsevm.PatchGo(elfProgram, state)
+			err = program.PatchGo(elfProgram, state)
 		default:
 			return fmt.Errorf("unrecognized form of patching: %q", typ)
 		}
@@ -63,14 +64,14 @@ func LoadELF(ctx *cli.Context) error {
 			return fmt.Errorf("failed to apply patch %s: %w", typ, err)
 		}
 	}
-	meta, err := mipsevm.MakeMetadata(elfProgram)
+	meta, err := program.MakeMetadata(elfProgram)
 	if err != nil {
 		return fmt.Errorf("failed to compute program metadata: %w", err)
 	}
-	if err := jsonutil.WriteJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta, OutFilePerm); err != nil {
+	if err := jsonutil.WriteJSON[*program.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to output metadata: %w", err)
 	}
-	return jsonutil.WriteJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state, OutFilePerm)
+	return jsonutil.WriteJSON[*singlethreaded.State](ctx.Path(LoadELFOutFlag.Name), state, OutFilePerm)
 }
 
 var LoadELFCommand = &cli.Command{

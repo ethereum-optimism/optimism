@@ -499,7 +499,7 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 		}
 
 		switch {
-		case errStringMatch(err, ErrAlreadyReserved):
+		case errStringMatch(err, txpool.ErrAlreadyReserved):
 			// this can happen if, say, a blob transaction is stuck in the mempool and we try to
 			// send a non-blob transaction (and vice-versa).
 			l.Warn("txpool contains pending tx of incompatible type", "err", err)

@@ -32,6 +32,16 @@ type RaftConsensus struct {
 	unsafeTracker *unsafeHeadTracker
 }
 
+// checkTCPPortOpen attempts to connect to the specified address and returns an error if the connection fails.
+func checkTCPPortOpen(address string) error {
+	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	return nil
+}
+
 // NewRaftConsensus creates a new RaftConsensus instance.
 func NewRaftConsensus(log log.Logger, serverID, serverAddr, storageDir string, bootstrap bool, rollupCfg *rollup.Config) (*RaftConsensus, error) {
 	rc := raft.DefaultConfig()
@@ -113,6 +123,10 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, storageDir string, b
 
 // AddNonVoter implements Consensus, it tries to add a non-voting member into the cluster.
 func (rc *RaftConsensus) AddNonVoter(id string, addr string, version uint64) error {
+	if err := checkTCPPortOpen(addr); err != nil {
+		rc.log.Error("connection test to member addr failed", "id", id, "addr", addr, "err", err)
+		return err
+	}
 	if err := rc.r.AddNonvoter(raft.ServerID(id), raft.ServerAddress(addr), version, defaultTimeout).Error(); err != nil {
 		rc.log.Error("failed to add non-voter", "id", id, "addr", addr, "version", version, "err", err)
 		return err
@@ -122,6 +136,10 @@ func (rc *RaftConsensus) AddNonVoter(id string, addr string, version uint64) err
 
 // AddVoter implements Consensus, it tries to add a voting member into the cluster.
 func (rc *RaftConsensus) AddVoter(id string, addr string, version uint64) error {
+	if err := checkTCPPortOpen(addr); err != nil {
+		rc.log.Error("connection test to member addr failed", "id", id, "addr", addr, "err", err)
+		return err
+	}
 	if err := rc.r.AddVoter(raft.ServerID(id), raft.ServerAddress(addr), version, defaultTimeout).Error(); err != nil {
 		rc.log.Error("failed to add voter", "id", id, "addr", addr, "version", version, "err", err)
 		return err

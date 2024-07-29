@@ -74,18 +74,21 @@ type SingularChannelOut struct {
 	compress Compressor
 
 	closed bool
+
+	chainSpec *rollup.ChainSpec
 }
 
 func (co *SingularChannelOut) ID() ChannelID {
 	return co.id
 }
 
-func NewSingularChannelOut(compress Compressor) (*SingularChannelOut, error) {
+func NewSingularChannelOut(compress Compressor, chainSpec *rollup.ChainSpec) (*SingularChannelOut, error) {
 	c := &SingularChannelOut{
 		id:        ChannelID{},
 		frame:     0,
 		rlpLength: 0,
 		compress:  compress,
+		chainSpec: chainSpec,
 	}
 	_, err := rand.Read(c.id[:])
 	if err != nil {
@@ -139,9 +142,15 @@ func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) e
 	if err := rlp.Encode(&buf, NewBatchData(batch)); err != nil {
 		return err
 	}
-	if co.rlpLength+buf.Len() > rollup.SafeMaxRLPBytesPerChannel {
+
+	// Fjord increases the max RLP bytes per channel. Activation of this change in the derivation pipeline
+	// is dependent on the timestamp of the L1 block that this channel got included in. So using the timestamp
+	// of the current batch guarantees that this channel will be included in an L1 block with a timestamp well after
+	// the Fjord activation.
+	maxRLPBytesPerChannel := co.chainSpec.MaxRLPBytesPerChannel(batch.Timestamp)
+	if co.rlpLength+buf.Len() > int(maxRLPBytesPerChannel) {
 		return fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
-			buf.Len(), co.rlpLength, rollup.SafeMaxRLPBytesPerChannel, ErrTooManyRLPBytes)
+			buf.Len(), co.rlpLength, maxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 	co.rlpLength += buf.Len()
 

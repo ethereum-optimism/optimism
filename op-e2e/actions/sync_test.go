@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -31,7 +33,7 @@ import (
 )
 
 func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
-	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib)
+	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib, rollup.NewChainSpec(e.RollupCfg))
 	require.NoError(t, err)
 	return channelOut
 }
@@ -64,7 +66,7 @@ func TestSyncBatchType(t *testing.T) {
 func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -104,7 +106,7 @@ func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -180,7 +182,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -341,7 +343,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -448,7 +450,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// NextAttributes is called
-	sequencer.ActL2EventsUntil(t, event.Is[engine2.ProcessAttributesEvent], 100, true)
+	sequencer.ActL2EventsUntil(t, event.Is[engine2.BuildStartEvent], 100, true)
 	// mock forkChoiceUpdate error while restoring previous unsafe chain using backupUnsafe.
 	seqEng.ActL2RPCFail(t, eth.InputError{Inner: errors.New("mock L2 RPC error"), Code: eth.InvalidForkchoiceState})
 
@@ -474,7 +476,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -581,17 +583,28 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// wait till attributes processing (excl.) before mocking errors
-	sequencer.ActL2EventsUntil(t, event.Is[engine2.ProcessAttributesEvent], 100, true)
+	sequencer.ActL2EventsUntil(t, event.Is[engine2.BuildStartEvent], 100, true)
 
 	serverErrCnt := 2
-	for i := 0; i < serverErrCnt; i++ {
-		// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
-		seqEng.ActL2RPCFail(t, gethengine.GenericServerError)
-		// TryBackupUnsafeReorg is called - forkChoiceUpdate returns GenericServerError so retry
-		sequencer.ActL2EventsUntil(t, event.Is[rollup.EngineTemporaryErrorEvent], 100, false)
-		// backupUnsafeHead not emptied yet
-		require.Equal(t, targetUnsafeHeadHash, sequencer.L2BackupUnsafe().Hash)
+	// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
+	seqEng.failL2RPC = func(call []rpc.BatchElem) error {
+		for _, e := range call {
+			// There may be other calls, like payload-processing-cancellation
+			// based on previous invalid block, and processing of block attributes.
+			if strings.HasPrefix(e.Method, "engine_forkchoiceUpdated") && e.Args[1].(*eth.PayloadAttributes) == nil {
+				if serverErrCnt > 0 {
+					serverErrCnt -= 1
+					return gethengine.GenericServerError
+				} else {
+					return nil
+				}
+			}
+		}
+		return nil
 	}
+	// cannot drain events until specific engine error, since SyncDeriver calls Drain internally still.
+	sequencer.ActL2PipelineFull(t)
+
 	// now forkchoice succeeds
 	// try to process invalid leftovers: B4, B5
 	sequencer.ActL2PipelineFull(t)
@@ -880,7 +893,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
@@ -985,7 +998,7 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
@@ -1046,7 +1059,7 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)

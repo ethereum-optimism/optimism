@@ -2,7 +2,6 @@
 node_modules
 results
 temp
-.nyc_output
 coverage.json
 *.tsbuildinfo
 **/lcov.info
@@ -40,8 +39,6 @@ packages/contracts-bedrock/deployments/anvil
 
 coverage.out
 
-# Ignore bedrock go bindings local output files
-op-bindings/bin
 
 __pycache__
 

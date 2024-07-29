@@ -35,10 +35,9 @@ kontrol_prove() {
     $bug_report \
     $break_on_calls \
     $break_every_step \
-    $auto_abstract \
     $tests \
-    $use_booster \
     --init-node-from $state_diff \
+    --kore-rpc-command 'kore-rpc-booster --equation-max-recursion 100' \
     --xml-test-report
   return $?
 }
@@ -177,17 +176,13 @@ else
 fi
 reinit=--reinit
 reinit=
-break_every_step=--break-every-step
-break_every_step=
 break_on_calls=--break-on-calls
 break_on_calls=
-auto_abstract=--auto-abstract-gas
-auto_abstract=
+break_every_step=--break-every-step
+break_every_step=
 bug_report=--bug-report
 bug_report=
-use_booster=--no-use-booster
-use_booster=
-state_diff="./snapshots/state-diff/Kontrol-Deploy.json"
+state_diff="./snapshots/state-diff/Kontrol-31337.json"
 
 #############
 # RUN TESTS #

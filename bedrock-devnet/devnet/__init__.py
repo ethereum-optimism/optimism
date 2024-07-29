@@ -18,7 +18,6 @@ pjoin = os.path.join
 parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
 parser.add_argument('--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
 parser.add_argument('--allocs', help='Only create the allocs and exit', type=bool, action=argparse.BooleanOptionalAction)
-parser.add_argument('--test', help='Tests the deployment, must already be deployed', type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
 
@@ -70,7 +69,6 @@ def main():
     devnet_config_path = pjoin(deploy_config_dir, 'devnetL1.json')
     devnet_config_template_path = pjoin(deploy_config_dir, 'devnetL1-template.json')
     ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
-    tasks_dir = pjoin(monorepo_dir, 'packages', 'devnet-tasks')
 
     paths = Bunch(
       mono_repo_dir=monorepo_dir,
@@ -85,7 +83,6 @@ def main():
       op_node_dir=op_node_dir,
       ops_bedrock_dir=ops_bedrock_dir,
       ops_chain_ops=ops_chain_ops,
-      tasks_dir=tasks_dir,
       genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
       genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
       allocs_l1_path=pjoin(devnet_dir, 'allocs-l1.json'),
@@ -93,11 +90,6 @@ def main():
       sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
       rollup_config_path=pjoin(devnet_dir, 'rollup.json')
     )
-
-    if args.test:
-      log.info('Testing deployed devnet')
-      devnet_test(paths)
-      return
 
     os.makedirs(devnet_dir, exist_ok=True)
 
@@ -206,8 +198,12 @@ def devnet_deploy(paths):
             '--outfile.l1', paths.genesis_l1_path,
         ], cwd=paths.op_node_dir)
 
+        run_command([
+          'sh', 'l1-generate-beacon-genesis.sh',
+        ], cwd=paths.ops_bedrock_dir)
+
     log.info('Starting L1.')
-    run_command(['docker', 'compose', 'up', '-d', 'l1'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker', 'compose', 'up', '-d', 'l1', 'l1-bn', 'l1-vc'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(8545)
@@ -269,7 +265,7 @@ def devnet_deploy(paths):
     else:
         docker_env['DGF_ADDRESS'] = dispute_game_factory
         docker_env['DG_TYPE'] = '254'
-        docker_env['PROPOSAL_INTERVAL'] = '10s'
+        docker_env['PROPOSAL_INTERVAL'] = '12s'
 
     if DEVNET_PLASMA:
         docker_env['PLASMA_ENABLED'] = 'true'
@@ -324,21 +320,6 @@ def wait_for_rpc_server(url):
 
 
 CommandPreset = namedtuple('Command', ['name', 'args', 'cwd', 'timeout'])
-
-
-def devnet_test(paths):
-    # Run the two commands with different signers, so the ethereum nonce management does not conflict
-    # And do not use devnet system addresses, to avoid breaking fee-estimation or nonce values.
-    run_commands([
-        CommandPreset('erc20-test',
-          ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1',
-           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '14'],
-          cwd=paths.tasks_dir, timeout=8*60),
-        CommandPreset('eth-test',
-          ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
-           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
-          cwd=paths.tasks_dir, timeout=8*60)
-    ], max_workers=1)
 
 
 def run_commands(commands: list[CommandPreset], max_workers=2):

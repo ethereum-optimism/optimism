@@ -72,12 +72,12 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 			SystemConfig: genesisSysConfig,
 		},
 		// The below chain parameters can be different per OP-Stack chain,
-		// but since none of the superchain chains differ, it's not represented in the superchain-registry yet.
-		// This restriction on superchain-chains may change in the future.
-		// Test/Alt configurations can still load custom rollup-configs when necessary.
-		BlockTime:              2,
+		// therefore they are read from the superchain-registry configs.
+		// Note: hardcoded values are not yet represented in the registry but should be
+		// soon, then will be read and set in the same fashion.
+		BlockTime:              chConfig.BlockTime,
 		MaxSequencerDrift:      600,
-		SeqWindowSize:          3600,
+		SeqWindowSize:          chConfig.SequencerWindowSize,
 		ChannelTimeout:         300,
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),

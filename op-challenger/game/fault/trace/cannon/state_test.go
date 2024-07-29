@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 )
 
 //go:embed test_data/state.json
@@ -24,7 +25,7 @@ func TestLoadState(t *testing.T) {
 		state, err := parseState(path)
 		require.NoError(t, err)
 
-		var expected mipsevm.State
+		var expected singlethreaded.State
 		require.NoError(t, json.Unmarshal(testState, &expected))
 		require.Equal(t, &expected, state)
 	})
@@ -43,7 +44,7 @@ func TestLoadState(t *testing.T) {
 		state, err := parseState(path)
 		require.NoError(t, err)
 
-		var expected mipsevm.State
+		var expected singlethreaded.State
 		require.NoError(t, json.Unmarshal(testState, &expected))
 		require.Equal(t, &expected, state)
 	})

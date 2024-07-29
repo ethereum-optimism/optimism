@@ -6,31 +6,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-type InvalidPayloadEvent struct {
-	Envelope *eth.ExecutionPayloadEnvelope
-}
+type Metrics interface {
+	CountSequencedTxs(count int)
 
-func (ev InvalidPayloadEvent) String() string {
-	return "invalid-payload"
-}
-
-type InvalidPayloadAttributesEvent struct {
-	Attributes *derive.AttributesWithParent
-}
-
-func (ev InvalidPayloadAttributesEvent) String() string {
-	return "invalid-payload-attributes"
+	RecordSequencerBuildingDiffTime(duration time.Duration)
+	RecordSequencerSealingTime(duration time.Duration)
 }
 
 // ForkchoiceRequestEvent signals to the engine that it should emit an artificial
@@ -82,6 +70,7 @@ func (ev SafeDerivedEvent) String() string {
 	return "safe-derived"
 }
 
+// ProcessAttributesEvent signals to immediately process the attributes.
 type ProcessAttributesEvent struct {
 	Attributes *derive.AttributesWithParent
 }
@@ -145,6 +134,8 @@ func (ev PromoteFinalizedEvent) String() string {
 }
 
 type EngDeriver struct {
+	metrics Metrics
+
 	log     log.Logger
 	cfg     *rollup.Config
 	ec      *EngineController
@@ -155,12 +146,13 @@ type EngDeriver struct {
 var _ event.Deriver = (*EngDeriver)(nil)
 
 func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
-	ec *EngineController) *EngDeriver {
+	metrics Metrics, ec *EngineController) *EngDeriver {
 	return &EngDeriver{
-		log: log,
-		cfg: cfg,
-		ec:  ec,
-		ctx: ctx,
+		log:     log,
+		cfg:     cfg,
+		ec:      ec,
+		ctx:     ctx,
+		metrics: metrics,
 	}
 }
 
@@ -242,8 +234,6 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			"safeHead", x.Safe, "unsafe", x.Unsafe, "safe_timestamp", x.Safe.Time,
 			"unsafe_timestamp", x.Unsafe.Time)
 		d.emitter.Emit(EngineResetConfirmedEvent(x))
-	case ProcessAttributesEvent:
-		d.onForceNextSafeAttributes(x.Attributes)
 	case PendingSafeRequestEvent:
 		d.emitter.Emit(PendingSafeUpdateEvent{
 			PendingSafe: d.ec.PendingSafeL2Head(),
@@ -254,10 +244,16 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		// Resets/overwrites happen through engine-resets, not through promotion.
 		if x.Ref.Number > d.ec.PendingSafeL2Head().Number {
 			d.ec.SetPendingSafeL2Head(x.Ref)
+			d.emitter.Emit(PendingSafeUpdateEvent{
+				PendingSafe: d.ec.PendingSafeL2Head(),
+				Unsafe:      d.ec.UnsafeL2Head(),
+			})
 		}
 		if x.Safe && x.Ref.Number > d.ec.SafeL2Head().Number {
 			d.ec.SetSafeHead(x.Ref)
 			d.emitter.Emit(SafeDerivedEvent{Safe: x.Ref, DerivedFrom: x.DerivedFrom})
+			// Try to apply the forkchoice changes
+			d.emitter.Emit(TryUpdateEngineEvent{})
 		}
 	case PromoteFinalizedEvent:
 		if x.Ref.Number < d.ec.Finalized().Number {
@@ -271,82 +267,28 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		d.ec.SetFinalizedHead(x.Ref)
 		// Try to apply the forkchoice changes
 		d.emitter.Emit(TryUpdateEngineEvent{})
+	case BuildStartEvent:
+		d.onBuildStart(x)
+	case BuildStartedEvent:
+		d.onBuildStarted(x)
+	case BuildSealedEvent:
+		d.onBuildSealed(x)
+	case BuildSealEvent:
+		d.onBuildSeal(x)
+	case BuildInvalidEvent:
+		d.onBuildInvalid(x)
+	case BuildCancelEvent:
+		d.onBuildCancel(x)
+	case PayloadProcessEvent:
+		d.onPayloadProcess(x)
+	case PayloadSuccessEvent:
+		d.onPayloadSuccess(x)
+	case PayloadInvalidEvent:
+		d.onPayloadInvalid(x)
 	default:
 		return false
 	}
 	return true
-}
-
-// onForceNextSafeAttributes inserts the provided attributes, reorging away any conflicting unsafe chain.
-func (eq *EngDeriver) onForceNextSafeAttributes(attributes *derive.AttributesWithParent) {
-	ctx, cancel := context.WithTimeout(eq.ctx, time.Second*10)
-	defer cancel()
-
-	attrs := attributes.Attributes
-	errType, err := eq.ec.StartPayload(ctx, eq.ec.PendingSafeL2Head(), attributes, true)
-	var envelope *eth.ExecutionPayloadEnvelope
-	if err == nil {
-		envelope, errType, err = eq.ec.ConfirmPayload(ctx, async.NoOpGossiper{}, &conductor.NoOpConductor{})
-	}
-	if err != nil {
-		switch errType {
-		case BlockInsertTemporaryErr:
-			// RPC errors are recoverable, we can retry the buffered payload attributes later.
-			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: fmt.Errorf("temporarily cannot insert new safe block: %w", err)})
-			return
-		case BlockInsertPrestateErr:
-			_ = eq.ec.CancelPayload(ctx, true)
-			eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err)})
-			return
-		case BlockInsertPayloadErr:
-			if !errors.Is(err, derive.ErrTemporary) {
-				eq.emitter.Emit(InvalidPayloadAttributesEvent{Attributes: attributes})
-			}
-			_ = eq.ec.CancelPayload(ctx, true)
-			eq.log.Warn("could not process payload derived from L1 data, dropping attributes", "err", err)
-			// Count the number of deposits to see if the tx list is deposit only.
-			depositCount := 0
-			for _, tx := range attrs.Transactions {
-				if len(tx) > 0 && tx[0] == types.DepositTxType {
-					depositCount += 1
-				}
-			}
-			// Deposit transaction execution errors are suppressed in the execution engine, but if the
-			// block is somehow invalid, there is nothing we can do to recover & we should exit.
-			if len(attrs.Transactions) == depositCount {
-				eq.log.Error("deposit only block was invalid", "parent", attributes.Parent, "err", err)
-				eq.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("failed to process block with only deposit transactions: %w", err)})
-				return
-			}
-			// Revert the pending safe head to the safe head.
-			eq.ec.SetPendingSafeL2Head(eq.ec.SafeL2Head())
-			// suppress the error b/c we want to retry with the next batch from the batch queue
-			// If there is no valid batch the node will eventually force a deposit only block. If
-			// the deposit only block fails, this will return the critical error above.
-
-			// Try to restore to previous known unsafe chain.
-			eq.ec.SetBackupUnsafeL2Head(eq.ec.BackupUnsafeL2Head(), true)
-
-			// drop the payload without inserting it into the engine
-			return
-		default:
-			eq.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err)})
-		}
-	}
-	ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
-	if err != nil {
-		eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("failed to decode L2 block ref from payload: %w", err)})
-		return
-	}
-	eq.ec.SetPendingSafeL2Head(ref)
-	if attributes.IsLastInSpan {
-		eq.ec.SetSafeHead(ref)
-		eq.emitter.Emit(SafeDerivedEvent{Safe: ref, DerivedFrom: attributes.DerivedFrom})
-	}
-	eq.emitter.Emit(PendingSafeUpdateEvent{
-		PendingSafe: eq.ec.PendingSafeL2Head(),
-		Unsafe:      eq.ec.UnsafeL2Head(),
-	})
 }
 
 type ResetEngineControl interface {
@@ -355,7 +297,6 @@ type ResetEngineControl interface {
 	SetFinalizedHead(eth.L2BlockRef)
 	SetBackupUnsafeL2Head(block eth.L2BlockRef, triggerReorg bool)
 	SetPendingSafeL2Head(eth.L2BlockRef)
-	ResetBuildingState()
 }
 
 // ForceEngineReset is not to be used. The op-program needs it for now, until event processing is adopted there.
@@ -365,5 +306,4 @@ func ForceEngineReset(ec ResetEngineControl, x ForceEngineResetEvent) {
 	ec.SetPendingSafeL2Head(x.Safe)
 	ec.SetFinalizedHead(x.Finalized)
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
-	ec.ResetBuildingState()
 }
