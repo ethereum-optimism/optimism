@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.0;
 
 /// @title IOptimismSuperchainERC20
 /// @notice This interface is available on the OptimismSuperchainERC20 contract.
@@ -21,7 +21,7 @@ interface IOptimismSuperchainERC20 {
     /// @param to           Address of the recipient.
     /// @param amount       Amount of tokens sent.
     /// @param destination  Chain ID of the destination chain.
-    event SentERC20(address indexed from, address indexed to, uint256 amount, uint256 destination);
+    event SendERC20(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     /// @notice Emitted whenever tokens are successfully relayed on this chain.
     /// @param from     Address of the msg.sender of sendERC20 on the source chain.

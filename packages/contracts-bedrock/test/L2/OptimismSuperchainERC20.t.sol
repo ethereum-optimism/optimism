@@ -165,7 +165,7 @@ contract OptimismSuperchainERC20Test is Test {
         superchainERC20.sendERC20({ _to: ZERO_ADDRESS, _amount: _amount, _chainId: _chainId });
     }
 
-    /// @notice Tests the `sendERC20` function burns the sender tokens, sends the message, and emits the `SentERC20`
+    /// @notice Tests the `sendERC20` function burns the sender tokens, sends the message, and emits the `SendERC20`
     /// event.
     function testFuzz_sendERC20_succeeds(address _sender, address _to, uint256 _amount, uint256 _chainId) external {
         // Ensure `_sender` is not the zero address
@@ -184,9 +184,9 @@ contract OptimismSuperchainERC20Test is Test {
         vm.expectEmit(true, true, true, true, address(superchainERC20));
         emit IERC20.Transfer(_sender, ZERO_ADDRESS, _amount);
 
-        // Look for the emit of the `SentERC20` event
+        // Look for the emit of the `SendERC20` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit IOptimismSuperchainERC20.SentERC20(_sender, _to, _amount, _chainId);
+        emit IOptimismSuperchainERC20.SendERC20(_sender, _to, _amount, _chainId);
 
         // Mock the call over the `sendMessage` function and expect it to be called properly
         bytes memory _message = abi.encodeCall(superchainERC20.relayERC20, (_sender, _to, _amount));

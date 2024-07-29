@@ -103,7 +103,7 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
         bytes memory _message = abi.encodeCall(this.relayERC20, (msg.sender, _to, _amount));
         IL2ToL2CrossDomainMessenger(MESSENGER).sendMessage(_chainId, address(this), _message);
 
-        emit SentERC20(msg.sender, _to, _amount, _chainId);
+        emit SendERC20(msg.sender, _to, _amount, _chainId);
     }
 
     /// @notice Relays tokens received from another chain.
