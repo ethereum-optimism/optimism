@@ -23,7 +23,7 @@ elf:
 	make -C ./example elf
 
 contract:
-	cd .. && forge build
+	cd ../packages/contracts-bedrock && forge build
 
 test: elf contract
 	go test -v ./...
