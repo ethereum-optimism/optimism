@@ -43,9 +43,6 @@ contract MIPS is ISemver {
         uint32[32] registers;
     }
 
-    /// @notice Start of the data segment.
-    uint32 public constant BRK_START = 0x40000000;
-
     /// @notice The semantic version of the MIPS contract.
     /// @custom:semver 1.0.1
     string public constant version = "1.1.0-beta.5";
@@ -143,7 +140,7 @@ contract MIPS is ISemver {
             }
 
             // Load the syscall numbers and args from the registers
-            (uint32 syscall_no, uint32 a0, uint32 a1, uint32 a2) = sys.getSyscallArgs(state.registers);
+            (uint32 syscall_no, uint32 a0, uint32 a1, uint32 a2,) = sys.getSyscallArgs(state.registers);
 
             uint32 v0 = 0;
             uint32 v1 = 0;
@@ -152,7 +149,7 @@ contract MIPS is ISemver {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
             } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
-                v0 = BRK_START;
+                v0 = sys.BRK_START;
             } else if (syscall_no == sys.SYS_CLONE) {
                 // clone (not supported) returns 1
                 v0 = 1;
@@ -162,17 +159,18 @@ contract MIPS is ISemver {
                 state.exitCode = uint8(a0);
                 return outputState();
             } else if (syscall_no == sys.SYS_READ) {
-                (v0, v1, state.preimageOffset, state.memRoot) = sys.handleSysRead({
-                    _a0: a0,
-                    _a1: a1,
-                    _a2: a2,
-                    _preimageKey: state.preimageKey,
-                    _preimageOffset: state.preimageOffset,
-                    _localContext: _localContext,
-                    _oracle: ORACLE,
-                    _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
-                    _memRoot: state.memRoot
+                sys.SysReadParams memory args = sys.SysReadParams({
+                    a0: a0,
+                    a1: a1,
+                    a2: a2,
+                    preimageKey: state.preimageKey,
+                    preimageOffset: state.preimageOffset,
+                    localContext: _localContext,
+                    oracle: ORACLE,
+                    proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
+                    memRoot: state.memRoot
                 });
+                (v0, v1, state.preimageOffset, state.memRoot) = sys.handleSysRead(args);
             } else if (syscall_no == sys.SYS_WRITE) {
                 (v0, v1, state.preimageKey, state.preimageOffset) = sys.handleSysWrite({
                     _a0: a0,
