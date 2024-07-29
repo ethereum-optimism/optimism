@@ -322,7 +322,7 @@ contract MIPS2_Test is CommonTest {
         expect.step = state.step + 1;
         expect.stepsSinceLastContextSwitch = state.step + 1;
         expect.exited = true;
-        expect.exitCode = 0x3;
+        expect.exitCode = VMStatuses.PANIC.raw();
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");

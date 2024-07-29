@@ -7,6 +7,7 @@ import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
+import { VMStatuses } from "src/dispute/lib/Types.sol";
 
 /// @title MIPS2
 /// @notice The MIPS2 contract emulates a single MIPS instruction.
@@ -50,8 +51,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 0.0.1-beta
-    string public constant version = "0.0.1-beta";
+    /// @custom:semver 0.0.2-beta
+    string public constant version = "0.0.2-beta";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -70,9 +71,6 @@ contract MIPS2 is ISemver {
 
     // ThreadState memory offset allocated during step
     uint256 internal constant TC_MEM_OFFSET = 0x220;
-
-    // VM Status Panic exit code
-    uint8 internal constant VM_STATUS_PANIC = 0x3;
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle) {
@@ -262,7 +260,7 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_CLONE) {
                 if (sys.VALID_SYS_CLONE_FLAGS != a0) {
                     state.exited = true;
-                    state.exitCode = VM_STATUS_PANIC;
+                    state.exitCode = VMStatuses.PANIC.raw();
                     return outputState();
                 }
                 v0 = state.nextThreadID;
