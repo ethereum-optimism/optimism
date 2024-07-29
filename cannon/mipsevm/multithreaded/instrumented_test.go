@@ -54,7 +54,7 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 }
 
 func TestInstrumentedState_Alloc(t *testing.T) {
-	t.Skip("TODO(client-pod#906): Currently fails on Single threaded Cannon. Re-enable for the MT FPVM")
+	t.Skip("TODO(client-pod#906): Currently failing - need to debug.")
 
 	state := testutil.LoadELFProgram(t, "../../example/bin/alloc.elf", CreateInitialState, false)
 	const numAllocs = 100 // where each alloc is a 32 MiB chunk
