@@ -266,6 +266,7 @@ contract MIPS2_Test is CommonTest {
         (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
             constructMIPSState(0, insn, 0x4, 0);
         thread.registers[2] = sys.SYS_CLONE;
+        thread.registers[A0_REG] = sys.VALID_SYS_CLONE_FLAGS;
         thread.registers[A1_REG] = sp;
         bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
         updateThreadStacks(state, thread);
@@ -293,6 +294,35 @@ contract MIPS2_Test is CommonTest {
         expect.stepsSinceLastContextSwitch = 0;
         bytes32 innerThreadRoot = keccak256(abi.encodePacked(EMPTY_THREAD_ROOT, keccak256(encodeThread(expectThread))));
         expect.leftThreadStack = keccak256(abi.encodePacked(innerThreadRoot, keccak256(encodeThread(newThread))));
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @dev Static unit test asserting the VM exits successfully for a clone syscall with invalid clone flags.
+    function test_syscallClone_invalidCloneFlags_succeeds() public {
+        uint32 insn = 0x0000000c; // syscall
+        uint32 sp = 0xdead;
+
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[2] = sys.SYS_CLONE;
+        thread.registers[A0_REG] = 0xdead; // invalid flag
+        thread.registers[A1_REG] = sp;
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        updateThreadStacks(state, thread);
+
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = state.nextThreadID;
+        expectThread.registers[7] = 0;
+
+        MIPS2.State memory expect = copyState(state);
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.step + 1;
+        expect.exited = true;
+        expect.exitCode = 0x3;
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");

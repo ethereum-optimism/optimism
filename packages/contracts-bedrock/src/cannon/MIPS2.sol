@@ -71,6 +71,9 @@ contract MIPS2 is ISemver {
     // ThreadState memory offset allocated during step
     uint256 internal constant TC_MEM_OFFSET = 0x220;
 
+    // VM Status Panic exit code
+    uint8 internal constant VM_STATUS_PANIC = 0x3;
+
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle) {
         ORACLE = _oracle;
@@ -145,7 +148,7 @@ contract MIPS2 is ISemver {
             }
 
             if (state.leftThreadStack == EMPTY_THREAD_ROOT && state.rightThreadStack == EMPTY_THREAD_ROOT) {
-                revert("illegal vm state");
+                revert("MIPS2: illegal vm state");
             }
 
             state.step += 1;
@@ -256,6 +259,11 @@ contract MIPS2 is ISemver {
                 // brk: Returns a fixed address for the program break at 0x40000000
                 v0 = sys.BRK_START;
             } else if (syscall_no == sys.SYS_CLONE) {
+                if (sys.VALID_SYS_CLONE_FLAGS != a0) {
+                    state.exited = true;
+                    state.exitCode = VM_STATUS_PANIC;
+                    return outputState();
+                }
                 v0 = state.nextThreadID;
                 v1 = 0;
                 ThreadState memory newThread;
@@ -385,7 +393,7 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_SIGALTSTACK) {
                 // ignored
             } else if (syscall_no == sys.SYS_RTSIGACTION) {
-            // ignored
+                // ignored
             } else if (syscall_no == sys.SYS_PRLIMIT64) {
                 // ignored
             } else if (syscall_no == sys.SYS_CLOSE) {
@@ -437,7 +445,7 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
                 // ignored
             } else {
-                revert("unimplemented syscall");
+                revert("MIPS2: unimplemented syscall");
             }
 
             st.CpuScalars memory cpu = getCpuScalars(thread);
