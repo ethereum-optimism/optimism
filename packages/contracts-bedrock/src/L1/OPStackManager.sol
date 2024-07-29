@@ -49,4 +49,15 @@ contract OPStackManager is ISemver {
 
         revert("Not implemented");
     }
+
+    /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
+    /// configuration's convention. This convention is `versionByte || keccak256(bytes32(chainId))[:19]`,
+    /// where || denotes concatenation`, versionByte is 0x00, and chainId is a uint256.
+    /// https://specs.optimism.io/protocol/configurability.html#consensus-parameters
+    function chainIdToBatchInboxAddress(uint256 l2ChainId) internal pure returns (address) {
+        bytes1 versionByte = 0x00;
+        bytes32 hashedChainId = keccak256(bytes.concat(bytes32(l2ChainId)));
+        bytes19 first19Bytes = bytes19(hashedChainId);
+        return address(uint160(bytes20(bytes.concat(versionByte, first19Bytes))));
+    }
 }
