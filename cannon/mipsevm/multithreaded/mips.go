@@ -90,6 +90,10 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysExit:
 		thread.Exited = true
 		thread.ExitCode = uint8(a0)
+		if m.lastThreadRemaining() {
+			m.state.Exited = true
+			m.state.ExitCode = uint8(a0)
+		}
 		return nil
 	case exec.SysFutex:
 		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
@@ -327,4 +331,8 @@ func (m *InstrumentedState) popThread() {
 		m.state.TraverseRight = !m.state.TraverseRight
 	}
 	m.state.StepsSinceLastContextSwitch = 0
+}
+
+func (m *InstrumentedState) lastThreadRemaining() bool {
+	return m.state.threadCount() == 1
 }
