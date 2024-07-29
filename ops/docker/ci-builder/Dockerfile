@@ -117,6 +117,8 @@ RUN /bin/sh -c set -eux; \
   rm -rf /root/.cache/pip; \
   rm -rf /root/.cache/npm;
 
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
 RUN npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN svm install 0.5.17 && \
