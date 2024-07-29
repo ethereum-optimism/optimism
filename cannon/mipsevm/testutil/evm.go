@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
@@ -23,9 +24,45 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// LoadArtifacts loads the Cannon contracts, from the contracts package.
-func LoadArtifacts() (*Artifacts, error) {
-	mips, err := foundry.ReadArtifact("../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
+type Artifacts struct {
+	MIPS   *foundry.Artifact
+	Oracle *foundry.Artifact
+}
+
+type Addresses struct {
+	MIPS         common.Address
+	Oracle       common.Address
+	Sender       common.Address
+	FeeRecipient common.Address
+}
+
+func TestContractsSetup(t require.TestingT, version MipsVersion) (*Artifacts, *Addresses) {
+	artifacts, err := loadArtifacts(version)
+	require.NoError(t, err)
+
+	addrs := &Addresses{
+		MIPS:         common.Address{0: 0xff, 19: 1},
+		Oracle:       common.Address{0: 0xff, 19: 2},
+		Sender:       common.Address{0x13, 0x37},
+		FeeRecipient: common.Address{0xaa},
+	}
+
+	return artifacts, addrs
+}
+
+// loadArtifacts loads the Cannon contracts, from the contracts package.
+func loadArtifacts(version MipsVersion) (*Artifacts, error) {
+	var mipsMetadata string
+	switch version {
+	case MipsSingleThreaded:
+		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json"
+	case MipsMultithreaded:
+		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS2.json"
+	default:
+		return nil, fmt.Errorf("Unknown MipsVersion supplied: %v", version)
+	}
+
+	mips, err := foundry.ReadArtifact(mipsMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
 	}
@@ -39,18 +76,6 @@ func LoadArtifacts() (*Artifacts, error) {
 		MIPS:   mips,
 		Oracle: oracle,
 	}, nil
-}
-
-type Artifacts struct {
-	MIPS   *foundry.Artifact
-	Oracle *foundry.Artifact
-}
-
-type Addresses struct {
-	MIPS         common.Address
-	Oracle       common.Address
-	Sender       common.Address
-	FeeRecipient common.Address
 }
 
 func NewEVMEnv(artifacts *Artifacts, addrs *Addresses) (*vm.EVM, *state.StateDB) {

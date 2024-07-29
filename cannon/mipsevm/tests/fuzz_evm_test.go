@@ -23,7 +23,7 @@ import (
 const syscallInsn = uint32(0x00_00_00_0c)
 
 func FuzzStateSyscallBrk(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -75,7 +75,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 }
 
 func FuzzStateSyscallClone(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -126,7 +126,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 }
 
 func FuzzStateSyscallMmap(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 
 	// Add special cases for large memory allocation
@@ -208,7 +208,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 }
 
 func FuzzStateSyscallExitGroup(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	f.Fuzz(func(t *testing.T, exitCode uint8, pc uint32, step uint64) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -258,7 +258,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 }
 
 func FuzzStateSyscallFcntl(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32) {
 		state := &singlethreaded.State{
@@ -324,7 +324,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 }
 
 func FuzzStateHintRead(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
@@ -377,7 +377,7 @@ func FuzzStateHintRead(f *testing.F) {
 }
 
 func FuzzStatePreimageRead(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32) {
 		preimageData := []byte("hello world")
@@ -444,7 +444,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 }
 
 func FuzzStateHintWrite(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
 		preimageData := []byte("hello world")
@@ -505,7 +505,7 @@ func FuzzStateHintWrite(f *testing.F) {
 }
 
 func FuzzStatePreimageWrite(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")

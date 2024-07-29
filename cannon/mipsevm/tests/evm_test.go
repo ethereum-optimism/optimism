@@ -24,25 +24,11 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-func testContractsSetup(t require.TestingT) (*testutil.Artifacts, *testutil.Addresses) {
-	artifacts, err := testutil.LoadArtifacts()
-	require.NoError(t, err)
-
-	addrs := &testutil.Addresses{
-		MIPS:         common.Address{0: 0xff, 19: 1},
-		Oracle:       common.Address{0: 0xff, 19: 2},
-		Sender:       common.Address{0x13, 0x37},
-		FeeRecipient: common.Address{0xaa},
-	}
-
-	return artifacts, addrs
-}
-
 func TestEVM(t *testing.T) {
 	testFiles, err := os.ReadDir("open_mips_tests/test/bin")
 	require.NoError(t, err)
 
-	contracts, addrs := testContractsSetup(t)
+	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks // no-tracer by default, but test_util.MarkdownTracer
 
 	for _, f := range testFiles {
@@ -172,7 +158,7 @@ func TestEVM_CloneFlags(t *testing.T) {
 }
 
 func TestEVMSingleStep(t *testing.T) {
-	contracts, addrs := testContractsSetup(t)
+	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks
 
 	cases := []struct {
@@ -210,7 +196,7 @@ func TestEVMSingleStep(t *testing.T) {
 }
 
 func TestEVM_MMap(t *testing.T) {
-	contracts, addrs := testContractsSetup(t)
+	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks
 
 	cases := []struct {
@@ -292,7 +278,7 @@ func TestEVM_MMap(t *testing.T) {
 }
 
 func TestEVMSysWriteHint(t *testing.T) {
-	contracts, addrs := testContractsSetup(t)
+	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks
 
 	cases := []struct {
@@ -473,7 +459,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 }
 
 func TestEVMFault(t *testing.T) {
-	contracts, addrs := testContractsSetup(t)
+	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	sender := common.Address{0x13, 0x37}
 
@@ -520,7 +506,7 @@ func TestEVMFault(t *testing.T) {
 }
 
 func TestHelloEVM(t *testing.T) {
-	contracts, addrs := testContractsSetup(t)
+	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	evm := testutil.NewMIPSEVM(contracts, addrs)
 	evm.SetTracer(tracer)
@@ -562,7 +548,7 @@ func TestHelloEVM(t *testing.T) {
 }
 
 func TestClaimEVM(t *testing.T) {
-	contracts, addrs := testContractsSetup(t)
+	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	evm := testutil.NewMIPSEVM(contracts, addrs)
 	evm.SetTracer(tracer)
