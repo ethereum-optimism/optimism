@@ -39,7 +39,7 @@ func (s *PlasmaDataSource) Next(ctx context.Context) (eth.Data, error) {
 	// there is not commitment in the current origin.
 	if err := s.fetcher.AdvanceL1Origin(ctx, s.l1, s.id.ID()); err != nil {
 		if errors.Is(err, plasma.ErrReorgRequired) {
-			return nil, NewResetError(fmt.Errorf("new expired challenge"))
+			return nil, NewResetError(errors.New("new expired challenge"))
 		}
 		return nil, NewTemporaryError(fmt.Errorf("failed to advance plasma L1 origin: %w", err))
 	}

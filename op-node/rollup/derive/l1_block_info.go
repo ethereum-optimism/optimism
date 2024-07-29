@@ -210,19 +210,19 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 		return err
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return errors.New("invalid ecotone l1 block info format")
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BlobBaseFeeScalar); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return errors.New("invalid ecotone l1 block info format")
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.SequenceNumber); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return errors.New("invalid ecotone l1 block info format")
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.Time); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return errors.New("invalid ecotone l1 block info format")
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.Number); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return errors.New("invalid ecotone l1 block info format")
 	}
 	if info.BaseFee, err = solabi.ReadUint256(r); err != nil {
 		return err
