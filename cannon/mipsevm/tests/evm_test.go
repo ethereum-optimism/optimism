@@ -28,7 +28,7 @@ func TestEVM(t *testing.T) {
 	testFiles, err := os.ReadDir("open_mips_tests/test/bin")
 	require.NoError(t, err)
 
-	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks // no-tracer by default, but test_util.MarkdownTracer
 
 	for _, f := range testFiles {
@@ -38,7 +38,7 @@ func TestEVM(t *testing.T) {
 			exitGroup := f.Name() == "exit_group.bin"
 			expectPanic := strings.HasSuffix(f.Name(), "panic.bin")
 
-			evm := testutil.NewMIPSEVM(contracts, addrs)
+			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			evm.SetLocalOracle(oracle)
 			testutil.LogStepFailureAtCleanup(t, evm)
@@ -145,7 +145,7 @@ func TestEVM_CloneFlags(t *testing.T) {
 			}
 
 			// TODO: Validate EVM execution once onchain implementation is ready
-			//evm := testutil.NewMIPSEVM(contracts, addrs)
+			//evm := testutil.NewMIPSEVM(contracts)
 			//evm.SetTracer(tracer)
 			//testutil.LogStepFailureAtCleanup(t, evm)
 			//
@@ -158,7 +158,7 @@ func TestEVM_CloneFlags(t *testing.T) {
 }
 
 func TestEVMSingleStep(t *testing.T) {
-	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks
 
 	cases := []struct {
@@ -183,7 +183,7 @@ func TestEVMSingleStep(t *testing.T) {
 			stepWitness, err := us.Step(true)
 			require.NoError(t, err)
 
-			evm := testutil.NewMIPSEVM(contracts, addrs)
+			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
 
@@ -196,7 +196,7 @@ func TestEVMSingleStep(t *testing.T) {
 }
 
 func TestEVM_MMap(t *testing.T) {
-	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks
 
 	cases := []struct {
@@ -265,7 +265,7 @@ func TestEVM_MMap(t *testing.T) {
 			require.Equal(t, uint8(0), state.ExitCode)
 			require.Equal(t, hexutil.Bytes(nil), state.LastHint)
 
-			evm := testutil.NewMIPSEVM(contracts, addrs)
+			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
 
@@ -278,7 +278,7 @@ func TestEVM_MMap(t *testing.T) {
 }
 
 func TestEVMSysWriteHint(t *testing.T) {
-	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks
 
 	cases := []struct {
@@ -446,7 +446,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedHints, oracle.hints)
 
-			evm := testutil.NewMIPSEVM(contracts, addrs)
+			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
 
@@ -459,11 +459,11 @@ func TestEVMSysWriteHint(t *testing.T) {
 }
 
 func TestEVMFault(t *testing.T) {
-	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	sender := common.Address{0x13, 0x37}
 
-	env, evmState := testutil.NewEVMEnv(contracts, addrs)
+	env, evmState := testutil.NewEVMEnv(contracts)
 	env.Config.Tracer = tracer
 
 	cases := []struct {
@@ -494,10 +494,10 @@ func TestEVMFault(t *testing.T) {
 				State:     encodedWitness,
 				ProofData: insnProof[:],
 			}
-			input := testutil.EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, contracts.MIPS)
+			input := testutil.EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, contracts.Artifacts.MIPS)
 			startingGas := uint64(30_000_000)
 
-			_, _, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, common.U2560)
+			_, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
 			require.EqualValues(t, err, vm.ErrExecutionReverted)
 			logs := evmState.Logs()
 			require.Equal(t, 0, len(logs))
@@ -506,9 +506,9 @@ func TestEVMFault(t *testing.T) {
 }
 
 func TestHelloEVM(t *testing.T) {
-	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
-	evm := testutil.NewMIPSEVM(contracts, addrs)
+	evm := testutil.NewMIPSEVM(contracts)
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
@@ -548,9 +548,9 @@ func TestHelloEVM(t *testing.T) {
 }
 
 func TestClaimEVM(t *testing.T) {
-	contracts, addrs := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
-	evm := testutil.NewMIPSEVM(contracts, addrs)
+	evm := testutil.NewMIPSEVM(contracts)
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 

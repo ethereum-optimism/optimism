@@ -23,7 +23,7 @@ import (
 const syscallInsn = uint32(0x00_00_00_0c)
 
 func FuzzStateSyscallBrk(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -66,7 +66,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, preimageOffset, state.PreimageOffset)
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -75,7 +75,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 }
 
 func FuzzStateSyscallClone(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -117,7 +117,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, preimageOffset, state.PreimageOffset)
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -126,7 +126,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 }
 
 func FuzzStateSyscallMmap(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 
 	// Add special cases for large memory allocation
@@ -199,7 +199,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 		require.Equal(t, false, state.Exited)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -208,7 +208,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 }
 
 func FuzzStateSyscallExitGroup(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	f.Fuzz(func(t *testing.T, exitCode uint8, pc uint32, step uint64) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -249,7 +249,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		require.Equal(t, common.Hash{}, state.PreimageKey)
 		require.Equal(t, uint32(0), state.PreimageOffset)
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -258,7 +258,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 }
 
 func FuzzStateSyscallFcntl(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32) {
 		state := &singlethreaded.State{
@@ -315,7 +315,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 			require.Equal(t, expectedRegisters, state.Registers)
 		}
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -324,7 +324,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 }
 
 func FuzzStateHintRead(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
@@ -368,7 +368,7 @@ func FuzzStateHintRead(f *testing.F) {
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -377,7 +377,7 @@ func FuzzStateHintRead(f *testing.F) {
 }
 
 func FuzzStatePreimageRead(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32) {
 		preimageData := []byte("hello world")
@@ -435,7 +435,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -444,7 +444,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 }
 
 func FuzzStateHintWrite(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
 		preimageData := []byte("hello world")
@@ -496,7 +496,7 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -505,7 +505,7 @@ func FuzzStateHintWrite(f *testing.F) {
 }
 
 func FuzzStatePreimageWrite(f *testing.F) {
-	contracts, addrs := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
+	contracts := testutil.TestContractsSetup(f, testutil.MipsSingleThreaded)
 	step := uint64(0)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
@@ -552,7 +552,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.Equal(t, uint32(0), state.PreimageOffset)
 		require.Equal(t, expectedRegisters, state.Registers)
 
-		evm := testutil.NewMIPSEVM(contracts, addrs)
+		evm := testutil.NewMIPSEVM(contracts)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
 		goPost, _ := goState.GetState().EncodeWitness()
 		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),

@@ -36,7 +36,12 @@ type Addresses struct {
 	FeeRecipient common.Address
 }
 
-func TestContractsSetup(t require.TestingT, version MipsVersion) (*Artifacts, *Addresses) {
+type ContractMetadata struct {
+	Artifacts *Artifacts
+	Addresses *Addresses
+}
+
+func TestContractsSetup(t require.TestingT, version MipsVersion) *ContractMetadata {
 	artifacts, err := loadArtifacts(version)
 	require.NoError(t, err)
 
@@ -47,7 +52,7 @@ func TestContractsSetup(t require.TestingT, version MipsVersion) (*Artifacts, *A
 		FeeRecipient: common.Address{0xaa},
 	}
 
-	return artifacts, addrs
+	return &ContractMetadata{Artifacts: artifacts, Addresses: addrs}
 }
 
 // loadArtifacts loads the Cannon contracts, from the contracts package.
@@ -78,7 +83,7 @@ func loadArtifacts(version MipsVersion) (*Artifacts, error) {
 	}, nil
 }
 
-func NewEVMEnv(artifacts *Artifacts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
+func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 	// Temporary hack until Cancun is activated on mainnet
 	cpy := *params.MainnetChainConfig
 	chainCfg := &cpy // don't modify the global chain config
@@ -99,20 +104,20 @@ func NewEVMEnv(artifacts *Artifacts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	env := vm.NewEVM(blockContext, vm.TxContext{}, state, chainCfg, vmCfg)
 	// pre-deploy the contracts
-	env.StateDB.SetCode(addrs.Oracle, artifacts.Oracle.DeployedBytecode.Object)
+	env.StateDB.SetCode(contracts.Addresses.Oracle, contracts.Artifacts.Oracle.DeployedBytecode.Object)
 
 	var mipsCtorArgs [32]byte
-	copy(mipsCtorArgs[12:], addrs.Oracle[:])
-	mipsDeploy := append(bytes.Clone(artifacts.MIPS.Bytecode.Object), mipsCtorArgs[:]...)
+	copy(mipsCtorArgs[12:], contracts.Addresses.Oracle[:])
+	mipsDeploy := append(bytes.Clone(contracts.Artifacts.MIPS.Bytecode.Object), mipsCtorArgs[:]...)
 	startingGas := uint64(30_000_000)
-	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, common.U2560)
+	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(contracts.Addresses.Sender), mipsDeploy, startingGas, common.U2560)
 	if err != nil {
 		panic(fmt.Errorf("failed to deploy MIPS contract: %w. took %d gas", err, startingGas-leftOverGas))
 	}
-	addrs.MIPS = deployedMipsAddr
+	contracts.Addresses.MIPS = deployedMipsAddr
 
 	rules := env.ChainConfig().Rules(header.Number, true, header.Time)
-	env.StateDB.Prepare(rules, addrs.Sender, addrs.FeeRecipient, &addrs.MIPS, vm.ActivePrecompiles(rules), nil)
+	env.StateDB.Prepare(rules, contracts.Addresses.Sender, contracts.Addresses.FeeRecipient, &contracts.Addresses.MIPS, vm.ActivePrecompiles(rules), nil)
 	return env, state
 }
 
