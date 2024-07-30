@@ -60,6 +60,12 @@ var (
 		Usage:   "Interval between submitting L2 output proposals when the dispute game factory address is set",
 		EnvVars: prefixEnvVars("PROPOSAL_INTERVAL"),
 	}
+	ProposalRetryIntervalFlag = &cli.DurationFlag{
+		Name:    "proposal-retry-interval",
+		Usage:   "Interval between retrying output proposals if one fails",
+		Value:   120 * time.Second,
+		EnvVars: prefixEnvVars("PROPOSAL_RETRY_INTERVAL"),
+	}
 	DisputeGameTypeFlag = &cli.UintFlag{
 		Name:    "game-type",
 		Usage:   "Dispute game type to create via the configured DisputeGameFactory",
@@ -95,6 +101,7 @@ var optionalFlags = []cli.Flag{
 	L2OutputHDPathFlag,
 	DisputeGameFactoryAddressFlag,
 	ProposalIntervalFlag,
+	ProposalRetryIntervalFlag,
 	DisputeGameTypeFlag,
 	ActiveSequencerCheckDurationFlag,
 	WaitNodeSyncFlag,

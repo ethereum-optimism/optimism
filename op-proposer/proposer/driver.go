@@ -453,15 +453,30 @@ func (l *L2OutputSubmitter) waitNodeSync() error {
 func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
 	ticker := time.NewTicker(l.Cfg.PollInterval)
 	defer ticker.Stop()
+
+	retryOutputProposal := false
+	retryTicker := time.NewTicker(l.Cfg.ProposalRetryInterval)
+	defer retryTicker.Stop()
+
+	proposeOutput := func() bool {
+		output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
+		if err != nil || !shouldPropose {
+			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
+			return true
+		}
+		l.proposeOutput(ctx, output)
+		return false
+	}
+
 	for {
 		select {
 		case <-ticker.C:
-			output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
-			if err != nil || !shouldPropose {
-				break
+			retryOutputProposal = proposeOutput()
+		case <-retryTicker.C:
+			if retryOutputProposal {
+				l.Log.Info("retrying output proposal")
+				retryOutputProposal = proposeOutput()
 			}
-
-			l.proposeOutput(ctx, output)
 		case <-l.done:
 			return
 		}
@@ -471,20 +486,37 @@ func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
 func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 	ticker := time.NewTicker(l.Cfg.ProposalInterval)
 	defer ticker.Stop()
+
+	retryOutputProposal := false
+	retryTicker := time.NewTicker(l.Cfg.ProposalRetryInterval)
+	defer retryTicker.Stop()
+
+	proposeOutput := func() bool {
+		blockNumber, err := l.FetchCurrentBlockNumber(ctx)
+		if err != nil {
+			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
+			return true
+		}
+
+		output, shouldPropose, err := l.FetchOutput(ctx, blockNumber)
+		if err != nil || !shouldPropose {
+			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
+			return true
+		}
+
+		l.proposeOutput(ctx, output)
+		return false
+	}
+
 	for {
 		select {
 		case <-ticker.C:
-			blockNumber, err := l.FetchCurrentBlockNumber(ctx)
-			if err != nil {
-				break
+			retryOutputProposal = proposeOutput()
+		case <-retryTicker.C:
+			if retryOutputProposal {
+				l.Log.Info("retrying output proposal")
+				retryOutputProposal = proposeOutput()
 			}
-
-			output, shouldPropose, err := l.FetchOutput(ctx, blockNumber)
-			if err != nil || !shouldPropose {
-				break
-			}
-
-			l.proposeOutput(ctx, output)
 		case <-l.done:
 			return
 		}
