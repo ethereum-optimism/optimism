@@ -35,7 +35,7 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 	blobCfg := ChannelConfig{
 		MaxFrameSize:    eth.MaxBlobDataSize - 1,
 		TargetNumFrames: 3, // gets closest to amortized fixed tx costs
-		UseBlobs:   true,
+		UseBlobs:        true,
 	}
 
 	tests := []struct {

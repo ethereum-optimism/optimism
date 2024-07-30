@@ -244,7 +244,7 @@ func TestBatcherAutoDA(t *testing.T) {
 
 	cfg := EcotoneSystemConfig(t, &genesisTime)
 	cfg.DataAvailabilityType = batcherFlags.AutoType
-	// We set the genesis fee values and block gas limit such that calldata txs are initally cheaper,
+	// We set the genesis fee values and block gas limit such that calldata txs are initially cheaper,
 	// but then drive up the base fee over the coming L1 blocks such that blobs become cheaper again.
 	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7500))
 	// 100 blob targets leads to 130_393 starting blob base fee, which is ~ 16 * 8_150
