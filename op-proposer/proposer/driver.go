@@ -464,7 +464,11 @@ func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
 			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
 			return true
 		}
-		l.proposeOutput(ctx, output)
+		err = l.proposeOutput(ctx, output)
+		if err != nil {
+			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
+			return true
+		}
 		return false
 	}
 
@@ -504,7 +508,11 @@ func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 			return true
 		}
 
-		l.proposeOutput(ctx, output)
+		err = l.proposeOutput(ctx, output)
+		if err != nil {
+			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
+			return true
+		}
 		return false
 	}
 
@@ -523,7 +531,7 @@ func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 	}
 }
 
-func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.OutputResponse) {
+func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.OutputResponse) error {
 	cCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
@@ -533,7 +541,8 @@ func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.Outpu
 			"l1blocknum", output.Status.CurrentL1.Number,
 			"l1blockhash", output.Status.CurrentL1.Hash,
 			"l1head", output.Status.HeadL1.Number)
-		return
+		return err
 	}
 	l.Metr.RecordL2BlocksProposed(output.BlockRef)
+	return nil
 }
