@@ -524,7 +524,7 @@ jobs:
       # We do not use the pre-built contracts becuase forge coverage uses different optimizer settings
       - run:
           name: test and generate coverage
-          command: pnpm coverage:lcov
+          command: just coverage-lcov
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
@@ -552,7 +552,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: pnpm test
+          command: just test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -598,22 +598,22 @@ jobs:
         # Semver lock must come second because one of the later steps may modify the cache & force a contracts rebuild.
           name: semver lock
           command: |
-            pnpm semver-lock
+            just semver-lock
             git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check deploy configs
-          command: pnpm validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
+          command: just validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: lint
           command: |
-            pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
+            just lint-check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
-            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            just gas-snapshot-check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -621,13 +621,13 @@ jobs:
       - run:
           name: invariant docs
           command: |
-            pnpm autogen:invariant-docs
+            just autogen-invariant-docs
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: snapshots
           command: |
-            pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
+            just snapshots-check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: size check
@@ -693,7 +693,7 @@ jobs:
           patterns: contracts-bedrock
       - run:
           name: validate spacers
-          command: pnpm validate-spacers
+          command: just validate-spacers
           working_directory: packages/contracts-bedrock
 
   todo-issues:
@@ -1485,7 +1485,7 @@ jobs:
           docker_layer_caching: true
       - run:
           name: Run Kontrol Tests
-          command: pnpm test:kontrol
+          command: just test-kontrol
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
