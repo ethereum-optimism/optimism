@@ -75,16 +75,21 @@ func (dec *DynamicEthChannelConfig) ChannelConfig() ChannelConfig {
 	blobCalldataCost := new(big.Int).Mul(big.NewInt(int64(params.TxGas)), calldataPrice)
 	blobCost = blobCost.Add(blobCost, blobCalldataCost)
 
-	blobDataBytes := big.NewInt(eth.MaxBlobDataSize * int64(dec.blobConfig.TargetNumFrames))
-	lgr := dec.log.New("base_fee", baseFee, "blob_base_fee", blobBaseFee, "tip_cap", tipCap,
-		"calldata_bytes", calldataBytes, "calldata_cost", calldataCost,
-		"blob_data_bytes", blobDataBytes, "blob_cost", blobCost)
-
 	// Now we compare the prices divided by the number of bytes that can be
 	// submitted for that price.
-	// This is comparing blobCost/blobDataBytes > calldataCost/calldataBytes:
-	if new(big.Int).Mul(blobCost, big.NewInt(int64(calldataBytes))).
-		Cmp(new(big.Int).Mul(calldataCost, blobDataBytes)) == 1 {
+	blobDataBytes := big.NewInt(eth.MaxBlobDataSize * int64(dec.blobConfig.TargetNumFrames))
+	// The following will compare blobCost(a)/blobDataBytes(x) > calldataCost(b)/calldataBytes(y):
+	ay := new(big.Int).Mul(blobCost, big.NewInt(int64(calldataBytes)))
+	bx := new(big.Int).Mul(calldataCost, blobDataBytes)
+	// ratio only used for logging, more correct multiplicative calculation used for comparison
+	ayf, bxf := new(big.Float).SetInt(ay), new(big.Float).SetInt(bx)
+	costRatio := new(big.Float).Quo(ayf, bxf)
+	lgr := dec.log.New("base_fee", baseFee, "blob_base_fee", blobBaseFee, "tip_cap", tipCap,
+		"calldata_bytes", calldataBytes, "calldata_cost", calldataCost,
+		"blob_data_bytes", blobDataBytes, "blob_cost", blobCost,
+		"cost_ratio", costRatio)
+
+	if ay.Cmp(bx) == 1 {
 		lgr.Info("Using calldata channel config")
 		dec.lastConfig = &dec.calldataConfig
 		return dec.calldataConfig
