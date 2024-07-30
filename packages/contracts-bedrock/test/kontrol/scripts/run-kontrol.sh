@@ -73,7 +73,7 @@ get_log_results(){
     RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
     docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
     # Expand the tar folder to kout-proofs for Summary Results and caching
-    tar -xzvf "$RESULTS_LOG" -C "$WORKSPACE_DIR"
+    tar -xzvf "$RESULTS_LOG" -C "$WORKSPACE_DIR"  > /dev/null 2>&1
   fi
 }
 
