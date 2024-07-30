@@ -1,10 +1,12 @@
 package multithreaded
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
@@ -241,8 +243,10 @@ func (m *InstrumentedState) mipsStep() error {
 		// Force a context switch as this thread has been active too long
 		if m.state.threadCount() > 1 {
 			// Log if we're hitting our context switch limit - only matters if we have > 1 thread
-			msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
-			m.log.Info(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount(), "pc", thread.Cpu.PC)
+			if m.log.Enabled(context.Background(), log.LevelTrace) {
+				msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
+				m.log.Trace(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount(), "pc", thread.Cpu.PC)
+			}
 		}
 		m.preemptThread(thread)
 		return nil
