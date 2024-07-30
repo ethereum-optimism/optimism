@@ -247,6 +247,14 @@ target "ci-builder-rust" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder-rust:${tag}"]
 }
 
+target "ci-builder-security-tools" {
+  dockerfile = "./ops/docker/ci-builder/Dockerfile"
+  context = "."
+  platforms = split(",", PLATFORMS)
+  target="security-tools-builder"
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder-security-tools:${tag}"]
+}
+
 target "contracts-bedrock" {
   dockerfile = "./ops/docker/Dockerfile.packages"
   context = "."

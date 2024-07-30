@@ -5,6 +5,7 @@ import semver
 SERVICES  = [
     'ci-builder',
     'ci-builder-rust',
+    'ci-builder-security-tools',
     'chain-mon',
     'op-node',
     'op-batcher',
