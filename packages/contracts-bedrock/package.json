@@ -52,7 +52,7 @@
     "@babel/eslint-parser": "^7.23.10",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
-    "@types/node": "^20.14.12",
+    "@types/node": "^22.0.0",
     "doctoc": "^2.2.0",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
