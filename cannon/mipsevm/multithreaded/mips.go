@@ -148,6 +148,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			nsecs := uint32((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
 			effAddr := a1 & 0xFFffFFfc
 			m.memoryTracker.TrackMemAccess(effAddr)
+			m.memoryTracker.TrackMemAccess2(effAddr+4)
 			m.state.Memory.SetMemory(effAddr, secs)
 			m.state.Memory.SetMemory(effAddr+4, nsecs)
 		}

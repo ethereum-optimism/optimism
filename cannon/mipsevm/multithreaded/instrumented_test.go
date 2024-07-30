@@ -55,8 +55,12 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 
 func TestInstrumentedState_Alloc(t *testing.T) {
 	state := testutil.LoadELFProgram(t, "../../example/bin/alloc.elf", CreateInitialState, false)
-	const numAllocs = 50 // where each alloc is a 32 MiB chunk
-	oracle := testutil.AllocOracle(t, numAllocs)
+	const numAllocs = 20
+	const allocSize = 64 * 1024 * 1024
+	const maxMemoryUsageCheck = 1 * 1024 * 1024 * 1024 // 1 GiB
+	// Irrespective of the cumulative bytes allocated, we assert that heap usage does not exceed 1 GiB
+	require.Less(t, maxMemoryUsageCheck, numAllocs*allocSize)
+	oracle := testutil.AllocOracle(t, numAllocs, allocSize)
 
 	// completes in ~870 M steps
 	us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger())
@@ -74,5 +78,5 @@ func TestInstrumentedState_Alloc(t *testing.T) {
 	t.Logf("Completed in %d steps. memory usage: %d", state.Step, memUsage)
 	require.True(t, state.Exited, "must complete program")
 	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
-	require.Less(t, memUsage, 1*1024*1024*1024, "must not allocate more than 1 GiB")
+	require.Less(t, memUsage, maxMemoryUsageCheck, "must not allocate more than 1 GiB")
 }

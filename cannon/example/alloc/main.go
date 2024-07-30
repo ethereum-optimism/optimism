@@ -12,11 +12,12 @@ func main() {
 	var mem []byte
 	po := preimage.NewOracleClient(preimage.ClientPreimageChannel())
 	numAllocs := binary.LittleEndian.Uint64(po.Get(preimage.LocalIndexKey(0)))
+	allocSize := binary.LittleEndian.Uint64(po.Get(preimage.LocalIndexKey(1)))
 
-	fmt.Printf("alloc program. numAllocs=%d\n", numAllocs)
+	fmt.Printf("alloc program. numAllocs=%d allocSize=%d\n", numAllocs, allocSize)
 	var alloc int
 	for i := 0; i < int(numAllocs); i++ {
-		mem = make([]byte, 32*1024*1024)
+		mem = make([]byte, allocSize)
 		alloc += len(mem)
 		// touch a couple pages to prevent the runtime from overcommitting memory
 		for j := 0; j < len(mem); j += 1024 {
