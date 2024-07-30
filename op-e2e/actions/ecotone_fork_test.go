@@ -45,6 +45,8 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	genesisBlock := hexutil.Uint64(0)
 	ecotoneOffset := hexutil.Uint64(4)
 
+	log := testlog.Logger(t, log.LevelDebug)
+
 	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
 
 	// Activate all forks at genesis, and schedule Ecotone the block after
@@ -52,10 +54,9 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &ecotoneOffset
-	require.NoError(t, dp.DeployConfig.Check(), "must have valid config")
+	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 
