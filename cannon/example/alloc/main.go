@@ -22,10 +22,16 @@ func main() {
 		for j := 0; j < len(mem); j += 1024 {
 			mem[j] = 0xFF
 		}
-		fmt.Printf("allocated %d bytes\n", alloc)
+		printGCStats(alloc)
 	}
 
+	fmt.Println("alloc program exit")
+	printGCStats(alloc)
+}
+
+func printGCStats(alloc int) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	fmt.Printf("alloc program exit. memstats: heap_alloc=%d frees=%d mallocs=%d\n", m.HeapAlloc, m.Frees, m.Mallocs)
+	fmt.Printf("allocated %d bytes. memstats: heap_alloc=%d next_gc=%d frees=%d mallocs=%d num_gc=%d\n",
+		alloc, m.HeapAlloc, m.NextGC, m.Frees, m.Mallocs, m.NumGC)
 }

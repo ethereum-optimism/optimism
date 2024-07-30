@@ -13,20 +13,21 @@ import (
 
 // Syscall codes
 const (
-	SysMmap       = 4090
-	SysMunmap     = 4091
-	SysBrk        = 4045
-	SysClone      = 4120
-	SysExitGroup  = 4246
-	SysRead       = 4003
-	SysWrite      = 4004
-	SysFcntl      = 4055
-	SysExit       = 4001
-	SysSchedYield = 4162
-	SysGetTID     = 4222
-	SysFutex      = 4238
-	SysOpen       = 4005
-	SysNanosleep  = 4166
+	SysMmap         = 4090
+	SysMunmap       = 4091
+	SysBrk          = 4045
+	SysClone        = 4120
+	SysExitGroup    = 4246
+	SysRead         = 4003
+	SysWrite        = 4004
+	SysFcntl        = 4055
+	SysExit         = 4001
+	SysSchedYield   = 4162
+	SysGetTID       = 4222
+	SysFutex        = 4238
+	SysOpen         = 4005
+	SysNanosleep    = 4166
+	SysClockGetTime = 4263
 )
 
 // Noop Syscall codes
@@ -56,6 +57,7 @@ const (
 	SysLlseek        = 4140
 	SysMinCore       = 4217
 	SysTgkill        = 4266
+	SysGetpid        = 4020
 )
 
 // Profiling-related syscalls
@@ -66,7 +68,6 @@ const (
 	SysTimerCreate  = 4257
 	SysTimerSetTime = 4258
 	SysTimerDelete  = 4261
-	SysClockGetTime = 4263
 )
 
 // File descriptors
@@ -131,8 +132,10 @@ const (
 
 // Other constants
 const (
-	SchedQuantum = 100_000
-	BrkStart     = 0x40000000
+	SchedQuantum              = 100_000
+	BrkStart                  = 0x40000000
+	HZ                        = 10_000_000
+	ClockGettimeMonotonicFlag = 1
 )
 
 func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2, a3 uint32) {
