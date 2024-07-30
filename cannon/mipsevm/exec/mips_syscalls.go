@@ -100,7 +100,7 @@ const (
 
 // SysClone flags
 // Handling is meant to support go runtime use cases
-// Pulled from: https://github.com/golang/go/blob/d8392e69973a64d96534d544d1f8ac2defc1bc64/src/runtime/os_linux.go#L124-L158
+// Pulled from: https://github.com/golang/go/blob/go1.21.3/src/runtime/os_linux.go#L124-L158
 const (
 	CloneVm            = 0x100
 	CloneFs            = 0x200
