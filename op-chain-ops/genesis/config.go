@@ -116,6 +116,8 @@ func (d *L2GenesisBlockDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// OwnershipDeployConfig defines the ownership of an L2 chain deployment.
+// This excludes superchain-wide contracts.
 type OwnershipDeployConfig struct {
 	// ProxyAdminOwner represents the owner of the ProxyAdmin predeploy on L2.
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
@@ -218,6 +220,7 @@ func (d *GovernanceDeployConfig) GovernanceEnabled() bool {
 	return d.EnableGovernance
 }
 
+// GasPriceOracleDeployConfig configures the GasPriceOracle L2 predeploy.
 type GasPriceOracleDeployConfig struct {
 	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
 	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
@@ -255,6 +258,7 @@ func (d *GasPriceOracleDeployConfig) FeeScalar() [32]byte {
 	})
 }
 
+// GasTokenDeployConfig configures the optional custom gas token functionality.
 type GasTokenDeployConfig struct {
 	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
 	UseCustomGasToken bool `json:"useCustomGasToken"`
@@ -274,6 +278,7 @@ func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// OperatorDeployConfig configures the hot-key addresses for operations such as sequencing and batch-submission.
 type OperatorDeployConfig struct {
 	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
 	P2PSequencerAddress common.Address `json:"p2pSequencerAddress"`
@@ -294,6 +299,7 @@ func (d *OperatorDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// EIP1559DeployConfig configures the EIP-1559 parameters of the chain.
 type EIP1559DeployConfig struct {
 	// EIP1559Elasticity is the elasticity of the EIP1559 fee market.
 	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
@@ -315,6 +321,7 @@ func (d *EIP1559DeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// UpgradeScheduleDeployConfig configures when network upgrades activate.
 type UpgradeScheduleDeployConfig struct {
 	// L2GenesisRegolithTimeOffset is the number of seconds after genesis block that Regolith hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Regolith.
@@ -411,6 +418,7 @@ func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// L2CoreDeployConfig configures the core protocol parameters of the chain.
 type L2CoreDeployConfig struct {
 	// L1ChainID is the chain ID of the L1 chain.
 	L1ChainID uint64 `json:"l1ChainID"`
@@ -471,6 +479,7 @@ func (d *L2CoreDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// PlasmaDeployConfig configures optional Alt-DA and Plasma functionality.
 type PlasmaDeployConfig struct {
 	// UsePlasma is a flag that indicates if the system is using op-plasma
 	UsePlasma bool `json:"usePlasma"`
@@ -545,6 +554,8 @@ type DevL1DeployConfig struct {
 	L1GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l1GenesisBlockBaseFeePerGas"`
 }
 
+// SuperchainL1DeployConfig configures parameters of the superchain-wide deployed contracts to L1.
+// This deployment is global, and can be reused between L2s that target the same superchain.
 type SuperchainL1DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are required to adopt, to stay in sync with the network.
@@ -570,6 +581,8 @@ func (d *SuperchainL1DeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// OutputOracleDeployConfig configures the legacy OutputOracle deployment to L1.
+// This is obsoleted with Fault Proofs. See FaultProofDeployConfig.
 type OutputOracleDeployConfig struct {
 	// L2OutputOracleSubmissionInterval is the number of L2 blocks between outputs that are submitted
 	// to the L2OutputOracle contract located on L1.
@@ -606,6 +619,7 @@ func (d *OutputOracleDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// FaultProofDeployConfig configures the fault-proof deployment to L1.
 type FaultProofDeployConfig struct {
 	// UseFaultProofs is a flag that indicates if the system is using fault
 	// proofs instead of the older output oracle mechanism.
@@ -658,6 +672,9 @@ func (d *FaultProofDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+// L1DependenciesConfig is the set of addresses that affect the L2 genesis construction,
+// and is dependent on prior deployment of contracts to L1. This is generally not configured in deploy-config JSON,
+// but rather merged in through a L1 deployments JSON file.
 type L1DependenciesConfig struct {
 	// L1StandardBridgeProxy represents the address of the L1StandardBridgeProxy on L1 and is used
 	// as part of building the L2 genesis state.
@@ -679,6 +696,8 @@ type L1DependenciesConfig struct {
 	DAChallengeProxy common.Address `json:"daChallengeProxy"`
 }
 
+// DependencyContext is the contextual configuration needed to verify the L1 dependencies,
+// used by DeployConfig.CheckAddresses.
 type DependencyContext struct {
 	UsePlasma        bool
 	DACommitmentType string
