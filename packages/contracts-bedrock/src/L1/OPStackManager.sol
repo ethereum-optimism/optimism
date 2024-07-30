@@ -34,9 +34,9 @@ contract OPStackManager is ISemver {
 
     function deploy(
         uint256 _l2ChainId,
-        Roles calldata _roles,
         uint32 _basefeeScalar,
-        uint32 _blobBasefeeScalar
+        uint32 _blobBasefeeScalar,
+        Roles calldata _roles
     )
         external
         view // This is only here to silence the compiler warning until the function is fully implemented.

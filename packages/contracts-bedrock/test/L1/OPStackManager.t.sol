@@ -35,12 +35,12 @@ contract OPStackManager_Test is Test {
 contract OPStackManager_Deploy_Test is OPStackManager_Test {
     function test_RevertsIf_L2ChainIdEqualsZero() public {
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        opsm.deploy(0, roles, basefeeScalar, blobBasefeeScalar);
+        opsm.deploy(0, basefeeScalar, blobBasefeeScalar, roles);
     }
 
     function test_RevertsIf_L2ChainIdEqualsCurrentChainId() public {
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        opsm.deploy(block.chainid, roles, basefeeScalar, blobBasefeeScalar);
+        opsm.deploy(block.chainid, basefeeScalar, blobBasefeeScalar, roles);
     }
 }
 
