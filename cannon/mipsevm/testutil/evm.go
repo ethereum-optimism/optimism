@@ -62,7 +62,7 @@ func loadArtifacts(version MipsVersion) (*Artifacts, error) {
 	case MipsSingleThreaded:
 		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json"
 	case MipsMultithreaded:
-		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS2.json"
+		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS2.sol/MIPS2.json"
 	default:
 		return nil, fmt.Errorf("Unknown MipsVersion supplied: %v", version)
 	}
