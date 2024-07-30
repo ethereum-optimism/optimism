@@ -29,34 +29,37 @@ contract OPStackManager is ISemver {
     /// @notice Thrown when a deployment fails.
     error DeploymentFailed(string reason);
 
+    /// @notice Temporary error since the deploy method is not yet implemented.
+    error NotImplemented();
+
     function deploy(
-        uint256 l2ChainId,
-        Roles calldata roles,
-        uint32 basefeeScalar,
-        uint32 blobBasefeeScalar
+        uint256 _l2ChainId,
+        Roles calldata _roles,
+        uint32 _basefeeScalar,
+        uint32 _blobBasefeeScalar
     )
         external
         view // This is only here to silence the compiler warning until the function is fully implemented.
-        returns (SystemConfig systemConfig)
+        returns (SystemConfig _systemConfig)
     {
-        if (l2ChainId == 0 || l2ChainId == block.chainid) revert InvalidChainId();
+        if (_l2ChainId == 0 || _l2ChainId == block.chainid) revert InvalidChainId();
 
         // Silence compiler warnings.
-        roles;
-        basefeeScalar;
-        blobBasefeeScalar;
-        systemConfig;
+        _roles;
+        _basefeeScalar;
+        _blobBasefeeScalar;
+        _systemConfig;
 
-        revert("Not implemented");
+        revert NotImplemented();
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
     /// configuration's convention. This convention is `versionByte || keccak256(bytes32(chainId))[:19]`,
     /// where || denotes concatenation`, versionByte is 0x00, and chainId is a uint256.
     /// https://specs.optimism.io/protocol/configurability.html#consensus-parameters
-    function chainIdToBatchInboxAddress(uint256 l2ChainId) internal pure returns (address) {
+    function chainIdToBatchInboxAddress(uint256 _l2ChainId) internal pure returns (address) {
         bytes1 versionByte = 0x00;
-        bytes32 hashedChainId = keccak256(bytes.concat(bytes32(l2ChainId)));
+        bytes32 hashedChainId = keccak256(bytes.concat(bytes32(_l2ChainId)));
         bytes19 first19Bytes = bytes19(hashedChainId);
         return address(uint160(bytes20(bytes.concat(versionByte, first19Bytes))));
     }
