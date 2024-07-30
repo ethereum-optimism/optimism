@@ -184,7 +184,10 @@ func NewDriver(
 	statusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", statusTracker, opts)
 
-	l1 = NewMeteredL1Fetcher(l1, metrics)
+	l1Tracker := status.NewL1Tracker(l1)
+	sys.Register("l1-blocks", l1Tracker, opts)
+
+	l1 = NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
 	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,

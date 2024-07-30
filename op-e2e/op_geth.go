@@ -55,7 +55,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	logger := testlog.Logger(t, log.LevelCrit)
 
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	l1Block := l1Genesis.ToBlock()
 
 	var allocsMode genesis.L2AllocsMode
@@ -67,7 +67,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	}
 	l2Allocs := config.L2Allocs(allocsMode)
 	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
 	rollupGenesis := rollup.Genesis{
@@ -86,8 +86,8 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	var node EthInstance
 	if cfg.ExternalL2Shim == "" {
 		gethNode, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
-		require.Nil(t, err)
-		require.Nil(t, gethNode.Start())
+		require.NoError(t, err)
+		require.NoError(t, gethNode.Start())
 		node = gethNode
 	} else {
 		externalNode := (&ExternalRunner{
@@ -113,14 +113,14 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		nil,
 		sources.EngineClientDefaultConfig(rollupCfg),
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	l2Client, err := ethclient.Dial(selectEndpoint(node))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock, cfg.DeployConfig.CanyonTime(l2GenesisBlock.Time()))
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	return &OpGeth{
 		node:          node,
 		L2Client:      l2Client,
@@ -151,14 +151,14 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	}
 	res, err := d.StartBlockBuilding(ctx, attrs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("start block building: %w", err)
 	}
 
 	envelope, err := d.l2Engine.GetPayload(ctx, eth.PayloadInfo{ID: *res.PayloadID, Timestamp: uint64(attrs.Timestamp)})
 	payload := envelope.ExecutionPayload
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get payload: %w", err)
 	}
 	if !reflect.DeepEqual(payload.Transactions, attrs.Transactions) {
 		return nil, errors.New("required transactions were not included")
@@ -166,7 +166,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 
 	status, err := d.l2Engine.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new payload: %w", err)
 	}
 	if status.Status != eth.ExecutionValid {
 		return nil, fmt.Errorf("%w: %s", ErrNewPayloadNotValid, status.Status)
@@ -178,7 +178,7 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	}
 	res, err = d.l2Engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("forkchoice update: %w", err)
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, fmt.Errorf("%w: %s", ErrForkChoiceUpdatedNotValid, res.PayloadStatus.Status)
@@ -235,6 +235,10 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 	var parentBeaconBlockRoot *common.Hash
 	if d.L2ChainConfig.IsEcotone(uint64(timestamp)) {
 		parentBeaconBlockRoot = d.L1Head.ParentBeaconRoot()
+		// In case L1 hasn't activated Dencun yet.
+		if parentBeaconBlockRoot == nil {
+			parentBeaconBlockRoot = &(common.Hash{})
+		}
 	}
 
 	attrs := eth.PayloadAttributes{

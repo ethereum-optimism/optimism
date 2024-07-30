@@ -35,6 +35,9 @@ parameters:
   sdk_dispatch:
     type: boolean
     default: false
+  docker_publish_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -165,11 +168,11 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon/mipsevm/open_mips_tests/test
+          patterns: cannon/mipsevm/tests/open_mips_tests/test
       - run:
           name: Build MIPS test vectors
           command: python3 maketests.py && git diff --exit-code
-          working_directory: cannon/mipsevm/open_mips_tests
+          working_directory: cannon/mipsevm/tests/open_mips_tests
 
   pnpm-monorepo:
     docker:
@@ -206,7 +209,7 @@ jobs:
             - "node_modules"
       - run:
           name: Install dependencies
-          command: pnpm install:ci:offline
+          command: pnpm install
       - run:
           name: print forge version
           command: forge --version
@@ -319,7 +322,10 @@ jobs:
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
-          condition: "<<parameters.release>>"
+          condition:
+            or:
+              - "<<parameters.publish>>"
+              - "<<parameters.release>>"
           steps:
             - gcp-cli/install
       - when:
@@ -541,17 +547,8 @@ jobs:
       - run:
           name: git submodules
           command: make submodules
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,op-node
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
       - run:
           name: print forge version
           command: forge --version
@@ -585,7 +582,8 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install:ci
+          command: pnpm install
+          working_directory: packages/contracts-bedrock
       - run:
           name: forge version
           command: forge --version
@@ -693,53 +691,13 @@ jobs:
       - attach_workspace: { at: "." }
       - run:
           name: Install dependencies
-          command: pnpm install:ci
+          command: pnpm install
       - check-changed:
           patterns: contracts-bedrock
       - run:
           name: validate spacers
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
-
-  js-lint-test:
-    parameters:
-      package_name:
-        description: Package name
-        type: string
-      dependencies:
-        description: Regex matching dependent packages
-        type: string
-        default: this-package-does-not-exist
-      coverage_flag:
-        description: Coverage flag name
-        type: string
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: <<parameters.package_name>>,<<parameters.dependencies>>
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: Lint
-          command: pnpm lint && git diff --exit-code
-          working_directory: packages/<<parameters.package_name>>
-      - run:
-          name: Test
-          command: pnpm test:coverage
-          working_directory: packages/<<parameters.package_name>>
-      - run:
-          name: Upload coverage
-          command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
   todo-issues:
     machine:
@@ -1178,6 +1136,10 @@ jobs:
             tar -xzvf geth-alltools-linux-amd64-1.13.14-2bd6bd01.tar.gz
             sudo cp geth-alltools-linux-amd64-1.13.14-2bd6bd01/* /usr/local/bin
       - run:
+          name: Install eth2-testnet-genesis
+          command: |
+            go install -v github.com/protolambda/eth2-testnet-genesis@$(jq -r .eth2_testnet_genesis < versions.json)
+      - run:
           name: foundryup
           command: |
             curl -L https://foundry.paradigm.xyz | bash
@@ -1231,14 +1193,16 @@ jobs:
             docker tag "$IMAGE_BASE_PREFIX/op-challenger:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-challenger:devnet"
             docker tag "$IMAGE_BASE_PREFIX/da-server:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/da-server:devnet"
       - run:
-          name: pnpm i
+          name: pnpm install and build
           command: |
-            pnpm i && pnpm build
+            pnpm install && pnpm build
       - run:
           name: Bring up the stack
           command: |
             # Specify like this to avoid a forced rebuild of the contracts + devnet L1
             PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+            echo "Waiting for 10 seconds to give the devnet time to settle in..."
+            sleep 10
       - run:
           name: Test the stack
           command: make devnet-test
@@ -1256,6 +1220,16 @@ jobs:
           name: Dump l1 logs
           command: |
             docker logs ops-bedrock-l1-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1-bn logs
+          command: |
+            docker logs ops-bedrock-l1-bn-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1-vc logs
+          command: |
+            docker logs ops-bedrock-l1-vc-1 || echo "No logs."
           when: on_fail
       - run:
           name: Dump op-batcher logs
@@ -1536,28 +1510,12 @@ workflows:
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
-      - contracts-bedrock-tests:
-          requires:
-            - pnpm-monorepo
+      - contracts-bedrock-tests
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
             - pnpm-monorepo
       - contracts-bedrock-validate-spaces:
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: chain-mon-tests
-          coverage_flag: chain-mon-tests
-          package_name: chain-mon
-          dependencies: "(contracts-bedrock|sdk)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: sdk-tests
-          coverage_flag: sdk-tests
-          package_name: sdk
-          dependencies: "contracts-bedrock"
           requires:
             - pnpm-monorepo
       - semgrep-scan
@@ -1786,7 +1744,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build:
@@ -1985,22 +1943,6 @@ workflows:
           requires:
             - op-supervisor-docker-release
       - docker-build:
-          name: chain-mon-docker-release
-          filters:
-            tags:
-              only: /^chain-mon\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: chain-mon
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          resource_class: xlarge
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-build:
           name: ci-builder-docker-release
           filters:
             tags:
@@ -2112,7 +2054,10 @@ workflows:
 
   scheduled-docker-publish:
     when:
-      equal: [ build_hourly, <<pipeline.schedule.name>> ]
+      or:
+        - equal: [ build_hourly, <<pipeline.schedule.name>> ]
+        # Trigger on manual triggers if explicitly requested
+        - equal: [ true, << pipeline.parameters.docker_publish_dispatch >> ]
     jobs:
       - docker-build:
           name: op-node-docker-publish
@@ -2123,6 +2068,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-node-cross-platform
+          op_component: op-node
+          requires:
+            - op-node-docker-publish
       - docker-build:
           name: op-batcher-docker-publish
           docker_name: op-batcher
@@ -2132,6 +2082,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-batcher-cross-platform
+          op_component: op-batcher
+          requires:
+            - op-batcher-docker-publish
       - docker-build:
           name: op-program-docker-publish
           docker_name: op-program
@@ -2141,6 +2096,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-program-cross-platform
+          op_component: op-program
+          requires:
+            - op-program-docker-publish
       - docker-build:
           name: op-proposer-docker-publish
           docker_name: op-proposer
@@ -2150,6 +2110,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-proposer-cross-platform
+          op_component: op-proposer
+          requires:
+            - op-proposer-docker-publish
       - docker-build:
           name: op-challenger-docker-publish
           docker_name: op-challenger
@@ -2159,6 +2124,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-challenger-cross-platform
+          op_component: op-challenger
+          requires:
+            - op-challenger-docker-publish
       - docker-build:
           name: op-dispute-mon-docker-publish
           docker_name: op-dispute-mon
@@ -2168,6 +2138,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-dispute-mon-cross-platform
+          op_component: op-dispute-mon
+          requires:
+            - op-dispute-mon-docker-publish
       - docker-build:
           name: op-conductor-docker-publish
           docker_name: op-conductor
@@ -2177,6 +2152,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-conductor-cross-platform
+          op_component: op-conductor
+          requires:
+            - op-conductor-docker-publish
       - docker-build:
           name: op-heartbeat-docker-publish
           docker_name: op-heartbeat
@@ -2186,6 +2166,11 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+      - check-cross-platform:
+          name: op-heartbeat-cross-platform
+          op_component: op-heartbeat
+          requires:
+            - op-heartbeat-docker-publish
       - docker-build:
           name: op-supervisor-docker-publish
           docker_name: op-supervisor
@@ -2195,21 +2180,16 @@ workflows:
           context:
             - oplabs-gcr
             - slack
-      - docker-build:
-          name: chain-mon-docker-publish
-          docker_name: chain-mon
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          resource_class: xlarge
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
+      - check-cross-platform:
+          name: op-supervisor-cross-platform
+          op_component: op-supervisor
+          requires:
+            - op-supervisor-docker-publish
       - docker-build:
           name: contracts-bedrock-docker-publish
           docker_name: contracts-bedrock
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           resource_class: xlarge
-          requires: [ 'chain-mon-docker-publish' ] # use the cached base image
           publish: true
           context:
             - oplabs-gcr

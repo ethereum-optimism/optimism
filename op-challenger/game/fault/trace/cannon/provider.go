@@ -10,17 +10,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
 type CannonTraceProvider struct {
@@ -162,7 +162,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 	return &proof, nil
 }
 
-func (c *CannonTraceProvider) finalState() (*mipsevm.State, error) {
+func (c *CannonTraceProvider) finalState() (*singlethreaded.State, error) {
 	state, err := parseState(filepath.Join(c.dir, vm.FinalState))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read final state: %w", err)

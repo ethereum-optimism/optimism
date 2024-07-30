@@ -7,14 +7,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
 )
 
 var (
-	// Returned by CriticalError when there is an incompatible tx type already in the mempool.
-	// geth defines this error as txpool.ErrAlreadyReserved in v1.13.14 so we can remove this
-	// declaration once op-geth is updated to this version.
-	ErrAlreadyReserved = errors.New("address already reserved")
-
 	// Returned by CriticalError when the system is unable to get the tx into the mempool in the
 	// allotted time
 	ErrMempoolDeadlineExpired = errors.New("failed to get tx into the mempool")
@@ -76,7 +72,7 @@ func (s *SendState) ProcessSendError(err error) {
 		s.successFullPublishCount++
 	case errStringMatch(err, core.ErrNonceTooLow):
 		s.nonceTooLowCount++
-	case errStringMatch(err, ErrAlreadyReserved):
+	case errStringMatch(err, txpool.ErrAlreadyReserved):
 		s.alreadyReserved = true
 	}
 }
@@ -129,7 +125,7 @@ func (s *SendState) CriticalError() error {
 		return ErrMempoolDeadlineExpired
 	case s.alreadyReserved:
 		// incompatible tx type in mempool
-		return ErrAlreadyReserved
+		return txpool.ErrAlreadyReserved
 	}
 	return nil
 }

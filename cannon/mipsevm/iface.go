@@ -1,12 +1,19 @@
 package mipsevm
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+)
 
 type FPVMState interface {
-	GetMemory() *Memory
+	GetMemory() *memory.Memory
 
 	// GetPC returns the currently executing program counter
 	GetPC() uint32
+
+	// GetRegisters returns the currently active registers
+	GetRegisters() *[32]uint32
 
 	// GetStep returns the current VM step
 	GetStep() uint64
@@ -27,6 +34,9 @@ type FPVM interface {
 
 	// Step executes a single instruction and returns the witness for the step
 	Step(includeProof bool) (*StepWitness, error)
+
+	// CheckInfiniteLoop returns true if the vm is stuck in an infinite loop
+	CheckInfiniteLoop() bool
 
 	// LastPreimage returns the last preimage accessed by the VM
 	LastPreimage() (preimageKey [32]byte, preimage []byte, preimageOffset uint32)

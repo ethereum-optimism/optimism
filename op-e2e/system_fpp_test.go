@@ -134,7 +134,8 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	l2OutputRoot := agreedL2Output.OutputRoot
 
 	t.Log("=====Stopping batch submitter=====")
-	err = sys.BatchSubmitter.Driver().StopBatchSubmitting(ctx)
+	driver := sys.BatchSubmitter.TestDriver()
+	err = driver.StopBatchSubmitting(ctx)
 	require.NoError(t, err, "could not stop batch submitter")
 
 	// Wait for the sequencer to catch up with the current L1 head so we know all submitted batches are processed
@@ -162,7 +163,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	l2Claim := l2Output.OutputRoot
 
 	t.Log("=====Restarting batch submitter=====")
-	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
+	err = driver.StartBatchSubmitting()
 	require.NoError(t, err, "could not start batch submitter")
 
 	t.Log("Add a transaction to the next batch after sequence of empty blocks")

@@ -26,7 +26,7 @@ variable "IMAGE_TAGS" {
 
 variable "PLATFORMS" {
   // You can override this as "linux/amd64,linux/arm64".
-  // Only a specify a single platform when `--load` ing into docker.
+  // Only specify a single platform when `--load` ing into docker.
   // Multi-platform is supported when outputting to disk or pushing to a registry.
   // Multi-platform builds can be tested locally with:  --set="*.output=type=image,push=false"
   default = ""
@@ -214,21 +214,6 @@ target "cannon" {
   target = "cannon-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
-}
-
-target "chain-mon" {
-  dockerfile = "./ops/docker/Dockerfile.packages"
-  context = "."
-  args = {
-    // proxyd dockerfile has no _ in the args
-    GITCOMMIT = "${GIT_COMMIT}"
-    GITDATE = "${GIT_DATE}"
-    GITVERSION = "${GIT_VERSION}"
-  }
-  // this is a multi-stage build, where each stage is a possible output target, but wd-mon is all we publish
-  target = "wd-mon"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/chain-mon:${tag}"]
 }
 
 target "ci-builder" {

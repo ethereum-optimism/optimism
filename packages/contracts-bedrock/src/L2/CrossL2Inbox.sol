@@ -10,7 +10,7 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 /// @title IDependencySet
 /// @notice Interface for L1Block with only `isInDependencySet(uint256)` method.
 interface IDependencySet {
-    /// @notice Returns true iff the chain associated with input chain ID is in the interop dependency set.
+    /// @notice Returns true if the chain associated with input chain ID is in the interop dependency set.
     ///         Every chain is in the interop dependency set of itself.
     /// @param _chainId Input chain ID.
     /// @return True if the input chain ID corresponds to a chain in the interop dependency set, and false otherwise.
@@ -56,8 +56,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     bytes32 internal constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     /// @notice Emitted when a cross chain message is being executed.
     /// @param encodedId Encoded Identifier of the message.

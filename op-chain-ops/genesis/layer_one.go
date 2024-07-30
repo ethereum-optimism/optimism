@@ -8,7 +8,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 // PrecompileCount represents the number of precompile addresses
@@ -45,6 +49,24 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *foundry.ForgeAllocs, l1
 			log.Info("Excluded L1 deployment", "name", name, "address", addr)
 		}
 	})
+
+	beaconDepositAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	if err := beacondeposit.InsertEmptyBeaconDepositContract(genesis, beaconDepositAddr); err != nil {
+		return nil, fmt.Errorf("failed to insert beacon deposit contract into L1 dev genesis: %w", err)
+	}
+
+	// For 4788, make sure the 4788 beacon-roots contract is there.
+	// (required to be there before L1 Dencun activation)
+	genesis.Alloc[predeploys.EIP4788ContractAddr] = types.Account{
+		Balance: new(big.Int),
+		Nonce:   1,
+		Code:    predeploys.EIP4788ContractCode,
+	}
+	// Also record the virtual deployer address
+	genesis.Alloc[predeploys.EIP4788ContractDeployer] = types.Account{
+		Balance: new(big.Int),
+		Nonce:   1,
+	}
 
 	return genesis, nil
 }

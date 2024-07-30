@@ -82,7 +82,7 @@ along the branch of the leaf value, starting from the bottom.
 
 To verify the proof, start with the leaf value as `node`, and combine it with respective sibling values:
 `node = keccak256(node ++ sibling)` or `node = keccak256(sibling ++ node)`,
-depending the position of `node` at that level of the tree.
+depending on the position of `node` at that level of the tree.
 
 During the onchain execution, each instruction only executes 1 or 2 memory reads, followed by 0 or 1 writes,
 where the write is over the same memory as was last read.

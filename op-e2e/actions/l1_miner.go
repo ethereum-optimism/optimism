@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
@@ -82,6 +83,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			Extra:      []byte("L1 was here"),
 			MixDigest:  common.Hash{}, // TODO: maybe randomize this (prev-randao value)
 		}
+
 		if s.l1Cfg.Config.IsLondon(header.Number) {
 			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent, header.Time)
 			// At the transition, double the gas limit so the gas target is equal to the old gas limit.
@@ -89,14 +91,29 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
 			}
 		}
+
 		if s.l1Cfg.Config.IsShanghai(header.Number, header.Time) {
 			header.WithdrawalsHash = &types.EmptyWithdrawalsHash
 		}
+
 		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
 			header.BlobGasUsed = new(uint64)
 			header.ExcessBlobGas = new(uint64)
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
+
+			// Copied from op-program/client/l2/engineapi/block_processor.go
+			// TODO(client-pod#826)
+			// Unfortunately this is not part of any Geth environment setup,
+			// we just have to apply it, like how the Geth block-builder worker does.
+			context := core.NewEVMBlockContext(header, s.l1Chain, nil, s.l1Chain.Config(), statedb)
+			// NOTE: Unlikely to be needed for the beacon block root, but we setup any precompile overrides anyways for forwards-compatibility
+			var precompileOverrides vm.PrecompileOverrides
+			if vmConfig := s.l1Chain.GetVMConfig(); vmConfig != nil && vmConfig.OptimismPrecompileOverrides != nil {
+				precompileOverrides = vmConfig.OptimismPrecompileOverrides
+			}
+			vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, s.l1Chain.Config(), vm.Config{OptimismPrecompileOverrides: precompileOverrides})
+			core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, statedb)
 		}
 
 		s.l1Building = true

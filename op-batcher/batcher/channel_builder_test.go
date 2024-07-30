@@ -82,18 +82,19 @@ func newMiniL2BlockWithNumberParentAndL1Information(numTx int, l2Number *big.Int
 
 // addTooManyBlocks adds blocks to the channel until it hits an error,
 // which is presumably ErrTooManyRLPBytes.
-func addTooManyBlocks(cb *ChannelBuilder) error {
+func addTooManyBlocks(cb *ChannelBuilder, blockCount int) (int, error) {
 	rng := rand.New(rand.NewSource(1234))
 	t := time.Now()
-	for i := 0; i < 10_000; i++ {
+
+	for i := 0; i < blockCount; i++ {
 		block := dtest.RandomL2BlockWithChainIdAndTime(rng, 1000, defaultTestRollupConfig.L2ChainID, t.Add(time.Duration(i)*time.Second))
 		_, err := cb.AddBlock(block)
 		if err != nil {
-			return err
+			return i + 1, err
 		}
 	}
 
-	return nil
+	return blockCount, nil
 }
 
 // FuzzDurationTimeoutZeroMaxChannelDuration ensures that when whenever the MaxChannelDuration
@@ -292,6 +293,7 @@ func TestChannelBuilderBatchType(t *testing.T) {
 		f    func(t *testing.T, batchType uint)
 	}{
 		{"ChannelBuilder_MaxRLPBytesPerChannel", ChannelBuilder_MaxRLPBytesPerChannel},
+		{"ChannelBuilder_MaxRLPBytesPerFjord", ChannelBuilder_MaxRLPBytesPerChannelFjord},
 		{"ChannelBuilder_OutputFramesMaxFrameIndex", ChannelBuilder_OutputFramesMaxFrameIndex},
 		{"ChannelBuilder_AddBlock", ChannelBuilder_AddBlock},
 		{"ChannelBuilder_PendingFrames_TotalFrames", ChannelBuilder_PendingFrames_TotalFrames},
@@ -367,7 +369,7 @@ func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint) {
 	// the type of batch does not matter here because we are using it to construct a broken frame
 	c, err := channelConfig.CompressorConfig.NewCompressor()
 	require.NoError(t, err)
-	co, err := derive.NewSingularChannelOut(c)
+	co, err := derive.NewSingularChannelOut(c, rollup.NewChainSpec(&defaultTestRollupConfig))
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	fn, err := co.OutputFrame(&buf, channelConfig.MaxFrameSize)
@@ -505,7 +507,8 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.Compression
 func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 	t.Parallel()
 	channelConfig := defaultTestChannelConfig()
-	channelConfig.MaxFrameSize = rollup.SafeMaxRLPBytesPerChannel * 2
+	chainSpec := rollup.NewChainSpec(&defaultTestRollupConfig)
+	channelConfig.MaxFrameSize = chainSpec.MaxRLPBytesPerChannel(latestL1BlockOrigin) * 2
 	channelConfig.InitNoneCompressor()
 	channelConfig.BatchType = batchType
 
@@ -514,8 +517,52 @@ func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 	require.NoError(t, err)
 
 	// Add a block that overflows the [ChannelOut]
-	err = addTooManyBlocks(cb)
+	_, err = addTooManyBlocks(cb, 10_000)
 	require.ErrorIs(t, err, derive.ErrTooManyRLPBytes)
+}
+
+// ChannelBuilder_MaxRLPBytesPerChannelFjord tests the [ChannelBuilder.OutputFrames]
+// function works as intended postFjord.
+// strategy:
+// check preFjord how many blocks to fill the channel
+// then check postFjord w/ double the amount of blocks
+func ChannelBuilder_MaxRLPBytesPerChannelFjord(t *testing.T, batchType uint) {
+	t.Parallel()
+	channelConfig := defaultTestChannelConfig()
+	chainSpec := rollup.NewChainSpec(&defaultTestRollupConfig)
+	channelConfig.MaxFrameSize = chainSpec.MaxRLPBytesPerChannel(latestL1BlockOrigin) * 2
+	channelConfig.InitNoneCompressor()
+	channelConfig.BatchType = batchType
+
+	// Construct the channel builder
+	cb, err := NewChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
+	require.NoError(t, err)
+
+	// Count how many a block that overflows the [ChannelOut]
+	blockCount, err := addTooManyBlocks(cb, 10_000)
+	require.ErrorIs(t, err, derive.ErrTooManyRLPBytes)
+
+	// Create a new channel builder with fjord fork
+	now := time.Now()
+	fjordTime := uint64(now.Add(-1 * time.Second).Unix())
+	rollupConfig := rollup.Config{
+		Genesis:   rollup.Genesis{L2: eth.BlockID{Number: 0}},
+		L2ChainID: big.NewInt(1234),
+		FjordTime: &fjordTime,
+	}
+
+	chainSpec = rollup.NewChainSpec(&rollupConfig)
+	channelConfig.MaxFrameSize = chainSpec.MaxRLPBytesPerChannel(uint64(now.Unix())) * 2
+	channelConfig.InitNoneCompressor()
+	channelConfig.BatchType = batchType
+
+	cb, err = NewChannelBuilder(channelConfig, rollupConfig, latestL1BlockOrigin)
+	require.NoError(t, err)
+
+	// try add double the amount of block, it should not error
+	_, err = addTooManyBlocks(cb, 2*blockCount)
+
+	require.NoError(t, err)
 }
 
 // ChannelBuilder_OutputFramesMaxFrameIndex tests the [ChannelBuilder.OutputFrames]

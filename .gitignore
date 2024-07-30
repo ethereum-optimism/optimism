@@ -2,9 +2,7 @@
 node_modules
 results
 temp
-.nyc_output
 coverage.json
-*.tsbuildinfo
 **/lcov.info
 
 yarn-error.log

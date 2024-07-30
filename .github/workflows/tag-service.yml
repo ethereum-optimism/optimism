@@ -22,7 +22,6 @@ on:
           - ci-builder-rust
           - ci-builder-security-tools
           - op-heartbeat
-          - chain-mon
           - op-node
           - op-batcher
           - op-proposer

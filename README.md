@@ -80,9 +80,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
 ├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
-│   ├── <a href="./packages/devnet-tasks">devnet-tasks</a>: Legacy Hardhat tasks used within devnet CI tests
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
 </pre>
@@ -116,8 +114,6 @@ See the [Node Software Releases](https://docs.optimism.io/builders/node-operator
 
 The full set of components that have releases are:
 
-- `chain-mon`
-- `ci-builder`
 - `ci-builder`
 - `op-batcher`
 - `op-contracts`
