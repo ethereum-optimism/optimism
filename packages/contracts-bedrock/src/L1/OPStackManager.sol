@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
+/// @custom:proxied
 contract OPStackManager is ISemver {
     /// @custom:semver 1.0.0-beta.1
     string public constant version = "1.0.0-beta.1";
@@ -40,7 +41,7 @@ contract OPStackManager is ISemver {
     )
         external
         view // This is only here to silence the compiler warning until the function is fully implemented.
-        returns (SystemConfig _systemConfig)
+        returns (SystemConfig systemConfig_)
     {
         if (_l2ChainId == 0 || _l2ChainId == block.chainid) revert InvalidChainId();
 
@@ -48,7 +49,7 @@ contract OPStackManager is ISemver {
         _roles;
         _basefeeScalar;
         _blobBasefeeScalar;
-        _systemConfig;
+        systemConfig_;
 
         revert NotImplemented();
     }

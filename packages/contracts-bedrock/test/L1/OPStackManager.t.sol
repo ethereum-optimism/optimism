@@ -18,7 +18,7 @@ contract OPStackManager_Harness is OPStackManager {
 // because OPStackManager acts as a deploy script, so we start from a clean slate here and
 // work OPStackManager's deployment into the existing test setup, instead of using the existing
 // test setup to deploy OPStackManager.
-contract OPStackManager_Test is Test {
+contract OPStackManager_Init is Test {
     OPStackManager opsm;
 
     // Default dummy parameters for the deploy function.
@@ -32,20 +32,21 @@ contract OPStackManager_Test is Test {
     }
 }
 
-contract OPStackManager_Deploy_Test is OPStackManager_Test {
-    function test_RevertsIf_L2ChainIdEqualsZero() public {
+contract OPStackManager_Deploy_Test is OPStackManager_Init {
+    function test_deploy_l2ChainIdEqualsZero_reverts() public {
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
         opsm.deploy(0, basefeeScalar, blobBasefeeScalar, roles);
     }
 
-    function test_RevertsIf_L2ChainIdEqualsCurrentChainId() public {
+    function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
         opsm.deploy(block.chainid, basefeeScalar, blobBasefeeScalar, roles);
     }
 }
 
-contract OPStackManager_ChainIdToBatchInboxAddress_Test is OPStackManager_Test {
-    function test_CalculatesBatchInboxAddress() public {
+// These tests use the harness which exposes internal functions for testing.
+contract OPStackManager_InternalMethods_Test is Test {
+    function test_calculatesBatchInboxAddress_succeeds() public {
         OPStackManager_Harness opsmHarness = new OPStackManager_Harness();
 
         // These test vectors were calculated manually:
