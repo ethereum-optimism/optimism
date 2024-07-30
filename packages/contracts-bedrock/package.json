@@ -60,7 +60,7 @@
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-jsdoc": "^48.8.3",
     "eslint-plugin-prefer-arrow": "^1.2.3",
-    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-prettier": "^5.2.1",
     "prettier": "^2.8.0",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"
