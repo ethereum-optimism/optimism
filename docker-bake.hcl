@@ -233,11 +233,11 @@ target "ci-builder-rust" {
 }
 
 target "ci-builder-security-tools" {
-  dockerfile = "./ops/docker/ci-builder/Dockerfile"
-  context = "."
-  platforms = split(",", PLATFORMS)
-  target="security-tools-builder"
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder-security-tools:${tag}"]
+    dockerfile = "./ops/docker/ci-builder/security-tools/Dockerfile"
+    context = "."
+    platforms = split(",", PLATFORMS)
+    depends_on = ["ci-builder"]
+    tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder-security-tools:${tag}"]
 }
 
 target "contracts-bedrock" {

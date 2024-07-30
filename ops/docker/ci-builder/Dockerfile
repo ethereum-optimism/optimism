@@ -157,15 +157,3 @@ COPY --from=rust-build /root/.rustup /root/.rustup
 # copy the rust installation, alongside the installed toolchains
 COPY --from=rust-build /root/.cargo/bin /root/.cargo/bin
 COPY --from=rust-build /root/.rustup /root/.rustup
-
-# Security tools builder stage
-FROM base-builder as security-tools-builder
-
-# Install nvm
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-
-# Verify nvm installation
-RUN nvm --version
-
-# Install node
-RUN nvm install 20
