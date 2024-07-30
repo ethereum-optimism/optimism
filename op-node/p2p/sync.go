@@ -438,10 +438,10 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	s.trusted.Add(req.end.Hash, struct{}{})
 	s.trusted.Add(req.end.ParentHash, struct{}{})
 
-	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
+	// Now try to fetch higher numbers than current start, so that the queued unsafe execution payload doesn't grow too big.
 	for i := uint64(0); ; i++ {
-		num := req.end.Number - 1 - i
-		if num <= req.start {
+		num := req.start + 1 + i
+		if num >= req.end.Number {
 			return
 		}
 		// check if we have something in quarantine already
