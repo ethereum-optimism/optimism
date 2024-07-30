@@ -1,7 +1,9 @@
-package singlethreaded
+package multithreaded
 
 import (
 	"io"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
@@ -10,52 +12,42 @@ import (
 )
 
 type InstrumentedState struct {
-	meta       *program.Metadata
-	sleepCheck program.SymbolMatcher
-
 	state *State
 
+	log    log.Logger
 	stdOut io.Writer
 	stdErr io.Writer
 
 	memoryTracker *exec.MemoryTrackerImpl
-	stackTracker  exec.TraceableStackTracker
+	stackTracker  ThreadedStackTracker
 
 	preimageOracle *exec.TrackingPreimageOracleReader
 }
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 
-func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta *program.Metadata) *InstrumentedState {
-	var sleepCheck program.SymbolMatcher
-	if meta == nil {
-		sleepCheck = func(addr uint32) bool { return false }
-	} else {
-		sleepCheck = meta.CreateSymbolMatcher("runtime.notesleep")
-	}
-
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) *InstrumentedState {
 	return &InstrumentedState{
-		meta:           meta,
-		sleepCheck:     sleepCheck,
 		state:          state,
+		log:            log,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
-		stackTracker:   &exec.NoopStackTracker{},
+		stackTracker:   &NoopThreadedStackTracker{},
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
 	}
 }
 
-func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta *program.Metadata) (*InstrumentedState, error) {
+func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) (*InstrumentedState, error) {
 	state, err := jsonutil.LoadJSON[State](stateFile)
 	if err != nil {
 		return nil, err
 	}
-	return NewInstrumentedState(state, po, stdOut, stdErr, meta), nil
+	return NewInstrumentedState(state, po, stdOut, stdErr, log), nil
 }
 
-func (m *InstrumentedState) InitDebug() error {
-	stackTracker, err := exec.NewStackTracker(m.state, m.meta)
+func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
+	stackTracker, err := NewThreadedStackTracker(m.state, meta)
 	if err != nil {
 		return err
 	}
@@ -68,12 +60,17 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 	m.memoryTracker.Reset(proof)
 
 	if proof {
-		insnProof := m.state.Memory.MerkleProof(m.state.Cpu.PC)
+		proofData := make([]byte, 0)
+		threadProof := m.state.EncodeThreadProof()
+		insnProof := m.state.Memory.MerkleProof(m.state.GetPC())
+		proofData = append(proofData, threadProof[:]...)
+		proofData = append(proofData, insnProof[:]...)
+
 		encodedWitness, stateHash := m.state.EncodeWitness()
 		wit = &mipsevm.StepWitness{
 			State:     encodedWitness,
 			StateHash: stateHash,
-			ProofData: insnProof[:],
+			ProofData: proofData,
 		}
 	}
 	err = m.mipsStep()
@@ -95,7 +92,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 }
 
 func (m *InstrumentedState) CheckInfiniteLoop() bool {
-	return m.sleepCheck(m.state.GetPC())
+	return false
 }
 
 func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {

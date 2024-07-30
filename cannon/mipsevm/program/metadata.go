@@ -50,7 +50,9 @@ func (m *Metadata) LookupSymbol(addr uint32) string {
 	return out.Name
 }
 
-func (m *Metadata) SymbolMatcher(name string) func(addr uint32) bool {
+type SymbolMatcher func(addr uint32) bool
+
+func (m *Metadata) CreateSymbolMatcher(name string) SymbolMatcher {
 	for _, s := range m.Symbols {
 		if s.Name == name {
 			start := s.Start
