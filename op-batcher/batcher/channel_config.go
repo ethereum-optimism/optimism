@@ -43,9 +43,9 @@ type ChannelConfig struct {
 	// BatchType indicates whether the channel uses SingularBatch or SpanBatch.
 	BatchType uint
 
-	// Whether to put all frames of a channel inside a single tx.
-	// Should only be used for blob transactions.
-	MultiFrameTxs bool
+	// UseBlobs indicates that this channel should be sent as a multi-blob
+	// transaction with one blob per frame.
+	UseBlobs bool
 }
 
 // ChannelConfig returns a copy of itself. This makes a ChannelConfig a static
@@ -90,7 +90,7 @@ func (cc *ChannelConfig) ReinitCompressorConfig() {
 }
 
 func (cc *ChannelConfig) MaxFramesPerTx() int {
-	if !cc.MultiFrameTxs {
+	if !cc.UseBlobs {
 		return 1
 	}
 	return cc.TargetNumFrames

@@ -221,7 +221,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"compression_algo", cfg.CompressorConfig.CompressionAlgo,
 		"target_num_frames", cfg.TargetNumFrames,
 		"max_frame_size", cfg.MaxFrameSize,
-		"use_blobs", cfg.MultiFrameTxs,
+		"use_blobs", cfg.UseBlobs,
 	)
 	s.metr.RecordChannelOpened(pc.ID(), len(s.blocks))
 

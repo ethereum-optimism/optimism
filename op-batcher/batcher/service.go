@@ -201,7 +201,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 			// account for version byte prefix
 			cc.MaxFrameSize = eth.MaxBlobDataSize - 1
 		}
-		cc.MultiFrameTxs = true
+		cc.UseBlobs = true
 	case flags.CalldataType: // do nothing
 	default:
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
@@ -213,10 +213,10 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 
 	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor, cfg.CompressionAlgo)
 
-	if cc.MultiFrameTxs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
+	if cc.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
 		return errors.New("cannot use Blobs before Ecotone")
 	}
-	if !cc.MultiFrameTxs && bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
+	if !cc.UseBlobs && bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
 		bs.Log.Warn("Ecotone upgrade is active, but batcher is not configured to use Blobs!")
 	}
 
@@ -248,7 +248,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		calldataCC := cc
 		calldataCC.TargetNumFrames = 1
 		calldataCC.MaxFrameSize = 120_000
-		calldataCC.MultiFrameTxs = false
+		calldataCC.UseBlobs = false
 		calldataCC.ReinitCompressorConfig()
 
 		bs.ChannelConfig = NewDynamicEthChannelConfig(bs.Log, 10*time.Second, bs.TxManager, cc, calldataCC)

@@ -160,8 +160,7 @@ func (s *channel) ID() derive.ChannelID {
 // NextTxData should only be called after HasTxData returned true.
 func (s *channel) NextTxData() txData {
 	nf := s.cfg.MaxFramesPerTx()
-	// TODO: consider changing MultiFrameTxs to UseBlobs, as we use it synonymously now
-	txdata := txData{frames: make([]frameData, 0, nf), asBlob: s.cfg.MultiFrameTxs}
+	txdata := txData{frames: make([]frameData, 0, nf), asBlob: s.cfg.UseBlobs}
 	for i := 0; i < nf && s.channelBuilder.HasFrame(); i++ {
 		frame := s.channelBuilder.NextFrame()
 		txdata.frames = append(txdata.frames, frame)
@@ -175,7 +174,7 @@ func (s *channel) NextTxData() txData {
 }
 
 func (s *channel) HasTxData() bool {
-	if s.IsFull() || !s.cfg.MultiFrameTxs {
+	if s.IsFull() || !s.cfg.UseBlobs {
 		return s.channelBuilder.HasFrame()
 	}
 	// collect enough frames if channel is not full yet
