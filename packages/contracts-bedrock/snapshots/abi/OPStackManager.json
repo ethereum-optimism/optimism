@@ -58,7 +58,7 @@
     "outputs": [
       {
         "internalType": "contract SystemConfig",
-        "name": "_systemConfig",
+        "name": "systemConfig_",
         "type": "address"
       }
     ],
