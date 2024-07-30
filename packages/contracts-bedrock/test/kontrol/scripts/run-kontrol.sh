@@ -53,12 +53,12 @@ get_log_results(){
 
   notif "Generating Results Log: $RESULTS_LOG"
 
-  run tar -czvf results.tar.gz kout-proofs/ > /dev/null 2>&1
+  run tar -czf results.tar.gz kout-proofs/ > /dev/null 2>&1
   if [ "$LOCAL" = true ]; then
     mv results.tar.gz "$RESULTS_LOG"
   else
     docker cp "$CONTAINER_NAME:/home/user/workspace/results.tar.gz" "$RESULTS_LOG"
-    tar -xzvf "$RESULTS_LOG" > /dev/null 2>&1
+    tar -xzf "$RESULTS_LOG" > /dev/null 2>&1
   fi
   if [ -f "$RESULTS_LOG" ]; then
     cp "$RESULTS_LOG" "$LOG_PATH/kontrol-results_latest.tar.gz"
@@ -73,7 +73,7 @@ get_log_results(){
     RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
     docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
     # Expand the tar folder to kout-proofs for Summary Results and caching
-    tar -xzvf "$RESULTS_LOG" -C "$WORKSPACE_DIR"  > /dev/null 2>&1
+    tar -xzf "$RESULTS_LOG" -C "$WORKSPACE_DIR"  > /dev/null 2>&1
   fi
 }
 
